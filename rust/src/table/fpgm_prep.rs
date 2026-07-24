@@ -1,6 +1,6 @@
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn fprintf(
@@ -11,12 +11,12 @@ extern "C" {
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn strcmp(
         __s1: *const ::core::ffi::c_char,
@@ -27,7 +27,7 @@ extern "C" {
     fn sdsfree(s: sds);
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite_bytes(buf: *mut caryll_Buffer, size: size_t, str: *const uint8_t);
+    fn bufwrite_bytes(buf: *mut caryll_Buffer, size: usize, str: *const u8);
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
@@ -36,7 +36,7 @@ extern "C" {
     fn parse_ttinstr(
         col: *mut json_value,
         context: *mut ::core::ffi::c_void,
-        Make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut uint8_t, uint32_t) -> ()>,
+        Make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> ()>,
         Wrong: Option<
             unsafe extern "C" fn(
                 *mut ::core::ffi::c_void,
@@ -46,23 +46,14 @@ extern "C" {
         >,
     );
     fn dump_ttinstr(
-        instructions: *mut uint8_t,
-        length: uint32_t,
+        instructions: *mut u8,
+        length: u32,
         options: *const otfcc_Options,
     ) -> *mut json_value;
 }
 
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;
 pub const json_null: json_type = 7;
@@ -91,7 +82,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -128,10 +119,10 @@ pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -155,17 +146,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -200,28 +191,28 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_fpgm_prep {
     pub tag: sds,
-    pub length: uint32_t,
-    pub bytes: *mut uint8_t,
+    pub length: u32,
+    pub bytes: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -235,7 +226,7 @@ pub struct __caryll_elementinterface_table_fpgm_prep {
     pub create: Option<unsafe extern "C" fn() -> *mut table_fpgm_prep>,
     pub free: Option<unsafe extern "C" fn(*mut table_fpgm_prep) -> ()>,
 }
-pub type font_file_pointer = *mut uint8_t;
+pub type font_file_pointer = *mut u8;
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
@@ -245,7 +236,7 @@ unsafe extern "C" fn disposeFpgmPrep(mut table: *mut table_fpgm_prep) {
     }
     if !(*table).bytes.is_null() {
         free((*table).bytes as *mut ::core::ffi::c_void);
-        (*table).bytes = ::core::ptr::null_mut::<uint8_t>();
+        (*table).bytes = ::core::ptr::null_mut::<u8>();
     }
 }
 #[inline]
@@ -253,7 +244,7 @@ unsafe extern "C" fn table_fpgm_prep_init(mut x: *mut table_fpgm_prep) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_fpgm_prep>() as size_t,
+        ::core::mem::size_of::<table_fpgm_prep>() as usize,
     );
 }
 #[inline]
@@ -267,7 +258,7 @@ unsafe extern "C" fn table_fpgm_prep_free(mut x: *mut table_fpgm_prep) {
 #[inline]
 unsafe extern "C" fn table_fpgm_prep_create() -> *mut table_fpgm_prep {
     let mut x: *mut table_fpgm_prep =
-        malloc(::core::mem::size_of::<table_fpgm_prep>() as size_t) as *mut table_fpgm_prep;
+        malloc(::core::mem::size_of::<table_fpgm_prep>() as usize) as *mut table_fpgm_prep;
     table_fpgm_prep_init(x);
     return x;
 }
@@ -277,7 +268,7 @@ unsafe extern "C" fn table_fpgm_prep_replace(mut dst: *mut table_fpgm_prep, src:
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_fpgm_prep>() as size_t,
+        ::core::mem::size_of::<table_fpgm_prep>() as usize,
     );
 }
 #[inline]
@@ -296,7 +287,7 @@ unsafe extern "C" fn table_fpgm_prep_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_fpgm_prep>() as size_t,
+        ::core::mem::size_of::<table_fpgm_prep>() as usize,
     );
 }
 #[inline]
@@ -307,7 +298,7 @@ unsafe extern "C" fn table_fpgm_prep_move(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_fpgm_prep>() as size_t,
+        ::core::mem::size_of::<table_fpgm_prep>() as usize,
     );
     table_fpgm_prep_init(src);
 }
@@ -344,7 +335,7 @@ pub static mut table_iFpgm_prep: __caryll_elementinterface_table_fpgm_prep = {
 pub unsafe extern "C" fn otfcc_readFpgmPrep(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
-    mut tag: uint32_t,
+    mut tag: u32,
 ) -> *mut table_fpgm_prep {
     let mut t: *mut table_fpgm_prep = ::core::ptr::null_mut::<table_fpgm_prep>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -360,16 +351,16 @@ pub unsafe extern "C" fn otfcc_readFpgmPrep(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     let mut data: font_file_pointer = table.data as font_file_pointer;
-                    let mut length: uint32_t = table.length;
+                    let mut length: u32 = table.length;
                     t = (
                         table_iFpgm_prep.create.expect("non-null function pointer"))();
                     (*t).tag = ::core::ptr::null_mut::<::core::ffi::c_char>();
                     (*t).length = length;
                     (*t).bytes = __caryll_allocate_clean(
-                        (::core::mem::size_of::<uint8_t>() as size_t)
-                            .wrapping_mul(length as size_t),
+                        (::core::mem::size_of::<u8>() as usize)
+                            .wrapping_mul(length as usize),
                         22 as ::core::ffi::c_ulong,
-                    ) as *mut uint8_t;
+                    ) as *mut u8;
                     if (*t).bytes.is_null() {
                         table_iFpgm_prep.free.expect("non-null function pointer")(t);
                         t = ::core::ptr::null_mut::<table_fpgm_prep>();
@@ -377,7 +368,7 @@ pub unsafe extern "C" fn otfcc_readFpgmPrep(
                         memcpy(
                             (*t).bytes as *mut ::core::ffi::c_void,
                             data as *const ::core::ffi::c_void,
-                            length as size_t,
+                            length as usize,
                         );
                         return t;
                     }
@@ -428,8 +419,8 @@ pub unsafe extern "C" fn table_dumpTableFpgmPrep(
 #[no_mangle]
 pub unsafe extern "C" fn makeFpgmPrepInstr(
     mut _t: *mut ::core::ffi::c_void,
-    mut instrs: *mut uint8_t,
-    mut length: uint32_t,
+    mut instrs: *mut u8,
+    mut length: u32,
 ) {
     let mut t: *mut table_fpgm_prep = _t as *mut table_fpgm_prep;
     (*t).length = length;
@@ -474,8 +465,8 @@ pub unsafe extern "C" fn otfcc_parseFpgmPrep(
                     makeFpgmPrepInstr
                         as unsafe extern "C" fn(
                             *mut ::core::ffi::c_void,
-                            *mut uint8_t,
-                            uint32_t,
+                            *mut u8,
+                            u32,
                         ) -> (),
                 ),
                 Some(
@@ -506,7 +497,7 @@ pub unsafe extern "C" fn otfcc_buildFpgmPrep(
         return ::core::ptr::null_mut::<caryll_Buffer>();
     }
     let mut buf: *mut caryll_Buffer = bufnew();
-    bufwrite_bytes(buf, (*table).length as size_t, (*table).bytes);
+    bufwrite_bytes(buf, (*table).length as usize, (*table).bytes);
     return buf;
 }
 #[inline]
@@ -520,8 +511,8 @@ unsafe extern "C" fn json_obj_get(
     {
         return ::core::ptr::null_mut::<json_value>();
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;

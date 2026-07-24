@@ -7,11 +7,10 @@
 // this module so far; the remaining ~47 files still carry their own private
 // copy pending a future, wider pass.
 use crate::support::stdio::{stderr, FILE};
-pub type size_t = usize;
 
 extern "C" {
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
+    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn fprintf(
@@ -25,7 +24,7 @@ const EXIT_FAILURE: ::core::ffi::c_int = 1;
 
 #[inline]
 pub(crate) unsafe fn __caryll_allocate_clean(
-    n: size_t,
+    n: usize,
     line: ::core::ffi::c_ulong,
 ) -> *mut ::core::ffi::c_void {
     if n == 0 {
@@ -47,7 +46,7 @@ pub(crate) unsafe fn __caryll_allocate_clean(
 #[inline]
 pub(crate) unsafe fn __caryll_reallocate(
     ptr: *mut ::core::ffi::c_void,
-    n: size_t,
+    n: usize,
     line: ::core::ffi::c_ulong,
 ) -> *mut ::core::ffi::c_void {
     if n == 0 {

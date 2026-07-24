@@ -4,33 +4,33 @@ extern "C" {
         __format: *const ::core::ffi::c_char,
         ...
     ) -> ::core::ffi::c_int;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
+    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn qsort(
         __base: *mut ::core::ffi::c_void,
-        __nmemb: size_t,
-        __size: size_t,
+        __nmemb: usize,
+        __size: usize,
         __compar: __compar_fn_t,
     );
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memcmp(
         __s1: *const ::core::ffi::c_void,
         __s2: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> ::core::ffi::c_int;
-    fn json_object_new(length: size_t) -> *mut json_value;
+    fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
@@ -40,13 +40,13 @@ extern "C" {
         length: ::core::ffi::c_uint,
         _: *mut ::core::ffi::c_char,
     ) -> *mut json_value;
-    fn json_integer_new(_: int64_t) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> size_t;
+    fn json_integer_new(_: i64) -> *mut json_value;
+    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: size_t) -> sds;
+    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
     fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
 }
 
@@ -55,15 +55,6 @@ use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dis
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
@@ -98,7 +89,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -139,7 +130,6 @@ pub struct json_serialize_opts {
     pub indent_size: ::core::ffi::c_int,
 }
 pub type sds = *mut ::core::ffi::c_char;
-pub type ptrdiff_t = isize;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -167,29 +157,29 @@ pub struct UT_hash_table {
     pub log2_num_buckets: ::core::ffi::c_uint,
     pub num_items: ::core::ffi::c_uint,
     pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
+    pub hho: isize,
     pub ideal_chain_maxlen: ::core::ffi::c_uint,
     pub nonideal_items: ::core::ffi::c_uint,
     pub ineff_expands: ::core::ffi::c_uint,
     pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
+    pub signature: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
-pub type glyphid_t = uint16_t;
-pub type glyphclass_t = uint16_t;
+pub type glyphid_t = u16;
+pub type glyphclass_t = u16;
 pub type glyph_handle = otfcc_GlyphHandle;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_ClassDef {
     pub numGlyphs: glyphid_t,
-    pub capacity: uint32_t,
+    pub capacity: u32,
     pub maxclass: glyphclass_t,
     pub glyphs: *mut otfcc_GlyphHandle,
     pub classes: *mut glyphclass_t,
@@ -207,7 +197,7 @@ pub struct __otfcc_IClassDef {
     pub free: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
     pub push:
         Option<unsafe extern "C" fn(*mut otl_ClassDef, otfcc_GlyphHandle, glyphclass_t) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const uint8_t, uint32_t, uint32_t) -> *mut otl_ClassDef>,
+    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_ClassDef>,
     pub expand:
         Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_ClassDef) -> *mut otl_ClassDef>,
     pub dump: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut json_value>,
@@ -257,7 +247,7 @@ pub(crate) unsafe extern "C" fn otl_ClassDef_replace(mut dst: *mut otl_ClassDef,
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_ClassDef>() as size_t,
+        ::core::mem::size_of::<otl_ClassDef>() as usize,
     );
 }
 #[inline]
@@ -265,7 +255,7 @@ pub(crate) unsafe extern "C" fn otl_ClassDef_copy(mut dst: *mut otl_ClassDef, mu
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_ClassDef>() as size_t,
+        ::core::mem::size_of::<otl_ClassDef>() as usize,
     );
 }
 #[inline]
@@ -285,13 +275,13 @@ pub(crate) unsafe extern "C" fn otl_ClassDef_init(mut x: *mut otl_ClassDef) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<otl_ClassDef>() as size_t,
+        ::core::mem::size_of::<otl_ClassDef>() as usize,
     );
 }
 #[inline]
 pub(crate) unsafe extern "C" fn otl_ClassDef_create() -> *mut otl_ClassDef {
     let mut x: *mut otl_ClassDef =
-        malloc(::core::mem::size_of::<otl_ClassDef>() as size_t) as *mut otl_ClassDef;
+        malloc(::core::mem::size_of::<otl_ClassDef>() as usize) as *mut otl_ClassDef;
     otl_ClassDef_init(x);
     return x;
 }
@@ -305,33 +295,33 @@ pub(crate) unsafe extern "C" fn otl_ClassDef_move(mut dst: *mut otl_ClassDef, mu
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_ClassDef>() as size_t,
+        ::core::mem::size_of::<otl_ClassDef>() as usize,
     );
     otl_ClassDef_init(src);
 }
-unsafe extern "C" fn growClassdef(mut cd: *mut otl_ClassDef, mut n: uint32_t) {
+unsafe extern "C" fn growClassdef(mut cd: *mut otl_ClassDef, mut n: u32) {
     if n == 0 {
         return;
     }
     if n > (*cd).capacity {
         if (*cd).capacity == 0 {
-            (*cd).capacity = 0x10 as uint32_t;
+            (*cd).capacity = 0x10 as u32;
         }
         while n > (*cd).capacity {
             (*cd).capacity = (*cd)
                 .capacity
-                .wrapping_add((*cd).capacity >> 1 as ::core::ffi::c_int & 0xffffff as uint32_t);
+                .wrapping_add((*cd).capacity >> 1 as ::core::ffi::c_int & 0xffffff as u32);
         }
         (*cd).glyphs = __caryll_reallocate(
             (*cd).glyphs as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<otfcc_GlyphHandle>() as size_t)
-                .wrapping_mul((*cd).capacity as size_t),
+            (::core::mem::size_of::<otfcc_GlyphHandle>() as usize)
+                .wrapping_mul((*cd).capacity as usize),
             21 as ::core::ffi::c_ulong,
         ) as *mut otfcc_GlyphHandle;
         (*cd).classes = __caryll_reallocate(
             (*cd).classes as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<glyphclass_t>() as size_t)
-                .wrapping_mul((*cd).capacity as size_t),
+            (::core::mem::size_of::<glyphclass_t>() as usize)
+                .wrapping_mul((*cd).capacity as usize),
             22 as ::core::ffi::c_ulong,
         ) as *mut glyphclass_t;
     }
@@ -343,7 +333,7 @@ pub(crate) unsafe extern "C" fn pushClassDef(
 ) {
     (*cd).numGlyphs =
         ((*cd).numGlyphs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as glyphid_t;
-    growClassdef(cd, (*cd).numGlyphs as uint32_t);
+    growClassdef(cd, (*cd).numGlyphs as u32);
     *(*cd)
         .glyphs
         .offset(((*cd).numGlyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize) = h;
@@ -361,17 +351,17 @@ unsafe extern "C" fn by_covIndex(
     return (*a).covIndex - (*b).covIndex;
 }
 pub(crate) unsafe extern "C" fn readClassDef(
-    mut data: *const uint8_t,
-    mut tableLength: uint32_t,
-    mut offset: uint32_t,
+    mut data: *const u8,
+    mut tableLength: u32,
+    mut offset: u32,
 ) -> *mut otl_ClassDef {
     let mut cd: *mut otl_ClassDef = otl_ClassDef_create();
-    if tableLength < offset.wrapping_add(4 as uint32_t) {
+    if tableLength < offset.wrapping_add(4 as u32) {
         return cd;
     }
-    let mut format: uint16_t = read_16u(data.offset(offset as isize));
+    let mut format: u16 = read_16u(data.offset(offset as isize));
     if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int
-        && tableLength >= offset.wrapping_add(6 as uint32_t)
+        && tableLength >= offset.wrapping_add(6 as u32)
     {
         let mut startGID: glyphid_t = read_16u(
             data.offset(offset as isize)
@@ -383,8 +373,8 @@ pub(crate) unsafe extern "C" fn readClassDef(
         ) as glyphid_t;
         if count as ::core::ffi::c_int != 0
             && tableLength
-                >= offset.wrapping_add(6 as uint32_t).wrapping_add(
-                    (count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as uint32_t,
+                >= offset.wrapping_add(6 as u32).wrapping_add(
+                    (count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
                 )
         {
             let mut j: glyphid_t = 0 as glyphid_t;
@@ -405,32 +395,32 @@ pub(crate) unsafe extern "C" fn readClassDef(
             return cd;
         }
     } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-        let mut rangeCount: uint16_t = read_16u(
+        let mut rangeCount: u16 = read_16u(
             data.offset(offset as isize)
                 .offset(2 as ::core::ffi::c_int as isize),
         );
         if tableLength
-            < offset.wrapping_add(4 as uint32_t).wrapping_add(
-                (rangeCount as ::core::ffi::c_int * 6 as ::core::ffi::c_int) as uint32_t,
+            < offset.wrapping_add(4 as u32).wrapping_add(
+                (rangeCount as ::core::ffi::c_int * 6 as ::core::ffi::c_int) as u32,
             )
         {
             return cd;
         }
         let mut hash: *mut coverage_entry = ::core::ptr::null_mut::<coverage_entry>();
-        let mut j_0: uint16_t = 0 as uint16_t;
+        let mut j_0: u16 = 0 as u16;
         while (j_0 as ::core::ffi::c_int) < rangeCount as ::core::ffi::c_int {
-            let mut start: uint16_t = read_16u(
+            let mut start: u16 = read_16u(
                 data.offset(offset as isize)
                     .offset(4 as ::core::ffi::c_int as isize)
                     .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize),
             );
-            let mut end: uint16_t = read_16u(
+            let mut end: u16 = read_16u(
                 data.offset(offset as isize)
                     .offset(4 as ::core::ffi::c_int as isize)
                     .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize)
                     .offset(2 as ::core::ffi::c_int as isize),
             );
-            let mut cls: uint16_t = read_16u(
+            let mut cls: u16 = read_16u(
                 data.offset(offset as isize)
                     .offset(4 as ::core::ffi::c_int as isize)
                     .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize)
@@ -742,7 +732,7 @@ pub(crate) unsafe extern "C" fn readClassDef(
                                 if memcmp(
                                     (*item).hh.key,
                                     &raw mut k as *const ::core::ffi::c_void,
-                                    ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                                    ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                                 ) == 0 as ::core::ffi::c_int
                                 {
                                     break;
@@ -762,7 +752,7 @@ pub(crate) unsafe extern "C" fn readClassDef(
                 }
                 if item.is_null() {
                     item = __caryll_allocate_clean(
-                        ::core::mem::size_of::<coverage_entry>() as size_t,
+                        ::core::mem::size_of::<coverage_entry>() as usize,
                         70 as ::core::ffi::c_ulong,
                     ) as *mut coverage_entry;
                     (*item).gid = k;
@@ -1052,7 +1042,7 @@ pub(crate) unsafe extern "C" fn readClassDef(
                     if hash.is_null() {
                         (*item).hh.next = NULL;
                         (*item).hh.prev = NULL;
-                        (*item).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+                        (*item).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                             as *mut UT_hash_table
                             as *mut UT_hash_table;
                         if (*item).hh.tbl.is_null() {
@@ -1061,7 +1051,7 @@ pub(crate) unsafe extern "C" fn readClassDef(
                             memset(
                                 (*item).hh.tbl as *mut ::core::ffi::c_void,
                                 '\0' as i32,
-                                ::core::mem::size_of::<UT_hash_table>() as size_t,
+                                ::core::mem::size_of::<UT_hash_table>() as usize,
                             );
                             (*(*item).hh.tbl).tail = &raw mut (*item).hh as *mut UT_hash_handle;
                             (*(*item).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
@@ -1070,23 +1060,23 @@ pub(crate) unsafe extern "C" fn readClassDef(
                                 as *mut ::core::ffi::c_char)
                                 .offset_from(item as *mut ::core::ffi::c_char)
                                 as ::core::ffi::c_long
-                                as ptrdiff_t;
+                                as isize;
                             (*(*item).hh.tbl).buckets =
-                                malloc((32 as size_t).wrapping_mul(::core::mem::size_of::<
+                                malloc((32 as usize).wrapping_mul(::core::mem::size_of::<
                                     UT_hash_bucket,
                                 >(
                                 )
-                                    as size_t))
+                                    as usize))
                                     as *mut UT_hash_bucket;
-                            (*(*item).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                            (*(*item).hh.tbl).signature = HASH_SIGNATURE as u32;
                             if (*(*item).hh.tbl).buckets.is_null() {
                                 exit(-(1 as ::core::ffi::c_int));
                             } else {
                                 memset(
                                     (*(*item).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                     '\0' as i32,
-                                    (32 as size_t).wrapping_mul(
-                                        ::core::mem::size_of::<UT_hash_bucket>() as size_t,
+                                    (32 as usize).wrapping_mul(
+                                        ::core::mem::size_of::<UT_hash_bucket>() as usize,
                                     ),
                                 );
                             }
@@ -1134,9 +1124,9 @@ pub(crate) unsafe extern "C" fn readClassDef(
                         let mut _he_newbkt: *mut UT_hash_bucket =
                             ::core::ptr::null_mut::<UT_hash_bucket>();
                         _he_new_buckets = malloc(
-                            (2 as size_t)
-                                .wrapping_mul((*(*item).hh.tbl).num_buckets as size_t)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                            (2 as usize)
+                                .wrapping_mul((*(*item).hh.tbl).num_buckets as usize)
+                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                         ) as *mut UT_hash_bucket;
                         if _he_new_buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
@@ -1144,10 +1134,10 @@ pub(crate) unsafe extern "C" fn readClassDef(
                             memset(
                                 _he_new_buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
-                                (2 as size_t)
-                                    .wrapping_mul((*(*item).hh.tbl).num_buckets as size_t)
+                                (2 as usize)
+                                    .wrapping_mul((*(*item).hh.tbl).num_buckets as usize)
                                     .wrapping_mul(
-                                        ::core::mem::size_of::<UT_hash_bucket>() as size_t
+                                        ::core::mem::size_of::<UT_hash_bucket>() as usize
                                     ),
                             );
                             (*(*item).hh.tbl).ideal_chain_maxlen = ((*(*item).hh.tbl).num_items
@@ -1731,7 +1721,7 @@ pub(crate) unsafe extern "C" fn expandClassDef(
                         if memcmp(
                             (*item).hh.key,
                             &raw mut gid as *const ::core::ffi::c_void,
-                            ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                            ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                         ) == 0 as ::core::ffi::c_int
                         {
                             break;
@@ -1751,7 +1741,7 @@ pub(crate) unsafe extern "C" fn expandClassDef(
         }
         if item.is_null() {
             item = __caryll_allocate_clean(
-                ::core::mem::size_of::<coverage_entry>() as size_t,
+                ::core::mem::size_of::<coverage_entry>() as usize,
                 98 as ::core::ffi::c_ulong,
             ) as *mut coverage_entry;
             (*item).gid = gid;
@@ -2036,7 +2026,7 @@ pub(crate) unsafe extern "C" fn expandClassDef(
             if hash.is_null() {
                 (*item).hh.next = NULL;
                 (*item).hh.prev = NULL;
-                (*item).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+                (*item).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                     as *mut UT_hash_table as *mut UT_hash_table;
                 if (*item).hh.tbl.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
@@ -2044,7 +2034,7 @@ pub(crate) unsafe extern "C" fn expandClassDef(
                     memset(
                         (*item).hh.tbl as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        ::core::mem::size_of::<UT_hash_table>() as size_t,
+                        ::core::mem::size_of::<UT_hash_table>() as usize,
                     );
                     (*(*item).hh.tbl).tail = &raw mut (*item).hh as *mut UT_hash_handle;
                     (*(*item).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
@@ -2052,20 +2042,20 @@ pub(crate) unsafe extern "C" fn expandClassDef(
                     (*(*item).hh.tbl).hho = (&raw mut (*item).hh as *mut ::core::ffi::c_char)
                         .offset_from(item as *mut ::core::ffi::c_char)
                         as ::core::ffi::c_long
-                        as ptrdiff_t;
+                        as isize;
                     (*(*item).hh.tbl).buckets = malloc(
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     ) as *mut UT_hash_bucket;
-                    (*(*item).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                    (*(*item).hh.tbl).signature = HASH_SIGNATURE as u32;
                     if (*(*item).hh.tbl).buckets.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
                         memset(
                             (*(*item).hh.tbl).buckets as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            (32 as size_t)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                            (32 as usize)
+                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                         );
                     }
                 }
@@ -2109,9 +2099,9 @@ pub(crate) unsafe extern "C" fn expandClassDef(
                     ::core::ptr::null_mut::<UT_hash_bucket>();
                 let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
                 _he_new_buckets = malloc(
-                    (2 as size_t)
-                        .wrapping_mul((*(*item).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*item).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
                 if _he_new_buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
@@ -2119,9 +2109,9 @@ pub(crate) unsafe extern "C" fn expandClassDef(
                     memset(
                         _he_new_buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (2 as size_t)
-                            .wrapping_mul((*(*item).hh.tbl).num_buckets as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (2 as usize)
+                            .wrapping_mul((*(*item).hh.tbl).num_buckets as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                     (*(*item).hh.tbl).ideal_chain_maxlen = ((*(*item).hh.tbl).num_items
                         >> (*(*item).hh.tbl)
@@ -2495,7 +2485,7 @@ pub(crate) unsafe extern "C" fn expandClassDef(
                         if memcmp(
                             (*item_0).hh.key,
                             &raw mut gid_0 as *const ::core::ffi::c_void,
-                            ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                            ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                         ) == 0 as ::core::ffi::c_int
                         {
                             break;
@@ -2515,7 +2505,7 @@ pub(crate) unsafe extern "C" fn expandClassDef(
         }
         if item_0.is_null() {
             item_0 = __caryll_allocate_clean(
-                ::core::mem::size_of::<coverage_entry>() as size_t,
+                ::core::mem::size_of::<coverage_entry>() as usize,
                 109 as ::core::ffi::c_ulong,
             ) as *mut coverage_entry;
             (*item_0).gid = gid_0;
@@ -2801,7 +2791,7 @@ pub(crate) unsafe extern "C" fn expandClassDef(
             if hash.is_null() {
                 (*item_0).hh.next = NULL;
                 (*item_0).hh.prev = NULL;
-                (*item_0).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+                (*item_0).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                     as *mut UT_hash_table as *mut UT_hash_table;
                 if (*item_0).hh.tbl.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
@@ -2809,7 +2799,7 @@ pub(crate) unsafe extern "C" fn expandClassDef(
                     memset(
                         (*item_0).hh.tbl as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        ::core::mem::size_of::<UT_hash_table>() as size_t,
+                        ::core::mem::size_of::<UT_hash_table>() as usize,
                     );
                     (*(*item_0).hh.tbl).tail = &raw mut (*item_0).hh as *mut UT_hash_handle;
                     (*(*item_0).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
@@ -2817,20 +2807,20 @@ pub(crate) unsafe extern "C" fn expandClassDef(
                     (*(*item_0).hh.tbl).hho = (&raw mut (*item_0).hh as *mut ::core::ffi::c_char)
                         .offset_from(item_0 as *mut ::core::ffi::c_char)
                         as ::core::ffi::c_long
-                        as ptrdiff_t;
+                        as isize;
                     (*(*item_0).hh.tbl).buckets = malloc(
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     ) as *mut UT_hash_bucket;
-                    (*(*item_0).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                    (*(*item_0).hh.tbl).signature = HASH_SIGNATURE as u32;
                     if (*(*item_0).hh.tbl).buckets.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
                         memset(
                             (*(*item_0).hh.tbl).buckets as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            (32 as size_t)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                            (32 as usize)
+                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                         );
                     }
                 }
@@ -2876,9 +2866,9 @@ pub(crate) unsafe extern "C" fn expandClassDef(
                 let mut _he_newbkt_0: *mut UT_hash_bucket =
                     ::core::ptr::null_mut::<UT_hash_bucket>();
                 _he_new_buckets_0 = malloc(
-                    (2 as size_t)
-                        .wrapping_mul((*(*item_0).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*item_0).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
                 if _he_new_buckets_0.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
@@ -2886,9 +2876,9 @@ pub(crate) unsafe extern "C" fn expandClassDef(
                     memset(
                         _he_new_buckets_0 as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (2 as size_t)
-                            .wrapping_mul((*(*item_0).hh.tbl).num_buckets as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (2 as usize)
+                            .wrapping_mul((*(*item_0).hh.tbl).num_buckets as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                     (*(*item_0).hh.tbl).ideal_chain_maxlen = ((*(*item_0).hh.tbl).num_items
                         >> (*(*item_0).hh.tbl)
@@ -3035,13 +3025,13 @@ pub(crate) unsafe extern "C" fn expandClassDef(
     return cd;
 }
 pub(crate) unsafe extern "C" fn dumpClassDef(mut cd: *const otl_ClassDef) -> *mut json_value {
-    let mut a: *mut json_value = json_object_new((*cd).numGlyphs as size_t);
+    let mut a: *mut json_value = json_object_new((*cd).numGlyphs as usize);
     let mut j: glyphid_t = 0 as glyphid_t;
     while (j as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
         json_object_push(
             a,
             (*(*cd).glyphs.offset(j as isize)).name as *const ::core::ffi::c_char,
-            json_integer_new(*(*cd).classes.offset(j as isize) as int64_t),
+            json_integer_new(*(*cd).classes.offset(j as isize) as i64),
         );
         j = j.wrapping_add(1);
     }
@@ -3060,7 +3050,7 @@ pub(crate) unsafe extern "C" fn parseClassDef(mut _cd: *const json_value) -> *mu
         let mut h: glyph_handle =
             handle_fromName(sdsnewlen(
                 (*(*_cd).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-                (*(*_cd).u.object.values.offset(j as isize)).name_length as size_t,
+                (*(*_cd).u.object.values.offset(j as isize)).name_length as usize,
             )) as glyph_handle;
         let mut _cid: *mut json_value =
             (*(*_cd).u.object.values.offset(j as isize)).value as *mut json_value;
@@ -3088,15 +3078,15 @@ unsafe extern "C" fn by_gid(
 }
 pub(crate) unsafe extern "C" fn buildClassDef(mut cd: *const otl_ClassDef) -> *mut caryll_Buffer {
     let mut buf: *mut caryll_Buffer = bufnew();
-    bufwrite16b(buf, 2 as uint16_t);
+    bufwrite16b(buf, 2 as u16);
     if (*cd).numGlyphs == 0 {
-        bufwrite16b(buf, 0 as uint16_t);
+        bufwrite16b(buf, 0 as u16);
         return buf;
     }
     let mut r: *mut classdef_sortrecord = ::core::ptr::null_mut::<classdef_sortrecord>();
     r = __caryll_allocate_clean(
-        (::core::mem::size_of::<classdef_sortrecord>() as size_t)
-            .wrapping_mul((*cd).numGlyphs as size_t),
+        (::core::mem::size_of::<classdef_sortrecord>() as usize)
+            .wrapping_mul((*cd).numGlyphs as usize),
         167 as ::core::ffi::c_ulong,
     ) as *mut classdef_sortrecord;
     let mut jj: glyphid_t = 0 as glyphid_t;
@@ -3112,13 +3102,13 @@ pub(crate) unsafe extern "C" fn buildClassDef(mut cd: *const otl_ClassDef) -> *m
     if jj == 0 {
         free(r as *mut ::core::ffi::c_void);
         r = ::core::ptr::null_mut::<classdef_sortrecord>();
-        bufwrite16b(buf, 0 as uint16_t);
+        bufwrite16b(buf, 0 as u16);
         return buf;
     }
     qsort(
         r as *mut ::core::ffi::c_void,
-        jj as size_t,
-        ::core::mem::size_of::<classdef_sortrecord>() as size_t,
+        jj as usize,
+        ::core::mem::size_of::<classdef_sortrecord>() as usize,
         Some(
             by_gid
                 as unsafe extern "C" fn(
@@ -3144,9 +3134,9 @@ pub(crate) unsafe extern "C" fn buildClassDef(mut cd: *const otl_ClassDef) -> *m
             {
                 endGID = current;
             } else {
-                bufwrite16b(ranges, startGID as uint16_t);
-                bufwrite16b(ranges, endGID as uint16_t);
-                bufwrite16b(ranges, lastClass as uint16_t);
+                bufwrite16b(ranges, startGID as u16);
+                bufwrite16b(ranges, endGID as u16);
+                bufwrite16b(ranges, lastClass as u16);
                 nRanges = (nRanges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as glyphid_t;
                 endGID = current;
                 startGID = endGID;
@@ -3156,11 +3146,11 @@ pub(crate) unsafe extern "C" fn buildClassDef(mut cd: *const otl_ClassDef) -> *m
         }
         j_0 = j_0.wrapping_add(1);
     }
-    bufwrite16b(ranges, startGID as uint16_t);
-    bufwrite16b(ranges, endGID as uint16_t);
-    bufwrite16b(ranges, lastClass as uint16_t);
+    bufwrite16b(ranges, startGID as u16);
+    bufwrite16b(ranges, endGID as u16);
+    bufwrite16b(ranges, lastClass as u16);
     nRanges = (nRanges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as glyphid_t;
-    bufwrite16b(buf, nRanges as uint16_t);
+    bufwrite16b(buf, nRanges as u16);
     bufwrite_bufdel(buf, ranges);
     free(r as *mut ::core::ffi::c_void);
     r = ::core::ptr::null_mut::<classdef_sortrecord>();
@@ -3208,7 +3198,7 @@ pub static mut otl_iClassDef: __otfcc_IClassDef = {
         ),
         read: Some(
             readClassDef
-                as unsafe extern "C" fn(*const uint8_t, uint32_t, uint32_t) -> *mut otl_ClassDef,
+                as unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_ClassDef,
         ),
         expand: Some(
             expandClassDef
@@ -3229,12 +3219,12 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
         opts: 0,
         indent_size: 0,
     };
-    let mut preserialize_len: size_t = json_measure_ex(x, opts);
+    let mut preserialize_len: usize = json_measure_ex(x, opts);
     let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
     json_serialize_ex(buf, x, opts);
     json_builder_free(x);
     let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as size_t) as ::core::ffi::c_uint,
+        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
         buf,
     );
     (*xx).type_0 = json_pre_serialized;

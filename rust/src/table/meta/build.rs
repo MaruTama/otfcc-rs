@@ -1,58 +1,49 @@
 extern "C" {
     fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_newBlockFromStringLen(len: size_t, str: *const ::core::ffi::c_char) -> *mut bk_Block;
+    fn bk_newBlockFromStringLen(len: usize, str: *const ::core::ffi::c_char) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __uint64_t = u64;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type uint64_t = __uint64_t;
-pub type size_t = usize;
 pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr8 {
-    pub len: uint8_t,
-    pub alloc: uint8_t,
+    pub len: u8,
+    pub alloc: u8,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr16 {
-    pub len: uint16_t,
-    pub alloc: uint16_t,
+    pub len: u16,
+    pub alloc: u16,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr32 {
-    pub len: uint32_t,
-    pub alloc: uint32_t,
+    pub len: u32,
+    pub alloc: u32,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr64 {
-    pub len: uint64_t,
-    pub alloc: uint64_t,
+    pub len: u64,
+    pub alloc: u64,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -76,17 +67,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -121,21 +112,21 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entry {
-    pub tag: uint32_t,
+    pub tag: u32,
     pub data: sds,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entries {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut meta_Entry,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_meta {
-    pub version: uint32_t,
-    pub flags: uint32_t,
+    pub version: u32,
+    pub flags: u32,
     pub entries: meta_Entries,
 }
 pub type bk_Block = __caryll_bkblock;
@@ -143,11 +134,11 @@ pub type bk_Block = __caryll_bkblock;
 #[repr(C)]
 pub struct __caryll_bkblock {
     pub _visitstate: bk_cell_visit_state,
-    pub _index: uint32_t,
-    pub _height: uint32_t,
-    pub _depth: uint32_t,
-    pub length: uint32_t,
-    pub free: uint32_t,
+    pub _index: u32,
+    pub _height: u32,
+    pub _depth: u32,
+    pub length: u32,
+    pub free: u32,
     pub cells: *mut bk_Cell,
 }
 #[derive(Copy, Clone)]
@@ -159,7 +150,7 @@ pub struct bk_Cell {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed {
-    pub z: uint32_t,
+    pub z: u32,
     pub p: *mut __caryll_bkblock,
 }
 pub type bk_CellType = ::core::ffi::c_uint;
@@ -186,34 +177,34 @@ pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
 pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
 pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> size_t {
+unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
+        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_16 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_32 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_64 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
-                .len as size_t;
+                .len as usize;
         }
         _ => {}
     }
-    return 0 as size_t;
+    return 0 as usize;
 }
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_buildMeta(
@@ -231,11 +222,11 @@ pub unsafe extern "C" fn otfcc_buildMeta(
         b32 as ::core::ffi::c_int,
         0 as ::core::ffi::c_int,
         b32 as ::core::ffi::c_int,
-        (*meta).entries.length as uint32_t,
+        (*meta).entries.length as u32,
         bkover as ::core::ffi::c_int,
     );
-    let mut __caryll_index: size_t = 0 as size_t;
-    let mut keep: size_t = 1 as size_t;
+    let mut __caryll_index: usize = 0 as usize;
+    let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < (*meta).entries.length {
         let mut e: *mut meta_Entry = (*meta).entries.items.offset(__caryll_index as isize);
         while keep != 0 {
@@ -252,9 +243,9 @@ pub unsafe extern "C" fn otfcc_buildMeta(
                 sdslen((*e).data),
                 bkover as ::core::ffi::c_int,
             );
-            keep = (keep == 0) as ::core::ffi::c_int as size_t;
+            keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as size_t;
+        keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     return bk_build_Block(root);

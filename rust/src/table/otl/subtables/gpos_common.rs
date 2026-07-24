@@ -4,37 +4,37 @@ extern "C" {
         __format: *const ::core::ffi::c_char,
         ...
     ) -> ::core::ffi::c_int;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn qsort(
         __base: *mut ::core::ffi::c_void,
-        __nmemb: size_t,
-        __size: size_t,
+        __nmemb: usize,
+        __size: usize,
         __compar: __compar_fn_t,
     );
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memcmp(
         __s1: *const ::core::ffi::c_void,
         __s2: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> ::core::ffi::c_int;
     fn strcmp(
         __s1: *const ::core::ffi::c_char,
         __s2: *const ::core::ffi::c_char,
     ) -> ::core::ffi::c_int;
-    fn strlen(__s: *const ::core::ffi::c_char) -> size_t;
+    fn strlen(__s: *const ::core::ffi::c_char) -> usize;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn json_object_new(length: size_t) -> *mut json_value;
+    fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
@@ -44,15 +44,15 @@ extern "C" {
         length: ::core::ffi::c_uint,
         _: *mut ::core::ffi::c_char,
     ) -> *mut json_value;
-    fn json_integer_new(_: int64_t) -> *mut json_value;
+    fn json_integer_new(_: i64) -> *mut json_value;
     fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
     fn json_null_new() -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> size_t;
+    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: size_t) -> sds;
+    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsfree(s: sds);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
     fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
 }
@@ -66,17 +66,6 @@ use crate::support::cvec::{
     cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
     cvec_resize_to, CVecRaw,
 };
-pub type __uint8_t = u8;
-pub type __int16_t = i16;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int16_t = __int16_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
@@ -111,7 +100,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -152,7 +141,6 @@ pub struct json_serialize_opts {
     pub indent_size: ::core::ffi::c_int,
 }
 pub type sds = *mut ::core::ffi::c_char;
-pub type ptrdiff_t = isize;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -180,23 +168,23 @@ pub struct UT_hash_table {
     pub log2_num_buckets: ::core::ffi::c_uint,
     pub num_items: ::core::ffi::c_uint,
     pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
+    pub hho: isize,
     pub ideal_chain_maxlen: ::core::ffi::c_uint,
     pub nonideal_items: ::core::ffi::c_uint,
     pub ineff_expands: ::core::ffi::c_uint,
     pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
+    pub signature: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
-pub type glyphid_t = uint16_t;
-pub type glyphclass_t = uint16_t;
+pub type glyphid_t = u16;
+pub type glyphclass_t = u16;
 pub type pos_t = ::core::ffi::c_double;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -220,17 +208,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -262,16 +250,16 @@ pub struct otfcc_Options {
     pub glyph_name_prefix: *mut ::core::ffi::c_char,
     pub logger: *mut otfcc_ILogger,
 }
-pub type font_file_pointer = *mut uint8_t;
+pub type font_file_pointer = *mut u8;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_bkblock {
     pub _visitstate: bk_cell_visit_state,
-    pub _index: uint32_t,
-    pub _height: uint32_t,
-    pub _depth: uint32_t,
-    pub length: uint32_t,
-    pub free: uint32_t,
+    pub _index: u32,
+    pub _height: u32,
+    pub _depth: u32,
+    pub length: u32,
+    pub free: u32,
     pub cells: *mut bk_Cell,
 }
 #[derive(Copy, Clone)]
@@ -283,7 +271,7 @@ pub struct bk_Cell {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed_4 {
-    pub z: uint32_t,
+    pub z: u32,
     pub p: *mut __caryll_bkblock,
 }
 pub type bk_CellType = ::core::ffi::c_uint;
@@ -312,8 +300,8 @@ pub struct otl_Anchor {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_MarkArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_MarkRecord,
 }
 #[derive(Copy, Clone)]
@@ -342,15 +330,15 @@ pub struct __caryll_vectorinterface_otl_MarkArray {
     pub copyReplace: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkArray) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut otl_MarkArray>,
     pub free: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut otl_MarkArray, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut otl_MarkArray, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut otl_MarkArray>,
-    pub fill: Option<unsafe extern "C" fn(*mut otl_MarkArray, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_MarkArray>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkRecord) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> otl_MarkRecord>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_MarkArray, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut otl_MarkArray,
@@ -405,8 +393,8 @@ unsafe extern "C" fn json_obj_get(
     {
         return ::core::ptr::null_mut::<json_value>();
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
@@ -430,7 +418,7 @@ unsafe extern "C" fn json_obj_get_type(
 #[inline]
 unsafe extern "C" fn json_new_position(mut z: pos_t) -> *mut json_value {
     if round(z as ::core::ffi::c_double) == z {
-        return json_integer_new(z as int64_t);
+        return json_integer_new(z as i64);
     } else {
         return json_double_new(z as ::core::ffi::c_double);
     };
@@ -446,8 +434,8 @@ unsafe extern "C" fn json_obj_getnum(
     {
         return 0.0f64;
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         let mut cv: *mut json_value =
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
@@ -481,8 +469,8 @@ unsafe extern "C" fn json_obj_getnum_fallback(
     {
         return fallback;
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         let mut cv: *mut json_value =
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
@@ -511,12 +499,12 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
         opts: 0,
         indent_size: 0,
     };
-    let mut preserialize_len: size_t = json_measure_ex(x, opts);
+    let mut preserialize_len: usize = json_measure_ex(x, opts);
     let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
     json_serialize_ex(buf, x, opts);
     json_builder_free(x);
     let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as size_t) as ::core::ffi::c_uint,
+        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
         buf,
     );
     (*xx).type_0 = json_pre_serialized;
@@ -536,7 +524,7 @@ static mut gss_typeinfo: __caryll_elementinterface_otl_MarkRecord = {
     }
 };
 #[inline]
-unsafe extern "C" fn otl_MarkArray_disposeItem(mut arr: *mut otl_MarkArray, mut n: size_t) {
+unsafe extern "C" fn otl_MarkArray_disposeItem(mut arr: *mut otl_MarkArray, mut n: usize) {
     if gss_typeinfo.dispose.is_some() {
         gss_typeinfo.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut otl_MarkRecord
@@ -545,7 +533,7 @@ unsafe extern "C" fn otl_MarkArray_disposeItem(mut arr: *mut otl_MarkArray, mut 
     };
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_growTo(arr: *mut otl_MarkArray, target: size_t) {
+unsafe extern "C" fn otl_MarkArray_growTo(arr: *mut otl_MarkArray, target: usize) {
     cvec_grow_to(otl_MarkArray_as_cvec(arr), target);
 }
 #[inline]
@@ -566,7 +554,7 @@ unsafe extern "C" fn otl_MarkArray_copy(
     otl_MarkArray_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
     if gss_typeinfo.copy.is_some() {
-        let mut j: size_t = 0 as size_t;
+        let mut j: usize = 0 as usize;
         while j < (*src).length {
             gss_typeinfo.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut otl_MarkRecord,
@@ -575,7 +563,7 @@ unsafe extern "C" fn otl_MarkArray_copy(
             j = j.wrapping_add(1);
         }
     } else {
-        let mut j_0: size_t = 0 as size_t;
+        let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
             *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
             j_0 = j_0.wrapping_add(1);
@@ -588,7 +576,7 @@ unsafe extern "C" fn otl_MarkArray_dispose(mut arr: *mut otl_MarkArray) {
         return;
     }
     if gss_typeinfo.dispose.is_some() {
-        let mut j: size_t = (*arr).length;
+        let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
             j = j.wrapping_sub(1);
@@ -602,8 +590,8 @@ unsafe extern "C" fn otl_MarkArray_dispose(mut arr: *mut otl_MarkArray) {
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<otl_MarkRecord>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn otl_MarkArray_replace(mut dst: *mut otl_MarkArray, src: otl_MarkArray) {
@@ -611,20 +599,20 @@ unsafe extern "C" fn otl_MarkArray_replace(mut dst: *mut otl_MarkArray, src: otl
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_MarkArray>() as size_t,
+        ::core::mem::size_of::<otl_MarkArray>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_initCapN(mut arr: *mut otl_MarkArray, mut n: size_t) {
+unsafe extern "C" fn otl_MarkArray_initCapN(mut arr: *mut otl_MarkArray, mut n: usize) {
     otl_MarkArray_init(arr);
     otl_MarkArray_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_growToN(arr: *mut otl_MarkArray, target: size_t) {
+unsafe extern "C" fn otl_MarkArray_growToN(arr: *mut otl_MarkArray, target: usize) {
     cvec_grow_to_n(otl_MarkArray_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_initN(mut arr: *mut otl_MarkArray, mut n: size_t) {
+unsafe extern "C" fn otl_MarkArray_initN(mut arr: *mut otl_MarkArray, mut n: usize) {
     otl_MarkArray_init(arr);
     otl_MarkArray_growToN(arr, n);
     otl_MarkArray_fill(arr, n);
@@ -638,16 +626,16 @@ unsafe extern "C" fn otl_MarkArray_free(mut x: *mut otl_MarkArray) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_createN(mut n: size_t) -> *mut otl_MarkArray {
+unsafe extern "C" fn otl_MarkArray_createN(mut n: usize) -> *mut otl_MarkArray {
     let mut t: *mut otl_MarkArray =
-        malloc(::core::mem::size_of::<otl_MarkArray>() as size_t) as *mut otl_MarkArray;
+        malloc(::core::mem::size_of::<otl_MarkArray>() as usize) as *mut otl_MarkArray;
     otl_MarkArray_initN(t, n);
     return t;
 }
 #[inline]
 unsafe extern "C" fn otl_MarkArray_create() -> *mut otl_MarkArray {
     let mut x: *mut otl_MarkArray =
-        malloc(::core::mem::size_of::<otl_MarkArray>() as size_t) as *mut otl_MarkArray;
+        malloc(::core::mem::size_of::<otl_MarkArray>() as usize) as *mut otl_MarkArray;
     otl_MarkArray_init(x);
     return x;
 }
@@ -669,8 +657,8 @@ unsafe extern "C" fn otl_MarkArray_filterEnv(
     mut fn_0: Option<unsafe extern "C" fn(*const otl_MarkRecord, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: size_t = 0 as size_t;
-    let mut k: size_t = 0 as size_t;
+    let mut j: usize = 0 as usize;
+    let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
             (*arr).items.offset(k as isize) as *mut otl_MarkRecord,
@@ -714,12 +702,12 @@ pub static mut otl_iMarkArray: __caryll_vectorinterface_otl_MarkArray = {
         ),
         create: Some(otl_MarkArray_create),
         free: Some(otl_MarkArray_free as unsafe extern "C" fn(*mut otl_MarkArray) -> ()),
-        initN: Some(otl_MarkArray_initN as unsafe extern "C" fn(*mut otl_MarkArray, size_t) -> ()),
+        initN: Some(otl_MarkArray_initN as unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()),
         initCapN: Some(
-            otl_MarkArray_initCapN as unsafe extern "C" fn(*mut otl_MarkArray, size_t) -> (),
+            otl_MarkArray_initCapN as unsafe extern "C" fn(*mut otl_MarkArray, usize) -> (),
         ),
-        createN: Some(otl_MarkArray_createN as unsafe extern "C" fn(size_t) -> *mut otl_MarkArray),
-        fill: Some(otl_MarkArray_fill as unsafe extern "C" fn(*mut otl_MarkArray, size_t) -> ()),
+        createN: Some(otl_MarkArray_createN as unsafe extern "C" fn(usize) -> *mut otl_MarkArray),
+        fill: Some(otl_MarkArray_fill as unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()),
         clear: Some(otl_MarkArray_dispose as unsafe extern "C" fn(*mut otl_MarkArray) -> ()),
         push: Some(
             otl_MarkArray_push as unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkRecord) -> (),
@@ -729,7 +717,7 @@ pub static mut otl_iMarkArray: __caryll_vectorinterface_otl_MarkArray = {
         ),
         pop: Some(otl_MarkArray_pop as unsafe extern "C" fn(*mut otl_MarkArray) -> otl_MarkRecord),
         disposeItem: Some(
-            otl_MarkArray_disposeItem as unsafe extern "C" fn(*mut otl_MarkArray, size_t) -> (),
+            otl_MarkArray_disposeItem as unsafe extern "C" fn(*mut otl_MarkArray, usize) -> (),
         ),
         filterEnv: Some(
             otl_MarkArray_filterEnv
@@ -763,7 +751,7 @@ unsafe extern "C" fn otl_MarkArray_shrinkToFit(mut arr: *mut otl_MarkArray) {
     otl_MarkArray_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_resizeTo(arr: *mut otl_MarkArray, target: size_t) {
+unsafe extern "C" fn otl_MarkArray_resizeTo(arr: *mut otl_MarkArray, target: usize) {
     cvec_resize_to(otl_MarkArray_as_cvec(arr), target);
 }
 #[inline]
@@ -776,7 +764,7 @@ unsafe extern "C" fn otl_MarkArray_sort(
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<otl_MarkRecord>() as size_t,
+        ::core::mem::size_of::<otl_MarkRecord>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
@@ -789,7 +777,7 @@ unsafe extern "C" fn otl_MarkArray_sort(
     );
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_fill(mut arr: *mut otl_MarkArray, mut n: size_t) {
+unsafe extern "C" fn otl_MarkArray_fill(mut arr: *mut otl_MarkArray, mut n: usize) {
     while (*arr).length < n {
         let mut x: otl_MarkRecord = otl_MarkRecord {
             glyph: otfcc_Handle {
@@ -810,7 +798,7 @@ unsafe extern "C" fn otl_MarkArray_fill(mut arr: *mut otl_MarkArray, mut n: size
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<otl_MarkRecord>() as size_t,
+                ::core::mem::size_of::<otl_MarkRecord>() as usize,
             );
         }
         otl_MarkArray_push(arr, x);
@@ -829,25 +817,25 @@ pub unsafe extern "C" fn otl_readMarkArray(
     mut array: *mut otl_MarkArray,
     mut cov: *mut otl_Coverage,
     mut data: font_file_pointer,
-    mut tableLength: uint32_t,
-    mut offset: uint32_t,
+    mut tableLength: u32,
+    mut offset: u32,
 ) {
     let mut markCount: glyphid_t = 0;
-    if !(tableLength < offset.wrapping_add(2 as uint32_t)) {
-        markCount = read_16u(data.offset(offset as isize) as *const uint8_t) as glyphid_t;
+    if !(tableLength < offset.wrapping_add(2 as u32)) {
+        markCount = read_16u(data.offset(offset as isize) as *const u8) as glyphid_t;
         let mut j: glyphid_t = 0 as glyphid_t;
         while (j as ::core::ffi::c_int) < markCount as ::core::ffi::c_int {
             let mut markClass: glyphclass_t = read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize)
                     .offset((j as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
-                    as *const uint8_t,
+                    as *const u8,
             ) as glyphclass_t;
-            let mut delta: uint16_t = read_16u(
+            let mut delta: u16 = read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize)
                     .offset((j as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const uint8_t,
+                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             );
             if delta != 0 {
                 otl_iMarkArray.push.expect("non-null function pointer")(
@@ -860,7 +848,7 @@ pub unsafe extern "C" fn otl_readMarkArray(
                         anchor: otl_read_anchor(
                             data,
                             tableLength,
-                            offset.wrapping_add(delta as uint32_t),
+                            offset.wrapping_add(delta as u32),
                         ),
                     },
                 );
@@ -917,7 +905,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
             (*(*_marks).u.object.values.offset(j as isize)).value as *mut json_value;
         mark.glyph = handle_fromName(sdsnewlen(
             gname as *const ::core::ffi::c_void,
-            (*(*_marks).u.object.values.offset(j as isize)).name_length as size_t,
+            (*(*_marks).u.object.values.offset(j as isize)).name_length as usize,
         )) as otfcc_GlyphHandle;
         mark.markClass = 0 as glyphclass_t;
         mark.anchor = otl_anchor_absent();
@@ -937,7 +925,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
             } else {
                 let mut className: sds = sdsnewlen(
                     (*_className).u.string.ptr as *const ::core::ffi::c_void,
-                    (*_className).u.string.length as size_t,
+                    (*_className).u.string.length as usize,
                 );
                 let mut s: *mut otl_ClassnameHash = ::core::ptr::null_mut::<otl_ClassnameHash>();
                 let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -1246,7 +1234,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                                     className as *const ::core::ffi::c_void,
                                     strlen(className as *const ::core::ffi::c_char)
                                         as ::core::ffi::c_uint
-                                        as size_t,
+                                        as usize,
                                 ) == 0 as ::core::ffi::c_int
                                 {
                                     break;
@@ -1266,7 +1254,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                 }
                 if s.is_null() {
                     s = __caryll_allocate_clean(
-                        ::core::mem::size_of::<otl_ClassnameHash>() as size_t,
+                        ::core::mem::size_of::<otl_ClassnameHash>() as usize,
                         61 as ::core::ffi::c_ulong,
                     ) as *mut otl_ClassnameHash;
                     (*s).className = className;
@@ -1564,7 +1552,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                     if (*h).is_null() {
                         (*s).hh.next = NULL;
                         (*s).hh.prev = NULL;
-                        (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+                        (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                             as *mut UT_hash_table
                             as *mut UT_hash_table;
                         if (*s).hh.tbl.is_null() {
@@ -1573,7 +1561,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                             memset(
                                 (*s).hh.tbl as *mut ::core::ffi::c_void,
                                 '\0' as i32,
-                                ::core::mem::size_of::<UT_hash_table>() as size_t,
+                                ::core::mem::size_of::<UT_hash_table>() as usize,
                             );
                             (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
                             (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
@@ -1581,23 +1569,23 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                             (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
                                 .offset_from(s as *mut ::core::ffi::c_char)
                                 as ::core::ffi::c_long
-                                as ptrdiff_t;
+                                as isize;
                             (*(*s).hh.tbl).buckets =
-                                malloc((32 as size_t).wrapping_mul(::core::mem::size_of::<
+                                malloc((32 as usize).wrapping_mul(::core::mem::size_of::<
                                     UT_hash_bucket,
                                 >(
                                 )
-                                    as size_t))
+                                    as usize))
                                     as *mut UT_hash_bucket;
-                            (*(*s).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                            (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
                             if (*(*s).hh.tbl).buckets.is_null() {
                                 exit(-(1 as ::core::ffi::c_int));
                             } else {
                                 memset(
                                     (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                     '\0' as i32,
-                                    (32 as size_t).wrapping_mul(
-                                        ::core::mem::size_of::<UT_hash_bucket>() as size_t,
+                                    (32 as usize).wrapping_mul(
+                                        ::core::mem::size_of::<UT_hash_bucket>() as usize,
                                     ),
                                 );
                             }
@@ -1645,9 +1633,9 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                         let mut _he_newbkt: *mut UT_hash_bucket =
                             ::core::ptr::null_mut::<UT_hash_bucket>();
                         _he_new_buckets = malloc(
-                            (2 as size_t)
-                                .wrapping_mul((*(*s).hh.tbl).num_buckets as size_t)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                            (2 as usize)
+                                .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
+                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                         ) as *mut UT_hash_bucket;
                         if _he_new_buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
@@ -1655,10 +1643,10 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                             memset(
                                 _he_new_buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
-                                (2 as size_t)
-                                    .wrapping_mul((*(*s).hh.tbl).num_buckets as size_t)
+                                (2 as usize)
+                                    .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
                                     .wrapping_mul(
-                                        ::core::mem::size_of::<UT_hash_bucket>() as size_t
+                                        ::core::mem::size_of::<UT_hash_bucket>() as usize
                                     ),
                             );
                             (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
@@ -1893,7 +1881,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
         s_0 = (*s_0).hh.next as *mut otl_ClassnameHash;
     }
     let mut j_0: glyphid_t = 0 as glyphid_t;
-    while (j_0 as size_t) < (*array).length {
+    while (j_0 as usize) < (*array).length {
         if (*(*array).items.offset(j_0 as isize)).anchor.present {
             let mut anchorRecord_0: *mut json_value =
                 (*(*_marks).u.object.values.offset(j_0 as isize)).value as *mut json_value;
@@ -1904,7 +1892,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
             );
             let mut className_0: sds = sdsnewlen(
                 (*_className_0).u.string.ptr as *const ::core::ffi::c_void,
-                (*_className_0).u.string.length as size_t,
+                (*_className_0).u.string.length as usize,
             );
             let mut s_1: *mut otl_ClassnameHash = ::core::ptr::null_mut::<otl_ClassnameHash>();
             let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
@@ -2213,7 +2201,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                                 className_0 as *const ::core::ffi::c_void,
                                 strlen(className_0 as *const ::core::ffi::c_char)
                                     as ::core::ffi::c_uint
-                                    as size_t,
+                                    as usize,
                             ) == 0 as ::core::ffi::c_int
                             {
                                 break;
@@ -2253,15 +2241,15 @@ pub unsafe extern "C" fn otl_anchor_absent() -> otl_Anchor {
 #[no_mangle]
 pub unsafe extern "C" fn otl_read_anchor(
     mut data: font_file_pointer,
-    mut tableLength: uint32_t,
-    mut offset: uint32_t,
+    mut tableLength: u32,
+    mut offset: u32,
 ) -> otl_Anchor {
     let mut anchor: otl_Anchor = otl_Anchor {
         present: false,
         x: 0 as ::core::ffi::c_int as pos_t,
         y: 0 as ::core::ffi::c_int as pos_t,
     };
-    if tableLength < offset.wrapping_add(6 as uint32_t) {
+    if tableLength < offset.wrapping_add(6 as u32) {
         anchor.present = false;
         anchor.x = 0 as ::core::ffi::c_int as pos_t;
         anchor.y = 0 as ::core::ffi::c_int as pos_t;
@@ -2270,11 +2258,11 @@ pub unsafe extern "C" fn otl_read_anchor(
         anchor.present = true;
         anchor.x = read_16s(
             data.offset(offset as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const uint8_t,
+                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
         ) as pos_t;
         anchor.y = read_16s(
             data.offset(offset as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const uint8_t,
+                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
         ) as pos_t;
         return anchor;
     };
@@ -2282,7 +2270,7 @@ pub unsafe extern "C" fn otl_read_anchor(
 #[no_mangle]
 pub unsafe extern "C" fn otl_dump_anchor(mut a: otl_Anchor) -> *mut json_value {
     if a.present {
-        let mut v: *mut json_value = json_object_new(2 as size_t);
+        let mut v: *mut json_value = json_object_new(2 as usize);
         json_object_push(
             v,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2333,1308 +2321,1308 @@ pub unsafe extern "C" fn bkFromAnchor(mut a: otl_Anchor) -> *mut bk_Block {
         b16 as ::core::ffi::c_int,
         1 as ::core::ffi::c_int,
         b16 as ::core::ffi::c_int,
-        a.x as int16_t as ::core::ffi::c_int,
+        a.x as i16 as ::core::ffi::c_int,
         b16 as ::core::ffi::c_int,
-        a.y as int16_t as ::core::ffi::c_int,
+        a.y as i16 as ::core::ffi::c_int,
         bkover as ::core::ffi::c_int,
     );
 }
 #[no_mangle]
-pub static mut FORMAT_DX: uint8_t = 1 as uint8_t;
+pub static mut FORMAT_DX: u8 = 1 as u8;
 #[no_mangle]
-pub static mut FORMAT_DY: uint8_t = 2 as uint8_t;
+pub static mut FORMAT_DY: u8 = 2 as u8;
 #[no_mangle]
-pub static mut FORMAT_DWIDTH: uint8_t = 4 as uint8_t;
+pub static mut FORMAT_DWIDTH: u8 = 4 as u8;
 #[no_mangle]
-pub static mut FORMAT_DHEIGHT: uint8_t = 8 as uint8_t;
+pub static mut FORMAT_DHEIGHT: u8 = 8 as u8;
 #[no_mangle]
-pub static mut bits_in: [uint8_t; 256] = [
+pub static mut bits_in: [u8; 256] = [
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as uint8_t,
+        + 0 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as uint8_t,
+        + 1 as ::core::ffi::c_int) as u8,
     (0 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as uint8_t,
+        + 2 as ::core::ffi::c_int) as u8,
 ];
 #[no_mangle]
-pub unsafe extern "C" fn position_format_length(mut format: uint16_t) -> uint8_t {
+pub unsafe extern "C" fn position_format_length(mut format: u16) -> u8 {
     return ((bits_in[(format as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as usize]
         as ::core::ffi::c_int)
-        << 1 as ::core::ffi::c_int) as uint8_t;
+        << 1 as ::core::ffi::c_int) as u8;
 }
 #[no_mangle]
 pub unsafe extern "C" fn position_zero() -> otl_PositionValue {
@@ -3649,9 +3637,9 @@ pub unsafe extern "C" fn position_zero() -> otl_PositionValue {
 #[no_mangle]
 pub unsafe extern "C" fn read_gpos_value(
     mut data: font_file_pointer,
-    mut tableLength: uint32_t,
-    mut offset: uint32_t,
-    mut format: uint16_t,
+    mut tableLength: u32,
+    mut offset: u32,
+    mut format: u16,
 ) -> otl_PositionValue {
     let mut v: otl_PositionValue = otl_PositionValue {
         dx: 0.0f64,
@@ -3659,30 +3647,30 @@ pub unsafe extern "C" fn read_gpos_value(
         dWidth: 0.0f64,
         dHeight: 0.0f64,
     };
-    if tableLength < offset.wrapping_add(position_format_length(format) as uint32_t) {
+    if tableLength < offset.wrapping_add(position_format_length(format) as u32) {
         return v;
     }
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
-        v.dx = read_16s(data.offset(offset as isize) as *const uint8_t) as pos_t;
-        offset = offset.wrapping_add(2 as uint32_t);
+        v.dx = read_16s(data.offset(offset as isize) as *const u8) as pos_t;
+        offset = offset.wrapping_add(2 as u32);
     }
     if format as ::core::ffi::c_int & FORMAT_DY as ::core::ffi::c_int != 0 {
-        v.dy = read_16s(data.offset(offset as isize) as *const uint8_t) as pos_t;
-        offset = offset.wrapping_add(2 as uint32_t);
+        v.dy = read_16s(data.offset(offset as isize) as *const u8) as pos_t;
+        offset = offset.wrapping_add(2 as u32);
     }
     if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
-        v.dWidth = read_16s(data.offset(offset as isize) as *const uint8_t) as pos_t;
-        offset = offset.wrapping_add(2 as uint32_t);
+        v.dWidth = read_16s(data.offset(offset as isize) as *const u8) as pos_t;
+        offset = offset.wrapping_add(2 as u32);
     }
     if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
-        v.dHeight = read_16s(data.offset(offset as isize) as *const uint8_t) as pos_t;
-        offset = offset.wrapping_add(2 as uint32_t);
+        v.dHeight = read_16s(data.offset(offset as isize) as *const u8) as pos_t;
+        offset = offset.wrapping_add(2 as u32);
     }
     return v;
 }
 #[no_mangle]
 pub unsafe extern "C" fn gpos_dump_value(mut value: otl_PositionValue) -> *mut json_value {
-    let mut v: *mut json_value = json_object_new(4 as size_t);
+    let mut v: *mut json_value = json_object_new(4 as usize);
     if value.dx != 0. {
         json_object_push(
             v,
@@ -3736,7 +3724,7 @@ pub unsafe extern "C" fn gpos_parse_value(mut pos: *mut json_value) -> otl_Posit
     return v;
 }
 #[no_mangle]
-pub unsafe extern "C" fn required_position_format(mut v: otl_PositionValue) -> uint8_t {
+pub unsafe extern "C" fn required_position_format(mut v: otl_PositionValue) -> u8 {
     return ((if v.dx != 0. {
         FORMAT_DX as ::core::ffi::c_int
     } else {
@@ -3753,13 +3741,13 @@ pub unsafe extern "C" fn required_position_format(mut v: otl_PositionValue) -> u
         FORMAT_DHEIGHT as ::core::ffi::c_int
     } else {
         0 as ::core::ffi::c_int
-    })) as uint8_t;
+    })) as u8;
 }
 #[no_mangle]
 pub unsafe extern "C" fn write_gpos_value(
     mut buf: *mut caryll_Buffer,
     mut v: otl_PositionValue,
-    mut format: uint16_t,
+    mut format: u16,
 ) {
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
         bufwrite16b(buf, pos_to_u16(v.dx));
@@ -3777,14 +3765,14 @@ pub unsafe extern "C" fn write_gpos_value(
 #[no_mangle]
 pub unsafe extern "C" fn bk_gpos_value(
     mut v: otl_PositionValue,
-    mut format: uint16_t,
+    mut format: u16,
 ) -> *mut bk_Block {
     let mut b: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
         bk_push(
             b,
             b16 as ::core::ffi::c_int,
-            v.dx as int16_t as ::core::ffi::c_int,
+            v.dx as i16 as ::core::ffi::c_int,
             bkover as ::core::ffi::c_int,
         );
     }
@@ -3792,7 +3780,7 @@ pub unsafe extern "C" fn bk_gpos_value(
         bk_push(
             b,
             b16 as ::core::ffi::c_int,
-            v.dy as int16_t as ::core::ffi::c_int,
+            v.dy as i16 as ::core::ffi::c_int,
             bkover as ::core::ffi::c_int,
         );
     }
@@ -3800,7 +3788,7 @@ pub unsafe extern "C" fn bk_gpos_value(
         bk_push(
             b,
             b16 as ::core::ffi::c_int,
-            v.dWidth as int16_t as ::core::ffi::c_int,
+            v.dWidth as i16 as ::core::ffi::c_int,
             bkover as ::core::ffi::c_int,
         );
     }
@@ -3808,7 +3796,7 @@ pub unsafe extern "C" fn bk_gpos_value(
         bk_push(
             b,
             b16 as ::core::ffi::c_int,
-            v.dHeight as int16_t as ::core::ffi::c_int,
+            v.dHeight as i16 as ::core::ffi::c_int,
             bkover as ::core::ffi::c_int,
         );
     }

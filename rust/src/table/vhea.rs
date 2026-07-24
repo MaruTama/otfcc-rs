@@ -1,6 +1,6 @@
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn fprintf(
@@ -11,12 +11,12 @@ extern "C" {
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn strcmp(
         __s1: *const ::core::ffi::c_char,
@@ -25,36 +25,23 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: uint32_t);
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
+    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
     fn otfcc_from_fixed(x: f16dot16) -> ::core::ffi::c_double;
     fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16;
-    fn json_object_new(length: size_t) -> *mut json_value;
+    fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
         _: *mut json_value,
     ) -> *mut json_value;
-    fn json_integer_new(_: int64_t) -> *mut json_value;
+    fn json_integer_new(_: i64) -> *mut json_value;
     fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
 }
 
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_16s, read_32s};
-pub type __uint8_t = u8;
-pub type __int16_t = i16;
-pub type __uint16_t = u16;
-pub type __int32_t = i32;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int16_t = __int16_t;
-pub type int32_t = __int32_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;
 pub const json_null: json_type = 7;
@@ -83,7 +70,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -120,12 +107,12 @@ pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
-pub type f16dot16 = int32_t;
+pub type f16dot16 = i32;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_ILoggerTarget {
@@ -154,17 +141,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -199,42 +186,42 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_vhea {
     pub version: f16dot16,
-    pub ascent: int16_t,
-    pub descent: int16_t,
-    pub lineGap: int16_t,
-    pub advanceHeightMax: int16_t,
-    pub minTop: int16_t,
-    pub minBottom: int16_t,
-    pub yMaxExtent: int16_t,
-    pub caretSlopeRise: int16_t,
-    pub caretSlopeRun: int16_t,
-    pub caretOffset: int16_t,
-    pub dummy0: int16_t,
-    pub dummy1: int16_t,
-    pub dummy2: int16_t,
-    pub dummy3: int16_t,
-    pub metricDataFormat: int16_t,
-    pub numOfLongVerMetrics: uint16_t,
+    pub ascent: i16,
+    pub descent: i16,
+    pub lineGap: i16,
+    pub advanceHeightMax: i16,
+    pub minTop: i16,
+    pub minBottom: i16,
+    pub yMaxExtent: i16,
+    pub caretSlopeRise: i16,
+    pub caretSlopeRun: i16,
+    pub caretOffset: i16,
+    pub dummy0: i16,
+    pub dummy1: i16,
+    pub dummy2: i16,
+    pub dummy3: i16,
+    pub metricDataFormat: i16,
+    pub numOfLongVerMetrics: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -248,7 +235,7 @@ pub struct __caryll_elementinterface_table_vhea {
     pub create: Option<unsafe extern "C" fn() -> *mut table_vhea>,
     pub free: Option<unsafe extern "C" fn(*mut table_vhea) -> ()>,
 }
-pub type font_file_pointer = *mut uint8_t;
+pub type font_file_pointer = *mut u8;
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
@@ -256,7 +243,7 @@ unsafe extern "C" fn initVhea(mut vhea: *mut table_vhea) {
     memset(
         vhea as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_vhea>() as size_t,
+        ::core::mem::size_of::<table_vhea>() as usize,
     );
     (*vhea).version = 0x10000 as ::core::ffi::c_int as f16dot16;
 }
@@ -277,7 +264,7 @@ unsafe extern "C" fn table_vhea_free(mut x: *mut table_vhea) {
 #[inline]
 unsafe extern "C" fn table_vhea_create() -> *mut table_vhea {
     let mut x: *mut table_vhea =
-        malloc(::core::mem::size_of::<table_vhea>() as size_t) as *mut table_vhea;
+        malloc(::core::mem::size_of::<table_vhea>() as usize) as *mut table_vhea;
     table_vhea_init(x);
     return x;
 }
@@ -316,7 +303,7 @@ unsafe extern "C" fn table_vhea_copy(mut dst: *mut table_vhea, mut src: *const t
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_vhea>() as size_t,
+        ::core::mem::size_of::<table_vhea>() as usize,
     );
 }
 #[inline]
@@ -324,7 +311,7 @@ unsafe extern "C" fn table_vhea_move(mut dst: *mut table_vhea, mut src: *mut tab
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_vhea>() as size_t,
+        ::core::mem::size_of::<table_vhea>() as usize,
     );
     table_vhea_init(src);
 }
@@ -334,7 +321,7 @@ unsafe extern "C" fn table_vhea_replace(mut dst: *mut table_vhea, src: table_vhe
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_vhea>() as size_t,
+        ::core::mem::size_of::<table_vhea>() as usize,
     );
 }
 #[no_mangle]
@@ -352,54 +339,54 @@ pub unsafe extern "C" fn otfcc_readVhea(
     {
         let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1986553185i32 as uint32_t {
+            if table.tag == 1986553185i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     let mut data: font_file_pointer = table.data as font_file_pointer;
-                    let mut length: size_t = table.length as size_t;
-                    if length >= 36 as size_t {
+                    let mut length: usize = table.length as usize;
+                    if length >= 36 as usize {
                         vhea = __caryll_allocate_clean(
-                            ::core::mem::size_of::<table_vhea>() as size_t,
+                            ::core::mem::size_of::<table_vhea>() as usize,
                             20 as ::core::ffi::c_ulong,
                         ) as *mut table_vhea;
-                        (*vhea).version = read_32s(data as *const uint8_t) as f16dot16;
+                        (*vhea).version = read_32s(data as *const u8) as f16dot16;
                         (*vhea).ascent = read_16s(
-                            data.offset(4 as ::core::ffi::c_int as isize) as *const uint8_t
+                            data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
                         (*vhea).descent = read_16s(
-                            data.offset(6 as ::core::ffi::c_int as isize) as *const uint8_t
+                            data.offset(6 as ::core::ffi::c_int as isize) as *const u8
                         );
                         (*vhea).lineGap = read_16s(
-                            data.offset(8 as ::core::ffi::c_int as isize) as *const uint8_t
+                            data.offset(8 as ::core::ffi::c_int as isize) as *const u8
                         );
                         (*vhea).advanceHeightMax = read_16s(
-                            data.offset(10 as ::core::ffi::c_int as isize) as *const uint8_t,
+                            data.offset(10 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         (*vhea).minTop = read_16s(
-                            data.offset(12 as ::core::ffi::c_int as isize) as *const uint8_t
+                            data.offset(12 as ::core::ffi::c_int as isize) as *const u8
                         );
                         (*vhea).minBottom = read_16s(
-                            data.offset(14 as ::core::ffi::c_int as isize) as *const uint8_t,
+                            data.offset(14 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         (*vhea).yMaxExtent = read_16s(
-                            data.offset(16 as ::core::ffi::c_int as isize) as *const uint8_t,
+                            data.offset(16 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         (*vhea).caretSlopeRise = read_16s(
-                            data.offset(18 as ::core::ffi::c_int as isize) as *const uint8_t,
+                            data.offset(18 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         (*vhea).caretSlopeRun = read_16s(
-                            data.offset(20 as ::core::ffi::c_int as isize) as *const uint8_t,
+                            data.offset(20 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         (*vhea).caretOffset = read_16s(
-                            data.offset(22 as ::core::ffi::c_int as isize) as *const uint8_t,
+                            data.offset(22 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        (*vhea).dummy0 = 0 as int16_t;
-                        (*vhea).dummy1 = 0 as int16_t;
-                        (*vhea).dummy2 = 0 as int16_t;
-                        (*vhea).dummy3 = 0 as int16_t;
-                        (*vhea).metricDataFormat = 0 as int16_t;
+                        (*vhea).dummy0 = 0 as i16;
+                        (*vhea).dummy1 = 0 as i16;
+                        (*vhea).dummy2 = 0 as i16;
+                        (*vhea).dummy3 = 0 as i16;
+                        (*vhea).metricDataFormat = 0 as i16;
                         (*vhea).numOfLongVerMetrics = read_16u(
-                            data.offset(34 as ::core::ffi::c_int as isize) as *const uint8_t,
+                            data.offset(34 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         return vhea;
                     } else {
@@ -407,7 +394,7 @@ pub unsafe extern "C" fn otfcc_readVhea(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut otfcc_ILogger,
-                            log_vl_important as ::core::ffi::c_int as uint8_t,
+                            log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
                             sdscatprintf(
                                 sdsempty(),
@@ -436,7 +423,7 @@ pub unsafe extern "C" fn otfcc_dumpVhea(
     if table.is_null() {
         return;
     }
-    let mut vhea: *mut json_value = json_object_new(11 as size_t);
+    let mut vhea: *mut json_value = json_object_new(11 as usize);
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
@@ -456,52 +443,52 @@ pub unsafe extern "C" fn otfcc_dumpVhea(
         json_object_push(
             vhea,
             b"ascent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ascent as int64_t),
+            json_integer_new((*table).ascent as i64),
         );
         json_object_push(
             vhea,
             b"descent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).descent as int64_t),
+            json_integer_new((*table).descent as i64),
         );
         json_object_push(
             vhea,
             b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).lineGap as int64_t),
+            json_integer_new((*table).lineGap as i64),
         );
         json_object_push(
             vhea,
             b"advanceHeightMax\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).advanceHeightMax as int64_t),
+            json_integer_new((*table).advanceHeightMax as i64),
         );
         json_object_push(
             vhea,
             b"minTop\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).minTop as int64_t),
+            json_integer_new((*table).minTop as i64),
         );
         json_object_push(
             vhea,
             b"minBottom\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).minBottom as int64_t),
+            json_integer_new((*table).minBottom as i64),
         );
         json_object_push(
             vhea,
             b"yMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).yMaxExtent as int64_t),
+            json_integer_new((*table).yMaxExtent as i64),
         );
         json_object_push(
             vhea,
             b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caretSlopeRise as int64_t),
+            json_integer_new((*table).caretSlopeRise as i64),
         );
         json_object_push(
             vhea,
             b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caretSlopeRun as int64_t),
+            json_integer_new((*table).caretSlopeRun as i64),
         );
         json_object_push(
             vhea,
             b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caretOffset as int64_t),
+            json_integer_new((*table).caretOffset as i64),
         );
         json_object_push(
             root,
@@ -551,52 +538,52 @@ pub unsafe extern "C" fn otfcc_parseVhea(
                 table,
                 b"ascent\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
-            ) as int16_t;
+            ) as i16;
             (*vhea).descent = json_obj_getnum_fallback(
                 table,
                 b"descent\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
-            ) as int16_t;
+            ) as i16;
             (*vhea).lineGap = json_obj_getnum_fallback(
                 table,
                 b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
-            ) as int16_t;
+            ) as i16;
             (*vhea).advanceHeightMax = json_obj_getnum_fallback(
                 table,
                 b"advanceHeightMax\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
-            ) as int16_t;
+            ) as i16;
             (*vhea).minTop = json_obj_getnum_fallback(
                 table,
                 b"minTop\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
-            ) as int16_t;
+            ) as i16;
             (*vhea).minBottom = json_obj_getnum_fallback(
                 table,
                 b"minBottom\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
-            ) as int16_t;
+            ) as i16;
             (*vhea).yMaxExtent = json_obj_getnum_fallback(
                 table,
                 b"yMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
-            ) as int16_t;
+            ) as i16;
             (*vhea).caretSlopeRise = json_obj_getnum_fallback(
                 table,
                 b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
-            ) as int16_t;
+            ) as i16;
             (*vhea).caretSlopeRun = json_obj_getnum_fallback(
                 table,
                 b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
-            ) as int16_t;
+            ) as i16;
             (*vhea).caretOffset = json_obj_getnum_fallback(
                 table,
                 b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
-            ) as int16_t;
+            ) as i16;
             ___loggedstep_v = false;
             (*(*options).logger)
                 .finish
@@ -616,22 +603,22 @@ pub unsafe extern "C" fn otfcc_buildVhea(
         return ::core::ptr::null_mut::<caryll_Buffer>();
     }
     let mut buf: *mut caryll_Buffer = bufnew();
-    bufwrite32b(buf, (*vhea).version as uint32_t);
-    bufwrite16b(buf, (*vhea).ascent as uint16_t);
-    bufwrite16b(buf, (*vhea).descent as uint16_t);
-    bufwrite16b(buf, (*vhea).lineGap as uint16_t);
-    bufwrite16b(buf, (*vhea).advanceHeightMax as uint16_t);
-    bufwrite16b(buf, (*vhea).minTop as uint16_t);
-    bufwrite16b(buf, (*vhea).minBottom as uint16_t);
-    bufwrite16b(buf, (*vhea).yMaxExtent as uint16_t);
-    bufwrite16b(buf, (*vhea).caretSlopeRise as uint16_t);
-    bufwrite16b(buf, (*vhea).caretSlopeRun as uint16_t);
-    bufwrite16b(buf, (*vhea).caretOffset as uint16_t);
-    bufwrite16b(buf, 0 as uint16_t);
-    bufwrite16b(buf, 0 as uint16_t);
-    bufwrite16b(buf, 0 as uint16_t);
-    bufwrite16b(buf, 0 as uint16_t);
-    bufwrite16b(buf, 0 as uint16_t);
+    bufwrite32b(buf, (*vhea).version as u32);
+    bufwrite16b(buf, (*vhea).ascent as u16);
+    bufwrite16b(buf, (*vhea).descent as u16);
+    bufwrite16b(buf, (*vhea).lineGap as u16);
+    bufwrite16b(buf, (*vhea).advanceHeightMax as u16);
+    bufwrite16b(buf, (*vhea).minTop as u16);
+    bufwrite16b(buf, (*vhea).minBottom as u16);
+    bufwrite16b(buf, (*vhea).yMaxExtent as u16);
+    bufwrite16b(buf, (*vhea).caretSlopeRise as u16);
+    bufwrite16b(buf, (*vhea).caretSlopeRun as u16);
+    bufwrite16b(buf, (*vhea).caretOffset as u16);
+    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, (*vhea).numOfLongVerMetrics);
     return buf;
 }
@@ -646,8 +633,8 @@ unsafe extern "C" fn json_obj_get(
     {
         return ::core::ptr::null_mut::<json_value>();
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
@@ -679,8 +666,8 @@ unsafe extern "C" fn json_obj_getnum(
     {
         return 0.0f64;
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         let mut cv: *mut json_value =
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
@@ -714,8 +701,8 @@ unsafe extern "C" fn json_obj_getnum_fallback(
     {
         return fallback;
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         let mut cv: *mut json_value =
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;

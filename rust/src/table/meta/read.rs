@@ -1,18 +1,11 @@
 extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: size_t) -> sds;
+    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static meta_iEntries: __caryll_vectorinterface_meta_Entries;
     static table_iMeta: __caryll_elementinterface_table_meta;
 }
 use crate::support::binio::{read_32u};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -42,17 +35,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -87,33 +80,33 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entry {
-    pub tag: uint32_t,
+    pub tag: u32,
     pub data: sds,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entries {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut meta_Entry,
 }
 #[derive(Copy, Clone)]
@@ -127,15 +120,15 @@ pub struct __caryll_vectorinterface_meta_Entries {
     pub copyReplace: Option<unsafe extern "C" fn(*mut meta_Entries, meta_Entries) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut meta_Entries>,
     pub free: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut meta_Entries, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut meta_Entries, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut meta_Entries>,
-    pub fill: Option<unsafe extern "C" fn(*mut meta_Entries, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut meta_Entries>,
+    pub fill: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut meta_Entries, meta_Entry) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut meta_Entries) -> meta_Entry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut meta_Entries, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut meta_Entries,
@@ -153,8 +146,8 @@ pub struct __caryll_vectorinterface_meta_Entries {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_meta {
-    pub version: uint32_t,
-    pub flags: uint32_t,
+    pub version: u32,
+    pub flags: u32,
     pub entries: meta_Entries,
 }
 #[derive(Copy, Clone)]
@@ -175,9 +168,9 @@ pub unsafe extern "C" fn otfcc_readMeta(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
 ) -> *mut table_meta {
-    let mut version: uint32_t = 0;
-    let mut flags: uint32_t = 0;
-    let mut dataMapsCount: uint32_t = 0;
+    let mut version: u32 = 0;
+    let mut flags: u32 = 0;
+    let mut dataMapsCount: u32 = 0;
     let mut meta: *mut table_meta = ::core::ptr::null_mut::<table_meta>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -188,43 +181,43 @@ pub unsafe extern "C" fn otfcc_readMeta(
     {
         let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1835365473i32 as uint32_t {
+            if table.tag == 1835365473i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    if !(table.length < 16 as uint32_t) {
+                    if !(table.length < 16 as u32) {
                         version = read_32u(table.data.offset(0 as ::core::ffi::c_int as isize));
                         flags = read_32u(table.data.offset(4 as ::core::ffi::c_int as isize));
                         dataMapsCount =
                             read_32u(table.data.offset(12 as ::core::ffi::c_int as isize));
                         if !(table.length
-                            < (16 as uint32_t)
-                                .wrapping_add((12 as uint32_t).wrapping_mul(dataMapsCount)))
+                            < (16 as u32)
+                                .wrapping_add((12 as u32).wrapping_mul(dataMapsCount)))
                         {
                             meta = (
                                 table_iMeta.create.expect("non-null function pointer"))();
                             (*meta).version = version;
                             (*meta).flags = flags;
-                            let mut j: uint32_t = 0 as uint32_t;
+                            let mut j: u32 = 0 as u32;
                             while j < dataMapsCount {
-                                let mut tag: uint32_t = read_32u(
+                                let mut tag: u32 = read_32u(
                                     table
                                         .data
                                         .offset(16 as ::core::ffi::c_int as isize)
-                                        .offset((12 as uint32_t).wrapping_mul(j) as isize)
+                                        .offset((12 as u32).wrapping_mul(j) as isize)
                                         .offset(0 as ::core::ffi::c_int as isize),
                                 );
-                                let mut offset: uint32_t = read_32u(
+                                let mut offset: u32 = read_32u(
                                     table
                                         .data
                                         .offset(16 as ::core::ffi::c_int as isize)
-                                        .offset((12 as uint32_t).wrapping_mul(j) as isize)
+                                        .offset((12 as u32).wrapping_mul(j) as isize)
                                         .offset(4 as ::core::ffi::c_int as isize),
                                 );
-                                let mut length: uint32_t = read_32u(
+                                let mut length: u32 = read_32u(
                                     table
                                         .data
                                         .offset(16 as ::core::ffi::c_int as isize)
-                                        .offset((12 as uint32_t).wrapping_mul(j) as isize)
+                                        .offset((12 as u32).wrapping_mul(j) as isize)
                                         .offset(8 as ::core::ffi::c_int as isize),
                                 );
                                 if !(table.length < offset.wrapping_add(length)) {
@@ -236,7 +229,7 @@ pub unsafe extern "C" fn otfcc_readMeta(
                                                 table.data.offset(offset as isize)
                                                     as *mut ::core::ffi::c_char
                                                     as *const ::core::ffi::c_void,
-                                                length as size_t,
+                                                length as usize,
                                             ),
                                         },
                                     );
@@ -250,7 +243,7 @@ pub unsafe extern "C" fn otfcc_readMeta(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as uint8_t,
+                        log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
                         sdscatprintf(
                             sdsempty(),

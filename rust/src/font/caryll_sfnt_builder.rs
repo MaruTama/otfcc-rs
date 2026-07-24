@@ -4,43 +4,35 @@ extern "C" {
         __format: *const ::core::ffi::c_char,
         ...
     ) -> ::core::ffi::c_int;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memcmp(
         __s1: *const ::core::ffi::c_void,
         __s2: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> ::core::ffi::c_int;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
-    fn buflen(buf: *mut caryll_Buffer) -> size_t;
-    fn bufseek(buf: *mut caryll_Buffer, pos: size_t);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: uint32_t);
+    fn buflen(buf: *mut caryll_Buffer) -> usize;
+    fn bufseek(buf: *mut caryll_Buffer, pos: usize);
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
+    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
     fn bufwrite_buf(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
     fn buflongalign(buf: *mut caryll_Buffer);
 }
 
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type sds = *mut ::core::ffi::c_char;
-pub type ptrdiff_t = isize;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -68,20 +60,20 @@ pub struct UT_hash_table {
     pub log2_num_buckets: ::core::ffi::c_uint,
     pub num_items: ::core::ffi::c_uint,
     pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
+    pub hho: isize,
     pub ideal_chain_maxlen: ::core::ffi::c_uint,
     pub nonideal_items: ::core::ffi::c_uint,
     pub ineff_expands: ::core::ffi::c_uint,
     pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
+    pub signature: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -111,17 +103,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -156,29 +148,29 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed_0 {
-    pub i1: [uint8_t; 2],
-    pub i2: uint16_t,
+    pub i1: [u8; 2],
+    pub i2: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed_1 {
-    pub i1: [uint8_t; 4],
-    pub i4: uint32_t,
+    pub i1: [u8; 4],
+    pub i4: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_SFNTTableEntry {
     pub tag: ::core::ffi::c_int,
-    pub length: uint32_t,
-    pub checksum: uint32_t,
+    pub length: u32,
+    pub checksum: u32,
     pub buffer: *mut caryll_Buffer,
     pub hh: UT_hash_handle,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_SFNTBuilder {
-    pub count: uint32_t,
-    pub header: uint32_t,
+    pub count: u32,
+    pub header: u32,
     pub tables: *mut otfcc_SFNTTableEntry,
     pub options: *const otfcc_Options,
 }
@@ -191,13 +183,13 @@ pub const HASH_SIGNATURE: ::core::ffi::c_uint = 0xa0111fe1 as ::core::ffi::c_uin
 #[inline]
 unsafe extern "C" fn otfcc_check_endian() -> bool {
     let mut check_union: C2RustUnnamed_0 = C2RustUnnamed_0 {
-        i2: 1 as ::core::ffi::c_int as uint16_t,
+        i2: 1 as ::core::ffi::c_int as u16,
     };
     return check_union.i1[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
         == 1 as ::core::ffi::c_int;
 }
 #[inline]
-unsafe extern "C" fn otfcc_endian_convert32(mut i: uint32_t) -> uint32_t {
+unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
     if otfcc_check_endian() {
         let mut src: C2RustUnnamed_1 = C2RustUnnamed_1 { i1: [0; 4] };
         let mut des: C2RustUnnamed_1 = C2RustUnnamed_1 { i1: [0; 4] };
@@ -211,15 +203,15 @@ unsafe extern "C" fn otfcc_endian_convert32(mut i: uint32_t) -> uint32_t {
         return i;
     };
 }
-unsafe extern "C" fn buf_checksum(mut buffer: *mut caryll_Buffer) -> uint32_t {
-    let mut actualLength: uint32_t = buflen(buffer) as uint32_t;
+unsafe extern "C" fn buf_checksum(mut buffer: *mut caryll_Buffer) -> u32 {
+    let mut actualLength: u32 = buflen(buffer) as u32;
     buflongalign(buffer);
-    let mut sum: uint32_t = 0 as uint32_t;
-    let mut start: *mut uint32_t = (*buffer).data as *mut uint32_t;
-    let mut end: *mut uint32_t = start.offset(
-        ((actualLength.wrapping_add(3 as uint32_t) & !(3 as ::core::ffi::c_int) as uint32_t)
+    let mut sum: u32 = 0 as u32;
+    let mut start: *mut u32 = (*buffer).data as *mut u32;
+    let mut end: *mut u32 = start.offset(
+        ((actualLength.wrapping_add(3 as u32) & !(3 as ::core::ffi::c_int) as u32)
             as usize)
-            .wrapping_div(::core::mem::size_of::<uint32_t>()) as isize,
+            .wrapping_div(::core::mem::size_of::<u32>()) as isize,
     );
     while start < end {
         let fresh3 = start;
@@ -229,24 +221,24 @@ unsafe extern "C" fn buf_checksum(mut buffer: *mut caryll_Buffer) -> uint32_t {
     return sum;
 }
 unsafe extern "C" fn createSegment(
-    mut tag: uint32_t,
+    mut tag: u32,
     mut buffer: *mut caryll_Buffer,
 ) -> *mut otfcc_SFNTTableEntry {
     let mut table: *mut otfcc_SFNTTableEntry = ::core::ptr::null_mut::<otfcc_SFNTTableEntry>();
     table = __caryll_allocate_clean(
-        ::core::mem::size_of::<otfcc_SFNTTableEntry>() as size_t,
+        ::core::mem::size_of::<otfcc_SFNTTableEntry>() as usize,
         20 as ::core::ffi::c_ulong,
     ) as *mut otfcc_SFNTTableEntry;
     (*table).tag = tag as ::core::ffi::c_int;
-    (*table).length = buflen(buffer) as uint32_t;
+    (*table).length = buflen(buffer) as u32;
     buflongalign(buffer);
     (*table).buffer = buffer;
-    let mut sum: uint32_t = 0 as uint32_t;
-    let mut start: *mut uint32_t = (*buffer).data as *mut uint32_t;
-    let mut end: *mut uint32_t = start.offset(
-        (((*table).length.wrapping_add(3 as uint32_t) & !(3 as ::core::ffi::c_int) as uint32_t)
+    let mut sum: u32 = 0 as u32;
+    let mut start: *mut u32 = (*buffer).data as *mut u32;
+    let mut end: *mut u32 = start.offset(
+        (((*table).length.wrapping_add(3 as u32) & !(3 as ::core::ffi::c_int) as u32)
             as usize)
-            .wrapping_div(::core::mem::size_of::<uint32_t>()) as isize,
+            .wrapping_div(::core::mem::size_of::<u32>()) as isize,
     );
     while start < end {
         let fresh0 = start;
@@ -258,15 +250,15 @@ unsafe extern "C" fn createSegment(
 }
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_newSFNTBuilder(
-    mut header: uint32_t,
+    mut header: u32,
     mut options: *const otfcc_Options,
 ) -> *mut otfcc_SFNTBuilder {
     let mut builder: *mut otfcc_SFNTBuilder = ::core::ptr::null_mut::<otfcc_SFNTBuilder>();
     builder = __caryll_allocate_clean(
-        ::core::mem::size_of::<otfcc_SFNTBuilder>() as size_t,
+        ::core::mem::size_of::<otfcc_SFNTBuilder>() as usize,
         40 as ::core::ffi::c_ulong,
     ) as *mut otfcc_SFNTBuilder;
-    (*builder).count = 0 as uint32_t;
+    (*builder).count = 0 as u32;
     (*builder).header = header;
     (*builder).tables = ::core::ptr::null_mut::<otfcc_SFNTTableEntry>();
     (*builder).options = options;
@@ -350,7 +342,7 @@ pub unsafe extern "C" fn otfcc_deleteSFNTBuilder(mut builder: *mut otfcc_SFNTBui
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
     mut builder: *mut otfcc_SFNTBuilder,
-    mut tag: uint32_t,
+    mut tag: u32,
     mut buffer: *mut caryll_Buffer,
 ) {
     if builder.is_null() || buffer.is_null() {
@@ -644,7 +636,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
                     if memcmp(
                         (*item).hh.key,
                         &raw mut tag as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                        ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -937,7 +929,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
         if (*builder).tables.is_null() {
             (*item).hh.next = NULL;
             (*item).hh.prev = NULL;
-            (*item).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*item).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*item).hh.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -945,26 +937,26 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
                 memset(
                     (*item).hh.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*item).hh.tbl).tail = &raw mut (*item).hh as *mut UT_hash_handle;
                 (*(*item).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*item).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*item).hh.tbl).hho = (&raw mut (*item).hh as *mut ::core::ffi::c_char)
                     .offset_from(item as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*item).hh.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*item).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*item).hh.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*item).hh.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*item).hh.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -1011,9 +1003,9 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*item).hh.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*item).hh.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -1021,9 +1013,9 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*item).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*item).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*item).hh.tbl).ideal_chain_maxlen = ((*(*item).hh.tbl).num_items
                     >> (*(*item).hh.tbl)
@@ -1099,16 +1091,16 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_progress as ::core::ffi::c_int as uint8_t,
+            log_vl_progress as ::core::ffi::c_int as u8,
             log_type_progress,
             sdscatprintf(
                 sdsempty(),
                 b"OpenType table %c%c%c%c successfully built.\n\0" as *const u8
                     as *const ::core::ffi::c_char,
-                tag >> 24 as ::core::ffi::c_int & 0xff as uint32_t,
-                tag >> 16 as ::core::ffi::c_int & 0xff as uint32_t,
-                tag >> 8 as ::core::ffi::c_int & 0xff as uint32_t,
-                tag & 0xff as uint32_t,
+                tag >> 24 as ::core::ffi::c_int & 0xff as u32,
+                tag >> 16 as ::core::ffi::c_int & 0xff as u32,
+                tag >> 8 as ::core::ffi::c_int & 0xff as u32,
+                tag & 0xff as u32,
             ),
         );
     } else {
@@ -1129,12 +1121,12 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
     if builder.is_null() {
         return buffer;
     }
-    let mut nTables: uint16_t = (if !(*builder).tables.is_null() {
+    let mut nTables: u16 = (if !(*builder).tables.is_null() {
         (*(*(*builder).tables).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
-    }) as uint16_t;
-    let mut searchRange: uint16_t = ((if (nTables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int
+    }) as u16;
+    let mut searchRange: u16 = ((if (nTables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int
     {
         8 as ::core::ffi::c_int
     } else {
@@ -1147,7 +1139,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                 64 as ::core::ffi::c_int
             }
         }
-    }) * 16 as ::core::ffi::c_int) as uint16_t;
+    }) * 16 as ::core::ffi::c_int) as u16;
     bufwrite32b(buffer, (*builder).header);
     bufwrite16b(buffer, nTables);
     bufwrite16b(buffer, searchRange);
@@ -1161,18 +1153,18 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
             5 as ::core::ffi::c_int
         } else {
             6 as ::core::ffi::c_int
-        }) as uint16_t,
+        }) as u16,
     );
     bufwrite16b(
         buffer,
         (nTables as ::core::ffi::c_int * 16 as ::core::ffi::c_int
-            - searchRange as ::core::ffi::c_int) as uint16_t,
+            - searchRange as ::core::ffi::c_int) as u16,
     );
     let mut table: *mut otfcc_SFNTTableEntry = ::core::ptr::null_mut::<otfcc_SFNTTableEntry>();
-    let mut offset: size_t = (12 as ::core::ffi::c_int
+    let mut offset: usize = (12 as ::core::ffi::c_int
         + nTables as ::core::ffi::c_int * 16 as ::core::ffi::c_int)
-        as size_t;
-    let mut headOffset: size_t = offset;
+        as usize;
+    let mut headOffset: usize = offset;
     let mut _hs_i: ::core::ffi::c_uint = 0;
     let mut _hs_looping: ::core::ffi::c_uint = 0;
     let mut _hs_nmerges: ::core::ffi::c_uint = 0;
@@ -1312,11 +1304,11 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
     }
     table = (*builder).tables;
     while !table.is_null() {
-        bufwrite32b(buffer, (*table).tag as uint32_t);
+        bufwrite32b(buffer, (*table).tag as u32);
         bufwrite32b(buffer, (*table).checksum);
-        bufwrite32b(buffer, offset as uint32_t);
+        bufwrite32b(buffer, offset as u32);
         bufwrite32b(buffer, (*table).length);
-        let mut cp: size_t = (*buffer).cursor;
+        let mut cp: usize = (*buffer).cursor;
         bufseek(buffer, offset);
         bufwrite_buf(buffer, (*table).buffer);
         bufseek(buffer, cp);
@@ -1326,8 +1318,8 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
         offset = offset.wrapping_add(buflen((*table).buffer));
         table = (*table).hh.next as *mut otfcc_SFNTTableEntry;
     }
-    let mut wholeChecksum: uint32_t = buf_checksum(buffer);
-    bufseek(buffer, headOffset.wrapping_add(8 as size_t));
-    bufwrite32b(buffer, (0xb1b0afba as uint32_t).wrapping_sub(wholeChecksum));
+    let mut wholeChecksum: u32 = buf_checksum(buffer);
+    bufseek(buffer, headOffset.wrapping_add(8 as usize));
+    bufwrite32b(buffer, (0xb1b0afba as u32).wrapping_sub(wholeChecksum));
     return buffer;
 }

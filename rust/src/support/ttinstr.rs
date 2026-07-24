@@ -6,7 +6,7 @@ extern "C" {
     ) -> ::core::ffi::c_int;
     fn snprintf(
         __s: *mut ::core::ffi::c_char,
-        __maxlen: size_t,
+        __maxlen: usize,
         __format: *const ::core::ffi::c_char,
         ...
     ) -> ::core::ffi::c_int;
@@ -15,23 +15,23 @@ extern "C" {
         __endptr: *mut *mut ::core::ffi::c_char,
         __base: ::core::ffi::c_int,
     ) -> ::core::ffi::c_long;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
+    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
-    fn strlen(__s: *const ::core::ffi::c_char) -> size_t;
-    fn json_array_new(length: size_t) -> *mut json_value;
+    fn strlen(__s: *const ::core::ffi::c_char) -> usize;
+    fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
     fn json_string_new_length(
@@ -42,34 +42,24 @@ extern "C" {
         length: ::core::ffi::c_uint,
         _: *mut ::core::ffi::c_char,
     ) -> *mut json_value;
-    fn json_integer_new(_: int64_t) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> size_t;
+    fn json_integer_new(_: i64) -> *mut json_value;
+    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: size_t) -> sds;
+    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsfree(s: sds);
-    fn base64_encode(src: *const uint8_t, len: size_t, out_len: *mut size_t) -> *mut uint8_t;
-    fn base64_decode(src: *const uint8_t, len: size_t, out_len: *mut size_t) -> *mut uint8_t;
+    fn base64_encode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
+    fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
     #[cfg(not(target_os = "macos"))]
     fn __ctype_b_loc() -> *mut *const ::core::ffi::c_ushort;
     #[cfg(not(target_os = "macos"))]
-    fn __ctype_tolower_loc() -> *mut *const __int32_t;
+    fn __ctype_tolower_loc() -> *mut *const i32;
 }
 use crate::support::stdio::FILE;
 #[cfg(target_os = "macos")]
 use crate::support::ctype_compat::{__ctype_b_loc, __ctype_tolower_loc};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-pub type __uint8_t = u8;
-pub type __int16_t = i16;
-pub type __int32_t = i32;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int16_t = __int16_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;
 pub const json_null: json_type = 7;
@@ -98,7 +88,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -161,17 +151,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -211,9 +201,9 @@ pub const _ISdigit: C2RustUnnamed_4 = 2048;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct instrdata {
-    pub instrs: *mut uint8_t,
-    pub instr_cnt: uint32_t,
-    pub bts: *mut uint8_t,
+    pub instrs: *mut u8,
+    pub instr_cnt: u32,
+    pub bts: *mut u8,
 }
 pub const bt_byte: byte_types = 2;
 pub const bt_cnt: byte_types = 1;
@@ -364,12 +354,12 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
         opts: 0,
         indent_size: 0,
     };
-    let mut preserialize_len: size_t = json_measure_ex(x, opts);
+    let mut preserialize_len: usize = json_measure_ex(x, opts);
     let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
     json_serialize_ex(buf, x, opts);
     json_builder_free(x);
     let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as size_t) as ::core::ffi::c_uint,
+        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
         buf,
     );
     (*xx).type_0 = json_pre_serialized;
@@ -660,7 +650,7 @@ unsafe extern "C" fn strnmatch(
                     let mut __c: ::core::ffi::c_int = ch1;
                     __res =
                         (if __c < -(128 as ::core::ffi::c_int) || __c > 255 as ::core::ffi::c_int {
-                            __c as __int32_t
+                            __c as i32
                         } else {
                             *(*__ctype_tolower_loc()).offset(__c as isize)
                         }) as ::core::ffi::c_int;
@@ -679,7 +669,7 @@ unsafe extern "C" fn strnmatch(
                     let mut __c: ::core::ffi::c_int = ch2;
                     __res =
                         (if __c < -(128 as ::core::ffi::c_int) || __c > 255 as ::core::ffi::c_int {
-                            __c as __int32_t
+                            __c as i32
                         } else {
                             *(*__ctype_tolower_loc()).offset(__c as isize)
                         }) as ::core::ffi::c_int;
@@ -708,7 +698,7 @@ unsafe extern "C" fn parse_instrs(
             ::core::ffi::c_int,
         ) -> (),
     >,
-) -> *mut uint8_t {
+) -> *mut u8 {
     let mut numberstack: [::core::ffi::c_short; 256] = [0; 256];
     let mut npos: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut nread: ::core::ffi::c_int = 0;
@@ -722,11 +712,11 @@ unsafe extern "C" fn parse_instrs(
     let mut icnt: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut imax: ::core::ffi::c_int = strlen(text) as ::core::ffi::c_int;
     let mut val: ::core::ffi::c_int = 0;
-    let mut instrs: *mut uint8_t = ::core::ptr::null_mut::<uint8_t>();
+    let mut instrs: *mut u8 = ::core::ptr::null_mut::<u8>();
     instrs = __caryll_allocate_clean(
-        (::core::mem::size_of::<uint8_t>() as size_t).wrapping_mul(imax as size_t),
+        (::core::mem::size_of::<u8>() as usize).wrapping_mul(imax as usize),
         444 as ::core::ffi::c_ulong,
-    ) as *mut uint8_t;
+    ) as *mut u8;
     pt = text;
     while *pt != 0 {
         npos = 0 as ::core::ffi::c_int;
@@ -753,7 +743,7 @@ unsafe extern "C" fn parse_instrs(
                         as *mut ::core::ffi::c_char,
                     pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                 );
-                return ::core::ptr::null_mut::<uint8_t>();
+                return ::core::ptr::null_mut::<u8>();
             }
             pt = end;
             let fresh0 = npos;
@@ -790,13 +780,13 @@ unsafe extern "C" fn parse_instrs(
                             as *mut ::core::ffi::c_char,
                         pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                     );
-                    return ::core::ptr::null_mut::<uint8_t>();
+                    return ::core::ptr::null_mut::<u8>();
                 } else {
                     nread = 1 as ::core::ffi::c_int;
                     let fresh1 = icnt;
                     icnt = icnt + 1;
                     *instrs.offset(fresh1 as isize) =
-                        numberstack[0 as ::core::ffi::c_int as usize] as uint8_t;
+                        numberstack[0 as ::core::ffi::c_int as usize] as u8;
                     push_left = numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int;
                 }
             }
@@ -813,7 +803,7 @@ unsafe extern "C" fn parse_instrs(
                         as *mut ::core::ffi::c_char,
                     pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                 );
-                return ::core::ptr::null_mut::<uint8_t>();
+                return ::core::ptr::null_mut::<u8>();
             }
             while push_left > 0 as ::core::ffi::c_int && nread < npos {
                 if push_size == 2 as ::core::ffi::c_int {
@@ -821,14 +811,14 @@ unsafe extern "C" fn parse_instrs(
                     icnt = icnt + 1;
                     *instrs.offset(fresh2 as isize) =
                         (numberstack[nread as usize] as ::core::ffi::c_int
-                            >> 8 as ::core::ffi::c_int) as uint8_t;
+                            >> 8 as ::core::ffi::c_int) as u8;
                     let fresh3 = nread;
                     nread = nread + 1;
                     let fresh4 = icnt;
                     icnt = icnt + 1;
                     *instrs.offset(fresh4 as isize) =
                         (numberstack[fresh3 as usize] as ::core::ffi::c_int
-                            & 0xff as ::core::ffi::c_int) as uint8_t;
+                            & 0xff as ::core::ffi::c_int) as u8;
                 } else if numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
                     > 255 as ::core::ffi::c_int
                     || (numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
@@ -841,13 +831,13 @@ unsafe extern "C" fn parse_instrs(
                             as *mut ::core::ffi::c_char,
                         pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                     );
-                    return ::core::ptr::null_mut::<uint8_t>();
+                    return ::core::ptr::null_mut::<u8>();
                 } else {
                     let fresh5 = nread;
                     nread = nread + 1;
                     let fresh6 = icnt;
                     icnt = icnt + 1;
-                    *instrs.offset(fresh6 as isize) = numberstack[fresh5 as usize] as uint8_t;
+                    *instrs.offset(fresh6 as isize) = numberstack[fresh5 as usize] as u8;
                 }
                 push_left -= 1;
             }
@@ -863,7 +853,7 @@ unsafe extern "C" fn parse_instrs(
                         as *mut ::core::ffi::c_char,
                     pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                 );
-                return ::core::ptr::null_mut::<uint8_t>();
+                return ::core::ptr::null_mut::<u8>();
             }
             if !(*pt as ::core::ffi::c_int == '\r' as i32
                 || *pt as ::core::ffi::c_int == '\n' as i32
@@ -876,7 +866,7 @@ unsafe extern "C" fn parse_instrs(
                             as *mut ::core::ffi::c_char,
                         pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                     );
-                    return ::core::ptr::null_mut::<uint8_t>();
+                    return ::core::ptr::null_mut::<u8>();
                 }
                 while nread < npos {
                     i = nread;
@@ -898,15 +888,15 @@ unsafe extern "C" fn parse_instrs(
                             *instrs.offset(fresh7 as isize) = (ttf_pushb as ::core::ffi::c_int
                                 + (i - nread)
                                 - 1 as ::core::ffi::c_int)
-                                as uint8_t;
+                                as u8;
                         } else {
                             let fresh8 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh8 as isize) =
-                                ttf_npushb as ::core::ffi::c_int as uint8_t;
+                                ttf_npushb as ::core::ffi::c_int as u8;
                             let fresh9 = icnt;
                             icnt = icnt + 1;
-                            *instrs.offset(fresh9 as isize) = (i - nread) as uint8_t;
+                            *instrs.offset(fresh9 as isize) = (i - nread) as u8;
                         }
                         while nread < i {
                             let fresh10 = nread;
@@ -914,7 +904,7 @@ unsafe extern "C" fn parse_instrs(
                             let fresh11 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh11 as isize) =
-                                numberstack[fresh10 as usize] as uint8_t;
+                                numberstack[fresh10 as usize] as u8;
                         }
                     } else {
                         while i < npos
@@ -931,15 +921,15 @@ unsafe extern "C" fn parse_instrs(
                             *instrs.offset(fresh12 as isize) = (ttf_pushw as ::core::ffi::c_int
                                 + (i - nread)
                                 - 1 as ::core::ffi::c_int)
-                                as uint8_t;
+                                as u8;
                         } else {
                             let fresh13 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh13 as isize) =
-                                ttf_npushw as ::core::ffi::c_int as uint8_t;
+                                ttf_npushw as ::core::ffi::c_int as u8;
                             let fresh14 = icnt;
                             icnt = icnt + 1;
-                            *instrs.offset(fresh14 as isize) = (i - nread) as uint8_t;
+                            *instrs.offset(fresh14 as isize) = (i - nread) as u8;
                         }
                         while nread < i {
                             let fresh15 = icnt;
@@ -947,7 +937,7 @@ unsafe extern "C" fn parse_instrs(
                             *instrs.offset(fresh15 as isize) = (numberstack[nread as usize]
                                 as ::core::ffi::c_int
                                 >> 8 as ::core::ffi::c_int)
-                                as uint8_t;
+                                as u8;
                             let fresh16 = nread;
                             nread = nread + 1;
                             let fresh17 = icnt;
@@ -955,7 +945,7 @@ unsafe extern "C" fn parse_instrs(
                             *instrs.offset(fresh17 as isize) = (numberstack[fresh16 as usize]
                                 as ::core::ffi::c_int
                                 & 0xff as ::core::ffi::c_int)
-                                as uint8_t;
+                                as u8;
                         }
                     }
                 }
@@ -1022,7 +1012,7 @@ unsafe extern "C" fn parse_instrs(
                                 as *mut ::core::ffi::c_char,
                             pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                         );
-                        return ::core::ptr::null_mut::<uint8_t>();
+                        return ::core::ptr::null_mut::<u8>();
                     }
                     if val >= 32 as ::core::ffi::c_int {
                         IVError.expect("non-null function pointer")(
@@ -1032,14 +1022,14 @@ unsafe extern "C" fn parse_instrs(
                                 as *mut ::core::ffi::c_char,
                             pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                         );
-                        return ::core::ptr::null_mut::<uint8_t>();
+                        return ::core::ptr::null_mut::<u8>();
                     }
                     i += val;
                 }
                 pt = end;
                 let fresh18 = icnt;
                 icnt = icnt + 1;
-                *instrs.offset(fresh18 as isize) = i as uint8_t;
+                *instrs.offset(fresh18 as isize) = i as u8;
                 if i == ttf_npushb as ::core::ffi::c_int
                     || i == ttf_npushw as ::core::ffi::c_int
                     || i >= ttf_pushb as ::core::ffi::c_int
@@ -1075,15 +1065,15 @@ unsafe extern "C" fn parse_instrs(
     *len = icnt;
     instrs = __caryll_reallocate(
         instrs as *mut ::core::ffi::c_void,
-        (::core::mem::size_of::<uint8_t>() as size_t).wrapping_mul(
+        (::core::mem::size_of::<u8>() as usize).wrapping_mul(
             (if icnt == 0 as ::core::ffi::c_int {
                 1 as ::core::ffi::c_int
             } else {
                 icnt
-            }) as size_t,
+            }) as usize,
         ),
         573 as ::core::ffi::c_ulong,
-    ) as *mut uint8_t;
+    ) as *mut u8;
     return instrs;
 }
 unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int {
@@ -1092,29 +1082,29 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
     let mut cnt: ::core::ffi::c_int = 0;
     let mut j: ::core::ffi::c_int = 0;
     let mut lh: ::core::ffi::c_int = 0;
-    let mut instrs: *mut uint8_t = (*id).instrs;
-    let mut bts: *mut uint8_t = ::core::ptr::null_mut::<uint8_t>();
+    let mut instrs: *mut u8 = (*id).instrs;
+    let mut bts: *mut u8 = ::core::ptr::null_mut::<u8>();
     if (*id).bts.is_null() {
         (*id).bts = __caryll_allocate_clean(
-            (::core::mem::size_of::<uint8_t>() as size_t)
-                .wrapping_mul((len + 1 as ::core::ffi::c_int) as size_t),
+            (::core::mem::size_of::<u8>() as usize)
+                .wrapping_mul((len + 1 as ::core::ffi::c_int) as usize),
             582 as ::core::ffi::c_ulong,
-        ) as *mut uint8_t;
+        ) as *mut u8;
     }
     bts = (*id).bts;
     lh = 0 as ::core::ffi::c_int;
     i = lh;
     while i < len {
-        *bts.offset(i as isize) = bt_instr as ::core::ffi::c_int as uint8_t;
+        *bts.offset(i as isize) = bt_instr as ::core::ffi::c_int as u8;
         lh += 1;
         if *instrs.offset(i as isize) as ::core::ffi::c_int == ttf_npushb as ::core::ffi::c_int {
             i += 1;
-            *bts.offset(i as isize) = bt_cnt as ::core::ffi::c_int as uint8_t;
+            *bts.offset(i as isize) = bt_cnt as ::core::ffi::c_int as u8;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_byte as ::core::ffi::c_int as uint8_t;
+                *bts.offset(i as isize) = bt_byte as ::core::ffi::c_int as u8;
                 j += 1;
             }
             lh += 1 as ::core::ffi::c_int + cnt;
@@ -1122,15 +1112,15 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
             == ttf_npushw as ::core::ffi::c_int
         {
             i += 1;
-            *bts.offset(i as isize) = bt_cnt as ::core::ffi::c_int as uint8_t;
+            *bts.offset(i as isize) = bt_cnt as ::core::ffi::c_int as u8;
             lh += 1;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_wordhi as ::core::ffi::c_int as uint8_t;
+                *bts.offset(i as isize) = bt_wordhi as ::core::ffi::c_int as u8;
                 i += 1;
-                *bts.offset(i as isize) = bt_wordlo as ::core::ffi::c_int as uint8_t;
+                *bts.offset(i as isize) = bt_wordlo as ::core::ffi::c_int as u8;
                 j += 1;
             }
             lh += 1 as ::core::ffi::c_int + cnt;
@@ -1142,7 +1132,7 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_byte as ::core::ffi::c_int as uint8_t;
+                *bts.offset(i as isize) = bt_byte as ::core::ffi::c_int as u8;
                 j += 1;
             }
             lh += cnt;
@@ -1154,44 +1144,44 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_wordhi as ::core::ffi::c_int as uint8_t;
+                *bts.offset(i as isize) = bt_wordhi as ::core::ffi::c_int as u8;
                 i += 1;
-                *bts.offset(i as isize) = bt_wordlo as ::core::ffi::c_int as uint8_t;
+                *bts.offset(i as isize) = bt_wordlo as ::core::ffi::c_int as u8;
                 j += 1;
             }
             lh += cnt;
         }
         i += 1;
     }
-    *bts.offset(i as isize) = bt_impliedreturn as ::core::ffi::c_int as uint8_t;
+    *bts.offset(i as isize) = bt_impliedreturn as ::core::ffi::c_int as u8;
     return lh;
 }
 #[no_mangle]
 pub unsafe extern "C" fn dump_ttinstr(
-    mut instructions: *mut uint8_t,
-    mut length: uint32_t,
+    mut instructions: *mut u8,
+    mut length: u32,
     mut options: *const otfcc_Options,
 ) -> *mut json_value {
     if (*options).instr_as_bytes {
-        let mut len: size_t = 0 as size_t;
-        let mut buf: *mut uint8_t = base64_encode(instructions, length as size_t, &raw mut len);
+        let mut len: usize = 0 as usize;
+        let mut buf: *mut u8 = base64_encode(instructions, length as usize, &raw mut len);
         return json_string_new_length(len as ::core::ffi::c_uint, buf as *mut ::core::ffi::c_char);
     } else {
         let mut id: instrdata = instrdata {
-            instrs: ::core::ptr::null_mut::<uint8_t>(),
+            instrs: ::core::ptr::null_mut::<u8>(),
             instr_cnt: 0,
-            bts: ::core::ptr::null_mut::<uint8_t>(),
+            bts: ::core::ptr::null_mut::<u8>(),
         };
         memset(
             &raw mut id as *mut ::core::ffi::c_void,
             0 as ::core::ffi::c_int,
-            ::core::mem::size_of::<instrdata>() as size_t,
+            ::core::mem::size_of::<instrdata>() as usize,
         );
         id.instr_cnt = length;
         id.instrs = instructions;
         instr_typify(&raw mut id);
-        let mut ret: *mut json_value = json_array_new(id.instr_cnt as size_t);
-        let mut i: uint32_t = 0 as uint32_t;
+        let mut ret: *mut json_value = json_array_new(id.instr_cnt as usize);
+        let mut i: u32 = 0 as u32;
         while i < id.instr_cnt {
             if *id.bts.offset(i as isize) as ::core::ffi::c_int == bt_wordhi as ::core::ffi::c_int {
                 json_array_push(
@@ -1199,9 +1189,9 @@ pub unsafe extern "C" fn dump_ttinstr(
                     json_integer_new(
                         ((*id.instrs.offset(i as isize) as ::core::ffi::c_int)
                             << 8 as ::core::ffi::c_int
-                            | *id.instrs.offset(i.wrapping_add(1 as uint32_t) as isize)
-                                as ::core::ffi::c_int) as int16_t
-                            as int64_t,
+                            | *id.instrs.offset(i.wrapping_add(1 as u32) as isize)
+                                as ::core::ffi::c_int) as i16
+                            as i64,
                     ),
                 );
                 i = i.wrapping_add(1);
@@ -1211,7 +1201,7 @@ pub unsafe extern "C" fn dump_ttinstr(
             {
                 json_array_push(
                     ret,
-                    json_integer_new(*id.instrs.offset(i as isize) as int64_t),
+                    json_integer_new(*id.instrs.offset(i as isize) as i64),
                 );
             } else {
                 json_array_push(
@@ -1222,7 +1212,7 @@ pub unsafe extern "C" fn dump_ttinstr(
             i = i.wrapping_add(1);
         }
         free(id.bts as *mut ::core::ffi::c_void);
-        id.bts = ::core::ptr::null_mut::<uint8_t>();
+        id.bts = ::core::ptr::null_mut::<u8>();
         return preserialize(ret);
     };
 }
@@ -1230,7 +1220,7 @@ pub unsafe extern "C" fn dump_ttinstr(
 pub unsafe extern "C" fn parse_ttinstr(
     mut col: *mut json_value,
     mut context: *mut ::core::ffi::c_void,
-    mut Make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut uint8_t, uint32_t) -> ()>,
+    mut Make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> ()>,
     mut Wrong: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
@@ -1242,25 +1232,25 @@ pub unsafe extern "C" fn parse_ttinstr(
     if col.is_null() {
         Make.expect("non-null function pointer")(
             context,
-            ::core::ptr::null_mut::<uint8_t>(),
-            0 as uint32_t,
+            ::core::ptr::null_mut::<u8>(),
+            0 as u32,
         );
     } else if (*col).type_0 as ::core::ffi::c_uint
         == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
     {
-        let mut instrlen: size_t = 0;
-        let mut instructions: *mut uint8_t = base64_decode(
-            (*col).u.string.ptr as *mut uint8_t,
-            (*col).u.string.length as size_t,
+        let mut instrlen: usize = 0;
+        let mut instructions: *mut u8 = base64_decode(
+            (*col).u.string.ptr as *mut u8,
+            (*col).u.string.length as usize,
             &raw mut instrlen,
         );
-        Make.expect("non-null function pointer")(context, instructions, instrlen as uint32_t);
+        Make.expect("non-null function pointer")(context, instructions, instrlen as u32);
     } else if (*col).type_0 as ::core::ffi::c_uint
         == json_array as ::core::ffi::c_int as ::core::ffi::c_uint
     {
-        let mut istrlen: size_t = 0 as size_t;
-        let mut j: uint32_t = 0 as uint32_t;
-        while j < (*col).u.array.length as uint32_t {
+        let mut istrlen: usize = 0 as usize;
+        let mut j: u32 = 0 as u32;
+        while j < (*col).u.array.length as u32 {
             let mut record: *mut json_value =
                 *(*col).u.array.values.offset(j as isize) as *mut json_value;
             if (*record).type_0 as ::core::ffi::c_uint
@@ -1271,18 +1261,18 @@ pub unsafe extern "C" fn parse_ttinstr(
                         .u
                         .string
                         .length
-                        .wrapping_add(1 as ::core::ffi::c_uint) as size_t,
+                        .wrapping_add(1 as ::core::ffi::c_uint) as usize,
                 );
             } else if (*record).type_0 as ::core::ffi::c_uint
                 == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
             {
                 istrlen = istrlen
-                    .wrapping_add((1 as ::core::ffi::c_int + 20 as ::core::ffi::c_int) as size_t);
+                    .wrapping_add((1 as ::core::ffi::c_int + 20 as ::core::ffi::c_int) as usize);
             } else {
                 Make.expect("non-null function pointer")(
                     context,
-                    ::core::ptr::null_mut::<uint8_t>(),
-                    0 as uint32_t,
+                    ::core::ptr::null_mut::<u8>(),
+                    0 as u32,
                 );
                 return;
             }
@@ -1290,11 +1280,11 @@ pub unsafe extern "C" fn parse_ttinstr(
         }
         let mut instrString: sds = sdsnewlen(
             ::core::ptr::null::<::core::ffi::c_void>(),
-            istrlen.wrapping_add(1 as size_t),
+            istrlen.wrapping_add(1 as usize),
         );
         let mut head: *mut ::core::ffi::c_char = instrString as *mut ::core::ffi::c_char;
-        let mut j_0: uint32_t = 0 as uint32_t;
-        while j_0 < (*col).u.array.length as uint32_t {
+        let mut j_0: u32 = 0 as u32;
+        while j_0 < (*col).u.array.length as u32 {
             let mut record_0: *mut json_value =
                 *(*col).u.array.values.offset(j_0 as isize) as *mut json_value;
             if (*record_0).type_0 as ::core::ffi::c_uint
@@ -1303,8 +1293,8 @@ pub unsafe extern "C" fn parse_ttinstr(
                 memcpy(
                     head as *mut ::core::ffi::c_void,
                     (*record_0).u.string.ptr as *const ::core::ffi::c_void,
-                    (::core::mem::size_of::<::core::ffi::c_char>() as size_t)
-                        .wrapping_mul((*record_0).u.string.length as size_t),
+                    (::core::mem::size_of::<::core::ffi::c_char>() as usize)
+                        .wrapping_mul((*record_0).u.string.length as usize),
                 );
                 head = head.offset((*record_0).u.string.length as isize);
             } else if (*record_0).type_0 as ::core::ffi::c_uint
@@ -1312,7 +1302,7 @@ pub unsafe extern "C" fn parse_ttinstr(
             {
                 let mut n: ::core::ffi::c_int = snprintf(
                     head,
-                    20 as size_t,
+                    20 as usize,
                     b"%d\0" as *const u8 as *const ::core::ffi::c_char,
                     (*record_0).u.integer as ::core::ffi::c_int,
                 );
@@ -1323,7 +1313,7 @@ pub unsafe extern "C" fn parse_ttinstr(
             j_0 = j_0.wrapping_add(1);
         }
         let mut instrLength: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-        let mut instructions_0: *mut uint8_t = parse_instrs(
+        let mut instructions_0: *mut u8 = parse_instrs(
             instrString as *mut ::core::ffi::c_char,
             &raw mut instrLength,
             context,
@@ -1334,20 +1324,20 @@ pub unsafe extern "C" fn parse_ttinstr(
             Make.expect("non-null function pointer")(
                 context,
                 instructions_0,
-                instrLength as uint32_t,
+                instrLength as u32,
             );
         } else {
             Make.expect("non-null function pointer")(
                 context,
-                ::core::ptr::null_mut::<uint8_t>(),
-                0 as uint32_t,
+                ::core::ptr::null_mut::<u8>(),
+                0 as u32,
             );
         }
     } else {
         Make.expect("non-null function pointer")(
             context,
-            ::core::ptr::null_mut::<uint8_t>(),
-            0 as uint32_t,
+            ::core::ptr::null_mut::<u8>(),
+            0 as u32,
         );
     };
 }

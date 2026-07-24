@@ -1,36 +1,36 @@
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn qsort(
         __base: *mut ::core::ffi::c_void,
-        __nmemb: size_t,
-        __size: size_t,
+        __nmemb: usize,
+        __size: usize,
         __compar: __compar_fn_t,
     );
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn strcmp(
         __s1: *const ::core::ffi::c_char,
         __s2: *const ::core::ffi::c_char,
     ) -> ::core::ffi::c_int;
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: size_t) -> sds;
+    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: uint32_t);
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
+    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
     fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds);
-    fn json_object_new(length: size_t) -> *mut json_value;
+    fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
@@ -47,17 +47,6 @@ use crate::support::cvec::{
     cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
     cvec_resize_to, CVecRaw,
 };
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type __uint64_t = u64;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type uint64_t = __uint64_t;
-pub type size_t = usize;
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
@@ -92,7 +81,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -129,44 +118,44 @@ pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr8 {
-    pub len: uint8_t,
-    pub alloc: uint8_t,
+    pub len: u8,
+    pub alloc: u8,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr16 {
-    pub len: uint16_t,
-    pub alloc: uint16_t,
+    pub len: u16,
+    pub alloc: u16,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr32 {
-    pub len: uint32_t,
-    pub alloc: uint32_t,
+    pub len: u32,
+    pub alloc: u32,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr64 {
-    pub len: uint64_t,
-    pub alloc: uint64_t,
+    pub len: u64,
+    pub alloc: u64,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
-pub type glyphid_t = uint16_t;
+pub type glyphid_t = u16;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_ILoggerTarget {
@@ -189,17 +178,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -234,20 +223,20 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 pub type tsi_EntryType = ::core::ffi::c_uint;
@@ -276,8 +265,8 @@ pub struct __caryll_elementinterface_tsi_Entry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_TSI {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut tsi_Entry,
 }
 #[derive(Copy, Clone)]
@@ -291,15 +280,15 @@ pub struct __caryll_vectorinterface_table_TSI {
     pub copyReplace: Option<unsafe extern "C" fn(*mut table_TSI, table_TSI) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut table_TSI>,
     pub free: Option<unsafe extern "C" fn(*mut table_TSI) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut table_TSI, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut table_TSI, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut table_TSI>,
-    pub fill: Option<unsafe extern "C" fn(*mut table_TSI, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut table_TSI, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut table_TSI, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut table_TSI>,
+    pub fill: Option<unsafe extern "C" fn(*mut table_TSI, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut table_TSI) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut table_TSI, tsi_Entry) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut table_TSI) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut table_TSI) -> tsi_Entry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut table_TSI, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut table_TSI, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut table_TSI,
@@ -329,34 +318,34 @@ pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
 pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
 pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> size_t {
+unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
+        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_16 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_32 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_64 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
-                .len as size_t;
+                .len as usize;
         }
         _ => {}
     }
-    return 0 as size_t;
+    return 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn initTSIEntry(mut entry: *mut tsi_Entry) {
@@ -384,7 +373,7 @@ unsafe extern "C" fn tsi_Entry_replace(mut dst: *mut tsi_Entry, src: tsi_Entry) 
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<tsi_Entry>() as size_t,
+        ::core::mem::size_of::<tsi_Entry>() as usize,
     );
 }
 #[inline]
@@ -396,7 +385,7 @@ unsafe extern "C" fn tsi_Entry_move(mut dst: *mut tsi_Entry, mut src: *mut tsi_E
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<tsi_Entry>() as size_t,
+        ::core::mem::size_of::<tsi_Entry>() as usize,
     );
     tsi_Entry_init(src);
 }
@@ -427,7 +416,7 @@ unsafe extern "C" fn tsi_Entry_copyReplace(mut dst: *mut tsi_Entry, src: tsi_Ent
     tsi_Entry_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_fill(mut arr: *mut table_TSI, mut n: size_t) {
+unsafe extern "C" fn table_TSI_fill(mut arr: *mut table_TSI, mut n: usize) {
     while (*arr).length < n {
         let mut x: tsi_Entry = tsi_Entry {
             type_0: TSI_GLYPH,
@@ -444,7 +433,7 @@ unsafe extern "C" fn table_TSI_fill(mut arr: *mut table_TSI, mut n: size_t) {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<tsi_Entry>() as size_t,
+                ::core::mem::size_of::<tsi_Entry>() as usize,
             );
         }
         table_TSI_push(arr, x);
@@ -468,8 +457,8 @@ unsafe extern "C" fn table_TSI_filterEnv(
     mut fn_0: Option<unsafe extern "C" fn(*const tsi_Entry, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: size_t = 0 as size_t;
-    let mut k: size_t = 0 as size_t;
+    let mut j: usize = 0 as usize;
+    let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
             (*arr).items.offset(k as isize) as *mut tsi_Entry,
@@ -492,7 +481,7 @@ unsafe extern "C" fn table_TSI_filterEnv(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn table_TSI_disposeItem(mut arr: *mut table_TSI, mut n: size_t) {
+unsafe extern "C" fn table_TSI_disposeItem(mut arr: *mut table_TSI, mut n: usize) {
     if tsi_iEntry.dispose.is_some() {
         tsi_iEntry.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut tsi_Entry
@@ -510,7 +499,7 @@ unsafe extern "C" fn table_TSI_sort(
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<tsi_Entry>() as size_t,
+        ::core::mem::size_of::<tsi_Entry>() as usize,
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*const tsi_Entry, *const tsi_Entry) -> ::core::ffi::c_int>,
             __compar_fn_t,
@@ -530,16 +519,16 @@ pub static mut table_iTSI: __caryll_vectorinterface_table_TSI = {
         ),
         create: Some(table_TSI_create),
         free: Some(table_TSI_free as unsafe extern "C" fn(*mut table_TSI) -> ()),
-        initN: Some(table_TSI_initN as unsafe extern "C" fn(*mut table_TSI, size_t) -> ()),
-        initCapN: Some(table_TSI_initCapN as unsafe extern "C" fn(*mut table_TSI, size_t) -> ()),
-        createN: Some(table_TSI_createN as unsafe extern "C" fn(size_t) -> *mut table_TSI),
-        fill: Some(table_TSI_fill as unsafe extern "C" fn(*mut table_TSI, size_t) -> ()),
+        initN: Some(table_TSI_initN as unsafe extern "C" fn(*mut table_TSI, usize) -> ()),
+        initCapN: Some(table_TSI_initCapN as unsafe extern "C" fn(*mut table_TSI, usize) -> ()),
+        createN: Some(table_TSI_createN as unsafe extern "C" fn(usize) -> *mut table_TSI),
+        fill: Some(table_TSI_fill as unsafe extern "C" fn(*mut table_TSI, usize) -> ()),
         clear: Some(table_TSI_dispose as unsafe extern "C" fn(*mut table_TSI) -> ()),
         push: Some(table_TSI_push as unsafe extern "C" fn(*mut table_TSI, tsi_Entry) -> ()),
         shrinkToFit: Some(table_TSI_shrinkToFit as unsafe extern "C" fn(*mut table_TSI) -> ()),
         pop: Some(table_TSI_pop as unsafe extern "C" fn(*mut table_TSI) -> tsi_Entry),
         disposeItem: Some(
-            table_TSI_disposeItem as unsafe extern "C" fn(*mut table_TSI, size_t) -> (),
+            table_TSI_disposeItem as unsafe extern "C" fn(*mut table_TSI, usize) -> (),
         ),
         filterEnv: Some(
             table_TSI_filterEnv
@@ -572,7 +561,7 @@ unsafe extern "C" fn table_TSI_grow(arr: *mut table_TSI) {
     cvec_grow(table_TSI_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn table_TSI_growTo(arr: *mut table_TSI, target: size_t) {
+unsafe extern "C" fn table_TSI_growTo(arr: *mut table_TSI, target: usize) {
     cvec_grow_to(table_TSI_as_cvec(arr), target);
 }
 #[inline]
@@ -590,7 +579,7 @@ unsafe extern "C" fn table_TSI_copy(mut dst: *mut table_TSI, mut src: *const tab
     table_TSI_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
     if tsi_iEntry.copy.is_some() {
-        let mut j: size_t = 0 as size_t;
+        let mut j: usize = 0 as usize;
         while j < (*src).length {
             tsi_iEntry.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut tsi_Entry,
@@ -599,7 +588,7 @@ unsafe extern "C" fn table_TSI_copy(mut dst: *mut table_TSI, mut src: *const tab
             j = j.wrapping_add(1);
         }
     } else {
-        let mut j_0: size_t = 0 as size_t;
+        let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
             *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
             j_0 = j_0.wrapping_add(1);
@@ -612,7 +601,7 @@ unsafe extern "C" fn table_TSI_dispose(mut arr: *mut table_TSI) {
         return;
     }
     if tsi_iEntry.dispose.is_some() {
-        let mut j: size_t = (*arr).length;
+        let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
             j = j.wrapping_sub(1);
@@ -626,8 +615,8 @@ unsafe extern "C" fn table_TSI_dispose(mut arr: *mut table_TSI) {
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<tsi_Entry>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn table_TSI_replace(mut dst: *mut table_TSI, src: table_TSI) {
@@ -635,20 +624,20 @@ unsafe extern "C" fn table_TSI_replace(mut dst: *mut table_TSI, src: table_TSI) 
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_TSI>() as size_t,
+        ::core::mem::size_of::<table_TSI>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_TSI_initCapN(mut arr: *mut table_TSI, mut n: size_t) {
+unsafe extern "C" fn table_TSI_initCapN(mut arr: *mut table_TSI, mut n: usize) {
     table_TSI_init(arr);
     table_TSI_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_growToN(arr: *mut table_TSI, target: size_t) {
+unsafe extern "C" fn table_TSI_growToN(arr: *mut table_TSI, target: usize) {
     cvec_grow_to_n(table_TSI_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_initN(mut arr: *mut table_TSI, mut n: size_t) {
+unsafe extern "C" fn table_TSI_initN(mut arr: *mut table_TSI, mut n: usize) {
     table_TSI_init(arr);
     table_TSI_growToN(arr, n);
     table_TSI_fill(arr, n);
@@ -662,16 +651,16 @@ unsafe extern "C" fn table_TSI_free(mut x: *mut table_TSI) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_createN(mut n: size_t) -> *mut table_TSI {
+unsafe extern "C" fn table_TSI_createN(mut n: usize) -> *mut table_TSI {
     let mut t: *mut table_TSI =
-        malloc(::core::mem::size_of::<table_TSI>() as size_t) as *mut table_TSI;
+        malloc(::core::mem::size_of::<table_TSI>() as usize) as *mut table_TSI;
     table_TSI_initN(t, n);
     return t;
 }
 #[inline]
 unsafe extern "C" fn table_TSI_create() -> *mut table_TSI {
     let mut x: *mut table_TSI =
-        malloc(::core::mem::size_of::<table_TSI>() as size_t) as *mut table_TSI;
+        malloc(::core::mem::size_of::<table_TSI>() as usize) as *mut table_TSI;
     table_TSI_init(x);
     return x;
 }
@@ -680,12 +669,12 @@ unsafe extern "C" fn table_TSI_shrinkToFit(mut arr: *mut table_TSI) {
     table_TSI_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_resizeTo(arr: *mut table_TSI, target: size_t) {
+unsafe extern "C" fn table_TSI_resizeTo(arr: *mut table_TSI, target: usize) {
     cvec_resize_to(table_TSI_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn isValidGID(mut gid: uint16_t, mut tagIndex: uint32_t) -> bool {
-    if tagIndex == 1414744368i32 as uint32_t {
+unsafe extern "C" fn isValidGID(mut gid: u16, mut tagIndex: u32) -> bool {
+    if tagIndex == 1414744368i32 as u32 {
         return gid as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
             && gid as ::core::ffi::c_int != 0xfffc as ::core::ffi::c_int;
     } else {
@@ -696,25 +685,25 @@ unsafe extern "C" fn isValidGID(mut gid: uint16_t, mut tagIndex: uint32_t) -> bo
 pub unsafe extern "C" fn otfcc_readTSI(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
-    mut tagIndex: uint32_t,
-    mut tagText: uint32_t,
+    mut tagIndex: u32,
+    mut tagText: u32,
 ) -> *mut table_TSI {
     let mut textPart: otfcc_PacketPiece = otfcc_PacketPiece {
         tag: 0,
         checkSum: 0,
         offset: 0,
         length: 0,
-        data: ::core::ptr::null_mut::<uint8_t>(),
+        data: ::core::ptr::null_mut::<u8>(),
     };
-    textPart.tag = 0 as uint32_t;
+    textPart.tag = 0 as u32;
     let mut indexPart: otfcc_PacketPiece = otfcc_PacketPiece {
         tag: 0,
         checkSum: 0,
         offset: 0,
         length: 0,
-        data: ::core::ptr::null_mut::<uint8_t>(),
+        data: ::core::ptr::null_mut::<u8>(),
     };
-    indexPart.tag = 0 as uint32_t;
+    indexPart.tag = 0 as u32;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -764,37 +753,37 @@ pub unsafe extern "C" fn otfcc_readTSI(
     }
     let mut tsi: *mut table_TSI = (
         table_iTSI.create.expect("non-null function pointer"))();
-    let mut j: uint32_t = 0 as uint32_t;
-    while j.wrapping_mul(8 as uint32_t) < indexPart.length {
-        let mut gid: uint16_t = read_16u(
+    let mut j: u32 = 0 as u32;
+    while j.wrapping_mul(8 as u32) < indexPart.length {
+        let mut gid: u16 = read_16u(
             indexPart
                 .data
-                .offset(j.wrapping_mul(8 as uint32_t) as isize),
+                .offset(j.wrapping_mul(8 as u32) as isize),
         );
-        let mut textLength: uint32_t = read_16u(
+        let mut textLength: u32 = read_16u(
             indexPart
                 .data
-                .offset(j.wrapping_mul(8 as uint32_t) as isize)
+                .offset(j.wrapping_mul(8 as u32) as isize)
                 .offset(2 as ::core::ffi::c_int as isize),
-        ) as uint32_t;
-        let mut textOffset: uint32_t = read_32u(
+        ) as u32;
+        let mut textOffset: u32 = read_32u(
             indexPart
                 .data
-                .offset(j.wrapping_mul(8 as uint32_t) as isize)
+                .offset(j.wrapping_mul(8 as u32) as isize)
                 .offset(4 as ::core::ffi::c_int as isize),
         );
         if !(!isValidGID(gid, tagIndex) || textOffset >= textPart.length || textLength == 0) {
-            let mut predictedTextLength: uint32_t = textPart.length.wrapping_sub(textOffset);
-            let mut k: glyphid_t = j.wrapping_add(1 as uint32_t) as glyphid_t;
-            while ((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as uint32_t)
+            let mut predictedTextLength: u32 = textPart.length.wrapping_sub(textOffset);
+            let mut k: glyphid_t = j.wrapping_add(1 as u32) as glyphid_t;
+            while ((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as u32)
                 < indexPart.length
             {
-                let mut gidK: uint16_t = read_16u(
+                let mut gidK: u16 = read_16u(
                     indexPart
                         .data
                         .offset((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as isize),
                 );
-                let mut textOffsetK: uint32_t = read_32u(
+                let mut textOffsetK: u32 = read_32u(
                     indexPart
                         .data
                         .offset((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as isize)
@@ -810,7 +799,7 @@ pub unsafe extern "C" fn otfcc_readTSI(
                     k = k.wrapping_add(1);
                 }
             }
-            if textLength >= 0x8000 as uint32_t {
+            if textLength >= 0x8000 as u32 {
                 textLength = predictedTextLength;
             }
             let mut entry: tsi_Entry = tsi_Entry {
@@ -844,7 +833,7 @@ pub unsafe extern "C" fn otfcc_readTSI(
             }
             entry.content = sdsnewlen(
                 textPart.data.offset(textOffset as isize) as *const ::core::ffi::c_void,
-                textLength as size_t,
+                textLength as usize,
             );
             table_iTSI.push.expect("non-null function pointer")(tsi, entry);
         }
@@ -874,10 +863,10 @@ pub unsafe extern "C" fn otfcc_dumpTSI(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _tsi: *mut json_value = json_object_new(2 as size_t);
+        let mut _tsi: *mut json_value = json_object_new(2 as usize);
         let mut _glyphs: *mut json_value = json_object_new((*tsi).length);
-        let mut __caryll_index: size_t = 0 as size_t;
-        let mut keep: size_t = 1 as size_t;
+        let mut __caryll_index: usize = 0 as usize;
+        let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < (*tsi).length {
             let mut entry: *mut tsi_Entry = (*tsi).items.offset(__caryll_index as isize);
             while keep != 0 {
@@ -893,14 +882,14 @@ pub unsafe extern "C" fn otfcc_dumpTSI(
                         ),
                     );
                 }
-                keep = (keep == 0) as ::core::ffi::c_int as size_t;
+                keep = (keep == 0) as ::core::ffi::c_int as usize;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as size_t;
+            keep = (keep == 0) as ::core::ffi::c_int as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
         let mut _extra: *mut json_value = json_object_new((*tsi).length);
-        let mut __caryll_index_0: size_t = 0 as size_t;
-        let mut keep_0: size_t = 1 as size_t;
+        let mut __caryll_index_0: usize = 0 as usize;
+        let mut keep_0: usize = 1 as usize;
         while keep_0 != 0 && __caryll_index_0 < (*tsi).length {
             let mut entry_0: *mut tsi_Entry = (*tsi).items.offset(__caryll_index_0 as isize);
             while keep_0 != 0 {
@@ -936,9 +925,9 @@ pub unsafe extern "C" fn otfcc_dumpTSI(
                         ),
                     );
                 }
-                keep_0 = (keep_0 == 0) as ::core::ffi::c_int as size_t;
+                keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
             }
-            keep_0 = (keep_0 == 0) as ::core::ffi::c_int as size_t;
+            keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
             __caryll_index_0 = __caryll_index_0.wrapping_add(1);
         }
         json_object_push(
@@ -989,12 +978,12 @@ pub unsafe extern "C" fn otfcc_parseTSI(
             json_object,
         );
         if !_glyphs.is_null() {
-            let mut j: uint32_t = 0 as uint32_t;
-            while j < (*_glyphs).u.object.length as uint32_t {
+            let mut j: u32 = 0 as u32;
+            while j < (*_glyphs).u.object.length as u32 {
                 let mut _gid: *mut ::core::ffi::c_char =
                     (*(*_glyphs).u.object.values.offset(j as isize)).name;
-                let mut _gidlen: size_t =
-                    (*(*_glyphs).u.object.values.offset(j as isize)).name_length as size_t;
+                let mut _gidlen: usize =
+                    (*(*_glyphs).u.object.values.offset(j as isize)).name_length as usize;
                 let mut _content: *mut json_value =
                     (*(*_glyphs).u.object.values.offset(j as isize)).value as *mut json_value;
                 if !(_content.is_null()
@@ -1010,7 +999,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                             ) as otfcc_GlyphHandle,
                             content: sdsnewlen(
                                 (*_content).u.string.ptr as *const ::core::ffi::c_void,
-                                (*_content).u.string.length as size_t,
+                                (*_content).u.string.length as usize,
                             ),
                         },
                     );
@@ -1024,8 +1013,8 @@ pub unsafe extern "C" fn otfcc_parseTSI(
             json_object,
         );
         if !_extra.is_null() {
-            let mut j_0: uint32_t = 0 as uint32_t;
-            while j_0 < (*_extra).u.object.length as uint32_t {
+            let mut j_0: u32 = 0 as u32;
+            while j_0 < (*_extra).u.object.length as u32 {
                 let mut _key: *mut ::core::ffi::c_char =
                     (*(*_extra).u.object.values.offset(j_0 as isize)).name;
                 let mut _content_0: *mut json_value =
@@ -1044,7 +1033,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                                 glyph: otfcc_Handle_empty() as otfcc_GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
-                                    (*_content_0).u.string.length as size_t,
+                                    (*_content_0).u.string.length as usize,
                                 ),
                             },
                         );
@@ -1058,7 +1047,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                                 glyph: otfcc_Handle_empty() as otfcc_GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
-                                    (*_content_0).u.string.length as size_t,
+                                    (*_content_0).u.string.length as usize,
                                 ),
                             },
                         );
@@ -1072,7 +1061,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                                 glyph: otfcc_Handle_empty() as otfcc_GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
-                                    (*_content_0).u.string.length as size_t,
+                                    (*_content_0).u.string.length as usize,
                                 ),
                             },
                         );
@@ -1106,42 +1095,42 @@ unsafe extern "C" fn pushTSIEntries(
     minN: glyphid_t,
 ) {
     let mut itemsPushed: glyphid_t = 0 as glyphid_t;
-    let mut __caryll_index: size_t = 0 as size_t;
-    let mut keep: size_t = 1 as size_t;
+    let mut __caryll_index: usize = 0 as usize;
+    let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < (*tsi).length {
         let mut entry: *mut tsi_Entry = (*tsi).items.offset(__caryll_index as isize);
         while keep != 0 {
             if !((*entry).type_0 as ::core::ffi::c_uint != type_0 as ::core::ffi::c_uint) {
-                let mut lengthSofar: size_t = (*(*target).textPart).cursor;
+                let mut lengthSofar: usize = (*(*target).textPart).cursor;
                 bufwrite_sds((*target).textPart, (*entry).content);
-                let mut lengthAfter: size_t = (*(*target).textPart).cursor;
-                bufwrite16b((*target).indexPart, propergid(entry, type_0) as uint16_t);
-                if lengthAfter.wrapping_sub(lengthSofar) < 0x8000 as size_t {
+                let mut lengthAfter: usize = (*(*target).textPart).cursor;
+                bufwrite16b((*target).indexPart, propergid(entry, type_0) as u16);
+                if lengthAfter.wrapping_sub(lengthSofar) < 0x8000 as usize {
                     bufwrite16b(
                         (*target).indexPart,
-                        lengthAfter.wrapping_sub(lengthSofar) as uint16_t,
+                        lengthAfter.wrapping_sub(lengthSofar) as u16,
                     );
                 } else {
-                    bufwrite16b((*target).indexPart, 0x8000 as uint16_t);
+                    bufwrite16b((*target).indexPart, 0x8000 as u16);
                 }
-                bufwrite32b((*target).indexPart, lengthSofar as uint32_t);
+                bufwrite32b((*target).indexPart, lengthSofar as u32);
                 itemsPushed =
                     (itemsPushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as glyphid_t;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as size_t;
+            keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as size_t;
+        keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     while (itemsPushed as ::core::ffi::c_int) < minN as ::core::ffi::c_int {
         bufwrite16b(
             (*target).indexPart,
-            propergid(::core::ptr::null_mut::<tsi_Entry>(), type_0) as uint16_t,
+            propergid(::core::ptr::null_mut::<tsi_Entry>(), type_0) as u16,
         );
-        bufwrite16b((*target).indexPart, 0 as uint16_t);
+        bufwrite16b((*target).indexPart, 0 as u16);
         bufwrite32b(
             (*target).indexPart,
-            (*(*target).textPart).cursor as uint32_t,
+            (*(*target).textPart).cursor as u32,
         );
         itemsPushed = (itemsPushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as glyphid_t;
     }
@@ -1162,9 +1151,9 @@ pub unsafe extern "C" fn otfcc_buildTSI(
         target.textPart = bufnew();
         target.indexPart = bufnew();
         pushTSIEntries(&raw mut target, tsi, TSI_GLYPH, 0 as glyphid_t);
-        bufwrite16b(target.indexPart, 0xfffe as uint16_t);
-        bufwrite16b(target.indexPart, 0 as uint16_t);
-        bufwrite32b(target.indexPart, 0xabfc1f34 as uint32_t);
+        bufwrite16b(target.indexPart, 0xfffe as u16);
+        bufwrite16b(target.indexPart, 0 as u16);
+        bufwrite32b(target.indexPart, 0xabfc1f34 as u32);
         pushTSIEntries(&raw mut target, tsi, TSI_PREP, 1 as glyphid_t);
         pushTSIEntries(&raw mut target, tsi, TSI_CVT, 1 as glyphid_t);
         pushTSIEntries(&raw mut target, tsi, TSI_RESERVED_FFFC, 1 as glyphid_t);
@@ -1183,8 +1172,8 @@ unsafe extern "C" fn json_obj_get(
     {
         return ::core::ptr::null_mut::<json_value>();
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;

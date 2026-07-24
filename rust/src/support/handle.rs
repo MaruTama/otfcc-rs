@@ -4,14 +4,11 @@ extern "C" {
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
 }
-pub type size_t = usize;
-pub type __uint16_t = u16;
-pub type uint16_t = __uint16_t;
 pub type sds = *mut ::core::ffi::c_char;
-pub type glyphid_t = uint16_t;
+pub type glyphid_t = u16;
 pub type handle_state = ::core::ffi::c_uint;
 pub const HANDLE_STATE_CONSOLIDATED: handle_state = 3;
 pub const HANDLE_STATE_NAME: handle_state = 2;
@@ -110,7 +107,7 @@ pub(crate) unsafe extern "C" fn otfcc_Handle_replace(mut dst: *mut otfcc_Handle,
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_Handle>() as size_t,
+        ::core::mem::size_of::<otfcc_Handle>() as usize,
     );
 }
 #[inline]
@@ -118,7 +115,7 @@ pub(crate) unsafe extern "C" fn otfcc_Handle_move(mut dst: *mut otfcc_Handle, mu
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_Handle>() as size_t,
+        ::core::mem::size_of::<otfcc_Handle>() as usize,
     );
     otfcc_Handle_init(src);
 }

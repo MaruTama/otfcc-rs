@@ -18,29 +18,24 @@ pub struct __va_list {
     pub __gr_offs: ::core::ffi::c_int,
     pub __vr_offs: ::core::ffi::c_int,
 }
-pub type __uint8_t = u8;
-pub type __uint32_t = u32;
-pub type uint8_t = __uint8_t;
-pub type uint32_t = __uint32_t;
 pub type va_list = __builtin_va_list;
-pub type size_t = usize;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_bkblock {
     pub _visitstate: bk_cell_visit_state,
-    pub _index: uint32_t,
-    pub _height: uint32_t,
-    pub _depth: uint32_t,
-    pub length: uint32_t,
-    pub free: uint32_t,
+    pub _index: u32,
+    pub _height: u32,
+    pub _depth: u32,
+    pub length: u32,
+    pub free: u32,
     pub cells: *mut bk_Cell,
 }
 #[derive(Copy, Clone)]
@@ -52,7 +47,7 @@ pub struct bk_Cell {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed {
-    pub z: uint32_t,
+    pub z: u32,
     pub p: *mut __caryll_bkblock,
 }
 pub type bk_CellType = ::core::ffi::c_uint;
@@ -76,17 +71,17 @@ use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-unsafe extern "C" fn bkblock_acells(mut b: *mut bk_Block, mut len: uint32_t) {
+unsafe extern "C" fn bkblock_acells(mut b: *mut bk_Block, mut len: u32) {
     if len <= (*b).length.wrapping_add((*b).free) {
         (*b).free = (*b).free.wrapping_sub(len.wrapping_sub((*b).length));
         (*b).length = len;
     } else {
         (*b).length = len;
-        (*b).free = len >> 1 as ::core::ffi::c_int & 0xffffff as uint32_t;
+        (*b).free = len >> 1 as ::core::ffi::c_int & 0xffffff as u32;
         (*b).cells = __caryll_reallocate(
             (*b).cells as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<bk_Cell>() as size_t)
-                .wrapping_mul((*b).length.wrapping_add((*b).free) as size_t),
+            (::core::mem::size_of::<bk_Cell>() as usize)
+                .wrapping_mul((*b).length.wrapping_add((*b).free) as usize),
             12 as ::core::ffi::c_ulong,
         ) as *mut bk_Cell;
     };
@@ -95,8 +90,8 @@ unsafe extern "C" fn bkblock_acells(mut b: *mut bk_Block, mut len: uint32_t) {
 pub unsafe extern "C" fn bk_cellIsPointer(mut cell: *mut bk_Cell) -> bool {
     return (*cell).t as ::core::ffi::c_uint >= p16 as ::core::ffi::c_int as ::core::ffi::c_uint;
 }
-unsafe extern "C" fn bkblock_grow(mut b: *mut bk_Block, mut len: uint32_t) -> *mut bk_Cell {
-    let mut olen: uint32_t = (*b).length;
+unsafe extern "C" fn bkblock_grow(mut b: *mut bk_Block, mut len: u32) -> *mut bk_Cell {
+    let mut olen: u32 = (*b).length;
     bkblock_acells(b, olen.wrapping_add(len));
     return (*b).cells.offset(olen as isize) as *mut bk_Cell;
 }
@@ -104,19 +99,19 @@ unsafe extern "C" fn bkblock_grow(mut b: *mut bk_Block, mut len: uint32_t) -> *m
 pub unsafe extern "C" fn _bkblock_init() -> *mut bk_Block {
     let mut b: *mut bk_Block = ::core::ptr::null_mut::<bk_Block>();
     b = __caryll_allocate_clean(
-        ::core::mem::size_of::<bk_Block>() as size_t,
+        ::core::mem::size_of::<bk_Block>() as usize,
         27 as ::core::ffi::c_ulong,
     ) as *mut bk_Block;
-    bkblock_acells(b, 0 as uint32_t);
+    bkblock_acells(b, 0 as u32);
     return b;
 }
 #[no_mangle]
 pub unsafe extern "C" fn bkblock_pushint(
     mut b: *mut bk_Block,
     mut type_0: bk_CellType,
-    mut x: uint32_t,
+    mut x: u32,
 ) {
-    let mut cell: *mut bk_Cell = bkblock_grow(b, 1 as uint32_t);
+    let mut cell: *mut bk_Cell = bkblock_grow(b, 1 as u32);
     (*cell).t = type_0;
     (*cell).c2rust_unnamed.z = x;
 }
@@ -126,7 +121,7 @@ pub unsafe extern "C" fn bkblock_pushptr(
     mut type_0: bk_CellType,
     mut p: *mut bk_Block,
 ) {
-    let mut cell: *mut bk_Cell = bkblock_grow(b, 1 as uint32_t);
+    let mut cell: *mut bk_Cell = bkblock_grow(b, 1 as u32);
     (*cell).t = type_0;
     (*cell).c2rust_unnamed.p = p as *mut __caryll_bkblock;
 }
@@ -158,7 +153,7 @@ unsafe extern "C" fn vbkpushitems(b: *mut bk_Block, type0: bk_CellType, mut ap: 
                 }
             }
             t if t < p16 => {
-                let par_0: uint32_t = ap.arg::<::core::ffi::c_int>() as uint32_t;
+                let par_0: u32 = ap.arg::<::core::ffi::c_int>() as u32;
                 bkblock_pushint(b, curtype, par_0);
             }
             _ => {
@@ -193,7 +188,7 @@ pub unsafe extern "C" fn bk_push(
 }
 #[no_mangle]
 pub unsafe extern "C" fn bk_newBlockFromStringLen(
-    len: size_t,
+    len: usize,
     str: *const ::core::ffi::c_char,
 ) -> *mut bk_Block {
     if str.is_null() {
@@ -201,7 +196,7 @@ pub unsafe extern "C" fn bk_newBlockFromStringLen(
     }
     let b: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
     for j in 0..len {
-        bkblock_pushint(b, b8, *str.offset(j as isize) as uint32_t);
+        bkblock_pushint(b, b8, *str.offset(j as isize) as u32);
     }
     return b;
 }
@@ -212,7 +207,7 @@ pub unsafe extern "C" fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut 
     }
     let b: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
     for j in 0..(*buf).size {
-        bkblock_pushint(b, b8, *(*buf).data.offset(j as isize) as uint32_t);
+        bkblock_pushint(b, b8, *(*buf).data.offset(j as isize) as u32);
     }
     buffree(buf);
     return b;
@@ -224,7 +219,7 @@ pub unsafe extern "C" fn bk_newBlockFromBufferCopy(buf: *const caryll_Buffer) ->
     }
     let b: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
     for j in 0..(*buf).size {
-        bkblock_pushint(b, b8, *(*buf).data.offset(j as isize) as uint32_t);
+        bkblock_pushint(b, b8, *(*buf).data.offset(j as isize) as u32);
     }
     return b;
 }

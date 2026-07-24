@@ -1,6 +1,6 @@
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn fprintf(
@@ -11,41 +11,32 @@ extern "C" {
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
 }
 
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
-pub type __uint8_t = u8;
-pub type __int16_t = i16;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type int16_t = __int16_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
-pub type glyphid_t = uint16_t;
+pub type glyphid_t = u16;
 pub type pos_t = ::core::ffi::c_double;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -75,17 +66,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -120,27 +111,27 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VORG_entry {
     pub gid: glyphid_t,
-    pub verticalOrigin: int16_t,
+    pub verticalOrigin: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -161,7 +152,7 @@ pub struct __caryll_elementinterface_table_VORG {
     pub create: Option<unsafe extern "C" fn() -> *mut table_VORG>,
     pub free: Option<unsafe extern "C" fn(*mut table_VORG) -> ()>,
 }
-pub type font_file_pointer = *mut uint8_t;
+pub type font_file_pointer = *mut u8;
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
@@ -207,7 +198,7 @@ unsafe extern "C" fn table_VORG_init(mut x: *mut table_VORG) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_VORG>() as size_t,
+        ::core::mem::size_of::<table_VORG>() as usize,
     );
 }
 #[inline]
@@ -220,7 +211,7 @@ unsafe extern "C" fn table_VORG_copy(mut dst: *mut table_VORG, mut src: *const t
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_VORG>() as size_t,
+        ::core::mem::size_of::<table_VORG>() as usize,
     );
 }
 #[inline]
@@ -229,7 +220,7 @@ unsafe extern "C" fn table_VORG_replace(mut dst: *mut table_VORG, src: table_VOR
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_VORG>() as size_t,
+        ::core::mem::size_of::<table_VORG>() as usize,
     );
 }
 #[inline]
@@ -237,14 +228,14 @@ unsafe extern "C" fn table_VORG_move(mut dst: *mut table_VORG, mut src: *mut tab
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_VORG>() as size_t,
+        ::core::mem::size_of::<table_VORG>() as usize,
     );
     table_VORG_init(src);
 }
 #[inline]
 unsafe extern "C" fn table_VORG_create() -> *mut table_VORG {
     let mut x: *mut table_VORG =
-        malloc(::core::mem::size_of::<table_VORG>() as size_t) as *mut table_VORG;
+        malloc(::core::mem::size_of::<table_VORG>() as usize) as *mut table_VORG;
     table_VORG_init(x);
     return x;
 }
@@ -253,7 +244,7 @@ pub unsafe extern "C" fn otfcc_readVORG(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
 ) -> *mut table_VORG {
-    let mut numVertOriginYMetrics: uint16_t = 0;
+    let mut numVertOriginYMetrics: u16 = 0;
     let mut vorg: *mut table_VORG = ::core::ptr::null_mut::<table_VORG>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -264,33 +255,33 @@ pub unsafe extern "C" fn otfcc_readVORG(
     {
         let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1448038983i32 as uint32_t {
+            if table.tag == 1448038983i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     let mut data: font_file_pointer = table.data as font_file_pointer;
-                    let mut length: uint32_t = table.length;
-                    if !(length < 8 as uint32_t) {
+                    let mut length: u32 = table.length;
+                    if !(length < 8 as u32) {
                         numVertOriginYMetrics = read_16u(
-                            data.offset(6 as ::core::ffi::c_int as isize) as *const uint8_t,
+                            data.offset(6 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         if !(length
                             < (8 as ::core::ffi::c_int
                                 + 4 as ::core::ffi::c_int
                                     * numVertOriginYMetrics as ::core::ffi::c_int)
-                                as uint32_t)
+                                as u32)
                         {
                             vorg = (
                                 table_iVORG.create.expect("non-null function pointer"))();
                             (*vorg).defaultVerticalOrigin = read_16s(
-                                data.offset(4 as ::core::ffi::c_int as isize) as *const uint8_t,
+                                data.offset(4 as ::core::ffi::c_int as isize) as *const u8,
                             ) as pos_t;
                             (*vorg).numVertOriginYMetrics = numVertOriginYMetrics as glyphid_t;
                             (*vorg).entries = __caryll_allocate_clean(
-                                (::core::mem::size_of::<VORG_entry>() as size_t)
-                                    .wrapping_mul(numVertOriginYMetrics as size_t),
+                                (::core::mem::size_of::<VORG_entry>() as usize)
+                                    .wrapping_mul(numVertOriginYMetrics as usize),
                                 22 as ::core::ffi::c_ulong,
                             ) as *mut VORG_entry;
-                            let mut j: uint16_t = 0 as uint16_t;
+                            let mut j: u16 = 0 as u16;
                             while (j as ::core::ffi::c_int)
                                 < numVertOriginYMetrics as ::core::ffi::c_int
                             {
@@ -298,7 +289,7 @@ pub unsafe extern "C" fn otfcc_readVORG(
                                     data.offset(8 as ::core::ffi::c_int as isize).offset(
                                         (4 as ::core::ffi::c_int * j as ::core::ffi::c_int)
                                             as isize,
-                                    ) as *const uint8_t,
+                                    ) as *const u8,
                                 )
                                     as glyphid_t;
                                 (*(*vorg).entries.offset(j as isize)).verticalOrigin = read_16s(
@@ -308,7 +299,7 @@ pub unsafe extern "C" fn otfcc_readVORG(
                                                 as isize,
                                         )
                                         .offset(2 as ::core::ffi::c_int as isize)
-                                        as *const uint8_t,
+                                        as *const u8,
                                 );
                                 j = j.wrapping_add(1);
                             }
@@ -319,7 +310,7 @@ pub unsafe extern "C" fn otfcc_readVORG(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as uint8_t,
+                        log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
                         sdscatprintf(
                             sdsempty(),
@@ -346,16 +337,16 @@ pub unsafe extern "C" fn otfcc_buildVORG(
         return ::core::ptr::null_mut::<caryll_Buffer>();
     }
     let mut buf: *mut caryll_Buffer = bufnew();
-    bufwrite16b(buf, 1 as uint16_t);
-    bufwrite16b(buf, 0 as uint16_t);
+    bufwrite16b(buf, 1 as u16);
+    bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, pos_to_u16((*table).defaultVerticalOrigin));
-    bufwrite16b(buf, (*table).numVertOriginYMetrics as uint16_t);
-    let mut j: uint16_t = 0 as uint16_t;
+    bufwrite16b(buf, (*table).numVertOriginYMetrics as u16);
+    let mut j: u16 = 0 as u16;
     while (j as ::core::ffi::c_int) < (*table).numVertOriginYMetrics as ::core::ffi::c_int {
-        bufwrite16b(buf, (*(*table).entries.offset(j as isize)).gid as uint16_t);
+        bufwrite16b(buf, (*(*table).entries.offset(j as isize)).gid as u16);
         bufwrite16b(
             buf,
-            (*(*table).entries.offset(j as isize)).verticalOrigin as uint16_t,
+            (*(*table).entries.offset(j as isize)).verticalOrigin as u16,
         );
         j = j.wrapping_add(1);
     }

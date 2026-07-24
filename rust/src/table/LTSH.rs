@@ -1,6 +1,6 @@
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn fprintf(
@@ -11,38 +11,31 @@ extern "C" {
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite8(buf: *mut caryll_Buffer, byte: uint8_t);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
+    fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
 }
 
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
-pub type glyphid_t = uint16_t;
+pub type glyphid_t = u16;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_ILoggerTarget {
@@ -65,17 +58,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -110,28 +103,28 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_LTSH {
-    pub version: uint16_t,
+    pub version: u16,
     pub numGlyphs: glyphid_t,
-    pub yPels: *mut uint8_t,
+    pub yPels: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -145,14 +138,14 @@ pub struct __caryll_elementinterface_table_LTSH {
     pub create: Option<unsafe extern "C" fn() -> *mut table_LTSH>,
     pub free: Option<unsafe extern "C" fn(*mut table_LTSH) -> ()>,
 }
-pub type font_file_pointer = *mut uint8_t;
+pub type font_file_pointer = *mut u8;
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeLTSH(mut ltsh: *mut table_LTSH) {
     if !ltsh.is_null() {
         free((*ltsh).yPels as *mut ::core::ffi::c_void);
-        (*ltsh).yPels = ::core::ptr::null_mut::<uint8_t>();
+        (*ltsh).yPels = ::core::ptr::null_mut::<u8>();
     }
 }
 #[inline]
@@ -191,7 +184,7 @@ unsafe extern "C" fn table_LTSH_dispose(mut x: *mut table_LTSH) {
 #[inline]
 unsafe extern "C" fn table_LTSH_create() -> *mut table_LTSH {
     let mut x: *mut table_LTSH =
-        malloc(::core::mem::size_of::<table_LTSH>() as size_t) as *mut table_LTSH;
+        malloc(::core::mem::size_of::<table_LTSH>() as usize) as *mut table_LTSH;
     table_LTSH_init(x);
     return x;
 }
@@ -200,7 +193,7 @@ unsafe extern "C" fn table_LTSH_init(mut x: *mut table_LTSH) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_LTSH>() as size_t,
+        ::core::mem::size_of::<table_LTSH>() as usize,
     );
 }
 #[inline]
@@ -208,7 +201,7 @@ unsafe extern "C" fn table_LTSH_copy(mut dst: *mut table_LTSH, mut src: *const t
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_LTSH>() as size_t,
+        ::core::mem::size_of::<table_LTSH>() as usize,
     );
 }
 #[inline]
@@ -221,7 +214,7 @@ unsafe extern "C" fn table_LTSH_move(mut dst: *mut table_LTSH, mut src: *mut tab
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_LTSH>() as size_t,
+        ::core::mem::size_of::<table_LTSH>() as usize,
     );
     table_LTSH_init(src);
 }
@@ -231,7 +224,7 @@ unsafe extern "C" fn table_LTSH_replace(mut dst: *mut table_LTSH, src: table_LTS
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_LTSH>() as size_t,
+        ::core::mem::size_of::<table_LTSH>() as usize,
     );
 }
 #[no_mangle]
@@ -248,28 +241,28 @@ pub unsafe extern "C" fn otfcc_readLTSH(
     {
         let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1280594760i32 as uint32_t {
+            if table.tag == 1280594760i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
                     let mut data: font_file_pointer = table.data as font_file_pointer;
                     let mut LTSH: *mut table_LTSH = ::core::ptr::null_mut::<table_LTSH>();
                     LTSH = __caryll_allocate_clean(
-                        ::core::mem::size_of::<table_LTSH>() as size_t,
+                        ::core::mem::size_of::<table_LTSH>() as usize,
                         15 as ::core::ffi::c_ulong,
                     ) as *mut table_LTSH;
-                    (*LTSH).version = read_16u(data as *const uint8_t);
+                    (*LTSH).version = read_16u(data as *const u8);
                     (*LTSH).numGlyphs =
-                        read_16u(data.offset(2 as ::core::ffi::c_int as isize) as *const uint8_t)
+                        read_16u(data.offset(2 as ::core::ffi::c_int as isize) as *const u8)
                             as glyphid_t;
                     (*LTSH).yPels = __caryll_allocate_clean(
-                        (::core::mem::size_of::<uint8_t>() as size_t)
-                            .wrapping_mul((*LTSH).numGlyphs as size_t),
+                        (::core::mem::size_of::<u8>() as usize)
+                            .wrapping_mul((*LTSH).numGlyphs as usize),
                         18 as ::core::ffi::c_ulong,
-                    ) as *mut uint8_t;
+                    ) as *mut u8;
                     memcpy(
                         (*LTSH).yPels as *mut ::core::ffi::c_void,
                         data.offset(4 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_void,
-                        (*LTSH).numGlyphs as size_t,
+                        (*LTSH).numGlyphs as usize,
                     );
                     return LTSH;
                 }
@@ -290,9 +283,9 @@ pub unsafe extern "C" fn otfcc_buildLTSH(
         return ::core::ptr::null_mut::<caryll_Buffer>();
     }
     let mut buf: *mut caryll_Buffer = bufnew();
-    bufwrite16b(buf, 0 as uint16_t);
-    bufwrite16b(buf, (*ltsh).numGlyphs as uint16_t);
-    let mut j: uint16_t = 0 as uint16_t;
+    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, (*ltsh).numGlyphs as u16);
+    let mut j: u16 = 0 as u16;
     while (j as ::core::ffi::c_int) < (*ltsh).numGlyphs as ::core::ffi::c_int {
         bufwrite8(buf, *(*ltsh).yPels.offset(j as isize));
         j = j.wrapping_add(1);

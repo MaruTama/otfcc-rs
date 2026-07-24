@@ -1,5 +1,5 @@
 extern "C" {
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn fprintf(
@@ -12,7 +12,7 @@ extern "C" {
         __s2: *const ::core::ffi::c_char,
     ) -> ::core::ffi::c_int;
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
     static otl_iClassDef: __otfcc_IClassDef;
     fn json_object_push(
         object: *mut json_value,
@@ -27,15 +27,6 @@ use crate::support::handle::{handle_fromIndex, otfcc_GlyphHandle};
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;
 pub const json_null: json_type = 7;
@@ -64,7 +55,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -101,13 +92,13 @@ pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
-pub type glyphid_t = uint16_t;
-pub type glyphclass_t = uint16_t;
+pub type glyphid_t = u16;
+pub type glyphclass_t = u16;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_ILoggerTarget {
@@ -130,17 +121,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -175,20 +166,20 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 #[derive(Copy, Clone)]
@@ -204,7 +195,7 @@ pub struct __otfcc_IClassDef {
     pub free: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
     pub push:
         Option<unsafe extern "C" fn(*mut otl_ClassDef, otfcc_GlyphHandle, glyphclass_t) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const uint8_t, uint32_t, uint32_t) -> *mut otl_ClassDef>,
+    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_ClassDef>,
     pub expand:
         Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_ClassDef) -> *mut otl_ClassDef>,
     pub dump: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut json_value>,
@@ -229,13 +220,13 @@ pub unsafe extern "C" fn otfcc_readTSI5(
     {
         let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1414744373i32 as uint32_t {
+            if table.tag == 1414744373i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
                     let mut tsi5: *mut table_TSI5 =
                         otl_ClassDef_create() as *mut table_TSI5;
                     let mut j: glyphid_t = 0 as glyphid_t;
-                    while ((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as uint32_t)
+                    while ((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32)
                         < table.length
                     {
                         pushClassDef(
@@ -298,18 +289,18 @@ pub unsafe extern "C" fn otfcc_buildTSI5(
     if tsi5.is_null() {
         return ::core::ptr::null_mut::<caryll_Buffer>();
     }
-    let mut tsi5cls: *mut uint16_t = ::core::ptr::null_mut::<uint16_t>();
+    let mut tsi5cls: *mut u16 = ::core::ptr::null_mut::<u16>();
     tsi5cls = __caryll_allocate_clean(
-        (::core::mem::size_of::<uint16_t>() as size_t).wrapping_mul(numGlyphs as size_t),
+        (::core::mem::size_of::<u16>() as usize).wrapping_mul(numGlyphs as usize),
         27 as ::core::ffi::c_ulong,
-    ) as *mut uint16_t;
+    ) as *mut u16;
     let mut j: glyphid_t = 0 as glyphid_t;
     while (j as ::core::ffi::c_int) < (*tsi5).numGlyphs as ::core::ffi::c_int {
         if ((*(*tsi5).glyphs.offset(j as isize)).index as ::core::ffi::c_int)
             < numGlyphs as ::core::ffi::c_int
         {
             *tsi5cls.offset((*(*tsi5).glyphs.offset(j as isize)).index as isize) =
-                *(*tsi5).classes.offset(j as isize) as uint16_t;
+                *(*tsi5).classes.offset(j as isize) as u16;
         }
         j = j.wrapping_add(1);
     }
@@ -320,7 +311,7 @@ pub unsafe extern "C" fn otfcc_buildTSI5(
         j_0 = j_0.wrapping_add(1);
     }
     free(tsi5cls as *mut ::core::ffi::c_void);
-    tsi5cls = ::core::ptr::null_mut::<uint16_t>();
+    tsi5cls = ::core::ptr::null_mut::<u16>();
     return buf;
 }
 #[inline]
@@ -334,8 +325,8 @@ unsafe extern "C" fn json_obj_get(
     {
         return ::core::ptr::null_mut::<json_value>();
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;

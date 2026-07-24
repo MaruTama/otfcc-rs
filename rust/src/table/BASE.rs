@@ -1,24 +1,24 @@
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
+    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn qsort(
         __base: *mut ::core::ffi::c_void,
-        __nmemb: size_t,
-        __size: size_t,
+        __nmemb: usize,
+        __size: usize,
         __compar: __compar_fn_t,
     );
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn strcmp(
         __s1: *const ::core::ffi::c_char,
@@ -32,7 +32,7 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn json_object_new(length: size_t) -> *mut json_value;
+    fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
@@ -48,7 +48,7 @@ extern "C" {
         length: ::core::ffi::c_uint,
         _: *const ::core::ffi::c_char,
     ) -> *mut json_value;
-    fn json_integer_new(_: int64_t) -> *mut json_value;
+    fn json_integer_new(_: i64) -> *mut json_value;
     fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
     fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
@@ -58,23 +58,12 @@ extern "C" {
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u, read_16s, read_32u};
-pub type size_t = usize;
-pub type __uint8_t = u8;
-pub type __int16_t = i16;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int16_t = __int16_t;
-pub type int64_t = __int64_t;
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;
 pub const json_null: json_type = 7;
@@ -103,7 +92,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -140,12 +129,12 @@ pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
-pub type tableid_t = uint16_t;
+pub type tableid_t = u16;
 pub type pos_t = ::core::ffi::c_double;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -175,17 +164,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -220,33 +209,33 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseValue {
-    pub tag: uint32_t,
+    pub tag: u32,
     pub coordinate: pos_t,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseScriptEntry {
-    pub tag: uint32_t,
-    pub defaultBaselineTag: uint32_t,
+    pub tag: u32,
+    pub defaultBaselineTag: u32,
     pub baseValuesCount: tableid_t,
     pub baseValues: *mut otl_BaseValue,
 }
@@ -274,17 +263,17 @@ pub struct __caryll_elementinterface_table_BASE {
     pub create: Option<unsafe extern "C" fn() -> *mut table_BASE>,
     pub free: Option<unsafe extern "C" fn(*mut table_BASE) -> ()>,
 }
-pub type font_file_pointer = *mut uint8_t;
+pub type font_file_pointer = *mut u8;
 pub type bk_Block = __caryll_bkblock;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_bkblock {
     pub _visitstate: bk_cell_visit_state,
-    pub _index: uint32_t,
-    pub _height: uint32_t,
-    pub _depth: uint32_t,
-    pub length: uint32_t,
-    pub free: uint32_t,
+    pub _index: u32,
+    pub _height: u32,
+    pub _depth: u32,
+    pub length: u32,
+    pub free: u32,
     pub cells: *mut bk_Cell,
 }
 #[derive(Copy, Clone)]
@@ -296,7 +285,7 @@ pub struct bk_Cell {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed_5 {
-    pub z: uint32_t,
+    pub z: u32,
     pub p: *mut __caryll_bkblock,
 }
 pub type bk_CellType = ::core::ffi::c_uint;
@@ -318,7 +307,7 @@ pub const VISIT_WHITE: bk_cell_visit_state = 0;
 #[repr(C)]
 pub struct C2RustUnnamed_6 {
     pub size: tableid_t,
-    pub items: *mut uint32_t,
+    pub items: *mut u32,
 }
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -352,7 +341,7 @@ unsafe extern "C" fn table_BASE_dispose(mut x: *mut table_BASE) {
 #[inline]
 unsafe extern "C" fn table_BASE_create() -> *mut table_BASE {
     let mut x: *mut table_BASE =
-        malloc(::core::mem::size_of::<table_BASE>() as size_t) as *mut table_BASE;
+        malloc(::core::mem::size_of::<table_BASE>() as usize) as *mut table_BASE;
     table_BASE_init(x);
     return x;
 }
@@ -361,7 +350,7 @@ unsafe extern "C" fn table_BASE_init(mut x: *mut table_BASE) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_BASE>() as size_t,
+        ::core::mem::size_of::<table_BASE>() as usize,
     );
 }
 #[inline]
@@ -374,7 +363,7 @@ unsafe extern "C" fn table_BASE_copy(mut dst: *mut table_BASE, mut src: *const t
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_BASE>() as size_t,
+        ::core::mem::size_of::<table_BASE>() as usize,
     );
 }
 #[inline]
@@ -383,7 +372,7 @@ unsafe extern "C" fn table_BASE_replace(mut dst: *mut table_BASE, src: table_BAS
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_BASE>() as size_t,
+        ::core::mem::size_of::<table_BASE>() as usize,
     );
 }
 #[no_mangle]
@@ -412,7 +401,7 @@ unsafe extern "C" fn table_BASE_move(mut dst: *mut table_BASE, mut src: *mut tab
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_BASE>() as size_t,
+        ::core::mem::size_of::<table_BASE>() as usize,
     );
     table_BASE_init(src);
 }
@@ -426,48 +415,48 @@ unsafe extern "C" fn table_BASE_free(mut x: *mut table_BASE) {
 }
 unsafe extern "C" fn readBaseValue(
     mut data: font_file_pointer,
-    mut tableLength: uint32_t,
-    mut offset: uint16_t,
-) -> int16_t {
-    if tableLength < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as uint32_t {
-        return 0 as int16_t;
+    mut tableLength: u32,
+    mut offset: u16,
+) -> i16 {
+    if tableLength < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32 {
+        return 0 as i16;
     } else {
         return read_16s(
             data.offset(offset as ::core::ffi::c_int as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const uint8_t,
+                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
         );
     };
 }
 unsafe extern "C" fn readBaseScript(
     data: font_file_pointer,
-    mut tableLength: uint32_t,
-    mut offset: uint16_t,
+    mut tableLength: u32,
+    mut offset: u16,
     mut entry: *mut otl_BaseScriptEntry,
-    mut baseTagList: *mut uint32_t,
-    mut nBaseTags: uint16_t,
+    mut baseTagList: *mut u32,
+    mut nBaseTags: u16,
 ) {
-    let mut baseValuesOffset: uint16_t = 0;
+    let mut baseValuesOffset: u16 = 0;
     (*entry).baseValuesCount = 0 as tableid_t;
     (*entry).baseValues = ::core::ptr::null_mut::<otl_BaseValue>();
-    (*entry).defaultBaselineTag = 0 as uint32_t;
-    if !(tableLength < (offset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as uint32_t) {
+    (*entry).defaultBaselineTag = 0 as u32;
+    if !(tableLength < (offset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32) {
         baseValuesOffset =
-            read_16u(data.offset(offset as ::core::ffi::c_int as isize) as *const uint8_t);
+            read_16u(data.offset(offset as ::core::ffi::c_int as isize) as *const u8);
         if baseValuesOffset != 0 {
             baseValuesOffset =
-                (baseValuesOffset as ::core::ffi::c_int + offset as ::core::ffi::c_int) as uint16_t;
+                (baseValuesOffset as ::core::ffi::c_int + offset as ::core::ffi::c_int) as u16;
             if !(tableLength
-                < (baseValuesOffset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as uint32_t)
+                < (baseValuesOffset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32)
             {
-                let mut defaultIndex: uint16_t =
+                let mut defaultIndex: u16 =
                     (read_16u(data.offset(baseValuesOffset as ::core::ffi::c_int as isize)
-                        as *const uint8_t) as ::core::ffi::c_int
-                        % nBaseTags as ::core::ffi::c_int) as uint16_t;
+                        as *const u8) as ::core::ffi::c_int
+                        % nBaseTags as ::core::ffi::c_int) as u16;
                 (*entry).defaultBaselineTag = *baseTagList.offset(defaultIndex as isize);
                 (*entry).baseValuesCount = read_16u(
                     data.offset(baseValuesOffset as ::core::ffi::c_int as isize)
                         .offset(2 as ::core::ffi::c_int as isize)
-                        as *const uint8_t,
+                        as *const u8,
                 ) as tableid_t;
                 if !((*entry).baseValuesCount as ::core::ffi::c_int
                     != nBaseTags as ::core::ffi::c_int)
@@ -477,11 +466,11 @@ unsafe extern "C" fn readBaseScript(
                             + 4 as ::core::ffi::c_int
                             + 2 as ::core::ffi::c_int
                                 * (*entry).baseValuesCount as ::core::ffi::c_int)
-                            as uint32_t)
+                            as u32)
                     {
                         (*entry).baseValues = __caryll_allocate_clean(
-                            (::core::mem::size_of::<otl_BaseValue>() as size_t)
-                                .wrapping_mul((*entry).baseValuesCount as size_t),
+                            (::core::mem::size_of::<otl_BaseValue>() as usize)
+                                .wrapping_mul((*entry).baseValuesCount as usize),
                             44 as ::core::ffi::c_ulong,
                         ) as *mut otl_BaseValue;
                         let mut j: tableid_t = 0 as tableid_t;
@@ -490,13 +479,13 @@ unsafe extern "C" fn readBaseScript(
                         {
                             (*(*entry).baseValues.offset(j as isize)).tag =
                                 *baseTagList.offset(j as isize);
-                            let mut _valOffset: uint16_t = read_16u(
+                            let mut _valOffset: u16 = read_16u(
                                 data.offset(baseValuesOffset as ::core::ffi::c_int as isize)
                                     .offset(4 as ::core::ffi::c_int as isize)
                                     .offset(
                                         (2 as ::core::ffi::c_int * j as ::core::ffi::c_int)
                                             as isize,
-                                    ) as *const uint8_t,
+                                    ) as *const u8,
                             );
                             if _valOffset != 0 {
                                 (*(*entry).baseValues.offset(j as isize)).coordinate = readBaseValue(
@@ -504,7 +493,7 @@ unsafe extern "C" fn readBaseScript(
                                     tableLength,
                                     (baseValuesOffset as ::core::ffi::c_int
                                         + _valOffset as ::core::ffi::c_int)
-                                        as uint16_t,
+                                        as u16,
                                 )
                                     as pos_t;
                             } else {
@@ -525,43 +514,43 @@ unsafe extern "C" fn readBaseScript(
         (*entry).baseValues = ::core::ptr::null_mut::<otl_BaseValue>();
     }
     (*entry).baseValues = ::core::ptr::null_mut::<otl_BaseValue>();
-    (*entry).defaultBaselineTag = 0 as uint32_t;
+    (*entry).defaultBaselineTag = 0 as u32;
 }
 unsafe extern "C" fn readAxis(
     mut data: font_file_pointer,
-    mut tableLength: uint32_t,
-    mut offset: uint16_t,
+    mut tableLength: u32,
+    mut offset: u16,
 ) -> *mut otl_BaseAxis {
-    let mut baseTagListOffset: uint16_t = 0;
-    let mut nBaseTags: uint16_t = 0;
-    let mut baseScriptListOffset: uint16_t = 0;
+    let mut baseTagListOffset: u16 = 0;
+    let mut nBaseTags: u16 = 0;
+    let mut baseScriptListOffset: u16 = 0;
     let mut nBaseScripts: tableid_t = 0;
     let mut axis: *mut otl_BaseAxis = ::core::ptr::null_mut::<otl_BaseAxis>();
-    let mut baseTagList: *mut uint32_t = ::core::ptr::null_mut::<uint32_t>();
-    if !(tableLength < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as uint32_t) {
+    let mut baseTagList: *mut u32 = ::core::ptr::null_mut::<u32>();
+    if !(tableLength < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32) {
         baseTagListOffset = (offset as ::core::ffi::c_int
-            + read_16u(data.offset(offset as ::core::ffi::c_int as isize) as *const uint8_t)
-                as ::core::ffi::c_int) as uint16_t;
+            + read_16u(data.offset(offset as ::core::ffi::c_int as isize) as *const u8)
+                as ::core::ffi::c_int) as u16;
         if !(baseTagListOffset as ::core::ffi::c_int <= offset as ::core::ffi::c_int) {
             if !(tableLength
-                < (baseTagListOffset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as uint32_t)
+                < (baseTagListOffset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32)
             {
                 nBaseTags = read_16u(
-                    data.offset(baseTagListOffset as ::core::ffi::c_int as isize) as *const uint8_t,
+                    data.offset(baseTagListOffset as ::core::ffi::c_int as isize) as *const u8,
                 );
                 if !(nBaseTags == 0) {
                     if !(tableLength
                         < (baseTagListOffset as ::core::ffi::c_int
                             + 2 as ::core::ffi::c_int
                             + 4 as ::core::ffi::c_int * nBaseTags as ::core::ffi::c_int)
-                            as uint32_t)
+                            as u32)
                     {
                         baseTagList = __caryll_allocate_clean(
-                            (::core::mem::size_of::<uint32_t>() as size_t)
-                                .wrapping_mul(nBaseTags as size_t),
+                            (::core::mem::size_of::<u32>() as usize)
+                                .wrapping_mul(nBaseTags as usize),
                             77 as ::core::ffi::c_ulong,
-                        ) as *mut uint32_t;
-                        let mut j: uint16_t = 0 as uint16_t;
+                        ) as *mut u32;
+                        let mut j: u16 = 0 as u16;
                         while (j as ::core::ffi::c_int) < nBaseTags as ::core::ffi::c_int {
                             *baseTagList.offset(j as isize) = read_32u(
                                 data.offset(baseTagListOffset as ::core::ffi::c_int as isize)
@@ -569,7 +558,7 @@ unsafe extern "C" fn readAxis(
                                     .offset(
                                         (j as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
                                             as isize,
-                                    ) as *const uint8_t,
+                                    ) as *const u8,
                             );
                             j = j.wrapping_add(1);
                         }
@@ -577,37 +566,37 @@ unsafe extern "C" fn readAxis(
                             + read_16u(
                                 data.offset(offset as ::core::ffi::c_int as isize)
                                     .offset(2 as ::core::ffi::c_int as isize)
-                                    as *const uint8_t,
+                                    as *const u8,
                             ) as ::core::ffi::c_int)
-                            as uint16_t;
+                            as u16;
                         if !(baseScriptListOffset as ::core::ffi::c_int
                             <= offset as ::core::ffi::c_int)
                         {
                             if !(tableLength
                                 < (baseScriptListOffset as ::core::ffi::c_int
                                     + 2 as ::core::ffi::c_int)
-                                    as uint32_t)
+                                    as u32)
                             {
                                 nBaseScripts = read_16u(
                                     data.offset(baseScriptListOffset as ::core::ffi::c_int as isize)
-                                        as *const uint8_t,
+                                        as *const u8,
                                 ) as tableid_t;
                                 if !(tableLength
                                     < (baseScriptListOffset as ::core::ffi::c_int
                                         + 2 as ::core::ffi::c_int
                                         + 6 as ::core::ffi::c_int
                                             * nBaseScripts as ::core::ffi::c_int)
-                                        as uint32_t)
+                                        as u32)
                                 {
                                     axis = __caryll_allocate_clean(
-                                        ::core::mem::size_of::<otl_BaseAxis>() as size_t,
+                                        ::core::mem::size_of::<otl_BaseAxis>() as usize,
                                         87 as ::core::ffi::c_ulong,
                                     )
                                         as *mut otl_BaseAxis;
                                     (*axis).scriptCount = nBaseScripts;
                                     (*axis).entries = __caryll_allocate_clean(
-                                        (::core::mem::size_of::<otl_BaseScriptEntry>() as size_t)
-                                            .wrapping_mul(nBaseScripts as size_t),
+                                        (::core::mem::size_of::<otl_BaseScriptEntry>() as usize)
+                                            .wrapping_mul(nBaseScripts as usize),
                                         89 as ::core::ffi::c_ulong,
                                     )
                                         as *mut otl_BaseScriptEntry;
@@ -625,9 +614,9 @@ unsafe extern "C" fn readAxis(
                                                     * j_0 as ::core::ffi::c_int)
                                                     as isize,
                                             )
-                                                as *const uint8_t,
+                                                as *const u8,
                                         );
-                                        let mut baseScriptOffset: uint16_t = read_16u(
+                                        let mut baseScriptOffset: u16 = read_16u(
                                             data.offset(
                                                 baseScriptListOffset as ::core::ffi::c_int as isize,
                                             )
@@ -638,7 +627,7 @@ unsafe extern "C" fn readAxis(
                                                     as isize,
                                             )
                                             .offset(4 as ::core::ffi::c_int as isize)
-                                                as *const uint8_t,
+                                                as *const u8,
                                         );
                                         if baseScriptOffset != 0 {
                                             readBaseScript(
@@ -646,7 +635,7 @@ unsafe extern "C" fn readAxis(
                                                 tableLength,
                                                 (baseScriptListOffset as ::core::ffi::c_int
                                                     + baseScriptOffset as ::core::ffi::c_int)
-                                                    as uint16_t,
+                                                    as u16,
                                                 (*axis).entries.offset(j_0 as isize)
                                                     as *mut otl_BaseScriptEntry,
                                                 baseTagList,
@@ -659,7 +648,7 @@ unsafe extern "C" fn readAxis(
                                                 (*(*axis).entries.offset(j_0 as isize)).baseValues;
                                             *fresh1 = ::core::ptr::null_mut::<otl_BaseValue>();
                                             (*(*axis).entries.offset(j_0 as isize))
-                                                .defaultBaselineTag = 0 as uint32_t;
+                                                .defaultBaselineTag = 0 as u32;
                                         }
                                         j_0 = j_0.wrapping_add(1);
                                     }
@@ -674,7 +663,7 @@ unsafe extern "C" fn readAxis(
     }
     if !baseTagList.is_null() {
         free(baseTagList as *mut ::core::ffi::c_void);
-        baseTagList = ::core::ptr::null_mut::<uint32_t>();
+        baseTagList = ::core::ptr::null_mut::<u32>();
     }
     deleteBaseAxis(axis);
     axis = ::core::ptr::null_mut::<otl_BaseAxis>();
@@ -695,19 +684,19 @@ pub unsafe extern "C" fn otfcc_readBASE(
     {
         let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1111577413i32 as uint32_t {
+            if table.tag == 1111577413i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut offsetH: uint16_t = 0;
-                    let mut offsetV: uint16_t = 0;
+                    let mut offsetH: u16 = 0;
+                    let mut offsetV: u16 = 0;
                     let mut data: font_file_pointer = table.data as font_file_pointer;
-                    let mut tableLength: uint32_t = table.length;
-                    if tableLength < 8 as uint32_t {
+                    let mut tableLength: u32 = table.length;
+                    if tableLength < 8 as u32 {
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut otfcc_ILogger,
-                            log_vl_important as ::core::ffi::c_int as uint8_t,
+                            log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
                             sdscatprintf(
                                 sdsempty(),
@@ -719,17 +708,17 @@ pub unsafe extern "C" fn otfcc_readBASE(
                         base = ::core::ptr::null_mut::<table_BASE>();
                     } else {
                         base = __caryll_allocate_clean(
-                            ::core::mem::size_of::<table_BASE>() as size_t,
+                            ::core::mem::size_of::<table_BASE>() as usize,
                             116 as ::core::ffi::c_ulong,
                         ) as *mut table_BASE;
                         offsetH = read_16u(
-                            data.offset(4 as ::core::ffi::c_int as isize) as *const uint8_t
+                            data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
                         if offsetH != 0 {
                             (*base).horizontal = readAxis(data, tableLength, offsetH);
                         }
                         offsetV = read_16u(
-                            data.offset(6 as ::core::ffi::c_int as isize) as *const uint8_t
+                            data.offset(6 as ::core::ffi::c_int as isize) as *const u8
                         );
                         if offsetV != 0 {
                             (*base).vertical = readAxis(data, tableLength, offsetV);
@@ -748,11 +737,11 @@ pub unsafe extern "C" fn otfcc_readBASE(
     return base;
 }
 unsafe extern "C" fn axisToJson(mut axis: *const otl_BaseAxis) -> *mut json_value {
-    let mut _axis: *mut json_value = json_object_new((*axis).scriptCount as size_t);
+    let mut _axis: *mut json_value = json_object_new((*axis).scriptCount as usize);
     let mut j: tableid_t = 0 as tableid_t;
     while (j as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
         if !((*(*axis).entries.offset(j as isize)).tag == 0) {
-            let mut _entry: *mut json_value = json_object_new(3 as size_t);
+            let mut _entry: *mut json_value = json_object_new(3 as usize);
             if (*(*axis).entries.offset(j as isize)).defaultBaselineTag != 0 {
                 let mut tag: [::core::ffi::c_char; 4] = [0; 4];
                 tag2str(
@@ -769,7 +758,7 @@ unsafe extern "C" fn axisToJson(mut axis: *const otl_BaseAxis) -> *mut json_valu
                 );
             }
             let mut _values: *mut json_value =
-                json_object_new((*(*axis).entries.offset(j as isize)).baseValuesCount as size_t);
+                json_object_new((*(*axis).entries.offset(j as isize)).baseValuesCount as usize);
             let mut k: tableid_t = 0 as tableid_t;
             while (k as ::core::ffi::c_int)
                 < (*(*axis).entries.offset(j as isize)).baseValuesCount as ::core::ffi::c_int
@@ -826,7 +815,7 @@ pub unsafe extern "C" fn otfcc_dumpBASE(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _base: *mut json_value = json_object_new(2 as size_t);
+        let mut _base: *mut json_value = json_object_new(2 as usize);
         if !(*base).horizontal.is_null() {
             json_object_push(
                 _base,
@@ -871,8 +860,8 @@ unsafe extern "C" fn baseScriptFromJson(
     } else {
         (*entry).baseValuesCount = (*_basevalues).u.object.length as tableid_t;
         (*entry).baseValues = __caryll_allocate_clean(
-            (::core::mem::size_of::<otl_BaseValue>() as size_t)
-                .wrapping_mul((*entry).baseValuesCount as size_t),
+            (::core::mem::size_of::<otl_BaseValue>() as usize)
+                .wrapping_mul((*entry).baseValuesCount as usize),
             171 as ::core::ffi::c_ulong,
         ) as *mut otl_BaseValue;
         let mut j: tableid_t = 0 as tableid_t;
@@ -899,13 +888,13 @@ unsafe extern "C" fn axisFromJson(mut _axis: *const json_value) -> *mut otl_Base
     }
     let mut axis: *mut otl_BaseAxis = ::core::ptr::null_mut::<otl_BaseAxis>();
     axis = __caryll_allocate_clean(
-        ::core::mem::size_of::<otl_BaseAxis>() as size_t,
+        ::core::mem::size_of::<otl_BaseAxis>() as usize,
         186 as ::core::ffi::c_ulong,
     ) as *mut otl_BaseAxis;
     (*axis).scriptCount = (*_axis).u.object.length as tableid_t;
     (*axis).entries = __caryll_allocate_clean(
-        (::core::mem::size_of::<otl_BaseScriptEntry>() as size_t)
-            .wrapping_mul((*axis).scriptCount as size_t),
+        (::core::mem::size_of::<otl_BaseScriptEntry>() as usize)
+            .wrapping_mul((*axis).scriptCount as usize),
         188 as ::core::ffi::c_ulong,
     ) as *mut otl_BaseScriptEntry;
     let mut jj: tableid_t = 0 as tableid_t;
@@ -930,8 +919,8 @@ unsafe extern "C" fn axisFromJson(mut _axis: *const json_value) -> *mut otl_Base
     (*axis).scriptCount = jj;
     qsort(
         (*axis).entries as *mut ::core::ffi::c_void,
-        (*axis).scriptCount as size_t,
-        ::core::mem::size_of::<otl_BaseScriptEntry>() as size_t,
+        (*axis).scriptCount as usize,
+        ::core::mem::size_of::<otl_BaseScriptEntry>() as usize,
         Some(
             by_script_tag
                 as unsafe extern "C" fn(
@@ -967,7 +956,7 @@ pub unsafe extern "C" fn otfcc_parseBASE(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             base = __caryll_allocate_clean(
-                ::core::mem::size_of::<table_BASE>() as size_t,
+                ::core::mem::size_of::<table_BASE>() as usize,
                 208 as ::core::ffi::c_ulong,
             ) as *mut table_BASE;
             (*base).horizontal = axisFromJson(json_obj_get_type(
@@ -994,7 +983,7 @@ unsafe extern "C" fn by_tag(
     mut a: *const ::core::ffi::c_void,
     mut b: *const ::core::ffi::c_void,
 ) -> ::core::ffi::c_int {
-    return (*(a as *mut uint32_t)).wrapping_sub(*(b as *mut uint32_t)) as ::core::ffi::c_int;
+    return (*(a as *mut u32)).wrapping_sub(*(b as *mut u32)) as ::core::ffi::c_int;
 }
 #[no_mangle]
 pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Block {
@@ -1003,10 +992,10 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
     }
     let mut taglist: C2RustUnnamed_6 = C2RustUnnamed_6 {
         size: 0,
-        items: ::core::ptr::null_mut::<uint32_t>(),
+        items: ::core::ptr::null_mut::<u32>(),
     };
     taglist.size = 0 as tableid_t;
-    taglist.items = ::core::ptr::null_mut::<uint32_t>();
+    taglist.items = ::core::ptr::null_mut::<u32>();
     let mut j: tableid_t = 0 as tableid_t;
     while (j as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
         let mut entry: *mut otl_BaseScriptEntry =
@@ -1027,10 +1016,10 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
                     (taglist.size as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as tableid_t;
                 taglist.items = __caryll_reallocate(
                     taglist.items as *mut ::core::ffi::c_void,
-                    (::core::mem::size_of::<uint32_t>() as size_t)
-                        .wrapping_mul(taglist.size as size_t),
+                    (::core::mem::size_of::<u32>() as usize)
+                        .wrapping_mul(taglist.size as usize),
                     241 as ::core::ffi::c_ulong,
-                ) as *mut uint32_t;
+                ) as *mut u32;
                 *taglist.items.offset(
                     (taglist.size as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize,
                 ) = (*entry).defaultBaselineTag;
@@ -1038,7 +1027,7 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
         }
         let mut k: tableid_t = 0 as tableid_t;
         while (k as ::core::ffi::c_int) < (*entry).baseValuesCount as ::core::ffi::c_int {
-            let mut tag: uint32_t = (*(*entry).baseValues.offset(k as isize)).tag;
+            let mut tag: u32 = (*(*entry).baseValues.offset(k as isize)).tag;
             let mut found_0: bool = false;
             let mut jk_0: tableid_t = 0 as tableid_t;
             while (jk_0 as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
@@ -1054,10 +1043,10 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
                     (taglist.size as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as tableid_t;
                 taglist.items = __caryll_reallocate(
                     taglist.items as *mut ::core::ffi::c_void,
-                    (::core::mem::size_of::<uint32_t>() as size_t)
-                        .wrapping_mul(taglist.size as size_t),
+                    (::core::mem::size_of::<u32>() as usize)
+                        .wrapping_mul(taglist.size as usize),
                     256 as ::core::ffi::c_ulong,
-                ) as *mut uint32_t;
+                ) as *mut u32;
                 *taglist.items.offset(
                     (taglist.size as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize,
                 ) = tag;
@@ -1068,8 +1057,8 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
     }
     qsort(
         taglist.items as *mut ::core::ffi::c_void,
-        taglist.size as size_t,
-        ::core::mem::size_of::<uint32_t>() as size_t,
+        taglist.size as usize,
+        ::core::mem::size_of::<u32>() as usize,
         Some(
             by_tag
                 as unsafe extern "C" fn(
@@ -1125,8 +1114,8 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
             taglist.size as ::core::ffi::c_int,
             bkover as ::core::ffi::c_int,
         );
-        let mut m_0: size_t = 0 as size_t;
-        while m_0 < taglist.size as size_t {
+        let mut m_0: usize = 0 as usize;
+        while m_0 < taglist.size as usize {
             let mut found_1: bool = false;
             let mut foundIndex: tableid_t = 0 as tableid_t;
             let mut k_0: tableid_t = 0 as tableid_t;
@@ -1149,7 +1138,7 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
                         b16 as ::core::ffi::c_int,
                         1 as ::core::ffi::c_int,
                         b16 as ::core::ffi::c_int,
-                        (*(*entry_0).baseValues.offset(foundIndex as isize)).coordinate as int16_t
+                        (*(*entry_0).baseValues.offset(foundIndex as isize)).coordinate as i16
                             as ::core::ffi::c_int,
                         bkover as ::core::ffi::c_int,
                     ),
@@ -1191,7 +1180,7 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
         j_1 = j_1.wrapping_add(1);
     }
     free(taglist.items as *mut ::core::ffi::c_void);
-    taglist.items = ::core::ptr::null_mut::<uint32_t>();
+    taglist.items = ::core::ptr::null_mut::<u32>();
     return bk_new_Block(
         p16 as ::core::ffi::c_int,
         baseTagList,
@@ -1230,8 +1219,8 @@ unsafe extern "C" fn json_obj_get(
     {
         return ::core::ptr::null_mut::<json_value>();
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
@@ -1267,14 +1256,14 @@ unsafe extern "C" fn json_obj_getstr_share(
 #[inline]
 unsafe extern "C" fn json_object_push_tag(
     mut a: *mut json_value,
-    mut tag: uint32_t,
+    mut tag: u32,
     mut b: *mut json_value,
 ) -> *mut json_value {
     let mut tags: [::core::ffi::c_char; 4] = [
-        ((tag & 0xff000000 as uint32_t) >> 24 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        ((tag & 0xff0000 as uint32_t) >> 16 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        ((tag & 0xff00 as uint32_t) >> 8 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        (tag & 0xff as uint32_t) as ::core::ffi::c_char,
+        ((tag & 0xff000000 as u32) >> 24 as ::core::ffi::c_int) as ::core::ffi::c_char,
+        ((tag & 0xff0000 as u32) >> 16 as ::core::ffi::c_int) as ::core::ffi::c_char,
+        ((tag & 0xff00 as u32) >> 8 as ::core::ffi::c_int) as ::core::ffi::c_char,
+        (tag & 0xff as u32) as ::core::ffi::c_char,
     ];
     return json_object_push_length(
         a,
@@ -1302,37 +1291,37 @@ unsafe extern "C" fn json_numof(mut cv: *const json_value) -> ::core::ffi::c_dou
 #[inline]
 unsafe extern "C" fn json_new_position(mut z: pos_t) -> *mut json_value {
     if round(z as ::core::ffi::c_double) == z {
-        return json_integer_new(z as int64_t);
+        return json_integer_new(z as i64);
     } else {
         return json_double_new(z as ::core::ffi::c_double);
     };
 }
 #[inline]
-unsafe extern "C" fn tag2str(mut tag: uint32_t, mut tags: *mut ::core::ffi::c_char) {
+unsafe extern "C" fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
     *tags.offset(0 as ::core::ffi::c_int as isize) =
-        (tag >> 24 as ::core::ffi::c_int & 0xff as uint32_t) as ::core::ffi::c_char;
+        (tag >> 24 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(1 as ::core::ffi::c_int as isize) =
-        (tag >> 16 as ::core::ffi::c_int & 0xff as uint32_t) as ::core::ffi::c_char;
+        (tag >> 16 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(2 as ::core::ffi::c_int as isize) =
-        (tag >> 8 as ::core::ffi::c_int & 0xff as uint32_t) as ::core::ffi::c_char;
+        (tag >> 8 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(3 as ::core::ffi::c_int as isize) =
-        (tag & 0xff as uint32_t) as ::core::ffi::c_char;
+        (tag & 0xff as u32) as ::core::ffi::c_char;
 }
 #[inline]
-unsafe extern "C" fn str2tag(mut tags: *const ::core::ffi::c_char) -> uint32_t {
+unsafe extern "C" fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
     if tags.is_null() {
-        return 0 as uint32_t;
+        return 0 as u32;
     }
-    let mut tag: uint32_t = 0 as uint32_t;
-    let mut len: uint8_t = 0 as uint8_t;
+    let mut tag: u32 = 0 as u32;
+    let mut len: u8 = 0 as u8;
     while *tags as ::core::ffi::c_int != 0 && (len as ::core::ffi::c_int) < 4 as ::core::ffi::c_int
     {
-        tag = tag << 8 as ::core::ffi::c_int | *tags as uint32_t;
+        tag = tag << 8 as ::core::ffi::c_int | *tags as u32;
         tags = tags.offset(1);
         len = len.wrapping_add(1);
     }
     while (len as ::core::ffi::c_int) < 4 as ::core::ffi::c_int {
-        tag = tag << 8 as ::core::ffi::c_int | ' ' as i32 as uint32_t;
+        tag = tag << 8 as ::core::ffi::c_int | ' ' as i32 as u32;
         len = len.wrapping_add(1);
     }
     return tag;

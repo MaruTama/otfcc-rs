@@ -1,5 +1,3 @@
-pub type __int32_t = i32;
-pub type int32_t = __int32_t;
 pub type cff_Value_Type = ::core::ffi::c_uint;
 pub const CS2_FRACTION: cff_Value_Type = 3;
 pub const cff_DOUBLE: cff_Value_Type = 3;
@@ -16,7 +14,7 @@ pub struct cff_Value {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed {
-    pub i: int32_t,
+    pub i: i32,
     pub d: ::core::ffi::c_double,
 }
 #[no_mangle]

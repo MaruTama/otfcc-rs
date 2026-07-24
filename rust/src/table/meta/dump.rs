@@ -2,9 +2,9 @@ extern "C" {
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
-    fn json_array_new(length: size_t) -> *mut json_value;
+    fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: size_t) -> *mut json_value;
+    fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
@@ -14,20 +14,9 @@ extern "C" {
         length: ::core::ffi::c_uint,
         _: *const ::core::ffi::c_char,
     ) -> *mut json_value;
-    fn json_integer_new(_: int64_t) -> *mut json_value;
-    fn base64_encode(src: *const uint8_t, len: size_t, out_len: *mut size_t) -> *mut uint8_t;
+    fn json_integer_new(_: i64) -> *mut json_value;
+    fn base64_encode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
 }
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type __uint64_t = u64;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type uint64_t = __uint64_t;
-pub type size_t = usize;
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;
 pub const json_null: json_type = 7;
@@ -56,7 +45,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -93,32 +82,32 @@ pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr8 {
-    pub len: uint8_t,
-    pub alloc: uint8_t,
+    pub len: u8,
+    pub alloc: u8,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr16 {
-    pub len: uint16_t,
-    pub alloc: uint16_t,
+    pub len: u16,
+    pub alloc: u16,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr32 {
-    pub len: uint32_t,
-    pub alloc: uint32_t,
+    pub len: u32,
+    pub alloc: u32,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr64 {
-    pub len: uint64_t,
-    pub alloc: uint64_t,
+    pub len: u64,
+    pub alloc: u64,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
@@ -144,17 +133,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -189,21 +178,21 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entry {
-    pub tag: uint32_t,
+    pub tag: u32,
     pub data: sds,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entries {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut meta_Entry,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_meta {
-    pub version: uint32_t,
-    pub flags: uint32_t,
+    pub version: u32,
+    pub flags: u32,
     pub entries: meta_Entries,
 }
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
@@ -215,38 +204,38 @@ pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
 pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
 pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> size_t {
+unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
+        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_16 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_32 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_64 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
-                .len as size_t;
+                .len as usize;
         }
         _ => {}
     }
-    return 0 as size_t;
+    return 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn isStringTag(mut tag: uint32_t) -> bool {
-    return tag == 1684827751i32 as uint32_t || tag == 1936485991i32 as uint32_t;
+unsafe extern "C" fn isStringTag(mut tag: u32) -> bool {
+    return tag == 1684827751i32 as u32 || tag == 1936485991i32 as u32;
 }
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_dumpMeta(
@@ -268,16 +257,16 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _meta: *mut json_value = json_object_new(3 as size_t);
+        let mut _meta: *mut json_value = json_object_new(3 as usize);
         json_object_push(
             _meta,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*meta).version as int64_t),
+            json_integer_new((*meta).version as i64),
         );
         json_object_push(
             _meta,
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*meta).flags as int64_t),
+            json_integer_new((*meta).flags as i64),
         );
         let mut _entries: *mut json_value = json_array_new((*meta).entries.length);
         json_object_push(
@@ -285,12 +274,12 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
             b"entries\0" as *const u8 as *const ::core::ffi::c_char,
             _entries,
         );
-        let mut __caryll_index: size_t = 0 as size_t;
-        let mut keep: size_t = 1 as size_t;
+        let mut __caryll_index: usize = 0 as usize;
+        let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < (*meta).entries.length {
             let mut e: *mut meta_Entry = (*meta).entries.items.offset(__caryll_index as isize);
             while keep != 0 {
-                let mut _e: *mut json_value = json_object_new(2 as size_t);
+                let mut _e: *mut json_value = json_object_new(2 as usize);
                 let mut _tag: [::core::ffi::c_char; 4] = [0; 4];
                 tag2str((*e).tag, &raw mut _tag as *mut ::core::ffi::c_char);
                 json_object_push(
@@ -311,9 +300,9 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
                         ),
                     );
                 } else {
-                    let mut outLen: size_t = 0 as size_t;
-                    let mut out: *mut uint8_t = base64_encode(
-                        (*e).data as *mut uint8_t,
+                    let mut outLen: usize = 0 as usize;
+                    let mut out: *mut u8 = base64_encode(
+                        (*e).data as *mut u8,
                         sdslen((*e).data),
                         &raw mut outLen,
                     );
@@ -326,12 +315,12 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
                         ),
                     );
                     free(out as *mut ::core::ffi::c_void);
-                    out = ::core::ptr::null_mut::<uint8_t>();
+                    out = ::core::ptr::null_mut::<u8>();
                 }
                 json_array_push(_entries, _e);
-                keep = (keep == 0) as ::core::ffi::c_int as size_t;
+                keep = (keep == 0) as ::core::ffi::c_int as usize;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as size_t;
+            keep = (keep == 0) as ::core::ffi::c_int as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
         json_object_push(
@@ -346,15 +335,15 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
     }
 }
 #[inline]
-unsafe extern "C" fn tag2str(mut tag: uint32_t, mut tags: *mut ::core::ffi::c_char) {
+unsafe extern "C" fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
     *tags.offset(0 as ::core::ffi::c_int as isize) =
-        (tag >> 24 as ::core::ffi::c_int & 0xff as uint32_t) as ::core::ffi::c_char;
+        (tag >> 24 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(1 as ::core::ffi::c_int as isize) =
-        (tag >> 16 as ::core::ffi::c_int & 0xff as uint32_t) as ::core::ffi::c_char;
+        (tag >> 16 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(2 as ::core::ffi::c_int as isize) =
-        (tag >> 8 as ::core::ffi::c_int & 0xff as uint32_t) as ::core::ffi::c_char;
+        (tag >> 8 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(3 as ::core::ffi::c_int as isize) =
-        (tag & 0xff as uint32_t) as ::core::ffi::c_char;
+        (tag & 0xff as u32) as ::core::ffi::c_char;
 }
 pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

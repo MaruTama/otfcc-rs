@@ -4,24 +4,24 @@ extern "C" {
         __format: *const ::core::ffi::c_char,
         ...
     ) -> ::core::ffi::c_int;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memcmp(
         __s1: *const ::core::ffi::c_void,
         __s2: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> ::core::ffi::c_int;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -31,49 +31,39 @@ extern "C" {
 use crate::support::handle::{handle_consolidateTo, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_CONSOLIDATED, HANDLE_STATE_NAME, HANDLE_STATE_INDEX};
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __uint64_t = u64;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type uint64_t = __uint64_t;
-pub type size_t = usize;
 pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr8 {
-    pub len: uint8_t,
-    pub alloc: uint8_t,
+    pub len: u8,
+    pub alloc: u8,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr16 {
-    pub len: uint16_t,
-    pub alloc: uint16_t,
+    pub len: u16,
+    pub alloc: u16,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr32 {
-    pub len: uint32_t,
-    pub alloc: uint32_t,
+    pub len: u32,
+    pub alloc: u32,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr64 {
-    pub len: uint64_t,
-    pub alloc: uint64_t,
+    pub len: u64,
+    pub alloc: u64,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
-pub type ptrdiff_t = isize;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -101,22 +91,22 @@ pub struct UT_hash_table {
     pub log2_num_buckets: ::core::ffi::c_uint,
     pub num_items: ::core::ffi::c_uint,
     pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
+    pub hho: isize,
     pub ideal_chain_maxlen: ::core::ffi::c_uint,
     pub nonideal_items: ::core::ffi::c_uint,
     pub ineff_expands: ::core::ffi::c_uint,
     pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
+    pub signature: u32,
 }
-pub type glyphid_t = uint16_t;
+pub type glyphid_t = u16;
 pub type glyph_handle = otfcc_GlyphHandle;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_GlyphOrderEntry {
     pub gid: glyphid_t,
     pub name: sds,
-    pub orderType: uint8_t,
-    pub orderEntry: uint32_t,
+    pub orderType: u8,
+    pub orderEntry: u32,
     pub hhID: UT_hash_handle,
     pub hhName: UT_hash_handle,
 }
@@ -155,34 +145,34 @@ pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
 pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
 pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> size_t {
+unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
+        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_16 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_32 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_64 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
-                .len as size_t;
+                .len as usize;
         }
         _ => {}
     }
-    return 0 as size_t;
+    return 0 as usize;
 }
 pub const HASH_INITIAL_NUM_BUCKETS: ::core::ffi::c_uint = 32 as ::core::ffi::c_uint;
 pub const HASH_INITIAL_NUM_BUCKETS_LOG2: ::core::ffi::c_uint = 5 as ::core::ffi::c_uint;
@@ -336,7 +326,7 @@ unsafe extern "C" fn otfcc_GlyphOrder_free(mut x: *mut otfcc_GlyphOrder) {
 #[inline]
 unsafe extern "C" fn otfcc_GlyphOrder_create() -> *mut otfcc_GlyphOrder {
     let mut x: *mut otfcc_GlyphOrder =
-        malloc(::core::mem::size_of::<otfcc_GlyphOrder>() as size_t) as *mut otfcc_GlyphOrder;
+        malloc(::core::mem::size_of::<otfcc_GlyphOrder>() as usize) as *mut otfcc_GlyphOrder;
     otfcc_GlyphOrder_init(x);
     return x;
 }
@@ -349,7 +339,7 @@ unsafe extern "C" fn otfcc_GlyphOrder_replace(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_GlyphOrder>() as size_t,
+        ::core::mem::size_of::<otfcc_GlyphOrder>() as usize,
     );
 }
 #[inline]
@@ -360,7 +350,7 @@ unsafe extern "C" fn otfcc_GlyphOrder_move(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_GlyphOrder>() as size_t,
+        ::core::mem::size_of::<otfcc_GlyphOrder>() as usize,
     );
     otfcc_GlyphOrder_init(src);
 }
@@ -372,7 +362,7 @@ unsafe extern "C" fn otfcc_GlyphOrder_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_GlyphOrder>() as size_t,
+        ::core::mem::size_of::<otfcc_GlyphOrder>() as usize,
     );
 }
 #[inline]
@@ -669,7 +659,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                     if memcmp(
                         (*s).hhID.key,
                         &raw mut gid as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<glyphid_t>() as size_t,
+                        ::core::mem::size_of::<glyphid_t>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -983,7 +973,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                 }
                 while !t.is_null() {
                     if (*t).hhName.hashv == _hf_hashv_0
-                        && (*t).hhName.keylen as size_t == sdslen(name)
+                        && (*t).hhName.keylen as usize == sdslen(name)
                     {
                         if memcmp(
                             (*t).hhName.key,
@@ -1015,7 +1005,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
             );
         }
         s = __caryll_allocate_clean(
-            ::core::mem::size_of::<otfcc_GlyphOrderEntry>() as size_t,
+            ::core::mem::size_of::<otfcc_GlyphOrderEntry>() as usize,
             36 as ::core::ffi::c_ulong,
         ) as *mut otfcc_GlyphOrderEntry;
         (*s).gid = gid;
@@ -1292,7 +1282,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
         if (*go).byGID.is_null() {
             (*s).hhID.next = NULL;
             (*s).hhID.prev = NULL;
-            (*s).hhID.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*s).hhID.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*s).hhID.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -1300,26 +1290,26 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                 memset(
                     (*s).hhID.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*s).hhID.tbl).tail = &raw mut (*s).hhID as *mut UT_hash_handle;
                 (*(*s).hhID.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*s).hhID.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*s).hhID.tbl).hho = (&raw mut (*s).hhID as *mut ::core::ffi::c_char)
                     .offset_from(s as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*s).hhID.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*s).hhID.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*s).hhID.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*s).hhID.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*s).hhID.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -1363,9 +1353,9 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*s).hhID.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*s).hhID.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -1373,9 +1363,9 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*s).hhID.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*s).hhID.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*s).hhID.tbl).ideal_chain_maxlen = ((*(*s).hhID.tbl).num_items
                     >> (*(*s).hhID.tbl)
@@ -1720,7 +1710,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
         if (*go).byName.is_null() {
             (*s).hhName.next = NULL;
             (*s).hhName.prev = NULL;
-            (*s).hhName.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*s).hhName.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*s).hhName.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -1728,26 +1718,26 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                 memset(
                     (*s).hhName.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*s).hhName.tbl).tail = &raw mut (*s).hhName as *mut UT_hash_handle;
                 (*(*s).hhName.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*s).hhName.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*s).hhName.tbl).hho = (&raw mut (*s).hhName as *mut ::core::ffi::c_char)
                     .offset_from(s as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*s).hhName.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*s).hhName.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*s).hhName.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*s).hhName.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*s).hhName.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -1794,9 +1784,9 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt_0: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets_0 = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*s).hhName.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*s).hhName.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets_0.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -1804,9 +1794,9 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                 memset(
                     _he_new_buckets_0 as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*s).hhName.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*s).hhName.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*s).hhName.tbl).ideal_chain_maxlen = ((*(*s).hhName.tbl).num_items
                     >> (*(*s).hhName.tbl)
@@ -2165,7 +2155,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
                 s = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
             }
             while !s.is_null() {
-                if (*s).hhName.hashv == _hf_hashv && (*s).hhName.keylen as size_t == sdslen(name) {
+                if (*s).hhName.hashv == _hf_hashv && (*s).hhName.keylen as usize == sdslen(name) {
                     if memcmp(
                         (*s).hhName.key,
                         name as *const ::core::ffi::c_void,
@@ -2191,7 +2181,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
         return false;
     } else {
         s = __caryll_allocate_clean(
-            ::core::mem::size_of::<otfcc_GlyphOrderEntry>() as size_t,
+            ::core::mem::size_of::<otfcc_GlyphOrderEntry>() as usize,
             54 as ::core::ffi::c_ulong,
         ) as *mut otfcc_GlyphOrderEntry;
         (*s).gid = gid;
@@ -2468,7 +2458,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
         if (*go).byGID.is_null() {
             (*s).hhID.next = NULL;
             (*s).hhID.prev = NULL;
-            (*s).hhID.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*s).hhID.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*s).hhID.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2476,26 +2466,26 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
                 memset(
                     (*s).hhID.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*s).hhID.tbl).tail = &raw mut (*s).hhID as *mut UT_hash_handle;
                 (*(*s).hhID.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*s).hhID.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*s).hhID.tbl).hho = (&raw mut (*s).hhID as *mut ::core::ffi::c_char)
                     .offset_from(s as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*s).hhID.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*s).hhID.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*s).hhID.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*s).hhID.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*s).hhID.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -2539,9 +2529,9 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*s).hhID.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*s).hhID.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2549,9 +2539,9 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*s).hhID.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*s).hhID.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*s).hhID.tbl).ideal_chain_maxlen = ((*(*s).hhID.tbl).num_items
                     >> (*(*s).hhID.tbl)
@@ -2896,7 +2886,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
         if (*go).byName.is_null() {
             (*s).hhName.next = NULL;
             (*s).hhName.prev = NULL;
-            (*s).hhName.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*s).hhName.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*s).hhName.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2904,26 +2894,26 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
                 memset(
                     (*s).hhName.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*s).hhName.tbl).tail = &raw mut (*s).hhName as *mut UT_hash_handle;
                 (*(*s).hhName.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*s).hhName.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*s).hhName.tbl).hho = (&raw mut (*s).hhName as *mut ::core::ffi::c_char)
                     .offset_from(s as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*s).hhName.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*s).hhName.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*s).hhName.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*s).hhName.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*s).hhName.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -2970,9 +2960,9 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt_0: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets_0 = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*s).hhName.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*s).hhName.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets_0.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2980,9 +2970,9 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
                 memset(
                     _he_new_buckets_0 as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*s).hhName.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*s).hhName.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*s).hhName.tbl).ideal_chain_maxlen = ((*(*s).hhName.tbl).num_items
                     >> (*(*s).hhName.tbl)
@@ -3343,7 +3333,7 @@ unsafe extern "C" fn otfcc_gordNameAFieldShared(
                     if memcmp(
                         (*t).hhID.key,
                         &raw mut gid as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<glyphid_t>() as size_t,
+                        ::core::mem::size_of::<glyphid_t>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -3659,7 +3649,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
                 }
                 while !t.is_null() {
                     if (*t).hhName.hashv == _hf_hashv
-                        && (*t).hhName.keylen as size_t == sdslen((*h).name)
+                        && (*t).hhName.keylen as usize == sdslen((*h).name)
                     {
                         if memcmp(
                             (*t).hhName.key,
@@ -3987,7 +3977,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
                         if memcmp(
                             (*t).hhName.key,
                             &raw mut (*h).index as *const ::core::ffi::c_void,
-                            ::core::mem::size_of::<glyphid_t>() as size_t,
+                            ::core::mem::size_of::<glyphid_t>() as usize,
                         ) == 0 as ::core::ffi::c_int
                         {
                             break;
@@ -4306,7 +4296,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
                 }
                 while !t_0.is_null() {
                     if (*t_0).hhName.hashv == _hf_hashv_1
-                        && (*t_0).hhName.keylen as size_t == sdslen((*h).name)
+                        && (*t_0).hhName.keylen as usize == sdslen((*h).name)
                     {
                         if memcmp(
                             (*t_0).hhName.key,
@@ -4631,7 +4621,7 @@ unsafe extern "C" fn gordLookupName(mut go: *mut otfcc_GlyphOrder, mut name: sds
                 t = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
             }
             while !t.is_null() {
-                if (*t).hhName.hashv == _hf_hashv && (*t).hhName.keylen as size_t == sdslen(name) {
+                if (*t).hhName.hashv == _hf_hashv && (*t).hhName.keylen as usize == sdslen(name) {
                     if memcmp(
                         (*t).hhName.key,
                         name as *const ::core::ffi::c_void,

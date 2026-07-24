@@ -9,52 +9,45 @@
 //
 // Also holds `pos_to_u16`, the one *write*-side conversion that cannot be
 // spelled inline without inviting someone to "simplify" it — see its comment.
-pub type uint8_t = u8;
-pub type int8_t = i8;
-pub type uint16_t = u16;
-pub type int16_t = i16;
-pub type uint32_t = u32;
-pub type int32_t = i32;
-pub type uint64_t = u64;
 
 #[inline]
-pub(crate) unsafe fn read_8u(src: *const uint8_t) -> uint8_t {
+pub(crate) unsafe fn read_8u(src: *const u8) -> u8 {
     *src
 }
 
 #[inline]
-pub(crate) unsafe fn read_8s(src: *const uint8_t) -> int8_t {
-    read_8u(src) as int8_t
+pub(crate) unsafe fn read_8s(src: *const u8) -> i8 {
+    read_8u(src) as i8
 }
 
 #[inline]
-pub(crate) unsafe fn read_16u(src: *const uint8_t) -> uint16_t {
-    uint16_t::from_be_bytes([*src, *src.offset(1)])
+pub(crate) unsafe fn read_16u(src: *const u8) -> u16 {
+    u16::from_be_bytes([*src, *src.offset(1)])
 }
 
 #[inline]
-pub(crate) unsafe fn read_16s(src: *const uint8_t) -> int16_t {
-    read_16u(src) as int16_t
+pub(crate) unsafe fn read_16s(src: *const u8) -> i16 {
+    read_16u(src) as i16
 }
 
 #[inline]
-pub(crate) unsafe fn read_24u(src: *const uint8_t) -> uint32_t {
-    uint32_t::from_be_bytes([0, *src, *src.offset(1), *src.offset(2)])
+pub(crate) unsafe fn read_24u(src: *const u8) -> u32 {
+    u32::from_be_bytes([0, *src, *src.offset(1), *src.offset(2)])
 }
 
 #[inline]
-pub(crate) unsafe fn read_32u(src: *const uint8_t) -> uint32_t {
-    uint32_t::from_be_bytes([*src, *src.offset(1), *src.offset(2), *src.offset(3)])
+pub(crate) unsafe fn read_32u(src: *const u8) -> u32 {
+    u32::from_be_bytes([*src, *src.offset(1), *src.offset(2), *src.offset(3)])
 }
 
 #[inline]
-pub(crate) unsafe fn read_32s(src: *const uint8_t) -> int32_t {
-    read_32u(src) as int32_t
+pub(crate) unsafe fn read_32s(src: *const u8) -> i32 {
+    read_32u(src) as i32
 }
 
 #[inline]
-pub(crate) unsafe fn read_64u(src: *const uint8_t) -> uint64_t {
-    uint64_t::from_be_bytes([
+pub(crate) unsafe fn read_64u(src: *const u8) -> u64 {
+    u64::from_be_bytes([
         *src,
         *src.offset(1),
         *src.offset(2),

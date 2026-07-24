@@ -1,7 +1,3 @@
-pub type __uint8_t = u8;
-pub type __uint32_t = u32;
-pub type uint8_t = __uint8_t;
-pub type uint32_t = __uint32_t;
 pub type C2RustUnnamed = ::core::ffi::c_uint;
 pub const op_FontName: C2RustUnnamed = 3110;
 pub const op_FDSelect: C2RustUnnamed = 3109;
@@ -110,7 +106,7 @@ pub const op_and: C2RustUnnamed_0 = 3075;
 pub const op_vstem: C2RustUnnamed_0 = 3;
 pub const op_hstem: C2RustUnnamed_0 = 1;
 #[no_mangle]
-pub unsafe extern "C" fn op_cff_name(mut op: uint32_t) -> *mut ::core::ffi::c_char {
+pub unsafe extern "C" fn op_cff_name(mut op: u32) -> *mut ::core::ffi::c_char {
     match op {
         0 => {
             return b"Version\0" as *const u8 as *const ::core::ffi::c_char
@@ -326,7 +322,7 @@ pub unsafe extern "C" fn op_cff_name(mut op: uint32_t) -> *mut ::core::ffi::c_ch
     };
 }
 #[no_mangle]
-pub unsafe extern "C" fn op_cs2_name(mut op: uint32_t) -> *mut ::core::ffi::c_char {
+pub unsafe extern "C" fn op_cs2_name(mut op: u32) -> *mut ::core::ffi::c_char {
     match op {
         1 => {
             return b"hstem\0" as *const u8 as *const ::core::ffi::c_char
@@ -510,13 +506,13 @@ pub unsafe extern "C" fn op_cs2_name(mut op: uint32_t) -> *mut ::core::ffi::c_ch
     };
 }
 #[no_mangle]
-pub unsafe extern "C" fn cff_getStandardArity(mut op: uint32_t) -> uint8_t {
+pub unsafe extern "C" fn cff_getStandardArity(mut op: u32) -> u8 {
     match op {
-        5 | 21 => return 2 as uint8_t,
-        6 | 7 => return 1 as uint8_t,
-        27 | 26 | 31 | 30 => return 4 as uint8_t,
-        8 => return 6 as uint8_t,
-        19 | 20 => return 0 as uint8_t,
-        _ => return 2 as uint8_t,
+        5 | 21 => return 2 as u8,
+        6 | 7 => return 1 as u8,
+        27 | 26 | 31 | 30 => return 4 as u8,
+        8 => return 6 as u8,
+        19 | 20 => return 0 as u8,
+        _ => return 2 as u8,
     };
 }

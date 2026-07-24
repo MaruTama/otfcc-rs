@@ -1,15 +1,15 @@
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
     static otl_iClassDef: __otfcc_IClassDef;
@@ -43,21 +43,6 @@ extern "C" {
 use crate::table::otl::classdef::{otl_ClassDef_free, otl_ClassDef};
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
-pub type __int8_t = i8;
-pub type __uint8_t = u8;
-pub type __int16_t = i16;
-pub type __uint16_t = u16;
-pub type __int32_t = i32;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int8_t = __int8_t;
-pub type int16_t = __int16_t;
-pub type int32_t = __int32_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;
 pub const json_null: json_type = 7;
@@ -86,7 +71,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -120,7 +105,6 @@ pub struct C2RustUnnamed_3 {
 }
 pub type json_value = _json_value;
 pub type sds = *mut ::core::ffi::c_char;
-pub type ptrdiff_t = isize;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -148,29 +132,29 @@ pub struct UT_hash_table {
     pub log2_num_buckets: ::core::ffi::c_uint,
     pub num_items: ::core::ffi::c_uint,
     pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
+    pub hho: isize,
     pub ideal_chain_maxlen: ::core::ffi::c_uint,
     pub nonideal_items: ::core::ffi::c_uint,
     pub ineff_expands: ::core::ffi::c_uint,
     pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
+    pub signature: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
-pub type f16dot16 = int32_t;
-pub type glyphid_t = uint16_t;
-pub type glyphclass_t = uint16_t;
-pub type glyphsize_t = uint16_t;
-pub type tableid_t = uint16_t;
-pub type colorid_t = uint16_t;
-pub type shapeid_t = uint16_t;
-pub type arity_t = uint32_t;
+pub type f16dot16 = i32;
+pub type glyphid_t = u16;
+pub type glyphclass_t = u16;
+pub type glyphsize_t = u16;
+pub type tableid_t = u16;
+pub type colorid_t = u16;
+pub type shapeid_t = u16;
+pub type arity_t = u32;
 pub type pos_t = ::core::ffi::c_double;
 pub type scale_t = ::core::ffi::c_double;
 pub type length_t = ::core::ffi::c_double;
@@ -197,17 +181,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -244,8 +228,8 @@ pub struct otfcc_Options {
 pub struct otfcc_GlyphOrderEntry {
     pub gid: glyphid_t,
     pub name: sds,
-    pub orderType: uint8_t,
-    pub orderEntry: uint32_t,
+    pub orderType: u8,
+    pub orderEntry: u32,
     pub hhID: UT_hash_handle,
     pub hhName: UT_hash_handle,
 }
@@ -277,8 +261,8 @@ pub struct otfcc_GlyphOrderPackage {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VV {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut pos_t,
 }
 #[derive(Copy, Clone)]
@@ -319,8 +303,8 @@ pub struct C2RustUnnamed_5 {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vq_SegList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut vq_Segment,
 }
 #[derive(Copy, Clone)]
@@ -342,7 +326,7 @@ pub struct __otfcc_IClassDef {
     pub free: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
     pub push:
         Option<unsafe extern "C" fn(*mut otl_ClassDef, otfcc_GlyphHandle, glyphclass_t) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const uint8_t, uint32_t, uint32_t) -> *mut otl_ClassDef>,
+    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_ClassDef>,
     pub expand:
         Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_ClassDef) -> *mut otl_ClassDef>,
     pub dump: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut json_value>,
@@ -353,33 +337,33 @@ pub struct __otfcc_IClassDef {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vf_Axis {
-    pub tag: uint32_t,
+    pub tag: u32,
     pub minValue: pos_t,
     pub defaultValue: pos_t,
     pub maxValue: pos_t,
-    pub flags: uint16_t,
-    pub axisNameID: uint16_t,
+    pub flags: u16,
+    pub axisNameID: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vf_Axes {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut vf_Axis,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct fvar_Instance {
-    pub subfamilyNameID: uint16_t,
-    pub flags: uint16_t,
+    pub subfamilyNameID: u16,
+    pub flags: u16,
     pub coordinates: VV,
-    pub postScriptNameID: uint16_t,
+    pub postScriptNameID: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct fvar_InstanceList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut fvar_Instance,
 }
 #[derive(Copy, Clone)]
@@ -392,8 +376,8 @@ pub struct fvar_Master {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_fvar {
-    pub majorVersion: uint16_t,
-    pub minorVersion: uint16_t,
+    pub majorVersion: u16,
+    pub minorVersion: u16,
     pub axes: vf_Axes,
     pub instances: fvar_InstanceList,
     pub masters: *mut fvar_Master,
@@ -440,8 +424,8 @@ pub type table_TSI5 = otl_ClassDef;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_TSI {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut tsi_Entry,
 }
 #[derive(Copy, Clone)]
@@ -460,8 +444,8 @@ pub const TSI_GLYPH: tsi_EntryType = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_SVG {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut svg_Assignment,
 }
 #[derive(Copy, Clone)]
@@ -474,8 +458,8 @@ pub struct svg_Assignment {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_COLR {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut colr_Mapping,
 }
 #[derive(Copy, Clone)]
@@ -487,8 +471,8 @@ pub struct colr_Mapping {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct colr_LayerList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut colr_Layer,
 }
 #[derive(Copy, Clone)]
@@ -500,38 +484,38 @@ pub struct colr_Layer {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_CPAL {
-    pub version: uint16_t,
+    pub version: u16,
     pub palettes: cpal_PaletteSet,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpal_PaletteSet {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut cpal_Palette,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpal_Palette {
     pub colorset: cpal_ColorSet,
-    pub type_0: uint32_t,
-    pub label: uint32_t,
+    pub type_0: u32,
+    pub label: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpal_ColorSet {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut cpal_Color,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpal_Color {
-    pub red: uint8_t,
-    pub green: uint8_t,
-    pub blue: uint8_t,
-    pub alpha: uint8_t,
-    pub label: uint16_t,
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+    pub alpha: u8,
+    pub label: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -548,15 +532,15 @@ pub struct otl_BaseAxis {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseScriptEntry {
-    pub tag: uint32_t,
-    pub defaultBaselineTag: uint32_t,
+    pub tag: u32,
+    pub defaultBaselineTag: u32,
     pub baseValuesCount: tableid_t,
     pub baseValues: *mut otl_BaseValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseValue {
-    pub tag: uint32_t,
+    pub tag: u32,
     pub coordinate: pos_t,
 }
 #[derive(Copy, Clone)]
@@ -569,8 +553,8 @@ pub struct table_GDEF {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LigCaretTable {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_CaretValueRecord,
 }
 #[derive(Copy, Clone)]
@@ -582,16 +566,16 @@ pub struct otl_CaretValueRecord {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_CaretValueList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_CaretValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_CaretValue {
-    pub format: int8_t,
+    pub format: i8,
     pub coordiante: pos_t,
-    pub pointIndex: int16_t,
+    pub pointIndex: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -603,8 +587,8 @@ pub struct table_OTL {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LangSystemList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LanguageSystemPtr,
 }
 pub type otl_LanguageSystemPtr = *mut otl_LanguageSystem;
@@ -618,8 +602,8 @@ pub struct otl_LanguageSystem {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_FeatureRefList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_FeatureRef,
 }
 pub type otl_FeatureRef = *const otl_Feature;
@@ -632,8 +616,8 @@ pub struct otl_Feature {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LookupRefList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LookupRef,
 }
 pub type otl_LookupRef = *const otl_Lookup;
@@ -643,15 +627,15 @@ pub type otl_Lookup = _otl_lookup;
 pub struct _otl_lookup {
     pub name: sds,
     pub type_0: otl_LookupType,
-    pub _offset: uint32_t,
-    pub flags: uint16_t,
+    pub _offset: u32,
+    pub flags: u16,
     pub subtables: otl_SubtableList,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_SubtableList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_SubtablePtr,
 }
 pub type otl_SubtablePtr = *mut otl_Subtable;
@@ -708,8 +692,8 @@ pub struct subtable_gpos_markToLigature {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LigatureArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LigatureBaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -729,8 +713,8 @@ pub struct otl_Anchor {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_MarkArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_MarkRecord,
 }
 #[derive(Copy, Clone)]
@@ -750,8 +734,8 @@ pub struct subtable_gpos_markToSingle {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_BaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -763,8 +747,8 @@ pub struct otl_BaseRecord {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_cursive {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposCursiveEntry,
 }
 #[derive(Copy, Clone)]
@@ -793,8 +777,8 @@ pub struct otl_PositionValue {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -855,8 +839,8 @@ pub const otl_chaining_canonical: otl_chaining_type = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_ligature {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubLigatureEntry,
 }
 #[derive(Copy, Clone)]
@@ -868,8 +852,8 @@ pub struct otl_GsubLigatureEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_multi {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubMultiEntry,
 }
 #[derive(Copy, Clone)]
@@ -881,8 +865,8 @@ pub struct otl_GsubMultiEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -894,73 +878,73 @@ pub struct otl_GsubSingleEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_FeatureList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_FeaturePtr,
 }
 pub type otl_FeaturePtr = *mut otl_Feature;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LookupList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LookupPtr,
 }
 pub type otl_LookupPtr = *mut otl_Lookup;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_LTSH {
-    pub version: uint16_t,
+    pub version: u16,
     pub numGlyphs: glyphid_t,
-    pub yPels: *mut uint8_t,
+    pub yPels: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_VDMX {
-    pub version: uint16_t,
+    pub version: u16,
     pub ratios: vdmx_RatioRagneList,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vdmx_RatioRagneList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut vdmx_RatioRange,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vdmx_RatioRange {
-    pub bCharset: uint8_t,
-    pub xRatio: uint8_t,
-    pub yStartRatio: uint8_t,
-    pub yEndRatio: uint8_t,
+    pub bCharset: u8,
+    pub xRatio: u8,
+    pub yStartRatio: u8,
+    pub yEndRatio: u8,
     pub records: vdmx_Group,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vdmx_Group {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut vdmx_Record,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vdmx_Record {
-    pub yPelHeight: uint16_t,
-    pub yMax: int16_t,
-    pub yMin: int16_t,
+    pub yPelHeight: u16,
+    pub yMax: i16,
+    pub yMin: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_gasp {
-    pub version: uint16_t,
+    pub version: u16,
     pub records: gasp_RecordList,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct gasp_RecordList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut gasp_Record,
 }
 #[derive(Copy, Clone)]
@@ -975,50 +959,50 @@ pub struct gasp_Record {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_cvt {
-    pub length: uint32_t,
-    pub words: *mut uint16_t,
+    pub length: u32,
+    pub words: *mut u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_fpgm_prep {
     pub tag: sds,
-    pub length: uint32_t,
-    pub bytes: *mut uint8_t,
+    pub length: u32,
+    pub bytes: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_meta {
-    pub version: uint32_t,
-    pub flags: uint32_t,
+    pub version: u32,
+    pub flags: u32,
     pub entries: meta_Entries,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entries {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut meta_Entry,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entry {
-    pub tag: uint32_t,
+    pub tag: u32,
     pub data: sds,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_name {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otfcc_NameRecord,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_NameRecord {
-    pub platformID: uint16_t,
-    pub encodingID: uint16_t,
-    pub languageID: uint16_t,
-    pub nameID: uint16_t,
+    pub platformID: u16,
+    pub encodingID: u16,
+    pub languageID: u16,
+    pub nameID: u16,
     pub nameString: sds,
 }
 #[derive(Copy, Clone)]
@@ -1037,8 +1021,8 @@ pub struct cmap_UVS_Entry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cmap_UVS_key {
-    pub unicode: uint32_t,
-    pub selector: uint32_t,
+    pub unicode: u32,
+    pub selector: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -1050,8 +1034,8 @@ pub struct cmap_Entry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_glyf {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_GlyphPtr,
 }
 pub type glyf_GlyphPtr = *mut glyf_Glyph;
@@ -1069,9 +1053,9 @@ pub struct glyf_Glyph {
     pub stemV: glyf_StemDefList,
     pub hintMasks: glyf_MaskList,
     pub contourMasks: glyf_MaskList,
-    pub instructionsLength: uint16_t,
-    pub instructions: *mut uint8_t,
-    pub yPel: uint8_t,
+    pub instructionsLength: u16,
+    pub instructions: *mut u8,
+    pub yPel: u8,
     pub fdSelect: otfcc_FDHandle,
     pub cid: glyphid_t,
     pub stat: glyf_GlyphStat,
@@ -1083,32 +1067,32 @@ pub struct glyf_GlyphStat {
     pub xMax: pos_t,
     pub yMin: pos_t,
     pub yMax: pos_t,
-    pub nestDepth: uint16_t,
-    pub nPoints: uint16_t,
-    pub nContours: uint16_t,
-    pub nCompositePoints: uint16_t,
-    pub nCompositeContours: uint16_t,
+    pub nestDepth: u16,
+    pub nPoints: u16,
+    pub nContours: u16,
+    pub nCompositePoints: u16,
+    pub nCompositeContours: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_MaskList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_PostscriptHintMask,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_PostscriptHintMask {
-    pub pointsBefore: uint16_t,
-    pub contoursBefore: uint16_t,
+    pub pointsBefore: u16,
+    pub contoursBefore: u16,
     pub maskH: [bool; 256],
     pub maskV: [bool; 256],
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_StemDefList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_PostscriptStemDef,
 }
 #[derive(Copy, Clone)]
@@ -1116,13 +1100,13 @@ pub struct glyf_StemDefList {
 pub struct glyf_PostscriptStemDef {
     pub position: pos_t,
     pub width: pos_t,
-    pub map: uint16_t,
+    pub map: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_ReferenceList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_ComponentReference,
 }
 #[derive(Copy, Clone)]
@@ -1151,15 +1135,15 @@ pub const REF_XY: RefAnchorStatus = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_ContourList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_Contour,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_Contour {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_Point,
 }
 #[derive(Copy, Clone)]
@@ -1167,7 +1151,7 @@ pub struct glyf_Contour {
 pub struct glyf_Point {
     pub x: VQ,
     pub y: VQ,
-    pub onCurve: int8_t,
+    pub onCurve: i8,
 }
 pub type table_CFF = _table_CFF;
 #[derive(Copy, Clone)]
@@ -1194,11 +1178,11 @@ pub struct _table_CFF {
     pub fontMatrix: *mut cff_FontMatrix,
     pub cidRegistry: sds,
     pub cidOrdering: sds,
-    pub cidSupplement: uint32_t,
+    pub cidSupplement: u32,
     pub cidFontVersion: ::core::ffi::c_double,
     pub cidFontRevision: ::core::ffi::c_double,
-    pub cidCount: uint32_t,
-    pub UIDBase: uint32_t,
+    pub cidCount: u32,
+    pub UIDBase: u32,
     pub fdArrayCount: tableid_t,
     pub fdArray: *mut *mut table_CFF,
 }
@@ -1233,7 +1217,7 @@ pub struct cff_PrivateDict {
     pub stemSnapVCount: arity_t,
     pub stemSnapV: *mut ::core::ffi::c_double,
     pub forceBold: bool,
-    pub languageGroup: uint32_t,
+    pub languageGroup: u32,
     pub expansionFactor: ::core::ffi::c_double,
     pub initialRandomSeed: ::core::ffi::c_double,
     pub defaultWidthX: ::core::ffi::c_double,
@@ -1250,7 +1234,7 @@ pub struct table_VORG {
 #[repr(C)]
 pub struct VORG_entry {
     pub gid: glyphid_t,
-    pub verticalOrigin: int16_t,
+    pub verticalOrigin: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -1268,50 +1252,50 @@ pub struct vertical_metric {
 #[repr(C)]
 pub struct table_vhea {
     pub version: f16dot16,
-    pub ascent: int16_t,
-    pub descent: int16_t,
-    pub lineGap: int16_t,
-    pub advanceHeightMax: int16_t,
-    pub minTop: int16_t,
-    pub minBottom: int16_t,
-    pub yMaxExtent: int16_t,
-    pub caretSlopeRise: int16_t,
-    pub caretSlopeRun: int16_t,
-    pub caretOffset: int16_t,
-    pub dummy0: int16_t,
-    pub dummy1: int16_t,
-    pub dummy2: int16_t,
-    pub dummy3: int16_t,
-    pub metricDataFormat: int16_t,
-    pub numOfLongVerMetrics: uint16_t,
+    pub ascent: i16,
+    pub descent: i16,
+    pub lineGap: i16,
+    pub advanceHeightMax: i16,
+    pub minTop: i16,
+    pub minBottom: i16,
+    pub yMaxExtent: i16,
+    pub caretSlopeRise: i16,
+    pub caretSlopeRun: i16,
+    pub caretOffset: i16,
+    pub dummy0: i16,
+    pub dummy1: i16,
+    pub dummy2: i16,
+    pub dummy3: i16,
+    pub metricDataFormat: i16,
+    pub numOfLongVerMetrics: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_hdmx {
-    pub version: uint16_t,
-    pub numRecords: uint16_t,
-    pub sizeDeviceRecord: uint32_t,
+    pub version: u16,
+    pub numRecords: u16,
+    pub sizeDeviceRecord: u32,
     pub records: *mut device_record,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct device_record {
-    pub pixelSize: uint8_t,
-    pub maxWidth: uint8_t,
-    pub widths: *mut uint8_t,
+    pub pixelSize: u8,
+    pub maxWidth: u8,
+    pub widths: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_post {
     pub version: f16dot16,
     pub italicAngle: f16dot16,
-    pub underlinePosition: int16_t,
-    pub underlineThickness: int16_t,
-    pub isFixedPitch: uint32_t,
-    pub minMemType42: uint32_t,
-    pub maxMemType42: uint32_t,
-    pub minMemType1: uint32_t,
-    pub maxMemType1: uint32_t,
+    pub underlinePosition: i16,
+    pub underlineThickness: i16,
+    pub isFixedPitch: u32,
+    pub minMemType42: u32,
+    pub maxMemType42: u32,
+    pub minMemType1: u32,
+    pub maxMemType1: u32,
     pub post_name_map: *mut otfcc_GlyphOrder,
 }
 #[derive(Copy, Clone)]
@@ -1329,103 +1313,103 @@ pub struct horizontal_metric {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_OS_2 {
-    pub version: uint16_t,
-    pub xAvgCharWidth: int16_t,
-    pub usWeightClass: uint16_t,
-    pub usWidthClass: uint16_t,
-    pub fsType: uint16_t,
-    pub ySubscriptXSize: int16_t,
-    pub ySubscriptYSize: int16_t,
-    pub ySubscriptXOffset: int16_t,
-    pub ySubscriptYOffset: int16_t,
-    pub ySupscriptXSize: int16_t,
-    pub ySupscriptYSize: int16_t,
-    pub ySupscriptXOffset: int16_t,
-    pub ySupscriptYOffset: int16_t,
-    pub yStrikeoutSize: int16_t,
-    pub yStrikeoutPosition: int16_t,
-    pub sFamilyClass: int16_t,
-    pub panose: [uint8_t; 10],
-    pub ulUnicodeRange1: uint32_t,
-    pub ulUnicodeRange2: uint32_t,
-    pub ulUnicodeRange3: uint32_t,
-    pub ulUnicodeRange4: uint32_t,
-    pub achVendID: [uint8_t; 4],
-    pub fsSelection: uint16_t,
-    pub usFirstCharIndex: uint16_t,
-    pub usLastCharIndex: uint16_t,
-    pub sTypoAscender: int16_t,
-    pub sTypoDescender: int16_t,
-    pub sTypoLineGap: int16_t,
-    pub usWinAscent: uint16_t,
-    pub usWinDescent: uint16_t,
-    pub ulCodePageRange1: uint32_t,
-    pub ulCodePageRange2: uint32_t,
-    pub sxHeight: int16_t,
-    pub sCapHeight: int16_t,
-    pub usDefaultChar: uint16_t,
-    pub usBreakChar: uint16_t,
-    pub usMaxContext: uint16_t,
-    pub usLowerOpticalPointSize: uint16_t,
-    pub usUpperOpticalPointSize: uint16_t,
+    pub version: u16,
+    pub xAvgCharWidth: i16,
+    pub usWeightClass: u16,
+    pub usWidthClass: u16,
+    pub fsType: u16,
+    pub ySubscriptXSize: i16,
+    pub ySubscriptYSize: i16,
+    pub ySubscriptXOffset: i16,
+    pub ySubscriptYOffset: i16,
+    pub ySupscriptXSize: i16,
+    pub ySupscriptYSize: i16,
+    pub ySupscriptXOffset: i16,
+    pub ySupscriptYOffset: i16,
+    pub yStrikeoutSize: i16,
+    pub yStrikeoutPosition: i16,
+    pub sFamilyClass: i16,
+    pub panose: [u8; 10],
+    pub ulUnicodeRange1: u32,
+    pub ulUnicodeRange2: u32,
+    pub ulUnicodeRange3: u32,
+    pub ulUnicodeRange4: u32,
+    pub achVendID: [u8; 4],
+    pub fsSelection: u16,
+    pub usFirstCharIndex: u16,
+    pub usLastCharIndex: u16,
+    pub sTypoAscender: i16,
+    pub sTypoDescender: i16,
+    pub sTypoLineGap: i16,
+    pub usWinAscent: u16,
+    pub usWinDescent: u16,
+    pub ulCodePageRange1: u32,
+    pub ulCodePageRange2: u32,
+    pub sxHeight: i16,
+    pub sCapHeight: i16,
+    pub usDefaultChar: u16,
+    pub usBreakChar: u16,
+    pub usMaxContext: u16,
+    pub usLowerOpticalPointSize: u16,
+    pub usUpperOpticalPointSize: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_maxp {
     pub version: f16dot16,
-    pub numGlyphs: uint16_t,
-    pub maxPoints: uint16_t,
-    pub maxContours: uint16_t,
-    pub maxCompositePoints: uint16_t,
-    pub maxCompositeContours: uint16_t,
-    pub maxZones: uint16_t,
-    pub maxTwilightPoints: uint16_t,
-    pub maxStorage: uint16_t,
-    pub maxFunctionDefs: uint16_t,
-    pub maxInstructionDefs: uint16_t,
-    pub maxStackElements: uint16_t,
-    pub maxSizeOfInstructions: uint16_t,
-    pub maxComponentElements: uint16_t,
-    pub maxComponentDepth: uint16_t,
+    pub numGlyphs: u16,
+    pub maxPoints: u16,
+    pub maxContours: u16,
+    pub maxCompositePoints: u16,
+    pub maxCompositeContours: u16,
+    pub maxZones: u16,
+    pub maxTwilightPoints: u16,
+    pub maxStorage: u16,
+    pub maxFunctionDefs: u16,
+    pub maxInstructionDefs: u16,
+    pub maxStackElements: u16,
+    pub maxSizeOfInstructions: u16,
+    pub maxComponentElements: u16,
+    pub maxComponentDepth: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_hhea {
     pub version: f16dot16,
-    pub ascender: int16_t,
-    pub descender: int16_t,
-    pub lineGap: int16_t,
-    pub advanceWidthMax: uint16_t,
-    pub minLeftSideBearing: int16_t,
-    pub minRightSideBearing: int16_t,
-    pub xMaxExtent: int16_t,
-    pub caretSlopeRise: int16_t,
-    pub caretSlopeRun: int16_t,
-    pub caretOffset: int16_t,
-    pub reserved: [int16_t; 4],
-    pub metricDataFormat: int16_t,
-    pub numberOfMetrics: uint16_t,
+    pub ascender: i16,
+    pub descender: i16,
+    pub lineGap: i16,
+    pub advanceWidthMax: u16,
+    pub minLeftSideBearing: i16,
+    pub minRightSideBearing: i16,
+    pub xMaxExtent: i16,
+    pub caretSlopeRise: i16,
+    pub caretSlopeRun: i16,
+    pub caretOffset: i16,
+    pub reserved: [i16; 4],
+    pub metricDataFormat: i16,
+    pub numberOfMetrics: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_head {
     pub version: f16dot16,
-    pub fontRevision: uint32_t,
-    pub checkSumAdjustment: uint32_t,
-    pub magicNumber: uint32_t,
-    pub flags: uint16_t,
-    pub unitsPerEm: uint16_t,
-    pub created: int64_t,
-    pub modified: int64_t,
-    pub xMin: int16_t,
-    pub yMin: int16_t,
-    pub xMax: int16_t,
-    pub yMax: int16_t,
-    pub macStyle: uint16_t,
-    pub lowestRecPPEM: uint16_t,
-    pub fontDirectoryHint: int16_t,
-    pub indexToLocFormat: int16_t,
-    pub glyphDataFormat: int16_t,
+    pub fontRevision: u32,
+    pub checkSumAdjustment: u32,
+    pub magicNumber: u32,
+    pub flags: u16,
+    pub unitsPerEm: u16,
+    pub created: i64,
+    pub modified: i64,
+    pub xMin: i16,
+    pub yMin: i16,
+    pub xMax: i16,
+    pub yMax: i16,
+    pub macStyle: u16,
+    pub lowestRecPPEM: u16,
+    pub fontDirectoryHint: i16,
+    pub indexToLocFormat: i16,
+    pub glyphDataFormat: i16,
 }
 pub type otfcc_font_subtype = ::core::ffi::c_uint;
 pub const FONTTYPE_CFF: otfcc_font_subtype = 1;
@@ -1466,15 +1450,15 @@ pub struct __caryll_vectorinterface_table_glyf {
     pub copyReplace: Option<unsafe extern "C" fn(*mut table_glyf, table_glyf) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut table_glyf>,
     pub free: Option<unsafe extern "C" fn(*mut table_glyf) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut table_glyf, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut table_glyf, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut table_glyf>,
-    pub fill: Option<unsafe extern "C" fn(*mut table_glyf, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut table_glyf, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut table_glyf, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut table_glyf>,
+    pub fill: Option<unsafe extern "C" fn(*mut table_glyf, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut table_glyf) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut table_glyf, glyf_GlyphPtr) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut table_glyf) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut table_glyf) -> glyf_GlyphPtr>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut table_glyf, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut table_glyf, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut table_glyf,
@@ -1589,15 +1573,15 @@ pub struct __caryll_vectorinterface_table_name {
     pub copyReplace: Option<unsafe extern "C" fn(*mut table_name, table_name) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut table_name>,
     pub free: Option<unsafe extern "C" fn(*mut table_name) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut table_name, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut table_name, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut table_name>,
-    pub fill: Option<unsafe extern "C" fn(*mut table_name, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut table_name, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut table_name, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut table_name>,
+    pub fill: Option<unsafe extern "C" fn(*mut table_name, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut table_name) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut table_name, otfcc_NameRecord) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut table_name) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut table_name) -> otfcc_NameRecord>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut table_name, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut table_name, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut table_name,
@@ -1641,7 +1625,7 @@ pub struct __caryll_elementinterface_table_cmap {
     pub create: Option<unsafe extern "C" fn() -> *mut table_cmap>,
     pub free: Option<unsafe extern "C" fn(*mut table_cmap) -> ()>,
     pub encodeByIndex:
-        Option<unsafe extern "C" fn(*mut table_cmap, ::core::ffi::c_int, uint16_t) -> bool>,
+        Option<unsafe extern "C" fn(*mut table_cmap, ::core::ffi::c_int, u16) -> bool>,
     pub encodeByName:
         Option<unsafe extern "C" fn(*mut table_cmap, ::core::ffi::c_int, sds) -> bool>,
     pub unmap: Option<unsafe extern "C" fn(*mut table_cmap, ::core::ffi::c_int) -> bool>,
@@ -1649,7 +1633,7 @@ pub struct __caryll_elementinterface_table_cmap {
         unsafe extern "C" fn(*const table_cmap, ::core::ffi::c_int) -> *mut otfcc_GlyphHandle,
     >,
     pub encodeUVSByIndex:
-        Option<unsafe extern "C" fn(*mut table_cmap, cmap_UVS_key, uint16_t) -> bool>,
+        Option<unsafe extern "C" fn(*mut table_cmap, cmap_UVS_key, u16) -> bool>,
     pub encodeUVSByName: Option<unsafe extern "C" fn(*mut table_cmap, cmap_UVS_key, sds) -> bool>,
     pub unmapUVS: Option<unsafe extern "C" fn(*mut table_cmap, cmap_UVS_key) -> bool>,
     pub lookupUVS:
@@ -1774,15 +1758,15 @@ pub struct __caryll_vectorinterface_table_COLR {
     pub copyReplace: Option<unsafe extern "C" fn(*mut table_COLR, table_COLR) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut table_COLR>,
     pub free: Option<unsafe extern "C" fn(*mut table_COLR) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut table_COLR, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut table_COLR, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut table_COLR>,
-    pub fill: Option<unsafe extern "C" fn(*mut table_COLR, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut table_COLR, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut table_COLR, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut table_COLR>,
+    pub fill: Option<unsafe extern "C" fn(*mut table_COLR, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut table_COLR) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut table_COLR, colr_Mapping) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut table_COLR) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut table_COLR) -> colr_Mapping>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut table_COLR, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut table_COLR, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut table_COLR,
@@ -1813,15 +1797,15 @@ pub struct __caryll_vectorinterface_table_SVG {
     pub copyReplace: Option<unsafe extern "C" fn(*mut table_SVG, table_SVG) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut table_SVG>,
     pub free: Option<unsafe extern "C" fn(*mut table_SVG) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut table_SVG, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut table_SVG, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut table_SVG>,
-    pub fill: Option<unsafe extern "C" fn(*mut table_SVG, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut table_SVG, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut table_SVG, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut table_SVG>,
+    pub fill: Option<unsafe extern "C" fn(*mut table_SVG, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut table_SVG) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut table_SVG, svg_Assignment) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut table_SVG) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut table_SVG) -> svg_Assignment>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut table_SVG, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut table_SVG, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut table_SVG,
@@ -1852,15 +1836,15 @@ pub struct __caryll_vectorinterface_table_TSI {
     pub copyReplace: Option<unsafe extern "C" fn(*mut table_TSI, table_TSI) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut table_TSI>,
     pub free: Option<unsafe extern "C" fn(*mut table_TSI) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut table_TSI, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut table_TSI, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut table_TSI>,
-    pub fill: Option<unsafe extern "C" fn(*mut table_TSI, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut table_TSI, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut table_TSI, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut table_TSI>,
+    pub fill: Option<unsafe extern "C" fn(*mut table_TSI, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut table_TSI) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut table_TSI, tsi_Entry) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut table_TSI) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut table_TSI) -> tsi_Entry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut table_TSI, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut table_TSI, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut table_TSI,
@@ -1888,13 +1872,13 @@ pub struct __caryll_elementinterface_otfcc_Font {
     pub free: Option<unsafe extern "C" fn(*mut otfcc_Font) -> ()>,
     pub consolidate: Option<unsafe extern "C" fn(*mut otfcc_Font, *const otfcc_Options) -> ()>,
     pub createTable:
-        Option<unsafe extern "C" fn(*mut otfcc_Font, uint32_t) -> *mut ::core::ffi::c_void>,
-    pub deleteTable: Option<unsafe extern "C" fn(*mut otfcc_Font, uint32_t) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_Font, u32) -> *mut ::core::ffi::c_void>,
+    pub deleteTable: Option<unsafe extern "C" fn(*mut otfcc_Font, u32) -> ()>,
 }
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 unsafe extern "C" fn createFontTable(
     mut _font: *mut otfcc_Font,
-    tag: uint32_t,
+    tag: u32,
 ) -> *mut ::core::ffi::c_void {
     match tag {
         1851878757 => {
@@ -1908,7 +1892,7 @@ unsafe extern "C" fn createFontTable(
         _ => return NULL,
     };
 }
-unsafe extern "C" fn deleteFontTable(mut font: *mut otfcc_Font, tag: uint32_t) {
+unsafe extern "C" fn deleteFontTable(mut font: *mut otfcc_Font, tag: u32) {
     match tag {
         1751474532 => {
             if !(*font).head.is_null() {
@@ -2123,41 +2107,41 @@ unsafe extern "C" fn initFont(mut font: *mut otfcc_Font) {
     memset(
         font as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<otfcc_Font>() as size_t,
+        ::core::mem::size_of::<otfcc_Font>() as usize,
     );
 }
 #[inline]
 unsafe extern "C" fn disposeFont(mut font: *mut otfcc_Font) {
-    deleteFontTable(font, 1751474532i32 as uint32_t);
-    deleteFontTable(font, 1751672161i32 as uint32_t);
-    deleteFontTable(font, 1835104368i32 as uint32_t);
-    deleteFontTable(font, 1330863922i32 as uint32_t);
-    deleteFontTable(font, 1851878757i32 as uint32_t);
-    deleteFontTable(font, 1835365473i32 as uint32_t);
-    deleteFontTable(font, 1752003704i32 as uint32_t);
-    deleteFontTable(font, 1986884728i32 as uint32_t);
-    deleteFontTable(font, 1886352244i32 as uint32_t);
-    deleteFontTable(font, 1751412088i32 as uint32_t);
-    deleteFontTable(font, 1986553185i32 as uint32_t);
-    deleteFontTable(font, 1718642541i32 as uint32_t);
-    deleteFontTable(font, 1886545264i32 as uint32_t);
-    deleteFontTable(font, 1668707423i32 as uint32_t);
-    deleteFontTable(font, 1734439792i32 as uint32_t);
-    deleteFontTable(font, 1128679007i32 as uint32_t);
-    deleteFontTable(font, 1735162214i32 as uint32_t);
-    deleteFontTable(font, 1668112752i32 as uint32_t);
-    deleteFontTable(font, 1280594760i32 as uint32_t);
-    deleteFontTable(font, 1196643650i32 as uint32_t);
-    deleteFontTable(font, 1196445523i32 as uint32_t);
-    deleteFontTable(font, 1195656518i32 as uint32_t);
-    deleteFontTable(font, 1111577413i32 as uint32_t);
-    deleteFontTable(font, 1448038983i32 as uint32_t);
-    deleteFontTable(font, 1129333068i32 as uint32_t);
-    deleteFontTable(font, 1129270354i32 as uint32_t);
-    deleteFontTable(font, 1398163295i32 as uint32_t);
-    deleteFontTable(font, 1414744368i32 as uint32_t);
-    deleteFontTable(font, 1414744370i32 as uint32_t);
-    deleteFontTable(font, 1414744373i32 as uint32_t);
+    deleteFontTable(font, 1751474532i32 as u32);
+    deleteFontTable(font, 1751672161i32 as u32);
+    deleteFontTable(font, 1835104368i32 as u32);
+    deleteFontTable(font, 1330863922i32 as u32);
+    deleteFontTable(font, 1851878757i32 as u32);
+    deleteFontTable(font, 1835365473i32 as u32);
+    deleteFontTable(font, 1752003704i32 as u32);
+    deleteFontTable(font, 1986884728i32 as u32);
+    deleteFontTable(font, 1886352244i32 as u32);
+    deleteFontTable(font, 1751412088i32 as u32);
+    deleteFontTable(font, 1986553185i32 as u32);
+    deleteFontTable(font, 1718642541i32 as u32);
+    deleteFontTable(font, 1886545264i32 as u32);
+    deleteFontTable(font, 1668707423i32 as u32);
+    deleteFontTable(font, 1734439792i32 as u32);
+    deleteFontTable(font, 1128679007i32 as u32);
+    deleteFontTable(font, 1735162214i32 as u32);
+    deleteFontTable(font, 1668112752i32 as u32);
+    deleteFontTable(font, 1280594760i32 as u32);
+    deleteFontTable(font, 1196643650i32 as u32);
+    deleteFontTable(font, 1196445523i32 as u32);
+    deleteFontTable(font, 1195656518i32 as u32);
+    deleteFontTable(font, 1111577413i32 as u32);
+    deleteFontTable(font, 1448038983i32 as u32);
+    deleteFontTable(font, 1129333068i32 as u32);
+    deleteFontTable(font, 1129270354i32 as u32);
+    deleteFontTable(font, 1398163295i32 as u32);
+    deleteFontTable(font, 1414744368i32 as u32);
+    deleteFontTable(font, 1414744370i32 as u32);
+    deleteFontTable(font, 1414744373i32 as u32);
     otfcc_pkgGlyphOrder.free.expect("non-null function pointer")((*font).glyph_order);
 }
 #[inline]
@@ -2167,7 +2151,7 @@ unsafe extern "C" fn otfcc_Font_dispose(mut x: *mut otfcc_Font) {
 #[inline]
 unsafe extern "C" fn otfcc_Font_create() -> *mut otfcc_Font {
     let mut x: *mut otfcc_Font =
-        malloc(::core::mem::size_of::<otfcc_Font>() as size_t) as *mut otfcc_Font;
+        malloc(::core::mem::size_of::<otfcc_Font>() as usize) as *mut otfcc_Font;
     otfcc_Font_init(x);
     return x;
 }
@@ -2193,7 +2177,7 @@ unsafe extern "C" fn otfcc_Font_copy(mut dst: *mut otfcc_Font, mut src: *const o
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_Font>() as size_t,
+        ::core::mem::size_of::<otfcc_Font>() as usize,
     );
 }
 #[inline]
@@ -2202,7 +2186,7 @@ unsafe extern "C" fn otfcc_Font_replace(mut dst: *mut otfcc_Font, src: otfcc_Fon
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_Font>() as size_t,
+        ::core::mem::size_of::<otfcc_Font>() as usize,
     );
 }
 #[inline]
@@ -2210,7 +2194,7 @@ unsafe extern "C" fn otfcc_Font_move(mut dst: *mut otfcc_Font, mut src: *mut otf
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_Font>() as size_t,
+        ::core::mem::size_of::<otfcc_Font>() as usize,
     );
     otfcc_Font_init(src);
 }
@@ -2239,8 +2223,8 @@ pub static mut otfcc_iFont: __caryll_elementinterface_otfcc_Font = {
         ),
         createTable: Some(
             createFontTable
-                as unsafe extern "C" fn(*mut otfcc_Font, uint32_t) -> *mut ::core::ffi::c_void,
+                as unsafe extern "C" fn(*mut otfcc_Font, u32) -> *mut ::core::ffi::c_void,
         ),
-        deleteTable: Some(deleteFontTable as unsafe extern "C" fn(*mut otfcc_Font, uint32_t) -> ()),
+        deleteTable: Some(deleteFontTable as unsafe extern "C" fn(*mut otfcc_Font, u32) -> ()),
     }
 };

@@ -1,6 +1,6 @@
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn fprintf(
@@ -11,12 +11,12 @@ extern "C" {
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn strcmp(
         __s1: *const ::core::ffi::c_char,
@@ -25,30 +25,21 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
-    fn json_array_new(length: size_t) -> *mut json_value;
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
+    fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
         _: *mut json_value,
     ) -> *mut json_value;
-    fn json_integer_new(_: int64_t) -> *mut json_value;
-    fn base64_decode(src: *const uint8_t, len: size_t, out_len: *mut size_t) -> *mut uint8_t;
+    fn json_integer_new(_: i64) -> *mut json_value;
+    fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
 }
 
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;
 pub const json_null: json_type = 7;
@@ -77,7 +68,7 @@ pub union C2RustUnnamed {
 #[repr(C)]
 pub union C2RustUnnamed_0 {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
     pub string: C2RustUnnamed_3,
     pub object: C2RustUnnamed_2,
@@ -114,10 +105,10 @@ pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -141,17 +132,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -186,27 +177,27 @@ pub struct otfcc_Options {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_cvt {
-    pub length: uint32_t,
-    pub words: *mut uint16_t,
+    pub length: u32,
+    pub words: *mut u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -220,14 +211,14 @@ pub struct __caryll_elementinterface_table_cvt {
     pub create: Option<unsafe extern "C" fn() -> *mut table_cvt>,
     pub free: Option<unsafe extern "C" fn(*mut table_cvt) -> ()>,
 }
-pub type font_file_pointer = *mut uint8_t;
+pub type font_file_pointer = *mut u8;
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeCvt(mut table: *mut table_cvt) {
     if !(*table).words.is_null() {
         free((*table).words as *mut ::core::ffi::c_void);
-        (*table).words = ::core::ptr::null_mut::<uint16_t>();
+        (*table).words = ::core::ptr::null_mut::<u16>();
     }
 }
 #[inline]
@@ -235,7 +226,7 @@ unsafe extern "C" fn table_cvt_copy(mut dst: *mut table_cvt, mut src: *const tab
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_cvt>() as size_t,
+        ::core::mem::size_of::<table_cvt>() as usize,
     );
 }
 #[inline]
@@ -249,7 +240,7 @@ unsafe extern "C" fn table_cvt_free(mut x: *mut table_cvt) {
 #[inline]
 unsafe extern "C" fn table_cvt_create() -> *mut table_cvt {
     let mut x: *mut table_cvt =
-        malloc(::core::mem::size_of::<table_cvt>() as size_t) as *mut table_cvt;
+        malloc(::core::mem::size_of::<table_cvt>() as usize) as *mut table_cvt;
     table_cvt_init(x);
     return x;
 }
@@ -258,7 +249,7 @@ unsafe extern "C" fn table_cvt_init(mut x: *mut table_cvt) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_cvt>() as size_t,
+        ::core::mem::size_of::<table_cvt>() as usize,
     );
 }
 #[inline]
@@ -271,7 +262,7 @@ unsafe extern "C" fn table_cvt_move(mut dst: *mut table_cvt, mut src: *mut table
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_cvt>() as size_t,
+        ::core::mem::size_of::<table_cvt>() as usize,
     );
     table_cvt_init(src);
 }
@@ -281,7 +272,7 @@ unsafe extern "C" fn table_cvt_replace(mut dst: *mut table_cvt, src: table_cvt) 
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_cvt>() as size_t,
+        ::core::mem::size_of::<table_cvt>() as usize,
     );
 }
 #[inline]
@@ -307,7 +298,7 @@ pub static mut table_iCvt: __caryll_elementinterface_table_cvt = {
 pub unsafe extern "C" fn otfcc_readCvt(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
-    mut tag: uint32_t,
+    mut tag: u32,
 ) -> *mut table_cvt {
     let mut t: *mut table_cvt = ::core::ptr::null_mut::<table_cvt>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -323,23 +314,23 @@ pub unsafe extern "C" fn otfcc_readCvt(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
                     let mut data: font_file_pointer = table.data as font_file_pointer;
-                    let mut length: uint32_t = table.length;
+                    let mut length: u32 = table.length;
                     t = __caryll_allocate_clean(
-                        ::core::mem::size_of::<table_cvt>() as size_t,
+                        ::core::mem::size_of::<table_cvt>() as usize,
                         16 as ::core::ffi::c_ulong,
                     ) as *mut table_cvt;
                     (*t).length = length >> 1 as ::core::ffi::c_int;
                     (*t).words = __caryll_allocate_clean(
-                        (::core::mem::size_of::<uint16_t>() as size_t)
-                            .wrapping_mul((*t).length.wrapping_add(1 as uint32_t) as size_t),
+                        (::core::mem::size_of::<u16>() as usize)
+                            .wrapping_mul((*t).length.wrapping_add(1 as u32) as usize),
                         18 as ::core::ffi::c_ulong,
-                    ) as *mut uint16_t;
-                    let mut j: uint16_t = 0 as uint16_t;
-                    while (j as uint32_t) < (*t).length {
+                    ) as *mut u16;
+                    let mut j: u16 = 0 as u16;
+                    while (j as u32) < (*t).length {
                         *(*t).words.offset(j as isize) =
                             read_16u(data.offset(
                                 (2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize,
-                            ) as *const uint8_t);
+                            ) as *const u8);
                         j = j.wrapping_add(1);
                     }
                     return t;
@@ -373,12 +364,12 @@ pub unsafe extern "C" fn otfcc_dumpCvt(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut arr: *mut json_value = json_array_new((*table).length as size_t);
-        let mut j: uint16_t = 0 as uint16_t;
-        while (j as uint32_t) < (*table).length {
+        let mut arr: *mut json_value = json_array_new((*table).length as usize);
+        let mut j: u16 = 0 as u16;
+        while (j as u32) < (*table).length {
             json_array_push(
                 arr,
-                json_integer_new(*(*table).words.offset(j as isize) as int64_t),
+                json_integer_new(*(*table).words.offset(j as isize) as i64),
             );
             j = j.wrapping_add(1);
         }
@@ -411,29 +402,29 @@ pub unsafe extern "C" fn otfcc_parseCvt(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             t = __caryll_allocate_clean(
-                ::core::mem::size_of::<table_cvt>() as size_t,
+                ::core::mem::size_of::<table_cvt>() as usize,
                 44 as ::core::ffi::c_ulong,
             ) as *mut table_cvt;
-            (*t).length = (*table).u.array.length as uint32_t;
+            (*t).length = (*table).u.array.length as u32;
             (*t).words = __caryll_allocate_clean(
-                (::core::mem::size_of::<uint16_t>() as size_t)
-                    .wrapping_mul((*t).length.wrapping_add(1 as uint32_t) as size_t),
+                (::core::mem::size_of::<u16>() as usize)
+                    .wrapping_mul((*t).length.wrapping_add(1 as u32) as usize),
                 46 as ::core::ffi::c_ulong,
-            ) as *mut uint16_t;
-            let mut j: uint16_t = 0 as uint16_t;
-            while (j as uint32_t) < (*t).length {
+            ) as *mut u16;
+            let mut j: u16 = 0 as u16;
+            while (j as u32) < (*t).length {
                 let mut record: *mut json_value =
                     *(*table).u.array.values.offset(j as isize) as *mut json_value;
                 if (*record).type_0 as ::core::ffi::c_uint
                     == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
                 {
-                    *(*t).words.offset(j as isize) = (*record).u.integer as uint16_t;
+                    *(*t).words.offset(j as isize) = (*record).u.integer as u16;
                 } else if (*record).type_0 as ::core::ffi::c_uint
                     == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
                 {
-                    *(*t).words.offset(j as isize) = (*record).u.dbl as uint16_t;
+                    *(*t).words.offset(j as isize) = (*record).u.dbl as u16;
                 } else {
-                    *(*t).words.offset(j as isize) = 0 as uint16_t;
+                    *(*t).words.offset(j as isize) = 0 as u16;
                 }
                 j = j.wrapping_add(1);
             }
@@ -459,30 +450,30 @@ pub unsafe extern "C" fn otfcc_parseCvt(
             let mut ___loggedstep_v_0: bool = true;
             while ___loggedstep_v_0 {
                 t = __caryll_allocate_clean(
-                    ::core::mem::size_of::<table_cvt>() as size_t,
+                    ::core::mem::size_of::<table_cvt>() as usize,
                     61 as ::core::ffi::c_ulong,
                 ) as *mut table_cvt;
-                let mut len: size_t = 0;
-                let mut raw: *mut uint8_t = base64_decode(
-                    (*table).u.string.ptr as *mut uint8_t,
-                    (*table).u.string.length as size_t,
+                let mut len: usize = 0;
+                let mut raw: *mut u8 = base64_decode(
+                    (*table).u.string.ptr as *mut u8,
+                    (*table).u.string.length as usize,
                     &raw mut len,
                 );
-                (*t).length = (len >> 1 as ::core::ffi::c_int) as uint32_t;
+                (*t).length = (len >> 1 as ::core::ffi::c_int) as u32;
                 (*t).words = __caryll_allocate_clean(
-                    (::core::mem::size_of::<uint16_t>() as size_t)
-                        .wrapping_mul((*t).length.wrapping_add(1 as uint32_t) as size_t),
+                    (::core::mem::size_of::<u16>() as usize)
+                        .wrapping_mul((*t).length.wrapping_add(1 as u32) as usize),
                     66 as ::core::ffi::c_ulong,
-                ) as *mut uint16_t;
-                let mut j_0: uint16_t = 0 as uint16_t;
-                while (j_0 as uint32_t) < (*t).length {
+                ) as *mut u16;
+                let mut j_0: u16 = 0 as u16;
+                while (j_0 as u32) < (*t).length {
                     *(*t).words.offset(j_0 as isize) = read_16u(
                         raw.offset((2 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize),
                     );
                     j_0 = j_0.wrapping_add(1);
                 }
                 free(raw as *mut ::core::ffi::c_void);
-                raw = ::core::ptr::null_mut::<uint8_t>();
+                raw = ::core::ptr::null_mut::<u8>();
                 ___loggedstep_v_0 = false;
                 (*(*options).logger)
                     .finish
@@ -503,8 +494,8 @@ pub unsafe extern "C" fn otfcc_buildCvt(
         return ::core::ptr::null_mut::<caryll_Buffer>();
     }
     let mut buf: *mut caryll_Buffer = bufnew();
-    let mut j: uint16_t = 0 as uint16_t;
-    while (j as uint32_t) < (*table).length {
+    let mut j: u16 = 0 as u16;
+    while (j as u32) < (*table).length {
         bufwrite16b(buf, *(*table).words.offset(j as isize));
         j = j.wrapping_add(1);
     }
@@ -521,8 +512,8 @@ unsafe extern "C" fn json_obj_get(
     {
         return ::core::ptr::null_mut::<json_value>();
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;

@@ -4,45 +4,38 @@ extern "C" {
         __format: *const ::core::ffi::c_char,
         ...
     ) -> ::core::ffi::c_int;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: size_t) -> *mut ::core::ffi::c_void;
+    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
+    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
+    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: usize) -> *mut ::core::ffi::c_void;
     fn free(__ptr: *mut ::core::ffi::c_void);
     fn exit(__status: ::core::ffi::c_int) -> !;
     fn memcpy(
         __dest: *mut ::core::ffi::c_void,
         __src: *const ::core::ffi::c_void,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn memset(
         __s: *mut ::core::ffi::c_void,
         __c: ::core::ffi::c_int,
-        __n: size_t,
+        __n: usize,
     ) -> *mut ::core::ffi::c_void;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-    fn cff_decodeCffToken(start: *const uint8_t, val: *mut cff_Value) -> uint32_t;
-    fn cff_encodeCffOperator(val: int32_t) -> *mut caryll_Buffer;
-    fn cff_encodeCffInteger(val: int32_t) -> *mut caryll_Buffer;
+    fn cff_decodeCffToken(start: *const u8, val: *mut cff_Value) -> u32;
+    fn cff_encodeCffOperator(val: i32) -> *mut caryll_Buffer;
+    fn cff_encodeCffInteger(val: i32) -> *mut caryll_Buffer;
     fn cff_encodeCffFloat(val: ::core::ffi::c_double) -> *mut caryll_Buffer;
 }
 
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-pub type __uint8_t = u8;
-pub type __int32_t = i32;
-pub type __uint32_t = u32;
-pub type int32_t = __int32_t;
-pub type uint8_t = __uint8_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
 pub type cff_Value_Type = ::core::ffi::c_uint;
 pub const CS2_FRACTION: cff_Value_Type = 3;
@@ -60,20 +53,20 @@ pub struct cff_Value {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed {
-    pub i: int32_t,
+    pub i: i32,
     pub d: ::core::ffi::c_double,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_DictEntry {
-    pub op: uint32_t,
-    pub cnt: uint32_t,
+    pub op: u32,
+    pub cnt: u32,
     pub vals: *mut cff_Value,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_Dict {
-    pub count: uint32_t,
+    pub count: u32,
     pub ents: *mut cff_DictEntry,
 }
 #[derive(Copy, Clone)]
@@ -87,16 +80,16 @@ pub struct __caryll_elementinterface_cff_Dict {
     pub copyReplace: Option<unsafe extern "C" fn(*mut cff_Dict, cff_Dict) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut cff_Dict>,
     pub free: Option<unsafe extern "C" fn(*mut cff_Dict) -> ()>,
-    pub parse: Option<unsafe extern "C" fn(*const uint8_t, uint32_t) -> *mut cff_Dict>,
+    pub parse: Option<unsafe extern "C" fn(*const u8, u32) -> *mut cff_Dict>,
     pub parseToCallback: Option<
         unsafe extern "C" fn(
-            *const uint8_t,
-            uint32_t,
+            *const u8,
+            u32,
             *mut ::core::ffi::c_void,
             Option<
                 unsafe extern "C" fn(
-                    uint32_t,
-                    uint8_t,
+                    u32,
+                    u8,
                     *mut cff_Value,
                     *mut ::core::ffi::c_void,
                 ) -> (),
@@ -104,7 +97,7 @@ pub struct __caryll_elementinterface_cff_Dict {
         ) -> (),
     >,
     pub parseDictKey:
-        Option<unsafe extern "C" fn(*const uint8_t, uint32_t, uint32_t, uint32_t) -> cff_Value>,
+        Option<unsafe extern "C" fn(*const u8, u32, u32, u32) -> cff_Value>,
     pub build: Option<unsafe extern "C" fn(*const cff_Dict) -> *mut caryll_Buffer>,
 }
 #[derive(Copy, Clone)]
@@ -112,14 +105,14 @@ pub struct __caryll_elementinterface_cff_Dict {
 pub struct cff_get_key_context {
     pub found: bool,
     pub res: cff_Value,
-    pub op: uint32_t,
-    pub idx: uint32_t,
+    pub op: u32,
+    pub idx: u32,
 }
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeDict(mut dict: *mut cff_Dict) {
-    let mut j: uint32_t = 0 as uint32_t;
+    let mut j: u32 = 0 as u32;
     while j < (*dict).count {
         free((*(*dict).ents.offset(j as isize)).vals as *mut ::core::ffi::c_void);
         let ref mut fresh3 = (*(*dict).ents.offset(j as isize)).vals;
@@ -137,7 +130,7 @@ unsafe extern "C" fn cff_Dict_copyReplace(mut dst: *mut cff_Dict, src: cff_Dict)
 #[inline]
 unsafe extern "C" fn cff_Dict_create() -> *mut cff_Dict {
     let mut x: *mut cff_Dict =
-        malloc(::core::mem::size_of::<cff_Dict>() as size_t) as *mut cff_Dict;
+        malloc(::core::mem::size_of::<cff_Dict>() as usize) as *mut cff_Dict;
     cff_Dict_init(x);
     return x;
 }
@@ -158,7 +151,7 @@ unsafe extern "C" fn cff_Dict_init(mut x: *mut cff_Dict) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<cff_Dict>() as size_t,
+        ::core::mem::size_of::<cff_Dict>() as usize,
     );
 }
 #[inline]
@@ -166,7 +159,7 @@ unsafe extern "C" fn cff_Dict_copy(mut dst: *mut cff_Dict, mut src: *const cff_D
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<cff_Dict>() as size_t,
+        ::core::mem::size_of::<cff_Dict>() as usize,
     );
 }
 #[inline]
@@ -175,7 +168,7 @@ unsafe extern "C" fn cff_Dict_replace(mut dst: *mut cff_Dict, src: cff_Dict) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<cff_Dict>() as size_t,
+        ::core::mem::size_of::<cff_Dict>() as usize,
     );
 }
 #[inline]
@@ -183,18 +176,18 @@ unsafe extern "C" fn cff_Dict_move(mut dst: *mut cff_Dict, mut src: *mut cff_Dic
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<cff_Dict>() as size_t,
+        ::core::mem::size_of::<cff_Dict>() as usize,
     );
     cff_Dict_init(src);
 }
-unsafe extern "C" fn parseDict(mut data: *const uint8_t, len: uint32_t) -> *mut cff_Dict {
+unsafe extern "C" fn parseDict(mut data: *const u8, len: u32) -> *mut cff_Dict {
     let mut dict: *mut cff_Dict = ::core::ptr::null_mut::<cff_Dict>();
     dict = __caryll_allocate_clean(
-        ::core::mem::size_of::<cff_Dict>() as size_t,
+        ::core::mem::size_of::<cff_Dict>() as usize,
         14 as ::core::ffi::c_ulong,
     ) as *mut cff_Dict;
-    let mut index: uint32_t = 0 as uint32_t;
-    let mut advance: uint32_t = 0;
+    let mut index: u32 = 0 as u32;
+    let mut advance: u32 = 0;
     let mut val: cff_Value = cff_Value {
         t: 0 as cff_Value_Type,
         c2rust_unnamed: C2RustUnnamed { i: 0 },
@@ -203,32 +196,32 @@ unsafe extern "C" fn parseDict(mut data: *const uint8_t, len: uint32_t) -> *mut 
         t: 0 as cff_Value_Type,
         c2rust_unnamed: C2RustUnnamed { i: 0 },
     }; 48];
-    let mut temp: *const uint8_t = data;
+    let mut temp: *const u8 = data;
     while temp < data.offset(len as isize) {
         advance = cff_decodeCffToken(temp, &raw mut val);
         match val.t as ::core::ffi::c_uint {
             1 => {
                 (*dict).ents = __caryll_reallocate(
                     (*dict).ents as *mut ::core::ffi::c_void,
-                    (::core::mem::size_of::<cff_DictEntry>() as size_t)
-                        .wrapping_mul((*dict).count.wrapping_add(1 as uint32_t) as size_t),
+                    (::core::mem::size_of::<cff_DictEntry>() as usize)
+                        .wrapping_mul((*dict).count.wrapping_add(1 as u32) as usize),
                     24 as ::core::ffi::c_ulong,
                 ) as *mut cff_DictEntry;
                 (*(*dict).ents.offset((*dict).count as isize)).op =
-                    val.c2rust_unnamed.i as uint32_t;
+                    val.c2rust_unnamed.i as u32;
                 (*(*dict).ents.offset((*dict).count as isize)).cnt = index;
                 let ref mut fresh1 = (*(*dict).ents.offset((*dict).count as isize)).vals;
                 *fresh1 = __caryll_allocate_clean(
-                    (::core::mem::size_of::<cff_Value>() as size_t).wrapping_mul(index as size_t),
+                    (::core::mem::size_of::<cff_Value>() as usize).wrapping_mul(index as usize),
                     27 as ::core::ffi::c_ulong,
                 ) as *mut cff_Value;
                 memcpy(
                     (*(*dict).ents.offset((*dict).count as isize)).vals as *mut ::core::ffi::c_void,
                     &raw mut stack as *mut cff_Value as *const ::core::ffi::c_void,
-                    (::core::mem::size_of::<cff_Value>() as size_t).wrapping_mul(index as size_t),
+                    (::core::mem::size_of::<cff_Value>() as usize).wrapping_mul(index as usize),
                 );
                 (*dict).count = (*dict).count.wrapping_add(1);
-                index = 0 as uint32_t;
+                index = 0 as u32;
             }
             2 | 3 => {
                 let fresh2 = index;
@@ -242,15 +235,15 @@ unsafe extern "C" fn parseDict(mut data: *const uint8_t, len: uint32_t) -> *mut 
     return dict;
 }
 unsafe extern "C" fn parseToCallback(
-    mut data: *const uint8_t,
-    len: uint32_t,
+    mut data: *const u8,
+    len: u32,
     mut context: *mut ::core::ffi::c_void,
     mut callback: Option<
-        unsafe extern "C" fn(uint32_t, uint8_t, *mut cff_Value, *mut ::core::ffi::c_void) -> (),
+        unsafe extern "C" fn(u32, u8, *mut cff_Value, *mut ::core::ffi::c_void) -> (),
     >,
 ) {
-    let mut index: uint8_t = 0 as uint8_t;
-    let mut advance: uint32_t = 0;
+    let mut index: u8 = 0 as u8;
+    let mut advance: u32 = 0;
     let mut val: cff_Value = cff_Value {
         t: 0 as cff_Value_Type,
         c2rust_unnamed: C2RustUnnamed { i: 0 },
@@ -259,18 +252,18 @@ unsafe extern "C" fn parseToCallback(
         t: 0 as cff_Value_Type,
         c2rust_unnamed: C2RustUnnamed { i: 0 },
     }; 256];
-    let mut temp: *const uint8_t = data;
+    let mut temp: *const u8 = data;
     while temp < data.offset(len as isize) {
         advance = cff_decodeCffToken(temp, &raw mut val);
         match val.t as ::core::ffi::c_uint {
             1 => {
                 callback.expect("non-null function pointer")(
-                    val.c2rust_unnamed.i as uint32_t,
+                    val.c2rust_unnamed.i as u32,
                     index,
                     &raw mut stack as *mut cff_Value,
                     context,
                 );
-                index = 0 as uint8_t;
+                index = 0 as u8;
             }
             2 | 3 => {
                 let fresh0 = index;
@@ -283,22 +276,22 @@ unsafe extern "C" fn parseToCallback(
     }
 }
 unsafe extern "C" fn callback_get_key(
-    mut op: uint32_t,
-    mut top: uint8_t,
+    mut op: u32,
+    mut top: u8,
     mut stack: *mut cff_Value,
     mut _context: *mut ::core::ffi::c_void,
 ) {
     let mut context: *mut cff_get_key_context = _context as *mut cff_get_key_context;
-    if op == (*context).op && (*context).idx <= top as uint32_t {
+    if op == (*context).op && (*context).idx <= top as u32 {
         (*context).found = true;
         (*context).res = *stack.offset((*context).idx as isize);
     }
 }
 unsafe extern "C" fn parseDictKey(
-    mut data: *const uint8_t,
-    len: uint32_t,
-    op: uint32_t,
-    idx: uint32_t,
+    mut data: *const u8,
+    len: u32,
+    op: u32,
+    idx: u32,
 ) -> cff_Value {
     let mut context: cff_get_key_context = cff_get_key_context {
         found: false,
@@ -313,7 +306,7 @@ unsafe extern "C" fn parseDictKey(
     context.idx = idx;
     context.op = op;
     context.res.t = 0 as cff_Value_Type;
-    context.res.c2rust_unnamed.i = -(1 as ::core::ffi::c_int) as int32_t;
+    context.res.c2rust_unnamed.i = -(1 as ::core::ffi::c_int) as i32;
     parseToCallback(
         data,
         len,
@@ -321,8 +314,8 @@ unsafe extern "C" fn parseDictKey(
         Some(
             callback_get_key
                 as unsafe extern "C" fn(
-                    uint32_t,
-                    uint8_t,
+                    u32,
+                    u8,
                     *mut cff_Value,
                     *mut ::core::ffi::c_void,
                 ) -> (),
@@ -332,9 +325,9 @@ unsafe extern "C" fn parseDictKey(
 }
 unsafe extern "C" fn buildDict(mut dict: *const cff_Dict) -> *mut caryll_Buffer {
     let mut blob: *mut caryll_Buffer = bufnew();
-    let mut i: uint32_t = 0 as uint32_t;
+    let mut i: u32 = 0 as u32;
     while i < (*dict).count {
-        let mut j: uint32_t = 0 as uint32_t;
+        let mut j: u32 = 0 as u32;
         while j < (*(*dict).ents.offset(i as isize)).cnt {
             let mut blob_val: *mut caryll_Buffer = ::core::ptr::null_mut::<caryll_Buffer>();
             if (*(*(*dict).ents.offset(i as isize)).vals.offset(j as isize)).t
@@ -356,14 +349,14 @@ unsafe extern "C" fn buildDict(mut dict: *const cff_Dict) -> *mut caryll_Buffer 
                         .d,
                 );
             } else {
-                blob_val = cff_encodeCffInteger(0 as int32_t);
+                blob_val = cff_encodeCffInteger(0 as i32);
             }
             bufwrite_bufdel(blob, blob_val);
             j = j.wrapping_add(1);
         }
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator((*(*dict).ents.offset(i as isize)).op as int32_t),
+            cff_encodeCffOperator((*(*dict).ents.offset(i as isize)).op as i32),
         );
         i = i.wrapping_add(1);
     }
@@ -382,17 +375,17 @@ pub static mut cff_iDict: __caryll_elementinterface_cff_Dict = {
         ),
         create: Some(cff_Dict_create),
         free: Some(cff_Dict_free as unsafe extern "C" fn(*mut cff_Dict) -> ()),
-        parse: Some(parseDict as unsafe extern "C" fn(*const uint8_t, uint32_t) -> *mut cff_Dict),
+        parse: Some(parseDict as unsafe extern "C" fn(*const u8, u32) -> *mut cff_Dict),
         parseToCallback: Some(
             parseToCallback
                 as unsafe extern "C" fn(
-                    *const uint8_t,
-                    uint32_t,
+                    *const u8,
+                    u32,
                     *mut ::core::ffi::c_void,
                     Option<
                         unsafe extern "C" fn(
-                            uint32_t,
-                            uint8_t,
+                            u32,
+                            u8,
                             *mut cff_Value,
                             *mut ::core::ffi::c_void,
                         ) -> (),
@@ -401,7 +394,7 @@ pub static mut cff_iDict: __caryll_elementinterface_cff_Dict = {
         ),
         parseDictKey: Some(
             parseDictKey
-                as unsafe extern "C" fn(*const uint8_t, uint32_t, uint32_t, uint32_t) -> cff_Value,
+                as unsafe extern "C" fn(*const u8, u32, u32, u32) -> cff_Value,
         ),
         build: Some(buildDict as unsafe extern "C" fn(*const cff_Dict) -> *mut caryll_Buffer),
     }
