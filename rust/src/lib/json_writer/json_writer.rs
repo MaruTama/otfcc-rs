@@ -132,6 +132,7 @@ use crate::src::lib::table::otl::coverage::{otl_Coverage};
 use crate::src::lib::support::handle::{otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
 use crate::src::lib::support::stdio::FILE;
 use crate::src::lib::support::alloc::{__caryll_allocate_clean};
+use crate::src::lib::otf_writer::otf_writer::FontSerializer;
 pub type __int8_t = i8;
 pub type __uint8_t = u8;
 pub type __int16_t = i16;
@@ -1500,10 +1501,14 @@ pub struct GlyfIOContext {
 }
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-unsafe extern "C" fn serializeToJson(
-    mut font: *mut otfcc_Font,
-    mut options: *const otfcc_Options,
-) -> *mut ::core::ffi::c_void {
+struct JsonSerializer;
+impl FontSerializer for JsonSerializer {
+    unsafe fn serialize(
+        font: *mut ::core::ffi::c_void,
+        options: *const ::core::ffi::c_void,
+    ) -> *mut ::core::ffi::c_void {
+    let font = font as *mut otfcc_Font;
+    let options = options as *const otfcc_Options;
     let mut root: *mut json_value = json_object_new(48 as size_t);
     if root.is_null() {
         return NULL;
@@ -1581,6 +1586,16 @@ unsafe extern "C" fn serializeToJson(
     );
     otfcc_dumpTSI5((*font).TSI5, root, options);
     return root as *mut ::core::ffi::c_void;
+    }
+}
+unsafe extern "C" fn serializeToJson(
+    mut font: *mut otfcc_Font,
+    mut options: *const otfcc_Options,
+) -> *mut ::core::ffi::c_void {
+    <JsonSerializer as FontSerializer>::serialize(
+        font as *mut ::core::ffi::c_void,
+        options as *const ::core::ffi::c_void,
+    )
 }
 unsafe extern "C" fn freeJsonWriter(mut self_0: *mut otfcc_IFontSerializer) {
     free(self_0 as *mut ::core::ffi::c_void);
