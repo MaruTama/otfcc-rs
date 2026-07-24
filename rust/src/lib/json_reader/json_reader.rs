@@ -83,6 +83,7 @@ use crate::src::lib::table::otl::coverage::{otl_Coverage};
 use crate::src::lib::support::handle::{otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
 use crate::src::lib::support::stdio::FILE;
 use crate::src::lib::support::alloc::{__caryll_allocate_clean};
+use crate::src::lib::otf_reader::otf_reader::FontBuilder;
 pub type __int8_t = i8;
 pub type __uint8_t = u8;
 pub type __int16_t = i16;
@@ -3464,16 +3465,19 @@ unsafe extern "C" fn parseGlyphOrder(
     orderGlyphs(go);
     return go;
 }
-unsafe extern "C" fn readJson(
+struct JsonReader;
+impl FontBuilder for JsonReader {
+    unsafe fn read(
     mut _root: *mut ::core::ffi::c_void,
     mut _index: uint32_t,
-    mut options: *const otfcc_Options,
-) -> *mut otfcc_Font {
+    options: *const ::core::ffi::c_void,
+) -> *mut ::core::ffi::c_void {
+    let options = options as *const otfcc_Options;
     let mut root: *const json_value = _root as *mut json_value;
     let mut font: *mut otfcc_Font = (
         otfcc_iFont.create.expect("non-null function pointer"))();
     if font.is_null() {
-        return ::core::ptr::null_mut::<otfcc_Font>();
+        return ::core::ptr::null_mut::<::core::ffi::c_void>();
     }
     (*font).subtype = otfcc_decideFontSubtypeFromJson(root);
     (*font).glyph_order = parseGlyphOrder(root, options);
@@ -3535,7 +3539,16 @@ unsafe extern "C" fn readJson(
         b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
     );
     (*font).TSI5 = otfcc_parseTSI5(root, options);
-    return font;
+    return font as *mut ::core::ffi::c_void;
+    }
+}
+unsafe extern "C" fn readJson(
+    mut _root: *mut ::core::ffi::c_void,
+    mut _index: uint32_t,
+    mut options: *const otfcc_Options,
+) -> *mut otfcc_Font {
+    <JsonReader as FontBuilder>::read(_root, _index, options as *const ::core::ffi::c_void)
+        as *mut otfcc_Font
 }
 #[inline]
 unsafe extern "C" fn freeReader(mut self_0: *mut otfcc_IFontBuilder) {

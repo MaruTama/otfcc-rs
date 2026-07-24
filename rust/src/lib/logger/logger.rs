@@ -393,28 +393,41 @@ pub unsafe extern "C" fn otfcc_newLogger(
     (*logger).vtable = VTABLE_LOGGER;
     return logger as *mut otfcc_ILogger;
 }
+trait LoggerTarget {
+    unsafe fn dispose(self_: *mut otfcc_ILoggerTarget);
+    unsafe fn push(self_: *mut otfcc_ILoggerTarget, data: sds);
+}
+struct StderrLoggerTarget;
+impl LoggerTarget for StderrLoggerTarget {
+    unsafe fn dispose(mut _self: *mut otfcc_ILoggerTarget) {
+        let mut self_0: *mut StderrTarget = _self as *mut StderrTarget;
+        if self_0.is_null() {
+            return;
+        }
+        free(self_0 as *mut ::core::ffi::c_void);
+        self_0 = ::core::ptr::null_mut::<StderrTarget>();
+    }
+    unsafe fn push(mut _self: *mut otfcc_ILoggerTarget, mut data: sds) {
+        fprintf(
+            stderr,
+            b"%s\0" as *const u8 as *const ::core::ffi::c_char,
+            data,
+        );
+        if *data.offset(sdslen(data).wrapping_sub(1 as size_t) as isize) as ::core::ffi::c_int
+            != '\n' as i32
+        {
+            fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
+        }
+        sdsfree(data);
+    }
+}
 #[no_mangle]
 pub unsafe extern "C" fn stderrTargetDispose(mut _self: *mut otfcc_ILoggerTarget) {
-    let mut self_0: *mut StderrTarget = _self as *mut StderrTarget;
-    if self_0.is_null() {
-        return;
-    }
-    free(self_0 as *mut ::core::ffi::c_void);
-    self_0 = ::core::ptr::null_mut::<StderrTarget>();
+    <StderrLoggerTarget as LoggerTarget>::dispose(_self);
 }
 #[no_mangle]
 pub unsafe extern "C" fn stderrTargetPush(mut _self: *mut otfcc_ILoggerTarget, mut data: sds) {
-    fprintf(
-        stderr,
-        b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-        data,
-    );
-    if *data.offset(sdslen(data).wrapping_sub(1 as size_t) as isize) as ::core::ffi::c_int
-        != '\n' as i32
-    {
-        fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
-    }
-    sdsfree(data);
+    <StderrLoggerTarget as LoggerTarget>::push(_self, data);
 }
 #[no_mangle]
 pub static mut VTABLE_STDERR_TARGET: otfcc_ILoggerTarget = {
@@ -433,18 +446,27 @@ pub unsafe extern "C" fn otfcc_newStdErrTarget() -> *mut otfcc_ILoggerTarget {
     (*target).vtable = VTABLE_STDERR_TARGET;
     return target as *mut otfcc_ILoggerTarget;
 }
+struct EmptyLoggerTarget;
+impl LoggerTarget for EmptyLoggerTarget {
+    unsafe fn dispose(mut _self: *mut otfcc_ILoggerTarget) {
+        let mut self_0: *mut StderrTarget = _self as *mut StderrTarget;
+        if self_0.is_null() {
+            return;
+        }
+        free(self_0 as *mut ::core::ffi::c_void);
+        self_0 = ::core::ptr::null_mut::<StderrTarget>();
+    }
+    unsafe fn push(mut _self: *mut otfcc_ILoggerTarget, mut data: sds) {
+        sdsfree(data);
+    }
+}
 #[no_mangle]
 pub unsafe extern "C" fn emptyTargetDispose(mut _self: *mut otfcc_ILoggerTarget) {
-    let mut self_0: *mut StderrTarget = _self as *mut StderrTarget;
-    if self_0.is_null() {
-        return;
-    }
-    free(self_0 as *mut ::core::ffi::c_void);
-    self_0 = ::core::ptr::null_mut::<StderrTarget>();
+    <EmptyLoggerTarget as LoggerTarget>::dispose(_self);
 }
 #[no_mangle]
 pub unsafe extern "C" fn emptyTargetPush(mut _self: *mut otfcc_ILoggerTarget, mut data: sds) {
-    sdsfree(data);
+    <EmptyLoggerTarget as LoggerTarget>::push(_self, data);
 }
 #[no_mangle]
 pub static mut VTABLE_EMPTY_TARGET: otfcc_ILoggerTarget = {

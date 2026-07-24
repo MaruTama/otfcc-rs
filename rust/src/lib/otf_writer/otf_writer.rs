@@ -1470,10 +1470,24 @@ pub struct table_GlyfAndLocaBuffers {
 }
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-unsafe extern "C" fn serializeToOTF(
-    mut font: *mut otfcc_Font,
-    mut options: *const otfcc_Options,
-) -> *mut ::core::ffi::c_void {
+// otfcc_Font/otfcc_Options are duplicated per-file by c2rust; the trait
+// boundary uses erased c_void pointers so this trait can be shared with
+// json_writer.rs without deduping those pervasively-used types (same
+// reasoning as FontBuilder in otf_reader.rs).
+pub(crate) trait FontSerializer {
+    unsafe fn serialize(
+        font: *mut ::core::ffi::c_void,
+        options: *const ::core::ffi::c_void,
+    ) -> *mut ::core::ffi::c_void;
+}
+struct OtfSerializer;
+impl FontSerializer for OtfSerializer {
+    unsafe fn serialize(
+        font: *mut ::core::ffi::c_void,
+        options: *const ::core::ffi::c_void,
+    ) -> *mut ::core::ffi::c_void {
+    let font = font as *mut otfcc_Font;
+    let options = options as *const otfcc_Options;
     otfcc_statFont(font, options);
     let mut builder: *mut otfcc_SFNTBuilder = otfcc_newSFNTBuilder(
         (if (*font).subtype == FONTTYPE_CFF {
@@ -1680,6 +1694,16 @@ unsafe extern "C" fn serializeToOTF(
     otfcc_deleteSFNTBuilder(builder);
     otfcc_unstatFont(font, options);
     return otf as *mut ::core::ffi::c_void;
+    }
+}
+unsafe extern "C" fn serializeToOTF(
+    mut font: *mut otfcc_Font,
+    mut options: *const otfcc_Options,
+) -> *mut ::core::ffi::c_void {
+    <OtfSerializer as FontSerializer>::serialize(
+        font as *mut ::core::ffi::c_void,
+        options as *const ::core::ffi::c_void,
+    )
 }
 unsafe extern "C" fn freeFontWriter(mut self_0: *mut otfcc_IFontSerializer) {
     free(self_0 as *mut ::core::ffi::c_void);
