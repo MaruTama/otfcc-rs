@@ -26,7 +26,7 @@ extern "C" {
 
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_16u, read_16s};
+use crate::support::binio::{pos_to_u16, read_16u, read_16s};
 pub type __uint8_t = u8;
 pub type __int16_t = i16;
 pub type __uint16_t = u16;
@@ -348,7 +348,7 @@ pub unsafe extern "C" fn otfcc_buildVORG(
     let mut buf: *mut caryll_Buffer = bufnew();
     bufwrite16b(buf, 1 as uint16_t);
     bufwrite16b(buf, 0 as uint16_t);
-    bufwrite16b(buf, (*table).defaultVerticalOrigin as int16_t as uint16_t);
+    bufwrite16b(buf, pos_to_u16((*table).defaultVerticalOrigin));
     bufwrite16b(buf, (*table).numVertOriginYMetrics as uint16_t);
     let mut j: uint16_t = 0 as uint16_t;
     while (j as ::core::ffi::c_int) < (*table).numVertOriginYMetrics as ::core::ffi::c_int {

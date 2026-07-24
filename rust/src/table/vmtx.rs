@@ -26,7 +26,7 @@ extern "C" {
 
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_16u, read_16s};
+use crate::support::binio::{pos_to_u16, read_16u, read_16s};
 pub type __uint8_t = u8;
 pub type __int16_t = i16;
 pub type __uint16_t = u16;
@@ -428,7 +428,7 @@ pub unsafe extern "C" fn otfcc_buildVmtx(
                 buf,
                 (*(*vmtx).metrics.offset(j as isize)).advanceHeight as uint16_t,
             );
-            bufwrite16b(buf, (*(*vmtx).metrics.offset(j as isize)).tsb as int16_t as uint16_t);
+            bufwrite16b(buf, pos_to_u16((*(*vmtx).metrics.offset(j as isize)).tsb));
             j = j.wrapping_add(1);
         }
     }
@@ -437,7 +437,7 @@ pub unsafe extern "C" fn otfcc_buildVmtx(
         while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
             bufwrite16b(
                 buf,
-                *(*vmtx).topSideBearing.offset(j_0 as isize) as int16_t as uint16_t,
+                pos_to_u16(*(*vmtx).topSideBearing.offset(j_0 as isize)),
             );
             j_0 = j_0.wrapping_add(1);
         }

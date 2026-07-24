@@ -61,7 +61,7 @@ use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_16u, read_16s};
+use crate::support::binio::{pos_to_u16, read_16u, read_16s};
 use crate::support::cvec::{
     cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
     cvec_resize_to, CVecRaw,
@@ -3762,16 +3762,16 @@ pub unsafe extern "C" fn write_gpos_value(
     mut format: uint16_t,
 ) {
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
-        bufwrite16b(buf, v.dx as int16_t as uint16_t);
+        bufwrite16b(buf, pos_to_u16(v.dx));
     }
     if format as ::core::ffi::c_int & FORMAT_DY as ::core::ffi::c_int != 0 {
-        bufwrite16b(buf, v.dy as int16_t as uint16_t);
+        bufwrite16b(buf, pos_to_u16(v.dy));
     }
     if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
-        bufwrite16b(buf, v.dWidth as int16_t as uint16_t);
+        bufwrite16b(buf, pos_to_u16(v.dWidth));
     }
     if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
-        bufwrite16b(buf, v.dHeight as int16_t as uint16_t);
+        bufwrite16b(buf, pos_to_u16(v.dHeight));
     }
 }
 #[no_mangle]

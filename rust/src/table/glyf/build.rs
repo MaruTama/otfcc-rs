@@ -25,6 +25,7 @@ extern "C" {
 
 use crate::support::handle::{otfcc_Handle, otfcc_GlyphHandle};
 use crate::support::stdio::FILE;
+use crate::support::binio::{pos_to_u16};
 use crate::support::alloc::{__caryll_allocate_clean};
 pub type __int8_t = i8;
 pub type __uint8_t = u8;
@@ -430,10 +431,10 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const glyf_Glyph, mut gbuf: *mut 
     let mut xs: *mut caryll_Buffer = bufnew();
     let mut ys: *mut caryll_Buffer = bufnew();
     bufwrite16b(gbuf, (*g).contours.length as uint16_t);
-    bufwrite16b(gbuf, (*g).stat.xMin as int16_t as uint16_t);
-    bufwrite16b(gbuf, (*g).stat.yMin as int16_t as uint16_t);
-    bufwrite16b(gbuf, (*g).stat.xMax as int16_t as uint16_t);
-    bufwrite16b(gbuf, (*g).stat.yMax as int16_t as uint16_t);
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.xMin));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.yMin));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.xMax));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.yMax));
     let mut ptid: shapeid_t = 0 as shapeid_t;
     let mut j: shapeid_t = 0 as shapeid_t;
     while (j as size_t) < (*g).contours.length {
@@ -528,10 +529,10 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const glyf_Glyph, mut gbuf: *mut 
 }
 unsafe extern "C" fn glyf_build_composite(mut g: *const glyf_Glyph, mut gbuf: *mut caryll_Buffer) {
     bufwrite16b(gbuf, -(1 as ::core::ffi::c_int) as uint16_t);
-    bufwrite16b(gbuf, (*g).stat.xMin as int16_t as uint16_t);
-    bufwrite16b(gbuf, (*g).stat.yMin as int16_t as uint16_t);
-    bufwrite16b(gbuf, (*g).stat.xMax as int16_t as uint16_t);
-    bufwrite16b(gbuf, (*g).stat.yMax as int16_t as uint16_t);
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.xMin));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.yMin));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.xMax));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.yMax));
     let mut rj: shapeid_t = 0 as shapeid_t;
     while (rj as size_t) < (*g).references.length {
         let mut r: *mut glyf_ComponentReference =

@@ -26,7 +26,7 @@ extern "C" {
 
 use crate::support::stdio::FILE;
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_16u, read_16s};
+use crate::support::binio::{pos_to_u16, read_16u, read_16s};
 pub type __uint8_t = u8;
 pub type __int16_t = i16;
 pub type __uint16_t = u16;
@@ -424,7 +424,7 @@ pub unsafe extern "C" fn otfcc_buildHmtx(
                 buf,
                 (*(*hmtx).metrics.offset(j as isize)).advanceWidth as uint16_t,
             );
-            bufwrite16b(buf, (*(*hmtx).metrics.offset(j as isize)).lsb as int16_t as uint16_t);
+            bufwrite16b(buf, pos_to_u16((*(*hmtx).metrics.offset(j as isize)).lsb));
             j = j.wrapping_add(1);
         }
     }
@@ -433,7 +433,7 @@ pub unsafe extern "C" fn otfcc_buildHmtx(
         while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
             bufwrite16b(
                 buf,
-                *(*hmtx).leftSideBearing.offset(j_0 as isize) as int16_t as uint16_t,
+                pos_to_u16(*(*hmtx).leftSideBearing.offset(j_0 as isize)),
             );
             j_0 = j_0.wrapping_add(1);
         }
