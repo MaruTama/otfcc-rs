@@ -642,22 +642,22 @@ unsafe extern "C" fn sdslen(s: sds) -> size_t {
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
                 .len as size_t;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
                 .len as size_t;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
                 .len as size_t;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
                 .len as size_t;
         }
@@ -1093,13 +1093,13 @@ unsafe extern "C" fn disposeFvar(mut fvar: *mut table_fvar) {
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*(*fvar).masters).hh.tbl).tail {
                 (*(*(*fvar).masters).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*fvar).masters).hh.tbl).hho as isize)
+                    .offset((*(*(*fvar).masters).hh.tbl).hho)
                     as *mut UT_hash_handle
                     as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh2 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*fvar).masters).hh.tbl).hho as isize)
+                    .offset((*(*(*fvar).masters).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh2 = (*_hd_hh_del).next;
@@ -1108,7 +1108,7 @@ unsafe extern "C" fn disposeFvar(mut fvar: *mut table_fvar) {
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh3 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*fvar).masters).hh.tbl).hho as isize)
+                    .offset((*(*(*fvar).masters).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh3 = (*_hd_hh_del).prev;
@@ -1155,8 +1155,8 @@ unsafe extern "C" fn fvar_registerRegion(
     _hf_hashv = 0xfeedbeef as ::core::ffi::c_uint;
     _hj_j = 0x9e3779b9 as ::core::ffi::c_uint;
     _hj_i = _hj_j;
-    _hj_k = (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
-        (::core::mem::size_of::<vq_AxisSpan>() as usize)
+    _hj_k = ::core::mem::size_of::<vq_Region>().wrapping_add(
+        ::core::mem::size_of::<vq_AxisSpan>()
             .wrapping_mul((*region).dimensions as usize),
     ) as ::core::ffi::c_uint;
     while _hj_k >= 12 as ::core::ffi::c_uint {
@@ -1236,8 +1236,8 @@ unsafe extern "C" fn fvar_registerRegion(
         _hj_k = _hj_k.wrapping_sub(12 as ::core::ffi::c_uint);
     }
     _hf_hashv = _hf_hashv.wrapping_add(
-        (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
-            (::core::mem::size_of::<vq_AxisSpan>() as usize)
+        ::core::mem::size_of::<vq_Region>().wrapping_add(
+            ::core::mem::size_of::<vq_AxisSpan>()
                 .wrapping_mul((*region).dimensions as usize),
         ) as ::core::ffi::c_uint,
     );
@@ -1426,7 +1426,7 @@ unsafe extern "C" fn fvar_registerRegion(
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*fvar).masters).hh.tbl).hho as isize))
+                    .offset(-(*(*(*fvar).masters).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut fvar_Master
                     as *mut fvar_Master;
             } else {
@@ -1435,8 +1435,8 @@ unsafe extern "C" fn fvar_registerRegion(
             while !m.is_null() {
                 if (*m).hh.hashv == _hf_hashv
                     && (*m).hh.keylen as usize
-                        == (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
-                            (::core::mem::size_of::<vq_AxisSpan>() as usize)
+                        == ::core::mem::size_of::<vq_Region>().wrapping_add(
+                            ::core::mem::size_of::<vq_AxisSpan>()
                                 .wrapping_mul((*region).dimensions as usize),
                         )
                 {
@@ -1454,7 +1454,7 @@ unsafe extern "C" fn fvar_registerRegion(
                 }
                 if !(*m).hh.hh_next.is_null() {
                     m = ((*m).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*fvar).masters).hh.tbl).hho as isize))
+                        .offset(-(*(*(*fvar).masters).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut fvar_Master
                         as *mut fvar_Master;
                 } else {
@@ -1492,8 +1492,8 @@ unsafe extern "C" fn fvar_registerRegion(
         _ha_hashv = 0xfeedbeef as ::core::ffi::c_uint;
         _hj_j_0 = 0x9e3779b9 as ::core::ffi::c_uint;
         _hj_i_0 = _hj_j_0;
-        _hj_k_0 = (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
-            (::core::mem::size_of::<vq_AxisSpan>() as usize)
+        _hj_k_0 = ::core::mem::size_of::<vq_Region>().wrapping_add(
+            ::core::mem::size_of::<vq_AxisSpan>()
                 .wrapping_mul((*region).dimensions as usize),
         ) as ::core::ffi::c_uint;
         while _hj_k_0 >= 12 as ::core::ffi::c_uint {
@@ -1582,8 +1582,8 @@ unsafe extern "C" fn fvar_registerRegion(
             _hj_k_0 = _hj_k_0.wrapping_sub(12 as ::core::ffi::c_uint);
         }
         _ha_hashv = _ha_hashv.wrapping_add(
-            (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
-                (::core::mem::size_of::<vq_AxisSpan>() as usize)
+            ::core::mem::size_of::<vq_Region>().wrapping_add(
+                ::core::mem::size_of::<vq_AxisSpan>()
                     .wrapping_mul((*region).dimensions as usize),
             ) as ::core::ffi::c_uint,
         );
@@ -1758,8 +1758,8 @@ unsafe extern "C" fn fvar_registerRegion(
         _ha_hashv ^= _hj_j_0 >> 15 as ::core::ffi::c_int;
         (*m).hh.hashv = _ha_hashv;
         (*m).hh.key = (*m).region as *mut ::core::ffi::c_char as *mut ::core::ffi::c_void;
-        (*m).hh.keylen = (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
-            (::core::mem::size_of::<vq_AxisSpan>() as usize)
+        (*m).hh.keylen = ::core::mem::size_of::<vq_Region>().wrapping_add(
+            ::core::mem::size_of::<vq_AxisSpan>()
                 .wrapping_mul((*region).dimensions as usize),
         ) as ::core::ffi::c_uint;
         if (*fvar).masters.is_null() {
@@ -1801,7 +1801,7 @@ unsafe extern "C" fn fvar_registerRegion(
             (*m).hh.tbl = (*(*fvar).masters).hh.tbl;
             (*m).hh.next = NULL;
             (*m).hh.prev = ((*(*(*fvar).masters).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*fvar).masters).hh.tbl).hho as isize))
+                .offset(-(*(*(*fvar).masters).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*fvar).masters).hh.tbl).tail).next = m as *mut ::core::ffi::c_void;
             (*(*(*fvar).masters).hh.tbl).tail = &raw mut (*m).hh as *mut UT_hash_handle;
@@ -1938,8 +1938,8 @@ unsafe extern "C" fn fvar_findMasterByRegion(
     _hf_hashv = 0xfeedbeef as ::core::ffi::c_uint;
     _hj_j = 0x9e3779b9 as ::core::ffi::c_uint;
     _hj_i = _hj_j;
-    _hj_k = (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
-        (::core::mem::size_of::<vq_AxisSpan>() as usize)
+    _hj_k = ::core::mem::size_of::<vq_Region>().wrapping_add(
+        ::core::mem::size_of::<vq_AxisSpan>()
             .wrapping_mul((*region).dimensions as usize),
     ) as ::core::ffi::c_uint;
     while _hj_k >= 12 as ::core::ffi::c_uint {
@@ -2019,8 +2019,8 @@ unsafe extern "C" fn fvar_findMasterByRegion(
         _hj_k = _hj_k.wrapping_sub(12 as ::core::ffi::c_uint);
     }
     _hf_hashv = _hf_hashv.wrapping_add(
-        (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
-            (::core::mem::size_of::<vq_AxisSpan>() as usize)
+        ::core::mem::size_of::<vq_Region>().wrapping_add(
+            ::core::mem::size_of::<vq_AxisSpan>()
                 .wrapping_mul((*region).dimensions as usize),
         ) as ::core::ffi::c_uint,
     );
@@ -2209,7 +2209,7 @@ unsafe extern "C" fn fvar_findMasterByRegion(
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*fvar).masters).hh.tbl).hho as isize))
+                    .offset(-(*(*(*fvar).masters).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut fvar_Master
                     as *mut fvar_Master;
             } else {
@@ -2218,8 +2218,8 @@ unsafe extern "C" fn fvar_findMasterByRegion(
             while !m.is_null() {
                 if (*m).hh.hashv == _hf_hashv
                     && (*m).hh.keylen as usize
-                        == (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
-                            (::core::mem::size_of::<vq_AxisSpan>() as usize)
+                        == ::core::mem::size_of::<vq_Region>().wrapping_add(
+                            ::core::mem::size_of::<vq_AxisSpan>()
                                 .wrapping_mul((*region).dimensions as usize),
                         )
                 {
@@ -2237,7 +2237,7 @@ unsafe extern "C" fn fvar_findMasterByRegion(
                 }
                 if !(*m).hh.hh_next.is_null() {
                     m = ((*m).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*fvar).masters).hh.tbl).hho as isize))
+                        .offset(-(*(*(*fvar).masters).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut fvar_Master
                         as *mut fvar_Master;
                 } else {
@@ -2358,7 +2358,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     let mut data: font_file_pointer = table.data as font_file_pointer;
-                    if !((table.length as usize) < ::core::mem::size_of::<FVARHeader>() as usize) {
+                    if !((table.length as usize) < ::core::mem::size_of::<FVARHeader>()) {
                         header = data as *mut FVARHeader;
                         if !(be16((*header).majorVersion) as ::core::ffi::c_int
                             != 1 as ::core::ffi::c_int)
@@ -2373,13 +2373,12 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                         == 0 as ::core::ffi::c_int)
                                     {
                                         if !(be16((*header).axisSize) as usize
-                                            != ::core::mem::size_of::<VariationAxisRecord>()
-                                                as usize)
+                                            != ::core::mem::size_of::<VariationAxisRecord>())
                                         {
                                             nAxes = be16((*header).axisCount);
-                                            instanceSizeWithoutPSNID = (4 as usize).wrapping_add(
+                                            instanceSizeWithoutPSNID = 4_usize.wrapping_add(
                                                 (nAxes as usize).wrapping_mul(
-                                                    ::core::mem::size_of::<f16dot16>() as usize,
+                                                    ::core::mem::size_of::<f16dot16>(),
                                                 ),
                                             )
                                                 as uint16_t;
@@ -2395,11 +2394,10 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                 if !((table.length as usize)
                                                     < (be16((*header).axesArrayOffset) as usize)
                                                         .wrapping_add(
-                                                            (::core::mem::size_of::<
+                                                            ::core::mem::size_of::<
                                                                 VariationAxisRecord,
                                                             >(
                                                             )
-                                                                as usize)
                                                                 .wrapping_mul(nAxes as usize),
                                                         )
                                                         .wrapping_add(

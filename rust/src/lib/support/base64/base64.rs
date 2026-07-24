@@ -130,8 +130,8 @@ pub unsafe extern "C" fn base64_decode(
         256 as size_t,
     );
     i = 0 as size_t;
-    while i < ::core::mem::size_of::<[uint8_t; 64]>() as usize {
-        dtable[base64_table[i as usize] as usize] = i as uint8_t;
+    while i < ::core::mem::size_of::<[uint8_t; 64]>() {
+        dtable[base64_table[i] as usize] = i as uint8_t;
         i = i.wrapping_add(1);
     }
     dtable['=' as i32 as usize] = 0 as uint8_t;
@@ -158,8 +158,8 @@ pub unsafe extern "C" fn base64_decode(
     while i < len {
         tmp = dtable[*src.offset(i as isize) as usize];
         if !(tmp as ::core::ffi::c_int == 0x80 as ::core::ffi::c_int) {
-            in_0[count as usize] = *src.offset(i as isize);
-            block[count as usize] = tmp;
+            in_0[count] = *src.offset(i as isize);
+            block[count] = tmp;
             count = count.wrapping_add(1);
             if count == 4 as size_t {
                 let fresh10 = pos;

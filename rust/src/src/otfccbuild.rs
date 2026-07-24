@@ -2282,6 +2282,6 @@ pub fn main() {
         ::std::process::exit(main_0(
             (args_ptrs.len() - 1) as ::core::ffi::c_int,
             args_ptrs.as_mut_ptr() as *mut *mut ::core::ffi::c_char,
-        ) as i32)
+        ))
     }
 }

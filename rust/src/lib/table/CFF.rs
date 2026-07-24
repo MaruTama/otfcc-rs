@@ -1467,22 +1467,22 @@ unsafe extern "C" fn sdslen(s: sds) -> size_t {
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
                 .len as size_t;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
                 .len as size_t;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
                 .len as size_t;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
                 .len as size_t;
         }
@@ -3960,7 +3960,7 @@ unsafe extern "C" fn sidof(mut h: *mut *mut cff_sid_entry, mut s: sds) -> ::core
             {
                 item = ((*(*(**h).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                     as *mut ::core::ffi::c_char)
-                    .offset(-((*(**h).hh.tbl).hho as isize))
+                    .offset(-(*(**h).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cff_sid_entry
                     as *mut cff_sid_entry;
             } else {
@@ -3982,7 +3982,7 @@ unsafe extern "C" fn sidof(mut h: *mut *mut cff_sid_entry, mut s: sds) -> ::core
                 }
                 if !(*item).hh.hh_next.is_null() {
                     item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(**h).hh.tbl).hho as isize))
+                        .offset(-(*(**h).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut cff_sid_entry
                         as *mut cff_sid_entry;
                 } else {
@@ -4313,7 +4313,7 @@ unsafe extern "C" fn sidof(mut h: *mut *mut cff_sid_entry, mut s: sds) -> ::core
             (*item).hh.tbl = (**h).hh.tbl;
             (*item).hh.next = NULL;
             (*item).hh.prev = ((*(**h).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(**h).hh.tbl).hho as isize))
+                .offset(-(*(**h).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(**h).hh.tbl).tail).next = item as *mut ::core::ffi::c_void;
             (*(**h).hh.tbl).tail = &raw mut (*item).hh as *mut UT_hash_handle;
@@ -4867,7 +4867,7 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
                     _hs_psize = _hs_psize.wrapping_add(1);
                     _hs_q = (if !(*_hs_q).next.is_null() {
                         ((*_hs_q).next as *mut ::core::ffi::c_char)
-                            .offset((*(**h).hh.tbl).hho as isize)
+                            .offset((*(**h).hh.tbl).hho)
                             as *mut UT_hash_handle
                     } else {
                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -4885,7 +4885,7 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
                         _hs_e = _hs_q;
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                .offset((*(**h).hh.tbl).hho as isize)
+                                .offset((*(**h).hh.tbl).hho)
                                 as *mut UT_hash_handle
                         } else {
                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -4896,7 +4896,7 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
                         if !_hs_p.is_null() {
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                    .offset((*(**h).hh.tbl).hho as isize)
+                                    .offset((*(**h).hh.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -4904,10 +4904,10 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else if by_sid(
-                        (_hs_p as *mut ::core::ffi::c_char).offset(-((*(**h).hh.tbl).hho as isize))
+                        (_hs_p as *mut ::core::ffi::c_char).offset(-(*(**h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut cff_sid_entry,
-                        (_hs_q as *mut ::core::ffi::c_char).offset(-((*(**h).hh.tbl).hho as isize))
+                        (_hs_q as *mut ::core::ffi::c_char).offset(-(*(**h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut cff_sid_entry,
                     ) <= 0 as ::core::ffi::c_int
@@ -4916,7 +4916,7 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
                         if !_hs_p.is_null() {
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                    .offset((*(**h).hh.tbl).hho as isize)
+                                    .offset((*(**h).hh.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -4927,7 +4927,7 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
                         _hs_e = _hs_q;
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                .offset((*(**h).hh.tbl).hho as isize)
+                                .offset((*(**h).hh.tbl).hho)
                                 as *mut UT_hash_handle
                         } else {
                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -4937,7 +4937,7 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
                     if !_hs_tail.is_null() {
                         (*_hs_tail).next = if !_hs_e.is_null() {
                             (_hs_e as *mut ::core::ffi::c_char)
-                                .offset(-((*(**h).hh.tbl).hho as isize))
+                                .offset(-(*(**h).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
                             NULL
@@ -4948,7 +4948,7 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
                     if !_hs_e.is_null() {
                         (*_hs_e).prev = if !_hs_tail.is_null() {
                             (_hs_tail as *mut ::core::ffi::c_char)
-                                .offset(-((*(**h).hh.tbl).hho as isize))
+                                .offset(-(*(**h).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
                             NULL
@@ -4964,7 +4964,7 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
             if _hs_nmerges <= 1 as ::core::ffi::c_uint {
                 _hs_looping = 0 as ::core::ffi::c_uint;
                 (*(**h).hh.tbl).tail = _hs_tail;
-                *h = (_hs_list as *mut ::core::ffi::c_char).offset(-((*(**h).hh.tbl).hho as isize))
+                *h = (_hs_list as *mut ::core::ffi::c_char).offset(-(*(**h).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cff_sid_entry
                     as *mut cff_sid_entry;
             }
@@ -5000,13 +5000,13 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(**h).hh.tbl).tail {
                 (*(**h).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(**h).hh.tbl).hho as isize)
+                    .offset((*(**h).hh.tbl).hho)
                     as *mut UT_hash_handle
                     as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh16 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(**h).hh.tbl).hho as isize)
+                    .offset((*(**h).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh16 = (*_hd_hh_del).next;
@@ -5015,7 +5015,7 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut cff_sid_entry) -> 
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh17 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(**h).hh.tbl).hho as isize)
+                    .offset((*(**h).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh17 = (*_hd_hh_del).prev;

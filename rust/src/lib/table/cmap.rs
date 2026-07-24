@@ -428,22 +428,22 @@ unsafe extern "C" fn sdslen(s: sds) -> size_t {
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
                 .len as size_t;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
                 .len as size_t;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
                 .len as size_t;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
                 .len as size_t;
         }
@@ -482,12 +482,12 @@ unsafe extern "C" fn disposeCmap(mut cmap: *mut table_cmap) {
             if _hd_hh_del == (*(*(*cmap).unicodes).hh.tbl).tail {
                 (*(*(*cmap).unicodes).hh.tbl).tail =
                     ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                        .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                        .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                         as *mut UT_hash_handle as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh4 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                    .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh4 = (*_hd_hh_del).next;
@@ -496,7 +496,7 @@ unsafe extern "C" fn disposeCmap(mut cmap: *mut table_cmap) {
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh5 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                    .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh5 = (*_hd_hh_del).prev;
@@ -550,13 +550,13 @@ unsafe extern "C" fn disposeCmap(mut cmap: *mut table_cmap) {
             let mut _hd_bkt_0: ::core::ffi::c_uint = 0;
             if _hd_hh_del_0 == (*(*(*cmap).uvs).hh.tbl).tail {
                 (*(*(*cmap).uvs).hh.tbl).tail = ((*_hd_hh_del_0).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                    .offset((*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut UT_hash_handle
                     as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del_0).prev.is_null() {
                 let ref mut fresh6 = (*(((*_hd_hh_del_0).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                    .offset((*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh6 = (*_hd_hh_del_0).next;
@@ -565,7 +565,7 @@ unsafe extern "C" fn disposeCmap(mut cmap: *mut table_cmap) {
             }
             if !(*_hd_hh_del_0).next.is_null() {
                 let ref mut fresh7 = (*(((*_hd_hh_del_0).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                    .offset((*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh7 = (*_hd_hh_del_0).prev;
@@ -931,7 +931,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                    .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cmap_Entry
                     as *mut cmap_Entry;
             } else {
@@ -940,7 +940,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
             while !s.is_null() {
                 if (*s).hh.hashv == _hf_hashv
                     && (*s).hh.keylen as usize
-                        == ::core::mem::size_of::<::core::ffi::c_int>() as usize
+                        == ::core::mem::size_of::<::core::ffi::c_int>()
                 {
                     if memcmp(
                         (*s).hh.key,
@@ -953,7 +953,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
                 }
                 if !(*s).hh.hh_next.is_null() {
                     s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                        .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut cmap_Entry
                         as *mut cmap_Entry;
                 } else {
@@ -1278,7 +1278,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
             (*s).hh.tbl = (*(*cmap).unicodes).hh.tbl;
             (*s).hh.next = NULL_0;
             (*s).hh.prev = ((*(*(*cmap).unicodes).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*cmap).unicodes).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
             (*(*(*cmap).unicodes).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
@@ -1683,7 +1683,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                    .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cmap_Entry
                     as *mut cmap_Entry;
             } else {
@@ -1692,7 +1692,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
             while !s.is_null() {
                 if (*s).hh.hashv == _hf_hashv
                     && (*s).hh.keylen as usize
-                        == ::core::mem::size_of::<::core::ffi::c_int>() as usize
+                        == ::core::mem::size_of::<::core::ffi::c_int>()
                 {
                     if memcmp(
                         (*s).hh.key,
@@ -1705,7 +1705,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
                 }
                 if !(*s).hh.hh_next.is_null() {
                     s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                        .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut cmap_Entry
                         as *mut cmap_Entry;
                 } else {
@@ -2030,7 +2030,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
             (*s).hh.tbl = (*(*cmap).unicodes).hh.tbl;
             (*s).hh.next = NULL_0;
             (*s).hh.prev = ((*(*(*cmap).unicodes).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*cmap).unicodes).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
             (*(*(*cmap).unicodes).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
@@ -2434,7 +2434,7 @@ pub unsafe extern "C" fn otfcc_unmapCmap(
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                    .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cmap_Entry
                     as *mut cmap_Entry;
             } else {
@@ -2443,7 +2443,7 @@ pub unsafe extern "C" fn otfcc_unmapCmap(
             while !s.is_null() {
                 if (*s).hh.hashv == _hf_hashv
                     && (*s).hh.keylen as usize
-                        == ::core::mem::size_of::<::core::ffi::c_int>() as usize
+                        == ::core::mem::size_of::<::core::ffi::c_int>()
                 {
                     if memcmp(
                         (*s).hh.key,
@@ -2456,7 +2456,7 @@ pub unsafe extern "C" fn otfcc_unmapCmap(
                 }
                 if !(*s).hh.hh_next.is_null() {
                     s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                        .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut cmap_Entry
                         as *mut cmap_Entry;
                 } else {
@@ -2477,12 +2477,12 @@ pub unsafe extern "C" fn otfcc_unmapCmap(
             if _hd_hh_del == (*(*(*cmap).unicodes).hh.tbl).tail {
                 (*(*(*cmap).unicodes).hh.tbl).tail =
                     ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                        .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                        .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                         as *mut UT_hash_handle as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh2 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                    .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh2 = (*_hd_hh_del).next;
@@ -2491,7 +2491,7 @@ pub unsafe extern "C" fn otfcc_unmapCmap(
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh3 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                    .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh3 = (*_hd_hh_del).prev;
@@ -2802,7 +2802,7 @@ pub unsafe extern "C" fn otfcc_cmapLookup(
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                    .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cmap_Entry
                     as *mut cmap_Entry;
             } else {
@@ -2811,7 +2811,7 @@ pub unsafe extern "C" fn otfcc_cmapLookup(
             while !s.is_null() {
                 if (*s).hh.hashv == _hf_hashv
                     && (*s).hh.keylen as usize
-                        == ::core::mem::size_of::<::core::ffi::c_int>() as usize
+                        == ::core::mem::size_of::<::core::ffi::c_int>()
                 {
                     if memcmp(
                         (*s).hh.key,
@@ -2824,7 +2824,7 @@ pub unsafe extern "C" fn otfcc_cmapLookup(
                 }
                 if !(*s).hh.hh_next.is_null() {
                     s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                        .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut cmap_Entry
                         as *mut cmap_Entry;
                 } else {
@@ -3114,7 +3114,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
             {
                 s = ((*(*(*(*cmap).uvs).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                     as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                    .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cmap_UVS_Entry
                     as *mut cmap_UVS_Entry;
             } else {
@@ -3122,7 +3122,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
             }
             while !s.is_null() {
                 if (*s).hh.hashv == _hf_hashv
-                    && (*s).hh.keylen as usize == ::core::mem::size_of::<cmap_UVS_key>() as usize
+                    && (*s).hh.keylen as usize == ::core::mem::size_of::<cmap_UVS_key>()
                 {
                     if memcmp(
                         (*s).hh.key,
@@ -3135,7 +3135,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
                 }
                 if !(*s).hh.hh_next.is_null() {
                     s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                        .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut cmap_UVS_Entry
                         as *mut cmap_UVS_Entry;
                 } else {
@@ -3460,7 +3460,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
             (*s).hh.tbl = (*(*cmap).uvs).hh.tbl;
             (*s).hh.next = NULL_0;
             (*s).hh.prev = ((*(*(*cmap).uvs).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*cmap).uvs).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
             (*(*(*cmap).uvs).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
@@ -3858,7 +3858,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
             {
                 s = ((*(*(*(*cmap).uvs).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                     as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                    .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cmap_UVS_Entry
                     as *mut cmap_UVS_Entry;
             } else {
@@ -3866,7 +3866,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
             }
             while !s.is_null() {
                 if (*s).hh.hashv == _hf_hashv
-                    && (*s).hh.keylen as usize == ::core::mem::size_of::<cmap_UVS_key>() as usize
+                    && (*s).hh.keylen as usize == ::core::mem::size_of::<cmap_UVS_key>()
                 {
                     if memcmp(
                         (*s).hh.key,
@@ -3879,7 +3879,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
                 }
                 if !(*s).hh.hh_next.is_null() {
                     s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                        .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut cmap_UVS_Entry
                         as *mut cmap_UVS_Entry;
                 } else {
@@ -4204,7 +4204,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
             (*s).hh.tbl = (*(*cmap).uvs).hh.tbl;
             (*s).hh.next = NULL_0;
             (*s).hh.prev = ((*(*(*cmap).uvs).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*cmap).uvs).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
             (*(*(*cmap).uvs).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
@@ -4601,7 +4601,7 @@ pub unsafe extern "C" fn otfcc_unmapCmapUVS(
             {
                 s = ((*(*(*(*cmap).uvs).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                     as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                    .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cmap_Entry
                     as *mut cmap_Entry;
             } else {
@@ -4609,7 +4609,7 @@ pub unsafe extern "C" fn otfcc_unmapCmapUVS(
             }
             while !s.is_null() {
                 if (*s).hh.hashv == _hf_hashv
-                    && (*s).hh.keylen as usize == ::core::mem::size_of::<cmap_UVS_key>() as usize
+                    && (*s).hh.keylen as usize == ::core::mem::size_of::<cmap_UVS_key>()
                 {
                     if memcmp(
                         (*s).hh.key,
@@ -4622,7 +4622,7 @@ pub unsafe extern "C" fn otfcc_unmapCmapUVS(
                 }
                 if !(*s).hh.hh_next.is_null() {
                     s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                        .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut cmap_Entry
                         as *mut cmap_Entry;
                 } else {
@@ -4642,13 +4642,13 @@ pub unsafe extern "C" fn otfcc_unmapCmapUVS(
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*(*cmap).uvs).hh.tbl).tail {
                 (*(*(*cmap).uvs).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                    .offset((*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut UT_hash_handle
                     as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh0 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                    .offset((*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh0 = (*_hd_hh_del).next;
@@ -4657,7 +4657,7 @@ pub unsafe extern "C" fn otfcc_unmapCmapUVS(
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh1 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                    .offset((*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh1 = (*_hd_hh_del).prev;
@@ -4961,7 +4961,7 @@ pub unsafe extern "C" fn otfcc_cmapLookupUVS(
             {
                 s = ((*(*(*(*cmap).uvs).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                     as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                    .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cmap_Entry
                     as *mut cmap_Entry;
             } else {
@@ -4969,7 +4969,7 @@ pub unsafe extern "C" fn otfcc_cmapLookupUVS(
             }
             while !s.is_null() {
                 if (*s).hh.hashv == _hf_hashv
-                    && (*s).hh.keylen as usize == ::core::mem::size_of::<cmap_UVS_key>() as usize
+                    && (*s).hh.keylen as usize == ::core::mem::size_of::<cmap_UVS_key>()
                 {
                     if memcmp(
                         (*s).hh.key,
@@ -4982,7 +4982,7 @@ pub unsafe extern "C" fn otfcc_cmapLookupUVS(
                 }
                 if !(*s).hh.hh_next.is_null() {
                     s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                        .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut cmap_Entry
                         as *mut cmap_Entry;
                 } else {
@@ -5391,7 +5391,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                 as uint32_t)
                         {
                             let mut kSubtableType: size_t = 0 as size_t;
-                            while formatPriorities[kSubtableType as usize] != 0 {
+                            while formatPriorities[kSubtableType] != 0 {
                                 let mut j: uint16_t = 0 as uint16_t;
                                 while (j as ::core::ffi::c_int) < numTables as ::core::ffi::c_int {
                                     let mut platform: uint16_t = read_16u(
@@ -5424,7 +5424,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                             data.offset(tableOffset as isize),
                                             length.wrapping_sub(tableOffset),
                                             cmap,
-                                            formatPriorities[kSubtableType as usize],
+                                            formatPriorities[kSubtableType],
                                         );
                                     }
                                     j = j.wrapping_add(1);
@@ -5465,7 +5465,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                             _hs_psize = _hs_psize.wrapping_add(1);
                                             _hs_q = (if !(*_hs_q).next.is_null() {
                                                 ((*_hs_q).next as *mut ::core::ffi::c_char).offset(
-                                                    (*(*(*cmap).unicodes).hh.tbl).hho as isize,
+                                                    (*(*(*cmap).unicodes).hh.tbl).hho,
                                                 )
                                                     as *mut UT_hash_handle
                                             } else {
@@ -5487,8 +5487,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                 _hs_q = (if !(*_hs_q).next.is_null() {
                                                     ((*_hs_q).next as *mut ::core::ffi::c_char)
                                                         .offset(
-                                                            (*(*(*cmap).unicodes).hh.tbl).hho
-                                                                as isize,
+                                                            (*(*(*cmap).unicodes).hh.tbl).hho,
                                                         )
                                                         as *mut UT_hash_handle
                                                 } else {
@@ -5504,8 +5503,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                     _hs_p = (if !(*_hs_p).next.is_null() {
                                                         ((*_hs_p).next as *mut ::core::ffi::c_char)
                                                             .offset(
-                                                                (*(*(*cmap).unicodes).hh.tbl).hho
-                                                                    as isize,
+                                                                (*(*(*cmap).unicodes).hh.tbl).hho,
                                                             )
                                                             as *mut UT_hash_handle
                                                     } else {
@@ -5516,12 +5514,12 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                 _hs_psize = _hs_psize.wrapping_sub(1);
                                             } else if by_unicode(
                                                 (_hs_p as *mut ::core::ffi::c_char).offset(
-                                                    -((*(*(*cmap).unicodes).hh.tbl).hho as isize),
+                                                    -(*(*(*cmap).unicodes).hh.tbl).hho,
                                                 )
                                                     as *mut ::core::ffi::c_void
                                                     as *mut cmap_Entry,
                                                 (_hs_q as *mut ::core::ffi::c_char).offset(
-                                                    -((*(*(*cmap).unicodes).hh.tbl).hho as isize),
+                                                    -(*(*(*cmap).unicodes).hh.tbl).hho,
                                                 )
                                                     as *mut ::core::ffi::c_void
                                                     as *mut cmap_Entry,
@@ -5532,8 +5530,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                     _hs_p = (if !(*_hs_p).next.is_null() {
                                                         ((*_hs_p).next as *mut ::core::ffi::c_char)
                                                             .offset(
-                                                                (*(*(*cmap).unicodes).hh.tbl).hho
-                                                                    as isize,
+                                                                (*(*(*cmap).unicodes).hh.tbl).hho,
                                                             )
                                                             as *mut UT_hash_handle
                                                     } else {
@@ -5547,8 +5544,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                 _hs_q = (if !(*_hs_q).next.is_null() {
                                                     ((*_hs_q).next as *mut ::core::ffi::c_char)
                                                         .offset(
-                                                            (*(*(*cmap).unicodes).hh.tbl).hho
-                                                                as isize,
+                                                            (*(*(*cmap).unicodes).hh.tbl).hho,
                                                         )
                                                         as *mut UT_hash_handle
                                                 } else {
@@ -5560,8 +5556,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                             if !_hs_tail.is_null() {
                                                 (*_hs_tail).next = if !_hs_e.is_null() {
                                                     (_hs_e as *mut ::core::ffi::c_char).offset(
-                                                        -((*(*(*cmap).unicodes).hh.tbl).hho
-                                                            as isize),
+                                                        -(*(*(*cmap).unicodes).hh.tbl).hho,
                                                     )
                                                         as *mut ::core::ffi::c_void
                                                 } else {
@@ -5573,8 +5568,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                             if !_hs_e.is_null() {
                                                 (*_hs_e).prev = if !_hs_tail.is_null() {
                                                     (_hs_tail as *mut ::core::ffi::c_char).offset(
-                                                        -((*(*(*cmap).unicodes).hh.tbl).hho
-                                                            as isize),
+                                                        -(*(*(*cmap).unicodes).hh.tbl).hho,
                                                     )
                                                         as *mut ::core::ffi::c_void
                                                 } else {
@@ -5592,7 +5586,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                         _hs_looping = 0 as ::core::ffi::c_uint;
                                         (*(*(*cmap).unicodes).hh.tbl).tail = _hs_tail;
                                         (*cmap).unicodes = (_hs_list as *mut ::core::ffi::c_char)
-                                            .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                                            .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
                                             as *mut cmap_Entry
                                             as *mut cmap_Entry;
@@ -5670,7 +5664,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                             _hs_psize_0 = _hs_psize_0.wrapping_add(1);
                                             _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                                 ((*_hs_q_0).next as *mut ::core::ffi::c_char)
-                                                    .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                                                    .offset((*(*(*cmap).uvs).hh.tbl).hho)
                                                     as *mut UT_hash_handle
                                             } else {
                                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -5691,7 +5685,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                 _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                                     ((*_hs_q_0).next as *mut ::core::ffi::c_char)
                                                         .offset(
-                                                            (*(*(*cmap).uvs).hh.tbl).hho as isize,
+                                                            (*(*(*cmap).uvs).hh.tbl).hho,
                                                         )
                                                         as *mut UT_hash_handle
                                                 } else {
@@ -5708,8 +5702,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                         ((*_hs_p_0).next
                                                             as *mut ::core::ffi::c_char)
                                                             .offset(
-                                                                (*(*(*cmap).uvs).hh.tbl).hho
-                                                                    as isize,
+                                                                (*(*(*cmap).uvs).hh.tbl).hho,
                                                             )
                                                             as *mut UT_hash_handle
                                                     } else {
@@ -5720,12 +5713,12 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                 _hs_psize_0 = _hs_psize_0.wrapping_sub(1);
                                             } else if by_uvs_key(
                                                 (_hs_p_0 as *mut ::core::ffi::c_char).offset(
-                                                    -((*(*(*cmap).uvs).hh.tbl).hho as isize),
+                                                    -(*(*(*cmap).uvs).hh.tbl).hho,
                                                 )
                                                     as *mut ::core::ffi::c_void
                                                     as *mut cmap_UVS_Entry,
                                                 (_hs_q_0 as *mut ::core::ffi::c_char).offset(
-                                                    -((*(*(*cmap).uvs).hh.tbl).hho as isize),
+                                                    -(*(*(*cmap).uvs).hh.tbl).hho,
                                                 )
                                                     as *mut ::core::ffi::c_void
                                                     as *mut cmap_UVS_Entry,
@@ -5737,8 +5730,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                         ((*_hs_p_0).next
                                                             as *mut ::core::ffi::c_char)
                                                             .offset(
-                                                                (*(*(*cmap).uvs).hh.tbl).hho
-                                                                    as isize,
+                                                                (*(*(*cmap).uvs).hh.tbl).hho,
                                                             )
                                                             as *mut UT_hash_handle
                                                     } else {
@@ -5752,7 +5744,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                 _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                                     ((*_hs_q_0).next as *mut ::core::ffi::c_char)
                                                         .offset(
-                                                            (*(*(*cmap).uvs).hh.tbl).hho as isize,
+                                                            (*(*(*cmap).uvs).hh.tbl).hho,
                                                         )
                                                         as *mut UT_hash_handle
                                                 } else {
@@ -5764,7 +5756,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                             if !_hs_tail_0.is_null() {
                                                 (*_hs_tail_0).next = if !_hs_e_0.is_null() {
                                                     (_hs_e_0 as *mut ::core::ffi::c_char).offset(
-                                                        -((*(*(*cmap).uvs).hh.tbl).hho as isize),
+                                                        -(*(*(*cmap).uvs).hh.tbl).hho,
                                                     )
                                                         as *mut ::core::ffi::c_void
                                                 } else {
@@ -5776,7 +5768,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                             if !_hs_e_0.is_null() {
                                                 (*_hs_e_0).prev = if !_hs_tail_0.is_null() {
                                                     (_hs_tail_0 as *mut ::core::ffi::c_char).offset(
-                                                        -((*(*(*cmap).uvs).hh.tbl).hho as isize),
+                                                        -(*(*(*cmap).uvs).hh.tbl).hho,
                                                     )
                                                         as *mut ::core::ffi::c_void
                                                 } else {
@@ -5794,7 +5786,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                         _hs_looping_0 = 0 as ::core::ffi::c_uint;
                                         (*(*(*cmap).uvs).hh.tbl).tail = _hs_tail_0;
                                         (*cmap).uvs = (_hs_list_0 as *mut ::core::ffi::c_char)
-                                            .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                                            .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
                                             as *mut cmap_UVS_Entry
                                             as *mut cmap_UVS_Entry;
@@ -6178,7 +6170,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                     _hs_psize = _hs_psize.wrapping_add(1);
                     _hs_q = (if !(*_hs_q).next.is_null() {
                         ((*_hs_q).next as *mut ::core::ffi::c_char)
-                            .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                            .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                             as *mut UT_hash_handle
                     } else {
                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -6196,7 +6188,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                         _hs_e = _hs_q;
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                                .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                                 as *mut UT_hash_handle
                         } else {
                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -6207,7 +6199,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                         if !_hs_p.is_null() {
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                    .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                                    .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -6216,10 +6208,10 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else if by_unicode(
                         (_hs_p as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                            .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                             as *mut ::core::ffi::c_void as *mut cmap_Entry,
                         (_hs_q as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                            .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                             as *mut ::core::ffi::c_void as *mut cmap_Entry,
                     ) <= 0 as ::core::ffi::c_int
                     {
@@ -6227,7 +6219,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                         if !_hs_p.is_null() {
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                    .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                                    .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -6238,7 +6230,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                         _hs_e = _hs_q;
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                .offset((*(*(*cmap).unicodes).hh.tbl).hho as isize)
+                                .offset((*(*(*cmap).unicodes).hh.tbl).hho)
                                 as *mut UT_hash_handle
                         } else {
                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -6248,7 +6240,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                     if !_hs_tail.is_null() {
                         (*_hs_tail).next = if !_hs_e.is_null() {
                             (_hs_e as *mut ::core::ffi::c_char)
-                                .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                                .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
                             NULL_0
@@ -6259,7 +6251,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                     if !_hs_e.is_null() {
                         (*_hs_e).prev = if !_hs_tail.is_null() {
                             (_hs_tail as *mut ::core::ffi::c_char)
-                                .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                                .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
                             NULL_0
@@ -6276,7 +6268,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                 _hs_looping = 0 as ::core::ffi::c_uint;
                 (*(*(*cmap).unicodes).hh.tbl).tail = _hs_tail;
                 (*cmap).unicodes = (_hs_list as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*cmap).unicodes).hh.tbl).hho as isize))
+                    .offset(-(*(*(*cmap).unicodes).hh.tbl).hho)
                     as *mut ::core::ffi::c_void
                     as *mut cmap_Entry as *mut cmap_Entry;
             }
@@ -6312,7 +6304,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                     _hs_psize_0 = _hs_psize_0.wrapping_add(1);
                     _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                         ((*_hs_q_0).next as *mut ::core::ffi::c_char)
-                            .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                            .offset((*(*(*cmap).uvs).hh.tbl).hho)
                             as *mut UT_hash_handle
                     } else {
                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -6330,7 +6322,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                         _hs_e_0 = _hs_q_0;
                         _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                             ((*_hs_q_0).next as *mut ::core::ffi::c_char)
-                                .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                                .offset((*(*(*cmap).uvs).hh.tbl).hho)
                                 as *mut UT_hash_handle
                         } else {
                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -6341,7 +6333,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                         if !_hs_p_0.is_null() {
                             _hs_p_0 = (if !(*_hs_p_0).next.is_null() {
                                 ((*_hs_p_0).next as *mut ::core::ffi::c_char)
-                                    .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                                    .offset((*(*(*cmap).uvs).hh.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -6350,11 +6342,11 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                         _hs_psize_0 = _hs_psize_0.wrapping_sub(1);
                     } else if by_uvs_key(
                         (_hs_p_0 as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                            .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut cmap_UVS_Entry,
                         (_hs_q_0 as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                            .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut cmap_UVS_Entry,
                     ) <= 0 as ::core::ffi::c_int
@@ -6363,7 +6355,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                         if !_hs_p_0.is_null() {
                             _hs_p_0 = (if !(*_hs_p_0).next.is_null() {
                                 ((*_hs_p_0).next as *mut ::core::ffi::c_char)
-                                    .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                                    .offset((*(*(*cmap).uvs).hh.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -6374,7 +6366,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                         _hs_e_0 = _hs_q_0;
                         _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                             ((*_hs_q_0).next as *mut ::core::ffi::c_char)
-                                .offset((*(*(*cmap).uvs).hh.tbl).hho as isize)
+                                .offset((*(*(*cmap).uvs).hh.tbl).hho)
                                 as *mut UT_hash_handle
                         } else {
                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -6384,7 +6376,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                     if !_hs_tail_0.is_null() {
                         (*_hs_tail_0).next = if !_hs_e_0.is_null() {
                             (_hs_e_0 as *mut ::core::ffi::c_char)
-                                .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                                .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
                             NULL_0
@@ -6395,7 +6387,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                     if !_hs_e_0.is_null() {
                         (*_hs_e_0).prev = if !_hs_tail_0.is_null() {
                             (_hs_tail_0 as *mut ::core::ffi::c_char)
-                                .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                                .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
                             NULL_0
@@ -6412,7 +6404,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
                 _hs_looping_0 = 0 as ::core::ffi::c_uint;
                 (*(*(*cmap).uvs).hh.tbl).tail = _hs_tail_0;
                 (*cmap).uvs = (_hs_list_0 as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*cmap).uvs).hh.tbl).hho as isize))
+                    .offset(-(*(*(*cmap).uvs).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut cmap_UVS_Entry
                     as *mut cmap_UVS_Entry;
             }

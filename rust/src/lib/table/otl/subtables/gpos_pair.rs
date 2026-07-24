@@ -1289,7 +1289,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                                     .offset(_hf_bkt as isize))
                                                 .hh_head
                                                     as *mut ::core::ffi::c_char)
-                                                    .offset(-((*(*h).hh.tbl).hho as isize))
+                                                    .offset(-(*(*h).hh.tbl).hho)
                                                     as *mut ::core::ffi::c_void
                                                     as *mut pair_classifier_hash
                                                     as *mut pair_classifier_hash;
@@ -1301,7 +1301,6 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                                     && (*s).hh.keylen as usize
                                                         == ::core::mem::size_of::<::core::ffi::c_int>(
                                                         )
-                                                            as usize
                                                 {
                                                     if memcmp(
                                                         (*s).hh.key,
@@ -1317,7 +1316,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                                 if !(*s).hh.hh_next.is_null() {
                                                     s = ((*s).hh.hh_next
                                                         as *mut ::core::ffi::c_char)
-                                                        .offset(-((*(*h).hh.tbl).hho as isize))
+                                                        .offset(-(*(*h).hh.tbl).hho)
                                                         as *mut ::core::ffi::c_void
                                                         as *mut pair_classifier_hash
                                                         as *mut pair_classifier_hash;
@@ -1724,7 +1723,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                             (*s).hh.next = NULL;
                                             (*s).hh.prev = ((*(*h).hh.tbl).tail
                                                 as *mut ::core::ffi::c_char)
-                                                .offset(-((*(*h).hh.tbl).hho as isize))
+                                                .offset(-(*(*h).hh.tbl).hho)
                                                 as *mut ::core::ffi::c_void;
                                             (*(*(*h).hh.tbl).tail).next =
                                                 s as *mut ::core::ffi::c_void;
@@ -2332,7 +2331,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                                     .offset(_hf_bkt_0 as isize))
                                                 .hh_head
                                                     as *mut ::core::ffi::c_char)
-                                                    .offset(-((*(*h).hh.tbl).hho as isize))
+                                                    .offset(-(*(*h).hh.tbl).hho)
                                                     as *mut ::core::ffi::c_void
                                                     as *mut pair_classifier_hash
                                                     as *mut pair_classifier_hash;
@@ -2345,7 +2344,6 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                                     && (*s_0).hh.keylen as usize
                                                         == ::core::mem::size_of::<::core::ffi::c_int>(
                                                         )
-                                                            as usize
                                                 {
                                                     if memcmp(
                                                         (*s_0).hh.key,
@@ -2361,7 +2359,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                                 if !(*s_0).hh.hh_next.is_null() {
                                                     s_0 = ((*s_0).hh.hh_next
                                                         as *mut ::core::ffi::c_char)
-                                                        .offset(-((*(*h).hh.tbl).hho as isize))
+                                                        .offset(-(*(*h).hh.tbl).hho)
                                                         as *mut ::core::ffi::c_void
                                                         as *mut pair_classifier_hash
                                                         as *mut pair_classifier_hash;
@@ -2440,14 +2438,14 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                     if _hd_hh_del == (*(*h).hh.tbl).tail {
                                         (*(*h).hh.tbl).tail = ((*_hd_hh_del).prev
                                             as *mut ::core::ffi::c_char)
-                                            .offset((*(*h).hh.tbl).hho as isize)
+                                            .offset((*(*h).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                             as *mut UT_hash_handle;
                                     }
                                     if !(*_hd_hh_del).prev.is_null() {
                                         let ref mut fresh4 = (*(((*_hd_hh_del).prev
                                             as *mut ::core::ffi::c_char)
-                                            .offset((*(*h).hh.tbl).hho as isize)
+                                            .offset((*(*h).hh.tbl).hho)
                                             as *mut UT_hash_handle))
                                             .next;
                                         *fresh4 = (*_hd_hh_del).next;
@@ -2458,7 +2456,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                     if !(*_hd_hh_del).next.is_null() {
                                         let ref mut fresh5 = (*(((*_hd_hh_del).next
                                             as *mut ::core::ffi::c_char)
-                                            .offset((*(*h).hh.tbl).hho as isize)
+                                            .offset((*(*h).hh.tbl).hho)
                                             as *mut UT_hash_handle))
                                             .prev;
                                         *fresh5 = (*_hd_hh_del).prev;

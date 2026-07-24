@@ -632,22 +632,22 @@ unsafe extern "C" fn sdslen(s: sds) -> size_t {
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
                 .len as size_t;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
                 .len as size_t;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
                 .len as size_t;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
                 .len as size_t;
         }
@@ -1110,7 +1110,7 @@ unsafe extern "C" fn writeOTLLookups(
         }
         let mut lookup_0: *mut otl_Lookup =
             *(*table).lookups.items.offset(j_1 as isize) as *mut otl_Lookup;
-        let canBeContextual: bool = otfcc_chainingLookupIsContextualLookup(lookup_0) as bool;
+        let canBeContextual: bool = otfcc_chainingLookupIsContextualLookup(lookup_0);
         let useExtendedForIt: bool = useExtended as ::core::ffi::c_int != 0
             || *preferExtForThisLut.offset(j_1 as isize) as ::core::ffi::c_int != 0;
         if useExtendedForIt {
@@ -1686,7 +1686,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
                 {
                     s = ((*(*(*h).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                         as *mut ::core::ffi::c_char)
-                        .offset(-((*(*h).hh.tbl).hho as isize))
+                        .offset(-(*(*h).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut script_stat_hash
                         as *mut script_stat_hash;
                 } else {
@@ -1710,7 +1710,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
                     }
                     if !(*s).hh.hh_next.is_null() {
                         s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                            .offset(-((*(*h).hh.tbl).hho as isize))
+                            .offset(-(*(*h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut script_stat_hash
                             as *mut script_stat_hash;
@@ -2074,7 +2074,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
                 (*s).hh.tbl = (*h).hh.tbl;
                 (*s).hh.next = NULL;
                 (*s).hh.prev = ((*(*h).hh.tbl).tail as *mut ::core::ffi::c_char)
-                    .offset(-((*(*h).hh.tbl).hho as isize))
+                    .offset(-(*(*h).hh.tbl).hho)
                     as *mut ::core::ffi::c_void;
                 (*(*(*h).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
                 (*(*h).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
@@ -2228,13 +2228,13 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*h).hh.tbl).tail {
                 (*(*h).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho as isize)
+                    .offset((*(*h).hh.tbl).hho)
                     as *mut UT_hash_handle
                     as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh5 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho as isize)
+                    .offset((*(*h).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh5 = (*_hd_hh_del).next;
@@ -2243,7 +2243,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh6 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho as isize)
+                    .offset((*(*h).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh6 = (*_hd_hh_del).prev;

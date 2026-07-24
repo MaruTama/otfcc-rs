@@ -663,7 +663,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                         {
                             item = ((*(*(*hash).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                                 as *mut ::core::ffi::c_char)
-                                .offset(-((*(*hash).hh.tbl).hho as isize))
+                                .offset(-(*(*hash).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut coverage_entry
                                 as *mut coverage_entry;
@@ -673,7 +673,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                         while !item.is_null() {
                             if (*item).hh.hashv == _hf_hashv
                                 && (*item).hh.keylen as usize
-                                    == ::core::mem::size_of::<::core::ffi::c_int>() as usize
+                                    == ::core::mem::size_of::<::core::ffi::c_int>()
                             {
                                 if memcmp(
                                     (*item).hh.key,
@@ -686,7 +686,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                             }
                             if !(*item).hh.hh_next.is_null() {
                                 item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
-                                    .offset(-((*(*hash).hh.tbl).hho as isize))
+                                    .offset(-(*(*hash).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut coverage_entry
                                     as *mut coverage_entry;
@@ -1032,7 +1032,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                         (*item).hh.tbl = (*hash).hh.tbl;
                         (*item).hh.next = NULL;
                         (*item).hh.prev = ((*(*hash).hh.tbl).tail as *mut ::core::ffi::c_char)
-                            .offset(-((*(*hash).hh.tbl).hho as isize))
+                            .offset(-(*(*hash).hh.tbl).hho)
                             as *mut ::core::ffi::c_void;
                         (*(*(*hash).hh.tbl).tail).next = item as *mut ::core::ffi::c_void;
                         (*(*hash).hh.tbl).tail = &raw mut (*item).hh as *mut UT_hash_handle;
@@ -1190,7 +1190,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                             _hs_psize = _hs_psize.wrapping_add(1);
                             _hs_q = (if !(*_hs_q).next.is_null() {
                                 ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                    .offset((*(*hash).hh.tbl).hho as isize)
+                                    .offset((*(*hash).hh.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -1208,7 +1208,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 _hs_e = _hs_q;
                                 _hs_q = (if !(*_hs_q).next.is_null() {
                                     ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                        .offset((*(*hash).hh.tbl).hho as isize)
+                                        .offset((*(*hash).hh.tbl).hho)
                                         as *mut UT_hash_handle
                                 } else {
                                     ::core::ptr::null_mut::<UT_hash_handle>()
@@ -1219,7 +1219,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 if !_hs_p.is_null() {
                                     _hs_p = (if !(*_hs_p).next.is_null() {
                                         ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                            .offset((*(*hash).hh.tbl).hho as isize)
+                                            .offset((*(*hash).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                     } else {
                                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -1229,11 +1229,11 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 _hs_psize = _hs_psize.wrapping_sub(1);
                             } else if by_covIndex(
                                 (_hs_p as *mut ::core::ffi::c_char)
-                                    .offset(-((*(*hash).hh.tbl).hho as isize))
+                                    .offset(-(*(*hash).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut coverage_entry,
                                 (_hs_q as *mut ::core::ffi::c_char)
-                                    .offset(-((*(*hash).hh.tbl).hho as isize))
+                                    .offset(-(*(*hash).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut coverage_entry,
                             ) <= 0 as ::core::ffi::c_int
@@ -1242,7 +1242,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 if !_hs_p.is_null() {
                                     _hs_p = (if !(*_hs_p).next.is_null() {
                                         ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                            .offset((*(*hash).hh.tbl).hho as isize)
+                                            .offset((*(*hash).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                     } else {
                                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -1254,7 +1254,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 _hs_e = _hs_q;
                                 _hs_q = (if !(*_hs_q).next.is_null() {
                                     ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                        .offset((*(*hash).hh.tbl).hho as isize)
+                                        .offset((*(*hash).hh.tbl).hho)
                                         as *mut UT_hash_handle
                                 } else {
                                     ::core::ptr::null_mut::<UT_hash_handle>()
@@ -1264,7 +1264,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                             if !_hs_tail.is_null() {
                                 (*_hs_tail).next = if !_hs_e.is_null() {
                                     (_hs_e as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*hash).hh.tbl).hho as isize))
+                                        .offset(-(*(*hash).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                 } else {
                                     NULL
@@ -1275,7 +1275,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                             if !_hs_e.is_null() {
                                 (*_hs_e).prev = if !_hs_tail.is_null() {
                                     (_hs_tail as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*hash).hh.tbl).hho as isize))
+                                        .offset(-(*(*hash).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                 } else {
                                     NULL
@@ -1292,7 +1292,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                         _hs_looping = 0 as ::core::ffi::c_uint;
                         (*(*hash).hh.tbl).tail = _hs_tail;
                         hash = (_hs_list as *mut ::core::ffi::c_char)
-                            .offset(-((*(*hash).hh.tbl).hho as isize))
+                            .offset(-(*(*hash).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut coverage_entry
                             as *mut coverage_entry;
@@ -1324,13 +1324,13 @@ pub(crate) unsafe extern "C" fn readCoverage(
                     let mut _hd_bkt: ::core::ffi::c_uint = 0;
                     if _hd_hh_del == (*(*hash).hh.tbl).tail {
                         (*(*hash).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                            .offset((*(*hash).hh.tbl).hho as isize)
+                            .offset((*(*hash).hh.tbl).hho)
                             as *mut UT_hash_handle
                             as *mut UT_hash_handle;
                     }
                     if !(*_hd_hh_del).prev.is_null() {
                         let ref mut fresh1 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                            .offset((*(*hash).hh.tbl).hho as isize)
+                            .offset((*(*hash).hh.tbl).hho)
                             as *mut UT_hash_handle))
                             .next;
                         *fresh1 = (*_hd_hh_del).next;
@@ -1339,7 +1339,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                     }
                     if !(*_hd_hh_del).next.is_null() {
                         let ref mut fresh2 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                            .offset((*(*hash).hh.tbl).hho as isize)
+                            .offset((*(*hash).hh.tbl).hho)
                             as *mut UT_hash_handle))
                             .prev;
                         *fresh2 = (*_hd_hh_del).prev;
@@ -1696,7 +1696,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 item_0 = ((*(*(*hash_0).hh.tbl).buckets.offset(_hf_bkt_0 as isize))
                                     .hh_head
                                     as *mut ::core::ffi::c_char)
-                                    .offset(-((*(*hash_0).hh.tbl).hho as isize))
+                                    .offset(-(*(*hash_0).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut coverage_entry
                                     as *mut coverage_entry;
@@ -1706,7 +1706,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                             while !item_0.is_null() {
                                 if (*item_0).hh.hashv == _hf_hashv_0
                                     && (*item_0).hh.keylen as usize
-                                        == ::core::mem::size_of::<::core::ffi::c_int>() as usize
+                                        == ::core::mem::size_of::<::core::ffi::c_int>()
                                 {
                                     if memcmp(
                                         (*item_0).hh.key,
@@ -1719,7 +1719,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 }
                                 if !(*item_0).hh.hh_next.is_null() {
                                     item_0 = ((*item_0).hh.hh_next as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*hash_0).hh.tbl).hho as isize))
+                                        .offset(-(*(*hash_0).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                         as *mut coverage_entry
                                         as *mut coverage_entry;
@@ -2075,7 +2075,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                             (*item_0).hh.next = NULL;
                             (*item_0).hh.prev = ((*(*hash_0).hh.tbl).tail
                                 as *mut ::core::ffi::c_char)
-                                .offset(-((*(*hash_0).hh.tbl).hho as isize))
+                                .offset(-(*(*hash_0).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void;
                             (*(*(*hash_0).hh.tbl).tail).next = item_0 as *mut ::core::ffi::c_void;
                             (*(*hash_0).hh.tbl).tail = &raw mut (*item_0).hh as *mut UT_hash_handle;
@@ -2249,7 +2249,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                             _hs_psize_0 = _hs_psize_0.wrapping_add(1);
                             _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                 ((*_hs_q_0).next as *mut ::core::ffi::c_char)
-                                    .offset((*(*hash_0).hh.tbl).hho as isize)
+                                    .offset((*(*hash_0).hh.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -2267,7 +2267,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 _hs_e_0 = _hs_q_0;
                                 _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                     ((*_hs_q_0).next as *mut ::core::ffi::c_char)
-                                        .offset((*(*hash_0).hh.tbl).hho as isize)
+                                        .offset((*(*hash_0).hh.tbl).hho)
                                         as *mut UT_hash_handle
                                 } else {
                                     ::core::ptr::null_mut::<UT_hash_handle>()
@@ -2278,7 +2278,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 if !_hs_p_0.is_null() {
                                     _hs_p_0 = (if !(*_hs_p_0).next.is_null() {
                                         ((*_hs_p_0).next as *mut ::core::ffi::c_char)
-                                            .offset((*(*hash_0).hh.tbl).hho as isize)
+                                            .offset((*(*hash_0).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                     } else {
                                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -2288,11 +2288,11 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 _hs_psize_0 = _hs_psize_0.wrapping_sub(1);
                             } else if by_covIndex(
                                 (_hs_p_0 as *mut ::core::ffi::c_char)
-                                    .offset(-((*(*hash_0).hh.tbl).hho as isize))
+                                    .offset(-(*(*hash_0).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut coverage_entry,
                                 (_hs_q_0 as *mut ::core::ffi::c_char)
-                                    .offset(-((*(*hash_0).hh.tbl).hho as isize))
+                                    .offset(-(*(*hash_0).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut coverage_entry,
                             ) <= 0 as ::core::ffi::c_int
@@ -2301,7 +2301,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 if !_hs_p_0.is_null() {
                                     _hs_p_0 = (if !(*_hs_p_0).next.is_null() {
                                         ((*_hs_p_0).next as *mut ::core::ffi::c_char)
-                                            .offset((*(*hash_0).hh.tbl).hho as isize)
+                                            .offset((*(*hash_0).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                     } else {
                                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -2313,7 +2313,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                                 _hs_e_0 = _hs_q_0;
                                 _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                     ((*_hs_q_0).next as *mut ::core::ffi::c_char)
-                                        .offset((*(*hash_0).hh.tbl).hho as isize)
+                                        .offset((*(*hash_0).hh.tbl).hho)
                                         as *mut UT_hash_handle
                                 } else {
                                     ::core::ptr::null_mut::<UT_hash_handle>()
@@ -2323,7 +2323,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                             if !_hs_tail_0.is_null() {
                                 (*_hs_tail_0).next = if !_hs_e_0.is_null() {
                                     (_hs_e_0 as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*hash_0).hh.tbl).hho as isize))
+                                        .offset(-(*(*hash_0).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                 } else {
                                     NULL
@@ -2334,7 +2334,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                             if !_hs_e_0.is_null() {
                                 (*_hs_e_0).prev = if !_hs_tail_0.is_null() {
                                     (_hs_tail_0 as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*hash_0).hh.tbl).hho as isize))
+                                        .offset(-(*(*hash_0).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                 } else {
                                     NULL
@@ -2351,7 +2351,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                         _hs_looping_0 = 0 as ::core::ffi::c_uint;
                         (*(*hash_0).hh.tbl).tail = _hs_tail_0;
                         hash_0 = (_hs_list_0 as *mut ::core::ffi::c_char)
-                            .offset(-((*(*hash_0).hh.tbl).hho as isize))
+                            .offset(-(*(*hash_0).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut coverage_entry
                             as *mut coverage_entry;
@@ -2384,13 +2384,13 @@ pub(crate) unsafe extern "C" fn readCoverage(
                     if _hd_hh_del_0 == (*(*hash_0).hh.tbl).tail {
                         (*(*hash_0).hh.tbl).tail = ((*_hd_hh_del_0).prev
                             as *mut ::core::ffi::c_char)
-                            .offset((*(*hash_0).hh.tbl).hho as isize)
+                            .offset((*(*hash_0).hh.tbl).hho)
                             as *mut UT_hash_handle
                             as *mut UT_hash_handle;
                     }
                     if !(*_hd_hh_del_0).prev.is_null() {
                         let ref mut fresh3 = (*(((*_hd_hh_del_0).prev as *mut ::core::ffi::c_char)
-                            .offset((*(*hash_0).hh.tbl).hho as isize)
+                            .offset((*(*hash_0).hh.tbl).hho)
                             as *mut UT_hash_handle))
                             .next;
                         *fresh3 = (*_hd_hh_del_0).next;
@@ -2399,7 +2399,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                     }
                     if !(*_hd_hh_del_0).next.is_null() {
                         let ref mut fresh4 = (*(((*_hd_hh_del_0).next as *mut ::core::ffi::c_char)
-                            .offset((*(*hash_0).hh.tbl).hho as isize)
+                            .offset((*(*hash_0).hh.tbl).hho)
                             as *mut UT_hash_handle))
                             .prev;
                         *fresh4 = (*_hd_hh_del_0).prev;
