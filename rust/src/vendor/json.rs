@@ -38,34 +38,34 @@ pub const json_none: json_type = 0;
 pub struct _json_value {
     pub parent: *mut _json_value,
     pub type_0: json_type,
-    pub u: C2RustUnnamed_0,
-    pub _reserved: C2RustUnnamed,
+    pub u: json_value_payload,
+    pub _reserved: json_value_reserved,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union json_value_reserved {
     pub next_alloc: *mut _json_value,
     pub object_mem: *mut ::core::ffi::c_void,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_0 {
+pub union json_value_payload {
     pub boolean: ::core::ffi::c_int,
     pub integer: i64,
     pub dbl: ::core::ffi::c_double,
-    pub string: C2RustUnnamed_3,
-    pub object: C2RustUnnamed_2,
-    pub array: C2RustUnnamed_1,
+    pub string: json_string_value,
+    pub object: json_object_value,
+    pub array: json_array_value,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_1 {
+pub struct json_array_value {
     pub length: ::core::ffi::c_uint,
     pub values: *mut *mut _json_value,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_2 {
+pub struct json_object_value {
     pub length: ::core::ffi::c_uint,
     pub values: *mut json_object_entry,
 }
@@ -79,7 +79,7 @@ pub struct _json_object_entry {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_3 {
+pub struct json_string_value {
     pub length: ::core::ffi::c_uint,
     pub ptr: *mut ::core::ffi::c_char,
 }
@@ -116,8 +116,8 @@ pub const json_enable_comments: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
 pub static mut json_value_none: _json_value = _json_value {
     parent: ::core::ptr::null::<_json_value>() as *mut _json_value,
     type_0: json_none,
-    u: C2RustUnnamed_0 { boolean: 0 },
-    _reserved: C2RustUnnamed {
+    u: json_value_payload { boolean: 0 },
+    _reserved: json_value_reserved {
         next_alloc: ::core::ptr::null::<_json_value>() as *mut _json_value,
     },
 };
