@@ -236,7 +236,7 @@ unsafe extern "C" fn new_value(
             }
             1 => {
                 if !((*value).u.object.length == 0 as ::core::ffi::c_uint) {
-                    values_size = (::core::mem::size_of::<json_object_entry>() as usize)
+                    values_size = ::core::mem::size_of::<json_object_entry>()
                         .wrapping_mul((*value).u.object.length as usize)
                         as ::core::ffi::c_int;
                     (*value).u.object.values = json_alloc(
@@ -629,8 +629,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                 | uchar2 & 0x3ff as json_uchar;
                                         }
                                     }
-                                    if ::core::mem::size_of::<::core::ffi::c_char>() as usize
-                                        >= ::core::mem::size_of::<json_uchar>() as usize
+                                    if ::core::mem::size_of::<::core::ffi::c_char>()
+                                        >= ::core::mem::size_of::<json_uchar>()
                                         || uchar <= 0x7f as json_uchar
                                     {
                                         if state.first_pass == 0 {

@@ -1595,7 +1595,7 @@ unsafe extern "C" fn _declareLookupParser(
             {
                 item = ((*(*(**lh).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                     as *mut ::core::ffi::c_char)
-                    .offset(-((*(**lh).hh.tbl).hho as isize))
+                    .offset(-(*(**lh).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut lookup_hash
                     as *mut lookup_hash;
             } else {
@@ -1616,7 +1616,7 @@ unsafe extern "C" fn _declareLookupParser(
                 }
                 if !(*item).hh.hh_next.is_null() {
                     item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(**lh).hh.tbl).hho as isize))
+                        .offset(-(*(**lh).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut lookup_hash
                         as *mut lookup_hash;
                 } else {
@@ -2042,7 +2042,7 @@ unsafe extern "C" fn _declareLookupParser(
         (*item).hh.tbl = (**lh).hh.tbl;
         (*item).hh.next = NULL;
         (*item).hh.prev = ((*(**lh).hh.tbl).tail as *mut ::core::ffi::c_char)
-            .offset(-((*(**lh).hh.tbl).hho as isize))
+            .offset(-(*(**lh).hh.tbl).hho)
             as *mut ::core::ffi::c_void;
         (*(*(**lh).hh.tbl).tail).next = item as *mut ::core::ffi::c_void;
         (*(**lh).hh.tbl).tail = &raw mut (*item).hh as *mut UT_hash_handle;
@@ -2479,7 +2479,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                     {
                         s = ((*(*(*lh).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                             as *mut ::core::ffi::c_char)
-                            .offset(-((*(*lh).hh.tbl).hho as isize))
+                            .offset(-(*(*lh).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut lookup_hash as *mut lookup_hash;
                     } else {
@@ -2500,7 +2500,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                         }
                         if !(*s).hh.hh_next.is_null() {
                             s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                                .offset(-((*(*lh).hh.tbl).hho as isize))
+                                .offset(-(*(*lh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut lookup_hash
                                 as *mut lookup_hash;
@@ -2850,7 +2850,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                     (*dup).hh.tbl = (*lh).hh.tbl;
                     (*dup).hh.next = NULL;
                     (*dup).hh.prev = ((*(*lh).hh.tbl).tail as *mut ::core::ffi::c_char)
-                        .offset(-((*(*lh).hh.tbl).hho as isize))
+                        .offset(-(*(*lh).hh.tbl).hho)
                         as *mut ::core::ffi::c_void;
                     (*(*(*lh).hh.tbl).tail).next = dup as *mut ::core::ffi::c_void;
                     (*(*lh).hh.tbl).tail = &raw mut (*dup).hh as *mut UT_hash_handle;
@@ -3366,7 +3366,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             {
                                 item = ((*(*(*lh).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                                     as *mut ::core::ffi::c_char)
-                                    .offset(-((*(*lh).hh.tbl).hho as isize))
+                                    .offset(-(*(*lh).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut lookup_hash
                                     as *mut lookup_hash;
@@ -3390,7 +3390,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                 }
                                 if !(*item).hh.hh_next.is_null() {
                                     item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*lh).hh.tbl).hho as isize))
+                                        .offset(-(*(*lh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                         as *mut lookup_hash
                                         as *mut lookup_hash;
@@ -3717,7 +3717,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         {
                             s = ((*(*(*fh).hh.tbl).buckets.offset(_hf_bkt_0 as isize)).hh_head
                                 as *mut ::core::ffi::c_char)
-                                .offset(-((*(*fh).hh.tbl).hho as isize))
+                                .offset(-(*(*fh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut feature_hash
                                 as *mut feature_hash;
@@ -3739,7 +3739,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             }
                             if !(*s).hh.hh_next.is_null() {
                                 s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                                    .offset(-((*(*fh).hh.tbl).hho as isize))
+                                    .offset(-(*(*fh).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut feature_hash
                                     as *mut feature_hash;
@@ -4091,7 +4091,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         (*s).hh.tbl = (*fh).hh.tbl;
                         (*s).hh.next = NULL;
                         (*s).hh.prev = ((*(*fh).hh.tbl).tail as *mut ::core::ffi::c_char)
-                            .offset(-((*(*fh).hh.tbl).hho as isize))
+                            .offset(-(*(*fh).hh.tbl).hho)
                             as *mut ::core::ffi::c_void;
                         (*(*(*fh).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
                         (*(*fh).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
@@ -4549,7 +4549,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     {
                         s_0 = ((*(*(*fh).hh.tbl).buckets.offset(_hf_bkt_1 as isize)).hh_head
                             as *mut ::core::ffi::c_char)
-                            .offset(-((*(*fh).hh.tbl).hho as isize))
+                            .offset(-(*(*fh).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut feature_hash as *mut feature_hash;
                     } else {
@@ -4570,7 +4570,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         }
                         if !(*s_0).hh.hh_next.is_null() {
                             s_0 = ((*s_0).hh.hh_next as *mut ::core::ffi::c_char)
-                                .offset(-((*(*fh).hh.tbl).hho as isize))
+                                .offset(-(*(*fh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut feature_hash
                                 as *mut feature_hash;
@@ -4915,7 +4915,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     (*dup).hh.tbl = (*fh).hh.tbl;
                     (*dup).hh.next = NULL;
                     (*dup).hh.prev = ((*(*fh).hh.tbl).tail as *mut ::core::ffi::c_char)
-                        .offset(-((*(*fh).hh.tbl).hho as isize))
+                        .offset(-(*(*fh).hh.tbl).hho)
                         as *mut ::core::ffi::c_void;
                     (*(*(*fh).hh.tbl).tail).next = dup as *mut ::core::ffi::c_void;
                     (*(*fh).hh.tbl).tail = &raw mut (*dup).hh as *mut UT_hash_handle;
@@ -5368,7 +5368,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         {
                             rf = ((*(*(*fh).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                                 as *mut ::core::ffi::c_char)
-                                .offset(-((*(*fh).hh.tbl).hho as isize))
+                                .offset(-(*(*fh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut feature_hash
                                 as *mut feature_hash;
@@ -5391,7 +5391,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                             }
                             if !(*rf).hh.hh_next.is_null() {
                                 rf = ((*rf).hh.hh_next as *mut ::core::ffi::c_char)
-                                    .offset(-((*(*fh).hh.tbl).hho as isize))
+                                    .offset(-(*(*fh).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut feature_hash
                                     as *mut feature_hash;
@@ -5718,7 +5718,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                     item = ((*(*(*fh).hh.tbl).buckets.offset(_hf_bkt_0 as isize))
                                         .hh_head
                                         as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*fh).hh.tbl).hho as isize))
+                                        .offset(-(*(*fh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                         as *mut feature_hash
                                         as *mut feature_hash;
@@ -5742,7 +5742,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                     }
                                     if !(*item).hh.hh_next.is_null() {
                                         item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
-                                            .offset(-((*(*fh).hh.tbl).hho as isize))
+                                            .offset(-(*(*fh).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
                                             as *mut feature_hash
                                             as *mut feature_hash;
@@ -6053,7 +6053,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         {
                             s = ((*(*(*sh).hh.tbl).buckets.offset(_hf_bkt_1 as isize)).hh_head
                                 as *mut ::core::ffi::c_char)
-                                .offset(-((*(*sh).hh.tbl).hho as isize))
+                                .offset(-(*(*sh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut language_hash
                                 as *mut language_hash;
@@ -6075,7 +6075,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                             }
                             if !(*s).hh.hh_next.is_null() {
                                 s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                                    .offset(-((*(*sh).hh.tbl).hho as isize))
+                                    .offset(-(*(*sh).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut language_hash
                                     as *mut language_hash;
@@ -6430,7 +6430,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         (*s).hh.tbl = (*sh).hh.tbl;
                         (*s).hh.next = NULL;
                         (*s).hh.prev = ((*(*sh).hh.tbl).tail as *mut ::core::ffi::c_char)
-                            .offset(-((*(*sh).hh.tbl).hho as isize))
+                            .offset(-(*(*sh).hh.tbl).hho)
                             as *mut ::core::ffi::c_void;
                         (*(*(*sh).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
                         (*(*sh).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
@@ -6983,7 +6983,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                         item = ((*(*(*lh).hh.tbl).buckets.offset(_hf_bkt as isize))
                                             .hh_head
                                             as *mut ::core::ffi::c_char)
-                                            .offset(-((*(*lh).hh.tbl).hho as isize))
+                                            .offset(-(*(*lh).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
                                             as *mut lookup_hash
                                             as *mut lookup_hash;
@@ -7008,7 +7008,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                         }
                                         if !(*item).hh.hh_next.is_null() {
                                             item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
-                                                .offset(-((*(*lh).hh.tbl).hho as isize))
+                                                .offset(-(*(*lh).hh.tbl).hho)
                                                 as *mut ::core::ffi::c_void
                                                 as *mut lookup_hash
                                                 as *mut lookup_hash;
@@ -7055,7 +7055,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 _hs_psize = _hs_psize.wrapping_add(1);
                                 _hs_q = (if !(*_hs_q).next.is_null() {
                                     ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                        .offset((*(*lh).hh.tbl).hho as isize)
+                                        .offset((*(*lh).hh.tbl).hho)
                                         as *mut UT_hash_handle
                                 } else {
                                     ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7073,7 +7073,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_e = _hs_q;
                                     _hs_q = (if !(*_hs_q).next.is_null() {
                                         ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                            .offset((*(*lh).hh.tbl).hho as isize)
+                                            .offset((*(*lh).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                     } else {
                                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7085,7 +7085,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     if !_hs_p.is_null() {
                                         _hs_p = (if !(*_hs_p).next.is_null() {
                                             ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                                .offset((*(*lh).hh.tbl).hho as isize)
+                                                .offset((*(*lh).hh.tbl).hho)
                                                 as *mut UT_hash_handle
                                         } else {
                                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7095,11 +7095,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_psize = _hs_psize.wrapping_sub(1);
                                 } else if by_lookup_order(
                                     (_hs_p as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*lh).hh.tbl).hho as isize))
+                                        .offset(-(*(*lh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                         as *mut lookup_hash,
                                     (_hs_q as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*lh).hh.tbl).hho as isize))
+                                        .offset(-(*(*lh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                         as *mut lookup_hash,
                                 ) <= 0 as ::core::ffi::c_int
@@ -7108,7 +7108,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     if !_hs_p.is_null() {
                                         _hs_p = (if !(*_hs_p).next.is_null() {
                                             ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                                .offset((*(*lh).hh.tbl).hho as isize)
+                                                .offset((*(*lh).hh.tbl).hho)
                                                 as *mut UT_hash_handle
                                         } else {
                                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7120,7 +7120,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_e = _hs_q;
                                     _hs_q = (if !(*_hs_q).next.is_null() {
                                         ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                            .offset((*(*lh).hh.tbl).hho as isize)
+                                            .offset((*(*lh).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                     } else {
                                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7131,7 +7131,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 if !_hs_tail.is_null() {
                                     (*_hs_tail).next = if !_hs_e.is_null() {
                                         (_hs_e as *mut ::core::ffi::c_char)
-                                            .offset(-((*(*lh).hh.tbl).hho as isize))
+                                            .offset(-(*(*lh).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
                                     } else {
                                         NULL
@@ -7142,7 +7142,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 if !_hs_e.is_null() {
                                     (*_hs_e).prev = if !_hs_tail.is_null() {
                                         (_hs_tail as *mut ::core::ffi::c_char)
-                                            .offset(-((*(*lh).hh.tbl).hho as isize))
+                                            .offset(-(*(*lh).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
                                     } else {
                                         NULL
@@ -7159,7 +7159,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             _hs_looping = 0 as ::core::ffi::c_uint;
                             (*(*lh).hh.tbl).tail = _hs_tail;
                             lh = (_hs_list as *mut ::core::ffi::c_char)
-                                .offset(-((*(*lh).hh.tbl).hho as isize))
+                                .offset(-(*(*lh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut lookup_hash
                                 as *mut lookup_hash;
@@ -7198,7 +7198,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 _hs_psize_0 = _hs_psize_0.wrapping_add(1);
                                 _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                     ((*_hs_q_0).next as *mut ::core::ffi::c_char)
-                                        .offset((*(*fh).hh.tbl).hho as isize)
+                                        .offset((*(*fh).hh.tbl).hho)
                                         as *mut UT_hash_handle
                                 } else {
                                     ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7216,7 +7216,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_e_0 = _hs_q_0;
                                     _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                         ((*_hs_q_0).next as *mut ::core::ffi::c_char)
-                                            .offset((*(*fh).hh.tbl).hho as isize)
+                                            .offset((*(*fh).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                     } else {
                                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7230,7 +7230,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     if !_hs_p_0.is_null() {
                                         _hs_p_0 = (if !(*_hs_p_0).next.is_null() {
                                             ((*_hs_p_0).next as *mut ::core::ffi::c_char)
-                                                .offset((*(*fh).hh.tbl).hho as isize)
+                                                .offset((*(*fh).hh.tbl).hho)
                                                 as *mut UT_hash_handle
                                         } else {
                                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7240,11 +7240,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_psize_0 = _hs_psize_0.wrapping_sub(1);
                                 } else if by_feature_name(
                                     (_hs_p_0 as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*fh).hh.tbl).hho as isize))
+                                        .offset(-(*(*fh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                         as *mut feature_hash,
                                     (_hs_q_0 as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*fh).hh.tbl).hho as isize))
+                                        .offset(-(*(*fh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                         as *mut feature_hash,
                                 ) <= 0 as ::core::ffi::c_int
@@ -7253,7 +7253,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     if !_hs_p_0.is_null() {
                                         _hs_p_0 = (if !(*_hs_p_0).next.is_null() {
                                             ((*_hs_p_0).next as *mut ::core::ffi::c_char)
-                                                .offset((*(*fh).hh.tbl).hho as isize)
+                                                .offset((*(*fh).hh.tbl).hho)
                                                 as *mut UT_hash_handle
                                         } else {
                                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7265,7 +7265,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_e_0 = _hs_q_0;
                                     _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                         ((*_hs_q_0).next as *mut ::core::ffi::c_char)
-                                            .offset((*(*fh).hh.tbl).hho as isize)
+                                            .offset((*(*fh).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                     } else {
                                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7276,7 +7276,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 if !_hs_tail_0.is_null() {
                                     (*_hs_tail_0).next = if !_hs_e_0.is_null() {
                                         (_hs_e_0 as *mut ::core::ffi::c_char)
-                                            .offset(-((*(*fh).hh.tbl).hho as isize))
+                                            .offset(-(*(*fh).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
                                     } else {
                                         NULL
@@ -7287,7 +7287,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 if !_hs_e_0.is_null() {
                                     (*_hs_e_0).prev = if !_hs_tail_0.is_null() {
                                         (_hs_tail_0 as *mut ::core::ffi::c_char)
-                                            .offset(-((*(*fh).hh.tbl).hho as isize))
+                                            .offset(-(*(*fh).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
                                     } else {
                                         NULL
@@ -7304,7 +7304,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             _hs_looping_0 = 0 as ::core::ffi::c_uint;
                             (*(*fh).hh.tbl).tail = _hs_tail_0;
                             fh = (_hs_list_0 as *mut ::core::ffi::c_char)
-                                .offset(-((*(*fh).hh.tbl).hho as isize))
+                                .offset(-(*(*fh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut feature_hash
                                 as *mut feature_hash;
@@ -7343,7 +7343,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 _hs_psize_1 = _hs_psize_1.wrapping_add(1);
                                 _hs_q_1 = (if !(*_hs_q_1).next.is_null() {
                                     ((*_hs_q_1).next as *mut ::core::ffi::c_char)
-                                        .offset((*(*sh).hh.tbl).hho as isize)
+                                        .offset((*(*sh).hh.tbl).hho)
                                         as *mut UT_hash_handle
                                 } else {
                                     ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7361,7 +7361,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_e_1 = _hs_q_1;
                                     _hs_q_1 = (if !(*_hs_q_1).next.is_null() {
                                         ((*_hs_q_1).next as *mut ::core::ffi::c_char)
-                                            .offset((*(*sh).hh.tbl).hho as isize)
+                                            .offset((*(*sh).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                     } else {
                                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7375,7 +7375,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     if !_hs_p_1.is_null() {
                                         _hs_p_1 = (if !(*_hs_p_1).next.is_null() {
                                             ((*_hs_p_1).next as *mut ::core::ffi::c_char)
-                                                .offset((*(*sh).hh.tbl).hho as isize)
+                                                .offset((*(*sh).hh.tbl).hho)
                                                 as *mut UT_hash_handle
                                         } else {
                                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7385,11 +7385,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_psize_1 = _hs_psize_1.wrapping_sub(1);
                                 } else if by_language_name(
                                     (_hs_p_1 as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*sh).hh.tbl).hho as isize))
+                                        .offset(-(*(*sh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                         as *mut language_hash,
                                     (_hs_q_1 as *mut ::core::ffi::c_char)
-                                        .offset(-((*(*sh).hh.tbl).hho as isize))
+                                        .offset(-(*(*sh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
                                         as *mut language_hash,
                                 ) <= 0 as ::core::ffi::c_int
@@ -7398,7 +7398,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     if !_hs_p_1.is_null() {
                                         _hs_p_1 = (if !(*_hs_p_1).next.is_null() {
                                             ((*_hs_p_1).next as *mut ::core::ffi::c_char)
-                                                .offset((*(*sh).hh.tbl).hho as isize)
+                                                .offset((*(*sh).hh.tbl).hho)
                                                 as *mut UT_hash_handle
                                         } else {
                                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7410,7 +7410,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_e_1 = _hs_q_1;
                                     _hs_q_1 = (if !(*_hs_q_1).next.is_null() {
                                         ((*_hs_q_1).next as *mut ::core::ffi::c_char)
-                                            .offset((*(*sh).hh.tbl).hho as isize)
+                                            .offset((*(*sh).hh.tbl).hho)
                                             as *mut UT_hash_handle
                                     } else {
                                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -7421,7 +7421,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 if !_hs_tail_1.is_null() {
                                     (*_hs_tail_1).next = if !_hs_e_1.is_null() {
                                         (_hs_e_1 as *mut ::core::ffi::c_char)
-                                            .offset(-((*(*sh).hh.tbl).hho as isize))
+                                            .offset(-(*(*sh).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
                                     } else {
                                         NULL
@@ -7432,7 +7432,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 if !_hs_e_1.is_null() {
                                     (*_hs_e_1).prev = if !_hs_tail_1.is_null() {
                                         (_hs_tail_1 as *mut ::core::ffi::c_char)
-                                            .offset(-((*(*sh).hh.tbl).hho as isize))
+                                            .offset(-(*(*sh).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
                                     } else {
                                         NULL
@@ -7449,7 +7449,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             _hs_looping_1 = 0 as ::core::ffi::c_uint;
                             (*(*sh).hh.tbl).tail = _hs_tail_1;
                             sh = (_hs_list_1 as *mut ::core::ffi::c_char)
-                                .offset(-((*(*sh).hh.tbl).hho as isize))
+                                .offset(-(*(*sh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut language_hash
                                 as *mut language_hash;
@@ -7501,14 +7501,14 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             if _hd_hh_del == (*(*lh).hh.tbl).tail {
                                 (*(*lh).hh.tbl).tail = ((*_hd_hh_del).prev
                                     as *mut ::core::ffi::c_char)
-                                    .offset((*(*lh).hh.tbl).hho as isize)
+                                    .offset((*(*lh).hh.tbl).hho)
                                     as *mut UT_hash_handle
                                     as *mut UT_hash_handle;
                             }
                             if !(*_hd_hh_del).prev.is_null() {
                                 let ref mut fresh0 = (*(((*_hd_hh_del).prev
                                     as *mut ::core::ffi::c_char)
-                                    .offset((*(*lh).hh.tbl).hho as isize)
+                                    .offset((*(*lh).hh.tbl).hho)
                                     as *mut UT_hash_handle))
                                     .next;
                                 *fresh0 = (*_hd_hh_del).next;
@@ -7518,7 +7518,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             if !(*_hd_hh_del).next.is_null() {
                                 let ref mut fresh1 = (*(((*_hd_hh_del).next
                                     as *mut ::core::ffi::c_char)
-                                    .offset((*(*lh).hh.tbl).hho as isize)
+                                    .offset((*(*lh).hh.tbl).hho)
                                     as *mut UT_hash_handle))
                                     .prev;
                                 *fresh1 = (*_hd_hh_del).prev;
@@ -7571,14 +7571,14 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             if _hd_hh_del_0 == (*(*fh).hh.tbl).tail {
                                 (*(*fh).hh.tbl).tail = ((*_hd_hh_del_0).prev
                                     as *mut ::core::ffi::c_char)
-                                    .offset((*(*fh).hh.tbl).hho as isize)
+                                    .offset((*(*fh).hh.tbl).hho)
                                     as *mut UT_hash_handle
                                     as *mut UT_hash_handle;
                             }
                             if !(*_hd_hh_del_0).prev.is_null() {
                                 let ref mut fresh2 = (*(((*_hd_hh_del_0).prev
                                     as *mut ::core::ffi::c_char)
-                                    .offset((*(*fh).hh.tbl).hho as isize)
+                                    .offset((*(*fh).hh.tbl).hho)
                                     as *mut UT_hash_handle))
                                     .next;
                                 *fresh2 = (*_hd_hh_del_0).next;
@@ -7588,7 +7588,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             if !(*_hd_hh_del_0).next.is_null() {
                                 let ref mut fresh3 = (*(((*_hd_hh_del_0).next
                                     as *mut ::core::ffi::c_char)
-                                    .offset((*(*fh).hh.tbl).hho as isize)
+                                    .offset((*(*fh).hh.tbl).hho)
                                     as *mut UT_hash_handle))
                                     .prev;
                                 *fresh3 = (*_hd_hh_del_0).prev;
@@ -7644,14 +7644,14 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             if _hd_hh_del_1 == (*(*sh).hh.tbl).tail {
                                 (*(*sh).hh.tbl).tail = ((*_hd_hh_del_1).prev
                                     as *mut ::core::ffi::c_char)
-                                    .offset((*(*sh).hh.tbl).hho as isize)
+                                    .offset((*(*sh).hh.tbl).hho)
                                     as *mut UT_hash_handle
                                     as *mut UT_hash_handle;
                             }
                             if !(*_hd_hh_del_1).prev.is_null() {
                                 let ref mut fresh4 = (*(((*_hd_hh_del_1).prev
                                     as *mut ::core::ffi::c_char)
-                                    .offset((*(*sh).hh.tbl).hho as isize)
+                                    .offset((*(*sh).hh.tbl).hho)
                                     as *mut UT_hash_handle))
                                     .next;
                                 *fresh4 = (*_hd_hh_del_1).next;
@@ -7662,7 +7662,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             if !(*_hd_hh_del_1).next.is_null() {
                                 let ref mut fresh5 = (*(((*_hd_hh_del_1).next
                                     as *mut ::core::ffi::c_char)
-                                    .offset((*(*sh).hh.tbl).hho as isize)
+                                    .offset((*(*sh).hh.tbl).hho)
                                     as *mut UT_hash_handle))
                                     .prev;
                                 *fresh5 = (*_hd_hh_del_1).prev;

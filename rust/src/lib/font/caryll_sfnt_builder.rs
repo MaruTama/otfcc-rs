@@ -219,7 +219,7 @@ unsafe extern "C" fn buf_checksum(mut buffer: *mut caryll_Buffer) -> uint32_t {
     let mut end: *mut uint32_t = start.offset(
         ((actualLength.wrapping_add(3 as uint32_t) & !(3 as ::core::ffi::c_int) as uint32_t)
             as usize)
-            .wrapping_div(::core::mem::size_of::<uint32_t>() as usize) as isize,
+            .wrapping_div(::core::mem::size_of::<uint32_t>()) as isize,
     );
     while start < end {
         let fresh3 = start;
@@ -246,7 +246,7 @@ unsafe extern "C" fn createSegment(
     let mut end: *mut uint32_t = start.offset(
         (((*table).length.wrapping_add(3 as uint32_t) & !(3 as ::core::ffi::c_int) as uint32_t)
             as usize)
-            .wrapping_div(::core::mem::size_of::<uint32_t>() as usize) as isize,
+            .wrapping_div(::core::mem::size_of::<uint32_t>()) as isize,
     );
     while start < end {
         let fresh0 = start;
@@ -296,12 +296,12 @@ pub unsafe extern "C" fn otfcc_deleteSFNTBuilder(mut builder: *mut otfcc_SFNTBui
             if _hd_hh_del == (*(*(*builder).tables).hh.tbl).tail {
                 (*(*(*builder).tables).hh.tbl).tail =
                     ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                        .offset((*(*(*builder).tables).hh.tbl).hho as isize)
+                        .offset((*(*(*builder).tables).hh.tbl).hho)
                         as *mut UT_hash_handle as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh1 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*builder).tables).hh.tbl).hho as isize)
+                    .offset((*(*(*builder).tables).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh1 = (*_hd_hh_del).next;
@@ -311,7 +311,7 @@ pub unsafe extern "C" fn otfcc_deleteSFNTBuilder(mut builder: *mut otfcc_SFNTBui
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh2 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*builder).tables).hh.tbl).hho as isize)
+                    .offset((*(*(*builder).tables).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh2 = (*_hd_hh_del).prev;
@@ -630,7 +630,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*builder).tables).hh.tbl).hho as isize))
+                    .offset(-(*(*(*builder).tables).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut otfcc_SFNTTableEntry
                     as *mut otfcc_SFNTTableEntry;
             } else {
@@ -639,7 +639,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
             while !item.is_null() {
                 if (*item).hh.hashv == _hf_hashv
                     && (*item).hh.keylen as usize
-                        == ::core::mem::size_of::<::core::ffi::c_int>() as usize
+                        == ::core::mem::size_of::<::core::ffi::c_int>()
                 {
                     if memcmp(
                         (*item).hh.key,
@@ -652,7 +652,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
                 }
                 if !(*item).hh.hh_next.is_null() {
                     item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*builder).tables).hh.tbl).hho as isize))
+                        .offset(-(*(*(*builder).tables).hh.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_SFNTTableEntry
                         as *mut otfcc_SFNTTableEntry;
@@ -973,7 +973,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
             (*item).hh.tbl = (*(*builder).tables).hh.tbl;
             (*item).hh.next = NULL;
             (*item).hh.prev = ((*(*(*builder).tables).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*builder).tables).hh.tbl).hho as isize))
+                .offset(-(*(*(*builder).tables).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*builder).tables).hh.tbl).tail).next = item as *mut ::core::ffi::c_void;
             (*(*(*builder).tables).hh.tbl).tail = &raw mut (*item).hh as *mut UT_hash_handle;
@@ -1202,7 +1202,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                     _hs_psize = _hs_psize.wrapping_add(1);
                     _hs_q = (if !(*_hs_q).next.is_null() {
                         ((*_hs_q).next as *mut ::core::ffi::c_char)
-                            .offset((*(*(*builder).tables).hh.tbl).hho as isize)
+                            .offset((*(*(*builder).tables).hh.tbl).hho)
                             as *mut UT_hash_handle
                     } else {
                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -1220,7 +1220,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                         _hs_e = _hs_q;
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                .offset((*(*(*builder).tables).hh.tbl).hho as isize)
+                                .offset((*(*(*builder).tables).hh.tbl).hho)
                                 as *mut UT_hash_handle
                         } else {
                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -1231,7 +1231,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                         if !_hs_p.is_null() {
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                    .offset((*(*(*builder).tables).hh.tbl).hho as isize)
+                                    .offset((*(*(*builder).tables).hh.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -1240,11 +1240,11 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else if byTag(
                         (_hs_p as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*builder).tables).hh.tbl).hho as isize))
+                            .offset(-(*(*(*builder).tables).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut otfcc_SFNTTableEntry,
                         (_hs_q as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*builder).tables).hh.tbl).hho as isize))
+                            .offset(-(*(*(*builder).tables).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut otfcc_SFNTTableEntry,
                     ) <= 0 as ::core::ffi::c_int
@@ -1253,7 +1253,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                         if !_hs_p.is_null() {
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                    .offset((*(*(*builder).tables).hh.tbl).hho as isize)
+                                    .offset((*(*(*builder).tables).hh.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -1264,7 +1264,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                         _hs_e = _hs_q;
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                .offset((*(*(*builder).tables).hh.tbl).hho as isize)
+                                .offset((*(*(*builder).tables).hh.tbl).hho)
                                 as *mut UT_hash_handle
                         } else {
                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -1274,7 +1274,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                     if !_hs_tail.is_null() {
                         (*_hs_tail).next = if !_hs_e.is_null() {
                             (_hs_e as *mut ::core::ffi::c_char)
-                                .offset(-((*(*(*builder).tables).hh.tbl).hho as isize))
+                                .offset(-(*(*(*builder).tables).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
                             NULL
@@ -1285,7 +1285,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                     if !_hs_e.is_null() {
                         (*_hs_e).prev = if !_hs_tail.is_null() {
                             (_hs_tail as *mut ::core::ffi::c_char)
-                                .offset(-((*(*(*builder).tables).hh.tbl).hho as isize))
+                                .offset(-(*(*(*builder).tables).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
                             NULL
@@ -1302,7 +1302,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                 _hs_looping = 0 as ::core::ffi::c_uint;
                 (*(*(*builder).tables).hh.tbl).tail = _hs_tail;
                 (*builder).tables = (_hs_list as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*builder).tables).hh.tbl).hho as isize))
+                    .offset(-(*(*(*builder).tables).hh.tbl).hho)
                     as *mut ::core::ffi::c_void
                     as *mut otfcc_SFNTTableEntry
                     as *mut otfcc_SFNTTableEntry;

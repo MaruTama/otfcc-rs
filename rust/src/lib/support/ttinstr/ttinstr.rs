@@ -655,7 +655,7 @@ unsafe extern "C" fn strnmatch(
         ch2 = *fresh21 as ::core::ffi::c_int;
         ch1 = {
             let mut __res: ::core::ffi::c_int = 0;
-            if ::core::mem::size_of::<::core::ffi::c_int>() as usize > 1 as usize {
+            if ::core::mem::size_of::<::core::ffi::c_int>() > 1_usize {
                 if 0 != 0 {
                     let mut __c: ::core::ffi::c_int = ch1;
                     __res =
@@ -674,7 +674,7 @@ unsafe extern "C" fn strnmatch(
         };
         ch2 = {
             let mut __res: ::core::ffi::c_int = 0;
-            if ::core::mem::size_of::<::core::ffi::c_int>() as usize > 1 as usize {
+            if ::core::mem::size_of::<::core::ffi::c_int>() > 1_usize {
                 if 0 != 0 {
                     let mut __c: ::core::ffi::c_int = ch2;
                     __res =
@@ -980,7 +980,7 @@ unsafe extern "C" fn parse_instrs(
                         ff_ttf_instrnames[i as usize],
                         end.offset_from(pt) as ::core::ffi::c_long as ::core::ffi::c_int,
                     ) == 0 as ::core::ffi::c_int
-                        && (::core::mem::size_of::<::core::ffi::c_char>() as usize)
+                        && ::core::mem::size_of::<::core::ffi::c_char>()
                             .wrapping_mul(end.offset_from(pt) as ::core::ffi::c_long as usize)
                             == strlen(ff_ttf_instrnames[i as usize])
                     {

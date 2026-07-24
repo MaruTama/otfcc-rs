@@ -1614,10 +1614,10 @@ pub unsafe extern "C" fn nameGlyphByHash(
         bufwrite16b(buf, (*mask).contoursBefore);
         bufwrite16b(buf, (*mask).pointsBefore);
         for k in 0..(*g).stemH.length {
-            bufwrite8(buf, (*mask).maskH[k as usize] as uint8_t);
+            bufwrite8(buf, (*mask).maskH[k] as uint8_t);
         }
         for k in 0..(*g).stemV.length {
-            bufwrite8(buf, (*mask).maskV[k as usize] as uint8_t);
+            bufwrite8(buf, (*mask).maskV[k] as uint8_t);
         }
     }
     bufwrite8(buf, ')' as i32 as uint8_t);
@@ -1629,10 +1629,10 @@ pub unsafe extern "C" fn nameGlyphByHash(
         bufwrite16b(buf, (*mask).contoursBefore);
         bufwrite16b(buf, (*mask).pointsBefore);
         for k in 0..(*g).stemH.length {
-            bufwrite8(buf, (*mask).maskH[k as usize] as uint8_t);
+            bufwrite8(buf, (*mask).maskH[k] as uint8_t);
         }
         for k in 0..(*g).stemV.length {
-            bufwrite8(buf, (*mask).maskV[k as usize] as uint8_t);
+            bufwrite8(buf, (*mask).maskV[k] as uint8_t);
         }
     }
     bufwrite8(buf, ')' as i32 as uint8_t);

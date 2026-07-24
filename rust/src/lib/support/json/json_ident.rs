@@ -441,7 +441,7 @@ unsafe extern "C" fn compare_json_objects(
                 {
                     e = ((*(*(*h).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                         as *mut ::core::ffi::c_char)
-                        .offset(-((*(*h).hh.tbl).hho as isize))
+                        .offset(-(*(*h).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut json_obj_entry
                         as *mut json_obj_entry;
                 } else {
@@ -462,7 +462,7 @@ unsafe extern "C" fn compare_json_objects(
                     }
                     if !(*e).hh.hh_next.is_null() {
                         e = ((*e).hh.hh_next as *mut ::core::ffi::c_char)
-                            .offset(-((*(*h).hh.tbl).hho as isize))
+                            .offset(-(*(*h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut json_obj_entry
                             as *mut json_obj_entry;
@@ -798,7 +798,7 @@ unsafe extern "C" fn compare_json_objects(
                 (*e).hh.tbl = (*h).hh.tbl;
                 (*e).hh.next = NULL;
                 (*e).hh.prev = ((*(*h).hh.tbl).tail as *mut ::core::ffi::c_char)
-                    .offset(-((*(*h).hh.tbl).hho as isize))
+                    .offset(-(*(*h).hh.tbl).hho)
                     as *mut ::core::ffi::c_void;
                 (*(*(*h).hh.tbl).tail).next = e as *mut ::core::ffi::c_void;
                 (*(*h).hh.tbl).tail = &raw mut (*e).hh as *mut UT_hash_handle;
@@ -1203,7 +1203,7 @@ unsafe extern "C" fn compare_json_objects(
                 {
                     e_0 = ((*(*(*h).hh.tbl).buckets.offset(_hf_bkt_0 as isize)).hh_head
                         as *mut ::core::ffi::c_char)
-                        .offset(-((*(*h).hh.tbl).hho as isize))
+                        .offset(-(*(*h).hh.tbl).hho)
                         as *mut ::core::ffi::c_void as *mut json_obj_entry
                         as *mut json_obj_entry;
                 } else {
@@ -1224,7 +1224,7 @@ unsafe extern "C" fn compare_json_objects(
                     }
                     if !(*e_0).hh.hh_next.is_null() {
                         e_0 = ((*e_0).hh.hh_next as *mut ::core::ffi::c_char)
-                            .offset(-((*(*h).hh.tbl).hho as isize))
+                            .offset(-(*(*h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut json_obj_entry
                             as *mut json_obj_entry;
@@ -1267,13 +1267,13 @@ unsafe extern "C" fn compare_json_objects(
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*h).hh.tbl).tail {
                 (*(*h).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho as isize)
+                    .offset((*(*h).hh.tbl).hho)
                     as *mut UT_hash_handle
                     as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh0 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho as isize)
+                    .offset((*(*h).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh0 = (*_hd_hh_del).next;
@@ -1282,7 +1282,7 @@ unsafe extern "C" fn compare_json_objects(
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh1 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho as isize)
+                    .offset((*(*h).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh1 = (*_hd_hh_del).prev;

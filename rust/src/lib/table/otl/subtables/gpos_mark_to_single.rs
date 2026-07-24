@@ -773,22 +773,22 @@ unsafe extern "C" fn sdslen(s: sds) -> size_t {
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
                 .len as size_t;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
                 .len as size_t;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
                 .len as size_t;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
                 .len as size_t;
         }
@@ -1849,7 +1849,7 @@ unsafe extern "C" fn parseBases(
                         {
                             s = ((*(*(**h).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                                 as *mut ::core::ffi::c_char)
-                                .offset(-((*(**h).hh.tbl).hho as isize))
+                                .offset(-(*(**h).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut otl_ClassnameHash
                                 as *mut otl_ClassnameHash;
@@ -1875,7 +1875,7 @@ unsafe extern "C" fn parseBases(
                             }
                             if !(*s).hh.hh_next.is_null() {
                                 s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                                    .offset(-((*(**h).hh.tbl).hho as isize))
+                                    .offset(-(*(**h).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut otl_ClassnameHash
                                     as *mut otl_ClassnameHash;
@@ -1965,13 +1965,13 @@ pub unsafe extern "C" fn otl_gpos_parse_markToSingle(
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*h).hh.tbl).tail {
                 (*(*h).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho as isize)
+                    .offset((*(*h).hh.tbl).hho)
                     as *mut UT_hash_handle
                     as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh2 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho as isize)
+                    .offset((*(*h).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh2 = (*_hd_hh_del).next;
@@ -1980,7 +1980,7 @@ pub unsafe extern "C" fn otl_gpos_parse_markToSingle(
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh3 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho as isize)
+                    .offset((*(*h).hh.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh3 = (*_hd_hh_del).prev;

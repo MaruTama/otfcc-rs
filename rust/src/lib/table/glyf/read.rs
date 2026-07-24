@@ -1185,18 +1185,18 @@ unsafe extern "C" fn nextTVH(
     mut ctx: *const TuplePolymorphizerCtx,
 ) -> *mut TupleVariationHeader {
     let mut bump: uint32_t =
-        (2 as usize).wrapping_mul(::core::mem::size_of::<uint16_t>() as usize) as uint32_t;
+        2_usize.wrapping_mul(::core::mem::size_of::<uint16_t>()) as uint32_t;
     let mut tupleIndex: uint16_t = be16((*currentHeader).tupleIndex);
     if tupleIndex as ::core::ffi::c_int & EMBEDDED_PEAK_TUPLE != 0 {
         bump = (bump as ::core::ffi::c_ulong).wrapping_add(
-            ((*ctx).dimensions as usize).wrapping_mul(::core::mem::size_of::<f2dot14>() as usize)
+            ((*ctx).dimensions as usize).wrapping_mul(::core::mem::size_of::<f2dot14>())
                 as ::core::ffi::c_ulong,
         ) as uint32_t as uint32_t;
     }
     if tupleIndex as ::core::ffi::c_int & INTERMEDIATE_REGION != 0 {
         bump = (bump as ::core::ffi::c_ulong).wrapping_add(
             ((2 as ::core::ffi::c_int * (*ctx).dimensions as ::core::ffi::c_int) as usize)
-                .wrapping_mul(::core::mem::size_of::<f2dot14>() as usize)
+                .wrapping_mul(::core::mem::size_of::<f2dot14>())
                 as ::core::ffi::c_ulong,
         ) as uint32_t as uint32_t;
     }
@@ -1795,7 +1795,7 @@ unsafe extern "C" fn polymorphize(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     let mut data: font_file_pointer = table.data as font_file_pointer;
-                    if (table.length as usize) < ::core::mem::size_of::<GVARHeader>() as usize {
+                    if (table.length as usize) < ::core::mem::size_of::<GVARHeader>() {
                         return;
                     }
                     let mut header: *mut GVARHeader = data as *mut GVARHeader;
@@ -1832,7 +1832,7 @@ unsafe extern "C" fn polymorphize(
                         {
                             glyphVariationDataOffset = be32(
                                 *(data
-                                    .offset(::core::mem::size_of::<GVARHeader>() as usize as isize)
+                                    .offset(::core::mem::size_of::<GVARHeader>() as isize)
                                     as *mut uint32_t)
                                     .offset(j as isize),
                             );
@@ -1840,7 +1840,7 @@ unsafe extern "C" fn polymorphize(
                             glyphVariationDataOffset = (2 as ::core::ffi::c_int
                                 * be16(
                                     *(data.offset(
-                                        ::core::mem::size_of::<GVARHeader>() as usize as isize
+                                        ::core::mem::size_of::<GVARHeader>() as isize
                                     ) as *mut uint16_t)
                                         .offset(j as isize),
                                 ) as ::core::ffi::c_int)

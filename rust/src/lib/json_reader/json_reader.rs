@@ -1548,22 +1548,22 @@ unsafe extern "C" fn sdslen(s: sds) -> size_t {
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
                 .len as size_t;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
                 .len as size_t;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
                 .len as size_t;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
                 .len as size_t;
         }
@@ -1901,7 +1901,7 @@ unsafe extern "C" fn setOrderByName(
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                    .offset(-(*(*(*go).byName).hhName.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut otfcc_GlyphOrderEntry
                     as *mut otfcc_GlyphOrderEntry;
             } else {
@@ -1920,7 +1920,7 @@ unsafe extern "C" fn setOrderByName(
                 }
                 if !(*s).hhName.hh_next.is_null() {
                     s = ((*s).hhName.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                        .offset(-(*(*(*go).byName).hhName.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_GlyphOrderEntry
                         as *mut otfcc_GlyphOrderEntry;
@@ -2248,7 +2248,7 @@ unsafe extern "C" fn setOrderByName(
             (*s).hhName.tbl = (*(*go).byName).hhName.tbl;
             (*s).hhName.next = NULL_0;
             (*s).hhName.prev = ((*(*(*go).byName).hhName.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                .offset(-(*(*(*go).byName).hhName.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*go).byName).hhName.tbl).tail).next = s as *mut ::core::ffi::c_void;
             (*(*(*go).byName).hhName.tbl).tail = &raw mut (*s).hhName as *mut UT_hash_handle;
@@ -2423,7 +2423,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                     _hs_psize = _hs_psize.wrapping_add(1);
                     _hs_q = (if !(*_hs_q).next.is_null() {
                         ((*_hs_q).next as *mut ::core::ffi::c_char)
-                            .offset((*(*(*go).byName).hhName.tbl).hho as isize)
+                            .offset((*(*(*go).byName).hhName.tbl).hho)
                             as *mut UT_hash_handle
                     } else {
                         ::core::ptr::null_mut::<UT_hash_handle>()
@@ -2441,7 +2441,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                         _hs_e = _hs_q;
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                .offset((*(*(*go).byName).hhName.tbl).hho as isize)
+                                .offset((*(*(*go).byName).hhName.tbl).hho)
                                 as *mut UT_hash_handle
                         } else {
                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -2452,7 +2452,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                         if !_hs_p.is_null() {
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                    .offset((*(*(*go).byName).hhName.tbl).hho as isize)
+                                    .offset((*(*(*go).byName).hhName.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -2461,11 +2461,11 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else if _byOrder(
                         (_hs_p as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                            .offset(-(*(*(*go).byName).hhName.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut otfcc_GlyphOrderEntry,
                         (_hs_q as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                            .offset(-(*(*(*go).byName).hhName.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut otfcc_GlyphOrderEntry,
                     ) <= 0 as ::core::ffi::c_int
@@ -2474,7 +2474,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                         if !_hs_p.is_null() {
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
-                                    .offset((*(*(*go).byName).hhName.tbl).hho as isize)
+                                    .offset((*(*(*go).byName).hhName.tbl).hho)
                                     as *mut UT_hash_handle
                             } else {
                                 ::core::ptr::null_mut::<UT_hash_handle>()
@@ -2485,7 +2485,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                         _hs_e = _hs_q;
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
-                                .offset((*(*(*go).byName).hhName.tbl).hho as isize)
+                                .offset((*(*(*go).byName).hhName.tbl).hho)
                                 as *mut UT_hash_handle
                         } else {
                             ::core::ptr::null_mut::<UT_hash_handle>()
@@ -2495,7 +2495,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                     if !_hs_tail.is_null() {
                         (*_hs_tail).next = if !_hs_e.is_null() {
                             (_hs_e as *mut ::core::ffi::c_char)
-                                .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                                .offset(-(*(*(*go).byName).hhName.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
                             NULL_0
@@ -2506,7 +2506,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                     if !_hs_e.is_null() {
                         (*_hs_e).prev = if !_hs_tail.is_null() {
                             (_hs_tail as *mut ::core::ffi::c_char)
-                                .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                                .offset(-(*(*(*go).byName).hhName.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
                             NULL_0
@@ -2523,7 +2523,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                 _hs_looping = 0 as ::core::ffi::c_uint;
                 (*(*(*go).byName).hhName.tbl).tail = _hs_tail;
                 (*go).byName = (_hs_list as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                    .offset(-(*(*(*go).byName).hhName.tbl).hho)
                     as *mut ::core::ffi::c_void
                     as *mut otfcc_GlyphOrderEntry
                     as *mut otfcc_GlyphOrderEntry;
@@ -2843,7 +2843,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
             (*current).hhID.tbl = (*(*go).byGID).hhID.tbl;
             (*current).hhID.next = NULL_0;
             (*current).hhID.prev = ((*(*(*go).byGID).hhID.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*go).byGID).hhID.tbl).hho as isize))
+                .offset(-(*(*(*go).byGID).hhID.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*go).byGID).hhID.tbl).tail).next = current as *mut ::core::ffi::c_void;
             (*(*(*go).byGID).hhID.tbl).tail = &raw mut (*current).hhID as *mut UT_hash_handle;
@@ -3249,7 +3249,7 @@ unsafe extern "C" fn escalateGlyphOrderByName(
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                    .offset(-(*(*(*go).byName).hhName.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut otfcc_GlyphOrderEntry
                     as *mut otfcc_GlyphOrderEntry;
             } else {
@@ -3268,7 +3268,7 @@ unsafe extern "C" fn escalateGlyphOrderByName(
                 }
                 if !(*s).hhName.hh_next.is_null() {
                     s = ((*s).hhName.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                        .offset(-(*(*(*go).byName).hhName.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_GlyphOrderEntry
                         as *mut otfcc_GlyphOrderEntry;

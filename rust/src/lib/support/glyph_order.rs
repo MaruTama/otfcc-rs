@@ -161,22 +161,22 @@ unsafe extern "C" fn sdslen(s: sds) -> size_t {
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
                 .len as size_t;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
                 .len as size_t;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
                 .len as size_t;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as usize as isize))
+            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
                 .len as size_t;
         }
@@ -216,13 +216,13 @@ unsafe extern "C" fn disposeGlyphOrder(mut go: *mut otfcc_GlyphOrder) {
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*(*go).byGID).hhID.tbl).tail {
                 (*(*(*go).byGID).hhID.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*go).byGID).hhID.tbl).hho as isize)
+                    .offset((*(*(*go).byGID).hhID.tbl).hho)
                     as *mut UT_hash_handle
                     as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh0 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*go).byGID).hhID.tbl).hho as isize)
+                    .offset((*(*(*go).byGID).hhID.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh0 = (*_hd_hh_del).next;
@@ -232,7 +232,7 @@ unsafe extern "C" fn disposeGlyphOrder(mut go: *mut otfcc_GlyphOrder) {
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh1 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*go).byGID).hhID.tbl).hho as isize)
+                    .offset((*(*(*go).byGID).hhID.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh1 = (*_hd_hh_del).prev;
@@ -266,12 +266,12 @@ unsafe extern "C" fn disposeGlyphOrder(mut go: *mut otfcc_GlyphOrder) {
             if _hd_hh_del_0 == (*(*(*go).byName).hhName.tbl).tail {
                 (*(*(*go).byName).hhName.tbl).tail =
                     ((*_hd_hh_del_0).prev as *mut ::core::ffi::c_char)
-                        .offset((*(*(*go).byName).hhName.tbl).hho as isize)
+                        .offset((*(*(*go).byName).hhName.tbl).hho)
                         as *mut UT_hash_handle as *mut UT_hash_handle;
             }
             if !(*_hd_hh_del_0).prev.is_null() {
                 let ref mut fresh2 = (*(((*_hd_hh_del_0).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*go).byName).hhName.tbl).hho as isize)
+                    .offset((*(*(*go).byName).hhName.tbl).hho)
                     as *mut UT_hash_handle))
                     .next;
                 *fresh2 = (*_hd_hh_del_0).next;
@@ -281,7 +281,7 @@ unsafe extern "C" fn disposeGlyphOrder(mut go: *mut otfcc_GlyphOrder) {
             }
             if !(*_hd_hh_del_0).next.is_null() {
                 let ref mut fresh3 = (*(((*_hd_hh_del_0).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*go).byName).hhName.tbl).hho as isize)
+                    .offset((*(*(*go).byName).hhName.tbl).hho)
                     as *mut UT_hash_handle))
                     .prev;
                 *fresh3 = (*_hd_hh_del_0).prev;
@@ -656,7 +656,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
             {
                 s = ((*(*(*(*go).byGID).hhID.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                     as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*go).byGID).hhID.tbl).hho as isize))
+                    .offset(-(*(*(*go).byGID).hhID.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut otfcc_GlyphOrderEntry
                     as *mut otfcc_GlyphOrderEntry;
             } else {
@@ -664,7 +664,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
             }
             while !s.is_null() {
                 if (*s).hhID.hashv == _hf_hashv
-                    && (*s).hhID.keylen as usize == ::core::mem::size_of::<glyphid_t>() as usize
+                    && (*s).hhID.keylen as usize == ::core::mem::size_of::<glyphid_t>()
                 {
                     if memcmp(
                         (*s).hhID.key,
@@ -677,7 +677,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                 }
                 if !(*s).hhID.hh_next.is_null() {
                     s = ((*s).hhID.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*go).byGID).hhID.tbl).hho as isize))
+                        .offset(-(*(*(*go).byGID).hhID.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_GlyphOrderEntry
                         as *mut otfcc_GlyphOrderEntry;
@@ -974,7 +974,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                         .buckets
                         .offset(_hf_bkt_0 as isize))
                     .hh_head as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                        .offset(-(*(*(*go).byName).hhName.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_GlyphOrderEntry
                         as *mut otfcc_GlyphOrderEntry;
@@ -996,7 +996,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
                     }
                     if !(*t).hhName.hh_next.is_null() {
                         t = ((*t).hhName.hh_next as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                            .offset(-(*(*(*go).byName).hhName.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut otfcc_GlyphOrderEntry
                             as *mut otfcc_GlyphOrderEntry;
@@ -1328,7 +1328,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
             (*s).hhID.tbl = (*(*go).byGID).hhID.tbl;
             (*s).hhID.next = NULL;
             (*s).hhID.prev = ((*(*(*go).byGID).hhID.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*go).byGID).hhID.tbl).hho as isize))
+                .offset(-(*(*(*go).byGID).hhID.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*go).byGID).hhID.tbl).tail).next = s as *mut ::core::ffi::c_void;
             (*(*(*go).byGID).hhID.tbl).tail = &raw mut (*s).hhID as *mut UT_hash_handle;
@@ -1756,7 +1756,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
             (*s).hhName.tbl = (*(*go).byName).hhName.tbl;
             (*s).hhName.next = NULL;
             (*s).hhName.prev = ((*(*(*go).byName).hhName.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                .offset(-(*(*(*go).byName).hhName.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*go).byName).hhName.tbl).tail).next = s as *mut ::core::ffi::c_void;
             (*(*(*go).byName).hhName.tbl).tail = &raw mut (*s).hhName as *mut UT_hash_handle;
@@ -2158,7 +2158,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                    .offset(-(*(*(*go).byName).hhName.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut otfcc_GlyphOrderEntry
                     as *mut otfcc_GlyphOrderEntry;
             } else {
@@ -2177,7 +2177,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
                 }
                 if !(*s).hhName.hh_next.is_null() {
                     s = ((*s).hhName.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                        .offset(-(*(*(*go).byName).hhName.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_GlyphOrderEntry
                         as *mut otfcc_GlyphOrderEntry;
@@ -2504,7 +2504,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
             (*s).hhID.tbl = (*(*go).byGID).hhID.tbl;
             (*s).hhID.next = NULL;
             (*s).hhID.prev = ((*(*(*go).byGID).hhID.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*go).byGID).hhID.tbl).hho as isize))
+                .offset(-(*(*(*go).byGID).hhID.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*go).byGID).hhID.tbl).tail).next = s as *mut ::core::ffi::c_void;
             (*(*(*go).byGID).hhID.tbl).tail = &raw mut (*s).hhID as *mut UT_hash_handle;
@@ -2932,7 +2932,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
             (*s).hhName.tbl = (*(*go).byName).hhName.tbl;
             (*s).hhName.next = NULL;
             (*s).hhName.prev = ((*(*(*go).byName).hhName.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                .offset(-(*(*(*go).byName).hhName.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*go).byName).hhName.tbl).tail).next = s as *mut ::core::ffi::c_void;
             (*(*(*go).byName).hhName.tbl).tail = &raw mut (*s).hhName as *mut UT_hash_handle;
@@ -3330,7 +3330,7 @@ unsafe extern "C" fn otfcc_gordNameAFieldShared(
             {
                 t = ((*(*(*(*go).byGID).hhID.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                     as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*go).byGID).hhID.tbl).hho as isize))
+                    .offset(-(*(*(*go).byGID).hhID.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut otfcc_GlyphOrderEntry
                     as *mut otfcc_GlyphOrderEntry;
             } else {
@@ -3338,7 +3338,7 @@ unsafe extern "C" fn otfcc_gordNameAFieldShared(
             }
             while !t.is_null() {
                 if (*t).hhID.hashv == _hf_hashv
-                    && (*t).hhID.keylen as usize == ::core::mem::size_of::<glyphid_t>() as usize
+                    && (*t).hhID.keylen as usize == ::core::mem::size_of::<glyphid_t>()
                 {
                     if memcmp(
                         (*t).hhID.key,
@@ -3351,7 +3351,7 @@ unsafe extern "C" fn otfcc_gordNameAFieldShared(
                 }
                 if !(*t).hhID.hh_next.is_null() {
                     t = ((*t).hhID.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*go).byGID).hhID.tbl).hho as isize))
+                        .offset(-(*(*(*go).byGID).hhID.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_GlyphOrderEntry
                         as *mut otfcc_GlyphOrderEntry;
@@ -3650,7 +3650,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
                         .buckets
                         .offset(_hf_bkt as isize))
                     .hh_head as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                        .offset(-(*(*(*go).byName).hhName.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_GlyphOrderEntry
                         as *mut otfcc_GlyphOrderEntry;
@@ -3672,7 +3672,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
                     }
                     if !(*t).hhName.hh_next.is_null() {
                         t = ((*t).hhName.hh_next as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                            .offset(-(*(*(*go).byName).hhName.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut otfcc_GlyphOrderEntry
                             as *mut otfcc_GlyphOrderEntry;
@@ -3972,7 +3972,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
                         .buckets
                         .offset(_hf_bkt_0 as isize))
                     .hh_head as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*go).byGID).hhName.tbl).hho as isize))
+                        .offset(-(*(*(*go).byGID).hhName.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_GlyphOrderEntry
                         as *mut otfcc_GlyphOrderEntry;
@@ -3982,7 +3982,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
                 while !t.is_null() {
                     if (*t).hhName.hashv == _hf_hashv_0
                         && (*t).hhName.keylen as usize
-                            == ::core::mem::size_of::<glyphid_t>() as usize
+                            == ::core::mem::size_of::<glyphid_t>()
                     {
                         if memcmp(
                             (*t).hhName.key,
@@ -3995,7 +3995,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
                     }
                     if !(*t).hhName.hh_next.is_null() {
                         t = ((*t).hhName.hh_next as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*go).byGID).hhName.tbl).hho as isize))
+                            .offset(-(*(*(*go).byGID).hhName.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut otfcc_GlyphOrderEntry
                             as *mut otfcc_GlyphOrderEntry;
@@ -4297,7 +4297,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
                         .buckets
                         .offset(_hf_bkt_1 as isize))
                     .hh_head as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                        .offset(-(*(*(*go).byName).hhName.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_GlyphOrderEntry
                         as *mut otfcc_GlyphOrderEntry;
@@ -4319,7 +4319,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
                     }
                     if !(*t_0).hhName.hh_next.is_null() {
                         t_0 = ((*t_0).hhName.hh_next as *mut ::core::ffi::c_char)
-                            .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                            .offset(-(*(*(*go).byName).hhName.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut otfcc_GlyphOrderEntry
                             as *mut otfcc_GlyphOrderEntry;
@@ -4624,7 +4624,7 @@ unsafe extern "C" fn gordLookupName(mut go: *mut otfcc_GlyphOrder, mut name: sds
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                    .offset(-(*(*(*go).byName).hhName.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut otfcc_GlyphOrderEntry
                     as *mut otfcc_GlyphOrderEntry;
             } else {
@@ -4643,7 +4643,7 @@ unsafe extern "C" fn gordLookupName(mut go: *mut otfcc_GlyphOrder, mut name: sds
                 }
                 if !(*t).hhName.hh_next.is_null() {
                     t = ((*t).hhName.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-((*(*(*go).byName).hhName.tbl).hho as isize))
+                        .offset(-(*(*(*go).byName).hhName.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut otfcc_GlyphOrderEntry
                         as *mut otfcc_GlyphOrderEntry;
