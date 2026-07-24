@@ -1458,14 +1458,30 @@ unsafe extern "C" fn decideFontSubtypeOTF(
     }
     return FONTTYPE_TTF;
 }
-unsafe extern "C" fn readOtf(
+// otfcc_Options and otfcc_Font are duplicated per-file by c2rust (like every
+// other type in this crate); the trait boundary uses erased c_void pointers
+// so this trait can be shared with json_reader.rs without deduping those
+// pervasively-used types. Casts are confined to the boundary; the pointee
+// layout is unchanged (same technique already relied on for the excluded
+// dump/parse/build methods in Track 1's package vtables).
+pub(crate) trait FontBuilder {
+    unsafe fn read(
+        buf: *mut ::core::ffi::c_void,
+        len: uint32_t,
+        options: *const ::core::ffi::c_void,
+    ) -> *mut ::core::ffi::c_void;
+}
+struct OtfReader;
+impl FontBuilder for OtfReader {
+    unsafe fn read(
     mut _sfnt: *mut ::core::ffi::c_void,
     mut index: uint32_t,
-    mut options: *const otfcc_Options,
-) -> *mut otfcc_Font {
+    options: *const ::core::ffi::c_void,
+) -> *mut ::core::ffi::c_void {
+    let options = options as *const otfcc_Options;
     let mut sfnt: *mut otfcc_SplineFontContainer = _sfnt as *mut otfcc_SplineFontContainer;
     if (*sfnt).count.wrapping_sub(1 as uint32_t) < index {
-        return ::core::ptr::null_mut::<otfcc_Font>();
+        return ::core::ptr::null_mut::<::core::ffi::c_void>();
     } else {
         let font: *mut otfcc_Font = (
             otfcc_iFont.create.expect("non-null function pointer"))();
@@ -1545,8 +1561,17 @@ unsafe extern "C" fn readOtf(
         );
         (*font).TSI5 = otfcc_readTSI5(packet, options);
         otfcc_unconsolidateFont(font, options);
-        return font;
+        return font as *mut ::core::ffi::c_void;
     };
+    }
+}
+unsafe extern "C" fn readOtf(
+    mut _sfnt: *mut ::core::ffi::c_void,
+    mut index: uint32_t,
+    mut options: *const otfcc_Options,
+) -> *mut otfcc_Font {
+    <OtfReader as FontBuilder>::read(_sfnt, index, options as *const ::core::ffi::c_void)
+        as *mut otfcc_Font
 }
 #[inline]
 unsafe extern "C" fn freeReader(mut self_0: *mut otfcc_IFontBuilder) {
