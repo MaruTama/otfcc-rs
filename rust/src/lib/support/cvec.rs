@@ -122,3 +122,135 @@ pub(crate) unsafe fn cvec_move<T>(dst: *mut CVecRaw<T>, src: *mut CVecRaw<T>) {
     *dst = *src;
     cvec_init(src);
 }
+
+// These tests pin down the *observable capacity arithmetic*, not just the
+// happy path. That matters because this one implementation backs all ~37
+// container types in the crate, and replacing it with `Vec<T>` (the largest
+// single step of the safe-Rust conversion) must not change how many bytes get
+// allocated at each step: a container's `capacity` is read directly by
+// surrounding code, and any growth-policy drift would change allocation
+// patterns that the byte-for-byte comparison against the C build cannot see.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    extern "C" {
+        fn free(ptr: *mut ::core::ffi::c_void);
+    }
+
+    fn empty<T>() -> CVecRaw<T> {
+        CVecRaw {
+            length: 0,
+            capacity: 0,
+            items: ::core::ptr::null_mut(),
+        }
+    }
+
+    /// Frees the backing allocation so the tests don't leak.
+    unsafe fn release<T>(v: &mut CVecRaw<T>) {
+        if !v.items.is_null() {
+            free(v.items as *mut ::core::ffi::c_void);
+        }
+        cvec_init(v);
+    }
+
+    #[test]
+    fn init_clears_all_three_fields() {
+        let mut v: CVecRaw<u32> = CVecRaw {
+            length: 7,
+            capacity: 9,
+            items: 0x1 as *mut u32,
+        };
+        unsafe { cvec_init(&mut v) };
+        assert_eq!(v.length, 0);
+        assert_eq!(v.capacity, 0);
+        assert!(v.items.is_null());
+    }
+
+    #[test]
+    fn push_grows_capacity_by_one_and_a_half() {
+        // 0 -> 2 (INITIAL_SIZE), then cap += cap / 2 until it covers the
+        // target. Recorded per push so a policy change can't slip through.
+        let expected = [2usize, 2, 3, 4, 6, 6, 9, 9, 9, 13];
+        let mut v: CVecRaw<u32> = empty();
+        unsafe {
+            for (i, want) in expected.iter().enumerate() {
+                cvec_push(&mut v, i as u32);
+                assert_eq!(v.capacity, *want, "capacity after {} push(es)", i + 1);
+                assert_eq!(v.length, i + 1);
+            }
+            release(&mut v);
+        }
+    }
+
+    #[test]
+    fn grow_to_is_a_noop_when_already_large_enough() {
+        let mut v: CVecRaw<u32> = empty();
+        unsafe {
+            cvec_grow_to(&mut v, 4);
+            assert_eq!(v.capacity, 4);
+            let items = v.items;
+            cvec_grow_to(&mut v, 4);
+            cvec_grow_to(&mut v, 1);
+            assert_eq!(v.capacity, 4);
+            assert_eq!(v.items, items, "must not reallocate");
+            release(&mut v);
+        }
+    }
+
+    #[test]
+    fn grow_to_n_overshoots_the_target_by_one() {
+        // Distinct from cvec_grow_to: the "_n" variant jumps straight to
+        // target + 1 instead of stepping by 1.5x.
+        let mut v: CVecRaw<u32> = empty();
+        unsafe {
+            cvec_grow_to_n(&mut v, 5);
+            assert_eq!(v.capacity, 6);
+            release(&mut v);
+        }
+    }
+
+    #[test]
+    fn resize_to_sets_capacity_exactly() {
+        let mut v: CVecRaw<u32> = empty();
+        unsafe {
+            cvec_resize_to(&mut v, 5);
+            assert_eq!(v.capacity, 5, "no rounding, unlike grow_to");
+            release(&mut v);
+        }
+    }
+
+    #[test]
+    fn push_then_pop_returns_values_in_reverse() {
+        let mut v: CVecRaw<u16> = empty();
+        unsafe {
+            for x in [10u16, 20, 30] {
+                cvec_push(&mut v, x);
+            }
+            assert_eq!(cvec_pop(&mut v), 30);
+            assert_eq!(cvec_pop(&mut v), 20);
+            assert_eq!(v.length, 1);
+            // Popping only rewinds `length`; the capacity stays put.
+            assert_eq!(v.capacity, 3);
+            release(&mut v);
+        }
+    }
+
+    #[test]
+    fn move_transfers_the_allocation_and_resets_the_source() {
+        let mut src: CVecRaw<u32> = empty();
+        let mut dst: CVecRaw<u32> = empty();
+        unsafe {
+            cvec_push(&mut src, 42);
+            let items = src.items;
+            cvec_move(&mut dst, &mut src);
+            assert_eq!(dst.items, items);
+            assert_eq!(dst.length, 1);
+            assert_eq!(*dst.items, 42);
+            assert!(src.items.is_null(), "source must not alias the allocation");
+            assert_eq!(src.length, 0);
+            assert_eq!(src.capacity, 0);
+            release(&mut dst);
+        }
+    }
+}

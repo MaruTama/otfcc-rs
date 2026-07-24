@@ -51,6 +51,15 @@ jobs:
       - name: Build the Rust crate and run cargo test
         run: ./rust/scripts/build-crate.sh
 
+      # Only four symbols are otfcc's real public C ABI (the otfccdll API);
+      # everything else the cdylib exports is an artifact of c2rust marking
+      # every non-static C function #[no_mangle]. This asserts the four are
+      # intact and that the rest of the surface matches the recorded snapshot,
+      # so neither an accidental new export nor a silently-dropped one slips
+      # through. See the header of check-abi.sh.
+      - name: Check the exported C ABI surface
+        run: ./rust/scripts/check-abi.sh
+
       # compare-with-c.sh builds the C toolchain with clang, not gcc: c2rust's
       # transpile is based on parsing with clang's AST, and gcc vs clang
       # produce measurably different floating-point rounding in this codebase

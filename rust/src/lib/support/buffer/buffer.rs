@@ -343,6 +343,176 @@ pub unsafe extern "C" fn bufpingpong16b(
     *offset = (*buf).cursor;
     bufseek(buf, *cp);
 }
+// Every byte of an OpenType file leaves the program through these functions,
+// so their endianness and cursor bookkeeping are the crate's most
+// consequential low-level contract. The byte-for-byte comparison against the C
+// build covers them only indirectly (and only for the byte sequences the test
+// payloads happen to produce); these tests state the contract directly.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    unsafe fn contents(buf: *mut caryll_Buffer) -> Vec<u8> {
+        if (*buf).data.is_null() {
+            return Vec::new();
+        }
+        ::core::slice::from_raw_parts((*buf).data, buflen(buf)).to_vec()
+    }
+
+    #[test]
+    fn fixed_width_writes_are_big_endian() {
+        unsafe {
+            let buf = bufnew();
+            bufwrite16b(buf, 0x1234);
+            bufwrite32b(buf, 0xdeadbeef);
+            bufwrite64b(buf, 0x0102030405060708);
+            assert_eq!(
+                contents(buf),
+                vec![
+                    0x12, 0x34, // 16b
+                    0xde, 0xad, 0xbe, 0xef, // 32b
+                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // 64b
+                ]
+            );
+            buffree(buf);
+        }
+    }
+
+    #[test]
+    fn fixed_width_writes_are_little_endian() {
+        unsafe {
+            let buf = bufnew();
+            bufwrite16l(buf, 0x1234);
+            bufwrite32l(buf, 0xdeadbeef);
+            bufwrite64l(buf, 0x0102030405060708);
+            assert_eq!(
+                contents(buf),
+                vec![
+                    0x34, 0x12, // 16l
+                    0xef, 0xbe, 0xad, 0xde, // 32l
+                    0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, // 64l
+                ]
+            );
+            buffree(buf);
+        }
+    }
+
+    #[test]
+    fn write24_keeps_only_the_low_three_bytes() {
+        // The high byte of the u32 argument is dropped, matching the original
+        // shift-mask expansion which never touched bits 24-31.
+        unsafe {
+            let buf = bufnew();
+            bufwrite24b(buf, 0xaabbccdd);
+            bufwrite24l(buf, 0xaabbccdd);
+            assert_eq!(contents(buf), vec![0xbb, 0xcc, 0xdd, 0xdd, 0xcc, 0xbb]);
+            buffree(buf);
+        }
+    }
+
+    #[test]
+    fn writes_advance_both_cursor_and_length() {
+        unsafe {
+            let buf = bufnew();
+            assert_eq!(buflen(buf), 0);
+            assert_eq!(bufpos(buf), 0);
+            bufwrite8(buf, 0xff);
+            bufwrite16b(buf, 0);
+            assert_eq!(bufpos(buf), 3);
+            assert_eq!(buflen(buf), 3);
+            buffree(buf);
+        }
+    }
+
+    #[test]
+    fn seeking_back_overwrites_in_place_without_shrinking() {
+        unsafe {
+            let buf = bufnew();
+            bufwrite32b(buf, 0);
+            bufseek(buf, 1);
+            bufwrite8(buf, 0xab);
+            assert_eq!(contents(buf), vec![0x00, 0xab, 0x00, 0x00]);
+            assert_eq!(buflen(buf), 4, "length must not shrink to the cursor");
+            buffree(buf);
+        }
+    }
+
+    #[test]
+    fn longalign_pads_to_a_multiple_of_four_and_restores_the_cursor() {
+        unsafe {
+            let buf = bufnew();
+            for _ in 0..5 {
+                bufwrite8(buf, 0x11);
+            }
+            bufseek(buf, 2);
+            buflongalign(buf);
+            assert_eq!(buflen(buf), 8, "5 bytes padded up to 8");
+            assert_eq!(bufpos(buf), 2, "cursor restored");
+            assert_eq!(contents(buf)[5..], [0, 0, 0]);
+
+            // Already aligned: nothing added.
+            bufseek(buf, buflen(buf));
+            buflongalign(buf);
+            assert_eq!(buflen(buf), 8);
+            buffree(buf);
+        }
+    }
+
+    #[test]
+    fn clear_resets_length_but_keeps_the_allocation() {
+        unsafe {
+            let buf = bufnew();
+            bufwrite32b(buf, 0xdeadbeef);
+            let allocated = (*buf).size + (*buf).free;
+            bufclear(buf);
+            assert_eq!(buflen(buf), 0);
+            assert_eq!(bufpos(buf), 0);
+            assert_eq!((*buf).free, allocated, "capacity moved into `free`");
+            buffree(buf);
+        }
+    }
+
+    #[test]
+    fn write_buf_appends_the_source_contents() {
+        unsafe {
+            let dst = bufnew();
+            let src = bufnew();
+            bufwrite8(dst, 0x01);
+            bufwrite16b(src, 0x0203);
+            bufwrite_buf(dst, src);
+            assert_eq!(contents(dst), vec![0x01, 0x02, 0x03]);
+            assert_eq!(buflen(src), 2, "bufwrite_buf must not consume the source");
+            buffree(src);
+            buffree(dst);
+        }
+    }
+
+    #[test]
+    fn ping_pong_backpatches_a_16bit_offset() {
+        // The offset-backpatching idiom used throughout the table writers:
+        // reserve a 16-bit offset slot, jump to where the pointed-at data
+        // goes, write it, then come back.
+        unsafe {
+            let buf = bufnew();
+            let mut offset: size_t = 4; // data will start at byte 4
+            let mut cp: size_t = 0;
+            bufwrite16b(buf, 0xffff); // placeholder we'll leave alone
+            bufping16b(buf, &mut offset, &mut cp);
+            assert_eq!(bufpos(buf), 4, "jumped to the data position");
+            assert_eq!(cp, 4, "saved the return position (just after the slot)");
+            bufwrite32b(buf, 0xcafebabe);
+            bufpong(buf, &mut offset, &mut cp);
+            assert_eq!(offset, 8, "offset advanced past the data just written");
+            assert_eq!(bufpos(buf), 4, "returned to the saved position");
+            assert_eq!(
+                contents(buf),
+                vec![0xff, 0xff, 0x00, 0x04, 0xca, 0xfe, 0xba, 0xbe]
+            );
+            buffree(buf);
+        }
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn bufprint(buf: *mut caryll_Buffer) {
     for j in 0..(*buf).size {

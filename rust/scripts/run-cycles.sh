@@ -71,7 +71,15 @@ fi
 SO_EXT="so"
 [ "$(uname)" = "Darwin" ] && SO_EXT="dylib"
 DLL="${BIN}/libotfcc_rust.${SO_EXT}"
-if [ -f "${DLL}" ]; then
+# Skip with an explicit reason when python3 can't load the cdylib at all (an
+# arch mismatch on Apple Silicon — see dll-arch-check.sh); any other
+# test-dll.py failure stays fatal under `set -e`.
+. "$(dirname "$0")/dll-arch-check.sh"
+DLL_ARCH_SKIP="$(dll_arch_skip_reason "${DLL}")"
+if [ -n "${DLL_ARCH_SKIP}" ]; then
+	echo "==> Skipping otfccdll test: ${DLL_ARCH_SKIP}"
+	echo "    (this check runs for real in the Linux container and in CI)"
+elif [ -f "${DLL}" ]; then
 	echo "==> Testing the otfccdll cdylib API (otfccbuild_json_otf et al.) via ctypes"
 	python3 "$(dirname "$0")/test-dll.py" \
 		"${DLL}" \

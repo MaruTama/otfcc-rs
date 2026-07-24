@@ -41,14 +41,58 @@ re-run c2rust. They just build the committed Rust source and check it:
 pip install fonttools && python3 rust/scripts/make-test-variable-font.py
                                    # optional: adds the gvar payload below
 ./rust/scripts/build-crate.sh   # cargo build --release + cargo test
+./rust/scripts/check-abi.sh     # the exported C ABI surface is unchanged
 ./rust/scripts/compare-with-c.sh # build C with clang, compare byte-for-byte
 ./rust/scripts/run-cycles.sh    # dump/build cycles against the Rust binaries
 node rust/scripts/compare-roundtrips.js
 ```
 
-(`./rust/scripts/test.sh` = `build-crate.sh` + `run-cycles.sh`, for
-convenience.) None of this needs Docker, c2rust, or a specific architecture —
-plain `rustup`/`cargo` plus a C compiler.
+(`./rust/scripts/test.sh` = `build-crate.sh` + `check-abi.sh` +
+`run-cycles.sh`, for convenience.) None of this needs Docker, c2rust, or a
+specific architecture — plain `rustup`/`cargo` plus a C compiler.
+
+## The public ABI is four functions — and why that matters
+
+otfcc's real public C ABI, as far as anything outside this crate can observe,
+is exactly four symbols — the `otfccdll` API that `test-dll.py` drives through
+ctypes:
+
+```
+otfccbuild_json_otf   otfcc_get_buf_len   otfcc_get_buf_data
+otfccbuild_free_otfbuf
+```
+
+plus the two CLI binaries. Everything *else* the cdylib exports (574 symbols
+at the time of writing, listed in `scripts/abi-exports.txt`) is exported only
+because c2rust marked every non-`static` C function `#[no_mangle]`. Those are
+internal cross-module calls that happen to have external linkage; no consumer
+links against them.
+
+This is worth stating explicitly because it defines the boundary of what the
+idiomatization is allowed to change. `compare-with-c.sh` and `test-dll.py` run
+the C and the Rust implementations as **separate processes / separate shared
+libraries** and compare their *output*; at no point do C code and Rust code
+share a struct inside one process. So:
+
+> **Byte-identical output is the invariant. ABI-compatible internals are
+> not.** Internal struct layouts, `#[repr(C)]`, field order, and the
+> `#[no_mangle]` attribute on internal functions can all change freely, as
+> long as the four symbols above keep working and the built fonts stay
+> byte-for-byte identical.
+
+That is what makes the remaining work (replacing the C-style containers,
+`sds` strings, and `malloc`/`free` ownership with `Vec`/`String`/`Box`)
+possible at all, rather than being blocked by an imagined ABI contract.
+
+`check-abi.sh` keeps this honest: it fails if any of the four goes missing,
+fails if a *new* symbol appears un-recorded (an internal helper accidentally
+becoming public), and fails if a recorded symbol *disappears* until the
+snapshot is refreshed with `check-abi.sh --update`. So each batch of newly
+internalized symbols shows up as a reviewable diff of `abi-exports.txt`
+instead of passing unnoticed. The three `__ctype_*_loc` shims are excluded
+from the snapshot because they are `#[cfg(target_os = "macos")]`-only (on
+glibc they come from libc), making them the one genuinely platform-dependent
+part of the surface.
 
 ## Regenerating the Rust source (manual only, and now mostly historical)
 
@@ -162,7 +206,11 @@ transpile step itself needs arm64.
   round-trip targets against an already-built crate, for every payload the C
   test suite covers (minus two fonts that crash both C and Rust with a stack
   overflow — see Status below), plus the `otfccdll` cdylib test if built.
-- `test.sh` — convenience wrapper: `build-crate.sh` + `run-cycles.sh`.
+- `check-abi.sh` — verifies the cdylib's exported C ABI surface against
+  `abi-exports.txt` (see "The public ABI is four functions" above).
+  `--update` refreshes the snapshot.
+- `test.sh` — convenience wrapper: `build-crate.sh` + `check-abi.sh` +
+  `run-cycles.sh`.
 - `compare-roundtrips.js` — runs `tests/ttf-roundtrip-test.js` over every
   payload produced and reports a single pass/fail summary.
 - `compare-with-c.sh` — builds the C toolchain **with clang** and compares
@@ -174,7 +222,22 @@ transpile step itself needs arm64.
   *identical* machine, while clang builds match byte-for-byte across
   architectures and OSes — arm64 Linux, amd64 Linux, and arm64 macOS all
   agree). Using gcc here would flag that gcc/clang difference as a false
-  Rust-vs-C mismatch.
+  Rust-vs-C mismatch. Picks the premake/ninja binaries and the `quick.make`
+  target from `uname`, so it works natively on macOS as well as Linux — and
+  because `build/`/`bin/` are shared with the Linux verification container
+  (which bind-mounts the repo at its host path), it first checks whether the
+  existing object tree was built for the *other* OS and clears it if so. A
+  stale cross-OS tree otherwise shows up either as "file format not
+  recognized" from the linker or, worse, as *every* payload mismatching —
+  which looks exactly like a Rust regression and isn't one.
+- `dll-arch-check.sh` — sourced by `run-cycles.sh`/`compare-with-c.sh` to
+  detect when python3 cannot `dlopen` the crate's cdylib at all, so the
+  ctypes check is skipped with a stated reason instead of failing. This
+  happens on Apple Silicon: the pinned nightly is an `x86_64-apple-darwin`
+  toolchain, so it emits an x86_64 dylib while the system python3 is arm64,
+  and no Rosetta python3 exists to load it. The check runs for real in the
+  arch-matched Linux container and in CI; moving to a native stable toolchain
+  removes the mismatch outright.
 - `make-test-variable-font.py` — builds a minimal, self-contained variable
   font (fvar + gvar, one `wght` axis, two masters, via fontTools APIs — no
   external download) to exercise the gvar delta-application path, which none
@@ -218,9 +281,11 @@ Two fonts (`Cormorant-Medium.otf`, `WorkSans-Regular.otf`) crash both the C
 CFF interpreter (verified: the C binary also exits SIGSEGV on them), not
 something the Rust translation introduced or needs to fix here.
 
-**CI checks four things**: the crate builds and `cargo test` passes
-(currently 0 tests — c2rust generates none; Phase 2 is where real coverage
-gets added), its output (including the gvar payload and the `otfccdll`
+**CI checks five things**: the crate builds and `cargo test` passes (c2rust
+generated no tests; hand-written coverage now starts with the `cvec` capacity
+arithmetic and the `caryll_Buffer` byte-order/cursor contract, and grows with
+each idiomatized module), the exported C ABI surface is unchanged
+(`check-abi.sh`), its output (including the gvar payload and the `otfccdll`
 cdylib) is byte-identical to the C toolchain's (`compare-with-c.sh`), and the
 round-trip stability tests pass (`compare-roundtrips.js`). It's a single
 `ubuntu-latest` job, no Docker.

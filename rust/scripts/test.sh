@@ -17,4 +17,5 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 ./rust/scripts/build-crate.sh
+./rust/scripts/check-abi.sh
 ./rust/scripts/run-cycles.sh
