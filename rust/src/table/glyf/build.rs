@@ -1,12 +1,5 @@
+use libc::{free};
 extern "C" {
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
     fn buflen(buf: *mut caryll_Buffer) -> usize;
@@ -24,7 +17,7 @@ extern "C" {
 }
 
 use crate::support::handle::{otfcc_Handle, otfcc_GlyphHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::binio::{pos_to_u16};
 use crate::support::alloc::{__caryll_allocate_clean};
 pub type sds = *mut ::core::ffi::c_char;

@@ -1,23 +1,5 @@
+use libc::{exit, free, malloc, memcmp, memset};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: usize,
-    ) -> *mut ::core::ffi::c_void;
-    fn memcmp(
-        __s1: *const ::core::ffi::c_void,
-        __s2: *const ::core::ffi::c_void,
-        __n: usize,
-    ) -> ::core::ffi::c_int;
     static otl_iClassDef: __otfcc_IClassDef;
     static iSubtable_chaining: __caryll_elementinterface_subtable_chaining;
     fn otfcc_build_chaining(_subtable: *const otl_Subtable) -> *mut caryll_Buffer;
@@ -28,7 +10,7 @@ extern "C" {
 use crate::table::otl::classdef::{otl_ClassDef_create, pushClassDef, otl_ClassDef};
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{handle_fromConsolidated, handle_fromIndex, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;

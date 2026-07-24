@@ -1,12 +1,5 @@
+use libc::{free};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
@@ -17,7 +10,7 @@ extern "C" {
 use crate::table::otl::classdef::{otl_ClassDef_free, readClassDef, otl_ClassDef};
 use crate::table::otl::coverage::{otl_Coverage_free, readCoverage, otl_Coverage};
 use crate::support::handle::{handle_fromIndex, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 pub type json_type = ::core::ffi::c_uint;

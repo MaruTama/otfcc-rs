@@ -1,10 +1,5 @@
+use libc::{fprintf, free};
 extern "C" {
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
     fn buffree(buf: *mut caryll_Buffer);
 }
 
@@ -66,7 +61,7 @@ pub const VISIT_BLACK: bk_cell_visit_state = 2;
 pub const VISIT_GRAY: bk_cell_visit_state = 1;
 pub const VISIT_WHITE: bk_cell_visit_state = 0;
 pub type bk_Block = __caryll_bkblock;
-use crate::support::stdio::{FILE, stderr};
+use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();

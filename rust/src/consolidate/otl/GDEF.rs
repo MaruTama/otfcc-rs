@@ -1,27 +1,9 @@
+use libc::{exit, free, malloc, memcmp, memset};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: usize,
-    ) -> *mut ::core::ffi::c_void;
-    fn memcmp(
-        __s1: *const ::core::ffi::c_void,
-        __s2: *const ::core::ffi::c_void,
-        __n: usize,
-    ) -> ::core::ffi::c_int;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
     static otl_iClassDef: __otfcc_IClassDef;
     static otl_iCaretValueList: __caryll_vectorinterface_otl_CaretValueList;
@@ -35,7 +17,7 @@ extern "C" {
 
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{handle_fromConsolidated, otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 #[derive(Copy, Clone)]
 #[repr(C)]

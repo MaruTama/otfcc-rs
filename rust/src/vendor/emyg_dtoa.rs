@@ -1,10 +1,4 @@
-extern "C" {
-    fn memmove(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: usize,
-    ) -> *mut ::core::ffi::c_void;
-}
+use libc::{memmove};
 pub type DiyFp = DiyFp_s;
 #[derive(Copy, Clone)]
 #[repr(C)]

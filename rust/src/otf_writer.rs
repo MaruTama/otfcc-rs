@@ -1,14 +1,7 @@
 pub mod stat;
 
+use libc::{free};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
     fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
@@ -138,7 +131,7 @@ extern "C" {
 use crate::table::otl::classdef::{otl_ClassDef};
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]

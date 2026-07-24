@@ -1,16 +1,5 @@
+use libc::{fprintf, free, qsort};
 extern "C" {
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn qsort(
-        __base: *mut ::core::ffi::c_void,
-        __nmemb: usize,
-        __size: usize,
-        __compar: __compar_fn_t,
-    );
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
@@ -90,7 +79,7 @@ pub struct bk_Graph {
 }
 pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-use crate::support::stdio::{FILE, stderr};
+use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;

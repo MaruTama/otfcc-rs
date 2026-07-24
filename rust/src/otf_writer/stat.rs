@@ -1,24 +1,16 @@
+use libc::{free, time};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static glyf_iComponentReference: __caryll_elementinterface_glyf_ComponentReference;
     static iVQ: __caryll_vectorinterface_VQ;
     static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
-    fn time(__timer: *mut time_t) -> time_t;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{handle_fromIndex, otfcc_Handle_replace, otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle, HANDLE_STATE_EMPTY};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 pub type __time_t = ::core::ffi::c_long;
 #[derive(Copy, Clone)]

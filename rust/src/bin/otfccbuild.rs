@@ -6,64 +6,17 @@
     unused_assignments,
     unused_mut
 )]
-#![feature(extern_types, raw_ref_op)]
+#![feature(raw_ref_op)]
 #[allow(unused_imports)]
 use ::otfcc_rust;
 use otfcc_rust::table::otl::coverage::{otl_Coverage};
 use otfcc_rust::support::stdio::{stderr, stdin, stdout, FILE};
+use libc::{exit, fclose, feof, fgets, fopen, fprintf, fread, free, fseek, ftell, fwrite, malloc, realloc, strcmp, strlen, strtol};
 extern "C" {
-    fn fclose(__stream: *mut FILE) -> ::core::ffi::c_int;
-    fn fopen(
-        __filename: *const ::core::ffi::c_char,
-        __modes: *const ::core::ffi::c_char,
-    ) -> *mut FILE;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn fgets(
-        __s: *mut ::core::ffi::c_char,
-        __n: ::core::ffi::c_int,
-        __stream: *mut FILE,
-    ) -> *mut ::core::ffi::c_char;
-    fn fread(
-        __ptr: *mut ::core::ffi::c_void,
-        __size: usize,
-        __n: usize,
-        __stream: *mut FILE,
-    ) -> ::core::ffi::c_ulong;
-    fn fwrite(
-        __ptr: *const ::core::ffi::c_void,
-        __size: usize,
-        __n: usize,
-        __s: *mut FILE,
-    ) -> ::core::ffi::c_ulong;
-    fn fseek(
-        __stream: *mut FILE,
-        __off: ::core::ffi::c_long,
-        __whence: ::core::ffi::c_int,
-    ) -> ::core::ffi::c_int;
-    fn ftell(__stream: *mut FILE) -> ::core::ffi::c_long;
-    fn feof(__stream: *mut FILE) -> ::core::ffi::c_int;
-    fn strtol(
-        __nptr: *const ::core::ffi::c_char,
-        __endptr: *mut *mut ::core::ffi::c_char,
-        __base: ::core::ffi::c_int,
-    ) -> ::core::ffi::c_long;
-    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
-    fn strcmp(
-        __s1: *const ::core::ffi::c_char,
-        __s2: *const ::core::ffi::c_char,
-    ) -> ::core::ffi::c_int;
-    fn strlen(__s: *const ::core::ffi::c_char) -> usize;
     fn json_parse(json: *const ::core::ffi::c_char, length: usize) -> *mut json_value;
     fn json_value_free(_: *mut json_value);
     fn otfcc_newLogger(target: *mut otfcc_ILoggerTarget) -> *mut otfcc_ILogger;

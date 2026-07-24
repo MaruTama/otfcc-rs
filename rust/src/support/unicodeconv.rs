@@ -1,5 +1,5 @@
+use libc::{malloc};
 extern "C" {
-    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
 }
 pub type sds = *mut ::core::ffi::c_char;

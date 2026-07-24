@@ -1,10 +1,4 @@
-extern "C" {
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: usize,
-    ) -> *mut ::core::ffi::c_void;
-}
+use libc::{memset};
 pub type BYTE = ::core::ffi::c_uchar;
 pub type WORD = ::core::ffi::c_uint;
 #[derive(Copy, Clone)]

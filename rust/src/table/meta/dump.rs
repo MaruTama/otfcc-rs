@@ -1,5 +1,5 @@
+use libc::{free};
 extern "C" {
-    fn free(__ptr: *mut ::core::ffi::c_void);
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn json_array_new(length: usize) -> *mut json_value;

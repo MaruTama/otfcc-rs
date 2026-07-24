@@ -1,17 +1,5 @@
+use libc::{free, memcpy};
 extern "C" {
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: usize,
-    ) -> *mut ::core::ffi::c_void;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn otfcc_from_f2dot14(x: f2dot14) -> ::core::ffi::c_double;
@@ -31,7 +19,7 @@ extern "C" {
 }
 
 use crate::support::handle::{handle_fromIndex, otfcc_Handle, otfcc_GlyphHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_8s, read_16u, read_16s, read_32u};
 pub type sds = *mut ::core::ffi::c_char;

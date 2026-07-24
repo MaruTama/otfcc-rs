@@ -1,25 +1,4 @@
-extern "C" {
-    fn fclose(__stream: *mut FILE) -> ::core::ffi::c_int;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn fread(
-        __ptr: *mut ::core::ffi::c_void,
-        __size: usize,
-        __n: usize,
-        __stream: *mut FILE,
-    ) -> ::core::ffi::c_ulong;
-    fn fseek(
-        __stream: *mut FILE,
-        __off: ::core::ffi::c_long,
-        __whence: ::core::ffi::c_int,
-    ) -> ::core::ffi::c_int;
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-}
+use libc::{exit, fclose, fprintf, fread, free, fseek};
 
 use crate::support::stdio::{FILE, stderr};
 use crate::support::alloc::{__caryll_allocate_clean};

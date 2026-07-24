@@ -22,10 +22,7 @@
 // pointers) stay written out per container, since genericizing callback
 // dispatch is a separate, larger design question than this arithmetic.
 
-extern "C" {
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: usize) -> *mut ::core::ffi::c_void;
-}
+use libc::{calloc, realloc};
 
 const INITIAL_SIZE: usize = 2;
 

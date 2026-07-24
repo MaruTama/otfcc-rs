@@ -1,5 +1,5 @@
+use libc::{malloc};
 extern "C" {
-    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_object_new(length: usize) -> *mut json_value;

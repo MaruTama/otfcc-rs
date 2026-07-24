@@ -1,8 +1,5 @@
+use libc::{strcmp};
 extern "C" {
-    fn strcmp(
-        __s1: *const ::core::ffi::c_char,
-        __s2: *const ::core::ffi::c_char,
-    ) -> ::core::ffi::c_int;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static vdmx_iGroup: __caryll_vectorinterface_vdmx_Group;

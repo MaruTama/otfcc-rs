@@ -1,23 +1,12 @@
 pub mod otl;
 
+use libc::{free, strcmp};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn sdscatfmt(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
-    fn strcmp(
-        __s1: *const ::core::ffi::c_char,
-        __s2: *const ::core::ffi::c_char,
-    ) -> ::core::ffi::c_int;
     static tsi_iEntry: __caryll_elementinterface_tsi_Entry;
     static table_iTSI: __caryll_vectorinterface_table_TSI;
     static glyf_iContourList: __caryll_vectorinterface_glyf_ContourList;
@@ -127,7 +116,7 @@ extern "C" {
 
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{handle_consolidateTo, handle_fromIndex, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle, HANDLE_STATE_INDEX, HANDLE_STATE_EMPTY};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 #[derive(Copy, Clone)]
 #[repr(C)]

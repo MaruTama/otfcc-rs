@@ -1,11 +1,7 @@
+use libc::{memcpy};
 extern "C" {
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: usize,
-    ) -> *mut ::core::ffi::c_void;
 }
 pub type sds = *mut ::core::ffi::c_char;
 pub type glyphid_t = u16;

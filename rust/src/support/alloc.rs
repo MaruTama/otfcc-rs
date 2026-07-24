@@ -6,19 +6,9 @@
 // already reviewed for the idiomatization pass) have been migrated to use
 // this module so far; the remaining ~47 files still carry their own private
 // copy pending a future, wider pass.
-use crate::support::stdio::{stderr, FILE};
+use crate::support::stdio::{stderr};
 
-extern "C" {
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-}
+use libc::{calloc, exit, fprintf, free, realloc};
 
 const EXIT_FAILURE: ::core::ffi::c_int = 1;
 

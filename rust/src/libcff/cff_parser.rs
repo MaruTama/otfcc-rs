@@ -1,19 +1,7 @@
+use libc::{free, memcpy};
 extern "C" {
     fn sqrt(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: usize,
-    ) -> *mut ::core::ffi::c_void;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static cff_iIndex: __caryll_elementinterface_cff_Index;
@@ -35,7 +23,7 @@ extern "C" {
     fn cff_decodeCS2Token(start: *const u8, val: *mut cff_Value) -> u32;
 }
 
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]

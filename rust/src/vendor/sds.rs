@@ -1,3 +1,4 @@
+use libc::{free, malloc, memcmp, memcpy, memmove, memset, realloc, strchr, strlen};
 extern "C" {
     fn vsnprintf(
         __s: *mut ::core::ffi::c_char,
@@ -5,32 +6,6 @@ extern "C" {
         __format: *const ::core::ffi::c_char,
         __arg: ::core::ffi::VaList,
     ) -> ::core::ffi::c_int;
-    fn malloc(__size: usize) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: usize,
-    ) -> *mut ::core::ffi::c_void;
-    fn memmove(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: usize,
-    ) -> *mut ::core::ffi::c_void;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: usize,
-    ) -> *mut ::core::ffi::c_void;
-    fn memcmp(
-        __s1: *const ::core::ffi::c_void,
-        __s2: *const ::core::ffi::c_void,
-        __n: usize,
-    ) -> ::core::ffi::c_int;
-    fn strchr(__s: *const ::core::ffi::c_char, __c: ::core::ffi::c_int)
-        -> *mut ::core::ffi::c_char;
-    fn strlen(__s: *const ::core::ffi::c_char) -> usize;
     #[cfg(not(target_os = "macos"))]
     fn __ctype_b_loc() -> *mut *const ::core::ffi::c_ushort;
     #[cfg(not(target_os = "macos"))]

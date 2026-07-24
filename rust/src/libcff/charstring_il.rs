@@ -1,13 +1,5 @@
+use libc::{free};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
     fn bufnew() -> *mut caryll_Buffer;
     static iVQ: __caryll_vectorinterface_VQ;
     fn cff_getStandardArity(op: u32) -> u8;
@@ -19,7 +11,7 @@ extern "C" {
 }
 
 use crate::support::handle::{otfcc_Handle, otfcc_GlyphHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 pub type __builtin_va_list = __va_list;
 #[derive(Copy, Clone)]

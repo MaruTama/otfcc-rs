@@ -6,43 +6,22 @@
     unused_assignments,
     unused_mut
 )]
-#![feature(extern_types, raw_ref_op)]
+#![feature(raw_ref_op)]
 #[allow(unused_imports)]
 use ::otfcc_rust;
 use otfcc_rust::table::otl::coverage::{otl_Coverage};
 use otfcc_rust::support::stdio::{stdin, stdout, FILE};
+use libc::{calloc, exit, fclose, fgetc, fileno, fopen, fprintf, fputc, fputs, free, fwrite, isatty, strcmp, strdup, strtol};
+// `otfcc_readSFNT` and friends are this crate's own functions, still reached
+// through `extern "C"` rather than `use otfcc_rust::…` because the binary also
+// carries its own copies of the types in their signatures. Once those types
+// are unified the declarations go away and so does this allow, which is only
+// needed because `libc::FILE` is deliberately opaque.
+#[allow(improper_ctypes)]
 extern "C" {
-    fn strtol(
-        __nptr: *const ::core::ffi::c_char,
-        __endptr: *mut *mut ::core::ffi::c_char,
-        __base: ::core::ffi::c_int,
-    ) -> ::core::ffi::c_long;
-    fn calloc(__nmemb: usize, __size: usize) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
     fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
-    fn fclose(__stream: *mut FILE) -> ::core::ffi::c_int;
-    fn fopen(
-        __filename: *const ::core::ffi::c_char,
-        __modes: *const ::core::ffi::c_char,
-    ) -> *mut FILE;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn getc(__stream: *mut FILE) -> ::core::ffi::c_int;
-    fn fputc(__c: ::core::ffi::c_int, __stream: *mut FILE) -> ::core::ffi::c_int;
-    fn fputs(__s: *const ::core::ffi::c_char, __stream: *mut FILE) -> ::core::ffi::c_int;
-    fn fwrite(
-        __ptr: *const ::core::ffi::c_void,
-        __size: usize,
-        __n: usize,
-        __s: *mut FILE,
-    ) -> ::core::ffi::c_ulong;
-    fn fileno(__stream: *mut FILE) -> ::core::ffi::c_int;
     fn otfcc_readSFNT(file: *mut FILE) -> *mut otfcc_SplineFontContainer;
     fn otfcc_deleteSFNT(font: *mut otfcc_SplineFontContainer);
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
@@ -62,15 +41,9 @@ extern "C" {
         __longopts: *const option,
         __longind: *mut ::core::ffi::c_int,
     ) -> ::core::ffi::c_int;
-    fn strcmp(
-        __s1: *const ::core::ffi::c_char,
-        __s2: *const ::core::ffi::c_char,
-    ) -> ::core::ffi::c_int;
-    fn strdup(__s: *const ::core::ffi::c_char) -> *mut ::core::ffi::c_char;
     static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
     fn otfcc_newOTFReader() -> *mut otfcc_IFontBuilder;
     fn otfcc_newJsonWriter() -> *mut otfcc_IFontSerializer;
-    fn isatty(__fd: ::core::ffi::c_int) -> ::core::ffi::c_int;
     fn time_now(tv: *mut timespec);
     fn push_stopwatch(sofar: *mut timespec) -> sds;
 }
@@ -1525,7 +1498,7 @@ pub const json_serialize_mode_multiline: ::core::ffi::c_int = 0 as ::core::ffi::
 pub const json_serialize_mode_packed: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn getchar() -> ::core::ffi::c_int {
-    return getc(stdin);
+    return fgetc(stdin);
 }
 pub const no_argument: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
 pub const required_argument: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
