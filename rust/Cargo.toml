@@ -7,17 +7,14 @@ authors = ["C2Rust"]
 version = "0.0.0"
 publish = false
 edition = "2021"
-autobins = false
 
+# Standard cargo layout: the library is src/lib.rs and the two CLI binaries are
+# auto-discovered from src/bin/, so neither needs an explicit `path`.
+# `staticlib`/`cdylib` mirror what the C build produces (premake5.lua builds
+# otfccdll as a SharedLib); the four public `extern "C"` functions in
+# src/ffi/dll.rs are what callers reach through the cdylib.
 [lib]
 name = "otfcc_rust"
-path = "lib.rs"
 crate-type = ["staticlib", "rlib", "cdylib"]
-[[bin]]
-path = "src/src/otfccdump.rs"
-name = "otfccdump"
-[[bin]]
-path = "src/src/otfccbuild.rs"
-name = "otfccbuild"
-[dependencies]
 
+[dependencies]

@@ -65,7 +65,7 @@ fi
 #   - _init/_fini/__bss_start/_edata/_end/_IO_stdin_used are ELF linker
 #     artifacts, not ours.
 #   - __ctype_b_loc/__ctype_tolower_loc/__ctype_toupper_loc are the
-#     macOS-only portability shims in src/lib/support/ctype_compat.rs
+#     macOS-only portability shims in rust/src/support/ctype_compat.rs
 #     (`#[cfg(target_os = "macos")]` — on glibc these come from libc instead),
 #     so they are the one genuinely platform-dependent part of the surface and
 #     are excluded to keep a single shared snapshot.

@@ -4,15 +4,12 @@
 # ttfroundtriptest/cffroundtriptest targets.
 #
 # Invoke as:
-#   docker run --rm -v "$PWD":"$PWD" -w "$PWD" \
-#       --entrypoint bash otfcc-c2rust rust/scripts/test.sh
+#   ./rust/scripts/test.sh
 #
-# Requires rust/ to already exist (run transpile.sh
-# first). Requires `node` on the host for tests/ttf-roundtrip-test.js —
-# that step runs OUTSIDE this container, so this script only builds the
-# crate and produces the dump/build cycle artifacts under build/; run the
-# `node tests/ttf-roundtrip-test.js` comparisons on the host afterward (see
-# the loop this script prints at the end).
+# The round-trip comparisons need `node`, so this script only builds the crate
+# and produces the dump/build cycle artifacts under build/; run
+# `node rust/scripts/compare-roundtrips.js` afterward (see the loop this
+# script prints at the end).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 

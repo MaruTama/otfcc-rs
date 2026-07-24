@@ -26,11 +26,36 @@ splitting them would mean duplicating the font payloads. `c/premake5.lua`
 and `c/quick.make` are written to still produce `build/` and `bin/` at the
 repo root (not nested under `c/`), so nothing downstream (this directory's
 scripts, CI) had to change its output-path assumptions. This directory is
-flattened: the crate root (`Cargo.toml`, `lib.rs`, `src/`) and the migration
-tooling (`compare-with-c.sh`, `Dockerfile`, this README, ...) live side by
-side directly in `rust/` — there is no separate `transpiled/` subdirectory.
-`transpile.sh` knows the difference and only touches the crate-owned files
-when regenerating (see "Regenerating the Rust source" below).
+flattened: the crate root (`Cargo.toml`, `src/`) and the migration tooling
+(`scripts/`, this README) live side by side directly in `rust/` — there is no
+separate `transpiled/` subdirectory.
+
+## Crate layout
+
+The crate uses the standard cargo layout. c2rust originally emitted every
+module under a `src::lib::` / `src::dep::r#extern::` / `src::src::` tree that
+mirrored the C source directories, so paths read
+`crate::src::lib::support::stdio::FILE` and each module lived in a directory
+named after itself (`src/lib/support/buffer/buffer.rs`). That is now:
+
+```
+rust/Cargo.toml
+rust/src/lib.rs                  crate root: a flat list of `pub mod`
+rust/src/bin/{otfccdump,otfccbuild}.rs
+rust/src/ffi/dll.rs              the four public extern "C" functions
+rust/src/vendor/{sds,json,json_builder,emyg_dtoa}.rs   third-party C
+rust/src/{bk,consolidate,font,json_reader,json_writer,libcff,logger,
+          otf_reader,otf_writer,support,table,vf}[.rs|/]
+```
+
+Every directory has a sibling module file (`src/support.rs` for
+`src/support/`), the 2018-style layout with no `mod.rs`, so paths are now
+`crate::support::stdio::FILE`. `push_stopwatch` lives in
+`src/support/stopwatch.rs` rather than `src/bin/` — the two binaries link
+against it as a library symbol, and anything directly under `src/bin/` would
+be treated as a third binary target. `table/meta/type.rs` and
+`table/vdmx/type.rs` became `types.rs`, which removes the `r#type` escaping
+from those paths.
 
 ## Everyday use: just build and test
 
@@ -94,23 +119,24 @@ from the snapshot because they are `#[cfg(target_os = "macos")]`-only (on
 glibc they come from libc), making them the one genuinely platform-dependent
 part of the surface.
 
-## Regenerating the Rust source (manual only, and now mostly historical)
+## Regenerating the Rust source — retired, kept for the audit trail
 
-Re-transpiling is a **manual, local, occasional** step — done after a C-side
-change, reviewed like any other diff, and committed. It is not automated in
-CI. Requires Docker and (see below) a **native arm64** host.
+**The transpile pipeline now lives in `scripts/archive/` and must not be
+run.** It was already destructive when Phase 2 began (`transpile.sh` does
+`rm -rf rust/src` and copies fresh c2rust output over it, discarding every
+hand-idiomatized file); the standard cargo layout adopted in Phase 3 means its
+output no longer even maps onto this crate's directory structure. A C-side
+change is ported to Rust by hand from here on, mirroring whatever the
+equivalent C diff does.
 
-**Since Phase 2 (idiomatization) started, re-running this will destroy hand-
-edited code.** `transpile.sh` replaces the c2rust-owned crate files under
-`rust/` (`src/`, `Cargo.toml`, `Cargo.lock`, `build.rs`, `lib.rs` — not the
-hand-maintained scripts/Dockerfile/README that now share this flattened
-directory) with fresh c2rust output, which would overwrite every idiomatized
-file (`lib/support/buffer/buffer.rs`, `lib/bk/bkblock.rs`,
-`lib/bk/bkgraph.rs`, `lib/support/alloc.rs`, `lib.rs`'s module list, ...).
-The steps below are kept for reference/audit purposes and for the C-only
-files that haven't been idiomatized yet, but from here on a C-side change
-should be ported to the Rust side by hand (mirroring whatever the equivalent
-C diff does), not by re-transpiling.
+It stays in the repository rather than being deleted because it documents
+*why* parts of this crate look the way they do — in particular
+`fix-float-narrowing.py`'s call-site list, which is the reason for the
+deliberate `EXPR as int16_t as uint16_t` double casts that must never be
+"simplified" away.
+
+<details>
+<summary>The original procedure (do not run)</summary>
 
 1. Generate the compilation database (macOS shown; `OS=linux` on Linux):
 
@@ -122,7 +148,7 @@ C diff does), not by re-transpiling.
    from source):
 
    ```bash
-   docker build -t otfcc-c2rust -f rust/scripts/Dockerfile rust/scripts/
+   docker build -t otfcc-c2rust -f rust/scripts/archive/Dockerfile rust/scripts/archive/
    ```
 
 3. Transpile. The repo is mounted at its **host path** so the absolute paths
@@ -132,7 +158,7 @@ C diff does), not by re-transpiling.
 
    ```bash
    docker run --rm -v "$PWD":"$PWD" -w "$PWD" \
-       --entrypoint bash otfcc-c2rust rust/scripts/transpile.sh
+       --entrypoint bash otfcc-c2rust rust/scripts/archive/transpile.sh
    ```
 
 4. Verify it still builds and matches C (see "Everyday use" above), then
@@ -192,13 +218,16 @@ transpile step itself needs arm64.
   `kPow10` index (a latent OOB in the C source that Rust's bounds checks
   catch — see the comment in `transpile.sh` for the full mechanism).
 
+</details>
+
 ## Pipeline pieces
 
 - `gen-compile-commands.sh` / `filter-compdb.js` — host-side: premake →
   `ninja -t compdb cc` → reduce to the single release-x64 C config
-  (118 translation units). Only needed to regenerate the Rust source.
-- `Dockerfile` — native-arm64 c2rust 0.22.1 image. Only needed to regenerate.
-- `transpile.sh` — runs c2rust and the fixups above. Only needed to regenerate.
+  (118 translation units). Was the input to the transpiler; still useful on
+  its own for pointing clangd at the C sources.
+- `archive/{Dockerfile,transpile.sh,fix-transmute-abi.py,fix-float-narrowing.py}`
+  — the retired c2rust pipeline. Do not run; see the section above.
 - `build-crate.sh` — builds the committed crate (release) and runs
   `cargo test`. Needs only rustup + cargo (the pinned nightly in
   `rust-toolchain.toml`) — no c2rust/Docker, works on any architecture.
@@ -253,7 +282,7 @@ transpile step itself needs arm64.
 
 ## Status: Phase 1 complete
 
-The committed crate (`Cargo.toml`, `lib.rs`, `build.rs`, the
+The committed crate (`Cargo.toml`, `src/lib.rs`, `build.rs`, the
 `otfccdump`/`otfccbuild` binaries, `otfccdll` compiled into the lib) **builds
 and its round-trips are byte-for-byte correct**:
 
@@ -303,8 +332,8 @@ plain `cmp` pass.
 
 The crate went from raw c2rust output (317 compiler warnings, exclusively
 `unsafe extern "C" fn`s full of manual pointer-offset loops and redundant
-casts) to a **0-warning build** with `lib/support/buffer/buffer.rs`,
-`lib/bk/bkblock.rs`, and `lib/bk/bkgraph.rs` (the "support/low-level I/O"
+casts) to a **0-warning build** with `support/buffer.rs`,
+`bk/bkblock.rs`, and `bk/bkgraph.rs` (the "support/low-level I/O"
 layer the original plan called out as the correct starting point — it's the
 most-depended-on code and the least entangled with the rest of the crate)
 rewritten to idiomatic bodies:
@@ -395,7 +424,7 @@ to the next file.
 - **Crate-wide rollout of `alloc.rs`/a `binio.rs`**: extend the dedup done
   here to the remaining files with their own copy of the alloc helpers, and
   factor out the also-duplicated `read_8u/16u/24u/32u` family (used
-  throughout `lib/table/**`, unused in support/bk/otf_reader/otf_writer).
+  throughout `table/**`, unused in support/bk/otf_reader/otf_writer).
 - **Redundant same-width casts** (`x as c_int == y as c_int` where both
   sides are already the same type, ~130 occurrences crate-wide) and ternary-
   cast-to-bool chains: skipped in this pass because — unlike the `true_0`/
