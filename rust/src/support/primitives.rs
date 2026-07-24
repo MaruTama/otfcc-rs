@@ -1,8 +1,52 @@
+//! otfcc's scalar vocabulary, the Rust counterpart of
+//! `c/include/otfcc/primitives.h`.
+//!
+//! c2rust declared each of these in every file that used one — `glyphid_t` 65
+//! times, `pos_t` 57 — so the whole set now lives here and is imported. The
+//! comments come from the C header: they are the only place the *meaning* of
+//! these aliases is written down, and `u16` on its own does not tell a reader
+//! whether a number is a glyph index, a class, or a table index.
+
 extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
+
+/// 2.14 fixed-point, a value in [-1, 1].
 pub type f2dot14 = i16;
+/// 16.16 fixed-point, used for intermediate coordinates.
+///
+/// Handle with care around GVAR's implicit deltas: the arithmetic helpers
+/// below saturate towards ±infinity, and infinity short-circuits expressions.
 pub type f16dot16 = i32;
+
+/// Glyph index.
+pub type glyphid_t = u16;
+/// Glyph class.
+pub type glyphclass_t = u16;
+/// GASP glyph size.
+pub type glyphsize_t = u16;
+/// Table / font structure index.
+pub type tableid_t = u16;
+/// Color index.
+pub type colorid_t = u16;
+/// Shape index.
+pub type shapeid_t = u16;
+/// CFF/CFF2 string index.
+pub type cffsid_t = u16;
+/// CFF arity / stack depth.
+pub type arity_t = u32;
+/// Unicode code point.
+pub type unicode_t = u32;
+
+/// Position.
+pub type pos_t = ::core::ffi::c_double;
+/// Transform scaling factor.
+pub type scale_t = ::core::ffi::c_double;
+/// Length.
+pub type length_t = ::core::ffi::c_double;
+
+/// A cursor into the raw bytes of a font file.
+pub type font_file_pointer = *mut u8;
 pub const f16dot16_precision: ::core::ffi::c_int = 16 as ::core::ffi::c_int;
 pub const f16dot16_k: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << f16dot16_precision - 1 as ::core::ffi::c_int;

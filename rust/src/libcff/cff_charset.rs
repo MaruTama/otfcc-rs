@@ -5,14 +5,7 @@ extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: usize,
-    pub size: usize,
-    pub free: usize,
-    pub data: *mut u8,
-}
+use crate::support::buffer::{caryll_Buffer};
 pub type C2RustUnnamed = ::core::ffi::c_uint;
 pub const cff_CHARSET_FORMAT2: C2RustUnnamed = 5;
 pub const cff_CHARSET_FORMAT1: C2RustUnnamed = 4;

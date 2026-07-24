@@ -25,6 +25,9 @@ use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dis
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u};
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::primitives::{glyphclass_t, glyphid_t};
+use crate::vendor::sds::{sds};
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
@@ -99,7 +102,6 @@ pub struct json_serialize_opts {
     pub opts: ::core::ffi::c_int,
     pub indent_size: ::core::ffi::c_int,
 }
-pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -134,16 +136,6 @@ pub struct UT_hash_table {
     pub noexpand: ::core::ffi::c_uint,
     pub signature: u32,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: usize,
-    pub size: usize,
-    pub free: usize,
-    pub data: *mut u8,
-}
-pub type glyphid_t = u16;
-pub type glyphclass_t = u16;
 pub type glyph_handle = otfcc_GlyphHandle;
 #[derive(Copy, Clone)]
 #[repr(C)]

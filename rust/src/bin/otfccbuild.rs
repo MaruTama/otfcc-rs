@@ -42,6 +42,11 @@ extern "C" {
     fn push_stopwatch(sofar: *mut timespec) -> sds;
 }
 use otfcc_rust::support::handle::{otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
+use otfcc_rust::logger::{log_type_error, log_type_progress, otfcc_ILogger, otfcc_ILoggerTarget};
+use otfcc_rust::support::buffer::{caryll_Buffer};
+use otfcc_rust::support::options::{otfcc_Options};
+use otfcc_rust::support::primitives::{arity_t, colorid_t, f16dot16, glyphclass_t, glyphid_t, glyphsize_t, length_t, pos_t, scale_t, shapeid_t, tableid_t};
+use otfcc_rust::vendor::sds::{sds};
 pub type __time_t = ::core::ffi::c_long;
 pub type __syscall_slong_t = ::core::ffi::c_long;
 #[derive(Copy, Clone)]
@@ -132,8 +137,6 @@ pub struct UT_hash_bucket {
     pub count: ::core::ffi::c_uint,
     pub expand_mult: ::core::ffi::c_uint,
 }
-pub type sds = *mut ::core::ffi::c_char;
-pub type glyphid_t = u16;
 pub type otl_ClassDef = table_TSI5;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -144,7 +147,6 @@ pub struct table_TSI5 {
     pub glyphs: *mut otfcc_GlyphHandle,
     pub classes: *mut glyphclass_t,
 }
-pub type glyphclass_t = u16;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_TSI {
@@ -181,14 +183,6 @@ pub struct svg_Assignment {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: usize,
-    pub size: usize,
-    pub free: usize,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct table_COLR {
     pub length: usize,
     pub capacity: usize,
@@ -213,7 +207,6 @@ pub struct colr_Layer {
     pub glyph: otfcc_GlyphHandle,
     pub paletteIndex: colorid_t,
 }
-pub type colorid_t = u16;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_CPAL {
@@ -276,8 +269,6 @@ pub struct otl_BaseValue {
     pub tag: u32,
     pub coordinate: pos_t,
 }
-pub type pos_t = ::core::ffi::c_double;
-pub type tableid_t = u16;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_GDEF {
@@ -691,7 +682,6 @@ pub struct gasp_Record {
     pub symmetric_smoothing: bool,
     pub symmetric_gridfit: bool,
 }
-pub type glyphsize_t = u16;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_cvt {
@@ -862,7 +852,6 @@ pub struct glyf_ComponentReference {
     pub inner: shapeid_t,
     pub outer: shapeid_t,
 }
-pub type shapeid_t = u16;
 pub type RefAnchorStatus = ::core::ffi::c_uint;
 pub const REF_ANCHOR_CONSOLIDATING_XY: RefAnchorStatus = 5;
 pub const REF_ANCHOR_CONSOLIDATING_ANCHOR: RefAnchorStatus = 4;
@@ -870,7 +859,6 @@ pub const REF_ANCHOR_CONSOLIDATED: RefAnchorStatus = 3;
 pub const REF_ANCHOR_XY: RefAnchorStatus = 2;
 pub const REF_ANCHOR_ANCHOR: RefAnchorStatus = 1;
 pub const REF_XY: RefAnchorStatus = 0;
-pub type scale_t = ::core::ffi::c_double;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VQ {
@@ -1010,7 +998,6 @@ pub struct cff_PrivateDict {
     pub defaultWidthX: ::core::ffi::c_double,
     pub nominalWidthX: ::core::ffi::c_double,
 }
-pub type arity_t = u32;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_VORG {
@@ -1036,7 +1023,6 @@ pub struct vertical_metric {
     pub advanceHeight: length_t,
     pub tsb: pos_t,
 }
-pub type length_t = ::core::ffi::c_double;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_vhea {
@@ -1058,7 +1044,6 @@ pub struct table_vhea {
     pub metricDataFormat: i16,
     pub numOfLongVerMetrics: u16,
 }
-pub type f16dot16 = i32;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_hdmx {
@@ -1327,76 +1312,12 @@ pub struct C2RustUnnamed_7 {
     pub ptr: *mut ::core::ffi::c_char,
 }
 pub type json_value = _json_value;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILoggerTarget {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()>,
-}
-pub type otfcc_LoggerType = ::core::ffi::c_uint;
-pub const log_type_progress: otfcc_LoggerType = 3;
-pub const log_type_info: otfcc_LoggerType = 2;
-pub const log_type_warning: otfcc_LoggerType = 1;
-pub const log_type_error: otfcc_LoggerType = 0;
 pub type C2RustUnnamed_8 = ::core::ffi::c_uint;
 pub const log_vl_progress: C2RustUnnamed_8 = 10;
 pub const log_vl_info: C2RustUnnamed_8 = 5;
 pub const log_vl_notice: C2RustUnnamed_8 = 2;
 pub const log_vl_important: C2RustUnnamed_8 = 1;
 pub const log_vl_critical: C2RustUnnamed_8 = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILogger {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub indent: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub indentSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub start: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub startSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub log: Option<
-        unsafe extern "C" fn(
-            *mut otfcc_ILogger,
-            u8,
-            otfcc_LoggerType,
-            *const ::core::ffi::c_char,
-        ) -> (),
-    >,
-    pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
-    pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
-    pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Options {
-    pub debug_wait_on_start: bool,
-    pub ignore_glyph_order: bool,
-    pub ignore_hints: bool,
-    pub has_vertical_metrics: bool,
-    pub export_fdselect: bool,
-    pub keep_average_char_width: bool,
-    pub keep_unicode_ranges: bool,
-    pub short_post: bool,
-    pub dummy_DSIG: bool,
-    pub keep_modified_time: bool,
-    pub instr_as_bytes: bool,
-    pub verbose: bool,
-    pub quiet: bool,
-    pub cff_short_vmtx: bool,
-    pub merge_lookups: bool,
-    pub merge_features: bool,
-    pub force_cid: bool,
-    pub cff_rollCharString: bool,
-    pub cff_doSubroutinize: bool,
-    pub stub_cmap4: bool,
-    pub decimal_cmap: bool,
-    pub name_glyphs_by_hash: bool,
-    pub name_glyphs_by_gid: bool,
-    pub glyph_name_prefix: *mut ::core::ffi::c_char,
-    pub logger: *mut otfcc_ILogger,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otfcc_Font {

@@ -1,4 +1,5 @@
 use libc::{free, malloc, memcpy, memset, qsort};
+use crate::vendor::sds::{sds};
 extern "C" {
     fn sdsfree(s: sds);
 }
@@ -12,7 +13,6 @@ pub type __compar_fn_t = Option<
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entry {

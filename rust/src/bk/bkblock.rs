@@ -16,14 +16,6 @@ pub struct __va_list {
 pub type va_list = __builtin_va_list;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: usize,
-    pub size: usize,
-    pub free: usize,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct __caryll_bkblock {
     pub _visitstate: bk_cell_visit_state,
     pub _index: u32,
@@ -63,6 +55,7 @@ pub const VISIT_WHITE: bk_cell_visit_state = 0;
 pub type bk_Block = __caryll_bkblock;
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
+use crate::support::buffer::{caryll_Buffer};
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;

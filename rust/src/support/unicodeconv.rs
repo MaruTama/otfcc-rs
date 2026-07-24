@@ -1,8 +1,8 @@
 use libc::{malloc};
+use crate::vendor::sds::{sds};
 extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
 }
-pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr8 {

@@ -6,6 +6,7 @@ extern "C" {
 }
 
 use crate::support::stdio::{stderr};
+use crate::support::primitives::{pos_t, scale_t, shapeid_t, tableid_t};
 use crate::support::cvec::{
     cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
     cvec_resize_to, CVecRaw,
@@ -16,10 +17,6 @@ pub type __compar_fn_t = Option<
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-pub type tableid_t = u16;
-pub type shapeid_t = u16;
-pub type pos_t = ::core::ffi::c_double;
-pub type scale_t = ::core::ffi::c_double;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_pos_t {

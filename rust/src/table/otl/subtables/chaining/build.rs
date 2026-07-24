@@ -13,6 +13,9 @@ use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{otfcc_GlyphHandle, otfcc_LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::primitives::{glyphclass_t, glyphid_t, pos_t, tableid_t};
+use crate::vendor::sds::{sds};
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;
 pub const json_null: json_type = 7;
@@ -74,19 +77,6 @@ pub struct C2RustUnnamed_3 {
     pub ptr: *mut ::core::ffi::c_char,
 }
 pub type json_value = _json_value;
-pub type sds = *mut ::core::ffi::c_char;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: usize,
-    pub size: usize,
-    pub free: usize,
-    pub data: *mut u8,
-}
-pub type glyphid_t = u16;
-pub type glyphclass_t = u16;
-pub type tableid_t = u16;
-pub type pos_t = ::core::ffi::c_double;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __otfcc_ICoverage {

@@ -2,8 +2,7 @@ use libc::{free, memcpy, strncmp};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-pub type shapeid_t = u16;
-pub type pos_t = ::core::ffi::c_double;
+use crate::support::primitives::{pos_t, shapeid_t};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VV {

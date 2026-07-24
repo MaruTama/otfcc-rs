@@ -1,10 +1,10 @@
 use libc::{memcpy};
+use crate::support::primitives::{glyphid_t};
+use crate::vendor::sds::{sds};
 extern "C" {
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
 }
-pub type sds = *mut ::core::ffi::c_char;
-pub type glyphid_t = u16;
 pub type handle_state = ::core::ffi::c_uint;
 pub const HANDLE_STATE_CONSOLIDATED: handle_state = 3;
 pub const HANDLE_STATE_NAME: handle_state = 2;

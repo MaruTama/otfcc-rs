@@ -1,4 +1,5 @@
 use libc::{free, malloc, memcpy, memset, qsort};
+use crate::support::primitives::{pos_t};
 use crate::support::cvec::{
     cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
     cvec_resize_to, CVecRaw,
@@ -9,7 +10,6 @@ pub type __compar_fn_t = Option<
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-pub type pos_t = ::core::ffi::c_double;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vf_Axis {

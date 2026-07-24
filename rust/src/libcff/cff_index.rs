@@ -7,15 +7,8 @@ extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: usize,
-    pub size: usize,
-    pub free: usize,
-    pub data: *mut u8,
-}
-pub type arity_t = u32;
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::primitives::{arity_t};
 pub type cff_IndexCountType = ::core::ffi::c_uint;
 pub const CFF_INDEX_32: cff_IndexCountType = 1;
 pub const CFF_INDEX_16: cff_IndexCountType = 0;

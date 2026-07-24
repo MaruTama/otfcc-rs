@@ -8,7 +8,8 @@ extern "C" {
 use crate::support::handle::{handle_consolidateTo, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_CONSOLIDATED, HANDLE_STATE_NAME, HANDLE_STATE_INDEX};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-pub type sds = *mut ::core::ffi::c_char;
+use crate::support::primitives::{glyphid_t};
+use crate::vendor::sds::{sds};
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr8 {
@@ -75,7 +76,6 @@ pub struct UT_hash_table {
     pub noexpand: ::core::ffi::c_uint,
     pub signature: u32,
 }
-pub type glyphid_t = u16;
 pub type glyph_handle = otfcc_GlyphHandle;
 #[derive(Copy, Clone)]
 #[repr(C)]

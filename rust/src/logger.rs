@@ -9,7 +9,7 @@ extern "C" {
 
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-pub type sds = *mut ::core::ffi::c_char;
+use crate::vendor::sds::{sds};
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr8 {

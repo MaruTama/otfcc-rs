@@ -10,14 +10,7 @@ extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: usize,
-    pub size: usize,
-    pub free: usize,
-    pub data: *mut u8,
-}
+use crate::support::buffer::{caryll_Buffer};
 pub type cff_Value_Type = ::core::ffi::c_uint;
 pub const CS2_FRACTION: cff_Value_Type = 3;
 pub const cff_DOUBLE: cff_Value_Type = 3;

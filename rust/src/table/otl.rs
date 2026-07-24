@@ -27,6 +27,8 @@ use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{otfcc_GlyphHandle, otfcc_LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
+use crate::support::primitives::{glyphclass_t, glyphid_t, pos_t, tableid_t};
+use crate::vendor::sds::{sds};
 use crate::support::cvec::{
     cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
     cvec_resize_to, CVecRaw,
@@ -37,11 +39,6 @@ pub type __compar_fn_t = Option<
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-pub type sds = *mut ::core::ffi::c_char;
-pub type glyphid_t = u16;
-pub type glyphclass_t = u16;
-pub type tableid_t = u16;
-pub type pos_t = ::core::ffi::c_double;
 pub type otl_LookupType = ::core::ffi::c_uint;
 pub const otl_type_gpos_extend: otl_LookupType = 41;
 pub const otl_type_gpos_chaining: otl_LookupType = 40;

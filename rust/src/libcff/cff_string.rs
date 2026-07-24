@@ -1,9 +1,9 @@
+use crate::support::primitives::{arity_t};
+use crate::vendor::sds::{sds};
 extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
 }
-pub type sds = *mut ::core::ffi::c_char;
-pub type arity_t = u32;
 pub type cff_IndexCountType = ::core::ffi::c_uint;
 pub const CFF_INDEX_32: cff_IndexCountType = 1;
 pub const CFF_INDEX_16: cff_IndexCountType = 0;

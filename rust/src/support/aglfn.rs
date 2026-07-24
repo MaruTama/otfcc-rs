@@ -3,7 +3,8 @@ extern "C" {
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
 }
 use crate::support::handle::{otfcc_GlyphHandle};
-pub type sds = *mut ::core::ffi::c_char;
+use crate::support::primitives::{glyphid_t};
+use crate::vendor::sds::{sds};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -38,7 +39,6 @@ pub struct UT_hash_table {
     pub noexpand: ::core::ffi::c_uint,
     pub signature: u32,
 }
-pub type glyphid_t = u16;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_GlyphOrderEntry {

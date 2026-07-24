@@ -12,7 +12,6 @@ pub struct __va_list {
 }
 pub type __gnuc_va_list = __builtin_va_list;
 pub type va_list = __gnuc_va_list;
-pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr8 {
@@ -55,6 +54,7 @@ pub struct caryll_Buffer {
 }
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
+use crate::vendor::sds::{sds};
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 pub const SDS_TYPE_5: ::core::ffi::c_int = 0;

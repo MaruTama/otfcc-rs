@@ -1,3 +1,4 @@
+use crate::support::buffer::{caryll_Buffer};
 extern "C" {
     fn modf(
         __x: ::core::ffi::c_double,
@@ -7,14 +8,6 @@ extern "C" {
     fn bufninit(n: u32, ...) -> *mut caryll_Buffer;
     fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
     fn bufnwrite8(buf: *mut caryll_Buffer, n: u32, ...);
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: usize,
-    pub size: usize,
-    pub free: usize,
-    pub data: *mut u8,
 }
 #[no_mangle]
 pub unsafe extern "C" fn cff_buildHeader() -> *mut caryll_Buffer {
