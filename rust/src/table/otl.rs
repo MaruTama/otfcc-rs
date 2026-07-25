@@ -34,27 +34,123 @@ use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cve
 use crate::support::{__compar_fn_t};
 
 
-pub type otl_LookupType = ::core::ffi::c_uint;
-pub const otl_type_gpos_extend: otl_LookupType = 41;
-pub const otl_type_gpos_chaining: otl_LookupType = 40;
-pub const otl_type_gpos_context: otl_LookupType = 39;
-pub const otl_type_gpos_markToMark: otl_LookupType = 38;
-pub const otl_type_gpos_markToLigature: otl_LookupType = 37;
-pub const otl_type_gpos_markToBase: otl_LookupType = 36;
-pub const otl_type_gpos_cursive: otl_LookupType = 35;
-pub const otl_type_gpos_pair: otl_LookupType = 34;
-pub const otl_type_gpos_single: otl_LookupType = 33;
-pub const otl_type_gpos_unknown: otl_LookupType = 32;
-pub const otl_type_gsub_reverse: otl_LookupType = 24;
-pub const otl_type_gsub_extend: otl_LookupType = 23;
-pub const otl_type_gsub_chaining: otl_LookupType = 22;
-pub const otl_type_gsub_context: otl_LookupType = 21;
-pub const otl_type_gsub_ligature: otl_LookupType = 20;
-pub const otl_type_gsub_alternate: otl_LookupType = 19;
-pub const otl_type_gsub_multiple: otl_LookupType = 18;
-pub const otl_type_gsub_single: otl_LookupType = 17;
-pub const otl_type_gsub_unknown: otl_LookupType = 16;
-pub const otl_type_unknown: otl_LookupType = 0;
+/// Which GSUB/GPOS subtable format a lookup is, in otfcc's own numbering: the
+/// file's 16-bit format number offset by the table's base, `otl_type_gsub_*`
+/// starting at 16 and `otl_type_gpos_*` at 32, so one value names both the
+/// table and the format.
+///
+/// **Deliberately not an `enum`.** The value is read from the font:
+/// `otfcc_readOtl_common` does `lookup->type = read_16u(data) + base`, so
+/// anything in `16..=65551` can turn up, and C does not clamp it. An
+/// unrecognised type is carried through as-is — `otfcc_readOtl_subtable`
+/// returns NULL for it, and the lookup's generated name puts the *raw number*
+/// in the output as hex (`lookup_0019_3`, from
+/// `sdsbuild!(… Hex2(lookup->type) …)` in `read.rs`). A `#[repr(u32)]` enum
+/// could not hold such a value, `transmute`ing one in would be UB, and
+/// rejecting it would change the JSON that otfcc writes for a font with an
+/// unknown lookup type — which no test payload has, so the byte comparison
+/// would not have caught it.
+///
+/// So this is the honest shape: a newtype over the number, with the known
+/// values as named constants and the two file-derived construction sites going
+/// through [`otl_LookupType::from_file`]. What it buys over the bare `c_uint`
+/// c2rust emitted is that the compiler now separates it from every other 32-bit
+/// quantity in the OTL code, and that [`otl_LookupType::name`] replaces a
+/// 42-entry sparse table of C string pointers.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[repr(transparent)]
+pub struct otl_LookupType(u32);
+
+pub const otl_type_gpos_extend: otl_LookupType = otl_LookupType(41);
+pub const otl_type_gpos_chaining: otl_LookupType = otl_LookupType(40);
+pub const otl_type_gpos_context: otl_LookupType = otl_LookupType(39);
+pub const otl_type_gpos_markToMark: otl_LookupType = otl_LookupType(38);
+pub const otl_type_gpos_markToLigature: otl_LookupType = otl_LookupType(37);
+pub const otl_type_gpos_markToBase: otl_LookupType = otl_LookupType(36);
+pub const otl_type_gpos_cursive: otl_LookupType = otl_LookupType(35);
+pub const otl_type_gpos_pair: otl_LookupType = otl_LookupType(34);
+pub const otl_type_gpos_single: otl_LookupType = otl_LookupType(33);
+pub const otl_type_gpos_unknown: otl_LookupType = otl_LookupType(32);
+pub const otl_type_gsub_reverse: otl_LookupType = otl_LookupType(24);
+pub const otl_type_gsub_extend: otl_LookupType = otl_LookupType(23);
+pub const otl_type_gsub_chaining: otl_LookupType = otl_LookupType(22);
+pub const otl_type_gsub_context: otl_LookupType = otl_LookupType(21);
+pub const otl_type_gsub_ligature: otl_LookupType = otl_LookupType(20);
+pub const otl_type_gsub_alternate: otl_LookupType = otl_LookupType(19);
+pub const otl_type_gsub_multiple: otl_LookupType = otl_LookupType(18);
+pub const otl_type_gsub_single: otl_LookupType = otl_LookupType(17);
+pub const otl_type_gsub_unknown: otl_LookupType = otl_LookupType(16);
+pub const otl_type_unknown: otl_LookupType = otl_LookupType(0);
+
+impl otl_LookupType {
+    /// The type of a lookup as the font file spells it: a format number
+    /// relative to `base`, which is `otl_type_gsub_unknown` for GSUB and
+    /// `otl_type_gpos_unknown` for GPOS. Wrapping, like the C addition it
+    /// replaces — `raw` is a full `u16` straight out of the file and is not
+    /// validated here, exactly as C does not validate it.
+    pub const fn from_file(base: Self, raw: u16) -> Self {
+        Self(base.0.wrapping_add(raw as u32))
+    }
+
+    /// The number itself. It reaches the output: a lookup with no name gets
+    /// `lookup_<this as %04x>_<index>`.
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+
+    /// The format number to write back into the file — this value with its
+    /// table's base taken off again, and 0 for anything at or below GSUB's base.
+    ///
+    /// The comparisons are `>`, not `>=`, exactly as in C: `otl_type_unknown`
+    /// and `otl_type_gsub_unknown` give 0, while `otl_type_gpos_unknown` (32)
+    /// is above *GSUB's* base and so reads as GSUB format 16. That is a quirk
+    /// of the original, reachable only from a font declaring a GPOS lookup of
+    /// format 0; the number reaches the lookup header, so it is reproduced
+    /// rather than tidied. `file_format_undoes_the_table_base` pins it.
+    pub const fn file_format(self) -> u32 {
+        if self.0 > otl_type_gpos_unknown.0 {
+            self.0 - otl_type_gpos_unknown.0
+        } else if self.0 > otl_type_gsub_unknown.0 {
+            self.0 - otl_type_gsub_unknown.0
+        } else {
+            0
+        }
+    }
+
+    /// The name this type has in otfcc's JSON, and the key its lookups are
+    /// looked up by when reading JSON back.
+    ///
+    /// This was `tableNames`, a 42-element `static mut` array of C string
+    /// pointers indexed by the type — 23 of whose entries were NULL, since the
+    /// numbering leaves holes between the two tables. Every one of the 26 uses
+    /// indexed it with a constant, so nothing was ever at risk of reading a
+    /// hole; the fallback here is index 0's own text, which keeps the function
+    /// total without inventing a name.
+    pub const fn name(self) -> &'static ::core::ffi::CStr {
+        match self.0 {
+            17 => c"gsub_single",
+            18 => c"gsub_multiple",
+            19 => c"gsub_alternate",
+            20 => c"gsub_ligature",
+            21 => c"gsub_context",
+            22 => c"gsub_chaining",
+            23 => c"gsub_extend",
+            24 => c"gsub_reverse",
+            16 => c"gsub_unknown",
+            33 => c"gpos_single",
+            34 => c"gpos_pair",
+            35 => c"gpos_cursive",
+            36 => c"gpos_mark_to_base",
+            37 => c"gpos_mark_to_ligature",
+            38 => c"gpos_mark_to_mark",
+            39 => c"gpos_context",
+            40 => c"gpos_chaining",
+            41 => c"gpos_extend",
+            32 => c"gpos_unknown",
+            _ => c"unknown",
+        }
+    }
+}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union _otl_subtable {
@@ -1008,92 +1104,92 @@ unsafe extern "C" fn disposeSubtableDependent(
     mut subtableRef: *mut otl_SubtablePtr,
     mut lookup: *const otl_Lookup,
 ) {
-    match (*lookup).type_0 as ::core::ffi::c_uint {
-        17 => {
+    match (*lookup).type_0 {
+        otl_type_gsub_single => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gsub_single) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_gsub_single.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        18 => {
+        otl_type_gsub_multiple => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gsub_multi) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_gsub_multi.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        19 => {
+        otl_type_gsub_alternate => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gsub_multi) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_gsub_multi.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        20 => {
+        otl_type_gsub_ligature => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gsub_ligature) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_gsub_ligature.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        22 => {
+        otl_type_gsub_chaining => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_chaining) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_chaining.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        24 => {
+        otl_type_gsub_reverse => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gsub_reverse) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_gsub_reverse.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        33 => {
+        otl_type_gpos_single => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gpos_single) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_gpos_single.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        34 => {
+        otl_type_gpos_pair => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gpos_pair) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_gpos_pair.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        35 => {
+        otl_type_gpos_cursive => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gpos_cursive) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_gpos_cursive.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        40 => {
+        otl_type_gpos_chaining => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_chaining) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_chaining.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        36 => {
+        otl_type_gpos_markToBase => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gpos_markToSingle) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_gpos_markToSingle.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        38 => {
+        otl_type_gpos_markToMark => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gpos_markToSingle) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
             >(iSubtable_gpos_markToSingle.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        37 => {
+        otl_type_gpos_markToLigature => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut subtable_gpos_markToLigature) -> ()>,
                 Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>,
@@ -3495,4 +3591,89 @@ pub struct __caryll_vectorinterface_otl_LigatureArray {
             >,
         ) -> (),
     >,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // These are not internal labels: `name()` supplies the `"type"` string
+    // otfccdump writes for every lookup, and the key otfccbuild matches a
+    // lookup against when reading the JSON back. They are also *not* the
+    // constants' own spelling -- the JSON says `gpos_mark_to_base` where the
+    // constant is `otl_type_gpos_markToBase` -- so they were copied from the
+    // `tableNames` table this replaced and are pinned here rather than derived.
+    #[test]
+    fn lookup_type_names_are_the_json_strings() {
+        for (t, name) in [
+            (otl_type_unknown, c"unknown"),
+            (otl_type_gsub_unknown, c"gsub_unknown"),
+            (otl_type_gsub_single, c"gsub_single"),
+            (otl_type_gsub_multiple, c"gsub_multiple"),
+            (otl_type_gsub_alternate, c"gsub_alternate"),
+            (otl_type_gsub_ligature, c"gsub_ligature"),
+            (otl_type_gsub_context, c"gsub_context"),
+            (otl_type_gsub_chaining, c"gsub_chaining"),
+            (otl_type_gsub_extend, c"gsub_extend"),
+            (otl_type_gsub_reverse, c"gsub_reverse"),
+            (otl_type_gpos_unknown, c"gpos_unknown"),
+            (otl_type_gpos_single, c"gpos_single"),
+            (otl_type_gpos_pair, c"gpos_pair"),
+            (otl_type_gpos_cursive, c"gpos_cursive"),
+            (otl_type_gpos_markToBase, c"gpos_mark_to_base"),
+            (otl_type_gpos_markToLigature, c"gpos_mark_to_ligature"),
+            (otl_type_gpos_markToMark, c"gpos_mark_to_mark"),
+            (otl_type_gpos_context, c"gpos_context"),
+            (otl_type_gpos_chaining, c"gpos_chaining"),
+            (otl_type_gpos_extend, c"gpos_extend"),
+        ] {
+            assert_eq!(t.name(), name, "name for {t:?}");
+        }
+    }
+
+    // The numbering is otfcc's own: the file's format number plus 16 for GSUB or
+    // 32 for GPOS. `file_format` has to undo exactly that, because its result is
+    // written straight into the lookup header.
+    #[test]
+    fn file_format_undoes_the_table_base() {
+        assert_eq!(otl_type_gsub_single.file_format(), 1);
+        assert_eq!(otl_type_gsub_reverse.file_format(), 8);
+        assert_eq!(otl_type_gsub_extend.file_format(), 7);
+        assert_eq!(otl_type_gpos_single.file_format(), 1);
+        assert_eq!(otl_type_gpos_extend.file_format(), 9);
+        // The bases themselves are *not* above their own base -- C compares with
+        // `>`, not `>=` -- so they carry no format number.
+        assert_eq!(otl_type_unknown.file_format(), 0);
+        assert_eq!(otl_type_gsub_unknown.file_format(), 0);
+        // Except `gpos_unknown`, and this one is a quirk kept on purpose: 32 is
+        // not above GPOS's base but it *is* above GSUB's, so C's nested
+        // comparisons read it as GSUB format 16. Reachable only from a font
+        // declaring a GPOS lookup of format 0, which no version of the spec has
+        // -- but the number would go straight into the lookup header, so it is
+        // reproduced rather than tidied.
+        assert_eq!(otl_type_gpos_unknown.file_format(), 16);
+    }
+
+    // A lookup type comes out of the font as a 16-bit number added to a base,
+    // and C keeps whatever that gives -- including values no variant names,
+    // which is why this type is not an enum. The raw value is observable: an
+    // unnamed lookup is called `lookup_<raw as %04x>_<index>` in the JSON.
+    #[test]
+    fn from_file_keeps_unnamed_types() {
+        assert_eq!(
+            otl_LookupType::from_file(otl_type_gsub_unknown, 1),
+            otl_type_gsub_single
+        );
+        assert_eq!(
+            otl_LookupType::from_file(otl_type_gpos_unknown, 9),
+            otl_type_gpos_extend
+        );
+        // GSUB format 9 exists in no version of the spec otfcc knows; it stays
+        // 25, gets no subtable, and reaches the output as `lookup_0019_…`.
+        let unnamed = otl_LookupType::from_file(otl_type_gsub_unknown, 9);
+        assert_eq!(unnamed.raw(), 25);
+        assert_eq!(unnamed.name(), c"unknown");
+        assert_eq!(otl_LookupType::from_file(otl_type_gsub_unknown, 0xffff).raw(), 65551);
+        assert_eq!(::core::mem::size_of::<otl_LookupType>(), 4);
+    }
 }

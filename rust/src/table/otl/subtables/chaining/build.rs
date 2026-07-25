@@ -23,10 +23,8 @@ use crate::table::otl::{otl_ChainingRule, otl_Lookup, otl_Subtable, otl_chaining
 pub unsafe extern "C" fn otfcc_chainingLookupIsContextualLookup(
     mut lookup: *const otl_Lookup,
 ) -> bool {
-    if !((*lookup).type_0 as ::core::ffi::c_uint
-        == otl_type_gpos_chaining as ::core::ffi::c_int as ::core::ffi::c_uint
-        || (*lookup).type_0 as ::core::ffi::c_uint
-            == otl_type_gsub_chaining as ::core::ffi::c_int as ::core::ffi::c_uint)
+    if !((*lookup).type_0 == otl_type_gpos_chaining
+        || (*lookup).type_0 == otl_type_gsub_chaining)
     {
         return false;
     }

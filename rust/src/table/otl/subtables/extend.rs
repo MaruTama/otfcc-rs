@@ -42,12 +42,13 @@ unsafe extern "C" fn _caryll_read_otl_extend(
         _subtable = ::core::ptr::null_mut::<otl_Subtable>();
     } else {
         subtable = &raw mut (*_subtable).extend;
-        (*subtable).type_0 = (read_16u(
-            data.offset(subtableOffset as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        ) as ::core::ffi::c_uint)
-            .wrapping_add(BASIS as ::core::ffi::c_uint)
-            as otl_LookupType;
+        (*subtable).type_0 = otl_LookupType::from_file(
+            BASIS,
+            read_16u(
+                data.offset(subtableOffset as isize)
+                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
+            ),
+        );
         (*subtable).subtable = otfcc_readOtl_subtable(
             data as *mut u8,
             tableLength,

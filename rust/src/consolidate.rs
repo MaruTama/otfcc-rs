@@ -874,7 +874,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
 ) {
     if lookup.is_null()
         || (*lookup).subtables.length == 0
-        || (*lookup).type_0 as ::core::ffi::c_uint != type_0 as ::core::ffi::c_uint
+        || (*lookup).type_0 != type_0
     {
         return;
     }

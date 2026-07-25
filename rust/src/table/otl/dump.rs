@@ -42,7 +42,7 @@ use crate::vendor::json::{json_pre_serialized, json_value};
 use crate::table::otl::{otl_Feature, otl_LanguageSystem, otl_Lookup, otl_LookupType, otl_Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, table_OTL};
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
 use crate::support::json_funcs::{otfcc_dump_flags};
-use crate::table::otl::constants::{lookupFlagsLabels, tableNames};
+use crate::table::otl::constants::{lookupFlagsLabels};
 #[inline]
 unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
     let mut opts: json_serialize_opts = json_serialize_opts {
@@ -63,16 +63,15 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
 }
 unsafe extern "C" fn _declare_lookup_dumper(
     mut llt: otl_LookupType,
-    mut lt: *const ::core::ffi::c_char,
     mut dumper: Option<unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value>,
     mut lookup: *mut otl_Lookup,
     mut dump: *mut json_value,
 ) {
-    if (*lookup).type_0 as ::core::ffi::c_uint == llt as ::core::ffi::c_uint {
+    if (*lookup).type_0 == llt {
         json_object_push(
             dump,
             b"type\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new(lt),
+            json_string_new(llt.name().as_ptr()),
         );
         json_object_push(
             dump,
@@ -114,32 +113,24 @@ unsafe extern "C" fn _declare_lookup_dumper(
 unsafe extern "C" fn _dump_lookup(mut lookup: *mut otl_Lookup, mut dump: *mut json_value) {
     _declare_lookup_dumper(
         otl_type_gsub_single,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gsub_single as ::core::ffi::c_int as isize),
         Some(otl_gsub_dump_single as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         otl_type_gsub_multiple,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gsub_multiple as ::core::ffi::c_int as isize),
         Some(otl_gsub_dump_multi as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         otl_type_gsub_alternate,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gsub_alternate as ::core::ffi::c_int as isize),
         Some(otl_gsub_dump_multi as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         otl_type_gsub_ligature,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gsub_ligature as ::core::ffi::c_int as isize),
         Some(
             otl_gsub_dump_ligature as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value,
         ),
@@ -148,56 +139,42 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut otl_Lookup, mut dump: *mut js
     );
     _declare_lookup_dumper(
         otl_type_gsub_chaining,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gsub_chaining as ::core::ffi::c_int as isize),
         Some(otl_dump_chaining as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         otl_type_gsub_reverse,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gsub_reverse as ::core::ffi::c_int as isize),
         Some(otl_gsub_dump_reverse as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         otl_type_gpos_chaining,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gpos_chaining as ::core::ffi::c_int as isize),
         Some(otl_dump_chaining as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         otl_type_gpos_single,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gpos_single as ::core::ffi::c_int as isize),
         Some(otl_gpos_dump_single as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         otl_type_gpos_pair,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gpos_pair as ::core::ffi::c_int as isize),
         Some(otl_gpos_dump_pair as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         otl_type_gpos_cursive,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gpos_cursive as ::core::ffi::c_int as isize),
         Some(otl_gpos_dump_cursive as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         otl_type_gpos_markToBase,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gpos_markToBase as ::core::ffi::c_int as isize),
         Some(
             otl_gpos_dump_markToSingle
                 as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value,
@@ -207,8 +184,6 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut otl_Lookup, mut dump: *mut js
     );
     _declare_lookup_dumper(
         otl_type_gpos_markToMark,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gpos_markToMark as ::core::ffi::c_int as isize),
         Some(
             otl_gpos_dump_markToSingle
                 as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value,
@@ -218,8 +193,6 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut otl_Lookup, mut dump: *mut js
     );
     _declare_lookup_dumper(
         otl_type_gpos_markToLigature,
-        *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-            .offset(otl_type_gpos_markToLigature as ::core::ffi::c_int as isize),
         Some(
             otl_gpos_dump_markToLigature
                 as unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value,
