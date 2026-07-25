@@ -415,8 +415,7 @@ unsafe extern "C" fn consolidateFDSelect(
     if cff.is_null() || (*cff).fdArray.is_null() || (*cff).fdArrayCount == 0 {
         return;
     }
-    if (*h).state as ::core::ffi::c_uint
-        == HANDLE_STATE_INDEX as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*h).state == HANDLE_STATE_INDEX
     {
         if (*h).index as ::core::ffi::c_int >= (*cff).fdArrayCount as ::core::ffi::c_int {
             (*h).index = 0 as glyphid_t;

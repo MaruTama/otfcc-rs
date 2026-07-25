@@ -6,11 +6,27 @@ extern "C" {
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
 }
-pub type handle_state = ::core::ffi::c_uint;
-pub const HANDLE_STATE_CONSOLIDATED: handle_state = 3;
-pub const HANDLE_STATE_NAME: handle_state = 2;
-pub const HANDLE_STATE_INDEX: handle_state = 1;
-pub const HANDLE_STATE_EMPTY: handle_state = 0;
+/// Which of `otfcc_Handle`'s fields is meaningful.
+///
+/// A real `enum` rather than c2rust's `pub type handle_state = c_uint` plus
+/// four `pub const`s, so `state` cannot hold a value that is none of these and
+/// a `match` on it is exhaustive. Every one of the ~50 assignments in the crate
+/// is a struct literal naming one of these four, and none of them comes from a
+/// font file, so there is nothing here that needs a fallible conversion --
+/// unlike, say, a lookup type read off the wire.
+///
+/// `#[repr(u32)]` keeps `otfcc_Handle`'s layout exactly as the C struct's, and
+/// the variants are re-exported below so the existing call sites keep spelling
+/// them unqualified, the way the C code does.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum handle_state {
+    HANDLE_STATE_EMPTY = 0,
+    HANDLE_STATE_INDEX = 1,
+    HANDLE_STATE_NAME = 2,
+    HANDLE_STATE_CONSOLIDATED = 3,
+}
+pub use handle_state::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Handle {
@@ -184,3 +200,48 @@ pub static mut otfcc_iHandle: otfcc_HandlePackage = {
 };
 
 pub type otfcc_FDHandle = otfcc_Handle;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The discriminants *are* the C ABI here: `otfcc_Handle` is written into and
+    // read out of fonts through code that was transpiled from C, and a shifted
+    // discriminant would silently reinterpret every handle. The byte comparison
+    // cannot see this on its own, because a font whose handles are all
+    // consolidated by the time they are serialized exercises only one value.
+    #[test]
+    fn handle_state_discriminants_match_the_c_enum() {
+        assert_eq!(HANDLE_STATE_EMPTY as u32, 0);
+        assert_eq!(HANDLE_STATE_INDEX as u32, 1);
+        assert_eq!(HANDLE_STATE_NAME as u32, 2);
+        assert_eq!(HANDLE_STATE_CONSOLIDATED as u32, 3);
+    }
+
+    // `#[repr(u32)]` is what keeps `otfcc_Handle` laid out as the C struct.
+    #[test]
+    fn handle_state_is_a_u32() {
+        assert_eq!(::core::mem::size_of::<handle_state>(), 4);
+        assert_eq!(::core::mem::align_of::<handle_state>(), 4);
+    }
+
+    #[test]
+    fn a_fresh_handle_is_empty() {
+        unsafe {
+            let h = otfcc_Handle_empty();
+            assert_eq!(h.state, HANDLE_STATE_EMPTY);
+            assert_eq!(h.index, 0);
+            assert!(h.name.is_null());
+        }
+    }
+
+    #[test]
+    fn from_index_records_the_index_and_no_name() {
+        unsafe {
+            let h = handle_fromIndex(42);
+            assert_eq!(h.state, HANDLE_STATE_INDEX);
+            assert_eq!(h.index, 42);
+            assert!(h.name.is_null());
+        }
+    }
+}

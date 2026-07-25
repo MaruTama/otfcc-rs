@@ -149,8 +149,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                     &raw mut (*(*rule).apply.offset(j_0 as isize)).lookup,
                 );
             }
-        } else if (*h).state as ::core::ffi::c_uint
-            == HANDLE_STATE_INDEX as ::core::ffi::c_int as ::core::ffi::c_uint
+        } else if (*h).state == HANDLE_STATE_INDEX
         {
             if (*h).index as usize >= (*table).lookups.length {
                 (*(*options).logger)
