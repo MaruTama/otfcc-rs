@@ -99,7 +99,7 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_string, json_type, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::libcff::{cff_File, cff_IOutlineBuilder, cff_Stack, op_BlueFuzz, op_BlueScale, op_BlueShift, op_BlueValues, op_CIDCount, op_CIDFontRevision, op_CIDFontVersion, op_CharStrings, op_Copyright, op_ExpansionFactor, op_FDArray, op_FDSelect, op_FamilyBlues, op_FamilyName, op_FamilyOtherBlues, op_FontBBox, op_FontMatrix, op_FontName, op_ForceBold, op_FullName, op_ItalicAngle, op_LanguageGroup, op_Notice, op_OtherBlues, op_Private, op_ROS, op_StdHW, op_StdVW, op_StemSnapH, op_StemSnapV, op_StrokeWidth, op_Subrs, op_UIDBase, op_UnderlinePosition, op_UnderlineThickness, op_Weight, op_charset, op_defaultWidthX, op_initialRandomSeed, op_isFixedPitch, op_nominalWidthX, op_version};
-use crate::libcff::cff_charset::{cff_CHARSET_FORMAT2, cff_CHARSET_ISOADOBE, cff_Charset, cff_CharsetRangeFormat2};
+use crate::libcff::cff_charset::{cff_CHARSET_FORMAT0, cff_CHARSET_FORMAT1, cff_CHARSET_FORMAT2, cff_CHARSET_ISOADOBE, cff_Charset, cff_CharsetRangeFormat2};
 use crate::libcff::cff_dict::{__caryll_elementinterface_cff_Dict, cff_Dict, cff_DictEntry};
 use crate::libcff::cff_fdselect::{cff_FDSELECT_FORMAT3, cff_FDSELECT_UNSPECED, cff_FDSelect, cff_FDSelectRangeFormat3};
 use crate::libcff::cff_index::{CFF_INDEX_16, __caryll_elementinterface_cff_Index, cff_Index};
@@ -1221,7 +1221,7 @@ unsafe extern "C" fn buildOutline(
         randx: 0 as u64,
     };
     let mut fd: u8 = 0 as u8;
-    if (*f).fdselect.t != cff_FDSELECT_UNSPECED as ::core::ffi::c_int as u32 {
+    if (*f).fdselect.t != cff_FDSELECT_UNSPECED {
         fd = cff_parseSubr(
             i as u16,
             (*f).raw_data,
@@ -1352,7 +1352,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut cff_extract_cont
     let mut charset: *mut cff_Charset = &raw mut (*cffFile).charsets;
     if (*(*context).meta).isCID {
         match (*charset).t {
-            3 => {
+            cff_CHARSET_FORMAT0 => {
                 let mut j: glyphid_t = 0 as glyphid_t;
                 while (j as u32) < (*charset).s {
                     let mut sid: cffsid_t =
@@ -1372,7 +1372,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut cff_extract_cont
                     j = j.wrapping_add(1);
                 }
             }
-            4 => {
+            cff_CHARSET_FORMAT1 => {
                 let mut glyphsNamedSofar: u32 = 1 as u32;
                 let mut j_0: glyphid_t = 0 as glyphid_t;
                 while (j_0 as u32) < (*charset).s {
@@ -1401,7 +1401,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut cff_extract_cont
                     j_0 = j_0.wrapping_add(1);
                 }
             }
-            5 => {
+            cff_CHARSET_FORMAT2 => {
                 let mut glyphsNamedSofar_0: u32 = 1 as u32;
                 let mut j_1: glyphid_t = 0 as glyphid_t;
                 while (j_1 as u32) < (*charset).s {
@@ -1435,7 +1435,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut cff_extract_cont
         }
     } else {
         match (*charset).t {
-            3 => {
+            cff_CHARSET_FORMAT0 => {
                 let mut j_2: glyphid_t = 0 as glyphid_t;
                 while (j_2 as u32) < (*charset).s {
                     let mut sid_2: cffsid_t =
@@ -1451,7 +1451,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut cff_extract_cont
                     j_2 = j_2.wrapping_add(1);
                 }
             }
-            4 => {
+            cff_CHARSET_FORMAT1 => {
                 let mut glyphsNamedSofar_1: u32 = 1 as u32;
                 let mut j_3: glyphid_t = 0 as glyphid_t;
                 while (j_3 as u32) < (*charset).s {
@@ -1480,7 +1480,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut cff_extract_cont
                     j_3 = j_3.wrapping_add(1);
                 }
             }
-            5 => {
+            cff_CHARSET_FORMAT2 => {
                 let mut glyphsNamedSofar_2: u32 = 1 as u32;
                 let mut j_4: glyphid_t = 0 as glyphid_t;
                 while (j_4 as u32) < (*charset).s {
@@ -3705,7 +3705,7 @@ unsafe extern "C" fn cff_make_charset(
         1140 as ::core::ffi::c_ulong,
     ) as *mut cff_Charset;
     if (*glyf).length > 1 as usize {
-        (*charset).t = cff_CHARSET_FORMAT2 as ::core::ffi::c_int as u32;
+        (*charset).t = cff_CHARSET_FORMAT2;
         (*charset).s = 1 as u32;
         (*charset).c2rust_unnamed.f2.format = 2 as u8;
         (*charset).c2rust_unnamed.f2.range2 = __caryll_allocate_clean(
@@ -3748,10 +3748,10 @@ unsafe extern "C" fn cff_make_charset(
             .nleft = (*glyf).length.wrapping_sub(2 as usize) as u16;
         }
     } else {
-        (*charset).t = cff_CHARSET_ISOADOBE as ::core::ffi::c_int as u32;
+        (*charset).t = cff_CHARSET_ISOADOBE;
     }
     let mut c: *mut caryll_Buffer = cff_build_Charset(*charset);
-    if (*charset).t == cff_CHARSET_FORMAT2 as ::core::ffi::c_int as u32 {
+    if (*charset).t == cff_CHARSET_FORMAT2 {
         free((*charset).c2rust_unnamed.f2.range2 as *mut ::core::ffi::c_void);
         (*charset).c2rust_unnamed.f2.range2 = ::core::ptr::null_mut::<cff_CharsetRangeFormat2>();
     }
@@ -3774,7 +3774,7 @@ unsafe extern "C" fn cff_make_fdselect(
         ::core::mem::size_of::<cff_FDSelect>() as usize,
         1171 as ::core::ffi::c_ulong,
     ) as *mut cff_FDSelect;
-    (*fds).t = cff_FDSELECT_UNSPECED as ::core::ffi::c_int as u32;
+    (*fds).t = cff_FDSELECT_UNSPECED;
     if !((*glyf).length == 0) {
         fdi0 = (**(*glyf).items.offset(0 as ::core::ffi::c_int as isize))
             .fdSelect
@@ -3831,7 +3831,7 @@ unsafe extern "C" fn cff_make_fdselect(
             }
             j_0 = j_0.wrapping_add(1);
         }
-        (*fds).t = cff_FDSELECT_FORMAT3 as ::core::ffi::c_int as u32;
+        (*fds).t = cff_FDSELECT_FORMAT3;
         (*fds).s = ranges;
         (*fds).c2rust_unnamed.f3.format = 3 as u8;
         (*fds).c2rust_unnamed.f3.nranges = ranges as u16;

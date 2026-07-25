@@ -33,17 +33,26 @@ use crate::vendor::sds::{Hex4, sds};
 use crate::libcff::{cff_Encoding, cff_EncodingRangeFormat1, cff_EncodingSupplement, cff_File, cff_IOutlineBuilder, cff_Stack, op_CharStrings, op_Encoding, op_FDArray, op_FDSelect, op_Private, op_Subrs, op_abs, op_add, op_and, op_callgsubr, op_callsubr, op_charset, op_cntrmask, op_div, op_drop, op_dup, op_eq, op_exch, op_flex, op_flex1, op_get, op_hflex, op_hflex1, op_hmoveto, op_ifelse, op_index, op_mul, op_neg, op_not, op_or, op_put, op_rmoveto, op_roll, op_sqrt, op_sub, op_vmoveto, op_vstem, op_vstemhm, type2_transient_array};
 use crate::libcff::cff_charset::{cff_CHARSET_UNSPECED, cff_Charset};
 use crate::libcff::cff_dict::{__caryll_elementinterface_cff_Dict};
-use crate::libcff::cff_fdselect::{cff_FDSELECT_UNSPECED, cff_FDSelect};
+use crate::libcff::cff_fdselect::{cff_FDSELECT_FORMAT0, cff_FDSELECT_FORMAT3, cff_FDSELECT_UNSPECED, cff_FDSelect};
 use crate::libcff::cff_index::{__caryll_elementinterface_cff_Index, cff_Index};
 use crate::libcff::cff_value::{cff_DOUBLE, cff_Value, cff_ValueBody, cff_Value_Type};
 
-pub type cff_EncodingType = ::core::ffi::c_uint;
-pub const cff_ENC_UNSPECED: cff_EncodingType = 5;
-pub const cff_ENC_FORMAT_SUPPLEMENT: cff_EncodingType = 4;
-pub const cff_ENC_FORMAT1: cff_EncodingType = 3;
-pub const cff_ENC_FORMAT0: cff_EncodingType = 2;
-pub const cff_ENC_EXPERT: cff_EncodingType = 1;
-pub const cff_ENC_STANDARD: cff_EncodingType = 0;
+/// Which encoding a CFF font carries: one of the two predefined ones, or the
+/// format of an embedded encoding. Again the crate's own classification rather
+/// than anything read from the file -- though `cff_extract_Encoding` does lean
+/// on the numbering, comparing the *offset* from the Top DICT against
+/// `cff_ENC_STANDARD`/`cff_ENC_EXPERT`, which the spec assigns 0 and 1.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum cff_EncodingType {
+    cff_ENC_STANDARD = 0,
+    cff_ENC_EXPERT = 1,
+    cff_ENC_FORMAT0 = 2,
+    cff_ENC_FORMAT1 = 3,
+    cff_ENC_FORMAT_SUPPLEMENT = 4,
+    cff_ENC_UNSPECED = 5,
+}
+pub use cff_EncodingType::*;
 #[inline]
 unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;
@@ -65,13 +74,13 @@ unsafe extern "C" fn parse_encoding(
 ) {
     let mut data: *mut u8 = (*cff).raw_data;
     if offset == cff_ENC_STANDARD as ::core::ffi::c_int as i32 {
-        (*enc).t = cff_ENC_STANDARD as ::core::ffi::c_int as u32;
+        (*enc).t = cff_ENC_STANDARD;
     } else if offset == cff_ENC_EXPERT as ::core::ffi::c_int as i32 {
-        (*enc).t = cff_ENC_EXPERT as ::core::ffi::c_int as u32;
+        (*enc).t = cff_ENC_EXPERT;
     } else {
         match *data.offset(offset as isize) as ::core::ffi::c_int {
             0 => {
-                (*enc).t = cff_ENC_FORMAT0 as ::core::ffi::c_int as u32;
+                (*enc).t = cff_ENC_FORMAT0;
                 (*enc).c2rust_unnamed.f0.format = 0 as u8;
                 (*enc).c2rust_unnamed.f0.ncodes = *data.offset((offset + 1 as i32) as isize);
                 (*enc).c2rust_unnamed.f0.code = __caryll_allocate_clean(
@@ -87,7 +96,7 @@ unsafe extern "C" fn parse_encoding(
                 }
             }
             1 => {
-                (*enc).t = cff_ENC_FORMAT1 as ::core::ffi::c_int as u32;
+                (*enc).t = cff_ENC_FORMAT1;
                 (*enc).c2rust_unnamed.f1.format = 1 as u8;
                 (*enc).c2rust_unnamed.f1.nranges = *data.offset((offset + 1 as i32) as isize);
                 (*enc).c2rust_unnamed.f1.range1 = __caryll_allocate_clean(
@@ -112,7 +121,7 @@ unsafe extern "C" fn parse_encoding(
                 }
             }
             _ => {
-                (*enc).t = cff_ENC_FORMAT_SUPPLEMENT as ::core::ffi::c_int as u32;
+                (*enc).t = cff_ENC_FORMAT_SUPPLEMENT;
                 (*enc).c2rust_unnamed.ns.nsup = *data.offset(offset as isize);
                 (*enc).c2rust_unnamed.ns.supplement = __caryll_allocate_clean(
                     (::core::mem::size_of::<cff_EncodingSupplement>() as usize)
@@ -262,7 +271,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
         if offset_0 != -(1 as i32) {
             parse_encoding(cff, offset_0, &raw mut (*cff).encodings);
         } else {
-            (*cff).encodings.t = cff_ENC_UNSPECED as ::core::ffi::c_int as u32;
+            (*cff).encodings.t = cff_ENC_UNSPECED;
         }
         offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
@@ -289,7 +298,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                 &raw mut (*cff).charsets,
             );
         } else {
-            (*cff).charsets.t = cff_CHARSET_UNSPECED as ::core::ffi::c_int as u32;
+            (*cff).charsets.t = cff_CHARSET_UNSPECED;
         }
         offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
@@ -316,7 +325,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                 &raw mut (*cff).fdselect,
             );
         } else {
-            (*cff).fdselect.t = cff_FDSELECT_UNSPECED as ::core::ffi::c_int as u32;
+            (*cff).fdselect.t = cff_FDSELECT_UNSPECED;
         }
         offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
@@ -445,20 +454,20 @@ pub unsafe extern "C" fn cff_close(mut file: *mut cff_File) {
         cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).font_dict);
         cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).local_subr);
         match (*file).encodings.t {
-            2 => {
+            cff_ENC_FORMAT0 => {
                 if !(*file).encodings.c2rust_unnamed.f0.code.is_null() {
                     free((*file).encodings.c2rust_unnamed.f0.code as *mut ::core::ffi::c_void);
                     (*file).encodings.c2rust_unnamed.f0.code = ::core::ptr::null_mut::<u8>();
                 }
             }
-            3 => {
+            cff_ENC_FORMAT1 => {
                 if !(*file).encodings.c2rust_unnamed.f1.range1.is_null() {
                     free((*file).encodings.c2rust_unnamed.f1.range1 as *mut ::core::ffi::c_void);
                     (*file).encodings.c2rust_unnamed.f1.range1 =
                         ::core::ptr::null_mut::<cff_EncodingRangeFormat1>();
                 }
             }
-            4 => {
+            cff_ENC_FORMAT_SUPPLEMENT => {
                 if !(*file).encodings.c2rust_unnamed.ns.supplement.is_null() {
                     free(
                         (*file).encodings.c2rust_unnamed.ns.supplement as *mut ::core::ffi::c_void,
@@ -467,7 +476,7 @@ pub unsafe extern "C" fn cff_close(mut file: *mut cff_File) {
                         ::core::ptr::null_mut::<cff_EncodingSupplement>();
                 }
             }
-            0 | 1 | 5 | _ => {}
+            _ => {}
         }
         cff_close_Charset((*file).charsets);
         cff_close_FDSelect((*file).fdselect);
@@ -488,10 +497,10 @@ pub unsafe extern "C" fn cff_parseSubr(
     let mut len_private: i32 = 0;
     let mut off_subr: i32 = 0;
     match select.t {
-        0 => {
+        cff_FDSELECT_FORMAT0 => {
             fd = *select.c2rust_unnamed.f0.fds.offset(idx as isize);
         }
-        1 => {
+        cff_FDSELECT_FORMAT3 => {
             let mut i: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
             while i < select.c2rust_unnamed.f3.nranges as ::core::ffi::c_int
                 - 1 as ::core::ffi::c_int
@@ -527,10 +536,9 @@ pub unsafe extern "C" fn cff_parseSubr(
                 .fd;
             }
         }
-        2 => {
+        cff_FDSELECT_UNSPECED => {
             fd = 0 as u8;
         }
-        _ => {}
     }
     off_private = cff_iDict.parseDictKey.expect("non-null function pointer")(
         fdarray
