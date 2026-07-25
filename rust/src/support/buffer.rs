@@ -155,23 +155,28 @@ pub unsafe extern "C" fn bufwrite64l(buf: *mut caryll_Buffer, x: u64) {
 pub unsafe extern "C" fn bufwrite64b(buf: *mut caryll_Buffer, x: u64) {
     buf_push_bytes(buf, &x.to_be_bytes());
 }
-#[no_mangle]
-pub unsafe extern "C" fn bufninit(n: u32, mut args: ...) -> *mut caryll_Buffer {
+/// A fresh buffer holding `bytes`.
+///
+/// The C signature took a count followed by that many varargs, and trusted the
+/// caller to keep the two in agreement. A slice carries its own length, so the
+/// count is gone -- and with it the last use of the `c_variadic` nightly
+/// feature in this module.
+///
+/// No longer `extern "C"`/`#[no_mangle]`: a Rust slice is a fat pointer and has
+/// no C spelling, so claiming the C ABI would have been a lie (rustc says so via
+/// `improper_ctypes_definitions`). Nothing outside the crate called it -- the
+/// public ABI is the four `otfccbuild_*`/`otfcc_get_buf_*` symbols -- so the two
+/// names simply leave `scripts/abi-exports.txt`.
+pub unsafe fn bufninit(bytes: &[u8]) -> *mut caryll_Buffer {
     let buf: *mut caryll_Buffer = bufnew();
-    bufbeforewrite(buf, n as usize);
-    let mut ap: ::core::ffi::VaListImpl = args.clone();
-    for _ in 0..n {
-        bufwrite8(buf, ap.arg::<::core::ffi::c_int>() as u8);
-    }
+    buf_push_bytes(buf, bytes);
     return buf;
 }
-#[no_mangle]
-pub unsafe extern "C" fn bufnwrite8(buf: *mut caryll_Buffer, n: u32, mut args: ...) {
-    bufbeforewrite(buf, n as usize);
-    let mut ap: ::core::ffi::VaListImpl = args.clone();
-    for _ in 0..n {
-        bufwrite8(buf, ap.arg::<::core::ffi::c_int>() as u8);
-    }
+
+/// Append `bytes`, growing the buffer first. See [`bufninit`] for why there is
+/// no separate count.
+pub unsafe fn bufnwrite8(buf: *mut caryll_Buffer, bytes: &[u8]) {
+    buf_push_bytes(buf, bytes);
 }
 #[no_mangle]
 pub unsafe extern "C" fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds) {

@@ -43,8 +43,6 @@ buffree
 buflen
 buflongalign
 bufnew
-bufninit
-bufnwrite8
 bufping16b
 bufping16bd
 bufpingpong16b

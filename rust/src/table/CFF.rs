@@ -8,7 +8,6 @@ extern "C" {
     fn sdscat(s: sds, t: *const ::core::ffi::c_char) -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufninit(n: u32, ...) -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
     fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds);
     fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
@@ -93,7 +92,7 @@ use crate::support::handle::{handle_fromIndex, otfcc_FDHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::logger::{otfcc_ILogger};
-use crate::support::buffer::{caryll_Buffer};
+use crate::support::buffer::{bufninit, caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{arity_t, cffsid_t, f16dot16, font_file_pointer, glyphid_t, pos_t, scale_t, shapeid_t, tableid_t};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
@@ -4172,20 +4171,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         .wrapping_add(1 as usize) as u32 as i32;
     bufwrite_bufdel(
         blob,
-        bufninit(
-            11 as u32,
-            0 as ::core::ffi::c_int,
-            1 as ::core::ffi::c_int,
-            4 as ::core::ffi::c_int,
-            0 as ::core::ffi::c_int,
-            0 as ::core::ffi::c_int,
-            0 as ::core::ffi::c_int,
-            1 as ::core::ffi::c_int,
-            delta_size >> 24 as ::core::ffi::c_int & 0xff as i32,
-            delta_size >> 16 as ::core::ffi::c_int & 0xff as i32,
-            delta_size >> 8 as ::core::ffi::c_int & 0xff as i32,
-            delta_size & 0xff as i32,
-        ),
+        bufninit(&[0 as u8, 1 as u8, 4 as u8, 0 as u8, 0 as u8, 0 as u8, 1 as u8, (delta_size >> 24 as ::core::ffi::c_int & 0xff as i32) as u8, (delta_size >> 16 as ::core::ffi::c_int & 0xff as i32) as u8, (delta_size >> 8 as ::core::ffi::c_int & 0xff as i32) as u8, (delta_size & 0xff as i32) as u8]),
     );
     bufwrite_bufdel(blob, t);
     off = (off as usize).wrapping_add(

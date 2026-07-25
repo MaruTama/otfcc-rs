@@ -1,12 +1,11 @@
 use libc::{free, printf, sprintf, strcat, strlen, strtod};
 extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufninit(n: u32, ...) -> *mut caryll_Buffer;
 }
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::buffer::{caryll_Buffer};
+use crate::support::buffer::{bufninit, caryll_Buffer};
 use crate::libcff::cff_value::{CS2_FRACTION, CS2_OPERAND, CS2_OPERATOR, cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_Value};
 use crate::support::{NULL};
 #[inline]
@@ -16,45 +15,25 @@ unsafe extern "C" fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
 #[no_mangle]
 pub unsafe extern "C" fn cff_encodeCffOperator(mut val: i32) -> *mut caryll_Buffer {
     if val > 256 as i32 {
-        return bufninit(2 as u32, val / 256 as i32, val % 256 as i32);
+        return bufninit(&[(val / 256 as i32) as u8, (val % 256 as i32) as u8]);
     } else {
-        return bufninit(1 as u32, val);
+        return bufninit(&[val as u8]);
     };
 }
 #[no_mangle]
 pub unsafe extern "C" fn cff_encodeCffInteger(mut val: i32) -> *mut caryll_Buffer {
     if val >= -(107 as i32) && val <= 107 as i32 {
-        return bufninit(1 as u32, val + 139 as i32);
+        return bufninit(&[(val + 139 as i32) as u8]);
     } else if val >= 108 as i32 && val <= 1131 as i32 {
         val = (val as ::core::ffi::c_int - 108 as ::core::ffi::c_int) as i32;
-        return bufninit(
-            2 as u32,
-            (val >> 8 as ::core::ffi::c_int) + 247 as i32,
-            val & 0xff as i32,
-        );
+        return bufninit(&[((val >> 8 as ::core::ffi::c_int) + 247 as i32) as u8, (val & 0xff as i32) as u8]);
     } else if val >= -(1131 as i32) && val <= -(108 as i32) {
         val = -(108 as i32) - val;
-        return bufninit(
-            2 as u32,
-            (val >> 8 as ::core::ffi::c_int) + 251 as i32,
-            val & 0xff as i32,
-        );
+        return bufninit(&[((val >> 8 as ::core::ffi::c_int) + 251 as i32) as u8, (val & 0xff as i32) as u8]);
     } else if val >= -(32768 as i32) && val < 32768 as i32 {
-        return bufninit(
-            3 as u32,
-            28 as ::core::ffi::c_int,
-            val >> 8 as ::core::ffi::c_int,
-            val & 0xff as i32,
-        );
+        return bufninit(&[28 as u8, (val >> 8 as ::core::ffi::c_int) as u8, (val & 0xff as i32) as u8]);
     } else {
-        return bufninit(
-            5 as u32,
-            29 as ::core::ffi::c_int,
-            val >> 24 as ::core::ffi::c_int & 0xff as i32,
-            val >> 16 as ::core::ffi::c_int & 0xff as i32,
-            val >> 8 as ::core::ffi::c_int & 0xff as i32,
-            val & 0xff as i32,
-        );
+        return bufninit(&[29 as u8, (val >> 24 as ::core::ffi::c_int & 0xff as i32) as u8, (val >> 16 as ::core::ffi::c_int & 0xff as i32) as u8, (val >> 8 as ::core::ffi::c_int & 0xff as i32) as u8, (val & 0xff as i32) as u8]);
     };
 }
 #[no_mangle]
