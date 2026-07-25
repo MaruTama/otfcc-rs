@@ -8,8 +8,6 @@ extern "C" {
     ) -> *mut json_value;
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
@@ -27,7 +25,7 @@ use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, bk_Block, bkover, p16};
+use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 
 use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_multi, otl_GsubMultiEntry, otl_Subtable, subtable_gsub_multi};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
@@ -533,36 +531,14 @@ unsafe extern "C" fn buildGsubMultiSubtableRange(
             ) as otfcc_GlyphHandle,
         );
     }
-    let root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov)),
-        b16 as ::core::ffi::c_int,
-        end as ::core::ffi::c_int - start as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    let root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(b16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
     for j_0 in start..end {
         let to = (*(*subtable).items.offset(j_0 as isize)).to;
-        let b: *mut bk_Block = bk_new_Block(
-            b16 as ::core::ffi::c_int,
-            (*to).numGlyphs as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
+        let b: *mut bk_Block = bk_new_Block(&[bk_int(b16, ((*to).numGlyphs as ::core::ffi::c_int) as u32)]);
         for k in 0..(*to).numGlyphs {
-            bk_push(
-                b,
-                b16 as ::core::ffi::c_int,
-                (*(*to).glyphs.offset(k as isize)).index as ::core::ffi::c_int,
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(b, &[bk_int(b16, ((*(*to).glyphs.offset(k as isize)).index as ::core::ffi::c_int) as u32)]);
         }
-        bk_push(
-            root,
-            p16 as ::core::ffi::c_int,
-            b,
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(root, &[bk_ptr(p16, b)]);
     }
     otl_Coverage_free(cov);
     return bk_build_Block(root);

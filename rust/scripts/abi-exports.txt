@@ -32,9 +32,7 @@ bk_newBlockFromBuffer
 bk_newBlockFromBufferCopy
 bk_newBlockFromStringLen
 bk_newGraphFromRootBlock
-bk_new_Block
 bk_printBlock
-bk_push
 bk_untangleGraph
 bkblock_pushint
 bkblock_pushptr
@@ -43,8 +41,6 @@ buffree
 buflen
 buflongalign
 bufnew
-bufninit
-bufnwrite8
 bufping16b
 bufping16bd
 bufpingpong16b

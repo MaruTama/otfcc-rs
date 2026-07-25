@@ -15,8 +15,6 @@ extern "C" {
         _: *mut json_value,
     ) -> *mut json_value;
     fn json_integer_new(_: i64) -> *mut json_value;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_build_Block_noMinimize(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
 use crate::support::binio::{read_8u, read_16u, read_16s};
@@ -26,7 +24,7 @@ use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{shapeid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_type, json_value};
-use crate::bk::bkblock::{b16, b8, bk_Block, bkover, p16};
+use crate::bk::bkblock::{b16, b8, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::table::vdmx::types::{__caryll_elementinterface_table_VDMX, __caryll_elementinterface_vdmx_RatioRange, __caryll_vectorinterface_vdmx_Group, __caryll_vectorinterface_vdmx_RatioRagneList, table_VDMX, vdmx_Group, vdmx_RatioRange, vdmx_Record};
@@ -437,32 +435,13 @@ pub unsafe extern "C" fn otfcc_buildVDMX(
     if vdmx.is_null() || (*vdmx).ratios.length == 0 {
         return ::core::ptr::null_mut::<caryll_Buffer>();
     }
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        (*vdmx).version as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        (*vdmx).ratios.length,
-        b16 as ::core::ffi::c_int,
-        (*vdmx).ratios.length,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, ((*vdmx).version as ::core::ffi::c_int) as u32), bk_int(b16, ((*vdmx).ratios.length) as u32), bk_int(b16, ((*vdmx).ratios.length) as u32)]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < (*vdmx).ratios.length {
         let mut rr: *mut vdmx_RatioRange = (*vdmx).ratios.items.offset(__caryll_index as isize);
         while keep != 0 {
-            bk_push(
-                root,
-                b8 as ::core::ffi::c_int,
-                (*rr).bCharset as ::core::ffi::c_int,
-                b8 as ::core::ffi::c_int,
-                (*rr).xRatio as ::core::ffi::c_int,
-                b8 as ::core::ffi::c_int,
-                (*rr).yStartRatio as ::core::ffi::c_int,
-                b8 as ::core::ffi::c_int,
-                (*rr).yEndRatio as ::core::ffi::c_int,
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(root, &[bk_int(b8, ((*rr).bCharset as ::core::ffi::c_int) as u32), bk_int(b8, ((*rr).xRatio as ::core::ffi::c_int) as u32), bk_int(b8, ((*rr).yStartRatio as ::core::ffi::c_int) as u32), bk_int(b8, ((*rr).yEndRatio as ::core::ffi::c_int) as u32)]);
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;
@@ -492,42 +471,20 @@ pub unsafe extern "C" fn otfcc_buildVDMX(
                 keep_1 = (keep_1 == 0) as ::core::ffi::c_int as usize;
                 __caryll_index_1 = __caryll_index_1.wrapping_add(1);
             }
-            let mut group: *mut bk_Block = bk_new_Block(
-                b16 as ::core::ffi::c_int,
-                (*rr_0).records.length,
-                b8 as ::core::ffi::c_int,
-                startsz as ::core::ffi::c_int,
-                b8 as ::core::ffi::c_int,
-                endsz as ::core::ffi::c_int,
-                bkover as ::core::ffi::c_int,
-            );
+            let mut group: *mut bk_Block = bk_new_Block(&[bk_int(b16, ((*rr_0).records.length) as u32), bk_int(b8, (startsz as ::core::ffi::c_int) as u32), bk_int(b8, (endsz as ::core::ffi::c_int) as u32)]);
             let mut __caryll_index_2: usize = 0 as usize;
             let mut keep_2: usize = 1 as usize;
             while keep_2 != 0 && __caryll_index_2 < (*rr_0).records.length {
                 let mut r_0: *mut vdmx_Record =
                     (*rr_0).records.items.offset(__caryll_index_2 as isize);
                 while keep_2 != 0 {
-                    bk_push(
-                        group,
-                        b16 as ::core::ffi::c_int,
-                        (*r_0).yPelHeight as ::core::ffi::c_int,
-                        b16 as ::core::ffi::c_int,
-                        (*r_0).yMax as ::core::ffi::c_int,
-                        b16 as ::core::ffi::c_int,
-                        (*r_0).yMin as ::core::ffi::c_int,
-                        bkover as ::core::ffi::c_int,
-                    );
+                    bk_push(group, &[bk_int(b16, ((*r_0).yPelHeight as ::core::ffi::c_int) as u32), bk_int(b16, ((*r_0).yMax as ::core::ffi::c_int) as u32), bk_int(b16, ((*r_0).yMin as ::core::ffi::c_int) as u32)]);
                     keep_2 = (keep_2 == 0) as ::core::ffi::c_int as usize;
                 }
                 keep_2 = (keep_2 == 0) as ::core::ffi::c_int as usize;
                 __caryll_index_2 = __caryll_index_2.wrapping_add(1);
             }
-            bk_push(
-                root,
-                p16 as ::core::ffi::c_int,
-                group,
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(root, &[bk_ptr(p16, group)]);
             keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
         }
         keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;

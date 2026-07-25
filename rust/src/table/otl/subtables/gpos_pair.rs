@@ -20,8 +20,6 @@ extern "C" {
     fn json_builder_free(_: *mut json_value);
     static otl_iCoverage: __otfcc_ICoverage;
     static otl_iClassDef: __otfcc_IClassDef;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_newGraphFromRootBlock(b: *mut bk_Block) -> *mut bk_Graph;
     fn bk_delete_Graph(f: *mut bk_Graph);
@@ -55,7 +53,7 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphclass_t, glyphid_t, pos_t, tableid_t};
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_pre_serialized, json_type, json_value};
-use crate::bk::bkblock::{b16, bk_Block, bkembed, bkover, p16};
+use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, bkembed, p16};
 use crate::bk::bkgraph::{bk_Graph};
 use crate::support::{NULL};
 use crate::table::otl::{__caryll_elementinterface_subtable_gpos_pair, otl_PositionValue, otl_Subtable, subtable_gpos_pair};
@@ -2359,19 +2357,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     }
     let mut cov: *mut otl_Coverage = covFromCD((*subtable).first);
     shrinkCoverage(cov, true);
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov)),
-        b16 as ::core::ffi::c_int,
-        format1 as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        format2 as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        (*(*subtable).first).numGlyphs as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(b16, (format1 as ::core::ffi::c_int) as u32), bk_int(b16, (format2 as ::core::ffi::c_int) as u32), bk_int(b16, ((*(*subtable).first).numGlyphs as ::core::ffi::c_int) as u32)]);
     let mut j_1: glyphid_t = 0 as glyphid_t;
     while (j_1 as ::core::ffi::c_int) < (*cov).numGlyphs as ::core::ffi::c_int {
         let mut currentPairCount: tableid_t = 0 as tableid_t;
@@ -2386,11 +2372,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
             }
             k_1 = k_1.wrapping_add(1);
         }
-        let mut pairSet: *mut bk_Block = bk_new_Block(
-            b16 as ::core::ffi::c_int,
-            currentPairCount as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
+        let mut pairSet: *mut bk_Block = bk_new_Block(&[bk_int(b16, (currentPairCount as ::core::ffi::c_int) as u32)]);
         let mut pairs: *mut IndividualGposPair = ::core::ptr::null_mut::<IndividualGposPair>();
         pairs = __caryll_allocate_clean(
             (::core::mem::size_of::<IndividualGposPair>() as usize)
@@ -2435,26 +2417,12 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
         );
         let mut n_0: usize = 0 as usize;
         while n_0 < currentPairCount as usize {
-            bk_push(
-                pairSet,
-                b16 as ::core::ffi::c_int,
-                (*pairs.offset(n_0 as isize)).gid as ::core::ffi::c_int,
-                bkembed as ::core::ffi::c_int,
-                bk_gpos_value(*(*pairs.offset(n_0 as isize)).fv, format1),
-                bkembed as ::core::ffi::c_int,
-                bk_gpos_value(*(*pairs.offset(n_0 as isize)).sv, format2),
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(pairSet, &[bk_int(b16, ((*pairs.offset(n_0 as isize)).gid as ::core::ffi::c_int) as u32), bk_ptr(bkembed, bk_gpos_value(*(*pairs.offset(n_0 as isize)).fv, format1)), bk_ptr(bkembed, bk_gpos_value(*(*pairs.offset(n_0 as isize)).sv, format2))]);
             n_0 = n_0.wrapping_add(1);
         }
         free(pairs as *mut ::core::ffi::c_void);
         pairs = ::core::ptr::null_mut::<IndividualGposPair>();
-        bk_push(
-            root,
-            p16 as ::core::ffi::c_int,
-            pairSet,
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(root, &[bk_ptr(p16, pairSet)]);
         j_1 = j_1.wrapping_add(1);
     }
     otl_Coverage_free(cov);
@@ -2491,47 +2459,22 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
         j = j.wrapping_add(1);
     }
     let mut cov: *mut otl_Coverage = covFromCD((*subtable).first);
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        2 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov)),
-        b16 as ::core::ffi::c_int,
-        format1 as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        format2 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 2 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(b16, (format1 as ::core::ffi::c_int) as u32), bk_int(b16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
             (*subtable).first,
-        )),
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(p16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
             (*subtable).second,
-        )),
-        b16 as ::core::ffi::c_int,
-        class1Count as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        class2Count as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+        ))), bk_int(b16, (class1Count as ::core::ffi::c_int) as u32), bk_int(b16, (class2Count as ::core::ffi::c_int) as u32)]);
     let mut j_0: glyphclass_t = 0 as glyphclass_t;
     while (j_0 as ::core::ffi::c_int) < class1Count as ::core::ffi::c_int {
         let mut k_0: glyphclass_t = 0 as glyphclass_t;
         while (k_0 as ::core::ffi::c_int) < class2Count as ::core::ffi::c_int {
-            bk_push(
-                root,
-                bkembed as ::core::ffi::c_int,
-                bk_gpos_value(
+            bk_push(root, &[bk_ptr(bkembed, bk_gpos_value(
                     *(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize),
                     format1,
-                ),
-                bkembed as ::core::ffi::c_int,
-                bk_gpos_value(
+                )), bk_ptr(bkembed, bk_gpos_value(
                     *(*(*subtable).secondValues.offset(j_0 as isize)).offset(k_0 as isize),
                     format2,
-                ),
-                bkover as ::core::ffi::c_int,
-            );
+                ))]);
             k_0 = k_0.wrapping_add(1);
         }
         j_0 = j_0.wrapping_add(1);

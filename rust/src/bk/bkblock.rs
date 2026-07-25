@@ -104,17 +104,46 @@ pub unsafe extern "C" fn bkblock_pushptr(
     (*cell).t = type_0;
     (*cell).c2rust_unnamed.p = p as *mut __caryll_bkblock;
 }
-unsafe extern "C" fn vbkpushitems(b: *mut bk_Block, type0: bk_CellType, mut ap: ::core::ffi::VaList) {
+/// One (type, value) pair for [`bk_push`] / [`bk_new_Block`].
+///
+/// C passed these as varargs -- `bk_push(b, b16, count, p16, child, bkover)` --
+/// with a sentinel to say where the list ended and the caller responsible for
+/// keeping each type next to a value of the matching kind. A `bk_Cell` already
+/// *is* a type plus either an integer or a block pointer, so the list is just a
+/// slice of them, and the sentinel is gone along with the `c_variadic` feature.
+///
+/// Build them with [`bk_int`] and [`bk_ptr`] rather than by hand: which arm of
+/// the union is live is decided by `t`, exactly as the old vararg reader decided
+/// whether to pull a `c_int` or a pointer off the list.
+pub type bk_Item = bk_Cell;
+
+/// A cell holding an integer. `t` must be `b8`, `b16` or `b32`.
+#[inline]
+pub fn bk_int(t: bk_CellType, z: u32) -> bk_Item {
+    bk_Cell { t, c2rust_unnamed: bk_CellValue { z } }
+}
+
+/// A cell holding a block pointer -- `p16`/`p32`/`sp16`/`sp32` for an offset, or
+/// `bkcopy`/`bkembed` to splice the target's cells in.
+#[inline]
+pub fn bk_ptr(t: bk_CellType, p: *mut bk_Block) -> bk_Item {
+    bk_Cell {
+        t,
+        c2rust_unnamed: bk_CellValue { p: p as *mut __caryll_bkblock },
+    }
+}
+
+unsafe fn bkpushitems(b: *mut bk_Block, items: &[bk_Item]) {
     // bk_CellType's variants (bkover/b8/b16/b32/p16/p32/sp16/sp32/bkcopy/
     // bkembed) are all the same c_uint type, so the c2rust-generated
     // triple-cast comparisons (`x as c_uint == y as c_int as c_uint`) were
     // always just `x == y`; matching on the named consts directly is
     // equivalent and self-documenting.
-    let mut curtype: bk_CellType = type0;
-    while curtype != bkover {
+    for item in items {
+        let curtype = item.t;
         match curtype {
             bkcopy | bkembed => {
-                let par: *mut bk_Block = ap.arg::<*mut bk_Block>();
+                let par: *mut bk_Block = item.c2rust_unnamed.p as *mut bk_Block;
                 if !par.is_null() && !(*par).cells.is_null() {
                     for j in 0..(*par).length {
                         let cell = (*par).cells.offset(j as isize);
@@ -131,38 +160,22 @@ unsafe extern "C" fn vbkpushitems(b: *mut bk_Block, type0: bk_CellType, mut ap: 
                     free(par as *mut ::core::ffi::c_void);
                 }
             }
-            t if t < p16 => {
-                let par_0: u32 = ap.arg::<::core::ffi::c_int>() as u32;
-                bkblock_pushint(b, curtype, par_0);
-            }
-            _ => {
-                let par_1: *mut bk_Block = ap.arg::<*mut bk_Block>();
-                bkblock_pushptr(b, curtype, par_1);
-            }
+            t if t < p16 => bkblock_pushint(b, curtype, item.c2rust_unnamed.z),
+            _ => bkblock_pushptr(b, curtype, item.c2rust_unnamed.p as *mut bk_Block),
         }
-        curtype = ap.arg::<::core::ffi::c_int>() as bk_CellType;
     }
 }
-#[no_mangle]
-pub unsafe extern "C" fn bk_new_Block(
-    mut type0: ::core::ffi::c_int,
-    mut args: ...
-) -> *mut bk_Block {
-    let mut ap: ::core::ffi::VaListImpl;
-    ap = args.clone();
-    let mut b: *mut bk_Block = _bkblock_init();
-    vbkpushitems(b, type0 as bk_CellType, ap.as_va_list());
+
+/// A fresh block holding `items`.
+pub unsafe fn bk_new_Block(items: &[bk_Item]) -> *mut bk_Block {
+    let b: *mut bk_Block = _bkblock_init();
+    bkpushitems(b, items);
     return b;
 }
-#[no_mangle]
-pub unsafe extern "C" fn bk_push(
-    mut b: *mut bk_Block,
-    mut type0: ::core::ffi::c_int,
-    mut args: ...
-) -> *mut bk_Block {
-    let mut ap: ::core::ffi::VaListImpl;
-    ap = args.clone();
-    vbkpushitems(b, type0 as bk_CellType, ap.as_va_list());
+
+/// Append `items` to `b`, and hand `b` back so calls can be chained.
+pub unsafe fn bk_push(b: *mut bk_Block, items: &[bk_Item]) -> *mut bk_Block {
+    bkpushitems(b, items);
     return b;
 }
 #[no_mangle]
@@ -173,7 +186,7 @@ pub unsafe extern "C" fn bk_newBlockFromStringLen(
     if str.is_null() {
         return ::core::ptr::null_mut::<bk_Block>();
     }
-    let b: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
+    let b: *mut bk_Block = bk_new_Block(&[]);
     for j in 0..len {
         bkblock_pushint(b, b8, *str.offset(j as isize) as u32);
     }
@@ -184,7 +197,7 @@ pub unsafe extern "C" fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut 
     if buf.is_null() {
         return ::core::ptr::null_mut::<bk_Block>();
     }
-    let b: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
+    let b: *mut bk_Block = bk_new_Block(&[]);
     for j in 0..(*buf).size {
         bkblock_pushint(b, b8, *(*buf).data.offset(j as isize) as u32);
     }
@@ -196,7 +209,7 @@ pub unsafe extern "C" fn bk_newBlockFromBufferCopy(buf: *const caryll_Buffer) ->
     if buf.is_null() {
         return ::core::ptr::null_mut::<bk_Block>();
     }
-    let b: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
+    let b: *mut bk_Block = bk_new_Block(&[]);
     for j in 0..(*buf).size {
         bkblock_pushint(b, b8, *(*buf).data.offset(j as isize) as u32);
     }

@@ -30,8 +30,6 @@ extern "C" {
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn sdscatfmt(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
     static otl_iMarkArray: __caryll_vectorinterface_otl_MarkArray;
@@ -71,7 +69,7 @@ use crate::support::primitives::{font_file_pointer, glyphclass_t, glyphid_t};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 use crate::vendor::json::{json_object, json_pre_serialized, json_type, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, bk_Block, bkover, p16};
+use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 use crate::support::{NULL, __compar_fn_t};
 use crate::table::otl::{__caryll_elementinterface_subtable_gpos_markToSingle, __caryll_vectorinterface_otl_BaseArray, __caryll_vectorinterface_otl_MarkArray, otl_Anchor, otl_BaseArray, otl_BaseRecord, otl_MarkArray, otl_Subtable, subtable_gpos_markToSingle};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
@@ -1362,69 +1360,32 @@ pub unsafe extern "C" fn otfcc_build_gpos_markToSingle(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             marks,
-        )),
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        ))), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             bases,
-        )),
-        b16 as ::core::ffi::c_int,
-        (*subtable).classCount as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
-    let mut markArray: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        (*subtable).markArray.length,
-        bkover as ::core::ffi::c_int,
-    );
+        ))), bk_int(b16, ((*subtable).classCount as ::core::ffi::c_int) as u32)]);
+    let mut markArray: *mut bk_Block = bk_new_Block(&[bk_int(b16, ((*subtable).markArray.length) as u32)]);
     let mut j_1: glyphid_t = 0 as glyphid_t;
     while (j_1 as usize) < (*subtable).markArray.length {
-        bk_push(
-            markArray,
-            b16 as ::core::ffi::c_int,
-            (*(*subtable).markArray.items.offset(j_1 as isize)).markClass as ::core::ffi::c_int,
-            p16 as ::core::ffi::c_int,
-            bkFromAnchor((*(*subtable).markArray.items.offset(j_1 as isize)).anchor),
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(markArray, &[bk_int(b16, ((*(*subtable).markArray.items.offset(j_1 as isize)).markClass as ::core::ffi::c_int) as u32), bk_ptr(p16, bkFromAnchor((*(*subtable).markArray.items.offset(j_1 as isize)).anchor))]);
         j_1 = j_1.wrapping_add(1);
     }
-    let mut baseArray: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        (*subtable).baseArray.length,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut baseArray: *mut bk_Block = bk_new_Block(&[bk_int(b16, ((*subtable).baseArray.length) as u32)]);
     let mut j_2: glyphid_t = 0 as glyphid_t;
     while (j_2 as usize) < (*subtable).baseArray.length {
         let mut k: glyphclass_t = 0 as glyphclass_t;
         while (k as ::core::ffi::c_int) < (*subtable).classCount as ::core::ffi::c_int {
-            bk_push(
-                baseArray,
-                p16 as ::core::ffi::c_int,
-                bkFromAnchor(
+            bk_push(baseArray, &[bk_ptr(p16, bkFromAnchor(
                     *(*(*subtable).baseArray.items.offset(j_2 as isize))
                         .anchors
                         .offset(k as isize),
-                ),
-                bkover as ::core::ffi::c_int,
-            );
+                ))]);
             k = k.wrapping_add(1);
         }
         j_2 = j_2.wrapping_add(1);
     }
-    bk_push(
-        root,
-        p16 as ::core::ffi::c_int,
-        markArray,
-        p16 as ::core::ffi::c_int,
-        baseArray,
-        bkover as ::core::ffi::c_int,
-    );
+    bk_push(root, &[bk_ptr(p16, markArray), bk_ptr(p16, baseArray)]);
     otl_Coverage_free(marks);
     otl_Coverage_free(bases);
     return bk_build_Block(root);

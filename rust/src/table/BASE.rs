@@ -21,8 +21,6 @@ extern "C" {
     ) -> *mut json_value;
     fn json_integer_new(_: i64) -> *mut json_value;
     fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
 
@@ -35,9 +33,9 @@ use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, pos_t, tableid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_double, json_integer, json_object, json_string, json_type, json_value};
-use crate::bk::bkblock::{b16, b32, bk_Block, bkover, p16};
+use crate::bk::bkblock::{b16, b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
-use crate::support::{NULL};
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseValue {
@@ -838,31 +836,18 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
                 ) -> ::core::ffi::c_int,
         ),
     );
-    let mut baseTagList: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        taglist.size as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut baseTagList: *mut bk_Block = bk_new_Block(&[bk_int(b16, (taglist.size as ::core::ffi::c_int) as u32)]);
     let mut j_0: tableid_t = 0 as tableid_t;
     while (j_0 as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
-        bk_push(
-            baseTagList,
-            b32 as ::core::ffi::c_int,
-            *taglist.items.offset(j_0 as isize),
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(baseTagList, &[bk_int(b32, (*taglist.items.offset(j_0 as isize)) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
-    let mut baseScriptList: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        (*axis).scriptCount as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut baseScriptList: *mut bk_Block = bk_new_Block(&[bk_int(b16, ((*axis).scriptCount as ::core::ffi::c_int) as u32)]);
     let mut j_1: tableid_t = 0 as tableid_t;
     while (j_1 as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
         let mut entry_0: *mut otl_BaseScriptEntry =
             (*axis).entries.offset(j_1 as isize) as *mut otl_BaseScriptEntry;
-        let mut baseValues: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
+        let mut baseValues: *mut bk_Block = bk_new_Block(&[]);
         let mut defaultIndex: tableid_t = 0 as tableid_t;
         let mut m: tableid_t = 0 as tableid_t;
         while (m as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
@@ -873,18 +858,8 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
                 m = m.wrapping_add(1);
             }
         }
-        bk_push(
-            baseValues,
-            b16 as ::core::ffi::c_int,
-            defaultIndex as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
-        bk_push(
-            baseValues,
-            b16 as ::core::ffi::c_int,
-            taglist.size as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(baseValues, &[bk_int(b16, (defaultIndex as ::core::ffi::c_int) as u32)]);
+        bk_push(baseValues, &[bk_int(b16, (taglist.size as ::core::ffi::c_int) as u32)]);
         let mut m_0: usize = 0 as usize;
         while m_0 < taglist.size as usize {
             let mut found_1: bool = false;
@@ -902,63 +877,20 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
                 }
             }
             if found_1 {
-                bk_push(
-                    baseValues,
-                    p16 as ::core::ffi::c_int,
-                    bk_new_Block(
-                        b16 as ::core::ffi::c_int,
-                        1 as ::core::ffi::c_int,
-                        b16 as ::core::ffi::c_int,
-                        (*(*entry_0).baseValues.offset(foundIndex as isize)).coordinate as i16
-                            as ::core::ffi::c_int,
-                        bkover as ::core::ffi::c_int,
-                    ),
-                    bkover as ::core::ffi::c_int,
-                );
+                bk_push(baseValues, &[bk_ptr(p16, bk_new_Block(&[bk_int(b16, 1 as u32), bk_int(b16, ((*(*entry_0).baseValues.offset(foundIndex as isize)).coordinate as i16
+                            as ::core::ffi::c_int) as u32)]))]);
             } else {
-                bk_push(
-                    baseValues,
-                    p16 as ::core::ffi::c_int,
-                    bk_new_Block(
-                        b16 as ::core::ffi::c_int,
-                        1 as ::core::ffi::c_int,
-                        b16 as ::core::ffi::c_int,
-                        0 as ::core::ffi::c_int,
-                        bkover as ::core::ffi::c_int,
-                    ),
-                    bkover as ::core::ffi::c_int,
-                );
+                bk_push(baseValues, &[bk_ptr(p16, bk_new_Block(&[bk_int(b16, 1 as u32), bk_int(b16, 0 as u32)]))]);
             }
             m_0 = m_0.wrapping_add(1);
         }
-        let mut scriptRecord: *mut bk_Block = bk_new_Block(
-            p16 as ::core::ffi::c_int,
-            baseValues,
-            p16 as ::core::ffi::c_int,
-            NULL,
-            b16 as ::core::ffi::c_int,
-            0 as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
-        bk_push(
-            baseScriptList,
-            b32 as ::core::ffi::c_int,
-            (*entry_0).tag,
-            p16 as ::core::ffi::c_int,
-            scriptRecord,
-            bkover as ::core::ffi::c_int,
-        );
+        let mut scriptRecord: *mut bk_Block = bk_new_Block(&[bk_ptr(p16, baseValues), bk_ptr(p16, ::core::ptr::null_mut()), bk_int(b16, 0 as u32)]);
+        bk_push(baseScriptList, &[bk_int(b32, ((*entry_0).tag) as u32), bk_ptr(p16, scriptRecord)]);
         j_1 = j_1.wrapping_add(1);
     }
     free(taglist.items as *mut ::core::ffi::c_void);
     taglist.items = ::core::ptr::null_mut::<u32>();
-    return bk_new_Block(
-        p16 as ::core::ffi::c_int,
-        baseTagList,
-        p16 as ::core::ffi::c_int,
-        baseScriptList,
-        bkover as ::core::ffi::c_int,
-    );
+    return bk_new_Block(&[bk_ptr(p16, baseTagList), bk_ptr(p16, baseScriptList)]);
 }
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_buildBASE(
@@ -968,15 +900,7 @@ pub unsafe extern "C" fn otfcc_buildBASE(
     if base.is_null() {
         return ::core::ptr::null_mut::<caryll_Buffer>();
     }
-    let mut root: *mut bk_Block = bk_new_Block(
-        b32 as ::core::ffi::c_int,
-        0x10000 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        axisToBk((*base).horizontal),
-        p16 as ::core::ffi::c_int,
-        axisToBk((*base).vertical),
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b32, 0x10000 as u32), bk_ptr(p16, axisToBk((*base).horizontal)), bk_ptr(p16, axisToBk((*base).vertical))]);
     return bk_build_Block(root);
 }
 #[inline]

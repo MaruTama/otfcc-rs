@@ -8,8 +8,6 @@ extern "C" {
     ) -> *mut json_value;
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
     fn position_format_length(format: u16) -> u8;
@@ -35,7 +33,7 @@ use crate::support::primitives::{font_file_pointer, glyphid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_object, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, bk_Block, bkembed, bkover, p16};
+use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, bkembed, p16};
 
 use crate::table::otl::{__caryll_vectorinterface_subtable_gpos_single, otl_GposSingleEntry, otl_PositionValue, otl_Subtable, subtable_gpos_single};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
@@ -637,42 +635,17 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
     let mut coverageBuf: *mut caryll_Buffer =
         otl_iCoverage.build.expect("non-null function pointer")(cov);
     if isConst {
-        let mut b: *mut bk_Block = bk_new_Block(
-            b16 as ::core::ffi::c_int,
-            1 as ::core::ffi::c_int,
-            p16 as ::core::ffi::c_int,
-            bk_newBlockFromBuffer(coverageBuf),
-            b16 as ::core::ffi::c_int,
-            format as ::core::ffi::c_int,
-            bkembed as ::core::ffi::c_int,
-            bk_gpos_value(
+        let mut b: *mut bk_Block = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(coverageBuf)), bk_int(b16, (format as ::core::ffi::c_int) as u32), bk_ptr(bkembed, bk_gpos_value(
                 (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize)).value,
                 format,
-            ),
-            bkover as ::core::ffi::c_int,
-        );
+            ))]);
         otl_Coverage_free(cov);
         return bk_build_Block(b);
     } else {
-        let mut b_0: *mut bk_Block = bk_new_Block(
-            b16 as ::core::ffi::c_int,
-            2 as ::core::ffi::c_int,
-            p16 as ::core::ffi::c_int,
-            bk_newBlockFromBuffer(coverageBuf),
-            b16 as ::core::ffi::c_int,
-            format as ::core::ffi::c_int,
-            b16 as ::core::ffi::c_int,
-            (*subtable).length,
-            bkover as ::core::ffi::c_int,
-        );
+        let mut b_0: *mut bk_Block = bk_new_Block(&[bk_int(b16, 2 as u32), bk_ptr(p16, bk_newBlockFromBuffer(coverageBuf)), bk_int(b16, (format as ::core::ffi::c_int) as u32), bk_int(b16, ((*subtable).length) as u32)]);
         let mut k: glyphid_t = 0 as glyphid_t;
         while (k as usize) < (*subtable).length {
-            bk_push(
-                b_0,
-                bkembed as ::core::ffi::c_int,
-                bk_gpos_value((*(*subtable).items.offset(k as isize)).value, format),
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(b_0, &[bk_ptr(bkembed, bk_gpos_value((*(*subtable).items.offset(k as isize)).value, format))]);
             k = k.wrapping_add(1);
         }
         otl_Coverage_free(cov);

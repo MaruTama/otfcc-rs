@@ -2,12 +2,10 @@
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
-use crate::bk::bkblock::{b32, bk_Block, bkover, p32};
+use crate::bk::bkblock::{b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
 
 use crate::table::meta::types::{meta_Entry, table_meta};
 extern "C" {
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromStringLen(len: usize, str: *const ::core::ffi::c_char) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
@@ -49,35 +47,16 @@ pub unsafe extern "C" fn otfcc_buildMeta(
     if meta.is_null() || (*meta).entries.length == 0 {
         return ::core::ptr::null_mut::<caryll_Buffer>();
     }
-    let mut root: *mut bk_Block = bk_new_Block(
-        b32 as ::core::ffi::c_int,
-        (*meta).version,
-        b32 as ::core::ffi::c_int,
-        (*meta).flags,
-        b32 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        b32 as ::core::ffi::c_int,
-        (*meta).entries.length as u32,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b32, ((*meta).version) as u32), bk_int(b32, ((*meta).flags) as u32), bk_int(b32, 0 as u32), bk_int(b32, ((*meta).entries.length as u32) as u32)]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < (*meta).entries.length {
         let mut e: *mut meta_Entry = (*meta).entries.items.offset(__caryll_index as isize);
         while keep != 0 {
-            bk_push(
-                root,
-                b32 as ::core::ffi::c_int,
-                (*e).tag,
-                p32 as ::core::ffi::c_int,
-                bk_newBlockFromStringLen(
+            bk_push(root, &[bk_int(b32, ((*e).tag) as u32), bk_ptr(p32, bk_newBlockFromStringLen(
                     sdslen((*e).data),
                     (*e).data as *const ::core::ffi::c_char,
-                ),
-                b32 as ::core::ffi::c_int,
-                sdslen((*e).data),
-                bkover as ::core::ffi::c_int,
-            );
+                )), bk_int(b32, (sdslen((*e).data)) as u32)]);
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;

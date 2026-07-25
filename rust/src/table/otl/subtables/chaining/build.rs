@@ -2,8 +2,6 @@ use libc::{free};
 extern "C" {
     static otl_iCoverage: __otfcc_ICoverage;
     static otl_iClassDef: __otfcc_IClassDef;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
@@ -17,8 +15,8 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::primitives::{glyphclass_t, tableid_t};
 
 
-use crate::bk::bkblock::{b16, bk_Block, bkover, p16};
-use crate::support::{NULL};
+use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
+
 use crate::table::otl::{otl_ChainingRule, otl_Lookup, otl_Subtable, otl_chaining_classified, otl_type_gpos_chaining, otl_type_gsub_chaining, subtable_chaining};
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_chainingLookupIsContextualLookup(
@@ -83,82 +81,36 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
         - (*rule).inputEnds as ::core::ffi::c_int) as tableid_t;
     let mut nSubst: tableid_t = (*rule).applyCount;
     reverseBacktracks(rule);
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        3 as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        nBacktrack as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 3 as u32)]);
+    bk_push(root, &[bk_int(b16, (nBacktrack as ::core::ffi::c_int) as u32)]);
     let mut j: tableid_t = 0 as tableid_t;
     while (j as ::core::ffi::c_int) < (*rule).inputBegins as ::core::ffi::c_int {
-        bk_push(
-            root,
-            p16 as ::core::ffi::c_int,
-            bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j as isize),
-            )),
-            bkover as ::core::ffi::c_int,
-        );
+            )))]);
         j = j.wrapping_add(1);
     }
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        nInput as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    bk_push(root, &[bk_int(b16, (nInput as ::core::ffi::c_int) as u32)]);
     let mut j_0: tableid_t = (*rule).inputBegins;
     while (j_0 as ::core::ffi::c_int) < (*rule).inputEnds as ::core::ffi::c_int {
-        bk_push(
-            root,
-            p16 as ::core::ffi::c_int,
-            bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j_0 as isize),
-            )),
-            bkover as ::core::ffi::c_int,
-        );
+            )))]);
         j_0 = j_0.wrapping_add(1);
     }
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        nLookahead as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    bk_push(root, &[bk_int(b16, (nLookahead as ::core::ffi::c_int) as u32)]);
     let mut j_1: tableid_t = (*rule).inputEnds;
     while (j_1 as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
-        bk_push(
-            root,
-            p16 as ::core::ffi::c_int,
-            bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j_1 as isize),
-            )),
-            bkover as ::core::ffi::c_int,
-        );
+            )))]);
         j_1 = j_1.wrapping_add(1);
     }
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        (*rule).applyCount as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    bk_push(root, &[bk_int(b16, ((*rule).applyCount as ::core::ffi::c_int) as u32)]);
     let mut j_2: tableid_t = 0 as tableid_t;
     while (j_2 as ::core::ffi::c_int) < nSubst as ::core::ffi::c_int {
-        bk_push(
-            root,
-            b16 as ::core::ffi::c_int,
-            (*(*rule).apply.offset(j_2 as isize)).index as ::core::ffi::c_int
-                - nBacktrack as ::core::ffi::c_int,
-            b16 as ::core::ffi::c_int,
-            (*(*rule).apply.offset(j_2 as isize)).lookup.index as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(root, &[bk_int(b16, ((*(*rule).apply.offset(j_2 as isize)).index as ::core::ffi::c_int
+                - nBacktrack as ::core::ffi::c_int) as u32), bk_int(b16, ((*(*rule).apply.offset(j_2 as isize)).lookup.index as ::core::ffi::c_int) as u32)]);
         j_2 = j_2.wrapping_add(1);
     }
     return bk_build_Block(root);
@@ -175,30 +127,16 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     ) as *mut otl_Coverage;
     (*coverage).numGlyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).numGlyphs;
     (*coverage).glyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).glyphs;
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        2 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 2 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             coverage,
-        )),
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(p16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.bc,
-        )),
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(p16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.ic,
-        )),
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(p16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.fc,
-        )),
-        b16 as ::core::ffi::c_int,
-        (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
-            + 1 as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+        ))), bk_int(b16, ((*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+            + 1 as ::core::ffi::c_int) as u32)]);
     let mut rcpg: *mut glyphclass_t = ::core::ptr::null_mut::<glyphclass_t>();
     rcpg = __caryll_allocate_clean(
         (::core::mem::size_of::<glyphclass_t>() as usize).wrapping_mul(
@@ -247,11 +185,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
         <= (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
     {
         if *rcpg.offset(j_1 as isize) != 0 {
-            let mut cset: *mut bk_Block = bk_new_Block(
-                b16 as ::core::ffi::c_int,
-                *rcpg.offset(j_1 as isize) as ::core::ffi::c_int,
-                bkover as ::core::ffi::c_int,
-            );
+            let mut cset: *mut bk_Block = bk_new_Block(&[bk_int(b16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
             let mut k: tableid_t = 0 as tableid_t;
             while (k as ::core::ffi::c_int)
                 < (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount as ::core::ffi::c_int
@@ -276,108 +210,51 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
                         - (*rule).inputEnds as ::core::ffi::c_int)
                         as tableid_t;
                     let mut nSubst: tableid_t = (*rule).applyCount;
-                    let mut r: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
-                    bk_push(
-                        r,
-                        b16 as ::core::ffi::c_int,
-                        nBacktrack as ::core::ffi::c_int,
-                        bkover as ::core::ffi::c_int,
-                    );
+                    let mut r: *mut bk_Block = bk_new_Block(&[]);
+                    bk_push(r, &[bk_int(b16, (nBacktrack as ::core::ffi::c_int) as u32)]);
                     let mut m: tableid_t = 0 as tableid_t;
                     while (m as ::core::ffi::c_int) < (*rule).inputBegins as ::core::ffi::c_int {
-                        bk_push(
-                            r,
-                            b16 as ::core::ffi::c_int,
-                            (*(**(*rule).match_0.offset(m as isize))
+                        bk_push(r, &[bk_int(b16, ((*(**(*rule).match_0.offset(m as isize))
                                 .glyphs
                                 .offset(0 as ::core::ffi::c_int as isize))
-                            .index as ::core::ffi::c_int,
-                            bkover as ::core::ffi::c_int,
-                        );
+                            .index as ::core::ffi::c_int) as u32)]);
                         m = m.wrapping_add(1);
                     }
-                    bk_push(
-                        r,
-                        b16 as ::core::ffi::c_int,
-                        nInput as ::core::ffi::c_int,
-                        bkover as ::core::ffi::c_int,
-                    );
+                    bk_push(r, &[bk_int(b16, (nInput as ::core::ffi::c_int) as u32)]);
                     let mut m_0: tableid_t = ((*rule).inputBegins as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as tableid_t;
                     while (m_0 as ::core::ffi::c_int) < (*rule).inputEnds as ::core::ffi::c_int {
-                        bk_push(
-                            r,
-                            b16 as ::core::ffi::c_int,
-                            (*(**(*rule).match_0.offset(m_0 as isize))
+                        bk_push(r, &[bk_int(b16, ((*(**(*rule).match_0.offset(m_0 as isize))
                                 .glyphs
                                 .offset(0 as ::core::ffi::c_int as isize))
-                            .index as ::core::ffi::c_int,
-                            bkover as ::core::ffi::c_int,
-                        );
+                            .index as ::core::ffi::c_int) as u32)]);
                         m_0 = m_0.wrapping_add(1);
                     }
-                    bk_push(
-                        r,
-                        b16 as ::core::ffi::c_int,
-                        nLookahead as ::core::ffi::c_int,
-                        bkover as ::core::ffi::c_int,
-                    );
+                    bk_push(r, &[bk_int(b16, (nLookahead as ::core::ffi::c_int) as u32)]);
                     let mut m_1: tableid_t = (*rule).inputEnds;
                     while (m_1 as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
-                        bk_push(
-                            r,
-                            b16 as ::core::ffi::c_int,
-                            (*(**(*rule).match_0.offset(m_1 as isize))
+                        bk_push(r, &[bk_int(b16, ((*(**(*rule).match_0.offset(m_1 as isize))
                                 .glyphs
                                 .offset(0 as ::core::ffi::c_int as isize))
-                            .index as ::core::ffi::c_int,
-                            bkover as ::core::ffi::c_int,
-                        );
+                            .index as ::core::ffi::c_int) as u32)]);
                         m_1 = m_1.wrapping_add(1);
                     }
-                    bk_push(
-                        r,
-                        b16 as ::core::ffi::c_int,
-                        nSubst as ::core::ffi::c_int,
-                        bkover as ::core::ffi::c_int,
-                    );
+                    bk_push(r, &[bk_int(b16, (nSubst as ::core::ffi::c_int) as u32)]);
                     let mut m_2: tableid_t = 0 as tableid_t;
                     while (m_2 as ::core::ffi::c_int) < nSubst as ::core::ffi::c_int {
-                        bk_push(
-                            r,
-                            b16 as ::core::ffi::c_int,
-                            (*(*rule).apply.offset(m_2 as isize)).index as ::core::ffi::c_int
-                                - nBacktrack as ::core::ffi::c_int,
-                            b16 as ::core::ffi::c_int,
-                            (*(*rule).apply.offset(m_2 as isize)).lookup.index
-                                as ::core::ffi::c_int,
-                            bkover as ::core::ffi::c_int,
-                        );
+                        bk_push(r, &[bk_int(b16, ((*(*rule).apply.offset(m_2 as isize)).index as ::core::ffi::c_int
+                                - nBacktrack as ::core::ffi::c_int) as u32), bk_int(b16, ((*(*rule).apply.offset(m_2 as isize)).lookup.index
+                                as ::core::ffi::c_int) as u32)]);
                         m_2 = m_2.wrapping_add(1);
                     }
-                    bk_push(
-                        cset,
-                        p16 as ::core::ffi::c_int,
-                        r,
-                        bkover as ::core::ffi::c_int,
-                    );
+                    bk_push(cset, &[bk_ptr(p16, r)]);
                 }
                 k = k.wrapping_add(1);
             }
-            bk_push(
-                root,
-                p16 as ::core::ffi::c_int,
-                cset,
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(root, &[bk_ptr(p16, cset)]);
         } else {
-            bk_push(
-                root,
-                p16 as ::core::ffi::c_int,
-                NULL,
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(root, &[bk_ptr(p16, ::core::ptr::null_mut())]);
         }
         j_1 = j_1.wrapping_add(1);
     }
@@ -409,45 +286,19 @@ pub unsafe extern "C" fn otfcc_build_contextual_coverage(
         - (*rule).inputBegins as ::core::ffi::c_int) as tableid_t;
     let mut nSubst: tableid_t = (*rule).applyCount;
     reverseBacktracks(rule);
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        3 as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        nInput as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        nSubst as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 3 as u32)]);
+    bk_push(root, &[bk_int(b16, (nInput as ::core::ffi::c_int) as u32)]);
+    bk_push(root, &[bk_int(b16, (nSubst as ::core::ffi::c_int) as u32)]);
     let mut j: tableid_t = (*rule).inputBegins;
     while (j as ::core::ffi::c_int) < (*rule).inputEnds as ::core::ffi::c_int {
-        bk_push(
-            root,
-            p16 as ::core::ffi::c_int,
-            bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j as isize),
-            )),
-            bkover as ::core::ffi::c_int,
-        );
+            )))]);
         j = j.wrapping_add(1);
     }
     let mut j_0: tableid_t = 0 as tableid_t;
     while (j_0 as ::core::ffi::c_int) < nSubst as ::core::ffi::c_int {
-        bk_push(
-            root,
-            b16 as ::core::ffi::c_int,
-            (*(*rule).apply.offset(j_0 as isize)).index as ::core::ffi::c_int,
-            b16 as ::core::ffi::c_int,
-            (*(*rule).apply.offset(j_0 as isize)).lookup.index as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(root, &[bk_int(b16, ((*(*rule).apply.offset(j_0 as isize)).index as ::core::ffi::c_int) as u32), bk_int(b16, ((*(*rule).apply.offset(j_0 as isize)).lookup.index as ::core::ffi::c_int) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
     return bk_build_Block(root);
@@ -464,22 +315,12 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     ) as *mut otl_Coverage;
     (*coverage).numGlyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).numGlyphs;
     (*coverage).glyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).glyphs;
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        2 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 2 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             coverage,
-        )),
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(p16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.ic,
-        )),
-        b16 as ::core::ffi::c_int,
-        (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
-            + 1 as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+        ))), bk_int(b16, ((*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+            + 1 as ::core::ffi::c_int) as u32)]);
     let mut rcpg: *mut glyphclass_t = ::core::ptr::null_mut::<glyphclass_t>();
     rcpg = __caryll_allocate_clean(
         (::core::mem::size_of::<glyphclass_t>() as usize).wrapping_mul(
@@ -528,11 +369,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
         <= (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
     {
         if *rcpg.offset(j_1 as isize) != 0 {
-            let mut cset: *mut bk_Block = bk_new_Block(
-                b16 as ::core::ffi::c_int,
-                *rcpg.offset(j_1 as isize) as ::core::ffi::c_int,
-                bkover as ::core::ffi::c_int,
-            );
+            let mut cset: *mut bk_Block = bk_new_Block(&[bk_int(b16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
             let mut k: tableid_t = 0 as tableid_t;
             while (k as ::core::ffi::c_int)
                 < (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount as ::core::ffi::c_int
@@ -553,69 +390,32 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
                         - (*rule).inputBegins as ::core::ffi::c_int)
                         as tableid_t;
                     let mut nSubst: tableid_t = (*rule).applyCount;
-                    let mut r: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
-                    bk_push(
-                        r,
-                        b16 as ::core::ffi::c_int,
-                        nInput as ::core::ffi::c_int,
-                        bkover as ::core::ffi::c_int,
-                    );
-                    bk_push(
-                        r,
-                        b16 as ::core::ffi::c_int,
-                        nSubst as ::core::ffi::c_int,
-                        bkover as ::core::ffi::c_int,
-                    );
+                    let mut r: *mut bk_Block = bk_new_Block(&[]);
+                    bk_push(r, &[bk_int(b16, (nInput as ::core::ffi::c_int) as u32)]);
+                    bk_push(r, &[bk_int(b16, (nSubst as ::core::ffi::c_int) as u32)]);
                     let mut m: tableid_t = ((*rule).inputBegins as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as tableid_t;
                     while (m as ::core::ffi::c_int) < (*rule).inputEnds as ::core::ffi::c_int {
-                        bk_push(
-                            r,
-                            b16 as ::core::ffi::c_int,
-                            (*(**(*rule).match_0.offset(m as isize))
+                        bk_push(r, &[bk_int(b16, ((*(**(*rule).match_0.offset(m as isize))
                                 .glyphs
                                 .offset(0 as ::core::ffi::c_int as isize))
-                            .index as ::core::ffi::c_int,
-                            bkover as ::core::ffi::c_int,
-                        );
+                            .index as ::core::ffi::c_int) as u32)]);
                         m = m.wrapping_add(1);
                     }
                     let mut m_0: tableid_t = 0 as tableid_t;
                     while (m_0 as ::core::ffi::c_int) < nSubst as ::core::ffi::c_int {
-                        bk_push(
-                            r,
-                            b16 as ::core::ffi::c_int,
-                            (*(*rule).apply.offset(m_0 as isize)).index as ::core::ffi::c_int,
-                            b16 as ::core::ffi::c_int,
-                            (*(*rule).apply.offset(m_0 as isize)).lookup.index
-                                as ::core::ffi::c_int,
-                            bkover as ::core::ffi::c_int,
-                        );
+                        bk_push(r, &[bk_int(b16, ((*(*rule).apply.offset(m_0 as isize)).index as ::core::ffi::c_int) as u32), bk_int(b16, ((*(*rule).apply.offset(m_0 as isize)).lookup.index
+                                as ::core::ffi::c_int) as u32)]);
                         m_0 = m_0.wrapping_add(1);
                     }
-                    bk_push(
-                        cset,
-                        p16 as ::core::ffi::c_int,
-                        r,
-                        bkover as ::core::ffi::c_int,
-                    );
+                    bk_push(cset, &[bk_ptr(p16, r)]);
                 }
                 k = k.wrapping_add(1);
             }
-            bk_push(
-                root,
-                p16 as ::core::ffi::c_int,
-                cset,
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(root, &[bk_ptr(p16, cset)]);
         } else {
-            bk_push(
-                root,
-                p16 as ::core::ffi::c_int,
-                NULL,
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(root, &[bk_ptr(p16, ::core::ptr::null_mut())]);
         }
         j_1 = j_1.wrapping_add(1);
     }

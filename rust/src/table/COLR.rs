@@ -20,8 +20,6 @@ extern "C" {
     fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
 
@@ -36,7 +34,7 @@ use crate::support::primitives::{colorid_t, glyphid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_pre_serialized, json_string, json_type, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, bk_Block, bkover, p32};
+use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::support::glyph_order::{glyph_handle};
@@ -1280,37 +1278,21 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
         ),
     );
     let mut currentLayerIndex: glyphid_t = 0 as glyphid_t;
-    let mut layerRecords: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
-    let mut baseRecords: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
+    let mut layerRecords: *mut bk_Block = bk_new_Block(&[]);
+    let mut baseRecords: *mut bk_Block = bk_new_Block(&[]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < colr.length {
         let mut mapping: *mut colr_Mapping = colr.items.offset(__caryll_index as isize);
         while keep != 0 {
-            bk_push(
-                baseRecords,
-                b16 as ::core::ffi::c_int,
-                (*mapping).glyph.index as ::core::ffi::c_int,
-                b16 as ::core::ffi::c_int,
-                currentLayerIndex as ::core::ffi::c_int,
-                b16 as ::core::ffi::c_int,
-                (*mapping).layers.length,
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(baseRecords, &[bk_int(b16, ((*mapping).glyph.index as ::core::ffi::c_int) as u32), bk_int(b16, (currentLayerIndex as ::core::ffi::c_int) as u32), bk_int(b16, ((*mapping).layers.length) as u32)]);
             let mut __caryll_index_0: usize = 0 as usize;
             let mut keep_0: usize = 1 as usize;
             while keep_0 != 0 && __caryll_index_0 < (*mapping).layers.length {
                 let mut layer: *mut colr_Layer =
                     (*mapping).layers.items.offset(__caryll_index_0 as isize);
                 while keep_0 != 0 {
-                    bk_push(
-                        layerRecords,
-                        b16 as ::core::ffi::c_int,
-                        (*layer).glyph.index as ::core::ffi::c_int,
-                        b16 as ::core::ffi::c_int,
-                        (*layer).paletteIndex as ::core::ffi::c_int,
-                        bkover as ::core::ffi::c_int,
-                    );
+                    bk_push(layerRecords, &[bk_int(b16, ((*layer).glyph.index as ::core::ffi::c_int) as u32), bk_int(b16, ((*layer).paletteIndex as ::core::ffi::c_int) as u32)]);
                     currentLayerIndex = (currentLayerIndex as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as glyphid_t;
@@ -1324,19 +1306,7 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        colr.length,
-        p32 as ::core::ffi::c_int,
-        baseRecords,
-        p32 as ::core::ffi::c_int,
-        layerRecords,
-        b16 as ::core::ffi::c_int,
-        currentLayerIndex as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 0 as u32), bk_int(b16, (colr.length) as u32), bk_ptr(p32, baseRecords), bk_ptr(p32, layerRecords), bk_int(b16, (currentLayerIndex as ::core::ffi::c_int) as u32)]);
     table_iCOLR.dispose.expect("non-null function pointer")(&raw mut colr);
     return bk_build_Block(root);
 }
