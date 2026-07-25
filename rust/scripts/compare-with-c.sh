@@ -87,6 +87,23 @@ compare_payload() {
 	# start from byte-identical input.
 	"${C_BIN}/otfccdump" "${in}" -o "${out}.json" --pretty
 
+	# ...which also makes it the expectation for the Rust dumper. Until this
+	# check existed, nothing compared otfccdump's output between the two
+	# implementations: the JSON both builds consume comes from C, so a
+	# divergence in the dump direction only showed up if it happened to change
+	# the *build* result too. Anything that writes JSON keys or number
+	# formatting (flag label tables, for instance) needs this half.
+	rm -f "${out}.rust.json"
+	if ! "${RUST_BIN}/otfccdump" "${in}" -o "${out}.rust.json" --pretty; then
+		echo "FAIL  ${name} dump: Rust otfccdump exited non-zero"
+		fail=1
+	elif cmp -s "${out}.json" "${out}.rust.json"; then
+		echo "PASS  ${name} dump: byte-identical"
+	else
+		echo "FAIL  ${name} dump: differs ($(cmp -l "${out}.json" "${out}.rust.json" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+
 	# Check both builds actually succeeded. Under `set -e` a crash would abort
 	# the whole script with nothing but the shell's own "Abort trap: 6", which
 	# reads like a harness problem rather than a failing payload; and a stale

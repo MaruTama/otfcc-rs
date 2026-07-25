@@ -75,6 +75,7 @@ use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opt
 
 
 use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_SegList, vq_Segment};
+use crate::support::json_funcs::{json_obj_getbool};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -4393,34 +4394,6 @@ unsafe extern "C" fn json_boolof(mut cv: *const json_value) -> bool {
             == json_boolean as ::core::ffi::c_int as ::core::ffi::c_uint
     {
         return (*cv).u.boolean != 0;
-    }
-    return false;
-}
-#[inline]
-unsafe extern "C" fn json_obj_getbool(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> bool {
-    if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        return false;
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        let mut cv: *mut json_value =
-            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_boolean as ::core::ffi::c_int as ::core::ffi::c_uint
-            {
-                return (*cv).u.boolean != 0;
-            }
-        }
-        _k = _k.wrapping_add(1);
     }
     return false;
 }

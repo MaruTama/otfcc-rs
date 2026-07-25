@@ -97,8 +97,6 @@ cff_parseSubr
 cff_shrinkIL
 cffnum
 classCoverage
-codePageLabels1
-codePageLabels2
 colr_iLayer
 colr_iLayerList
 colr_iMapping
@@ -135,8 +133,6 @@ fontop_consolidateClassDef
 fontop_consolidateCoverage
 format3Coverage
 formatPriorities
-fsSelectionLabels
-fsTypeLabels
 fvar_iInstance
 fvar_iInstanceList
 gasp_iRecord
@@ -212,7 +208,6 @@ json_value_free
 json_value_free_ex
 json_value_none
 json_vqOf
-lookupFlagsLabels
 makeFpgmPrepInstr
 meta_iEntries
 meta_iEntry
@@ -538,10 +533,6 @@ table_iVmtx
 time_now
 tryClassifyAround
 tsi_iEntry
-unicodeRangeLabels1
-unicodeRangeLabels2
-unicodeRangeLabels3
-unicodeRangeLabels4
 utf16be_to_utf8
 utf16le_to_utf8
 utf8toutf16be

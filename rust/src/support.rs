@@ -8,6 +8,7 @@ pub mod cvec;
 pub mod getopt;
 pub mod glyph_order;
 pub mod handle;
+pub mod json_funcs;
 pub mod json_ident;
 pub mod options;
 pub mod primitives;
