@@ -9,7 +9,6 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{caryll_Buffer};
 use crate::libcff::cff_value::{CS2_FRACTION, CS2_OPERAND, CS2_OPERATOR, cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_Value};
 use crate::support::{NULL};
-pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 #[inline]
 unsafe extern "C" fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_double {
     return strtod(__nptr, NULL as *mut *mut ::core::ffi::c_char);

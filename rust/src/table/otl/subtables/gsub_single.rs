@@ -34,12 +34,7 @@ use crate::support::glyph_order::{glyph_handle};
 use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_single, otl_GsubSingleEntry, otl_Subtable, subtable_gsub_single};
 use crate::table::otl::subtables::{OTL_BH_GSUB_VERT, otl_BuildHeuristics};
 use crate::vendor::uthash::{UT_hash_handle};
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
+use crate::support::{__compar_fn_t};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_GsubSingleEntry {

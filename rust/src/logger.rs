@@ -17,11 +17,15 @@ pub struct otfcc_ILoggerTarget {
     pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()>,
 }
-pub type otfcc_LoggerType = ::core::ffi::c_uint;
-pub const log_type_progress: otfcc_LoggerType = 3;
-pub const log_type_info: otfcc_LoggerType = 2;
-pub const log_type_warning: otfcc_LoggerType = 1;
-pub const log_type_error: otfcc_LoggerType = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum otfcc_LoggerType {
+    log_type_error = 0,
+    log_type_warning = 1,
+    log_type_info = 2,
+    log_type_progress = 3,
+}
+pub use otfcc_LoggerType::*;
 pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
 pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
 pub const log_vl_info: otfcc_LoggerVerbosity = 5;

@@ -39,12 +39,7 @@ use crate::bk::bkblock::{b16, bk_Block, bkembed, bkover, p16};
 
 use crate::table::otl::{__caryll_vectorinterface_subtable_gpos_single, otl_GposSingleEntry, otl_PositionValue, otl_Subtable, subtable_gpos_single};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
+use crate::support::{__compar_fn_t};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_GposSingleEntry {

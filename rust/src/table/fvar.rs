@@ -53,19 +53,13 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{json_double, json_integer, json_pre_serialized, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
-use crate::support::{NULL};
+use crate::support::{NULL, __compar_fn_t};
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 use crate::vf::axis::{__caryll_vectorinterface_vf_Axes, vf_Axes, vf_Axis};
 use crate::vf::region::{vq_AxisSpan, vq_Region};
 use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_Segment};
 use crate::vf::vv::{VV, __caryll_vectorinterface_VV};
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct fvar_Instance {

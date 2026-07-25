@@ -105,7 +105,6 @@ pub const ORD_CMAP: json_GlyphOrderPass = 3;
 pub const ORD_GLYF: json_GlyphOrderPass = 4;
 pub const ORD_NOTDEF: json_GlyphOrderPass = 2;
 pub type json_GlyphOrderPass = ::core::ffi::c_uint;
-pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 #[inline]
 unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
     return strtol(
@@ -779,8 +778,8 @@ unsafe extern "C" fn setOrderByName(
             as *mut ::core::ffi::c_char as *mut ::core::ffi::c_void;
         (*s).hhName.keylen = sdslen((*s).name) as ::core::ffi::c_uint;
         if (*go).byName.is_null() {
-            (*s).hhName.next = NULL_0;
-            (*s).hhName.prev = NULL_0;
+            (*s).hhName.next = NULL;
+            (*s).hhName.prev = NULL;
             (*s).hhName.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*s).hhName.tbl.is_null() {
@@ -815,7 +814,7 @@ unsafe extern "C" fn setOrderByName(
             (*go).byName = s;
         } else {
             (*s).hhName.tbl = (*(*go).byName).hhName.tbl;
-            (*s).hhName.next = NULL_0;
+            (*s).hhName.next = NULL;
             (*s).hhName.prev = ((*(*(*go).byName).hhName.tbl).tail as *mut ::core::ffi::c_char)
                 .offset(-(*(*(*go).byName).hhName.tbl).hho)
                 as *mut ::core::ffi::c_void;
@@ -1067,7 +1066,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                                 .offset(-(*(*(*go).byName).hhName.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
-                            NULL_0
+                            NULL
                         };
                     } else {
                         _hs_list = _hs_e;
@@ -1078,7 +1077,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                                 .offset(-(*(*(*go).byName).hhName.tbl).hho)
                                 as *mut ::core::ffi::c_void
                         } else {
-                            NULL_0
+                            NULL
                         };
                     }
                     _hs_tail = _hs_e;
@@ -1086,7 +1085,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                 _hs_p = _hs_q;
             }
             if !_hs_tail.is_null() {
-                (*_hs_tail).next = NULL_0;
+                (*_hs_tail).next = NULL;
             }
             if _hs_nmerges <= 1 as ::core::ffi::c_uint {
                 _hs_looping = 0 as ::core::ffi::c_uint;
@@ -1107,7 +1106,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
     temp = (if !(*go).byName.is_null() {
         (*(*go).byName).hhName.next
     } else {
-        NULL_0
+        NULL
     }) as *mut otfcc_GlyphOrderEntry as *mut otfcc_GlyphOrderEntry;
     while !current.is_null() {
         (*current).gid = gid;
@@ -1373,8 +1372,8 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
             &raw mut (*current).gid as *mut ::core::ffi::c_char as *mut ::core::ffi::c_void;
         (*current).hhID.keylen = ::core::mem::size_of::<glyphid_t>() as ::core::ffi::c_uint;
         if (*go).byGID.is_null() {
-            (*current).hhID.next = NULL_0;
-            (*current).hhID.prev = NULL_0;
+            (*current).hhID.next = NULL;
+            (*current).hhID.prev = NULL;
             (*current).hhID.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*current).hhID.tbl.is_null() {
@@ -1410,7 +1409,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
             (*go).byGID = current;
         } else {
             (*current).hhID.tbl = (*(*go).byGID).hhID.tbl;
-            (*current).hhID.next = NULL_0;
+            (*current).hhID.next = NULL;
             (*current).hhID.prev = ((*(*(*go).byGID).hhID.tbl).tail as *mut ::core::ffi::c_char)
                 .offset(-(*(*(*go).byGID).hhID.tbl).hho)
                 as *mut ::core::ffi::c_void;
@@ -1536,7 +1535,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
         temp = (if !temp.is_null() {
             (*temp).hhName.next
         } else {
-            NULL_0
+            NULL
         }) as *mut otfcc_GlyphOrderEntry as *mut otfcc_GlyphOrderEntry;
     }
 }

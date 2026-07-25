@@ -113,8 +113,7 @@ unsafe extern "C" fn hashVQS(buf: *mut caryll_Buffer, s: vq_Segment) {
                 );
             }
         }
-        _ => {}
-    };
+    }
 }
 unsafe extern "C" fn hashVQ(buf: *mut caryll_Buffer, x: VQ) {
     bufwrite32b(

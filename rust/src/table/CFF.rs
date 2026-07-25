@@ -116,18 +116,6 @@ use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, 
 
 use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_SegList, vq_Segment};
 
-pub type __builtin_va_list = __va_list;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __va_list {
-    pub __stack: *mut ::core::ffi::c_void,
-    pub __gr_top: *mut ::core::ffi::c_void,
-    pub __vr_top: *mut ::core::ffi::c_void,
-    pub __gr_offs: ::core::ffi::c_int,
-    pub __vr_offs: ::core::ffi::c_int,
-}
-pub type __gnuc_va_list = __builtin_va_list;
-pub type va_list = __gnuc_va_list;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_FontMatrix {

@@ -23,24 +23,16 @@ use crate::support::{true_0};
 use crate::table::glyf::{__caryll_elementinterface_glyf_Point, __caryll_vectorinterface_glyf_Contour, glyf_Contour, glyf_Glyph, glyf_MaskList, glyf_StemDefList};
 
 use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ};
-pub type __builtin_va_list = __va_list;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __va_list {
-    pub __stack: *mut ::core::ffi::c_void,
-    pub __gr_top: *mut ::core::ffi::c_void,
-    pub __vr_top: *mut ::core::ffi::c_void,
-    pub __gr_offs: ::core::ffi::c_int,
-    pub __vr_offs: ::core::ffi::c_int,
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum cff_InstructionType {
+    IL_ITEM_OPERAND = 0,
+    IL_ITEM_OPERATOR = 1,
+    IL_ITEM_SPECIAL = 2,
+    IL_ITEM_PHANTOM_OPERATOR = 3,
+    IL_ITEM_PHANTOM_OPERAND = 4,
 }
-pub type __gnuc_va_list = __builtin_va_list;
-pub type va_list = __gnuc_va_list;
-pub type cff_InstructionType = ::core::ffi::c_uint;
-pub const IL_ITEM_PHANTOM_OPERAND: cff_InstructionType = 4;
-pub const IL_ITEM_PHANTOM_OPERATOR: cff_InstructionType = 3;
-pub const IL_ITEM_SPECIAL: cff_InstructionType = 2;
-pub const IL_ITEM_OPERATOR: cff_InstructionType = 1;
-pub const IL_ITEM_OPERAND: cff_InstructionType = 0;
+pub use cff_InstructionType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_CharstringInstruction {
@@ -550,8 +542,7 @@ unsafe extern "C" fn il_matchop(
     mut j: u32,
     mut op: i32,
 ) -> bool {
-    if (*(*il).instr.offset(j as isize)).type_0 as ::core::ffi::c_uint
-        != IL_ITEM_OPERATOR as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*(*il).instr.offset(j as isize)).type_0 != IL_ITEM_OPERATOR
     {
         return false;
     }
@@ -888,8 +879,7 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut cff_CharstringIL, mut j: u32) -
 unsafe extern "C" fn nextstop(mut il: *mut cff_CharstringIL, mut j: u32) -> u32 {
     let mut delta: u32 = 0 as u32;
     while j.wrapping_add(delta) < (*il).length
-        && (*(*il).instr.offset(j.wrapping_add(delta) as isize)).type_0 as ::core::ffi::c_uint
-            == IL_ITEM_OPERAND as ::core::ffi::c_int as ::core::ffi::c_uint
+        && (*(*il).instr.offset(j.wrapping_add(delta) as isize)).type_0 == IL_ITEM_OPERAND
     {
         delta = delta.wrapping_add(1);
     }
@@ -1203,10 +1193,8 @@ pub unsafe extern "C" fn instruction_eq(
     mut z2: *mut cff_CharstringInstruction,
 ) -> bool {
     if (*z1).type_0 as ::core::ffi::c_uint == (*z2).type_0 as ::core::ffi::c_uint {
-        if (*z1).type_0 as ::core::ffi::c_uint
-            == IL_ITEM_OPERAND as ::core::ffi::c_int as ::core::ffi::c_uint
-            || (*z1).type_0 as ::core::ffi::c_uint
-                == IL_ITEM_PHANTOM_OPERAND as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*z1).type_0 == IL_ITEM_OPERAND
+            || (*z1).type_0 == IL_ITEM_PHANTOM_OPERAND
         {
             return (*z1).c2rust_unnamed.d == (*z2).c2rust_unnamed.d;
         } else {

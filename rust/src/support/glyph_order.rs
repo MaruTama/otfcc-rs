@@ -3263,8 +3263,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
     mut go: *mut otfcc_GlyphOrder,
     mut h: *mut glyph_handle,
 ) -> bool {
-    if (*h).state as ::core::ffi::c_uint
-        == HANDLE_STATE_CONSOLIDATED as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*h).state == HANDLE_STATE_CONSOLIDATED
     {
         let mut t: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
         let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -3901,8 +3900,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
             );
             return true;
         }
-    } else if (*h).state as ::core::ffi::c_uint
-        == HANDLE_STATE_NAME as ::core::ffi::c_int as ::core::ffi::c_uint
+    } else if (*h).state == HANDLE_STATE_NAME
     {
         let mut t_0: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
         let mut _hf_hashv_1: ::core::ffi::c_uint = 0;
@@ -4227,8 +4225,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
             );
             return true;
         }
-    } else if (*h).state as ::core::ffi::c_uint
-        == HANDLE_STATE_INDEX as ::core::ffi::c_int as ::core::ffi::c_uint
+    } else if (*h).state == HANDLE_STATE_INDEX
     {
         let mut name: sds = ::core::ptr::null_mut::<::core::ffi::c_char>();
         otfcc_gordNameAFieldShared(go, (*h).index, &raw mut name);

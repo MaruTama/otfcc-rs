@@ -44,6 +44,7 @@ rust/src/lib.rs                  crate root: a flat list of `pub mod`
 rust/src/bin/{otfccdump,otfccbuild}.rs
 rust/src/ffi/dll.rs              the four public extern "C" functions
 rust/src/vendor/{sds,json,json_builder,emyg_dtoa,uthash}.rs  third-party C
+rust/src/version.rs              MAIN_VER / SECONDARY_VER / PATCH_VER
 rust/src/{bk,consolidate,font,json_reader,json_writer,libcff,logger,
           otf_reader,otf_writer,support,table,vf}[.rs|/]
 ```
@@ -466,9 +467,20 @@ the CI-matching Linux container:
 - **Every domain type has one declaration**, in the module matching the C
   header that declares it: `otl.h` → `table::otl` (47 types, 1,735 copies),
   `uthash.h` → `vendor::uthash`, `font.h` → `font::caryll_font`. 7,747
-  declarations removed; the crate went from 178k lines to 137k. What is left
-  duplicated is 58 libc declarations (`va_list`, `timespec`,
-  `__compar_fn_t`), which want routing through `libc` rather than relocating.
+  declarations removed; the crate went from 178k lines to 137k.
+- **The platform's own types come from `libc`**, which is where the last 58
+  duplicated declarations went: `timespec` (c2rust had copied glibc's struct
+  and its private `__time_t`/`__syscall_slong_t` typedefs into every file that
+  timed anything — the same mistake as the hand-copied `_IO_FILE`), plus
+  `time_t` and `SEEK_SET`. `getopt_long`'s `struct option` is the exception and
+  stays in `support::getopt`: libc declares it for the BSDs, Apple, Solaris and
+  Android but **not** for `*-unknown-linux-gnu`, so delegating it would break
+  CI. The whole `va_list` chain turned out to be dead — 19 declarations whose
+  only references were each other, and carrying the *AArch64* register-save
+  layout because the transpile ran on arm64 while the crate builds x86_64.
+
+**Nothing in the crate is now declared twice**: 896 declarations, 0 duplicated,
+down from 8,090 declarations of 458 types.
 
 Every dedup step verifies that all copies are textually identical before
 deleting any of them; a name whose copies disagree is reported and left alone,
@@ -489,10 +501,6 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
-- **Route the remaining libc types through `libc`**: 58 duplicated
-  declarations of `va_list`, `timespec`, `__compar_fn_t`, `__time_t` and
-  getopt's `option`. Relocating them into a crate module would work but is the
-  wrong fix — they belong to the platform, not to otfcc.
 - **Real `enum`s**: 20 named `pub type X = c_uint` + constant sets, plus the
   12 formerly-anonymous ones, become `#[repr(u*)] enum` with `TryFrom`. Values
   read from a font file must never be `transmute`d — unknown values have to

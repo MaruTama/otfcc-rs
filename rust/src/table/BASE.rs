@@ -38,12 +38,6 @@ use crate::vendor::json::{json_double, json_integer, json_object, json_string, j
 use crate::bk::bkblock::{b16, b32, bk_Block, bkover, p16};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{NULL};
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseValue {

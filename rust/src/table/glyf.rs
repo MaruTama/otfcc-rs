@@ -67,7 +67,7 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{_json_value, json_array, json_boolean, json_double, json_integer, json_object, json_pre_serialized, json_string, json_type, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::support::buffer::{caryll_Buffer};
-use crate::support::{true_0};
+use crate::support::{__compar_fn_t, true_0};
 use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry};
 use crate::table::fvar::{table_fvar};
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
@@ -76,12 +76,6 @@ use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opt
 
 use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_SegList, vq_Segment};
 
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_Point {
@@ -337,13 +331,17 @@ pub struct __caryll_vectorinterface_glyf_MaskList {
         ) -> (),
     >,
 }
-pub type RefAnchorStatus = ::core::ffi::c_uint;
-pub const REF_ANCHOR_CONSOLIDATING_XY: RefAnchorStatus = 5;
-pub const REF_ANCHOR_CONSOLIDATING_ANCHOR: RefAnchorStatus = 4;
-pub const REF_ANCHOR_CONSOLIDATED: RefAnchorStatus = 3;
-pub const REF_ANCHOR_XY: RefAnchorStatus = 2;
-pub const REF_ANCHOR_ANCHOR: RefAnchorStatus = 1;
-pub const REF_XY: RefAnchorStatus = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum RefAnchorStatus {
+    REF_XY = 0,
+    REF_ANCHOR_ANCHOR = 1,
+    REF_ANCHOR_XY = 2,
+    REF_ANCHOR_CONSOLIDATED = 3,
+    REF_ANCHOR_CONSOLIDATING_ANCHOR = 4,
+    REF_ANCHOR_CONSOLIDATING_XY = 5,
+}
+pub use RefAnchorStatus::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_ComponentReference {
@@ -3077,8 +3075,7 @@ unsafe extern "C" fn glyf_glyph_dump_references(
             b"d\0" as *const u8 as *const ::core::ffi::c_char,
             json_new_position((*r).d as pos_t),
         );
-        if (*r).isAnchored as ::core::ffi::c_uint
-            != REF_XY as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*r).isAnchored != REF_XY
         {
             json_object_push(
                 ref_0,
@@ -4502,3 +4499,23 @@ pub type glyf_ComponentFlags = ::core::ffi::c_uint;
 pub const SCALED_COMPONENT_OFFSET: glyf_ComponentFlags = 2048;
 
 pub const OVERLAP_COMPOUND: glyf_ComponentFlags = 1024;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `glyf/build.rs` writes a component's flags based on
+    // `isAnchored == REF_ANCHOR_CONSOLIDATED`, so these values pick which branch
+    // of the composite-glyph encoding runs. They come from otfcc's own
+    // consolidation pass, never off the wire, but they are still load-bearing for
+    // the bytes that come out.
+    #[test]
+    fn refanchorstatus_discriminants_match_the_c_enum() {
+        assert_eq!(REF_XY as u32, 0);
+        assert_eq!(REF_ANCHOR_ANCHOR as u32, 1);
+        assert_eq!(REF_ANCHOR_XY as u32, 2);
+        assert_eq!(REF_ANCHOR_CONSOLIDATED as u32, 3);
+        assert_eq!(REF_ANCHOR_CONSOLIDATING_ANCHOR as u32, 4);
+        assert_eq!(REF_ANCHOR_CONSOLIDATING_XY as u32, 5);
+    }
+}
