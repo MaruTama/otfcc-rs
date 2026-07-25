@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
@@ -102,7 +103,7 @@ unsafe extern "C" fn table_vmtx_replace(mut dst: *mut table_vmtx, src: table_vmt
         ::core::mem::size_of::<table_vmtx>() as usize,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iVmtx: __caryll_elementinterface_table_vmtx = {
     __caryll_elementinterface_table_vmtx {
         init: Some(table_vmtx_init as unsafe extern "C" fn(*mut table_vmtx) -> ()),
@@ -131,7 +132,7 @@ unsafe extern "C" fn table_vmtx_free(mut x: *mut table_vmtx) {
     table_vmtx_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readVmtx(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -240,7 +241,7 @@ pub unsafe extern "C" fn otfcc_readVmtx(
     }
     return ::core::ptr::null_mut::<table_vmtx>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildVmtx(
     mut vmtx: *const table_vmtx,
     mut count_a: glyphid_t,

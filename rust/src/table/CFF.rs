@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, strcmp, strlen};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
@@ -283,15 +284,15 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     }
     return 0 as usize;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static DEFAULT_BLUE_SCALE: ::core::ffi::c_double = 0.039625f64;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static DEFAULT_BLUE_SHIFT: ::core::ffi::c_double =
     7 as ::core::ffi::c_int as ::core::ffi::c_double;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static DEFAULT_BLUE_FUZZ: ::core::ffi::c_double =
     1 as ::core::ffi::c_int as ::core::ffi::c_double;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static DEFAULT_EXPANSION_FACTOR: ::core::ffi::c_double = 0.06f64;
 unsafe extern "C" fn otfcc_newCff_private() -> *mut cff_PrivateDict {
     let mut pd: *mut cff_PrivateDict = ::core::ptr::null_mut::<cff_PrivateDict>();
@@ -384,7 +385,7 @@ unsafe extern "C" fn table_CFF_replace(mut dst: *mut table_CFF, src: table_CFF) 
         ::core::mem::size_of::<table_CFF>() as usize,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iCFF: __caryll_elementinterface_table_CFF = {
     __caryll_elementinterface_table_CFF {
         init: Some(table_CFF_init as unsafe extern "C" fn(*mut table_CFF) -> ()),
@@ -1592,7 +1593,7 @@ unsafe extern "C" fn applyCffMatrix(
         jj = jj.wrapping_add(1);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readCFFAndGlyfTables(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -2092,7 +2093,7 @@ unsafe extern "C" fn fdToJson(mut table: *const table_CFF) -> *mut json_value {
     }
     return _CFF_;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpCFF(
     mut table: *const table_CFF,
     mut root: *mut json_value,
@@ -2409,7 +2410,7 @@ unsafe extern "C" fn fdFromJson(
     }
     return table;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseCFF(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -4161,7 +4162,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
     endingPositionOfPrivates = ::core::ptr::null_mut::<usize>();
     return blob;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildCFF(
     cffAndGlyf: table_CFFAndGlyf,
     mut options: *const otfcc_Options,

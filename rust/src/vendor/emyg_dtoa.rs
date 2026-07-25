@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{memmove};
 pub type DiyFp = DiyFp_s;
 #[derive(Copy, Clone)]
@@ -34,7 +35,7 @@ unsafe extern "C" fn DiyFp_from_parts(mut f: u64, mut e: ::core::ffi::c_int) -> 
     fp.e = e;
     return fp;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn DiyFp_from_double(mut d: ::core::ffi::c_double) -> DiyFp {
     let mut u: dtoa_DoubleBits = dtoa_DoubleBits { d: d };
     let mut res: DiyFp = DiyFp_s { f: 0, e: 0 };
@@ -911,7 +912,7 @@ unsafe extern "C" fn Prettify(
         );
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn emyg_dtoa(
     mut value: ::core::ffi::c_double,
     mut buffer: *mut ::core::ffi::c_char,

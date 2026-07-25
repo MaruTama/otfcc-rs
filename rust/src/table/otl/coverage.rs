@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
-extern "C" {
+unsafe extern "C" {
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
@@ -2507,7 +2508,7 @@ pub(crate) unsafe extern "C" fn shrinkCoverage(mut coverage: *mut otl_Coverage, 
     }
     (*coverage).numGlyphs = k;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static otl_iCoverage: __otfcc_ICoverage = {
     __otfcc_ICoverage {
         init: Some(otl_Coverage_init as unsafe extern "C" fn(*mut otl_Coverage) -> ()),

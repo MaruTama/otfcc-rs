@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{malloc};
-extern "C" {
+unsafe extern "C" {
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_object_new(length: usize) -> *mut json_value;
@@ -243,7 +244,7 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut otl_Lookup, mut dump: *mut js
         dump,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpOtl(
     mut table: *const table_OTL,
     mut root: *mut json_value,

@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
@@ -5,7 +6,7 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::bk::bkblock::{b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
 
 use crate::table::meta::types::{meta_Entry, table_meta};
-extern "C" {
+unsafe extern "C" {
     fn bk_newBlockFromStringLen(len: usize, str: *const ::core::ffi::c_char) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
@@ -39,7 +40,7 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     }
     return 0 as usize;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildMeta(
     mut meta: *const table_meta,
     mut _options: *const otfcc_Options,

@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_object_new(length: usize) -> *mut json_value;
@@ -328,7 +329,7 @@ unsafe fn as_cvec(arr: *mut subtable_gsub_ligature) -> *mut CVecRaw<otl_GsubLiga
 unsafe extern "C" fn subtable_gsub_ligature_init(arr: *mut subtable_gsub_ligature) {
     cvec_init(as_cvec(arr));
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static iSubtable_gsub_ligature: __caryll_vectorinterface_subtable_gsub_ligature = {
     __caryll_vectorinterface_subtable_gsub_ligature {
         init: Some(
@@ -506,7 +507,7 @@ unsafe extern "C" fn subtable_gsub_ligature_push(arr: *mut subtable_gsub_ligatur
 unsafe extern "C" fn subtable_gsub_ligature_grow(arr: *mut subtable_gsub_ligature) {
     cvec_grow(as_cvec(arr));
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gsub_ligature(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -705,7 +706,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_dump_ligature(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -740,7 +741,7 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(
     );
     return ret;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_parse_ligature(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -835,7 +836,7 @@ unsafe extern "C" fn by_gid(
 ) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

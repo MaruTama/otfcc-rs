@@ -1,5 +1,5 @@
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_cff_name(mut op: u32) -> *mut ::core::ffi::c_char {
     match op {
         0 => {
@@ -215,7 +215,7 @@ pub unsafe extern "C" fn op_cff_name(mut op: u32) -> *mut ::core::ffi::c_char {
         }
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn op_cs2_name(mut op: u32) -> *mut ::core::ffi::c_char {
     match op {
         1 => {
@@ -399,7 +399,7 @@ pub unsafe extern "C" fn op_cs2_name(mut op: u32) -> *mut ::core::ffi::c_char {
         }
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_getStandardArity(mut op: u32) -> u8 {
     match op {
         5 | 21 => return 2 as u8,

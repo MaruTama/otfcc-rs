@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_object_new(length: usize) -> *mut json_value;
@@ -130,7 +131,7 @@ unsafe extern "C" fn subtable_gsub_reverse_free(mut x: *mut subtable_gsub_revers
     subtable_gsub_reverse_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static iSubtable_gsub_reverse: __caryll_elementinterface_subtable_gsub_reverse = {
     __caryll_elementinterface_subtable_gsub_reverse {
         init: Some(
@@ -241,7 +242,7 @@ unsafe extern "C" fn reverseBacktracks(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gsub_reverse(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -410,7 +411,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_dump_reverse(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -444,7 +445,7 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
     );
     return _st;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_parse_reverse(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -489,7 +490,7 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
     (*subtable).to = otl_iCoverage.parse.expect("non-null function pointer")(_to);
     return subtable as *mut otl_Subtable;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gsub_reverse(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

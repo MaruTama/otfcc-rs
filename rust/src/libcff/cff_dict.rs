@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-extern "C" {
+unsafe extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
     fn cff_decodeCffToken(start: *const u8, val: *mut cff_Value) -> u32;
@@ -317,7 +318,7 @@ unsafe extern "C" fn buildDict(mut dict: *const cff_Dict) -> *mut caryll_Buffer 
     }
     return blob;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static cff_iDict: __caryll_elementinterface_cff_Dict = {
     __caryll_elementinterface_cff_Dict {
         init: Some(cff_Dict_init as unsafe extern "C" fn(*mut cff_Dict) -> ()),

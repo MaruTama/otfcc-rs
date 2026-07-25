@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
     static otl_iClassDef: __otfcc_IClassDef;
@@ -25,7 +26,7 @@ use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 
 pub type table_TSI5 = otl_ClassDef;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readTSI5(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -68,7 +69,7 @@ pub unsafe extern "C" fn otfcc_readTSI5(
     }
     return ::core::ptr::null_mut::<table_TSI5>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpTSI5(
     mut table: *const table_TSI5,
     mut root: *mut json_value,
@@ -83,7 +84,7 @@ pub unsafe extern "C" fn otfcc_dumpTSI5(
         otl_iClassDef.dump.expect("non-null function pointer")(table as *const otl_ClassDef),
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseTSI5(
     mut root: *const json_value,
     mut _options: *const otfcc_Options,
@@ -99,7 +100,7 @@ pub unsafe extern "C" fn otfcc_parseTSI5(
     }
     return otl_iClassDef.parse.expect("non-null function pointer")(_tsi) as *mut table_TSI5;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildTSI5(
     mut tsi5: *const table_TSI5,
     mut _options: *const otfcc_Options,

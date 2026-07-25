@@ -1,7 +1,8 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{malloc};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
 }
 #[inline]
@@ -34,7 +35,7 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     }
     return 0 as usize;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn utf16le_to_utf8(
     mut inb: *const u8,
     mut inlenb: ::core::ffi::c_int,
@@ -136,7 +137,7 @@ pub unsafe extern "C" fn utf16le_to_utf8(
     }
     return out0;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn utf16be_to_utf8(
     mut inb: *const u8,
     mut inlenb: ::core::ffi::c_int,
@@ -255,7 +256,7 @@ pub unsafe extern "C" fn utf16be_to_utf8(
     }
     return out0;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn utf8toutf16be(mut _in: sds, mut out_bytes: *mut usize) -> *mut u8 {
     if _in.is_null() {
         *out_bytes = 0 as usize;

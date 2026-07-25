@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset, strcmp, strdup, strlen};
 
 
@@ -1181,7 +1182,7 @@ unsafe extern "C" fn compare_json_objects(
     }
     return allcheck;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_ident(mut a: *const json_value, mut b: *const json_value) -> bool {
     if a.is_null() && b.is_null() {
         return true;

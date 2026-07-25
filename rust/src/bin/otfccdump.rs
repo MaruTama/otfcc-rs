@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 #![allow(
     dead_code,
     non_camel_case_types,
@@ -17,7 +18,7 @@ use libc::{calloc, exit, fclose, fgetc, fileno, fopen, fprintf, fputc, fputs, fr
 // are unified the declarations go away and so does this allow, which is only
 // needed because `libc::FILE` is deliberately opaque.
 #[allow(improper_ctypes)]
-extern "C" {
+unsafe extern "C" {
     fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
@@ -109,7 +110,7 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
 unsafe extern "C" fn getchar() -> ::core::ffi::c_int {
     return fgetc(stdin);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn printInfo() {
     fprintf(
         stdout,
@@ -120,7 +121,7 @@ pub unsafe extern "C" fn printInfo() {
         PATCH_VER,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn printHelp() {
     fprintf(
         stdout,

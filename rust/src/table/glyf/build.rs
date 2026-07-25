@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
     fn buflen(buf: *mut caryll_Buffer) -> usize;
@@ -36,7 +37,7 @@ pub union glyf_ComponentArg {
     pub pointid: u16,
     pub coord: i16,
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shrinkFlags(mut flags: *mut caryll_Buffer) -> *mut caryll_Buffer {
     if buflen(flags) == 0 {
         return flags;
@@ -307,7 +308,7 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const glyf_Glyph, mut gbuf: *m
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildGlyf(
     mut table: *const table_glyf,
     mut head: *mut table_head,

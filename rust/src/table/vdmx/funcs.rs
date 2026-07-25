@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     static vdmx_iGroup: __caryll_vectorinterface_vdmx_Group;
     static vdmx_iRatioRange: __caryll_elementinterface_vdmx_RatioRange;
@@ -27,7 +28,7 @@ use crate::bk::bkblock::{b16, b8, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_pus
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::table::vdmx::types::{__caryll_elementinterface_table_VDMX, __caryll_elementinterface_vdmx_RatioRange, __caryll_vectorinterface_vdmx_Group, __caryll_vectorinterface_vdmx_RatioRagneList, table_VDMX, vdmx_Group, vdmx_RatioRange, vdmx_Record};
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readVDMX(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -190,7 +191,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
     }
     return vdmx;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpVDMX(
     mut vdmx: *const table_VDMX,
     mut root: *mut json_value,
@@ -296,7 +297,7 @@ pub unsafe extern "C" fn otfcc_dumpVDMX(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseVDMX(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -416,7 +417,7 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
     }
     return vdmx;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildVDMX(
     mut vdmx: *const table_VDMX,
     mut _options: *const otfcc_Options,

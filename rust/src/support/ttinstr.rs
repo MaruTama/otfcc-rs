@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, snprintf, strlen, strtol};
-extern "C" {
+unsafe extern "C" {
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
@@ -192,7 +193,7 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
     (*xx).type_0 = json_pre_serialized;
     return xx;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut ff_ttf_instrnames: [*const ::core::ffi::c_char; 256] = [
     b"SVTCA[y-axis]\0" as *const u8 as *const ::core::ffi::c_char,
     b"SVTCA[x-axis]\0" as *const u8 as *const ::core::ffi::c_char,
@@ -983,7 +984,7 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
     *bts.offset(i as isize) = bt_impliedreturn as ::core::ffi::c_int as u8;
     return lh;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dump_ttinstr(
     mut instructions: *mut u8,
     mut length: u32,
@@ -1043,7 +1044,7 @@ pub unsafe extern "C" fn dump_ttinstr(
         return preserialize(ret);
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_ttinstr(
     mut col: *mut json_value,
     mut context: *mut ::core::ffi::c_void,

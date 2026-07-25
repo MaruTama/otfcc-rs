@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{SEEK_SET, exit, fclose, fprintf, fread, free, fseek};
 
 use crate::support::stdio::{FILE, stderr};
@@ -115,7 +116,7 @@ unsafe extern "C" fn otfcc_read_packets(
         count = count.wrapping_add(1);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readSFNT(mut file: *mut FILE) -> *mut otfcc_SplineFontContainer {
     if file.is_null() {
         return ::core::ptr::null_mut::<otfcc_SplineFontContainer>();
@@ -172,7 +173,7 @@ pub unsafe extern "C" fn otfcc_readSFNT(mut file: *mut FILE) -> *mut otfcc_Splin
     fclose(file);
     return font;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_deleteSFNT(mut font: *mut otfcc_SplineFontContainer) {
     if font.is_null() {
         return;

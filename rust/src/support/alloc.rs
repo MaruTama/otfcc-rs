@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 // Shared zero-initialized alloc/realloc helpers, factored out of the ~50
 // per-file private copies c2rust emitted (one per translation unit that
 // #included c/lib/support/mem.h's `NEW_CLEAN`/`RENEW_CLEAN` macros). These

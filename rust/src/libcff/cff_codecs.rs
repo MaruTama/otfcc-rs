@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, printf, sprintf, strcat, strlen, strtod};
-extern "C" {
+unsafe extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
 }
 
@@ -12,7 +13,7 @@ use crate::support::{NULL};
 unsafe extern "C" fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_double {
     return strtod(__nptr, NULL as *mut *mut ::core::ffi::c_char);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_encodeCffOperator(mut val: i32) -> *mut caryll_Buffer {
     if val > 256 as i32 {
         return bufninit(&[(val / 256 as i32) as u8, (val % 256 as i32) as u8]);
@@ -20,7 +21,7 @@ pub unsafe extern "C" fn cff_encodeCffOperator(mut val: i32) -> *mut caryll_Buff
         return bufninit(&[val as u8]);
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_encodeCffInteger(mut val: i32) -> *mut caryll_Buffer {
     if val >= -(107 as i32) && val <= 107 as i32 {
         return bufninit(&[(val + 139 as i32) as u8]);
@@ -36,7 +37,7 @@ pub unsafe extern "C" fn cff_encodeCffInteger(mut val: i32) -> *mut caryll_Buffe
         return bufninit(&[29 as u8, (val >> 24 as ::core::ffi::c_int & 0xff as i32) as u8, (val >> 16 as ::core::ffi::c_int & 0xff as i32) as u8, (val >> 8 as ::core::ffi::c_int & 0xff as i32) as u8, (val & 0xff as i32) as u8]);
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_encodeCffFloat(mut val: ::core::ffi::c_double) -> *mut caryll_Buffer {
     let mut blob: *mut caryll_Buffer = bufnew();
     let mut i: u32 = 0;
@@ -192,7 +193,7 @@ pub unsafe extern "C" fn cff_encodeCffFloat(mut val: ::core::ffi::c_double) -> *
     }
     return blob;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_decodeCS2Token(
     mut start: *const u8,
     mut val: *mut cff_Value,
@@ -777,7 +778,7 @@ static _de_t2: [Option<unsafe extern "C" fn(*const u8, *mut cff_Value) -> u32>; 
         Some(cff_dec_e as unsafe extern "C" fn(*const u8, *mut cff_Value) -> u32),
     ]
 };
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_decodeCffToken(
     mut start: *const u8,
     mut val: *mut cff_Value,

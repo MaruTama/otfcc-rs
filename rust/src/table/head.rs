@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
@@ -117,7 +118,7 @@ unsafe extern "C" fn table_head_move(mut dst: *mut table_head, mut src: *mut tab
     );
     table_head_init(src);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iHead: __caryll_elementinterface_table_head = {
     __caryll_elementinterface_table_head {
         init: Some(table_head_init as unsafe extern "C" fn(*mut table_head) -> ()),
@@ -149,7 +150,7 @@ unsafe extern "C" fn table_head_create() -> *mut table_head {
 unsafe extern "C" fn table_head_init(mut x: *mut table_head) {
     initHead(x);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readHead(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -273,7 +274,7 @@ static mut macStyleLabels: [*const ::core::ffi::c_char; 8] = [
     b"extended\0" as *const u8 as *const ::core::ffi::c_char,
     ::core::ptr::null::<::core::ffi::c_char>(),
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpHead(
     mut table: *const table_head,
     mut root: *mut json_value,
@@ -383,7 +384,7 @@ pub unsafe extern "C" fn otfcc_dumpHead(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseHead(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -491,7 +492,7 @@ pub unsafe extern "C" fn otfcc_parseHead(
     }
     return head;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildHead(
     mut head: *const table_head,
     mut _options: *const otfcc_Options,

@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
     fn fontop_consolidateCoverage(
@@ -55,7 +56,7 @@ use crate::table::otl::{otl_ChainingRule, otl_Subtable, subtable_chaining, table
 
 
 pub type lookup_handle = otfcc_LookupHandle;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_chaining(
     mut font: *mut otfcc_Font,
     mut table: *mut table_OTL,

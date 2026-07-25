@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, strcmp, strtol};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -331,7 +332,7 @@ unsafe extern "C" fn table_cmap_move(mut dst: *mut table_cmap, mut src: *mut tab
 unsafe extern "C" fn table_cmap_init(mut x: *mut table_cmap) {
     initCmap(x);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
     mut cmap: *mut table_cmap,
     mut c: ::core::ffi::c_int,
@@ -1083,7 +1084,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
         return false;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_encodeCmapByName(
     mut cmap: *mut table_cmap,
     mut c: ::core::ffi::c_int,
@@ -1835,7 +1836,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
         return false;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_unmapCmap(
     mut cmap: *mut table_cmap,
     mut c: ::core::ffi::c_int,
@@ -2203,7 +2204,7 @@ pub unsafe extern "C" fn otfcc_unmapCmap(
         return false;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_cmapLookup(
     mut cmap: *const table_cmap,
     mut c: ::core::ffi::c_int,
@@ -2518,7 +2519,7 @@ pub unsafe extern "C" fn otfcc_cmapLookup(
         return ::core::ptr::null_mut::<otfcc_GlyphHandle>();
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
     mut cmap: *mut table_cmap,
     mut c: cmap_UVS_key,
@@ -3262,7 +3263,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
         return false;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
     mut cmap: *mut table_cmap,
     mut c: cmap_UVS_key,
@@ -4006,7 +4007,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
         return false;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_unmapCmapUVS(
     mut cmap: *mut table_cmap,
     mut c: cmap_UVS_key,
@@ -4366,7 +4367,7 @@ pub unsafe extern "C" fn otfcc_unmapCmapUVS(
         return false;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_cmapLookupUVS(
     mut cmap: *const table_cmap,
     mut c: cmap_UVS_key,
@@ -4676,7 +4677,7 @@ pub unsafe extern "C" fn otfcc_cmapLookupUVS(
         return ::core::ptr::null_mut::<otfcc_GlyphHandle>();
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iCmap: __caryll_elementinterface_table_cmap = {
     __caryll_elementinterface_table_cmap {
         init: Some(table_cmap_init as unsafe extern "C" fn(*mut table_cmap) -> ()),
@@ -5031,13 +5032,13 @@ unsafe extern "C" fn isValidCmapEncoding(mut platform: u16, mut encoding: u16) -
         || platform as ::core::ffi::c_int == 3 as ::core::ffi::c_int
             && encoding as ::core::ffi::c_int == 10 as ::core::ffi::c_int;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static formatPriorities: [tableid_t; 3] = [
     12 as ::core::ffi::c_int as tableid_t,
     4 as ::core::ffi::c_int as tableid_t,
     0 as ::core::ffi::c_int as tableid_t,
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readCmap(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -5501,7 +5502,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
     }
     return ::core::ptr::null_mut::<table_cmap>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpCmap(
     mut table: *const table_cmap,
     mut root: *mut json_value,
@@ -5753,7 +5754,7 @@ unsafe extern "C" fn parseCmapUVS(
         j = j.wrapping_add(1);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseCmap(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -6457,7 +6458,7 @@ unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const table_cmap) -> *m
     bufwrite32b(buf, buflen(buf) as u32);
     return buf;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildCmap(
     mut cmap: *const table_cmap,
     mut options: *const otfcc_Options,

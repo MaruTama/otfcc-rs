@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
@@ -76,7 +77,7 @@ unsafe extern "C" fn table_hhea_free(mut x: *mut table_hhea) {
     table_hhea_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iHhea: __caryll_elementinterface_table_hhea = {
     __caryll_elementinterface_table_hhea {
         init: Some(table_hhea_init as unsafe extern "C" fn(*mut table_hhea) -> ()),
@@ -143,7 +144,7 @@ unsafe extern "C" fn table_hhea_copyReplace(mut dst: *mut table_hhea, src: table
     table_hhea_dispose(dst);
     table_hhea_copy(dst, &raw const src);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readHhea(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -243,7 +244,7 @@ pub unsafe extern "C" fn otfcc_readHhea(
     }
     return ::core::ptr::null_mut::<table_hhea>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpHhea(
     mut table: *const table_hhea,
     mut root: *mut json_value,
@@ -327,7 +328,7 @@ pub unsafe extern "C" fn otfcc_dumpHhea(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseHhea(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -414,7 +415,7 @@ pub unsafe extern "C" fn otfcc_parseHhea(
     }
     return hhea;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildHhea(
     mut hhea: *const table_hhea,
     mut _options: *const otfcc_Options,

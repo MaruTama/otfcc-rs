@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
@@ -228,7 +229,7 @@ unsafe extern "C" fn subtable_gpos_pair_create() -> *mut subtable_gpos_pair {
 unsafe extern "C" fn subtable_gpos_pair_init(mut x: *mut subtable_gpos_pair) {
     initGposPair(x);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static iSubtable_gpos_pair: __caryll_elementinterface_subtable_gpos_pair = {
     __caryll_elementinterface_subtable_gpos_pair {
         init: Some(subtable_gpos_pair_init as unsafe extern "C" fn(*mut subtable_gpos_pair) -> ()),
@@ -263,7 +264,7 @@ unsafe extern "C" fn subtable_gpos_pair_free(mut x: *mut subtable_gpos_pair) {
     subtable_gpos_pair_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gpos_pair(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -2076,7 +2077,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
     iSubtable_gpos_pair.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const otl_Subtable) -> *mut json_value {
     let mut subtable: *const subtable_gpos_pair = &raw const (*_subtable).gpos_pair;
     let mut st: *mut json_value = json_object_new(3 as usize);
@@ -2155,7 +2156,7 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const otl_Subtable) 
     );
     return st;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_parse_pair(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -2300,7 +2301,7 @@ unsafe extern "C" fn by_pairSecondGlyph(
     return (*(a as *mut IndividualGposPair)).gid as ::core::ffi::c_int
         - (*(b as *mut IndividualGposPair)).gid as ::core::ffi::c_int;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     mut _subtable: *const otl_Subtable,
 ) -> *mut bk_Block {
@@ -2431,7 +2432,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     pairCounts = ::core::ptr::null_mut::<glyphid_t>();
     return root;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
     mut _subtable: *const otl_Subtable,
 ) -> *mut bk_Block {
@@ -2483,7 +2484,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
     cov = ::core::ptr::null_mut::<otl_Coverage>();
     return root;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_pair(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
 
 
@@ -34,7 +35,7 @@ pub struct otfcc_Options {
     pub glyph_name_prefix: *mut ::core::ffi::c_char,
     pub logger: *mut otfcc_ILogger,
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newOptions() -> *mut otfcc_Options {
     let mut options: *mut otfcc_Options = ::core::ptr::null_mut::<otfcc_Options>();
     options = __caryll_allocate_clean(
@@ -43,7 +44,7 @@ pub unsafe extern "C" fn otfcc_newOptions() -> *mut otfcc_Options {
     ) as *mut otfcc_Options;
     return options;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_deleteOptions(mut options: *mut otfcc_Options) {
     if !options.is_null() {
         free((*options).glyph_name_prefix as *mut ::core::ffi::c_void);
@@ -59,7 +60,7 @@ pub unsafe extern "C" fn otfcc_deleteOptions(mut options: *mut otfcc_Options) {
     free(options as *mut ::core::ffi::c_void);
     options = ::core::ptr::null_mut::<otfcc_Options>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_Options_optimizeTo(
     mut options: *mut otfcc_Options,
     mut level: u8,

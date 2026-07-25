@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     fn otfcc_readOtl_subtable(
         data: *mut u8,
         tableLength: u32,
@@ -61,7 +62,7 @@ unsafe extern "C" fn _caryll_read_otl_extend(
     }
     return _subtable;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readOtl_gsub_extend(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -78,7 +79,7 @@ pub unsafe extern "C" fn otfcc_readOtl_gsub_extend(
         options,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readOtl_gpos_extend(
     mut data: font_file_pointer,
     mut tableLength: u32,

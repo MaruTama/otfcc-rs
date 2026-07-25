@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
@@ -76,7 +77,7 @@ unsafe extern "C" fn by_gid(
 ) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_GDEF(
     mut font: *mut otfcc_Font,
     mut gdef: *mut table_GDEF,

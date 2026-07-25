@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
 }
 
@@ -73,7 +74,7 @@ unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
         .offset(1 as ::core::ffi::c_int as isize) as u32;
     return b0 | b1;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_extract_Charset(
     mut data: *mut u8,
     mut offset: i32,
@@ -194,7 +195,7 @@ pub unsafe extern "C" fn cff_extract_Charset(
         }
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_build_Charset(mut cset: cff_Charset) -> *mut caryll_Buffer {
     match cset.t {
         0 | 1 | 2 => return bufnew(),
@@ -290,7 +291,7 @@ pub unsafe extern "C" fn cff_build_Charset(mut cset: cff_Charset) -> *mut caryll
     }
     return ::core::ptr::null_mut::<caryll_Buffer>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_close_Charset(mut cset: cff_Charset) {
     match cset.t {
         3 => {

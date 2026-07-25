@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-extern "C" {
+unsafe extern "C" {
     fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
@@ -66,7 +67,7 @@ unsafe fn as_cvec(arr: *mut subtable_gsub_multi) -> *mut CVecRaw<otl_GsubMultiEn
 unsafe extern "C" fn subtable_gsub_multi_growTo(arr: *mut subtable_gsub_multi, target: usize) {
     cvec_grow_to(as_cvec(arr), target);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static iSubtable_gsub_multi: __caryll_vectorinterface_subtable_gsub_multi = {
     __caryll_vectorinterface_subtable_gsub_multi {
         init: Some(
@@ -386,7 +387,7 @@ unsafe extern "C" fn subtable_gsub_multi_filterEnv(
     }
     (*arr).length = j;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gsub_multi(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -471,7 +472,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_dump_multi(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -487,7 +488,7 @@ pub unsafe extern "C" fn otl_gsub_dump_multi(
     }
     return st;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_parse_multi(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -544,7 +545,7 @@ unsafe extern "C" fn buildGsubMultiSubtableRange(
     return bk_build_Block(root);
 }
 pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: ::core::ffi::c_int = 0xff00 as ::core::ffi::c_int;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,
@@ -597,7 +598,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
     *count = nParts;
     return parts;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

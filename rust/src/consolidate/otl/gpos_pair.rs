@@ -1,4 +1,5 @@
-extern "C" {
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+unsafe extern "C" {
     static otl_iClassDef: __otfcc_IClassDef;
     fn fontop_consolidateClassDef(
         font: *mut otfcc_Font,
@@ -51,7 +52,7 @@ use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef};
 
 
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_gpos_pair(
     mut font: *mut otfcc_Font,
     mut _table: *mut table_OTL,

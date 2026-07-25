@@ -1,8 +1,9 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::primitives::{arity_t};
 use crate::vendor::sds::{sds};
 use crate::libcff::cff_index::{cff_Index};
 
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
 }
@@ -399,7 +400,7 @@ static mut string_standard: [*const ::core::ffi::c_char; 391] = [
     b"Roman\0" as *const u8 as *const ::core::ffi::c_char,
     b"Semibold\0" as *const u8 as *const ::core::ffi::c_char,
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsget_cff_sid(mut idx: u16, mut str: cff_Index) -> sds {
     if idx as ::core::ffi::c_int <= 390 as ::core::ffi::c_int {
         return sdsnew(string_standard[idx as usize]);

@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn json_array_new(length: usize) -> *mut json_value;
@@ -174,7 +175,7 @@ unsafe extern "C" fn copyLayer(mut dst: *mut colr_Layer, mut src: *const colr_La
 unsafe extern "C" fn disposeLayer(mut layer: *mut colr_Layer) {
     otfcc_Handle_dispose(&raw mut (*layer).glyph);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static colr_iLayer: __caryll_elementinterface_colr_Layer = {
     __caryll_elementinterface_colr_Layer {
         init: Some(colr_Layer_init as unsafe extern "C" fn(*mut colr_Layer) -> ()),
@@ -282,7 +283,7 @@ unsafe extern "C" fn colr_LayerList_push(arr: *mut colr_LayerList, elem: colr_La
 unsafe extern "C" fn colr_LayerList_grow(arr: *mut colr_LayerList) {
     cvec_grow(colr_LayerList_as_cvec(arr));
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static colr_iLayerList: __caryll_vectorinterface_colr_LayerList = {
     __caryll_vectorinterface_colr_LayerList {
         init: Some(colr_LayerList_init as unsafe extern "C" fn(*mut colr_LayerList) -> ()),
@@ -541,7 +542,7 @@ unsafe extern "C" fn colr_Mapping_copyReplace(mut dst: *mut colr_Mapping, src: c
     colr_Mapping_dispose(dst);
     colr_Mapping_copy(dst, &raw const src);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static colr_iMapping: __caryll_elementinterface_colr_Mapping = {
     __caryll_elementinterface_colr_Mapping {
         init: Some(colr_Mapping_init as unsafe extern "C" fn(*mut colr_Mapping) -> ()),
@@ -599,7 +600,7 @@ unsafe extern "C" fn table_COLR_replace(mut dst: *mut table_COLR, src: table_COL
 unsafe extern "C" fn table_COLR_growTo(arr: *mut table_COLR, target: usize) {
     cvec_grow_to(table_COLR_as_cvec(arr), target);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iCOLR: __caryll_vectorinterface_table_COLR = {
     __caryll_vectorinterface_table_COLR {
         init: Some(table_COLR_init as unsafe extern "C" fn(*mut table_COLR) -> ()),
@@ -861,7 +862,7 @@ unsafe extern "C" fn table_COLR_create() -> *mut table_COLR {
 }
 static baseGlyphRecLength: usize = 6 as usize;
 static layerRecLength: usize = 4 as usize;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readCOLR(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -1051,7 +1052,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
     }
     return colr;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpCOLR(
     mut colr: *const table_COLR,
     mut root: *mut json_value,
@@ -1126,7 +1127,7 @@ pub unsafe extern "C" fn otfcc_dumpCOLR(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseCOLR(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -1242,7 +1243,7 @@ unsafe extern "C" fn byGID(
 ) -> ::core::ffi::c_int {
     return (*a).glyph.index as ::core::ffi::c_int - (*b).glyph.index as ::core::ffi::c_int;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildCOLR(
     mut _colr: *const table_COLR,
     mut _options: *const otfcc_Options,

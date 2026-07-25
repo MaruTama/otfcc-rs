@@ -1,4 +1,5 @@
-extern "C" {
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+unsafe extern "C" {
     fn json_parse(json: *const ::core::ffi::c_char, length: usize) -> *mut json_value;
     fn json_value_free(_: *mut json_value);
     fn otfcc_newLogger(target: *mut otfcc_ILoggerTarget) -> *mut otfcc_ILogger;
@@ -56,7 +57,7 @@ use crate::font::caryll_font::{__caryll_elementinterface_otfcc_Font, otfcc_Font,
 
 
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_json_otf(
     mut inlen: u32,
     mut injson: *const ::core::ffi::c_char,
@@ -100,15 +101,15 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     otfcc_iFont.free.expect("non-null function pointer")(font);
     return otf;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_len(mut buf: *mut caryll_Buffer) -> usize {
     return (*buf).size;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_data(mut buf: *mut caryll_Buffer) -> *mut u8 {
     return (*buf).data;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_free_otfbuf(mut buf: *mut caryll_Buffer) {
     buffree(buf);
 }

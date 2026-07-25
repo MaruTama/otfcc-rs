@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
 
 
@@ -54,7 +55,7 @@ unsafe extern "C" fn disposeHdmx(mut table: *mut table_hdmx) {
     free((*table).records as *mut ::core::ffi::c_void);
     (*table).records = ::core::ptr::null_mut::<device_record>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iHdmx: __caryll_elementinterface_table_hdmx = {
     __caryll_elementinterface_table_hdmx {
         init: Some(table_hdmx_init as unsafe extern "C" fn(*mut table_hdmx) -> ()),
@@ -133,7 +134,7 @@ unsafe extern "C" fn table_hdmx_init(mut x: *mut table_hdmx) {
         ::core::mem::size_of::<table_hdmx>() as usize,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readHdmx(
     mut packet: otfcc_Packet,
     mut _options: *const otfcc_Options,

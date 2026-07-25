@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
@@ -173,7 +174,7 @@ unsafe extern "C" fn tsi_Entry_move(mut dst: *mut tsi_Entry, mut src: *mut tsi_E
     );
     tsi_Entry_init(src);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static tsi_iEntry: __caryll_elementinterface_tsi_Entry = {
     __caryll_elementinterface_tsi_Entry {
         init: Some(tsi_Entry_init as unsafe extern "C" fn(*mut tsi_Entry) -> ()),
@@ -290,7 +291,7 @@ unsafe extern "C" fn table_TSI_sort(
         >(fn_0),
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iTSI: __caryll_vectorinterface_table_TSI = {
     __caryll_vectorinterface_table_TSI {
         init: Some(table_TSI_init as unsafe extern "C" fn(*mut table_TSI) -> ()),
@@ -465,7 +466,7 @@ unsafe extern "C" fn isValidGID(mut gid: u16, mut tagIndex: u32) -> bool {
         return (gid as ::core::ffi::c_int) < 0xfffa as ::core::ffi::c_int;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readTSI(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -625,7 +626,7 @@ pub unsafe extern "C" fn otfcc_readTSI(
     }
     return tsi;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpTSI(
     mut tsi: *const table_TSI,
     mut root: *mut json_value,
@@ -727,7 +728,7 @@ pub unsafe extern "C" fn otfcc_dumpTSI(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseTSI(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -911,7 +912,7 @@ unsafe extern "C" fn pushTSIEntries(
         itemsPushed = (itemsPushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as glyphid_t;
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildTSI(
     mut tsi: *const table_TSI,
     mut _options: *const otfcc_Options,

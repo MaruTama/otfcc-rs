@@ -1,7 +1,8 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 pub mod stat;
 
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
     fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
@@ -414,7 +415,7 @@ unsafe extern "C" fn serializeToOTF(
 unsafe extern "C" fn freeFontWriter(mut self_0: *mut otfcc_IFontSerializer) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newOTFWriter() -> *mut otfcc_IFontSerializer {
     let mut writer: *mut otfcc_IFontSerializer = ::core::ptr::null_mut::<otfcc_IFontSerializer>();
     writer = __caryll_allocate_clean(

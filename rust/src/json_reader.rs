@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset, strcmp, strtol};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -2119,7 +2120,7 @@ unsafe extern "C" fn readJson(
 unsafe extern "C" fn freeReader(mut self_0: *mut otfcc_IFontBuilder) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newJsonReader() -> *mut otfcc_IFontBuilder {
     let mut reader: *mut otfcc_IFontBuilder = ::core::ptr::null_mut::<otfcc_IFontBuilder>();
     reader = __caryll_allocate_clean(

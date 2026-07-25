@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-extern "C" {
+unsafe extern "C" {
     static otl_iClassDef: __otfcc_IClassDef;
     static iSubtable_chaining: __caryll_elementinterface_subtable_chaining;
     fn otfcc_build_chaining(_subtable: *const otl_Subtable) -> *mut caryll_Buffer;
@@ -3520,7 +3521,7 @@ unsafe extern "C" fn toClass(mut h: *mut *mut classifier_hash) -> *mut otl_Class
     }
     return cd;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tryClassifyAround(
     mut lookup: *const otl_Lookup,
     mut j: tableid_t,
@@ -3861,7 +3862,7 @@ pub unsafe extern "C" fn tryClassifyAround(
         return 0 as tableid_t;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
     mut lookup: *const otl_Lookup,
     mut subtableBuffers: *mut *mut *mut caryll_Buffer,

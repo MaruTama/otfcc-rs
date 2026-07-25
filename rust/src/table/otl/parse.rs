@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset, strcmp, strlen, strncmp};
-extern "C" {
+unsafe extern "C" {
     fn json_value_free(_: *mut json_value);
     fn json_string_new_length(
         length: ::core::ffi::c_uint,
@@ -4224,7 +4225,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
     }
     return fh;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn isValidLanguageName(
     mut name: *const ::core::ffi::c_char,
     length: usize,
@@ -5808,7 +5809,7 @@ unsafe extern "C" fn by_language_name(
 ) -> ::core::ffi::c_int {
     return strcmp((*a).name, (*b).name);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseOtl(
     mut root: *const json_value,
     mut options: *const otfcc_Options,

@@ -24,7 +24,7 @@ pub use libc::FILE;
 // is precisely how C hands these out.
 #[allow(improper_ctypes)]
 #[cfg(target_os = "macos")]
-extern "C" {
+unsafe extern "C" {
     #[link_name = "__stderrp"]
     pub static mut stderr: *mut FILE;
     #[link_name = "__stdinp"]
@@ -34,7 +34,7 @@ extern "C" {
 }
 #[allow(improper_ctypes)]
 #[cfg(not(target_os = "macos"))]
-extern "C" {
+unsafe extern "C" {
     pub static mut stderr: *mut FILE;
     pub static mut stdin: *mut FILE;
     pub static mut stdout: *mut FILE;

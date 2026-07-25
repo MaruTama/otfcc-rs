@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
@@ -94,7 +95,7 @@ unsafe extern "C" fn table_vhea_create() -> *mut table_vhea {
 unsafe extern "C" fn table_vhea_init(mut x: *mut table_vhea) {
     initVhea(x);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iVhea: __caryll_elementinterface_table_vhea = {
     __caryll_elementinterface_table_vhea {
         init: Some(table_vhea_init as unsafe extern "C" fn(*mut table_vhea) -> ()),
@@ -146,7 +147,7 @@ unsafe extern "C" fn table_vhea_replace(mut dst: *mut table_vhea, src: table_vhe
         ::core::mem::size_of::<table_vhea>() as usize,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readVhea(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -232,7 +233,7 @@ pub unsafe extern "C" fn otfcc_readVhea(
     }
     return ::core::ptr::null_mut::<table_vhea>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpVhea(
     mut table: *const table_vhea,
     mut root: *mut json_value,
@@ -316,7 +317,7 @@ pub unsafe extern "C" fn otfcc_dumpVhea(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseVhea(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -406,7 +407,7 @@ pub unsafe extern "C" fn otfcc_parseVhea(
     }
     return vhea;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildVhea(
     mut vhea: *const table_vhea,
     mut _options: *const otfcc_Options,

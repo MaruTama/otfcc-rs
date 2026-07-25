@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
     static iSubtable_chaining: __caryll_elementinterface_subtable_chaining;
@@ -120,7 +121,7 @@ unsafe extern "C" fn json_obj_getnum_fallback(
     }
     return fallback;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_parse_chaining(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,

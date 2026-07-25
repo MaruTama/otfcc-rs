@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{fprintf, free, malloc, memcpy, memset, qsort};
-extern "C" {
+unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn vq_compareRegion(a: *const vq_Region, b: *const vq_Region) -> ::core::ffi::c_int;
     fn vq_showRegion(r: *const vq_Region);
@@ -194,7 +195,7 @@ unsafe extern "C" fn pos_t_init(mut x: *mut pos_t) {
         ::core::mem::size_of::<pos_t>() as usize,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static vq_iPosT: __caryll_elementinterface_pos_t = {
     __caryll_elementinterface_pos_t {
         init: Some(pos_t_init as unsafe extern "C" fn(*mut pos_t) -> ()),
@@ -427,7 +428,7 @@ unsafe extern "C" fn createNeutralVV(mut dimensions: tableid_t) -> VV {
     }
     return vv;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static iVV: __caryll_vectorinterface_VV = {
     __caryll_vectorinterface_VV {
         init: Some(VV_init as unsafe extern "C" fn(*mut VV) -> ()),
@@ -646,7 +647,7 @@ unsafe extern "C" fn showVQS(x: vq_Segment) {
 unsafe extern "C" fn vq_Segment_show(a: vq_Segment) {
     return showVQS(a);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static vq_iSegment: __caryll_elementinterface_vq_Segment = {
     __caryll_elementinterface_vq_Segment {
         init: Some(vq_Segment_init as unsafe extern "C" fn(*mut vq_Segment) -> ()),
@@ -867,7 +868,7 @@ unsafe extern "C" fn vq_SegList_initCapN(mut arr: *mut vq_SegList, mut n: usize)
 unsafe extern "C" fn vq_SegList_growToN(arr: *mut vq_SegList, target: usize) {
     cvec_grow_to_n(vq_SegList_as_cvec(arr), target);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static vq_iSegList: __caryll_vectorinterface_vq_SegList = {
     __caryll_vectorinterface_vq_SegList {
         init: Some(vq_SegList_init as unsafe extern "C" fn(*mut vq_SegList) -> ()),
@@ -1305,7 +1306,7 @@ unsafe extern "C" fn vqPointLinearTfm(ax: VQ, mut a: pos_t, x: VQ, mut b: pos_t,
     iVQ.inplacePlusScale.expect("non-null function pointer")(&raw mut targetX, b as scale_t, y);
     return targetX;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static iVQ: __caryll_vectorinterface_VQ = {
     __caryll_vectorinterface_VQ {
         init: Some(VQ_init as unsafe extern "C" fn(*mut VQ) -> ()),

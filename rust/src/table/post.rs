@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
@@ -420,7 +421,7 @@ unsafe extern "C" fn table_post_replace(mut dst: *mut table_post, src: table_pos
         ::core::mem::size_of::<table_post>() as usize,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static iTable_post: __caryll_elementinterface_table_post = {
     __caryll_elementinterface_table_post {
         init: Some(table_post_init as unsafe extern "C" fn(*mut table_post) -> ()),
@@ -441,7 +442,7 @@ pub static iTable_post: __caryll_elementinterface_table_post = {
         free: Some(table_post_free as unsafe extern "C" fn(*mut table_post) -> ()),
     }
 };
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readPost(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -572,7 +573,7 @@ pub unsafe extern "C" fn otfcc_readPost(
     }
     return ::core::ptr::null_mut::<table_post>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpPost(
     mut table: *const table_post,
     mut root: *mut json_value,
@@ -646,7 +647,7 @@ pub unsafe extern "C" fn otfcc_dumpPost(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parsePost(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -718,7 +719,7 @@ pub unsafe extern "C" fn otfcc_parsePost(
     }
     return post;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildPost(
     mut post: *const table_post,
     mut glyphorder: *mut otfcc_GlyphOrder,

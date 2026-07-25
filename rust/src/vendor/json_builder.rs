@@ -1,7 +1,8 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{calloc, free, malloc, memcmp, memcpy, realloc, strlen};
 use crate::vendor::json::{_json_value, json_array, json_boolean, json_double, json_integer, json_null, json_object, json_object_entry, json_string, json_value};
 
-extern "C" {
+unsafe extern "C" {
     fn emyg_dtoa(value: ::core::ffi::c_double, buffer: *mut ::core::ffi::c_char);
 }
 #[derive(Copy, Clone)]
@@ -80,18 +81,18 @@ unsafe extern "C" fn builderize(mut value: *mut json_value) -> ::core::ffi::c_in
 /// it is the vendored library's own API.
 pub const json_builder_extra: usize =
     ::core::mem::size_of::<json_builder_value>() - ::core::mem::size_of::<json_value>();
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static f_spaces_around_brackets: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static f_spaces_after_commas: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static f_spaces_after_colons: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static f_tabs: ::core::ffi::c_int = (1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_serialize_flags(mut opts: json_serialize_opts) -> ::core::ffi::c_int {
     let mut flags: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     if opts.mode == json_serialize_mode_packed {
@@ -114,7 +115,7 @@ pub unsafe extern "C" fn get_serialize_flags(mut opts: json_serialize_opts) -> :
     }
     return flags;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_array_new(mut length: usize) -> *mut json_value {
     let mut value: *mut json_value = calloc(
         1 as usize,
@@ -135,7 +136,7 @@ pub unsafe extern "C" fn json_array_new(mut length: usize) -> *mut json_value {
     (*(value as *mut json_builder_value)).additional_length_allocated = length;
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_array_push(
     mut array: *mut json_value,
     mut value: *mut json_value,
@@ -172,7 +173,7 @@ pub unsafe extern "C" fn json_array_push(
     (*value).parent = array as *mut _json_value;
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_object_new(mut length: usize) -> *mut json_value {
     let mut value: *mut json_value = calloc(
         1 as usize,
@@ -194,7 +195,7 @@ pub unsafe extern "C" fn json_object_new(mut length: usize) -> *mut json_value {
     (*(value as *mut json_builder_value)).additional_length_allocated = length;
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_object_push(
     mut object: *mut json_value,
     mut name: *const ::core::ffi::c_char,
@@ -202,7 +203,7 @@ pub unsafe extern "C" fn json_object_push(
 ) -> *mut json_value {
     return json_object_push_length(object, strlen(name) as ::core::ffi::c_uint, name, value);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_object_push_length(
     mut object: *mut json_value,
     mut name_length: ::core::ffi::c_uint,
@@ -230,7 +231,7 @@ pub unsafe extern "C" fn json_object_push_length(
     }
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_object_push_nocopy(
     mut object: *mut json_value,
     mut name_length: ::core::ffi::c_uint,
@@ -272,11 +273,11 @@ pub unsafe extern "C" fn json_object_push_nocopy(
     (*value).parent = object as *mut _json_value;
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_string_new(mut buf: *const ::core::ffi::c_char) -> *mut json_value {
     return json_string_new_length(strlen(buf) as ::core::ffi::c_uint, buf);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_string_new_length(
     mut length: ::core::ffi::c_uint,
     mut buf: *const ::core::ffi::c_char,
@@ -302,7 +303,7 @@ pub unsafe extern "C" fn json_string_new_length(
     }
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_string_new_nocopy(
     mut length: ::core::ffi::c_uint,
     mut buf: *mut ::core::ffi::c_char,
@@ -320,7 +321,7 @@ pub unsafe extern "C" fn json_string_new_nocopy(
     (*value).u.string.ptr = buf;
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_integer_new(mut integer: i64) -> *mut json_value {
     let mut value: *mut json_value = calloc(
         1 as usize,
@@ -334,7 +335,7 @@ pub unsafe extern "C" fn json_integer_new(mut integer: i64) -> *mut json_value {
     (*value).u.integer = integer;
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_double_new(mut dbl: ::core::ffi::c_double) -> *mut json_value {
     let mut value: *mut json_value = calloc(
         1 as usize,
@@ -348,7 +349,7 @@ pub unsafe extern "C" fn json_double_new(mut dbl: ::core::ffi::c_double) -> *mut
     (*value).u.dbl = dbl;
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_boolean_new(mut b: ::core::ffi::c_int) -> *mut json_value {
     let mut value: *mut json_value = calloc(
         1 as usize,
@@ -362,7 +363,7 @@ pub unsafe extern "C" fn json_boolean_new(mut b: ::core::ffi::c_int) -> *mut jso
     (*value).u.boolean = b;
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_null_new() -> *mut json_value {
     let mut value: *mut json_value = calloc(
         1 as usize,
@@ -375,7 +376,7 @@ pub unsafe extern "C" fn json_null_new() -> *mut json_value {
     (*value).type_0 = json_null;
     return value;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_object_sort(mut object: *mut json_value, mut proto: *mut json_value) {
     let mut i: ::core::ffi::c_uint = 0;
     let mut out_index: ::core::ffi::c_uint = 0 as ::core::ffi::c_uint;
@@ -407,7 +408,7 @@ pub unsafe extern "C" fn json_object_sort(mut object: *mut json_value, mut proto
         i = i.wrapping_add(1);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_object_merge(
     mut objectA: *mut json_value,
     mut objectB: *mut json_value,
@@ -598,11 +599,11 @@ unsafe extern "C" fn serialize_string(
     }
     return buf.offset_from(orig_buf) as ::core::ffi::c_long as usize;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_measure(mut value: *mut json_value) -> usize {
     return json_measure_ex(value, default_opts);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_measure_ex(
     mut value: *mut json_value,
     mut opts: json_serialize_opts,
@@ -784,14 +785,14 @@ pub unsafe extern "C" fn json_measure_ex(
     }
     return total;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_serialize(
     mut buf: *mut ::core::ffi::c_char,
     mut value: *mut json_value,
 ) {
     json_serialize_ex(buf, value, default_opts);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_serialize_ex(
     mut buf: *mut ::core::ffi::c_char,
     mut value: *mut json_value,
@@ -1156,7 +1157,7 @@ pub unsafe extern "C" fn json_serialize_ex(
     }
     *buf = 0 as ::core::ffi::c_char;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_builder_free(mut value: *mut json_value) {
     let mut cur_value: *mut json_value = ::core::ptr::null_mut::<json_value>();
     if value.is_null() {

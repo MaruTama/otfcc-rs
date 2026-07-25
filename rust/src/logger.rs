@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{fprintf, free};
-extern "C" {
+unsafe extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -101,7 +102,7 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     }
     return 0 as usize;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut otfcc_LoggerTypeNames: [*const ::core::ffi::c_char; 3] = [
     b"[ERROR]\0" as *const u8 as *const ::core::ffi::c_char,
     b"[WARNING]\0" as *const u8 as *const ::core::ffi::c_char,
@@ -275,7 +276,7 @@ unsafe extern "C" fn loggerDispose(mut _self: *mut otfcc_ILogger) {
     free(self_0 as *mut ::core::ffi::c_void);
     self_0 = ::core::ptr::null_mut::<Logger>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static VTABLE_LOGGER: otfcc_ILogger = {
     otfcc_ILogger {
         dispose: Some(loggerDispose as unsafe extern "C" fn(*mut otfcc_ILogger) -> ()),
@@ -313,7 +314,7 @@ pub static VTABLE_LOGGER: otfcc_ILogger = {
         ),
     }
 };
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newLogger(
     mut target: *mut otfcc_ILoggerTarget,
 ) -> *mut otfcc_ILogger {
@@ -354,22 +355,22 @@ impl LoggerTarget for StderrLoggerTarget {
         sdsfree(data);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stderrTargetDispose(mut _self: *mut otfcc_ILoggerTarget) {
     <StderrLoggerTarget as LoggerTarget>::dispose(_self);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stderrTargetPush(mut _self: *mut otfcc_ILoggerTarget, mut data: sds) {
     <StderrLoggerTarget as LoggerTarget>::push(_self, data);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static VTABLE_STDERR_TARGET: otfcc_ILoggerTarget = {
     otfcc_ILoggerTarget {
         dispose: Some(stderrTargetDispose as unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()),
         push: Some(stderrTargetPush as unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()),
     }
 };
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newStdErrTarget() -> *mut otfcc_ILoggerTarget {
     let mut target: *mut StderrTarget = ::core::ptr::null_mut::<StderrTarget>();
     target = __caryll_allocate_clean(
@@ -393,22 +394,22 @@ impl LoggerTarget for EmptyLoggerTarget {
         sdsfree(data);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn emptyTargetDispose(mut _self: *mut otfcc_ILoggerTarget) {
     <EmptyLoggerTarget as LoggerTarget>::dispose(_self);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn emptyTargetPush(mut _self: *mut otfcc_ILoggerTarget, mut data: sds) {
     <EmptyLoggerTarget as LoggerTarget>::push(_self, data);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static VTABLE_EMPTY_TARGET: otfcc_ILoggerTarget = {
     otfcc_ILoggerTarget {
         dispose: Some(emptyTargetDispose as unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()),
         push: Some(emptyTargetPush as unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()),
     }
 };
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newEmptyTarget() -> *mut otfcc_ILoggerTarget {
     let mut target: *mut StderrTarget = ::core::ptr::null_mut::<StderrTarget>();
     target = __caryll_allocate_clean(

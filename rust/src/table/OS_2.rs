@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -114,7 +115,7 @@ unsafe extern "C" fn table_OS_2_copyReplace(mut dst: *mut table_OS_2, src: table
 unsafe extern "C" fn table_OS_2_init(mut x: *mut table_OS_2) {
     initOS2(x);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iOS_2: __caryll_elementinterface_table_OS_2 = {
     __caryll_elementinterface_table_OS_2 {
         init: Some(table_OS_2_init as unsafe extern "C" fn(*mut table_OS_2) -> ()),
@@ -169,7 +170,7 @@ unsafe extern "C" fn table_OS_2_free(mut x: *mut table_OS_2) {
     table_OS_2_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readOS_2(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -375,7 +376,7 @@ pub unsafe extern "C" fn otfcc_readOS_2(
     }
     return ::core::ptr::null_mut::<table_OS_2>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut fsTypeLabels: [*const ::core::ffi::c_char; 11] = [
     b"_reserved1\0" as *const u8 as *const ::core::ffi::c_char,
     b"restrictedLicense\0" as *const u8 as *const ::core::ffi::c_char,
@@ -389,7 +390,7 @@ pub static mut fsTypeLabels: [*const ::core::ffi::c_char; 11] = [
     b"bitmapEmbeddingOnly\0" as *const u8 as *const ::core::ffi::c_char,
     ::core::ptr::null::<::core::ffi::c_char>(),
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut fsSelectionLabels: [*const ::core::ffi::c_char; 11] = [
     b"italic\0" as *const u8 as *const ::core::ffi::c_char,
     b"underscore\0" as *const u8 as *const ::core::ffi::c_char,
@@ -403,7 +404,7 @@ pub static mut fsSelectionLabels: [*const ::core::ffi::c_char; 11] = [
     b"oblique\0" as *const u8 as *const ::core::ffi::c_char,
     ::core::ptr::null::<::core::ffi::c_char>(),
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut codePageLabels1: [*const ::core::ffi::c_char; 33] = [
     b"latin1\0" as *const u8 as *const ::core::ffi::c_char,
     b"latin2\0" as *const u8 as *const ::core::ffi::c_char,
@@ -439,7 +440,7 @@ pub static mut codePageLabels1: [*const ::core::ffi::c_char; 33] = [
     b"symbol\0" as *const u8 as *const ::core::ffi::c_char,
     ::core::ptr::null::<::core::ffi::c_char>(),
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut codePageLabels2: [*const ::core::ffi::c_char; 33] = [
     b"oem8\0" as *const u8 as *const ::core::ffi::c_char,
     b"oem9\0" as *const u8 as *const ::core::ffi::c_char,
@@ -475,7 +476,7 @@ pub static mut codePageLabels2: [*const ::core::ffi::c_char; 33] = [
     b"ascii\0" as *const u8 as *const ::core::ffi::c_char,
     ::core::ptr::null::<::core::ffi::c_char>(),
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut unicodeRangeLabels1: [*const ::core::ffi::c_char; 33] = [
     b"Basic_Latin\0" as *const u8 as *const ::core::ffi::c_char,
     b"Latin_1_Supplement\0" as *const u8 as *const ::core::ffi::c_char,
@@ -511,7 +512,7 @@ pub static mut unicodeRangeLabels1: [*const ::core::ffi::c_char; 33] = [
     b"Punctuations\0" as *const u8 as *const ::core::ffi::c_char,
     ::core::ptr::null::<::core::ffi::c_char>(),
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut unicodeRangeLabels2: [*const ::core::ffi::c_char; 33] = [
     b"Superscripts_And_Subscripts\0" as *const u8 as *const ::core::ffi::c_char,
     b"Currency_Symbols\0" as *const u8 as *const ::core::ffi::c_char,
@@ -547,7 +548,7 @@ pub static mut unicodeRangeLabels2: [*const ::core::ffi::c_char; 33] = [
     b"Arabic_Presentation_Forms_A\0" as *const u8 as *const ::core::ffi::c_char,
     ::core::ptr::null::<::core::ffi::c_char>(),
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut unicodeRangeLabels3: [*const ::core::ffi::c_char; 33] = [
     b"Combining_Half_Marks\0" as *const u8 as *const ::core::ffi::c_char,
     b"Vertical_Forms_and_CJK_Compatibility_Forms\0" as *const u8 as *const ::core::ffi::c_char,
@@ -583,7 +584,7 @@ pub static mut unicodeRangeLabels3: [*const ::core::ffi::c_char; 33] = [
     b"New_Tai_Lue\0" as *const u8 as *const ::core::ffi::c_char,
     ::core::ptr::null::<::core::ffi::c_char>(),
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut unicodeRangeLabels4: [*const ::core::ffi::c_char; 28] = [
     b"Buginese\0" as *const u8 as *const ::core::ffi::c_char,
     b"Glagolitic\0" as *const u8 as *const ::core::ffi::c_char,
@@ -614,7 +615,7 @@ pub static mut unicodeRangeLabels4: [*const ::core::ffi::c_char; 28] = [
     b"Domino_and_Mahjong_Tiles\0" as *const u8 as *const ::core::ffi::c_char,
     ::core::ptr::null::<::core::ffi::c_char>(),
 ];
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpOS_2(
     mut table: *const table_OS_2,
     mut root: *mut json_value,
@@ -876,7 +877,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseOS_2(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -1163,7 +1164,7 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
     }
     return os_2;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildOS_2(
     mut os_2: *const table_OS_2,
     mut _options: *const otfcc_Options,

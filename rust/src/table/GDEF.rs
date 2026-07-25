@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
@@ -192,7 +193,7 @@ pub struct __caryll_elementinterface_table_GDEF {
     pub create: Option<unsafe extern "C" fn() -> *mut table_GDEF>,
     pub free: Option<unsafe extern "C" fn(*mut table_GDEF) -> ()>,
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static otl_iCaretValue: __caryll_elementinterface_otl_CaretValue =
     __caryll_elementinterface_otl_CaretValue {
         init: None,
@@ -372,7 +373,7 @@ unsafe extern "C" fn otl_CaretValueList_init(arr: *mut otl_CaretValueList) {
 unsafe extern "C" fn otl_CaretValueList_push(arr: *mut otl_CaretValueList, elem: otl_CaretValue) {
     cvec_push(otl_CaretValueList_as_cvec(arr), elem);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static otl_iCaretValueList: __caryll_vectorinterface_otl_CaretValueList = {
     __caryll_vectorinterface_otl_CaretValueList {
         init: Some(otl_CaretValueList_init as unsafe extern "C" fn(*mut otl_CaretValueList) -> ()),
@@ -520,7 +521,7 @@ unsafe extern "C" fn deleteGdefLigCaretRec(mut v: *mut otl_CaretValueRecord) {
         .dispose
         .expect("non-null function pointer")(&raw mut (*v).carets);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static otl_iCaretValueRecord: __caryll_elementinterface_otl_CaretValueRecord = {
     __caryll_elementinterface_otl_CaretValueRecord {
         init: Some(initGdefLigCaretRec as unsafe extern "C" fn(*mut otl_CaretValueRecord) -> ()),
@@ -541,7 +542,7 @@ unsafe fn otl_LigCaretTable_as_cvec(arr: *mut otl_LigCaretTable) -> *mut CVecRaw
 unsafe extern "C" fn otl_LigCaretTable_init(arr: *mut otl_LigCaretTable) {
     cvec_init(otl_LigCaretTable_as_cvec(arr));
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static otl_iLigCaretTable: __caryll_vectorinterface_otl_LigCaretTable = {
     __caryll_vectorinterface_otl_LigCaretTable {
         init: Some(otl_LigCaretTable_init as unsafe extern "C" fn(*mut otl_LigCaretTable) -> ()),
@@ -889,7 +890,7 @@ unsafe extern "C" fn table_GDEF_init(mut x: *mut table_GDEF) {
 unsafe extern "C" fn table_GDEF_dispose(mut x: *mut table_GDEF) {
     disposeGDEF(x);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iGDEF: __caryll_elementinterface_table_GDEF = {
     __caryll_elementinterface_table_GDEF {
         init: Some(table_GDEF_init as unsafe extern "C" fn(*mut table_GDEF) -> ()),
@@ -1035,7 +1036,7 @@ unsafe extern "C" fn readLigCaretRecord(
     }
     return g;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readGDEF(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -1242,7 +1243,7 @@ unsafe extern "C" fn dumpGDEFLigCarets(mut gdef: *const table_GDEF) -> *mut json
     }
     return _carets;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpGDEF(
     mut gdef: *const table_GDEF,
     mut root: *mut json_value,
@@ -1376,7 +1377,7 @@ unsafe extern "C" fn ligCaretFromJson(
         j = j.wrapping_add(1);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseGDEF(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -1463,7 +1464,7 @@ unsafe extern "C" fn writeLigCarets(mut lc: *const otl_LigCaretTable) -> *mut bk
     otl_Coverage_free(cov);
     return lct;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildGDEF(
     mut gdef: *const table_GDEF,
     mut _options: *const otfcc_Options,

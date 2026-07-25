@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     static otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList;
     static otl_iLookupPtr: __caryll_elementinterface_otl_LookupPtr;
@@ -116,7 +117,7 @@ use crate::vendor::sds::{Byte, Dec5, Hex2, sds};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::table::otl::{__caryll_elementinterface_otl_FeaturePtr, __caryll_elementinterface_otl_LanguageSystemPtr, __caryll_elementinterface_otl_LookupPtr, __caryll_elementinterface_table_OTL, __caryll_vectorinterface_otl_FeatureList, __caryll_vectorinterface_otl_FeatureRefList, __caryll_vectorinterface_otl_LangSystemList, __caryll_vectorinterface_otl_LookupList, __caryll_vectorinterface_otl_LookupRefList, __caryll_vectorinterface_otl_SubtableList, otl_Feature, otl_FeatureList, otl_FeaturePtr, otl_FeatureRef, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_context, otl_type_gpos_extend, otl_type_gpos_unknown, otl_type_gsub_chaining, otl_type_gsub_context, otl_type_gsub_extend, otl_type_gsub_unknown, otl_type_unknown, table_OTL};
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readOtl_subtable(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -950,7 +951,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
         (*lookup).type_0 = otl_type_gpos_chaining;
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readOtl(
     mut packet: otfcc_Packet,
     mut options: *const otfcc_Options,

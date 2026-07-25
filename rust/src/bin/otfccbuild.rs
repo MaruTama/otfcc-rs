@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 #![allow(
     dead_code,
     non_camel_case_types,
@@ -11,7 +12,7 @@ use ::otfcc_rust;
 
 use otfcc_rust::support::stdio::{stderr, stdin, stdout, FILE};
 use libc::{SEEK_SET, exit, fclose, feof, fgets, fopen, fprintf, fread, free, fseek, ftell, fwrite, malloc, realloc, strcmp, strlen, strtol};
-extern "C" {
+unsafe extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -98,7 +99,7 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
         10 as ::core::ffi::c_int,
     ) as ::core::ffi::c_int;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn printInfo() {
     fprintf(
         stdout,
@@ -109,7 +110,7 @@ pub unsafe extern "C" fn printInfo() {
         PATCH_VER,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn printHelp() {
     fprintf(
         stdout,
@@ -117,7 +118,7 @@ pub unsafe extern "C" fn printHelp() {
             as *const u8 as *const ::core::ffi::c_char,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn readEntireFile(
     mut inPath: *mut ::core::ffi::c_char,
     mut _buffer: *mut *mut ::core::ffi::c_char,
@@ -159,7 +160,7 @@ pub unsafe extern "C" fn readEntireFile(
     *_buffer = buffer;
     *_length = length;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn readEntireStdin(
     mut _buffer: *mut *mut ::core::ffi::c_char,
     mut _length: *mut ::core::ffi::c_long,

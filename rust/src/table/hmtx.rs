@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
@@ -102,7 +103,7 @@ unsafe extern "C" fn table_hmtx_replace(mut dst: *mut table_hmtx, src: table_hmt
         ::core::mem::size_of::<table_hmtx>() as usize,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static table_iHmtx: __caryll_elementinterface_table_hmtx = {
     __caryll_elementinterface_table_hmtx {
         init: Some(table_hmtx_init as unsafe extern "C" fn(*mut table_hmtx) -> ()),
@@ -131,7 +132,7 @@ unsafe extern "C" fn table_hmtx_free(mut x: *mut table_hmtx) {
     table_hmtx_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readHmtx(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -239,7 +240,7 @@ pub unsafe extern "C" fn otfcc_readHmtx(
     }
     return ::core::ptr::null_mut::<table_hmtx>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildHmtx(
     mut hmtx: *const table_hmtx,
     mut count_a: glyphid_t,

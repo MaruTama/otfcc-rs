@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcmp, memcpy, memset, qsort, strcmp, strlen};
-extern "C" {
+unsafe extern "C" {
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_object_new(length: usize) -> *mut json_value;
@@ -360,7 +361,7 @@ unsafe extern "C" fn otl_LigatureArray_filterEnv(
     }
     (*arr).length = j;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static otl_iLigatureArray: __caryll_vectorinterface_otl_LigatureArray = {
     __caryll_vectorinterface_otl_LigatureArray {
         init: Some(otl_LigatureArray_init as unsafe extern "C" fn(*mut otl_LigatureArray) -> ()),
@@ -572,7 +573,7 @@ unsafe extern "C" fn subtable_gpos_markToLigature_move(
     );
     subtable_gpos_markToLigature_init(src);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static iSubtable_gpos_markToLigature:
     __caryll_elementinterface_subtable_gpos_markToLigature = {
     __caryll_elementinterface_subtable_gpos_markToLigature {
@@ -641,7 +642,7 @@ unsafe extern "C" fn subtable_gpos_markToLigature_dispose(
 ) {
     disposeMarkToLigature(x);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gpos_markToLigature(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -824,7 +825,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_dump_markToLigature(
     mut st: *const otl_Subtable,
 ) -> *mut json_value {
@@ -1379,7 +1380,7 @@ unsafe extern "C" fn parseBases(
         j = j.wrapping_add(1);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_parse_markToLigature(
     mut _subtable: *const json_value,
     mut options: *const otfcc_Options,
@@ -1472,7 +1473,7 @@ pub unsafe extern "C" fn otl_gpos_parse_markToLigature(
     }
     return st as *mut otl_Subtable;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_markToLigature(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

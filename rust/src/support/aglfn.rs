@@ -1,4 +1,5 @@
-extern "C" {
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+unsafe extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
 }
@@ -7,7 +8,7 @@ use crate::support::primitives::{glyphid_t};
 use crate::vendor::sds::{sds};
 use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderPackage};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn aglfn_setupNames(mut map: *mut otfcc_GlyphOrder) {
     otfcc_pkgGlyphOrder
         .setByGID
