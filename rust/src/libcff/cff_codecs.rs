@@ -356,22 +356,22 @@ static nibble_attr: [::core::ffi::c_int; 15] = [
     0 as ::core::ffi::c_int,
     1 as ::core::ffi::c_int,
 ];
-static mut nibble_symb: [*const ::core::ffi::c_char; 15] = [
-    b"0\0" as *const u8 as *const ::core::ffi::c_char,
-    b"1\0" as *const u8 as *const ::core::ffi::c_char,
-    b"2\0" as *const u8 as *const ::core::ffi::c_char,
-    b"3\0" as *const u8 as *const ::core::ffi::c_char,
-    b"4\0" as *const u8 as *const ::core::ffi::c_char,
-    b"5\0" as *const u8 as *const ::core::ffi::c_char,
-    b"6\0" as *const u8 as *const ::core::ffi::c_char,
-    b"7\0" as *const u8 as *const ::core::ffi::c_char,
-    b"8\0" as *const u8 as *const ::core::ffi::c_char,
-    b"9\0" as *const u8 as *const ::core::ffi::c_char,
-    b".\0" as *const u8 as *const ::core::ffi::c_char,
-    b"E\0" as *const u8 as *const ::core::ffi::c_char,
-    b"E-\0" as *const u8 as *const ::core::ffi::c_char,
-    b"\0" as *const u8 as *const ::core::ffi::c_char,
-    b"-\0" as *const u8 as *const ::core::ffi::c_char,
+static nibble_symb: [&::core::ffi::CStr; 15] = [
+    c"0",
+    c"1",
+    c"2",
+    c"3",
+    c"4",
+    c"5",
+    c"6",
+    c"7",
+    c"8",
+    c"9",
+    c".",
+    c"E",
+    c"E-",
+    c"",
+    c"-",
 ];
 unsafe extern "C" fn cff_dec_r(mut start: *const u8, mut val: *mut cff_Value) -> u32 {
     let mut restr: [u8; 72] = [
@@ -476,14 +476,14 @@ unsafe extern "C" fn cff_dec_r(mut start: *const u8, mut val: *mut cff_Value) ->
         }
         strcat(
             &raw mut restr as *mut u8 as *mut ::core::ffi::c_char,
-            nibble_symb[a as usize],
+            nibble_symb[a as usize].as_ptr(),
         );
         if !(b as ::core::ffi::c_int != 0xf as ::core::ffi::c_int) {
             break;
         }
         strcat(
             &raw mut restr as *mut u8 as *mut ::core::ffi::c_char,
-            nibble_symb[b as usize],
+            nibble_symb[b as usize].as_ptr(),
         );
         nibst = nibst.offset(1);
     }

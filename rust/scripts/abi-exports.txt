@@ -128,7 +128,6 @@ f_spaces_after_colons
 f_spaces_after_commas
 f_spaces_around_brackets
 f_tabs
-ff_ttf_instrnames
 fontop_consolidateClassDef
 fontop_consolidateCoverage
 format3Coverage
@@ -214,7 +213,6 @@ meta_iEntry
 nameGlyphByHash
 op_cff_name
 op_cs2_name
-otfcc_LoggerTypeNames
 otfcc_Options_optimizeTo
 otfcc_SFNTBuilder_pushTable
 otfcc_SFNTBuilder_serialize
