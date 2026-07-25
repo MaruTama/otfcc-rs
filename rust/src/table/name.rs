@@ -38,13 +38,9 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_string, json_type, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::{__compar_fn_t};
+use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_NameRecord {
@@ -1089,6 +1085,3 @@ unsafe extern "C" fn json_obj_getint(
     }
     return 0 as i32;
 }
-pub const MAIN_VER: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const SECONDARY_VER: ::core::ffi::c_int = 10 as ::core::ffi::c_int;
-pub const PATCH_VER: ::core::ffi::c_int = 4 as ::core::ffi::c_int;

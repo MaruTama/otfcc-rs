@@ -8,12 +8,6 @@ extern "C" {
     fn bk_cellIsPointer(cell: *mut bk_Cell) -> bool;
 }
 
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct bk_GraphNode {
@@ -34,6 +28,7 @@ use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
 use crate::bk::bkblock::{VISIT_BLACK, VISIT_GRAY, VISIT_WHITE, __caryll_bkblock, b16, b32, b8, bk_Block, bk_Cell, bkcopy, bkover, p16, p32, sp16, sp32};
+
 
 unsafe extern "C" fn _bkgraph_grow(mut f: *mut bk_Graph) -> *mut bk_GraphNode {
     if (*f).free != 0 {

@@ -33,12 +33,6 @@ use crate::support::{NULL};
 use crate::support::glyph_order::{glyph_handle};
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_ClassDef {
