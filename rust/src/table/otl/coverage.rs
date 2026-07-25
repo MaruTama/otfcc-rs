@@ -2297,15 +2297,13 @@ pub(crate) unsafe extern "C" fn dumpCoverage(mut coverage: *const otl_Coverage) 
 pub(crate) unsafe extern "C" fn parseCoverage(mut cov: *const json_value) -> *mut otl_Coverage {
     let mut c: *mut otl_Coverage = otl_Coverage_create();
     if cov.is_null()
-        || (*cov).type_0 as ::core::ffi::c_uint
-            != json_array as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*cov).type_0 != json_array
     {
         return c;
     }
     let mut j: glyphid_t = 0 as glyphid_t;
     while (j as ::core::ffi::c_uint) < (*cov).u.array.length {
-        if (**(*cov).u.array.values.offset(j as isize)).type_0 as ::core::ffi::c_uint
-            == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (**(*cov).u.array.values.offset(j as isize)).type_0 == json_string
         {
             pushToCoverage(
                 c,

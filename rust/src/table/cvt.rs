@@ -239,12 +239,10 @@ pub unsafe extern "C" fn otfcc_parseCvt(
             while (j as u32) < (*t).length {
                 let mut record: *mut json_value =
                     *(*table).u.array.values.offset(j as isize) as *mut json_value;
-                if (*record).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                if (*record).type_0 == json_integer
                 {
                     *(*t).words.offset(j as isize) = (*record).u.integer as u16;
-                } else if (*record).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                } else if (*record).type_0 == json_double
                 {
                     *(*t).words.offset(j as isize) = (*record).u.dbl as u16;
                 } else {
@@ -328,8 +326,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }

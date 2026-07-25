@@ -82,8 +82,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -2232,8 +2231,7 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
             let mut _row: *mut json_value =
                 *(*_mat).u.array.values.offset(j_0 as isize) as *mut json_value;
             if !(_row.is_null()
-                || (*_row).type_0 as ::core::ffi::c_uint
-                    != json_array as ::core::ffi::c_int as ::core::ffi::c_uint)
+                || (*_row).type_0 != json_array)
             {
                 let mut k_0: glyphclass_t = 0 as glyphclass_t;
                 while (k_0 as ::core::ffi::c_int) < class2Count as ::core::ffi::c_int
@@ -2241,18 +2239,15 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
                 {
                     let mut _item: *mut json_value =
                         *(*_row).u.array.values.offset(k_0 as isize) as *mut json_value;
-                    if (*_item).type_0 as ::core::ffi::c_uint
-                        == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                    if (*_item).type_0 == json_integer
                     {
                         (*(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize))
                             .dWidth = (*_item).u.integer as pos_t;
-                    } else if (*_item).type_0 as ::core::ffi::c_uint
-                        == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                    } else if (*_item).type_0 == json_double
                     {
                         (*(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize))
                             .dWidth = (*_item).u.dbl as pos_t;
-                    } else if (*_item).type_0 as ::core::ffi::c_uint
-                        == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+                    } else if (*_item).type_0 == json_object
                     {
                         *(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize) =
                             gpos_parse_value(json_obj_get(

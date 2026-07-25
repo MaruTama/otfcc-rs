@@ -26,16 +26,20 @@ pub struct json_settings {
     pub user_data: *mut ::core::ffi::c_void,
     pub value_extra: usize,
 }
-pub type json_type = ::core::ffi::c_uint;
-pub const json_pre_serialized: json_type = 8;
-pub const json_null: json_type = 7;
-pub const json_boolean: json_type = 6;
-pub const json_string: json_type = 5;
-pub const json_double: json_type = 4;
-pub const json_integer: json_type = 3;
-pub const json_array: json_type = 2;
-pub const json_object: json_type = 1;
-pub const json_none: json_type = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum json_type {
+    json_none = 0,
+    json_object = 1,
+    json_array = 2,
+    json_integer = 3,
+    json_double = 4,
+    json_string = 5,
+    json_boolean = 6,
+    json_null = 7,
+    json_pre_serialized = 8,
+}
+pub use json_type::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct _json_value {
@@ -187,8 +191,8 @@ unsafe extern "C" fn new_value(
         if (*root).is_null() {
             *root = value;
         }
-        match (*value).type_0 as ::core::ffi::c_uint {
-            2 => {
+        match (*value).type_0 {
+            json_array => {
                 if !((*value).u.array.length == 0 as ::core::ffi::c_uint) {
                     (*value).u.array.values = json_alloc(
                         state,
@@ -204,7 +208,7 @@ unsafe extern "C" fn new_value(
                     (*value).u.array.length = 0 as ::core::ffi::c_uint;
                 }
             }
-            1 => {
+            json_object => {
                 if !((*value).u.object.length == 0 as ::core::ffi::c_uint) {
                     values_size = ::core::mem::size_of::<json_object_entry>()
                         .wrapping_mul((*value).u.object.length as usize)
@@ -225,7 +229,7 @@ unsafe extern "C" fn new_value(
                     (*value).u.object.length = 0 as ::core::ffi::c_uint;
                 }
             }
-            5 => {
+            json_string => {
                 (*value).u.string.ptr = json_alloc(
                     state,
                     ((*value)
@@ -691,8 +695,8 @@ pub unsafe extern "C" fn json_parse_ex(
                         }
                         flags &= !flag_string;
                         string = ::core::ptr::null_mut::<::core::ffi::c_char>();
-                        match (*top).type_0 as ::core::ffi::c_uint {
-                            5 => {
+                        match (*top).type_0 {
+                            json_string => {
                                 current_block = 981276038192651198;
                                 match current_block {
                                     17969198464700415374 => {
@@ -736,7 +740,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                     }
                                 }
                             }
-                            1 => {
+                            json_object => {
                                 current_block = 17969198464700415374;
                                 match current_block {
                                     17969198464700415374 => {
@@ -834,8 +838,7 @@ pub unsafe extern "C" fn json_parse_ex(
                             }
                         } else if b as ::core::ffi::c_int == '/' as i32 {
                             if flags & (flag_seek_value | flag_done) == 0
-                                && (*top).type_0 as ::core::ffi::c_uint
-                                    != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+                                && (*top).type_0 != json_object
                             {
                                 sprintf(
                                     &raw mut error as *mut ::core::ffi::c_char,
@@ -2032,8 +2035,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                         }
                                     }
                                 } else {
-                                    match (*top).type_0 as ::core::ffi::c_uint {
-                                        1 => {
+                                    match (*top).type_0 {
+                                        json_object => {
                                             current_block = 13760369805207408080;
                                             match current_block {
                                                 13760369805207408080 => {
@@ -2548,8 +2551,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             == 'E' as i32
                                                                     {
                                                                         flags |= flag_num_e;
-                                                                        if (*top).type_0 as ::core::ffi::c_uint
-                                                                            == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                                                                        if (*top).type_0 == json_integer
                                                                         {
                                                                             (*top).type_0 = json_double;
                                                                             (*top).u.dbl = (*top).u.integer as ::core::ffi::c_double;
@@ -2595,8 +2597,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         if flags & flag_num_negative
                                                                             != 0
                                                                         {
-                                                                            if (*top).type_0 as ::core::ffi::c_uint
-                                                                                == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                                                                            if (*top).type_0 == json_integer
                                                                             {
                                                                                 (*top).u.integer = -(*top).u.integer;
                                                                             } else {
@@ -2615,7 +2616,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                 }
                                             }
                                         }
-                                        3 | 4 => {
+                                        json_integer | json_double => {
                                             current_block = 16809337807815302285;
                                             match current_block {
                                                 13760369805207408080 => {
@@ -3130,8 +3131,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             == 'E' as i32
                                                                     {
                                                                         flags |= flag_num_e;
-                                                                        if (*top).type_0 as ::core::ffi::c_uint
-                                                                            == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                                                                        if (*top).type_0 == json_integer
                                                                         {
                                                                             (*top).type_0 = json_double;
                                                                             (*top).u.dbl = (*top).u.integer as ::core::ffi::c_double;
@@ -3177,8 +3177,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         if flags & flag_num_negative
                                                                             != 0
                                                                         {
-                                                                            if (*top).type_0 as ::core::ffi::c_uint
-                                                                                == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                                                                            if (*top).type_0 == json_integer
                                                                             {
                                                                                 (*top).u.integer = -(*top).u.integer;
                                                                             } else {
@@ -3223,8 +3222,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                 if state.first_pass == 0 {
                                                     let mut parent: *mut json_value =
                                                         (*top).parent as *mut json_value;
-                                                    match (*parent).type_0 as ::core::ffi::c_uint {
-                                                        1 => {
+                                                    match (*parent).type_0 {
+                                                        json_object => {
                                                             let ref mut fresh12 = (*(*parent)
                                                                 .u
                                                                 .object
@@ -3236,7 +3235,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             .value;
                                                             *fresh12 = top as *mut _json_value;
                                                         }
-                                                        2 => {
+                                                        json_array => {
                                                             let ref mut fresh13 =
                                                                 *(*parent).u.array.values.offset(
                                                                     (*parent).u.array.length
@@ -3359,8 +3358,8 @@ pub unsafe extern "C" fn json_value_free_ex(
     }
     (*value).parent = ::core::ptr::null_mut::<_json_value>();
     while !value.is_null() {
-        match (*value).type_0 as ::core::ffi::c_uint {
-            2 => {
+        match (*value).type_0 {
+            json_array => {
                 if (*value).u.array.length == 0 {
                     (*settings).mem_free.expect("non-null function pointer")(
                         (*value).u.array.values as *mut ::core::ffi::c_void,
@@ -3377,7 +3376,7 @@ pub unsafe extern "C" fn json_value_free_ex(
                     continue;
                 }
             }
-            1 => {
+            json_object => {
                 if (*value).u.object.length == 0 {
                     (*settings).mem_free.expect("non-null function pointer")(
                         (*value).u.object.values as *mut ::core::ffi::c_void,
@@ -3394,7 +3393,7 @@ pub unsafe extern "C" fn json_value_free_ex(
                     continue;
                 }
             }
-            5 | 8 => {
+            json_string | json_pre_serialized => {
                 (*settings).mem_free.expect("non-null function pointer")(
                     (*value).u.string.ptr as *mut ::core::ffi::c_void,
                     (*settings).user_data,

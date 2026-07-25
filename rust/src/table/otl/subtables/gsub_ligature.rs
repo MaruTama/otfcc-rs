@@ -102,8 +102,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -807,8 +806,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             let mut _from_0: *mut json_value =
                 (*(*_subtable).u.object.values.offset(k_0 as isize)).value as *mut json_value;
             if !(_from_0.is_null()
-                || (*_from_0).type_0 as ::core::ffi::c_uint
-                    != json_array as ::core::ffi::c_int as ::core::ffi::c_uint)
+                || (*_from_0).type_0 != json_array)
             {
                 iSubtable_gsub_ligature
                     .push

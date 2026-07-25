@@ -1298,8 +1298,7 @@ unsafe extern "C" fn ligCaretFromJson(
     mut lc: *mut otl_LigCaretTable,
 ) {
     if _carets.is_null()
-        || (*_carets).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*_carets).type_0 != json_object
     {
         return;
     }
@@ -1308,8 +1307,7 @@ unsafe extern "C" fn ligCaretFromJson(
         let mut a: *mut json_value =
             (*(*_carets).u.object.values.offset(j as isize)).value as *mut json_value;
         if !(a.is_null()
-            || (*a).type_0 as ::core::ffi::c_uint
-                != json_array as ::core::ffi::c_int as ::core::ffi::c_uint)
+            || (*a).type_0 != json_array)
         {
             let mut v: otl_CaretValueRecord = otl_CaretValueRecord {
                 glyph: otfcc_Handle {
@@ -1344,8 +1342,7 @@ unsafe extern "C" fn ligCaretFromJson(
                 let mut _caret: *mut json_value =
                     *(*a).u.array.values.offset(k as isize) as *mut json_value;
                 if !_caret.is_null()
-                    && (*_caret).type_0 as ::core::ffi::c_uint
-                        == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+                    && (*_caret).type_0 == json_object
                 {
                     if !json_obj_get_type(
                         _caret,
@@ -1500,8 +1497,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -1533,8 +1529,7 @@ unsafe extern "C" fn json_obj_getnum(
     mut key: *const ::core::ffi::c_char,
 ) -> ::core::ffi::c_double {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return 0.0f64;
     }
@@ -1545,14 +1540,12 @@ unsafe extern "C" fn json_obj_getnum(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as ::core::ffi::c_double;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl;
             }
@@ -1567,8 +1560,7 @@ unsafe extern "C" fn json_obj_getint(
     mut key: *const ::core::ffi::c_char,
 ) -> i32 {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return 0 as i32;
     }
@@ -1579,14 +1571,12 @@ unsafe extern "C" fn json_obj_getint(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as i32;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl as i32;
             }

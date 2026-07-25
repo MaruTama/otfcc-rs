@@ -1098,12 +1098,10 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
                 while j < (*panose).u.array.length as u32 && j < 10 as u32 {
                     let mut term: *mut json_value =
                         *(*panose).u.array.values.offset(j as isize) as *mut json_value;
-                    if (*term).type_0 as ::core::ffi::c_uint
-                        == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                    if (*term).type_0 == json_integer
                     {
                         (*os_2).panose[j as usize] = (*term).u.integer as u8;
-                    } else if (*term).type_0 as ::core::ffi::c_uint
-                        == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                    } else if (*term).type_0 == json_double
                     {
                         (*os_2).panose[j as usize] = (*term).u.dbl as u8;
                     }
@@ -1218,8 +1216,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -1252,8 +1249,7 @@ unsafe extern "C" fn json_obj_getnum_fallback(
     mut fallback: ::core::ffi::c_double,
 ) -> ::core::ffi::c_double {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return fallback;
     }
@@ -1264,14 +1260,12 @@ unsafe extern "C" fn json_obj_getnum_fallback(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as ::core::ffi::c_double;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl;
             }

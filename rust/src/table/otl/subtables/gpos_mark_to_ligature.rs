@@ -129,8 +129,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -967,8 +966,7 @@ unsafe extern "C" fn parseBases(
         let mut baseRecord: *mut json_value =
             (*(*_bases).u.object.values.offset(j as isize)).value as *mut json_value;
         if baseRecord.is_null()
-            || (*baseRecord).type_0 as ::core::ffi::c_uint
-                != json_array as ::core::ffi::c_int as ::core::ffi::c_uint
+            || (*baseRecord).type_0 != json_array
         {
             otl_iLigatureArray.push.expect("non-null function pointer")(
                 &raw mut (*subtable).ligArray,
@@ -997,8 +995,7 @@ unsafe extern "C" fn parseBases(
                     m = m.wrapping_add(1);
                 }
                 if !(_componentRecord.is_null()
-                    || (*_componentRecord).type_0 as ::core::ffi::c_uint
-                        != json_object as ::core::ffi::c_int as ::core::ffi::c_uint)
+                    || (*_componentRecord).type_0 != json_object)
                 {
                     let mut m_0: glyphclass_t = 0 as glyphclass_t;
                     while (m_0 as ::core::ffi::c_uint) < (*_componentRecord).u.object.length {

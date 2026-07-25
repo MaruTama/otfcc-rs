@@ -117,8 +117,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -150,8 +149,7 @@ unsafe extern "C" fn json_obj_getint(
     mut key: *const ::core::ffi::c_char,
 ) -> i32 {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return 0 as i32;
     }
@@ -162,14 +160,12 @@ unsafe extern "C" fn json_obj_getint(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as i32;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl as i32;
             }
@@ -818,8 +814,7 @@ unsafe extern "C" fn _declareLookupParser(
             let mut _subtable: *mut json_value =
                 *(*_subtables).u.array.values.offset(j as isize) as *mut json_value;
             if !_subtable.is_null()
-                && (*_subtable).type_0 as ::core::ffi::c_uint
-                    == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*_subtable).type_0 == json_object
             {
                 let mut _st: *mut otl_Subtable =
                     parser.expect("non-null function pointer")(_subtable, options);
@@ -1284,8 +1279,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
     while j < (*lookups).u.object.length as u32 {
         let mut lookupName: *mut ::core::ffi::c_char =
             (*(*lookups).u.object.values.offset(j as isize)).name;
-        if (*(*(*lookups).u.object.values.offset(j as isize)).value).type_0 as ::core::ffi::c_uint
-            == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*(*(*lookups).u.object.values.offset(j as isize)).value).type_0 == json_object
         {
             let mut parsed: bool = _parse_lookup(
                 (*(*lookups).u.object.values.offset(j as isize)).value as *mut json_value,
@@ -2106,10 +2100,8 @@ unsafe extern "C" fn feature_merger_activate(
         let mut kthis: *mut ::core::ffi::c_char = (*(*d).u.object.values.offset(j as isize)).name;
         let mut nkthis: u32 =
             (*(*d).u.object.values.offset(j as isize)).name_length as u32;
-        if !((*jthis).type_0 as ::core::ffi::c_uint
-            != json_array as ::core::ffi::c_int as ::core::ffi::c_uint
-            && (*jthis).type_0 as ::core::ffi::c_uint
-                != json_object as ::core::ffi::c_int as ::core::ffi::c_uint)
+        if !((*jthis).type_0 != json_array
+            && (*jthis).type_0 != json_object)
         {
             let mut k: u32 = j.wrapping_add(1 as u32);
             while k < (*d).u.object.length as u32 {
@@ -2176,8 +2168,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
             (*(*features).u.object.values.offset(j as isize)).name;
         let mut _feature: *mut json_value =
             (*(*features).u.object.values.offset(j as isize)).value as *mut json_value;
-        if (*_feature).type_0 as ::core::ffi::c_uint
-            == json_array as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*_feature).type_0 == json_array
         {
             let mut al: otl_LookupRefList = otl_LookupRefList {
                 length: 0,
@@ -2189,8 +2180,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
             while (k as ::core::ffi::c_uint) < (*_feature).u.array.length {
                 let mut term: *mut json_value =
                     *(*_feature).u.array.values.offset(k as isize) as *mut json_value;
-                if !((*term).type_0 as ::core::ffi::c_uint
-                    != json_string as ::core::ffi::c_int as ::core::ffi::c_uint)
+                if !((*term).type_0 != json_string)
                 {
                     let mut item: *mut lookup_hash = ::core::ptr::null_mut::<lookup_hash>();
                     let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -3379,8 +3369,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     .dispose
                     .expect("non-null function pointer")(&raw mut al);
             }
-        } else if (*_feature).type_0 as ::core::ffi::c_uint
-            == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+        } else if (*_feature).type_0 == json_string
         {
             let mut s_0: *mut feature_hash = ::core::ptr::null_mut::<feature_hash>();
             let mut target: *mut ::core::ffi::c_char = (*_feature).u.string.ptr;
@@ -4190,8 +4179,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
         let mut _language: *mut json_value =
             (*(*languages).u.object.values.offset(j as isize)).value as *mut json_value;
         if isValidLanguageName(languageName, languageNameLen) as ::core::ffi::c_int != 0
-            && (*_language).type_0 as ::core::ffi::c_uint
-                == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+            && (*_language).type_0 == json_object
         {
             let mut requiredFeature: *mut otl_Feature = ::core::ptr::null_mut::<otl_Feature>();
             let mut _rf: *mut json_value = json_obj_get_type(
@@ -4541,8 +4529,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                 while (k as ::core::ffi::c_uint) < (*_features).u.array.length {
                     let mut term: *mut json_value =
                         *(*_features).u.array.values.offset(k as isize) as *mut json_value;
-                    if (*term).type_0 as ::core::ffi::c_uint
-                        == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+                    if (*term).type_0 == json_string
                     {
                         let mut item: *mut feature_hash = ::core::ptr::null_mut::<feature_hash>();
                         let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
@@ -5804,8 +5791,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                         let mut _ln: *mut json_value =
                             *(*lookupOrder).u.array.values.offset(j as isize) as *mut json_value;
                         if !_ln.is_null()
-                            && (*_ln).type_0 as ::core::ffi::c_uint
-                                == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+                            && (*_ln).type_0 == json_string
                         {
                             let mut item: *mut lookup_hash = ::core::ptr::null_mut::<lookup_hash>();
                             let mut _hf_hashv: ::core::ffi::c_uint = 0;

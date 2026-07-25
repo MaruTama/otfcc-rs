@@ -2884,8 +2884,7 @@ pub(crate) unsafe extern "C" fn dumpClassDef(mut cd: *const otl_ClassDef) -> *mu
 }
 pub(crate) unsafe extern "C" fn parseClassDef(mut _cd: *const json_value) -> *mut otl_ClassDef {
     if _cd.is_null()
-        || (*_cd).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*_cd).type_0 != json_object
     {
         return ::core::ptr::null_mut::<otl_ClassDef>();
     }
@@ -2900,12 +2899,10 @@ pub(crate) unsafe extern "C" fn parseClassDef(mut _cd: *const json_value) -> *mu
         let mut _cid: *mut json_value =
             (*(*_cd).u.object.values.offset(j as isize)).value as *mut json_value;
         let mut cls: glyphclass_t = 0 as glyphclass_t;
-        if (*_cid).type_0 as ::core::ffi::c_uint
-            == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*_cid).type_0 == json_integer
         {
             cls = (*_cid).u.integer as glyphclass_t;
-        } else if (*_cid).type_0 as ::core::ffi::c_uint
-            == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+        } else if (*_cid).type_0 == json_double
         {
             cls = (*_cid).u.dbl as glyphclass_t;
         }

@@ -764,8 +764,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                 let mut _content: *mut json_value =
                     (*(*_glyphs).u.object.values.offset(j as isize)).value as *mut json_value;
                 if !(_content.is_null()
-                    || (*_content).type_0 as ::core::ffi::c_uint
-                        != json_string as ::core::ffi::c_int as ::core::ffi::c_uint)
+                    || (*_content).type_0 != json_string)
                 {
                     table_iTSI.push.expect("non-null function pointer")(
                         tsi,
@@ -797,8 +796,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                 let mut _content_0: *mut json_value =
                     (*(*_extra).u.object.values.offset(j_0 as isize)).value as *mut json_value;
                 if !(_content_0.is_null()
-                    || (*_content_0).type_0 as ::core::ffi::c_uint
-                        != json_string as ::core::ffi::c_int as ::core::ffi::c_uint)
+                    || (*_content_0).type_0 != json_string)
                 {
                     if strcmp(_key, b"cvt\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
@@ -944,8 +942,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }

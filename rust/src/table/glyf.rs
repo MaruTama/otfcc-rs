@@ -3392,8 +3392,7 @@ unsafe extern "C" fn glyf_parse_point(mut pointdump: *mut json_value) -> glyf_Po
     };
     glyf_iPoint.init.expect("non-null function pointer")(&raw mut point);
     if pointdump.is_null()
-        || (*pointdump).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*pointdump).type_0 != json_object
     {
         return point;
     }
@@ -3442,8 +3441,7 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut json_value, mut g: *mut g
         glyf_iContour.initCapN.expect("non-null function pointer")(
             &raw mut contour,
             (if !contourdump.is_null()
-                && (*contourdump).type_0 as ::core::ffi::c_uint
-                    == json_array as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*contourdump).type_0 == json_array
             {
                 (*contourdump).u.array.length
             } else {
@@ -3451,8 +3449,7 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut json_value, mut g: *mut g
             }) as usize,
         );
         if !contourdump.is_null()
-            && (*contourdump).type_0 as ::core::ffi::c_uint
-                == json_array as ::core::ffi::c_int as ::core::ffi::c_uint
+            && (*contourdump).type_0 == json_array
         {
             let mut k: shapeid_t = 0 as shapeid_t;
             while (k as ::core::ffi::c_uint) < (*contourdump).u.array.length {
@@ -3606,8 +3603,7 @@ unsafe extern "C" fn parse_stems(mut sd: *mut json_value, mut stems: *mut glyf_S
     let mut j: shapeid_t = 0 as shapeid_t;
     while (j as ::core::ffi::c_uint) < (*sd).u.array.length {
         let mut s: *mut json_value = *(*sd).u.array.values.offset(j as isize) as *mut json_value;
-        if !((*s).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint)
+        if !((*s).type_0 != json_object)
         {
             let mut sdef: glyf_PostscriptStemDef = glyf_PostscriptStemDef {
                 position: 0.,
@@ -3664,8 +3660,7 @@ unsafe extern "C" fn parse_masks(mut md: *mut json_value, mut masks: *mut glyf_M
     let mut j: shapeid_t = 0 as shapeid_t;
     while (j as ::core::ffi::c_uint) < (*md).u.array.length {
         let mut m: *mut json_value = *(*md).u.array.values.offset(j as isize) as *mut json_value;
-        if !((*m).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint)
+        if !((*m).type_0 != json_object)
         {
             let mut mask: glyf_PostscriptHintMask = glyf_PostscriptHintMask {
                 pointsBefore: 0,
@@ -3842,8 +3837,7 @@ pub unsafe extern "C" fn otfcc_parseGlyf(
     mut glyph_order: *mut otfcc_GlyphOrder,
     mut options: *const otfcc_Options,
 ) -> *mut table_glyf {
-    if (*root).type_0 as ::core::ffi::c_uint
-        != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*root).type_0 != json_object
         || glyph_order.is_null()
     {
         return ::core::ptr::null_mut::<table_glyf>();
@@ -4200,8 +4194,7 @@ pub unsafe extern "C" fn otfcc_parseGlyf(
                         }
                     }
                 }
-                if (*glyphdump).type_0 as ::core::ffi::c_uint
-                    == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+                if (*glyphdump).type_0 == json_object
                     && !order_entry.is_null()
                     && (*(*glyf).items.offset((*order_entry).gid as isize)).is_null()
                 {
@@ -4234,8 +4227,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -4290,8 +4282,7 @@ unsafe extern "C" fn json_obj_getnum(
     mut key: *const ::core::ffi::c_char,
 ) -> ::core::ffi::c_double {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return 0.0f64;
     }
@@ -4302,14 +4293,12 @@ unsafe extern "C" fn json_obj_getnum(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as ::core::ffi::c_double;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl;
             }
@@ -4324,8 +4313,7 @@ unsafe extern "C" fn json_obj_getint(
     mut key: *const ::core::ffi::c_char,
 ) -> i32 {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return 0 as i32;
     }
@@ -4336,14 +4324,12 @@ unsafe extern "C" fn json_obj_getint(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as i32;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl as i32;
             }
@@ -4359,8 +4345,7 @@ unsafe extern "C" fn json_obj_getnum_fallback(
     mut fallback: ::core::ffi::c_double,
 ) -> ::core::ffi::c_double {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return fallback;
     }
@@ -4371,14 +4356,12 @@ unsafe extern "C" fn json_obj_getnum_fallback(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as ::core::ffi::c_double;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl;
             }
@@ -4390,8 +4373,7 @@ unsafe extern "C" fn json_obj_getnum_fallback(
 #[inline]
 unsafe extern "C" fn json_boolof(mut cv: *const json_value) -> bool {
     if !cv.is_null()
-        && (*cv).type_0 as ::core::ffi::c_uint
-            == json_boolean as ::core::ffi::c_int as ::core::ffi::c_uint
+        && (*cv).type_0 == json_boolean
     {
         return (*cv).u.boolean != 0;
     }
