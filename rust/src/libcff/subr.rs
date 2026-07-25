@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, strncmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
@@ -229,8 +230,8 @@ unsafe extern "C" fn disposeSubrGraph(mut g: *mut cff_SubrGraph) {
             as *mut cff_SubrDiagramIndex;
     }
 }
-#[no_mangle]
-pub static mut cff_iSubrGraph: __caryll_elementinterface_cff_SubrGraph = {
+#[unsafe(no_mangle)]
+pub static cff_iSubrGraph: __caryll_elementinterface_cff_SubrGraph = {
     __caryll_elementinterface_cff_SubrGraph {
         init: Some(cff_SubrGraph_init as unsafe extern "C" fn(*mut cff_SubrGraph) -> ()),
         copy: Some(
@@ -4338,7 +4339,7 @@ unsafe extern "C" fn appendNodeToGraph(mut g: *mut cff_SubrGraph, mut n: *mut cf
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_insertILToGraph(
     mut g: *mut cff_SubrGraph,
     mut il: *mut cff_CharstringIL,
@@ -4535,7 +4536,7 @@ unsafe extern "C" fn from_array(
     bufwrite_buf(blob, context.offset(j as isize));
     return blob;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_ilGraphToBuffers(
     mut g: *mut cff_SubrGraph,
     mut s: *mut *mut caryll_Buffer,

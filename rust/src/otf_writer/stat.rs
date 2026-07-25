@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, time, time_t};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     static glyf_iComponentReference: __caryll_elementinterface_glyf_ComponentReference;
     static iVQ: __caryll_vectorinterface_VQ;
@@ -63,7 +64,7 @@ pub enum stat_status {
 }
 pub use stat_status::*;
 pub const POS_MAX: ::core::ffi::c_float = FLT_MAX;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stat_single_glyph(
     mut table: *mut table_glyf,
     mut gr: *mut glyf_ComponentReference,
@@ -273,7 +274,7 @@ pub unsafe extern "C" fn stat_single_glyph(
     *stated.offset(j as isize) = stat_completed;
     return stat;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn statGlyf(mut font: *mut otfcc_Font, mut options: *const otfcc_Options) {
     let mut stated: *mut stat_status = ::core::ptr::null_mut::<stat_status>();
     stated = __caryll_allocate_clean(
@@ -350,7 +351,7 @@ pub unsafe extern "C" fn statGlyf(mut font: *mut otfcc_Font, mut options: *const
     free(stated as *mut ::core::ffi::c_void);
     stated = ::core::ptr::null_mut::<stat_status>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn statMaxp(mut font: *mut otfcc_Font) {
     let mut nestDepth: u16 = 0 as u16;
     let mut nPoints: u16 = 0 as u16;
@@ -1294,7 +1295,7 @@ unsafe extern "C" fn statLTSH(mut font: *mut otfcc_Font) {
     }
     (*font).LTSH = ltsh;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_statFont(
     mut font: *mut otfcc_Font,
     mut options: *const otfcc_Options,
@@ -1428,7 +1429,7 @@ pub unsafe extern "C" fn otfcc_statFont(
     }
     statLTSH(font);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_unstatFont(
     mut font: *mut otfcc_Font,
     mut _options: *const otfcc_Options,

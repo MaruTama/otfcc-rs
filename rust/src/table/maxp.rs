@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
@@ -75,8 +76,8 @@ unsafe extern "C" fn table_maxp_replace(mut dst: *mut table_maxp, src: table_max
         ::core::mem::size_of::<table_maxp>() as usize,
     );
 }
-#[no_mangle]
-pub static mut table_iMaxp: __caryll_elementinterface_table_maxp = {
+#[unsafe(no_mangle)]
+pub static table_iMaxp: __caryll_elementinterface_table_maxp = {
     __caryll_elementinterface_table_maxp {
         init: Some(table_maxp_init as unsafe extern "C" fn(*mut table_maxp) -> ()),
         copy: Some(
@@ -141,7 +142,7 @@ unsafe extern "C" fn table_maxp_move(mut dst: *mut table_maxp, mut src: *mut tab
     );
     table_maxp_init(src);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readMaxp(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -245,7 +246,7 @@ pub unsafe extern "C" fn otfcc_readMaxp(
     }
     return ::core::ptr::null_mut::<table_maxp>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpMaxp(
     mut table: *const table_maxp,
     mut root: *mut json_value,
@@ -349,7 +350,7 @@ pub unsafe extern "C" fn otfcc_dumpMaxp(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseMaxp(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -413,7 +414,7 @@ pub unsafe extern "C" fn otfcc_parseMaxp(
     }
     return maxp;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildMaxp(
     mut maxp: *const table_maxp,
     mut _options: *const otfcc_Options,

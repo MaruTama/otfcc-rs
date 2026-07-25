@@ -1,8 +1,9 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{memcpy};
 use crate::support::primitives::{glyphid_t};
 use crate::vendor::sds::{sds};
 
-extern "C" {
+unsafe extern "C" {
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
 }
@@ -169,8 +170,8 @@ pub(crate) unsafe extern "C" fn handle_consolidateTo(
     (*h).index = id;
     (*h).name = sdsdup(name);
 }
-#[no_mangle]
-pub static mut otfcc_iHandle: otfcc_HandlePackage = {
+#[unsafe(no_mangle)]
+pub static otfcc_iHandle: otfcc_HandlePackage = {
     otfcc_HandlePackage {
         init: Some(otfcc_Handle_init as unsafe extern "C" fn(*mut otfcc_Handle) -> ()),
         copy: Some(

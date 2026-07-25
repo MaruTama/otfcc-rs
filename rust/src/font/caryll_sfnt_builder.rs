@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
@@ -105,7 +106,7 @@ unsafe extern "C" fn createSegment(
     (*table).checksum = sum;
     return table;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newSFNTBuilder(
     mut header: u32,
     mut options: *const otfcc_Options,
@@ -121,7 +122,7 @@ pub unsafe extern "C" fn otfcc_newSFNTBuilder(
     (*builder).options = options;
     return builder;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_deleteSFNTBuilder(mut builder: *mut otfcc_SFNTBuilder) {
     if builder.is_null() {
         return;
@@ -196,7 +197,7 @@ pub unsafe extern "C" fn otfcc_deleteSFNTBuilder(mut builder: *mut otfcc_SFNTBui
     free(builder as *mut ::core::ffi::c_void);
     builder = ::core::ptr::null_mut::<otfcc_SFNTBuilder>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
     mut builder: *mut otfcc_SFNTBuilder,
     mut tag: u32,
@@ -970,7 +971,7 @@ unsafe extern "C" fn byTag(
 ) -> ::core::ffi::c_int {
     return (*a).tag - (*b).tag;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
     mut builder: *mut otfcc_SFNTBuilder,
 ) -> *mut caryll_Buffer {

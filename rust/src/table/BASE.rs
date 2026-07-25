@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn json_object_new(length: usize) -> *mut json_value;
@@ -143,8 +144,8 @@ unsafe extern "C" fn table_BASE_replace(mut dst: *mut table_BASE, src: table_BAS
         ::core::mem::size_of::<table_BASE>() as usize,
     );
 }
-#[no_mangle]
-pub static mut table_iBASE: __caryll_elementinterface_table_BASE = {
+#[unsafe(no_mangle)]
+pub static table_iBASE: __caryll_elementinterface_table_BASE = {
     __caryll_elementinterface_table_BASE {
         init: Some(table_BASE_init as unsafe extern "C" fn(*mut table_BASE) -> ()),
         copy: Some(
@@ -437,7 +438,7 @@ unsafe extern "C" fn readAxis(
     axis = ::core::ptr::null_mut::<otl_BaseAxis>();
     return axis;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readBASE(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -559,7 +560,7 @@ unsafe extern "C" fn axisToJson(mut axis: *const otl_BaseAxis) -> *mut json_valu
     }
     return _axis;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpBASE(
     mut base: *const table_BASE,
     mut root: *mut json_value,
@@ -692,7 +693,7 @@ unsafe extern "C" fn axisFromJson(mut _axis: *const json_value) -> *mut otl_Base
     );
     return axis;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseBASE(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -743,7 +744,7 @@ unsafe extern "C" fn by_tag(
 ) -> ::core::ffi::c_int {
     return (*(a as *mut u32)).wrapping_sub(*(b as *mut u32)) as ::core::ffi::c_int;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Block {
     if axis.is_null() {
         return ::core::ptr::null_mut::<bk_Block>();
@@ -881,7 +882,7 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
     taglist.items = ::core::ptr::null_mut::<u32>();
     return bk_new_Block(&[bk_ptr(p16, baseTagList), bk_ptr(p16, baseScriptList)]);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildBASE(
     mut base: *const table_BASE,
     mut _options: *const otfcc_Options,

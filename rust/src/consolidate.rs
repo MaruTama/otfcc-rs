@@ -1,7 +1,8 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 pub mod otl;
 
 use libc::{free, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
@@ -467,7 +468,7 @@ unsafe extern "C" fn consolidateFDSelect(
         otfcc_Handle_dispose(h as *mut otfcc_Handle);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidateGlyph(
     mut g: *mut glyf_Glyph,
     mut font: *mut otfcc_Font,
@@ -478,7 +479,7 @@ pub unsafe extern "C" fn consolidateGlyph(
     consolidateGlyphHints(g, options);
     consolidateFDSelect(&raw mut (*g).fdSelect, (*font).CFF_, options, (*g).name);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getPointCoordinates(
     mut table: *mut table_glyf,
     mut gr: *mut glyf_ComponentReference,
@@ -575,7 +576,7 @@ pub unsafe extern "C" fn getPointCoordinates(
     }
     return false;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidateAnchorRef(
     mut table: *mut table_glyf,
     mut gr: *mut glyf_ComponentReference,
@@ -734,7 +735,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
     iVQ.dispose.expect("non-null function pointer")(&raw mut outerY);
     return false;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidateGlyf(
     mut font: *mut otfcc_Font,
     mut options: *const otfcc_Options,
@@ -794,7 +795,7 @@ pub unsafe extern "C" fn consolidateGlyf(
         j_0 = j_0.wrapping_add(1);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidateCmap(
     mut font: *mut otfcc_Font,
     mut options: *const otfcc_Options,
@@ -969,7 +970,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_consolidate_lookup(
     mut font: *mut otfcc_Font,
     mut table: *mut table_OTL,
@@ -1631,7 +1632,7 @@ unsafe extern "C" fn consolidateTSI(
     );
     *_tsi = consolidated;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_consolidateFont(
     mut font: *mut otfcc_Font,
     mut options: *const otfcc_Options,

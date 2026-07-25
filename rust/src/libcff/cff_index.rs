@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-extern "C" {
+unsafe extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
     fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
@@ -435,8 +436,8 @@ unsafe extern "C" fn buildIndex(mut index: *const cff_Index) -> *mut caryll_Buff
     (*blob).cursor = (*blob).size;
     return blob;
 }
-#[no_mangle]
-pub static mut cff_iIndex: __caryll_elementinterface_cff_Index = {
+#[unsafe(no_mangle)]
+pub static cff_iIndex: __caryll_elementinterface_cff_Index = {
     __caryll_elementinterface_cff_Index {
         init: Some(cff_Index_init as unsafe extern "C" fn(*mut cff_Index) -> ()),
         copy: Some(cff_Index_copy as unsafe extern "C" fn(*mut cff_Index, *const cff_Index) -> ()),

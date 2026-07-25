@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
@@ -45,8 +46,8 @@ unsafe extern "C" fn disposeVORG(mut vorg: *mut table_VORG) {
     free((*vorg).entries as *mut ::core::ffi::c_void);
     (*vorg).entries = ::core::ptr::null_mut::<VORG_entry>();
 }
-#[no_mangle]
-pub static mut table_iVORG: __caryll_elementinterface_table_VORG = {
+#[unsafe(no_mangle)]
+pub static table_iVORG: __caryll_elementinterface_table_VORG = {
     __caryll_elementinterface_table_VORG {
         init: Some(table_VORG_init as unsafe extern "C" fn(*mut table_VORG) -> ()),
         copy: Some(
@@ -124,7 +125,7 @@ unsafe extern "C" fn table_VORG_create() -> *mut table_VORG {
     table_VORG_init(x);
     return x;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readVORG(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -210,7 +211,7 @@ pub unsafe extern "C" fn otfcc_readVORG(
     }
     return ::core::ptr::null_mut::<table_VORG>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildVORG(
     mut table: *const table_VORG,
     mut _options: *const otfcc_Options,

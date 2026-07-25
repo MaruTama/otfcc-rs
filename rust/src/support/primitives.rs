@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 //! otfcc's scalar vocabulary, the Rust counterpart of
 //! `c/include/otfcc/primitives.h`.
 //!
@@ -7,7 +8,7 @@
 //! these aliases is written down, and `u16` on its own does not tell a reader
 //! whether a number is a glyph index, a class, or a table index.
 
-extern "C" {
+unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
@@ -52,19 +53,19 @@ pub const f16dot16_k: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << f16dot16_precision - 1 as ::core::ffi::c_int;
 pub const f16dot16_infinity: f16dot16 = 0x7fffffff as ::core::ffi::c_int as f16dot16;
 pub const f16dot16_negativeIntinity: f16dot16 = 0x80000000 as ::core::ffi::c_uint as f16dot16;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_from_f2dot14(x: f2dot14) -> ::core::ffi::c_double {
     return x as ::core::ffi::c_int as ::core::ffi::c_double / 16384.0f64;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_to_f2dot14(x: ::core::ffi::c_double) -> i16 {
     return round(x * 16384.0f64) as i16;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_from_fixed(x: f16dot16) -> ::core::ffi::c_double {
     return x as ::core::ffi::c_double / 65536.0f64;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16 {
     return round(x * 65536.0f64) as f16dot16;
 }
@@ -72,15 +73,15 @@ pub unsafe extern "C" fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16 {
 unsafe extern "C" fn clamp(value: i64) -> f16dot16 {
     value.clamp(f16dot16_negativeIntinity as i64, f16dot16_infinity as i64) as f16dot16
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_f1616_add(mut a: f16dot16, mut b: f16dot16) -> f16dot16 {
     return a + b;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_f1616_minus(mut a: f16dot16, mut b: f16dot16) -> f16dot16 {
     return a - b;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_f1616_multiply(mut a: f16dot16, mut b: f16dot16) -> f16dot16 {
     let mut tmp: i64 = a as i64 * b as i64 + f16dot16_k as i64;
     let mut product: f16dot16 = clamp(tmp >> f16dot16_precision);
@@ -102,7 +103,7 @@ unsafe extern "C" fn divide(mut a: i64, b: i32) -> f16dot16 {
     }
     return clamp(a / b as i64);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_f1616_muldiv(
     mut a: f16dot16,
     mut b: f16dot16,
@@ -111,7 +112,7 @@ pub unsafe extern "C" fn otfcc_f1616_muldiv(
     let mut tmp: i64 = a as i64 * b as i64 + f16dot16_k as i64;
     return divide(tmp, c as i32);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_f1616_divide(mut a: f16dot16, mut b: f16dot16) -> f16dot16 {
     return divide((a as i64) << f16dot16_precision, b as i32);
 }

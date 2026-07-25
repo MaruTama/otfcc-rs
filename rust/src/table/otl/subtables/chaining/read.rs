@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
     static otl_iClassDef: __otfcc_IClassDef;
@@ -38,7 +39,7 @@ pub struct classdefs {
     pub ic: *mut otl_ClassDef,
     pub fc: *mut otl_ClassDef,
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn singleCoverage(
     mut _data: font_file_pointer,
     mut _tableLength: u32,
@@ -62,7 +63,7 @@ pub unsafe extern "C" fn singleCoverage(
         handle_fromIndex(gid) as otfcc_GlyphHandle;
     return cov;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn classCoverage(
     mut _data: font_file_pointer,
     mut _tableLength: u32,
@@ -173,7 +174,7 @@ pub unsafe extern "C" fn classCoverage(
     }
     return cov;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn format3Coverage(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -191,7 +192,7 @@ pub unsafe extern "C" fn format3Coverage(
             .wrapping_sub(2 as u32),
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn GeneralReadContextualRule(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -613,7 +614,7 @@ unsafe extern "C" fn readContextualFormat2(
     iSubtable_chaining.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<subtable_chaining>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_contextual(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -684,7 +685,7 @@ pub unsafe extern "C" fn otl_read_contextual(
     iSubtable_chaining.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn GeneralReadChainingRule(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -1259,7 +1260,7 @@ unsafe extern "C" fn readChainingFormat2(
     iSubtable_chaining.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<subtable_chaining>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_chaining(
     data: font_file_pointer,
     mut tableLength: u32,

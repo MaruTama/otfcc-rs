@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{memmove};
 pub type DiyFp = DiyFp_s;
 #[derive(Copy, Clone)]
@@ -12,19 +13,19 @@ pub union dtoa_DoubleBits {
     pub d: ::core::ffi::c_double,
     pub u64_0: u64,
 }
-static mut kDiySignificandSize: ::core::ffi::c_int = 64 as ::core::ffi::c_int;
-static mut kDpSignificandSize: ::core::ffi::c_int = 52 as ::core::ffi::c_int;
-static mut kDpExponentBias: ::core::ffi::c_int =
+static kDiySignificandSize: ::core::ffi::c_int = 64 as ::core::ffi::c_int;
+static kDpSignificandSize: ::core::ffi::c_int = 52 as ::core::ffi::c_int;
+static kDpExponentBias: ::core::ffi::c_int =
     0x3ff as ::core::ffi::c_int + 52 as ::core::ffi::c_int;
-static mut kDpMinExponent: ::core::ffi::c_int =
+static kDpMinExponent: ::core::ffi::c_int =
     -(0x3ff as ::core::ffi::c_int) - 52 as ::core::ffi::c_int;
-static mut kDpExponentMask: u64 = (0x7ff00000 as ::core::ffi::c_int as u64)
+static kDpExponentMask: u64 = (0x7ff00000 as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0 as ::core::ffi::c_int as u64;
-static mut kDpSignificandMask: u64 = (0xfffff as ::core::ffi::c_int as u64)
+static kDpSignificandMask: u64 = (0xfffff as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0xffffffff as ::core::ffi::c_uint as u64;
-static mut kDpHiddenBit: u64 = (0x100000 as ::core::ffi::c_int as u64)
+static kDpHiddenBit: u64 = (0x100000 as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0 as ::core::ffi::c_int as u64;
 #[inline]
@@ -34,7 +35,7 @@ unsafe extern "C" fn DiyFp_from_parts(mut f: u64, mut e: ::core::ffi::c_int) -> 
     fp.e = e;
     return fp;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn DiyFp_from_double(mut d: ::core::ffi::c_double) -> DiyFp {
     let mut u: dtoa_DoubleBits = dtoa_DoubleBits { d: d };
     let mut res: DiyFp = DiyFp_s { f: 0, e: 0 };
@@ -911,7 +912,7 @@ unsafe extern "C" fn Prettify(
         );
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn emyg_dtoa(
     mut value: ::core::ffi::c_double,
     mut buffer: *mut ::core::ffi::c_char,

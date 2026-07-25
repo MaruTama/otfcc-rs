@@ -1,6 +1,7 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
 use crate::vendor::sds::{sds};
-extern "C" {
+unsafe extern "C" {
     fn sdsfree(s: sds);
 }
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
@@ -89,8 +90,8 @@ unsafe extern "C" fn initMetaEntry(mut e: *mut meta_Entry) {
 unsafe extern "C" fn disposeMetaEntry(mut e: *mut meta_Entry) {
     sdsfree((*e).data);
 }
-#[no_mangle]
-pub static mut meta_iEntry: __caryll_elementinterface_meta_Entry = {
+#[unsafe(no_mangle)]
+pub static meta_iEntry: __caryll_elementinterface_meta_Entry = {
     __caryll_elementinterface_meta_Entry {
         init: Some(meta_Entry_init as unsafe extern "C" fn(*mut meta_Entry) -> ()),
         copy: Some(
@@ -188,8 +189,8 @@ unsafe fn meta_Entries_as_cvec(arr: *mut meta_Entries) -> *mut CVecRaw<meta_Entr
 unsafe extern "C" fn meta_Entries_init(arr: *mut meta_Entries) {
     cvec_init(meta_Entries_as_cvec(arr));
 }
-#[no_mangle]
-pub static mut meta_iEntries: __caryll_vectorinterface_meta_Entries = {
+#[unsafe(no_mangle)]
+pub static meta_iEntries: __caryll_vectorinterface_meta_Entries = {
     __caryll_vectorinterface_meta_Entries {
         init: Some(meta_Entries_init as unsafe extern "C" fn(*mut meta_Entries) -> ()),
         copy: Some(
@@ -446,8 +447,8 @@ unsafe extern "C" fn table_meta_copy(mut dst: *mut table_meta, mut src: *const t
         ::core::mem::size_of::<table_meta>() as usize,
     );
 }
-#[no_mangle]
-pub static mut table_iMeta: __caryll_elementinterface_table_meta = {
+#[unsafe(no_mangle)]
+pub static table_iMeta: __caryll_elementinterface_table_meta = {
     __caryll_elementinterface_table_meta {
         init: Some(table_meta_init as unsafe extern "C" fn(*mut table_meta) -> ()),
         copy: Some(

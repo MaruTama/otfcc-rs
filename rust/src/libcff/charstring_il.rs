@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
     static iVQ: __caryll_vectorinterface_VQ;
     fn cff_getStandardArity(op: u32) -> u8;
@@ -65,7 +66,7 @@ unsafe extern "C" fn ensureThereIsSpace(mut il: *mut cff_CharstringIL) {
         8 as ::core::ffi::c_ulong,
     ) as *mut cff_CharstringInstruction;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn il_push_operand(
     mut il: *mut cff_CharstringIL,
     mut x: ::core::ffi::c_double,
@@ -79,14 +80,14 @@ pub unsafe extern "C" fn il_push_operand(
     (*il).length = (*il).length.wrapping_add(1);
     (*il).free = (*il).free.wrapping_sub(1);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn il_push_VQ(mut il: *mut cff_CharstringIL, mut x: VQ) {
     il_push_operand(
         il,
         iVQ.getStill.expect("non-null function pointer")(x) as ::core::ffi::c_double,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn il_push_special(mut il: *mut cff_CharstringIL, mut s: i32) {
     ensureThereIsSpace(il);
     (*(*il).instr.offset((*il).length as isize)).type_0 = IL_ITEM_SPECIAL;
@@ -97,7 +98,7 @@ pub unsafe extern "C" fn il_push_special(mut il: *mut cff_CharstringIL, mut s: i
     (*il).length = (*il).length.wrapping_add(1);
     (*il).free = (*il).free.wrapping_sub(1);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn il_push_op(mut il: *mut cff_CharstringIL, mut op: i32) {
     ensureThereIsSpace(il);
     (*(*il).instr.offset((*il).length as isize)).type_0 = IL_ITEM_OPERATOR;
@@ -301,7 +302,7 @@ unsafe extern "C" fn il_push_stems(
         op_vstem as ::core::ffi::c_int as i32,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_compileGlyphToIL(
     mut g: *mut glyf_Glyph,
     mut defaultWidth: u16,
@@ -1033,7 +1034,7 @@ unsafe extern "C" fn decideAdvance(
     }
     return 1 as u8;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_optimizeIL(
     mut il: *mut cff_CharstringIL,
     mut options: *const otfcc_Options,
@@ -1048,7 +1049,7 @@ pub unsafe extern "C" fn cff_optimizeIL(
         );
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_build_IL(mut il: *mut cff_CharstringIL) -> *mut caryll_Buffer {
     let mut blob: *mut caryll_Buffer = bufnew();
     let mut j: u16 = 0 as u16;
@@ -1072,7 +1073,7 @@ pub unsafe extern "C" fn cff_build_IL(mut il: *mut cff_CharstringIL) -> *mut car
     }
     return blob;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_shrinkIL(mut il: *mut cff_CharstringIL) -> *mut cff_CharstringIL {
     let mut out: *mut cff_CharstringIL = ::core::ptr::null_mut::<cff_CharstringIL>();
     out = __caryll_allocate_clean(
@@ -1097,7 +1098,7 @@ pub unsafe extern "C" fn cff_shrinkIL(mut il: *mut cff_CharstringIL) -> *mut cff
     }
     return out;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_ILmergeIL(
     mut self_0: *mut cff_CharstringIL,
     mut il: *mut cff_CharstringIL,
@@ -1119,7 +1120,7 @@ pub unsafe extern "C" fn cff_ILmergeIL(
         j = j.wrapping_add(1);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn instruction_eq(
     mut z1: *mut cff_CharstringInstruction,
     mut z2: *mut cff_CharstringInstruction,
@@ -1136,7 +1137,7 @@ pub unsafe extern "C" fn instruction_eq(
         return false;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_ilEqual(
     mut a: *mut cff_CharstringIL,
     mut b: *mut cff_CharstringIL,

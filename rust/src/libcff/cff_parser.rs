@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, memcpy};
-extern "C" {
+unsafe extern "C" {
     fn sqrt(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn sdsempty() -> sds;
@@ -404,7 +405,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
         cff_iIndex.empty.expect("non-null function pointer")(&raw mut (*cff).local_subr);
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_openStream(
     mut data: *mut u8,
     mut len: u32,
@@ -429,7 +430,7 @@ pub unsafe extern "C" fn cff_openStream(
     parse_cff_bytecode(file, options);
     return file;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_close(mut file: *mut cff_File) {
     if !file.is_null() {
         if !(*file).raw_data.is_null() {
@@ -474,7 +475,7 @@ pub unsafe extern "C" fn cff_close(mut file: *mut cff_File) {
         file = ::core::ptr::null_mut::<cff_File>();
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_parseSubr(
     mut idx: u16,
     mut raw: *mut u8,
@@ -649,7 +650,7 @@ unsafe extern "C" fn callback_nopgetrand(
 ) -> ::core::ffi::c_double {
     return 0 as ::core::ffi::c_int as ::core::ffi::c_double;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_parseOutline(
     mut data: *mut u8,
     mut len: u32,

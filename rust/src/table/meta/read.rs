@@ -1,4 +1,5 @@
-extern "C" {
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     static meta_iEntries: __caryll_vectorinterface_meta_Entries;
@@ -11,7 +12,7 @@ use crate::vendor::sds::{sds};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::table::meta::types::{__caryll_elementinterface_table_meta, __caryll_vectorinterface_meta_Entries, meta_Entry, table_meta};
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readMeta(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,

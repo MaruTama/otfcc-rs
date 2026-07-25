@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 // `timespec` and the clock API come from `libc`, which describes the host.
 // c2rust had copied glibc's `struct timespec` and its `__time_t` /
 // `__syscall_slong_t` typedefs verbatim into every file that timed anything --
@@ -6,10 +7,10 @@
 use libc::{clock_gettime, snprintf, time_t, timespec, CLOCK_REALTIME};
 
 use crate::vendor::sds::{sds};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn time_now(mut tv: *mut timespec) {
     clock_gettime(CLOCK_REALTIME, tv);
 }
@@ -27,7 +28,7 @@ unsafe extern "C" fn timespec_diff(
         (*result).tv_nsec = (*stop).tv_nsec - (*start).tv_nsec;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn push_stopwatch(mut sofar: *mut timespec) -> sds {
     let mut ends: timespec = timespec {
         tv_sec: 0,

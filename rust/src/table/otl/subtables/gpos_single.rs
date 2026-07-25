@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-extern "C" {
+unsafe extern "C" {
     fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
@@ -54,7 +55,7 @@ pub struct __caryll_elementinterface_otl_GposSingleEntry {
 unsafe extern "C" fn deleteGposSingleEntry(mut entry: *mut otl_GposSingleEntry) {
     otfcc_Handle_dispose(&raw mut (*entry).target);
 }
-static mut gss_typeinfo: __caryll_elementinterface_otl_GposSingleEntry = {
+static gss_typeinfo: __caryll_elementinterface_otl_GposSingleEntry = {
     __caryll_elementinterface_otl_GposSingleEntry {
         init: None,
         copy: None,
@@ -305,8 +306,8 @@ unsafe extern "C" fn subtable_gpos_single_create() -> *mut subtable_gpos_single 
     subtable_gpos_single_init(x);
     return x;
 }
-#[no_mangle]
-pub static mut iSubtable_gpos_single: __caryll_vectorinterface_subtable_gpos_single = {
+#[unsafe(no_mangle)]
+pub static iSubtable_gpos_single: __caryll_vectorinterface_subtable_gpos_single = {
     __caryll_vectorinterface_subtable_gpos_single {
         init: Some(
             subtable_gpos_single_init as unsafe extern "C" fn(*mut subtable_gpos_single) -> (),
@@ -403,7 +404,7 @@ pub static mut iSubtable_gpos_single: __caryll_vectorinterface_subtable_gpos_sin
 unsafe extern "C" fn subtable_gpos_single_shrinkToFit(mut arr: *mut subtable_gpos_single) {
     subtable_gpos_single_resizeTo(arr, (*arr).length);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gpos_single(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -529,7 +530,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_dump_single(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -546,7 +547,7 @@ pub unsafe extern "C" fn otl_gpos_dump_single(
     }
     return st;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_parse_single(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -587,7 +588,7 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
     }
     return subtable as *mut otl_Subtable;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_single(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

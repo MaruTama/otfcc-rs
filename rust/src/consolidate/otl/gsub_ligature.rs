@@ -1,4 +1,5 @@
-extern "C" {
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+unsafe extern "C" {
     fn sdsempty() -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
     static iSubtable_gsub_ligature: __caryll_vectorinterface_subtable_gsub_ligature;
@@ -55,7 +56,7 @@ use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_ligature, otl_Gsu
 
 
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_gsub_ligature(
     mut font: *mut otfcc_Font,
     mut _table: *mut table_OTL,

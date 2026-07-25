@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 // Shared big-endian byte readers, factored out of the ~40 per-file private
 // copies c2rust emitted (one per translation unit that #included
 // c/lib/support/bin-io.h's `static inline` helpers). Never externally linked

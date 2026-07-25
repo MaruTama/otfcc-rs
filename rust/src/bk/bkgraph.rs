@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{fprintf, free, qsort};
-extern "C" {
+unsafe extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
@@ -112,7 +113,7 @@ unsafe extern "C" fn _by_order(
         (*b).order.wrapping_sub((*a).order)
     }) as ::core::ffi::c_int;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_newGraphFromRootBlock(b: *mut bk_Block) -> *mut bk_Graph {
     let forest: *mut bk_Graph = __caryll_allocate_clean(
         ::core::mem::size_of::<bk_Graph>() as usize,
@@ -139,7 +140,7 @@ pub unsafe extern "C" fn bk_newGraphFromRootBlock(b: *mut bk_Block) -> *mut bk_G
     }
     return forest;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_delete_Graph(f: *mut bk_Graph) {
     if f.is_null() || (*f).entries.is_null() {
         return;
@@ -232,7 +233,7 @@ unsafe extern "C" fn replaceptr(f: *mut bk_Graph, b: *mut bk_Block) {
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_minimizeGraph(f: *mut bk_Graph) {
     let mut rear: u32 = (*f).length.wrapping_sub(1);
     while rear > 0 {
@@ -501,7 +502,7 @@ unsafe extern "C" fn otfcc_build_bkblock(buf: *mut caryll_Buffer, b: *mut bk_Blo
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_build_Graph(f: *mut bk_Graph) -> *mut caryll_Buffer {
     let buf: *mut caryll_Buffer = bufnew();
     let offsets: *mut usize = compute_block_offsets(f, 352);
@@ -514,14 +515,14 @@ pub unsafe extern "C" fn bk_build_Graph(f: *mut bk_Graph) -> *mut caryll_Buffer 
     free(offsets as *mut ::core::ffi::c_void);
     return buf;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_estimateSizeOfGraph(f: *mut bk_Graph) -> usize {
     let offsets: *mut usize = compute_block_offsets(f, 373);
     let estimated_size: usize = *offsets.offset((*f).length as isize);
     free(offsets as *mut ::core::ffi::c_void);
     return estimated_size;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_untangleGraph(f: *mut bk_Graph) {
     let mut passes: u16 = 0;
     attract_bkgraph(f);
@@ -536,7 +537,7 @@ pub unsafe extern "C" fn bk_untangleGraph(f: *mut bk_Graph) {
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer {
     let f: *mut bk_Graph = bk_newGraphFromRootBlock(root);
     bk_minimizeGraph(f);
@@ -545,7 +546,7 @@ pub unsafe extern "C" fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buff
     bk_delete_Graph(f);
     return buf;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_build_Block_noMinimize(root: *mut bk_Block) -> *mut caryll_Buffer {
     let f: *mut bk_Graph = bk_newGraphFromRootBlock(root);
     bk_untangleGraph(f);

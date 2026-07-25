@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -175,8 +176,8 @@ unsafe extern "C" fn svg_Assignment_replace(mut dst: *mut svg_Assignment, src: s
         ::core::mem::size_of::<svg_Assignment>() as usize,
     );
 }
-#[no_mangle]
-pub static mut svg_iAssignment: __caryll_elementinterface_svg_Assignment = {
+#[unsafe(no_mangle)]
+pub static svg_iAssignment: __caryll_elementinterface_svg_Assignment = {
     __caryll_elementinterface_svg_Assignment {
         init: Some(svg_Assignment_init as unsafe extern "C" fn(*mut svg_Assignment) -> ()),
         copy: Some(
@@ -259,8 +260,8 @@ unsafe fn table_SVG_as_cvec(arr: *mut table_SVG) -> *mut CVecRaw<svg_Assignment>
 unsafe extern "C" fn table_SVG_init(arr: *mut table_SVG) {
     cvec_init(table_SVG_as_cvec(arr));
 }
-#[no_mangle]
-pub static mut table_iSVG: __caryll_vectorinterface_table_SVG = {
+#[unsafe(no_mangle)]
+pub static table_iSVG: __caryll_vectorinterface_table_SVG = {
     __caryll_vectorinterface_table_SVG {
         init: Some(table_SVG_init as unsafe extern "C" fn(*mut table_SVG) -> ()),
         copy: Some(table_SVG_copy as unsafe extern "C" fn(*mut table_SVG, *const table_SVG) -> ()),
@@ -503,7 +504,7 @@ unsafe extern "C" fn table_SVG_create() -> *mut table_SVG {
 unsafe extern "C" fn table_SVG_resizeTo(arr: *mut table_SVG, target: usize) {
     cvec_resize_to(table_SVG_as_cvec(arr), target);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readSVG(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -624,7 +625,7 @@ unsafe extern "C" fn canUsePlainFormat(mut buf: *const caryll_Buffer) -> bool {
             && *(*buf).data.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
                 == 'l' as i32;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpSVG(
     mut svg: *const table_SVG,
     mut root: *mut json_value,
@@ -709,7 +710,7 @@ pub unsafe extern "C" fn otfcc_dumpSVG(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseSVG(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -792,7 +793,7 @@ unsafe extern "C" fn byStartGID(
 ) -> ::core::ffi::c_int {
     return (*a).start as ::core::ffi::c_int - (*b).start as ::core::ffi::c_int;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildSVG(
     mut _svg: *const table_SVG,
     mut _options: *const otfcc_Options,

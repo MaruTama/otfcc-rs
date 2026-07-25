@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -180,8 +181,8 @@ unsafe extern "C" fn otfcc_NameRecord_copyReplace(
     otfcc_NameRecord_dispose(dst);
     otfcc_NameRecord_copy(dst, &raw const src);
 }
-#[no_mangle]
-pub static mut otfcc_iNameRecord: __caryll_elementinterface_otfcc_NameRecord = {
+#[unsafe(no_mangle)]
+pub static otfcc_iNameRecord: __caryll_elementinterface_otfcc_NameRecord = {
     __caryll_elementinterface_otfcc_NameRecord {
         init: Some(otfcc_NameRecord_init as unsafe extern "C" fn(*mut otfcc_NameRecord) -> ()),
         copy: Some(
@@ -331,8 +332,8 @@ unsafe extern "C" fn table_name_push(arr: *mut table_name, elem: otfcc_NameRecor
 unsafe extern "C" fn table_name_grow(arr: *mut table_name) {
     cvec_grow(table_name_as_cvec(arr));
 }
-#[no_mangle]
-pub static mut table_iName: __caryll_vectorinterface_table_name = {
+#[unsafe(no_mangle)]
+pub static table_iName: __caryll_vectorinterface_table_name = {
     __caryll_vectorinterface_table_name {
         init: Some(table_name_init as unsafe extern "C" fn(*mut table_name) -> ()),
         copy: Some(
@@ -518,7 +519,7 @@ unsafe extern "C" fn shouldDecodeAsBytes(mut record: *const otfcc_NameRecord) ->
         && (*record).encodingID as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         && (*record).languageID as ::core::ffi::c_int == 0 as ::core::ffi::c_int;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readName(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -672,7 +673,7 @@ pub unsafe extern "C" fn otfcc_readName(
     }
     return ::core::ptr::null_mut::<table_name>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpName(
     mut name: *const table_name,
     mut root: *mut json_value,
@@ -752,7 +753,7 @@ unsafe extern "C" fn name_record_sort(
     }
     return (*a).nameID as ::core::ffi::c_int - (*b).nameID as ::core::ffi::c_int;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseName(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -940,7 +941,7 @@ pub unsafe extern "C" fn otfcc_parseName(
     }
     return name;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildName(
     mut name: *const table_name,
     mut _options: *const otfcc_Options,

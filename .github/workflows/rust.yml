@@ -26,7 +26,7 @@ on:
 
 jobs:
   # Standard amd64 runner, no Docker, no c2rust: builds the committed Rust
-  # source with the pinned nightly (rust-toolchain.toml; rustup on the
+  # source with the pinned stable toolchain (rust-toolchain.toml; rustup on the
   # runner installs it automatically), runs `cargo test`, builds the C
   # toolchain natively (c/dep/bin-linux/{premake5,ninja} are x86_64, matching
   # this runner) with clang, and compares its output against the Rust build

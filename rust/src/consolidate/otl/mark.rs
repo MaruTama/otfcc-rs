@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
@@ -3161,7 +3162,7 @@ unsafe extern "C" fn consolidateLigArray(
             (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut lig_hash as *mut lig_hash;
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_mark_to_single(
     mut font: *mut otfcc_Font,
     mut table: *mut table_OTL,
@@ -3180,7 +3181,7 @@ pub unsafe extern "C" fn consolidate_mark_to_single(
     return (*subtable).markArray.length == 0 as usize
         || (*subtable).baseArray.length == 0 as usize;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_mark_to_ligature(
     mut font: *mut otfcc_Font,
     mut table: *mut table_OTL,

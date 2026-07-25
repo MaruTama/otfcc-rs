@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-extern "C" {
+unsafe extern "C" {
     static otl_iCoverage: __otfcc_ICoverage;
     static otl_iClassDef: __otfcc_IClassDef;
 }
@@ -12,7 +13,7 @@ use crate::support::primitives::{tableid_t};
 
 use crate::table::otl::{__caryll_elementinterface_subtable_chaining, otl_ChainLookupApplication, otl_ChainingRule, subtable_chaining};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_init_chaining(mut subtable: *mut subtable_chaining) {
     memset(
         subtable as *mut ::core::ffi::c_void,
@@ -20,7 +21,7 @@ pub unsafe extern "C" fn otl_init_chaining(mut subtable: *mut subtable_chaining)
         ::core::mem::size_of::<subtable_chaining>() as usize,
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut subtable_chaining) {
     if (*subtable).type_0 as u64 != 0 {
         if !(*subtable).c2rust_unnamed.c2rust_unnamed.rules.is_null() {
@@ -60,8 +61,8 @@ pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut subtable_chaini
         closeRule(&raw mut (*subtable).c2rust_unnamed.rule);
     };
 }
-#[no_mangle]
-pub static mut iSubtable_chaining: __caryll_elementinterface_subtable_chaining = {
+#[unsafe(no_mangle)]
+pub static iSubtable_chaining: __caryll_elementinterface_subtable_chaining = {
     __caryll_elementinterface_subtable_chaining {
         init: Some(subtable_chaining_init as unsafe extern "C" fn(*mut subtable_chaining) -> ()),
         copy: Some(

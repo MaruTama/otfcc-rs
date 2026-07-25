@@ -1,4 +1,5 @@
-extern "C" {
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+unsafe extern "C" {
     fn sdsempty() -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
 }
@@ -46,7 +47,7 @@ use crate::table::otl::classdef::{otl_ClassDef};
 
 
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fontop_consolidateCoverage(
     mut font: *mut otfcc_Font,
     mut coverage: *mut otl_Coverage,
@@ -81,7 +82,7 @@ pub unsafe extern "C" fn fontop_consolidateCoverage(
         j = j.wrapping_add(1);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn fontop_consolidateClassDef(
     mut font: *mut otfcc_Font,
     mut cd: *mut otl_ClassDef,

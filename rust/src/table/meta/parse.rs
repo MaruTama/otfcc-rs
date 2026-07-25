@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, strcmp};
 use crate::logger::{otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
@@ -5,14 +6,14 @@ use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_object, json_string, json_type, json_value};
 
 use crate::table::meta::types::{__caryll_elementinterface_table_meta, __caryll_vectorinterface_meta_Entries, meta_Entry, table_meta};
-extern "C" {
+unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     static meta_iEntries: __caryll_vectorinterface_meta_Entries;
     static table_iMeta: __caryll_elementinterface_table_meta;
     fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
     if (*v).type_0 as ::core::ffi::c_uint
         == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
@@ -55,7 +56,7 @@ pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
     }
     return ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseMeta(
     mut root: *const json_value,
     mut options: *const otfcc_Options,

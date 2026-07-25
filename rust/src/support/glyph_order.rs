@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
 }
@@ -4540,8 +4541,8 @@ unsafe extern "C" fn gordLookupName(mut go: *mut otfcc_GlyphOrder, mut name: sds
     }
     return false;
 }
-#[no_mangle]
-pub static mut otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage = {
+#[unsafe(no_mangle)]
+pub static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage = {
     otfcc_GlyphOrderPackage {
         init: Some(otfcc_GlyphOrder_init as unsafe extern "C" fn(*mut otfcc_GlyphOrder) -> ()),
         copy: Some(

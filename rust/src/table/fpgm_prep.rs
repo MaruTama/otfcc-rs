@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -135,8 +136,8 @@ unsafe extern "C" fn table_fpgm_prep_move(
 unsafe extern "C" fn table_fpgm_prep_dispose(mut x: *mut table_fpgm_prep) {
     disposeFpgmPrep(x);
 }
-#[no_mangle]
-pub static mut table_iFpgm_prep: __caryll_elementinterface_table_fpgm_prep = {
+#[unsafe(no_mangle)]
+pub static table_iFpgm_prep: __caryll_elementinterface_table_fpgm_prep = {
     __caryll_elementinterface_table_fpgm_prep {
         init: Some(table_fpgm_prep_init as unsafe extern "C" fn(*mut table_fpgm_prep) -> ()),
         copy: Some(
@@ -160,7 +161,7 @@ pub static mut table_iFpgm_prep: __caryll_elementinterface_table_fpgm_prep = {
         free: Some(table_fpgm_prep_free as unsafe extern "C" fn(*mut table_fpgm_prep) -> ()),
     }
 };
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readFpgmPrep(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -212,7 +213,7 @@ pub unsafe extern "C" fn otfcc_readFpgmPrep(
     }
     return ::core::ptr::null_mut::<table_fpgm_prep>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn table_dumpTableFpgmPrep(
     mut table: *const table_fpgm_prep,
     mut root: *mut json_value,
@@ -241,7 +242,7 @@ pub unsafe extern "C" fn table_dumpTableFpgmPrep(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn makeFpgmPrepInstr(
     mut _t: *mut ::core::ffi::c_void,
     mut instrs: *mut u8,
@@ -251,14 +252,14 @@ pub unsafe extern "C" fn makeFpgmPrepInstr(
     (*t).length = length;
     (*t).bytes = instrs;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wrongFpgmPrepInstr(
     mut _t: *mut ::core::ffi::c_void,
     mut _reason: *mut ::core::ffi::c_char,
     mut _pos: ::core::ffi::c_int,
 ) {
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseFpgmPrep(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -309,7 +310,7 @@ pub unsafe extern "C" fn otfcc_parseFpgmPrep(
     }
     return t;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildFpgmPrep(
     mut table: *const table_fpgm_prep,
     mut _options: *const otfcc_Options,

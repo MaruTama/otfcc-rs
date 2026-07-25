@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     fn bufnew() -> *mut caryll_Buffer;
 }
 
@@ -58,7 +59,7 @@ unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
         .offset(1 as ::core::ffi::c_int as isize) as u32;
     return b0 | b1;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_close_FDSelect(mut fds: cff_FDSelect) {
     match fds.t {
         0 => {
@@ -76,7 +77,7 @@ pub unsafe extern "C" fn cff_close_FDSelect(mut fds: cff_FDSelect) {
         2 | _ => {}
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_build_FDSelect(mut fd: cff_FDSelect) -> *mut caryll_Buffer {
     match fd.t {
         2 => return bufnew(),
@@ -143,7 +144,7 @@ pub unsafe extern "C" fn cff_build_FDSelect(mut fd: cff_FDSelect) -> *mut caryll
         _ => return ::core::ptr::null_mut::<caryll_Buffer>(),
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_extract_FDSelect(
     mut data: *mut u8,
     mut offset: i32,

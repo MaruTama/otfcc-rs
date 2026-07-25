@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     static otl_iCoverage: __otfcc_ICoverage;
     static otl_iClassDef: __otfcc_IClassDef;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
@@ -18,7 +19,7 @@ use crate::support::primitives::{glyphclass_t, tableid_t};
 use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 
 use crate::table::otl::{otl_ChainingRule, otl_Lookup, otl_Subtable, otl_chaining_classified, otl_type_gpos_chaining, otl_type_gsub_chaining, subtable_chaining};
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_chainingLookupIsContextualLookup(
     mut lookup: *const otl_Lookup,
 ) -> bool {
@@ -67,7 +68,7 @@ pub unsafe extern "C" fn otfcc_chainingLookupIsContextualLookup(
     }
     return isContextual;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_chaining_coverage(
     mut _subtable: *const otl_Subtable,
 ) -> *mut caryll_Buffer {
@@ -115,7 +116,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
     }
     return bk_build_Block(root);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_chaining_classes(
     mut _subtable: *const otl_Subtable,
 ) -> *mut caryll_Buffer {
@@ -264,7 +265,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     rcpg = ::core::ptr::null_mut::<glyphclass_t>();
     return bk_build_Block(root);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_chaining(
     mut _subtable: *const otl_Subtable,
 ) -> *mut caryll_Buffer {
@@ -275,7 +276,7 @@ pub unsafe extern "C" fn otfcc_build_chaining(
         return otfcc_build_chaining_coverage(_subtable);
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_contextual_coverage(
     mut _subtable: *const otl_Subtable,
 ) -> *mut caryll_Buffer {
@@ -303,7 +304,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_coverage(
     }
     return bk_build_Block(root);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_contextual_classes(
     mut _subtable: *const otl_Subtable,
 ) -> *mut caryll_Buffer {
@@ -425,7 +426,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     rcpg = ::core::ptr::null_mut::<glyphclass_t>();
     return bk_build_Block(root);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_contextual(
     mut _subtable: *const otl_Subtable,
 ) -> *mut caryll_Buffer {

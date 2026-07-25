@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
-extern "C" {
+unsafe extern "C" {
     fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
@@ -3017,8 +3018,8 @@ pub(crate) unsafe extern "C" fn shrinkClassDef(mut cd: *mut otl_ClassDef) {
     }
     (*cd).numGlyphs = k;
 }
-#[no_mangle]
-pub static mut otl_iClassDef: __otfcc_IClassDef = {
+#[unsafe(no_mangle)]
+pub static otl_iClassDef: __otfcc_IClassDef = {
     __otfcc_IClassDef {
         init: Some(otl_ClassDef_init as unsafe extern "C" fn(*mut otl_ClassDef) -> ()),
         copy: Some(

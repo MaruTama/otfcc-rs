@@ -1,7 +1,8 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 pub mod unconsolidate;
 
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
     fn otfcc_readFvar(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_fvar;
     fn otfcc_readHead(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_head;
@@ -255,7 +256,7 @@ unsafe extern "C" fn readOtf(
 unsafe extern "C" fn freeReader(mut self_0: *mut otfcc_IFontBuilder) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newOTFReader() -> *mut otfcc_IFontBuilder {
     let mut reader: *mut otfcc_IFontBuilder = ::core::ptr::null_mut::<otfcc_IFontBuilder>();
     reader = __caryll_allocate_clean(

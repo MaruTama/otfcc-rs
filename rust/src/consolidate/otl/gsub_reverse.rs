@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn fontop_consolidateCoverage(
         font: *mut otfcc_Font,
@@ -62,7 +63,7 @@ unsafe extern "C" fn by_from_id(
 ) -> ::core::ffi::c_int {
     return (*a).fromid - (*b).fromid;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_gsub_reverse(
     mut font: *mut otfcc_Font,
     mut _table: *mut table_OTL,

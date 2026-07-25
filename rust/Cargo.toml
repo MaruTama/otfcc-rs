@@ -6,7 +6,7 @@ name = "otfcc_rust"
 authors = ["C2Rust"]
 version = "0.0.0"
 publish = false
-edition = "2021"
+edition = "2024"
 
 # Standard cargo layout: the library is src/lib.rs and the two CLI binaries are
 # auto-discovered from src/bin/, so neither needs an explicit `path`.
@@ -16,6 +16,13 @@ edition = "2021"
 [lib]
 name = "otfcc_rust"
 crate-type = ["staticlib", "rlib", "cdylib"]
+
+[lints.rust]
+# The 0-warning invariant, enforced instead of eyeballed. Safe to make fatal only
+# because rust-toolchain.toml pins an exact compiler: a new stable cannot break
+# the build by inventing a lint. Bumping that pin is where new warnings get dealt
+# with, deliberately.
+warnings = "deny"
 
 [dependencies]
 libc = "0.2.189"

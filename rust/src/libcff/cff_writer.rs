@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::buffer::{bufninit, bufnwrite8, caryll_Buffer};
-extern "C" {
+unsafe extern "C" {
     fn modf(
         __x: ::core::ffi::c_double,
         __iptr: *mut ::core::ffi::c_double,
@@ -7,11 +8,11 @@ extern "C" {
     fn floor(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_buildHeader() -> *mut caryll_Buffer {
     return bufninit(&[1 as u8, 0 as u8, 4 as u8, 4 as u8]);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_mergeCS2Operator(mut blob: *mut caryll_Buffer, mut val: i32) {
     if val >= 0x100 as i32 {
         bufnwrite8(blob, &[(val >> 8 as ::core::ffi::c_int) as u8, (val & 0xff as i32) as u8]);
@@ -19,7 +20,7 @@ pub unsafe extern "C" fn cff_mergeCS2Operator(mut blob: *mut caryll_Buffer, mut 
         bufnwrite8(blob, &[(val & 0xff as i32) as u8]);
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_mergeCS2Int(mut blob: *mut caryll_Buffer, mut val: i32) {
     if val >= -(1131 as i32) && val <= -(108 as i32) {
         bufnwrite8(blob, &[(((-(108 as i32) - val) / 256 as i32 + 251 as i32) as u8
@@ -43,7 +44,7 @@ unsafe extern "C" fn mergeCS2Real(mut blob: *mut caryll_Buffer, mut val: ::core:
         * 65536.0f64) as u16;
     bufnwrite8(blob, &[0xff as u8, (integerPart as ::core::ffi::c_int >> 8 as ::core::ffi::c_int) as u8, (integerPart as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8, (fractionPart as ::core::ffi::c_int >> 8 as ::core::ffi::c_int) as u8, (fractionPart as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8]);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_mergeCS2Operand(
     mut blob: *mut caryll_Buffer,
     mut val: ::core::ffi::c_double,
@@ -55,11 +56,11 @@ pub unsafe extern "C" fn cff_mergeCS2Operand(
         mergeCS2Real(blob, val);
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_mergeCS2Special(mut blob: *mut caryll_Buffer, mut val: u8) {
     bufwrite8(blob, val);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_buildOffset(mut val: i32) -> *mut caryll_Buffer {
     return bufninit(&[29 as u8, (val >> 24 as ::core::ffi::c_int & 0xff as i32) as u8, (val >> 16 as ::core::ffi::c_int & 0xff as i32) as u8, (val >> 8 as ::core::ffi::c_int & 0xff as i32) as u8, (val & 0xff as i32) as u8]);
 }

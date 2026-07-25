@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 pub type cff_Value_Type = ::core::ffi::c_uint;
 pub const CS2_FRACTION: cff_Value_Type = 3;
 pub const cff_DOUBLE: cff_Value_Type = 3;
@@ -17,7 +18,7 @@ pub union cff_ValueBody {
     pub i: i32,
     pub d: ::core::ffi::c_double,
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cffnum(mut val: cff_Value) -> ::core::ffi::c_double {
     if val.t as ::core::ffi::c_uint == cff_INTEGER as ::core::ffi::c_int as ::core::ffi::c_uint {
         return val.c2rust_unnamed.i as ::core::ffi::c_double;

@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-extern "C" {
+unsafe extern "C" {
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
     static otl_iClassDef: __otfcc_IClassDef;
     static table_iHead: __caryll_elementinterface_table_head;
@@ -459,8 +460,8 @@ unsafe extern "C" fn otfcc_Font_move(mut dst: *mut otfcc_Font, mut src: *mut otf
     );
     otfcc_Font_init(src);
 }
-#[no_mangle]
-pub static mut otfcc_iFont: __caryll_elementinterface_otfcc_Font = {
+#[unsafe(no_mangle)]
+pub static otfcc_iFont: __caryll_elementinterface_otfcc_Font = {
     __caryll_elementinterface_otfcc_Font {
         init: Some(otfcc_Font_init as unsafe extern "C" fn(*mut otfcc_Font) -> ()),
         copy: Some(

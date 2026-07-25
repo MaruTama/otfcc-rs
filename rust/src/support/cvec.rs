@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 // Generic implementation of otfcc's C-style growable vector
 // (`length`/`capacity`/`items: *mut T`), factored out of the per-container
 // boilerplate (`subtable_gsub_multi_growTo`, `_resizeTo`, `_grow`, `_init`,
@@ -130,7 +131,7 @@ pub(crate) unsafe fn cvec_move<T>(dst: *mut CVecRaw<T>, src: *mut CVecRaw<T>) {
 mod tests {
     use super::*;
 
-    extern "C" {
+    unsafe extern "C" {
         fn free(ptr: *mut ::core::ffi::c_void);
     }
 

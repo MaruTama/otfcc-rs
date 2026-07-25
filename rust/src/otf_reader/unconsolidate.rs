@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-extern "C" {
+unsafe extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
@@ -123,7 +124,7 @@ unsafe extern "C" fn hashVQ(buf: *mut caryll_Buffer, x: VQ) {
         hashVQS(buf, *x.shift.items.offset(j as isize));
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nameGlyphByHash(
     mut g: *mut glyf_Glyph,
     mut glyf: *mut table_glyf,
@@ -660,7 +661,7 @@ unsafe extern "C" fn mergeLTSH(font: *mut otfcc_Font) {
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_unconsolidateFont(
     mut font: *mut otfcc_Font,
     mut options: *const otfcc_Options,

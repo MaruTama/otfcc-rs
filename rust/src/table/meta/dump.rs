@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
 use crate::logger::{otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
@@ -5,7 +6,7 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{json_value};
 
 use crate::table::meta::types::{meta_Entry, table_meta};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
@@ -56,7 +57,7 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
 unsafe extern "C" fn isStringTag(mut tag: u32) -> bool {
     return tag == 1684827751i32 as u32 || tag == 1936485991i32 as u32;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpMeta(
     mut meta: *const table_meta,
     mut root: *mut json_value,

@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcmp, memcpy, memset, qsort, strcmp, strlen};
-extern "C" {
+unsafe extern "C" {
     fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
@@ -170,7 +171,7 @@ unsafe extern "C" fn deleteBaseArrayItem(mut entry: *mut otl_BaseRecord) {
     free((*entry).anchors as *mut ::core::ffi::c_void);
     (*entry).anchors = ::core::ptr::null_mut::<otl_Anchor>();
 }
-static mut ba_typeinfo: __caryll_elementinterface_otl_BaseRecord = {
+static ba_typeinfo: __caryll_elementinterface_otl_BaseRecord = {
     __caryll_elementinterface_otl_BaseRecord {
         init: None,
         copy: None,
@@ -332,8 +333,8 @@ unsafe extern "C" fn otl_BaseArray_filterEnv(
     }
     (*arr).length = j;
 }
-#[no_mangle]
-pub static mut otl_iBaseArray: __caryll_vectorinterface_otl_BaseArray = {
+#[unsafe(no_mangle)]
+pub static otl_iBaseArray: __caryll_vectorinterface_otl_BaseArray = {
     __caryll_vectorinterface_otl_BaseArray {
         init: Some(otl_BaseArray_init as unsafe extern "C" fn(*mut otl_BaseArray) -> ()),
         copy: Some(
@@ -533,8 +534,8 @@ unsafe extern "C" fn subtable_gpos_markToSingle_init(mut x: *mut subtable_gpos_m
 unsafe extern "C" fn subtable_gpos_markToSingle_dispose(mut x: *mut subtable_gpos_markToSingle) {
     disposeMarkToSingle(x);
 }
-#[no_mangle]
-pub static mut iSubtable_gpos_markToSingle: __caryll_elementinterface_subtable_gpos_markToSingle = {
+#[unsafe(no_mangle)]
+pub static iSubtable_gpos_markToSingle: __caryll_elementinterface_subtable_gpos_markToSingle = {
     __caryll_elementinterface_subtable_gpos_markToSingle {
         init: Some(
             subtable_gpos_markToSingle_init
@@ -587,7 +588,7 @@ unsafe extern "C" fn subtable_gpos_markToSingle_create() -> *mut subtable_gpos_m
     subtable_gpos_markToSingle_init(x);
     return x;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gpos_markToSingle(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -714,7 +715,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToSingle(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_dump_markToSingle(
     mut st: *const otl_Subtable,
 ) -> *mut json_value {
@@ -1234,7 +1235,7 @@ unsafe extern "C" fn parseBases(
         j = j.wrapping_add(1);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_parse_markToSingle(
     mut _subtable: *const json_value,
     mut options: *const otfcc_Options,
@@ -1327,7 +1328,7 @@ pub unsafe extern "C" fn otl_gpos_parse_markToSingle(
     }
     return st as *mut otl_Subtable;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_markToSingle(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

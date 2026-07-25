@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{calloc, free, malloc, memcpy, memset, sprintf, strcpy};
-extern "C" {
+unsafe extern "C" {
     #[cfg(not(target_os = "macos"))]
     fn __ctype_b_loc() -> *mut *const ::core::ffi::c_ushort;
     fn pow(__x: ::core::ffi::c_double, __y: ::core::ffi::c_double) -> ::core::ffi::c_double;
@@ -100,7 +101,7 @@ pub struct json_state {
 }
 pub type json_uchar = ::core::ffi::c_uint;
 pub const json_enable_comments: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static mut json_value_none: _json_value = _json_value {
     parent: ::core::ptr::null::<_json_value>() as *mut _json_value,
     type_0: json_none,
@@ -262,37 +263,37 @@ unsafe extern "C" fn new_value(
     *alloc = *top;
     return 1 as ::core::ffi::c_int;
 }
-static mut flag_line_comment: ::core::ffi::c_long =
+static flag_line_comment: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 13 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_seek_value: ::core::ffi::c_long =
+static flag_seek_value: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_string: ::core::ffi::c_long =
+static flag_string: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_done: ::core::ffi::c_long =
+static flag_done: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 7 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_need_comma: ::core::ffi::c_long =
+static flag_need_comma: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_need_colon: ::core::ffi::c_long =
+static flag_need_colon: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 6 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_block_comment: ::core::ffi::c_long =
+static flag_block_comment: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 14 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_next: ::core::ffi::c_long =
+static flag_next: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_reproc: ::core::ffi::c_long =
+static flag_reproc: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_escaped: ::core::ffi::c_long =
+static flag_escaped: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_num_negative: ::core::ffi::c_long =
+static flag_num_negative: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_num_e_negative: ::core::ffi::c_long =
+static flag_num_e_negative: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 12 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_num_e_got_sign: ::core::ffi::c_long =
+static flag_num_e_got_sign: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 11 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_num_zero: ::core::ffi::c_long =
+static flag_num_zero: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 9 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_num_e: ::core::ffi::c_long =
+static flag_num_e: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 10 as ::core::ffi::c_int) as ::core::ffi::c_long;
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_parse_ex(
     mut settings: *mut json_settings,
     mut json: *const ::core::ffi::c_char,
@@ -3315,7 +3316,7 @@ pub unsafe extern "C" fn json_parse_ex(
     }
     return ::core::ptr::null_mut::<json_value>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_parse(
     mut json: *const ::core::ffi::c_char,
     mut length: usize,
@@ -3341,7 +3342,7 @@ pub unsafe extern "C" fn json_parse(
         ::core::ptr::null_mut::<::core::ffi::c_char>(),
     );
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_value_free_ex(
     mut settings: *mut json_settings,
     mut value: *mut json_value,
@@ -3403,7 +3404,7 @@ pub unsafe extern "C" fn json_value_free_ex(
         );
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_value_free(mut value: *mut json_value) {
     let mut settings: json_settings = json_settings {
         max_memory: 0,

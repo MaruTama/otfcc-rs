@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
@@ -100,7 +101,7 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
 unsafe extern "C" fn deleteGposCursiveEntry(mut entry: *mut otl_GposCursiveEntry) {
     otfcc_Handle_dispose(&raw mut (*entry).target);
 }
-static mut gss_typeinfo: __caryll_elementinterface_otl_GposCursiveEntry = {
+static gss_typeinfo: __caryll_elementinterface_otl_GposCursiveEntry = {
     __caryll_elementinterface_otl_GposCursiveEntry {
         init: None,
         copy: None,
@@ -361,8 +362,8 @@ unsafe extern "C" fn subtable_gpos_cursive_create() -> *mut subtable_gpos_cursiv
     subtable_gpos_cursive_init(x);
     return x;
 }
-#[no_mangle]
-pub static mut iSubtable_gpos_cursive: __caryll_vectorinterface_subtable_gpos_cursive = {
+#[unsafe(no_mangle)]
+pub static iSubtable_gpos_cursive: __caryll_vectorinterface_subtable_gpos_cursive = {
     __caryll_vectorinterface_subtable_gpos_cursive {
         init: Some(
             subtable_gpos_cursive_init as unsafe extern "C" fn(*mut subtable_gpos_cursive) -> (),
@@ -462,7 +463,7 @@ pub static mut iSubtable_gpos_cursive: __caryll_vectorinterface_subtable_gpos_cu
 unsafe extern "C" fn subtable_gpos_cursive_shrinkToFit(mut arr: *mut subtable_gpos_cursive) {
     subtable_gpos_cursive_resizeTo(arr, (*arr).length);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gpos_cursive(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -564,7 +565,7 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_dump_cursive(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -592,7 +593,7 @@ pub unsafe extern "C" fn otl_gpos_dump_cursive(
     }
     return st;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_parse_cursive(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -638,7 +639,7 @@ pub unsafe extern "C" fn otl_gpos_parse_cursive(
     }
     return subtable as *mut otl_Subtable;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_cursive(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

@@ -1,3 +1,4 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 // c2rust translated the C source's <ctype.h> macro/inline expansions
 // literally. On glibc these route through the internal table-pointer
 // functions `__ctype_b_loc`/`__ctype_tolower_loc`/`__ctype_toupper_loc`,
@@ -148,7 +149,7 @@ static LOWER_TABLE: [i32; 384] = build_lower_table();
 static UPPER_TABLE: [i32; 384] = build_upper_table();
 
 #[cfg(target_os = "macos")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn __ctype_b_loc() -> *mut *const c_ushort {
     static mut PTR: *const c_ushort = core::ptr::null();
     PTR = CLASS_TABLE.as_ptr().offset(128);
@@ -156,7 +157,7 @@ pub unsafe extern "C" fn __ctype_b_loc() -> *mut *const c_ushort {
 }
 
 #[cfg(target_os = "macos")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn __ctype_tolower_loc() -> *mut *const c_int {
     static mut PTR: *const c_int = core::ptr::null();
     PTR = LOWER_TABLE.as_ptr().offset(128);
@@ -164,7 +165,7 @@ pub unsafe extern "C" fn __ctype_tolower_loc() -> *mut *const c_int {
 }
 
 #[cfg(target_os = "macos")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn __ctype_toupper_loc() -> *mut *const c_int {
     static mut PTR: *const c_int = core::ptr::null();
     PTR = UPPER_TABLE.as_ptr().offset(128);

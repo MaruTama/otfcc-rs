@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
@@ -194,8 +195,8 @@ unsafe extern "C" fn cpal_Color_replace(mut dst: *mut cpal_Color, src: cpal_Colo
         ::core::mem::size_of::<cpal_Color>() as usize,
     );
 }
-#[no_mangle]
-pub static mut cpal_iColor: __caryll_elementinterface_cpal_Color = {
+#[unsafe(no_mangle)]
+pub static cpal_iColor: __caryll_elementinterface_cpal_Color = {
     __caryll_elementinterface_cpal_Color {
         init: Some(cpal_Color_init as unsafe extern "C" fn(*mut cpal_Color) -> ()),
         copy: Some(
@@ -396,8 +397,8 @@ unsafe extern "C" fn cpal_ColorSet_move(dst: *mut cpal_ColorSet, src: *mut cpal_
 unsafe extern "C" fn cpal_ColorSet_shrinkToFit(mut arr: *mut cpal_ColorSet) {
     cpal_ColorSet_resizeTo(arr, (*arr).length);
 }
-#[no_mangle]
-pub static mut cpal_iColorSet: __caryll_vectorinterface_cpal_ColorSet = {
+#[unsafe(no_mangle)]
+pub static cpal_iColorSet: __caryll_vectorinterface_cpal_ColorSet = {
     __caryll_vectorinterface_cpal_ColorSet {
         init: Some(cpal_ColorSet_init as unsafe extern "C" fn(*mut cpal_ColorSet) -> ()),
         copy: Some(
@@ -523,8 +524,8 @@ unsafe extern "C" fn initPalette(mut p: *mut cpal_Palette) {
 unsafe extern "C" fn disposePalette(mut p: *mut cpal_Palette) {
     cpal_iColorSet.dispose.expect("non-null function pointer")(&raw mut (*p).colorset);
 }
-#[no_mangle]
-pub static mut cpal_iPalette: __caryll_elementinterface_cpal_Palette = {
+#[unsafe(no_mangle)]
+pub static cpal_iPalette: __caryll_elementinterface_cpal_Palette = {
     __caryll_elementinterface_cpal_Palette {
         init: Some(cpal_Palette_init as unsafe extern "C" fn(*mut cpal_Palette) -> ()),
         copy: Some(
@@ -799,8 +800,8 @@ unsafe extern "C" fn cpal_PaletteSet_create() -> *mut cpal_PaletteSet {
 unsafe extern "C" fn cpal_PaletteSet_shrinkToFit(mut arr: *mut cpal_PaletteSet) {
     cpal_PaletteSet_resizeTo(arr, (*arr).length);
 }
-#[no_mangle]
-pub static mut cpal_iPaletteSet: __caryll_vectorinterface_cpal_PaletteSet = {
+#[unsafe(no_mangle)]
+pub static cpal_iPaletteSet: __caryll_vectorinterface_cpal_PaletteSet = {
     __caryll_vectorinterface_cpal_PaletteSet {
         init: Some(cpal_PaletteSet_init as unsafe extern "C" fn(*mut cpal_PaletteSet) -> ()),
         copy: Some(
@@ -930,8 +931,8 @@ unsafe extern "C" fn table_CPAL_move(mut dst: *mut table_CPAL, mut src: *mut tab
     );
     table_CPAL_init(src);
 }
-#[no_mangle]
-pub static mut table_iCPAL: __caryll_elementinterface_table_CPAL = {
+#[unsafe(no_mangle)]
+pub static table_iCPAL: __caryll_elementinterface_table_CPAL = {
     __caryll_elementinterface_table_CPAL {
         init: Some(table_CPAL_init as unsafe extern "C" fn(*mut table_CPAL) -> ()),
         copy: Some(
@@ -959,15 +960,15 @@ unsafe extern "C" fn table_CPAL_free(mut x: *mut table_CPAL) {
     table_CPAL_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[no_mangle]
-pub static mut white: cpal_Color = cpal_Color {
+#[unsafe(no_mangle)]
+pub static white: cpal_Color = cpal_Color {
     red: 0xff as u8,
     green: 0xff as u8,
     blue: 0xff as u8,
     alpha: 0xff as u8,
     label: 0xffff as u16,
 };
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readCPAL(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -1356,7 +1357,7 @@ unsafe extern "C" fn dumpPalette(mut palette: *mut cpal_Palette) -> *mut json_va
     );
     return _palette;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpCPAL(
     mut table: *const table_CPAL,
     mut root: *mut json_value,
@@ -1440,7 +1441,7 @@ unsafe extern "C" fn parseColor(mut _color: *const json_value) -> cpal_Color {
     ) as u16;
     return color;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseCPAL(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -1603,7 +1604,7 @@ unsafe extern "C" fn buildPaletteEntryLabel(mut cpal: *const table_CPAL) -> *mut
     }
     return block;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildCPAL(
     mut cpal: *const table_CPAL,
     mut _options: *const otfcc_Options,

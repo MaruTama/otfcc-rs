@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, memcpy};
-extern "C" {
+unsafe extern "C" {
     fn sdsempty() -> sds;
     fn otfcc_from_f2dot14(x: f2dot14) -> ::core::ffi::c_double;
     fn otfcc_from_fixed(x: f16dot16) -> ::core::ffi::c_double;
@@ -650,11 +651,11 @@ unsafe extern "C" fn readPackedDelta(
     }
     return data;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getX(mut z: *mut glyf_Point) -> *mut VQ {
     return &raw mut (*z).x;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getY(mut z: *mut glyf_Point) -> *mut VQ {
     return &raw mut (*z).y;
 }
@@ -1200,7 +1201,7 @@ unsafe extern "C" fn polymorphize(
         __fortable_count += 1;
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readGlyf(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,

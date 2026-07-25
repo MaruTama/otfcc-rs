@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-extern "C" {
+unsafe extern "C" {
     fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
@@ -63,7 +64,7 @@ unsafe extern "C" fn gss_entry_dtor(mut entry: *mut otl_GsubSingleEntry) {
     otfcc_Handle_dispose(&raw mut (*entry).from);
     otfcc_Handle_dispose(&raw mut (*entry).to);
 }
-static mut gss_typeinfo: __caryll_elementinterface_otl_GsubSingleEntry = {
+static gss_typeinfo: __caryll_elementinterface_otl_GsubSingleEntry = {
     __caryll_elementinterface_otl_GsubSingleEntry {
         init: Some(gss_entry_ctor as unsafe extern "C" fn(*mut otl_GsubSingleEntry) -> ()),
         copy: Some(
@@ -115,8 +116,8 @@ unsafe extern "C" fn subtable_gsub_single_filterEnv(
     }
     (*arr).length = j;
 }
-#[no_mangle]
-pub static mut iSubtable_gsub_single: __caryll_vectorinterface_subtable_gsub_single = {
+#[unsafe(no_mangle)]
+pub static iSubtable_gsub_single: __caryll_vectorinterface_subtable_gsub_single = {
     __caryll_vectorinterface_subtable_gsub_single {
         init: Some(
             subtable_gsub_single_init as unsafe extern "C" fn(*mut subtable_gsub_single) -> (),
@@ -415,7 +416,7 @@ unsafe extern "C" fn subtable_gsub_single_move(
 ) {
     cvec_move(as_cvec(dst), as_cvec(src));
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gsub_single(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -551,7 +552,7 @@ pub unsafe extern "C" fn otl_read_gsub_single(
     }
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_dump_single(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -570,7 +571,7 @@ pub unsafe extern "C" fn otl_gsub_dump_single(
     }
     return st;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_parse_single(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -620,7 +621,7 @@ pub unsafe extern "C" fn otl_gsub_parse_single(
     }
     return subtable as *mut otl_Subtable;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
     mut _subtable: *const otl_Subtable,
     mut heuristics: otl_BuildHeuristics,

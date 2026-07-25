@@ -2,15 +2,21 @@
 # Sourceable helper: can python3 actually dlopen the crate's cdylib?
 #
 # The otfccdll checks load the cdylib through python3/ctypes, so the two must
-# share an architecture. On an Apple Silicon host that isn't guaranteed: the
-# nightly pinned in rust-toolchain.toml is an x86_64-apple-darwin toolchain, so
-# it emits an x86_64 dylib, while the system python3 is arm64 — and there is no
-# Rosetta python3 to load it with (`arch -x86_64 python3` -> "Bad CPU type").
+# share an architecture. Normally they do — rust-toolchain.toml's `channel`
+# resolves to rustup's own host triple, which matches the system python3.
+#
+# What breaks it on an Apple Silicon Mac is a *Rosetta rustup*: an
+# x86_64-apple-darwin rustup resolves `1.97.1` to the x86_64 toolchain, so cargo
+# emits an x86_64 dylib while python3 is arm64, and there is no Rosetta python3
+# to load it with (`arch -x86_64 python3` -> "Bad CPU type"). Installing the
+# native toolchain alongside it fixes that:
+#
+#   rustup toolchain install 1.97.1-aarch64-apple-darwin --force-non-host
+#   export PATH="$HOME/.rustup/toolchains/1.97.1-aarch64-apple-darwin/bin:$PATH"
 #
 # Callers use this to SKIP the ctypes check with an explicit reason instead of
 # dying on an OSError that has nothing to do with the code under test. The same
-# check runs for real in the arch-matched Linux container and in CI, and moving
-# to a native stable toolchain removes the mismatch outright.
+# check runs for real in the arch-matched Linux container and in CI.
 #
 # Usage:
 #   . "$(dirname "$0")/dll-arch-check.sh"

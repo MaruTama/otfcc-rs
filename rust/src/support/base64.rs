@@ -1,11 +1,12 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{malloc, memset};
 
-static mut base64_table: [u8; 64] = unsafe {
+static base64_table: [u8; 64] = unsafe {
     ::core::mem::transmute::<[u8; 64], [u8; 64]>(
         *b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
     )
 };
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn base64_encode(
     mut src: *const u8,
     mut len: usize,
@@ -100,7 +101,7 @@ pub unsafe extern "C" fn base64_encode(
     }
     return out;
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn base64_decode(
     mut src: *const u8,
     mut len: usize,

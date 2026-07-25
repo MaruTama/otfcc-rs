@@ -1,5 +1,6 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
-extern "C" {
+unsafe extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -227,8 +228,8 @@ unsafe extern "C" fn initFvarInstance(mut inst: *mut fvar_Instance) {
 unsafe extern "C" fn disposeFvarInstance(mut inst: *mut fvar_Instance) {
     iVV.dispose.expect("non-null function pointer")(&raw mut (*inst).coordinates);
 }
-#[no_mangle]
-pub static mut fvar_iInstance: __caryll_elementinterface_fvar_Instance = {
+#[unsafe(no_mangle)]
+pub static fvar_iInstance: __caryll_elementinterface_fvar_Instance = {
     __caryll_elementinterface_fvar_Instance {
         init: Some(fvar_Instance_init as unsafe extern "C" fn(*mut fvar_Instance) -> ()),
         copy: Some(
@@ -507,8 +508,8 @@ unsafe extern "C" fn fvar_InstanceList_initCapN(mut arr: *mut fvar_InstanceList,
 unsafe extern "C" fn fvar_InstanceList_growToN(arr: *mut fvar_InstanceList, target: usize) {
     cvec_grow_to_n(fvar_InstanceList_as_cvec(arr), target);
 }
-#[no_mangle]
-pub static mut fvar_iInstanceList: __caryll_vectorinterface_fvar_InstanceList = {
+#[unsafe(no_mangle)]
+pub static fvar_iInstanceList: __caryll_vectorinterface_fvar_InstanceList = {
     __caryll_vectorinterface_fvar_InstanceList {
         init: Some(fvar_InstanceList_init as unsafe extern "C" fn(*mut fvar_InstanceList) -> ()),
         copy: Some(
@@ -1847,8 +1848,8 @@ unsafe extern "C" fn table_fvar_move(mut dst: *mut table_fvar, mut src: *mut tab
     );
     table_fvar_init(src);
 }
-#[no_mangle]
-pub static mut table_iFvar: __caryll_elementinterface_table_fvar = {
+#[unsafe(no_mangle)]
+pub static table_iFvar: __caryll_elementinterface_table_fvar = {
     __caryll_elementinterface_table_fvar {
         init: Some(table_fvar_init as unsafe extern "C" fn(*mut table_fvar) -> ()),
         copy: Some(
@@ -1876,7 +1877,7 @@ pub static mut table_iFvar: __caryll_elementinterface_table_fvar = {
         ),
     }
 };
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readFvar(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -2124,7 +2125,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
     }
     return ::core::ptr::null_mut::<table_fvar>();
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpFvar(
     mut table: *const table_fvar,
     mut root: *mut json_value,
@@ -2267,7 +2268,7 @@ pub unsafe extern "C" fn otfcc_dumpFvar(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VQSegment(
     mut s: *const vq_Segment,
     mut fvar: *const table_fvar,
@@ -2299,7 +2300,7 @@ pub unsafe extern "C" fn json_new_VQSegment(
         _ => return json_integer_new(0 as i64),
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VQ(z: VQ, mut fvar: *const table_fvar) -> *mut json_value {
     if z.shift.length == 0 {
         return preserialize(json_new_position(iVQ
@@ -2321,7 +2322,7 @@ pub unsafe extern "C" fn json_new_VQ(z: VQ, mut fvar: *const table_fvar) -> *mut
         return preserialize(a);
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VV(x: VV, mut fvar: *const table_fvar) -> *mut json_value {
     let mut axes: *const vf_Axes = &raw const (*fvar).axes;
     if !axes.is_null() && (*axes).length == x.length {
@@ -2357,7 +2358,7 @@ pub unsafe extern "C" fn json_new_VV(x: VV, mut fvar: *const table_fvar) -> *mut
         return preserialize(_coord_0);
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VVp(
     mut x: *const VV,
     mut fvar: *const table_fvar,
@@ -2399,11 +2400,11 @@ pub unsafe extern "C" fn json_new_VVp(
         return preserialize(_coord_0);
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_vqOf(mut cv: *const json_value, mut _fvar: *const table_fvar) -> VQ {
     return iVQ.createStill.expect("non-null function pointer")(json_numof(cv) as pos_t);
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VQAxisSpan(mut s: *const vq_AxisSpan) -> *mut json_value {
     if vq_AxisSpanIsOne(s) {
         return json_string_new(b"*\0" as *const u8 as *const ::core::ffi::c_char);
@@ -2427,7 +2428,7 @@ pub unsafe extern "C" fn json_new_VQAxisSpan(mut s: *const vq_AxisSpan) -> *mut 
         return a;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VQRegion_Explicit(
     mut rs: *const vq_Region,
     mut fvar: *const table_fvar,
@@ -2464,7 +2465,7 @@ pub unsafe extern "C" fn json_new_VQRegion_Explicit(
         return r_0;
     };
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VQRegion(
     mut rs: *const vq_Region,
     mut fvar: *const table_fvar,
