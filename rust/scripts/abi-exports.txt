@@ -205,7 +205,6 @@ json_string_new_length
 json_string_new_nocopy
 json_value_free
 json_value_free_ex
-json_value_none
 json_vqOf
 makeFpgmPrepInstr
 meta_iEntries
