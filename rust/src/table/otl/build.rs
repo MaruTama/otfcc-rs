@@ -156,7 +156,7 @@ unsafe extern "C" fn _declare_lookup_writer(
     mut preferExtensionForThisLUT: *mut bool,
     mut heuristics: otl_BuildHeuristics,
 ) -> tableid_t {
-    if (*lookup).type_0 as ::core::ffi::c_uint == type_0 as ::core::ffi::c_uint {
+    if (*lookup).type_0 == type_0 {
         *subtables = __caryll_allocate_clean(
             (::core::mem::size_of::<*mut caryll_Buffer>() as usize)
                 .wrapping_mul((*lookup).subtables.length),
@@ -196,7 +196,7 @@ unsafe extern "C" fn _declare_lookup_writer_split(
     mut preferExtensionForThisLUT: *mut bool,
     mut heuristics: otl_BuildHeuristics,
 ) -> tableid_t {
-    if (*lookup).type_0 as ::core::ffi::c_uint == type_0 as ::core::ffi::c_uint {
+    if (*lookup).type_0 == type_0 {
         let mut buffers: *mut *mut caryll_Buffer = ::core::ptr::null_mut::<*mut caryll_Buffer>();
         let mut total: tableid_t = 0 as tableid_t;
         let mut totalBufSizeShort: usize = 0 as usize;
@@ -248,10 +248,8 @@ unsafe extern "C" fn _build_lookup(
     mut preferExtensionForThisLUT: *mut bool,
     mut heuristics: otl_BuildHeuristics,
 ) -> tableid_t {
-    if (*lookup).type_0 as ::core::ffi::c_uint
-        == otl_type_gpos_chaining as ::core::ffi::c_int as ::core::ffi::c_uint
-        || (*lookup).type_0 as ::core::ffi::c_uint
-            == otl_type_gsub_chaining as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*lookup).type_0 == otl_type_gpos_chaining
+        || (*lookup).type_0 == otl_type_gsub_chaining
     {
         return otfcc_classifiedBuildChaining(lookup, subtables, lastOffset);
     }
@@ -452,8 +450,7 @@ unsafe extern "C" fn getLookupHeuristics(
     mut lut: *const otl_Lookup,
 ) -> otl_BuildHeuristics {
     let mut heu: otl_BuildHeuristics = OTL_BH_NORMAL;
-    if (*lut).type_0 as ::core::ffi::c_uint
-        == otl_type_gsub_single as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*lut).type_0 == otl_type_gsub_single
     {
         let mut j: tableid_t = 0 as tableid_t;
         while (j as usize) < (*table).features.length {
@@ -585,45 +582,22 @@ unsafe extern "C" fn writeOTLLookups(
                 ),
             );
         }
-        let mut lookupType: u16 = (if useExtendedForIt as ::core::ffi::c_int != 0 {
-            (if (*lookup_0).type_0 as ::core::ffi::c_uint
-                > otl_type_gpos_unknown as ::core::ffi::c_int as ::core::ffi::c_uint
-            {
-                otl_type_gpos_extend as ::core::ffi::c_int
-                    - otl_type_gpos_unknown as ::core::ffi::c_int
-            } else if (*lookup_0).type_0 as ::core::ffi::c_uint
-                > otl_type_gsub_unknown as ::core::ffi::c_int as ::core::ffi::c_uint
-            {
-                otl_type_gsub_extend as ::core::ffi::c_int
-                    - otl_type_gsub_unknown as ::core::ffi::c_int
+        // The format number the file wants, which is the lookup type with its
+        // table's base taken back off -- `otl_LookupType::file_format`, the
+        // same nested comparison C spelled out here and again below.
+        let mut lookupType: u16 = (if useExtendedForIt {
+            if (*lookup_0).type_0 > otl_type_gpos_unknown {
+                otl_type_gpos_extend.file_format()
+            } else if (*lookup_0).type_0 > otl_type_gsub_unknown {
+                otl_type_gsub_extend.file_format()
             } else {
-                0 as ::core::ffi::c_int
-            }) as ::core::ffi::c_uint
+                0
+            }
         } else {
-            (if (*lookup_0).type_0 as ::core::ffi::c_uint
-                > otl_type_gpos_unknown as ::core::ffi::c_int as ::core::ffi::c_uint
-            {
-                ((*lookup_0).type_0 as ::core::ffi::c_uint).wrapping_sub(
-                    otl_type_gpos_unknown as ::core::ffi::c_int as ::core::ffi::c_uint,
-                )
-            } else {
-                if (*lookup_0).type_0 as ::core::ffi::c_uint
-                    > otl_type_gsub_unknown as ::core::ffi::c_int as ::core::ffi::c_uint
-                {
-                    ((*lookup_0).type_0 as ::core::ffi::c_uint).wrapping_sub(
-                        otl_type_gsub_unknown as ::core::ffi::c_int as ::core::ffi::c_uint,
-                    )
-                } else {
-                    0 as ::core::ffi::c_uint
-                }
-            })
-            .wrapping_sub(
-                (if canBeContextual as ::core::ffi::c_int != 0 {
-                    1 as ::core::ffi::c_int
-                } else {
-                    0 as ::core::ffi::c_int
-                }) as ::core::ffi::c_uint,
-            )
+            (*lookup_0)
+                .type_0
+                .file_format()
+                .wrapping_sub(canBeContextual as u32)
         }) as u16;
         let mut blk: *mut bk_Block = bk_new_Block(&[bk_int(b16, (lookupType as ::core::ffi::c_int) as u32), bk_int(b16, ((*lookup_0).flags as ::core::ffi::c_int) as u32), bk_int(b16, (*subtableQuantity.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
         let mut k: tableid_t = 0 as tableid_t;
@@ -631,31 +605,10 @@ unsafe extern "C" fn writeOTLLookups(
             < *subtableQuantity.offset(j_1 as isize) as ::core::ffi::c_int
         {
             if useExtendedForIt {
-                let mut extensionLookupType: u16 = (if (*lookup_0).type_0
-                    as ::core::ffi::c_uint
-                    > otl_type_gpos_unknown as ::core::ffi::c_int as ::core::ffi::c_uint
-                {
-                    ((*lookup_0).type_0 as ::core::ffi::c_uint).wrapping_sub(
-                        otl_type_gpos_unknown as ::core::ffi::c_int as ::core::ffi::c_uint,
-                    )
-                } else {
-                    if (*lookup_0).type_0 as ::core::ffi::c_uint
-                        > otl_type_gsub_unknown as ::core::ffi::c_int as ::core::ffi::c_uint
-                    {
-                        ((*lookup_0).type_0 as ::core::ffi::c_uint).wrapping_sub(
-                            otl_type_gsub_unknown as ::core::ffi::c_int as ::core::ffi::c_uint,
-                        )
-                    } else {
-                        0 as ::core::ffi::c_uint
-                    }
-                })
-                .wrapping_sub(
-                    (if canBeContextual as ::core::ffi::c_int != 0 {
-                        1 as ::core::ffi::c_int
-                    } else {
-                        0 as ::core::ffi::c_int
-                    }) as ::core::ffi::c_uint,
-                ) as u16;
+                let mut extensionLookupType: u16 = (*lookup_0)
+                    .type_0
+                    .file_format()
+                    .wrapping_sub(canBeContextual as u32) as u16;
                 let mut stub: *mut bk_Block = bk_new_Block(&[bk_int(b16, 1 as u32), bk_int(b16, (extensionLookupType as ::core::ffi::c_int) as u32), bk_ptr(p32, bk_newBlockFromBuffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
                 bk_push(blk, &[bk_ptr(p16, stub)]);
             } else {

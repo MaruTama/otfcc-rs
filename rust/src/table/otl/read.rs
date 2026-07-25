@@ -116,7 +116,7 @@ use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t};
 use crate::vendor::sds::{Byte, Dec5, Hex2, sds};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
-use crate::table::otl::{__caryll_elementinterface_otl_FeaturePtr, __caryll_elementinterface_otl_LanguageSystemPtr, __caryll_elementinterface_otl_LookupPtr, __caryll_elementinterface_table_OTL, __caryll_vectorinterface_otl_FeatureList, __caryll_vectorinterface_otl_FeatureRefList, __caryll_vectorinterface_otl_LangSystemList, __caryll_vectorinterface_otl_LookupList, __caryll_vectorinterface_otl_LookupRefList, __caryll_vectorinterface_otl_SubtableList, otl_Feature, otl_FeatureList, otl_FeaturePtr, otl_FeatureRef, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_context, otl_type_gpos_extend, otl_type_gpos_unknown, otl_type_gsub_chaining, otl_type_gsub_context, otl_type_gsub_extend, otl_type_gsub_unknown, otl_type_unknown, table_OTL};
+use crate::table::otl::{__caryll_elementinterface_otl_FeaturePtr, __caryll_elementinterface_otl_LanguageSystemPtr, __caryll_elementinterface_otl_LookupPtr, __caryll_elementinterface_table_OTL, __caryll_vectorinterface_otl_FeatureList, __caryll_vectorinterface_otl_FeatureRefList, __caryll_vectorinterface_otl_LangSystemList, __caryll_vectorinterface_otl_LookupList, __caryll_vectorinterface_otl_LookupRefList, __caryll_vectorinterface_otl_SubtableList, otl_Feature, otl_FeatureList, otl_FeaturePtr, otl_FeatureRef, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_context, otl_type_gpos_cursive, otl_type_gpos_extend, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gpos_unknown, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_context, otl_type_gsub_extend, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, otl_type_gsub_unknown, otl_type_unknown, table_OTL};
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readOtl_subtable(
     mut data: font_file_pointer,
@@ -126,44 +126,44 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
     maxGlyphs: glyphid_t,
     mut options: *const otfcc_Options,
 ) -> *mut otl_Subtable {
-    match lookupType as ::core::ffi::c_uint {
-        17 => {
+    match lookupType {
+        otl_type_gsub_single => {
             return otl_read_gsub_single(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        18 => {
+        otl_type_gsub_multiple => {
             return otl_read_gsub_multi(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        19 => {
+        otl_type_gsub_alternate => {
             return otl_read_gsub_multi(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        20 => {
+        otl_type_gsub_ligature => {
             return otl_read_gsub_ligature(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        22 => {
+        otl_type_gsub_chaining => {
             return otl_read_chaining(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        24 => {
+        otl_type_gsub_reverse => {
             return otl_read_gsub_reverse(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        40 => {
+        otl_type_gpos_chaining => {
             return otl_read_chaining(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        21 => {
+        otl_type_gsub_context => {
             return otl_read_contextual(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        39 => {
+        otl_type_gpos_context => {
             return otl_read_contextual(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        33 => {
+        otl_type_gpos_single => {
             return otl_read_gpos_single(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        34 => {
+        otl_type_gpos_pair => {
             return otl_read_gpos_pair(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        35 => {
+        otl_type_gpos_cursive => {
             return otl_read_gpos_cursive(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        36 => {
+        otl_type_gpos_markToBase => {
             return otl_read_gpos_markToSingle(
                 data,
                 tableLength,
@@ -172,7 +172,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
                 options,
             );
         }
-        38 => {
+        otl_type_gpos_markToMark => {
             return otl_read_gpos_markToSingle(
                 data,
                 tableLength,
@@ -181,7 +181,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
                 options,
             );
         }
-        37 => {
+        otl_type_gpos_markToLigature => {
             return otl_read_gpos_markToLigature(
                 data,
                 tableLength,
@@ -190,7 +190,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
                 options,
             );
         }
-        23 => {
+        otl_type_gsub_extend => {
             return otfcc_readOtl_gsub_extend(
                 data,
                 tableLength,
@@ -199,7 +199,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
                 options,
             );
         }
-        41 => {
+        otl_type_gpos_extend => {
             return otfcc_readOtl_gpos_extend(
                 data,
                 tableLength,
@@ -319,12 +319,10 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                     current_block = 2510049428056405458;
                                     break;
                                 }
-                                (*lookup).type_0 = (read_16u(
-                                    data.offset((*lookup)._offset as isize) as *const u8,
-                                )
-                                    as ::core::ffi::c_uint)
-                                    .wrapping_add(lookup_type_base as ::core::ffi::c_uint)
-                                    as otl_LookupType;
+                                (*lookup).type_0 = otl_LookupType::from_file(
+                                    lookup_type_base,
+                                    read_16u(data.offset((*lookup)._offset as isize) as *const u8),
+                                );
                                 otl_iLookupList.push.expect("non-null function pointer")(
                                     &raw mut (*table).lookups,
                                     lookup as otl_LookupPtr,
@@ -780,8 +778,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                             b"lookup_",
                                                                             (*options).glyph_name_prefix,
                                                                             b"_",
-                                                                            Hex2(((**(*table).lookups.items.offset(j_3 as isize)).type_0
-                                                                                as ::core::ffi::c_uint) as u32),
+                                                                            Hex2((**(*table).lookups.items.offset(j_3 as isize)).type_0.raw()),
                                                                             b"_",
                                                                             j_3 as ::core::ffi::c_int,
                                                                         );
@@ -797,8 +794,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                         *fresh6 = crate::sdsbuild!(
                                                                             sdsempty(),
                                                                             b"lookup_",
-                                                                            Hex2(((**(*table).lookups.items.offset(j_3 as isize)).type_0
-                                                                                as ::core::ffi::c_uint) as u32),
+                                                                            Hex2((**(*table).lookups.items.offset(j_3 as isize)).type_0.raw()),
                                                                             b"_",
                                                                             j_3 as ::core::ffi::c_int,
                                                                         );
@@ -872,10 +868,8 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
         );
         j = j.wrapping_add(1);
     }
-    if (*lookup).type_0 as ::core::ffi::c_uint
-        == otl_type_gsub_extend as ::core::ffi::c_int as ::core::ffi::c_uint
-        || (*lookup).type_0 as ::core::ffi::c_uint
-            == otl_type_gpos_extend as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*lookup).type_0 == otl_type_gsub_extend
+        || (*lookup).type_0 == otl_type_gpos_extend
     {
         (*lookup).type_0 = otl_type_unknown;
         let mut j_0: tableid_t = 0 as tableid_t;
@@ -889,14 +883,14 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
                 j_0 = j_0.wrapping_add(1);
             }
         }
-        if (*lookup).type_0 as u64 != 0 {
+        if (*lookup).type_0 != otl_type_unknown {
             let mut j_1: tableid_t = 0 as tableid_t;
             while (j_1 as usize) < (*lookup).subtables.length {
                 if !(*(*lookup).subtables.items.offset(j_1 as isize)).is_null()
                     && (**(*lookup).subtables.items.offset(j_1 as isize))
                         .extend
-                        .type_0 as ::core::ffi::c_uint
-                        == (*lookup).type_0 as ::core::ffi::c_uint
+                        .type_0
+                        == (*lookup).type_0
                 {
                     let mut st: *mut otl_Subtable =
                         (**(*lookup).subtables.items.offset(j_1 as isize))
@@ -940,13 +934,11 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
             return;
         }
     }
-    if (*lookup).type_0 as ::core::ffi::c_uint
-        == otl_type_gsub_context as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*lookup).type_0 == otl_type_gsub_context
     {
         (*lookup).type_0 = otl_type_gsub_chaining;
     }
-    if (*lookup).type_0 as ::core::ffi::c_uint
-        == otl_type_gpos_context as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*lookup).type_0 == otl_type_gpos_context
     {
         (*lookup).type_0 = otl_type_gpos_chaining;
     }
@@ -976,13 +968,13 @@ pub unsafe extern "C" fn otfcc_readOtl(
                     otl = otfcc_readOtl_common(
                         data,
                         length,
-                        (if tag == 1196643650i32 as u32 {
-                            otl_type_gsub_unknown as ::core::ffi::c_int
+                        if tag == 1196643650i32 as u32 {
+                            otl_type_gsub_unknown
                         } else if tag == 1196445523i32 as u32 {
-                            otl_type_gpos_unknown as ::core::ffi::c_int
+                            otl_type_gpos_unknown
                         } else {
-                            otl_type_unknown as ::core::ffi::c_int
-                        }) as otl_LookupType,
+                            otl_type_unknown
+                        },
                         options,
                     );
                     if otl.is_null() {

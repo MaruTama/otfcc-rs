@@ -142,6 +142,35 @@ else
 	echo "  (skipping gvar-test.ttf: not found; run rust/scripts/make-test-variable-font.py first)"
 fi
 
+# A lookup type otfcc does not recognise is *kept*, not clamped: the reader does
+# `type = read_16u(data) + base` and hands the result on, so such a lookup gets
+# no subtable, dumps as `{}`, and — with no name from the feature list — is named
+# after the raw number in hex. That is why `otl_LookupType` is a newtype over
+# `u32` rather than an `enum`, and none of the payloads above has one, so the
+# comparison that would notice a change there is this one.
+#
+# Dump only. Both toolchains *refuse* to build the resulting JSON ("Lookup … does
+# not have a valid 'type' field"), which is itself matching behaviour but not
+# something compare_payload can express — it treats a non-zero otfccbuild as a
+# failure, correctly, for every payload that is supposed to build.
+if command -v python3 >/dev/null 2>&1; then
+	UNKNOWN_LOOKUP="${BUILD}/unknown-lookup.ttf"
+	python3 rust/scripts/make-test-unknown-lookup.py tests/payload/iosevka-r.ttf "${UNKNOWN_LOOKUP}"
+	rm -f "${BUILD}/unknown-lookup.c.json" "${BUILD}/unknown-lookup.rust.json"
+	"${C_BIN}/otfccdump" "${UNKNOWN_LOOKUP}" -o "${BUILD}/unknown-lookup.c.json" --pretty
+	if ! "${RUST_BIN}/otfccdump" "${UNKNOWN_LOOKUP}" -o "${BUILD}/unknown-lookup.rust.json" --pretty; then
+		echo "FAIL  unknown-lookup dump: Rust otfccdump exited non-zero"
+		fail=1
+	elif cmp -s "${BUILD}/unknown-lookup.c.json" "${BUILD}/unknown-lookup.rust.json"; then
+		echo "PASS  unknown-lookup dump: byte-identical"
+	else
+		echo "FAIL  unknown-lookup dump: differs ($(cmp -l "${BUILD}/unknown-lookup.c.json" "${BUILD}/unknown-lookup.rust.json" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+else
+	echo "  (skipping unknown-lookup: python3 not found)"
+fi
+
 echo "==> Comparing C vs Rust otfccdll (cdylib) output, byte-for-byte"
 DLL_C="${C_BIN}/libotfccdll.so"
 [ "$(uname)" = "Darwin" ] && DLL_C="${C_BIN}/libotfccdll.dylib"

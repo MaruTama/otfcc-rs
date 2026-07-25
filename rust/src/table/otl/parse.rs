@@ -79,7 +79,7 @@ use crate::support::{NULL, true_0};
 use crate::table::otl::{__caryll_elementinterface_otl_FeaturePtr, __caryll_elementinterface_otl_LanguageSystemPtr, __caryll_elementinterface_otl_LookupPtr, __caryll_elementinterface_table_OTL, __caryll_vectorinterface_otl_FeatureList, __caryll_vectorinterface_otl_FeatureRefList, __caryll_vectorinterface_otl_LangSystemList, __caryll_vectorinterface_otl_LookupList, __caryll_vectorinterface_otl_LookupRefList, __caryll_vectorinterface_otl_SubtableList, otl_Feature, otl_FeaturePtr, otl_FeatureRef, otl_FeatureRefList, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupRefList, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, table_OTL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 use crate::support::json_funcs::otfcc_parse_flags;
-use crate::table::otl::constants::{lookupFlagsLabels, tableNames};
+use crate::table::otl::constants::{lookupFlagsLabels};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct language_hash {
@@ -183,8 +183,6 @@ unsafe extern "C" fn _parse_lookup(
     let mut parsed: bool = false;
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gsub_single as ::core::ffi::c_int as isize),
             otl_type_gsub_single,
             Some(
                 otl_gsub_parse_single
@@ -201,8 +199,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gsub_multiple as ::core::ffi::c_int as isize),
             otl_type_gsub_multiple,
             Some(
                 otl_gsub_parse_multi
@@ -219,8 +215,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gsub_alternate as ::core::ffi::c_int as isize),
             otl_type_gsub_alternate,
             Some(
                 otl_gsub_parse_multi
@@ -237,8 +231,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gsub_ligature as ::core::ffi::c_int as isize),
             otl_type_gsub_ligature,
             Some(
                 otl_gsub_parse_ligature
@@ -255,8 +247,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gsub_chaining as ::core::ffi::c_int as isize),
             otl_type_gsub_chaining,
             Some(
                 otl_parse_chaining
@@ -273,8 +263,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gsub_reverse as ::core::ffi::c_int as isize),
             otl_type_gsub_reverse,
             Some(
                 otl_gsub_parse_reverse
@@ -291,8 +279,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gpos_single as ::core::ffi::c_int as isize),
             otl_type_gpos_single,
             Some(
                 otl_gpos_parse_single
@@ -309,8 +295,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gpos_pair as ::core::ffi::c_int as isize),
             otl_type_gpos_pair,
             Some(
                 otl_gpos_parse_pair
@@ -327,8 +311,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gpos_cursive as ::core::ffi::c_int as isize),
             otl_type_gpos_cursive,
             Some(
                 otl_gpos_parse_cursive
@@ -345,8 +327,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gpos_chaining as ::core::ffi::c_int as isize),
             otl_type_gpos_chaining,
             Some(
                 otl_parse_chaining
@@ -363,8 +343,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gpos_markToBase as ::core::ffi::c_int as isize),
             otl_type_gpos_markToBase,
             Some(
                 otl_gpos_parse_markToSingle
@@ -381,8 +359,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gpos_markToMark as ::core::ffi::c_int as isize),
             otl_type_gpos_markToMark,
             Some(
                 otl_gpos_parse_markToSingle
@@ -399,8 +375,6 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            *(&raw mut tableNames as *mut *const ::core::ffi::c_char)
-                .offset(otl_type_gpos_markToLigature as ::core::ffi::c_int as isize),
             otl_type_gpos_markToLigature,
             Some(
                 otl_gpos_parse_markToLigature
@@ -418,7 +392,6 @@ unsafe extern "C" fn _parse_lookup(
     return parsed;
 }
 unsafe extern "C" fn _declareLookupParser(
-    mut lt: *const ::core::ffi::c_char,
     mut llt: otl_LookupType,
     mut parser: Option<
         unsafe extern "C" fn(*const json_value, *const otfcc_Options) -> *mut otl_Subtable,
@@ -433,7 +406,7 @@ unsafe extern "C" fn _declareLookupParser(
         b"type\0" as *const u8 as *const ::core::ffi::c_char,
         json_string,
     );
-    if type_0.is_null() || strcmp((*type_0).u.string.ptr, lt) != 0 {
+    if type_0.is_null() || strcmp((*type_0).u.string.ptr, llt.name().as_ptr()) != 0 {
         if type_0.is_null() {
             (*(*options).logger)
                 .logSDS

@@ -269,7 +269,14 @@ transpile step itself needs arm64.
   existing object tree was built for the *other* OS and clears it if so. A
   stale cross-OS tree otherwise shows up either as "file format not
   recognized" from the linker or, worse, as *every* payload mismatching —
-  which looks exactly like a Rust regression and isn't one.
+  which looks exactly like a Rust regression and isn't one. It also compares
+  one *forged* payload, dump only: `make-test-unknown-lookup.py` rewrites every
+  GSUB/GPOS lookup in `iosevka-r.ttf` to a format number neither table defines,
+  because no real payload has one and the unknown-type path is otherwise
+  unchecked (see `otl_LookupType` below). Both toolchains then refuse to
+  *build* the resulting JSON, identically, which is why that half is skipped.
+- `make-test-unknown-lookup.py` — generates the payload above from a committed
+  one. Standard library only, unlike `make-test-variable-font.py`.
 - `dll-arch-check.sh` — sourced by `run-cycles.sh`/`compare-with-c.sh` to
   detect when python3 cannot `dlopen` the crate's cdylib at all, so the
   ctypes check is skipped with a stated reason instead of failing. Normally the
@@ -565,6 +572,35 @@ the CI-matching Linux container:
   nothing compared `otfccdump`'s own output between implementations. A changed
   JSON key would only have been caught if it also changed the build result.
   It is compared now, and matches byte-for-byte on all eight payloads.
+
+- **`otl_LookupType` is a newtype, not an `enum`** — the one place where the
+  obvious modernization is the wrong one, so it is written down here.
+
+  A lookup's type is read as `read_16u(data) + base`, where `base` is 16 for
+  GSUB and 32 for GPOS, giving one number that names both the table and the
+  format. otfcc does not validate it. A type it does not recognise gets no
+  subtable reader (`otfcc_readOtl_subtable` returns NULL), the lookup dumps as
+  `{}`, and if the feature list gave it no name it is named after **the raw
+  number in hex** — `lookup_1a_23`. So the value reaches the output, and
+  anything in `16..=65551` can appear. A `#[repr(u32)]` enum cannot hold that;
+  `transmute`ing it in is UB; and rejecting it at the boundary would change
+  what otfcc writes for such a font.
+
+  What the newtype does buy: the compiler now tells a lookup type apart from
+  every other 32-bit quantity in the OTL code, the two file-derived
+  construction sites go through `from_file`, and `tableNames` — a 42-entry
+  `static mut` array of C string pointers with 23 NULL holes, indexed by the
+  type — is a `name()` method. Its 26 uses were all *constant* indices sitting
+  next to the same constant as an argument, so the two dispatch helpers
+  (`_declare_lookup_dumper`, `_declareLookupParser`) each lost a parameter that
+  was a function of another one. Those strings are the JSON's `"type"` values,
+  and they are not the constants' own spelling (`gpos_mark_to_base` vs
+  `otl_type_gpos_markToBase`), so a test pins all twenty.
+
+  No payload has an unknown lookup type, which is why
+  `make-test-unknown-lookup.py` now forges one and `compare-with-c.sh` compares
+  the dump of it. Byte-identical — 55 lookups, all `{}`, all named after the
+  forged number.
 
   The third, `unsafe_op_in_unsafe_fn`, fires **48,000 times**, and it is the one
   worth having: it separates "this function is unsafe to call" from "this line is

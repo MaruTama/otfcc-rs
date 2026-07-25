@@ -498,7 +498,6 @@ stat_single_glyph
 stderrTargetDispose
 stderrTargetPush
 svg_iAssignment
-tableNames
 table_dumpTableFpgmPrep
 table_iBASE
 table_iCFF
