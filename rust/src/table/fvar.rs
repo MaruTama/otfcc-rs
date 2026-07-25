@@ -2517,14 +2517,12 @@ unsafe extern "C" fn json_object_push_tag(
 #[inline]
 unsafe extern "C" fn json_numof(mut cv: *const json_value) -> ::core::ffi::c_double {
     if !cv.is_null()
-        && (*cv).type_0 as ::core::ffi::c_uint
-            == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+        && (*cv).type_0 == json_integer
     {
         return (*cv).u.integer as ::core::ffi::c_double;
     }
     if !cv.is_null()
-        && (*cv).type_0 as ::core::ffi::c_uint
-            == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+        && (*cv).type_0 == json_double
     {
         return (*cv).u.dbl;
     }

@@ -739,8 +739,7 @@ pub unsafe extern "C" fn otfcc_parseSVG(
             let mut _a: *mut json_value =
                 *(*_svg).u.array.values.offset(j as isize) as *mut json_value;
             if !(_a.is_null()
-                || (*_a).type_0 as ::core::ffi::c_uint
-                    != json_object as ::core::ffi::c_int as ::core::ffi::c_uint)
+                || (*_a).type_0 != json_object)
             {
                 let mut format: *const ::core::ffi::c_char = json_obj_getstr_share(
                     _a,
@@ -839,8 +838,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -899,8 +897,7 @@ unsafe extern "C" fn json_obj_getint(
     mut key: *const ::core::ffi::c_char,
 ) -> i32 {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return 0 as i32;
     }
@@ -911,14 +908,12 @@ unsafe extern "C" fn json_obj_getint(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as i32;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl as i32;
             }

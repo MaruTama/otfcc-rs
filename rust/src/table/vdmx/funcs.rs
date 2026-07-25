@@ -335,8 +335,7 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
             let mut _rr: *mut json_value =
                 *(*_ratios).u.array.values.offset(j as isize) as *mut json_value;
             if !(_rr.is_null()
-                || (*_rr).type_0 as ::core::ffi::c_uint
-                    != json_object as ::core::ffi::c_int as ::core::ffi::c_uint)
+                || (*_rr).type_0 != json_object)
             {
                 let mut r: vdmx_RatioRange = vdmx_RatioRange {
                     bCharset: 0,
@@ -378,8 +377,7 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
                         let mut _r: *mut json_value =
                             *(*_records).u.array.values.offset(j_0 as isize) as *mut json_value;
                         if !(_r.is_null()
-                            || (*_r).type_0 as ::core::ffi::c_uint
-                                != json_object as ::core::ffi::c_int as ::core::ffi::c_uint)
+                            || (*_r).type_0 != json_object)
                         {
                             vdmx_iGroup.push.expect("non-null function pointer")(
                                 &raw mut r.records,
@@ -488,8 +486,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -521,8 +518,7 @@ unsafe extern "C" fn json_obj_getnum(
     mut key: *const ::core::ffi::c_char,
 ) -> ::core::ffi::c_double {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return 0.0f64;
     }
@@ -533,14 +529,12 @@ unsafe extern "C" fn json_obj_getnum(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as ::core::ffi::c_double;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl;
             }

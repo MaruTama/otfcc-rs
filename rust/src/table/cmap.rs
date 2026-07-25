@@ -5629,8 +5629,7 @@ unsafe extern "C" fn parseCmapUnicodes(
     mut options: *const otfcc_Options,
 ) {
     if table.is_null()
-        || (*table).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*table).type_0 != json_object
     {
         return;
     }
@@ -5644,8 +5643,7 @@ unsafe extern "C" fn parseCmapUnicodes(
             (*(*table).u.object.values.offset(j as isize)).value as *mut json_value;
         let mut unicode: unicode_t = parseUnicode(unicodeStr);
         sdsfree(unicodeStr);
-        if (*item).type_0 as ::core::ffi::c_uint
-            == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*item).type_0 == json_string
             && unicode > 0 as unicode_t
             && unicode <= 0x10ffff as unicode_t
         {
@@ -5702,8 +5700,7 @@ unsafe extern "C" fn parseCmapUVS(
     mut options: *const otfcc_Options,
 ) {
     if table.is_null()
-        || (*table).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*table).type_0 != json_object
     {
         return;
     }
@@ -5716,8 +5713,7 @@ unsafe extern "C" fn parseCmapUVS(
         let mut k: cmap_UVS_key = parseUVSKey(uvsStr);
         let mut item: *mut json_value =
             (*(*table).u.object.values.offset(j as isize)).value as *mut json_value;
-        if (*item).type_0 as ::core::ffi::c_uint
-            == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*item).type_0 == json_string
             && k.unicode > 0 as u32
             && k.unicode <= 0x10ffff as u32
             && k.selector > 0 as u32
@@ -5759,8 +5755,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
 ) -> *mut table_cmap {
-    if (*root).type_0 as ::core::ffi::c_uint
-        != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*root).type_0 != json_object
     {
         return ::core::ptr::null_mut::<table_cmap>();
     }
@@ -6539,8 +6534,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }

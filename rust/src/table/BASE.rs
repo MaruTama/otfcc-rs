@@ -665,8 +665,7 @@ unsafe extern "C" fn axisFromJson(mut _axis: *const json_value) -> *mut otl_Base
         if !(*(*_axis).u.object.values.offset(j as isize))
             .value
             .is_null()
-            && (*(*(*_axis).u.object.values.offset(j as isize)).value).type_0 as ::core::ffi::c_uint
-                == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+            && (*(*(*_axis).u.object.values.offset(j as isize)).value).type_0 == json_object
         {
             (*(*axis).entries.offset(jj as isize)).tag =
                 str2tag((*(*_axis).u.object.values.offset(j as isize)).name);
@@ -899,8 +898,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -960,14 +958,12 @@ unsafe extern "C" fn json_object_push_tag(
 #[inline]
 unsafe extern "C" fn json_numof(mut cv: *const json_value) -> ::core::ffi::c_double {
     if !cv.is_null()
-        && (*cv).type_0 as ::core::ffi::c_uint
-            == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+        && (*cv).type_0 == json_integer
     {
         return (*cv).u.integer as ::core::ffi::c_double;
     }
     if !cv.is_null()
-        && (*cv).type_0 as ::core::ffi::c_uint
-            == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+        && (*cv).type_0 == json_double
     {
         return (*cv).u.dbl;
     }

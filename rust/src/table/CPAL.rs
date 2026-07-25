@@ -1409,8 +1409,7 @@ pub unsafe extern "C" fn otfcc_dumpCPAL(
 unsafe extern "C" fn parseColor(mut _color: *const json_value) -> cpal_Color {
     let mut color: cpal_Color = white;
     if _color.is_null()
-        || (*_color).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*_color).type_0 != json_object
     {
         return color;
     }
@@ -1483,8 +1482,7 @@ pub unsafe extern "C" fn otfcc_parseCPAL(
             let mut _palette: *mut json_value =
                 *(*_palettes).u.array.values.offset(j as isize) as *mut json_value;
             if !(_palette.is_null()
-                || (*_palette).type_0 as ::core::ffi::c_uint
-                    != json_object as ::core::ffi::c_int as ::core::ffi::c_uint)
+                || (*_palette).type_0 != json_object)
             {
                 let mut _colors: *mut json_value = json_obj_get_type(
                     _palette,
@@ -1657,8 +1655,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -1690,8 +1687,7 @@ unsafe extern "C" fn json_obj_getint(
     mut key: *const ::core::ffi::c_char,
 ) -> i32 {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return 0 as i32;
     }
@@ -1702,14 +1698,12 @@ unsafe extern "C" fn json_obj_getint(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as i32;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl as i32;
             }
@@ -1725,8 +1719,7 @@ unsafe extern "C" fn json_obj_getint_fallback(
     mut fallback: i32,
 ) -> i32 {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return fallback;
     }
@@ -1737,14 +1730,12 @@ unsafe extern "C" fn json_obj_getint_fallback(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as i32;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl as i32;
             }

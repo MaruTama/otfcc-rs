@@ -1062,8 +1062,7 @@ pub unsafe extern "C" fn parse_ttinstr(
             ::core::ptr::null_mut::<u8>(),
             0 as u32,
         );
-    } else if (*col).type_0 as ::core::ffi::c_uint
-        == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+    } else if (*col).type_0 == json_string
     {
         let mut instrlen: usize = 0;
         let mut instructions: *mut u8 = base64_decode(
@@ -1072,16 +1071,14 @@ pub unsafe extern "C" fn parse_ttinstr(
             &raw mut instrlen,
         );
         Make.expect("non-null function pointer")(context, instructions, instrlen as u32);
-    } else if (*col).type_0 as ::core::ffi::c_uint
-        == json_array as ::core::ffi::c_int as ::core::ffi::c_uint
+    } else if (*col).type_0 == json_array
     {
         let mut istrlen: usize = 0 as usize;
         let mut j: u32 = 0 as u32;
         while j < (*col).u.array.length as u32 {
             let mut record: *mut json_value =
                 *(*col).u.array.values.offset(j as isize) as *mut json_value;
-            if (*record).type_0 as ::core::ffi::c_uint
-                == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+            if (*record).type_0 == json_string
             {
                 istrlen = istrlen.wrapping_add(
                     (*record)
@@ -1090,8 +1087,7 @@ pub unsafe extern "C" fn parse_ttinstr(
                         .length
                         .wrapping_add(1 as ::core::ffi::c_uint) as usize,
                 );
-            } else if (*record).type_0 as ::core::ffi::c_uint
-                == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+            } else if (*record).type_0 == json_integer
             {
                 istrlen = istrlen
                     .wrapping_add((1 as ::core::ffi::c_int + 20 as ::core::ffi::c_int) as usize);
@@ -1114,8 +1110,7 @@ pub unsafe extern "C" fn parse_ttinstr(
         while j_0 < (*col).u.array.length as u32 {
             let mut record_0: *mut json_value =
                 *(*col).u.array.values.offset(j_0 as isize) as *mut json_value;
-            if (*record_0).type_0 as ::core::ffi::c_uint
-                == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+            if (*record_0).type_0 == json_string
             {
                 memcpy(
                     head as *mut ::core::ffi::c_void,
@@ -1124,8 +1119,7 @@ pub unsafe extern "C" fn parse_ttinstr(
                         .wrapping_mul((*record_0).u.string.length as usize),
                 );
                 head = head.offset((*record_0).u.string.length as isize);
-            } else if (*record_0).type_0 as ::core::ffi::c_uint
-                == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+            } else if (*record_0).type_0 == json_integer
             {
                 let mut n: ::core::ffi::c_int = snprintf(
                     head,

@@ -596,6 +596,16 @@ name it met first the struct; and `otfcc_IFontBuilder`/`otfcc_IFontSerializer`,
 still live after PR #17's trait work because the two binaries are separate
 crates that reach the readers and writers through `extern "C"`.
 
+A second trap, from turning `match x { 2 => … }` into `match x { json_array =>
+… }`: an enum variant in a *pattern* only means the variant if that name is in
+scope. If it is not imported, Rust reads it as a fresh binding that matches
+anything — so a single missing name in a `use` list silently turns one arm into
+a catch-all and makes every later arm dead. Here rustc caught it
+(`bindings_with_variant_name` is deny-by-default, and the dead arms tripped
+`unreachable_patterns` under `warnings = "deny"`), but only because the match
+had arms after the mis-resolved one. Add the variant to the file's `use` before
+putting it in a pattern.
+
 One trap worth knowing before the next mechanical pass: `vendor/sds.rs`
 imports `__ctype_b_loc` and friends under `#[cfg(target_os = "macos")]`, since
 on Linux they come from glibc. Folding an unconditional import into that gated

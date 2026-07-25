@@ -149,8 +149,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -1917,8 +1916,7 @@ unsafe extern "C" fn placeOrderEntriesFromCmap(
             unicode = atoi(unicodeStr as *const ::core::ffi::c_char) as i32;
         }
         sdsfree(unicodeStr);
-        if (*item).type_0 as ::core::ffi::c_uint
-            == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*item).type_0 == json_string
             && unicode > 0 as i32
             && unicode <= 0x10ffff as i32
         {
@@ -1950,8 +1948,7 @@ unsafe extern "C" fn placeOrderEntriesFromSubtable(
     while j < uplimit {
         let mut item: *mut json_value =
             *(*table).u.array.values.offset(j as isize) as *mut json_value;
-        if (*item).type_0 as ::core::ffi::c_uint
-            == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*item).type_0 == json_string
         {
             let mut gname: sds = sdsnewlen(
                 (*item).u.string.ptr as *const ::core::ffi::c_void,
@@ -1976,8 +1973,7 @@ unsafe extern "C" fn parseGlyphOrder(
         otfcc_pkgGlyphOrder
             .create
             .expect("non-null function pointer"))();
-    if (*root).type_0 as ::core::ffi::c_uint
-        != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*root).type_0 != json_object
     {
         return go;
     }

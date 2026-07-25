@@ -15,15 +15,13 @@ unsafe extern "C" {
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
-    if (*v).type_0 as ::core::ffi::c_uint
-        == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*v).type_0 == json_string
     {
         return sdsnewlen(
             (*v).u.string.ptr as *const ::core::ffi::c_void,
             (*v).u.string.length as usize,
         );
-    } else if (*v).type_0 as ::core::ffi::c_uint
-        == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+    } else if (*v).type_0 == json_object
     {
         let mut _string: *mut json_value = json_obj_get_type(
             v,
@@ -126,8 +124,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }

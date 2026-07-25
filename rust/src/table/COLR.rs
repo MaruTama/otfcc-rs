@@ -1156,8 +1156,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
             let mut _mapping: *mut json_value =
                 *(*_colr).u.array.values.offset(j as isize) as *mut json_value;
             if !(_mapping.is_null()
-                || (*_mapping).type_0 as ::core::ffi::c_uint
-                    != json_object as ::core::ffi::c_int as ::core::ffi::c_uint)
+                || (*_mapping).type_0 != json_object)
             {
                 let mut _baseglyph: *mut json_value = json_obj_get_type(
                     _mapping,
@@ -1192,8 +1191,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
                         let mut _layer: *mut json_value =
                             *(*_layers).u.array.values.offset(k as isize) as *mut json_value;
                         if !(_layer.is_null()
-                            || (*_layer).type_0 as ::core::ffi::c_uint
-                                != json_object as ::core::ffi::c_int as ::core::ffi::c_uint)
+                            || (*_layer).type_0 != json_object)
                         {
                             let mut _layerglyph: *mut json_value = json_obj_get_type(
                                 _layer,
@@ -1306,8 +1304,7 @@ unsafe extern "C" fn json_obj_get(
     mut key: *const ::core::ffi::c_char,
 ) -> *mut json_value {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return ::core::ptr::null_mut::<json_value>();
     }
@@ -1340,8 +1337,7 @@ unsafe extern "C" fn json_obj_getint_fallback(
     mut fallback: i32,
 ) -> i32 {
     if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+        || (*obj).type_0 != json_object
     {
         return fallback;
     }
@@ -1352,14 +1348,12 @@ unsafe extern "C" fn json_obj_getint_fallback(
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_integer
             {
                 return (*cv).u.integer as i32;
             }
             if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
+                && (*cv).type_0 == json_double
             {
                 return (*cv).u.dbl as i32;
             }
