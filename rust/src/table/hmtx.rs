@@ -9,73 +9,15 @@ extern "C" {
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
-use crate::logger::{log_type_warning, otfcc_ILogger};
+use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{f16dot16, font_file_pointer, glyphid_t, length_t, pos_t};
+use crate::support::primitives::{font_file_pointer, glyphid_t, length_t, pos_t};
 use crate::vendor::sds::{sds};
-pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
-pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
-pub const log_vl_info: otfcc_LoggerVerbosity = 5;
-pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
-pub const log_vl_important: otfcc_LoggerVerbosity = 1;
-pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_hhea {
-    pub version: f16dot16,
-    pub ascender: i16,
-    pub descender: i16,
-    pub lineGap: i16,
-    pub advanceWidthMax: u16,
-    pub minLeftSideBearing: i16,
-    pub minRightSideBearing: i16,
-    pub xMaxExtent: i16,
-    pub caretSlopeRise: i16,
-    pub caretSlopeRun: i16,
-    pub caretOffset: i16,
-    pub reserved: [i16; 4],
-    pub metricDataFormat: i16,
-    pub numberOfMetrics: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_maxp {
-    pub version: f16dot16,
-    pub numGlyphs: u16,
-    pub maxPoints: u16,
-    pub maxContours: u16,
-    pub maxCompositePoints: u16,
-    pub maxCompositeContours: u16,
-    pub maxZones: u16,
-    pub maxTwilightPoints: u16,
-    pub maxStorage: u16,
-    pub maxFunctionDefs: u16,
-    pub maxInstructionDefs: u16,
-    pub maxStackElements: u16,
-    pub maxSizeOfInstructions: u16,
-    pub maxComponentElements: u16,
-    pub maxComponentDepth: u16,
-}
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+
+use crate::table::hhea::{table_hhea};
+use crate::table::maxp::{table_maxp};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct horizontal_metric {
@@ -100,8 +42,6 @@ pub struct __caryll_elementinterface_table_hmtx {
     pub create: Option<unsafe extern "C" fn() -> *mut table_hmtx>,
     pub free: Option<unsafe extern "C" fn(*mut table_hmtx) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeHmtx(mut table: *mut table_hmtx) {
     if !(*table).metrics.is_null() {

@@ -16,47 +16,21 @@ extern "C" {
     fn json_boolean_new(_: ::core::ffi::c_int) -> *mut json_value;
 }
 use crate::support::binio::{read_16u};
-use crate::logger::{log_type_warning, otfcc_ILogger};
+use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphsize_t, tableid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_boolean, json_double, json_integer, json_object, json_type, json_value};
-use crate::support::cvec::{
-    cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
-    cvec_resize_to, CVecRaw,
-};
+use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
-pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
-pub const log_vl_info: otfcc_LoggerVerbosity = 5;
-pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
-pub const log_vl_important: otfcc_LoggerVerbosity = 1;
-pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct gasp_Record {
@@ -137,7 +111,6 @@ pub struct __caryll_elementinterface_table_gasp {
     pub create: Option<unsafe extern "C" fn() -> *mut table_gasp>,
     pub free: Option<unsafe extern "C" fn(*mut table_gasp) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const GASP_DOGRAY: ::core::ffi::c_int = 0x2 as ::core::ffi::c_int;
 pub const GASP_GRIDFIT: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_GRIDFIT: ::core::ffi::c_int = 0x4 as ::core::ffi::c_int;
@@ -959,6 +932,3 @@ unsafe extern "C" fn json_obj_getbool(
     }
     return false;
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;

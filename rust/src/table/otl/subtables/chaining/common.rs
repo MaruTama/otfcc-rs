@@ -3,109 +3,15 @@ extern "C" {
     static otl_iCoverage: __otfcc_ICoverage;
     static otl_iClassDef: __otfcc_IClassDef;
 }
-use crate::table::otl::classdef::{otl_ClassDef_free, otl_ClassDef};
-use crate::table::otl::coverage::{otl_Coverage_free, otl_Coverage};
-use crate::support::handle::{otfcc_Handle_dispose, otfcc_GlyphHandle, otfcc_LookupHandle};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::primitives::{glyphclass_t, tableid_t};
-use crate::vendor::json::{json_value};
+use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef_free};
+use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_free};
+use crate::support::handle::{otfcc_Handle_dispose};
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __otfcc_ICoverage {
-    pub init: Option<unsafe extern "C" fn(*mut otl_Coverage) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otl_Coverage, *const otl_Coverage) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_Coverage) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otl_Coverage) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otl_Coverage, otl_Coverage) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_Coverage, otl_Coverage) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut otl_Coverage>,
-    pub free: Option<unsafe extern "C" fn(*mut otl_Coverage) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut otl_Coverage, u32) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_Coverage>,
-    pub dump: Option<unsafe extern "C" fn(*const otl_Coverage) -> *mut json_value>,
-    pub parse: Option<unsafe extern "C" fn(*const json_value) -> *mut otl_Coverage>,
-    pub build: Option<unsafe extern "C" fn(*const otl_Coverage) -> *mut caryll_Buffer>,
-    pub buildFormat:
-        Option<unsafe extern "C" fn(*const otl_Coverage, u16) -> *mut caryll_Buffer>,
-    pub shrink: Option<unsafe extern "C" fn(*mut otl_Coverage, bool) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otl_Coverage, otfcc_GlyphHandle) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __otfcc_IClassDef {
-    pub init: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otl_ClassDef, *const otl_ClassDef) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otl_ClassDef, *mut otl_ClassDef) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otl_ClassDef, otl_ClassDef) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_ClassDef, otl_ClassDef) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut otl_ClassDef>,
-    pub free: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub push:
-        Option<unsafe extern "C" fn(*mut otl_ClassDef, otfcc_GlyphHandle, glyphclass_t) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_ClassDef>,
-    pub expand:
-        Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_ClassDef) -> *mut otl_ClassDef>,
-    pub dump: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut json_value>,
-    pub parse: Option<unsafe extern "C" fn(*const json_value) -> *mut otl_ClassDef>,
-    pub build: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut caryll_Buffer>,
-    pub shrink: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct subtable_chaining {
-    pub type_0: otl_chaining_type,
-    pub c2rust_unnamed: otl_ChainingBody,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union otl_ChainingBody {
-    pub rule: otl_ChainingRule,
-    pub c2rust_unnamed: otl_ChainingRuleSet,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otl_ChainingRuleSet {
-    pub rulesCount: tableid_t,
-    pub rules: *mut *mut otl_ChainingRule,
-    pub bc: *mut otl_ClassDef,
-    pub ic: *mut otl_ClassDef,
-    pub fc: *mut otl_ClassDef,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otl_ChainingRule {
-    pub matchCount: tableid_t,
-    pub inputBegins: tableid_t,
-    pub inputEnds: tableid_t,
-    pub match_0: *mut *mut otl_Coverage,
-    pub applyCount: tableid_t,
-    pub apply: *mut otl_ChainLookupApplication,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otl_ChainLookupApplication {
-    pub index: tableid_t,
-    pub lookup: otfcc_LookupHandle,
-}
-pub type otl_chaining_type = ::core::ffi::c_uint;
-pub const otl_chaining_classified: otl_chaining_type = 2;
-pub const otl_chaining_poly: otl_chaining_type = 1;
-pub const otl_chaining_canonical: otl_chaining_type = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_elementinterface_subtable_chaining {
-    pub init: Option<unsafe extern "C" fn(*mut subtable_chaining) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut subtable_chaining, *const subtable_chaining) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut subtable_chaining, *mut subtable_chaining) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut subtable_chaining) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut subtable_chaining, subtable_chaining) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut subtable_chaining, subtable_chaining) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut subtable_chaining>,
-    pub free: Option<unsafe extern "C" fn(*mut subtable_chaining) -> ()>,
-}
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
+use crate::support::primitives::{tableid_t};
+
+
+use crate::table::otl::{__caryll_elementinterface_subtable_chaining, otl_ChainLookupApplication, otl_ChainingRule, subtable_chaining};
+
 #[no_mangle]
 pub unsafe extern "C" fn otl_init_chaining(mut subtable: *mut subtable_chaining) {
     memset(

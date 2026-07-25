@@ -15,169 +15,16 @@ extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_progress, otfcc_ILogger};
+use crate::logger::{log_type_progress, log_vl_progress, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{arity_t};
+
 use crate::vendor::sds::{sds};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
-    pub count: ::core::ffi::c_uint,
-    pub expand_mult: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
-    pub prev: *mut ::core::ffi::c_void,
-    pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
-    pub key: *mut ::core::ffi::c_void,
-    pub keylen: ::core::ffi::c_uint,
-    pub hashv: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
-    pub num_buckets: ::core::ffi::c_uint,
-    pub log2_num_buckets: ::core::ffi::c_uint,
-    pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
-    pub hho: isize,
-    pub ideal_chain_maxlen: ::core::ffi::c_uint,
-    pub nonideal_items: ::core::ffi::c_uint,
-    pub ineff_expands: ::core::ffi::c_uint,
-    pub noexpand: ::core::ffi::c_uint,
-    pub signature: u32,
-}
-pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
-pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
-pub const log_vl_info: otfcc_LoggerVerbosity = 5;
-pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
-pub const log_vl_important: otfcc_LoggerVerbosity = 1;
-pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
-pub type cff_CharstringOperator = ::core::ffi::c_uint;
-pub const op_flex1: cff_CharstringOperator = 3109;
-pub const op_hflex1: cff_CharstringOperator = 3108;
-pub const op_flex: cff_CharstringOperator = 3107;
-pub const op_hflex: cff_CharstringOperator = 3106;
-pub const op_hvcurveto: cff_CharstringOperator = 31;
-pub const op_roll: cff_CharstringOperator = 3102;
-pub const op_vhcurveto: cff_CharstringOperator = 30;
-pub const op_index: cff_CharstringOperator = 3101;
-pub const op_callgsubr: cff_CharstringOperator = 29;
-pub const op_exch: cff_CharstringOperator = 3100;
-pub const op_dup: cff_CharstringOperator = 3099;
-pub const op_hhcurveto: cff_CharstringOperator = 27;
-pub const op_sqrt: cff_CharstringOperator = 3098;
-pub const op_vvcurveto: cff_CharstringOperator = 26;
-pub const op_rlinecurve: cff_CharstringOperator = 25;
-pub const op_mul: cff_CharstringOperator = 3096;
-pub const op_rcurveline: cff_CharstringOperator = 24;
-pub const op_random: cff_CharstringOperator = 3095;
-pub const op_vstemhm: cff_CharstringOperator = 23;
-pub const op_ifelse: cff_CharstringOperator = 3094;
-pub const op_hmoveto: cff_CharstringOperator = 22;
-pub const op_get: cff_CharstringOperator = 3093;
-pub const op_rmoveto: cff_CharstringOperator = 21;
-pub const op_put: cff_CharstringOperator = 3092;
-pub const op_cntrmask: cff_CharstringOperator = 20;
-pub const op_hintmask: cff_CharstringOperator = 19;
-pub const op_drop: cff_CharstringOperator = 3090;
-pub const op_hstemhm: cff_CharstringOperator = 18;
-pub const op_cff2blend: cff_CharstringOperator = 16;
-pub const op_eq: cff_CharstringOperator = 3087;
-pub const op_cff2vsidx: cff_CharstringOperator = 15;
-pub const op_neg: cff_CharstringOperator = 3086;
-pub const op_endchar: cff_CharstringOperator = 14;
-pub const op_div: cff_CharstringOperator = 3084;
-pub const op_sub: cff_CharstringOperator = 3083;
-pub const op_return: cff_CharstringOperator = 11;
-pub const op_add: cff_CharstringOperator = 3082;
-pub const op_callsubr: cff_CharstringOperator = 10;
-pub const op_abs: cff_CharstringOperator = 3081;
-pub const op_rrcurveto: cff_CharstringOperator = 8;
-pub const op_vlineto: cff_CharstringOperator = 7;
-pub const op_hlineto: cff_CharstringOperator = 6;
-pub const op_not: cff_CharstringOperator = 3077;
-pub const op_rlineto: cff_CharstringOperator = 5;
-pub const op_or: cff_CharstringOperator = 3076;
-pub const op_vmoveto: cff_CharstringOperator = 4;
-pub const op_and: cff_CharstringOperator = 3075;
-pub const op_vstem: cff_CharstringOperator = 3;
-pub const op_hstem: cff_CharstringOperator = 1;
-pub type cff_IndexCountType = ::core::ffi::c_uint;
-pub const CFF_INDEX_32: cff_IndexCountType = 1;
-pub const CFF_INDEX_16: cff_IndexCountType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_Index {
-    pub countType: cff_IndexCountType,
-    pub count: arity_t,
-    pub offSize: u8,
-    pub offset: *mut u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_elementinterface_cff_Index {
-    pub init: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut cff_Index, *const cff_Index) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut cff_Index, *mut cff_Index) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut cff_Index, cff_Index) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut cff_Index, cff_Index) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut cff_Index>,
-    pub free: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub empty: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub getLength: Option<unsafe extern "C" fn(*const cff_Index) -> u32>,
-    pub parse: Option<unsafe extern "C" fn(*mut u8, u32, *mut cff_Index) -> ()>,
-    pub fromCallback: Option<
-        unsafe extern "C" fn(
-            *mut ::core::ffi::c_void,
-            u32,
-            Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut caryll_Buffer>,
-        ) -> *mut cff_Index,
-    >,
-    pub build: Option<unsafe extern "C" fn(*const cff_Index) -> *mut caryll_Buffer>,
-}
-pub type cff_Type2Limits = ::core::ffi::c_uint;
-pub const type2_transient_array: cff_Type2Limits = 32;
-pub const type2_max_subrs: cff_Type2Limits = 65300;
-pub const type2_charstring_len: cff_Type2Limits = 65535;
-pub const type2_subr_nesting: cff_Type2Limits = 10;
-pub const type2_stem_hints: cff_Type2Limits = 96;
-pub const type2_argument_stack: cff_Type2Limits = 48;
-pub type cff_InstructionType = ::core::ffi::c_uint;
-pub const IL_ITEM_PHANTOM_OPERAND: cff_InstructionType = 4;
-pub const IL_ITEM_PHANTOM_OPERATOR: cff_InstructionType = 3;
-pub const IL_ITEM_SPECIAL: cff_InstructionType = 2;
-pub const IL_ITEM_OPERATOR: cff_InstructionType = 1;
-pub const IL_ITEM_OPERAND: cff_InstructionType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_CharstringInstruction {
-    pub type_0: cff_InstructionType,
-    pub arity: arity_t,
-    pub c2rust_unnamed: cff_CharstringArgument,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union cff_CharstringArgument {
-    pub d: ::core::ffi::c_double,
-    pub i: i32,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_CharstringIL {
-    pub length: u32,
-    pub free: u32,
-    pub instr: *mut cff_CharstringInstruction,
-}
+use crate::libcff::{op_callgsubr, op_callsubr, op_endchar, op_return, type2_max_subrs, type2_subr_nesting};
+use crate::libcff::cff_index::{__caryll_elementinterface_cff_Index, cff_Index};
+use crate::libcff::charstring_il::{cff_CharstringIL};
+use crate::support::{NULL};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __cff_SubrRule {
@@ -235,12 +82,6 @@ pub struct __caryll_elementinterface_cff_SubrGraph {
     pub create: Option<unsafe extern "C" fn() -> *mut cff_SubrGraph>,
     pub free: Option<unsafe extern "C" fn(*mut cff_SubrGraph) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const HASH_INITIAL_NUM_BUCKETS: ::core::ffi::c_uint = 32 as ::core::ffi::c_uint;
-pub const HASH_INITIAL_NUM_BUCKETS_LOG2: ::core::ffi::c_uint = 5 as ::core::ffi::c_uint;
-pub const HASH_BKT_CAPACITY_THRESH: ::core::ffi::c_uint = 10 as ::core::ffi::c_uint;
-pub const HASH_SIGNATURE: ::core::ffi::c_uint = 0xa0111fe1 as ::core::ffi::c_uint;
 unsafe extern "C" fn cff_new_Node() -> *mut cff_SubrNode {
     let mut n: *mut cff_SubrNode = ::core::ptr::null_mut::<cff_SubrNode>();
     n = __caryll_allocate_clean(
@@ -4823,5 +4664,3 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
     cff_iIndex.free.expect("non-null function pointer")(igs);
     cff_iIndex.free.expect("non-null function pointer")(ils);
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

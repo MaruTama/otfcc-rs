@@ -1,9 +1,7 @@
 use libc::{free, malloc, memcpy, memset, qsort};
 use crate::support::primitives::{pos_t};
-use crate::support::cvec::{
-    cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
-    cvec_resize_to, CVecRaw,
-};
+use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
@@ -73,8 +71,6 @@ pub struct __caryll_vectorinterface_vf_Axes {
         ) -> (),
     >,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn vf_Axis_init(mut x: *mut vf_Axis) {
     memset(

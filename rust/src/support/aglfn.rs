@@ -2,78 +2,11 @@ extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
 }
-use crate::support::handle::{otfcc_GlyphHandle};
+
 use crate::support::primitives::{glyphid_t};
 use crate::vendor::sds::{sds};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
-    pub count: ::core::ffi::c_uint,
-    pub expand_mult: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
-    pub prev: *mut ::core::ffi::c_void,
-    pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
-    pub key: *mut ::core::ffi::c_void,
-    pub keylen: ::core::ffi::c_uint,
-    pub hashv: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
-    pub num_buckets: ::core::ffi::c_uint,
-    pub log2_num_buckets: ::core::ffi::c_uint,
-    pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
-    pub hho: isize,
-    pub ideal_chain_maxlen: ::core::ffi::c_uint,
-    pub nonideal_items: ::core::ffi::c_uint,
-    pub ineff_expands: ::core::ffi::c_uint,
-    pub noexpand: ::core::ffi::c_uint,
-    pub signature: u32,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_GlyphOrderEntry {
-    pub gid: glyphid_t,
-    pub name: sds,
-    pub orderType: u8,
-    pub orderEntry: u32,
-    pub hhID: UT_hash_handle,
-    pub hhName: UT_hash_handle,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_GlyphOrder {
-    pub byGID: *mut otfcc_GlyphOrderEntry,
-    pub byName: *mut otfcc_GlyphOrderEntry,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_GlyphOrderPackage {
-    pub init: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, *const otfcc_GlyphOrder) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, *mut otfcc_GlyphOrder) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, otfcc_GlyphOrder) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, otfcc_GlyphOrder) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut otfcc_GlyphOrder>,
-    pub free: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder) -> ()>,
-    pub setByGID: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, glyphid_t, sds) -> sds>,
-    pub setByName: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, sds, glyphid_t) -> bool>,
-    pub nameAField_Shared:
-        Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, glyphid_t, *mut sds) -> bool>,
-    pub consolidateHandle:
-        Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, *mut otfcc_GlyphHandle) -> bool>,
-    pub lookupName: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, sds) -> bool>,
-}
+use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderPackage};
+
 #[no_mangle]
 pub unsafe extern "C" fn aglfn_setupNames(mut map: *mut otfcc_GlyphOrder) {
     otfcc_pkgGlyphOrder

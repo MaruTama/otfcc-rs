@@ -9,39 +9,8 @@ extern "C" {
 
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-use crate::vendor::sds::{sds};
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr8 {
-    pub len: u8,
-    pub alloc: u8,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr16 {
-    pub len: u16,
-    pub alloc: u16,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr32 {
-    pub len: u32,
-    pub alloc: u32,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr64 {
-    pub len: u64,
-    pub alloc: u64,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_ILoggerTarget {
@@ -99,15 +68,6 @@ pub struct Logger {
 pub struct StderrTarget {
     pub vtable: otfcc_ILoggerTarget,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const SDS_TYPE_5: ::core::ffi::c_int = 0;
-pub const SDS_TYPE_8: ::core::ffi::c_int = 1;
-pub const SDS_TYPE_16: ::core::ffi::c_int = 2;
-pub const SDS_TYPE_32: ::core::ffi::c_int = 3;
-pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
-pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
-pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =

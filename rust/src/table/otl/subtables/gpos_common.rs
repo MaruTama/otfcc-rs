@@ -35,164 +35,18 @@ use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphclass_t, glyphid_t, pos_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_double, json_integer, json_object, json_pre_serialized, json_string, json_type, json_value};
-use crate::support::cvec::{
-    cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
-    cvec_resize_to, CVecRaw,
-};
+use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::bk::bkblock::{b16, bk_Block, bkover};
+use crate::support::{NULL};
+use crate::table::otl::{__caryll_vectorinterface_otl_MarkArray, otl_Anchor, otl_MarkArray, otl_MarkRecord, otl_PositionValue};
+use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct json_serialize_opts {
-    pub mode: ::core::ffi::c_int,
-    pub opts: ::core::ffi::c_int,
-    pub indent_size: ::core::ffi::c_int,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
-    pub count: ::core::ffi::c_uint,
-    pub expand_mult: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
-    pub prev: *mut ::core::ffi::c_void,
-    pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
-    pub key: *mut ::core::ffi::c_void,
-    pub keylen: ::core::ffi::c_uint,
-    pub hashv: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
-    pub num_buckets: ::core::ffi::c_uint,
-    pub log2_num_buckets: ::core::ffi::c_uint,
-    pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
-    pub hho: isize,
-    pub ideal_chain_maxlen: ::core::ffi::c_uint,
-    pub nonideal_items: ::core::ffi::c_uint,
-    pub ineff_expands: ::core::ffi::c_uint,
-    pub noexpand: ::core::ffi::c_uint,
-    pub signature: u32,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_bkblock {
-    pub _visitstate: bk_cell_visit_state,
-    pub _index: u32,
-    pub _height: u32,
-    pub _depth: u32,
-    pub length: u32,
-    pub free: u32,
-    pub cells: *mut bk_Cell,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct bk_Cell {
-    pub t: bk_CellType,
-    pub c2rust_unnamed: bk_CellValue,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union bk_CellValue {
-    pub z: u32,
-    pub p: *mut __caryll_bkblock,
-}
-pub type bk_CellType = ::core::ffi::c_uint;
-pub const bkembed: bk_CellType = 255;
-pub const bkcopy: bk_CellType = 254;
-pub const sp32: bk_CellType = 129;
-pub const sp16: bk_CellType = 128;
-pub const p32: bk_CellType = 17;
-pub const p16: bk_CellType = 16;
-pub const b32: bk_CellType = 3;
-pub const b16: bk_CellType = 2;
-pub const b8: bk_CellType = 1;
-pub const bkover: bk_CellType = 0;
-pub type bk_cell_visit_state = ::core::ffi::c_uint;
-pub const VISIT_BLACK: bk_cell_visit_state = 2;
-pub const VISIT_GRAY: bk_cell_visit_state = 1;
-pub const VISIT_WHITE: bk_cell_visit_state = 0;
-pub type bk_Block = __caryll_bkblock;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otl_Anchor {
-    pub present: bool,
-    pub x: pos_t,
-    pub y: pos_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otl_MarkArray {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut otl_MarkRecord,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otl_MarkRecord {
-    pub glyph: otfcc_GlyphHandle,
-    pub markClass: glyphclass_t,
-    pub anchor: otl_Anchor,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otl_PositionValue {
-    pub dx: pos_t,
-    pub dy: pos_t,
-    pub dWidth: pos_t,
-    pub dHeight: pos_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_vectorinterface_otl_MarkArray {
-    pub init: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otl_MarkArray, *const otl_MarkArray) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otl_MarkArray, *mut otl_MarkArray) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkArray) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkArray) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut otl_MarkArray>,
-    pub free: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_MarkArray>,
-    pub fill: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkRecord) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> otl_MarkRecord>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
-    pub filterEnv: Option<
-        unsafe extern "C" fn(
-            *mut otl_MarkArray,
-            Option<unsafe extern "C" fn(*const otl_MarkRecord, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut otl_MarkArray,
-            Option<
-                unsafe extern "C" fn(
-                    *const otl_MarkRecord,
-                    *const otl_MarkRecord,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_MarkRecord {
@@ -210,13 +64,6 @@ pub struct otl_ClassnameHash {
     pub classID: glyphclass_t,
     pub hh: UT_hash_handle,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const json_serialize_mode_packed: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
-pub const HASH_INITIAL_NUM_BUCKETS: ::core::ffi::c_uint = 32 as ::core::ffi::c_uint;
-pub const HASH_INITIAL_NUM_BUCKETS_LOG2: ::core::ffi::c_uint = 5 as ::core::ffi::c_uint;
-pub const HASH_BKT_CAPACITY_THRESH: ::core::ffi::c_uint = 10 as ::core::ffi::c_uint;
-pub const HASH_SIGNATURE: ::core::ffi::c_uint = 0xa0111fe1 as ::core::ffi::c_uint;
 #[inline]
 unsafe extern "C" fn json_obj_get(
     mut obj: *const json_value,
@@ -3637,6 +3484,3 @@ pub unsafe extern "C" fn bk_gpos_value(
     }
     return b;
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;

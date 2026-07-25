@@ -9,73 +9,9 @@ use crate::support::handle::{handle_consolidateTo, otfcc_Handle, otfcc_GlyphHand
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{glyphid_t};
-use crate::vendor::sds::{sds};
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr8 {
-    pub len: u8,
-    pub alloc: u8,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr16 {
-    pub len: u16,
-    pub alloc: u16,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr32 {
-    pub len: u32,
-    pub alloc: u32,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr64 {
-    pub len: u64,
-    pub alloc: u64,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
-    pub count: ::core::ffi::c_uint,
-    pub expand_mult: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
-    pub prev: *mut ::core::ffi::c_void,
-    pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
-    pub key: *mut ::core::ffi::c_void,
-    pub keylen: ::core::ffi::c_uint,
-    pub hashv: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
-    pub num_buckets: ::core::ffi::c_uint,
-    pub log2_num_buckets: ::core::ffi::c_uint,
-    pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
-    pub hho: isize,
-    pub ideal_chain_maxlen: ::core::ffi::c_uint,
-    pub nonideal_items: ::core::ffi::c_uint,
-    pub ineff_expands: ::core::ffi::c_uint,
-    pub noexpand: ::core::ffi::c_uint,
-    pub signature: u32,
-}
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
+use crate::support::{NULL};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 pub type glyph_handle = otfcc_GlyphHandle;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -112,15 +48,6 @@ pub struct otfcc_GlyphOrderPackage {
         Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, *mut otfcc_GlyphHandle) -> bool>,
     pub lookupName: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, sds) -> bool>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const SDS_TYPE_5: ::core::ffi::c_int = 0;
-pub const SDS_TYPE_8: ::core::ffi::c_int = 1;
-pub const SDS_TYPE_16: ::core::ffi::c_int = 2;
-pub const SDS_TYPE_32: ::core::ffi::c_int = 3;
-pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
-pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
-pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
@@ -151,10 +78,6 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     }
     return 0 as usize;
 }
-pub const HASH_INITIAL_NUM_BUCKETS: ::core::ffi::c_uint = 32 as ::core::ffi::c_uint;
-pub const HASH_INITIAL_NUM_BUCKETS_LOG2: ::core::ffi::c_uint = 5 as ::core::ffi::c_uint;
-pub const HASH_BKT_CAPACITY_THRESH: ::core::ffi::c_uint = 10 as ::core::ffi::c_uint;
-pub const HASH_SIGNATURE: ::core::ffi::c_uint = 0xa0111fe1 as ::core::ffi::c_uint;
 #[inline]
 unsafe extern "C" fn initGlyphOrder(mut go: *mut otfcc_GlyphOrder) {
     (*go).byGID = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
@@ -4671,5 +4594,3 @@ pub static mut otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage = {
         ),
     }
 };
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

@@ -11,25 +11,8 @@ extern "C" {
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
-pub type cff_Value_Type = ::core::ffi::c_uint;
-pub const CS2_FRACTION: cff_Value_Type = 3;
-pub const cff_DOUBLE: cff_Value_Type = 3;
-pub const CS2_OPERAND: cff_Value_Type = 2;
-pub const cff_INTEGER: cff_Value_Type = 2;
-pub const CS2_OPERATOR: cff_Value_Type = 1;
-pub const cff_OPERATOR: cff_Value_Type = 1;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_Value {
-    pub t: cff_Value_Type,
-    pub c2rust_unnamed: cff_ValueBody,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union cff_ValueBody {
-    pub i: i32,
-    pub d: ::core::ffi::c_double,
-}
+use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_Value, cff_ValueBody, cff_Value_Type};
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_DictEntry {
@@ -82,8 +65,6 @@ pub struct cff_get_key_context {
     pub op: u32,
     pub idx: u32,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeDict(mut dict: *mut cff_Dict) {
     let mut j: u32 = 0 as u32;
@@ -373,5 +354,3 @@ pub static mut cff_iDict: __caryll_elementinterface_cff_Dict = {
         build: Some(buildDict as unsafe extern "C" fn(*const cff_Dict) -> *mut caryll_Buffer),
     }
 };
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

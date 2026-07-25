@@ -7,28 +7,9 @@ extern "C" {
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{caryll_Buffer};
-pub type cff_Value_Type = ::core::ffi::c_uint;
-pub const CS2_FRACTION: cff_Value_Type = 3;
-pub const cff_DOUBLE: cff_Value_Type = 3;
-pub const CS2_OPERAND: cff_Value_Type = 2;
-pub const cff_INTEGER: cff_Value_Type = 2;
-pub const CS2_OPERATOR: cff_Value_Type = 1;
-pub const cff_OPERATOR: cff_Value_Type = 1;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_Value {
-    pub t: cff_Value_Type,
-    pub c2rust_unnamed: cff_ValueBody,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union cff_ValueBody {
-    pub i: i32,
-    pub d: ::core::ffi::c_double,
-}
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
+use crate::libcff::cff_value::{CS2_FRACTION, CS2_OPERAND, CS2_OPERATOR, cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_Value};
+use crate::support::{NULL};
 pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_double {
     return strtod(__nptr, NULL as *mut *mut ::core::ffi::c_char);

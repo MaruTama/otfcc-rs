@@ -57,242 +57,31 @@ extern "C" {
     ) -> *mut json_value;
 }
 
-use crate::support::handle::{handle_fromName, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_empty, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
+use crate::support::handle::{HANDLE_STATE_EMPTY, handle_fromName, otfcc_FDHandle, otfcc_GlyphHandle, otfcc_Handle, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_empty};
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{glyphid_t, pos_t, scale_t, shapeid_t};
-use crate::vendor::sds::{sds};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 use crate::vendor::json::{_json_value, json_array, json_boolean, json_double, json_integer, json_object, json_pre_serialized, json_string, json_type, json_value};
-use crate::support::cvec::{
-    cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
-    cvec_resize_to, CVecRaw,
-};
+use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::{true_0};
+use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry};
+use crate::table::fvar::{table_fvar};
+use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
+
+
+
+use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_SegList, vq_Segment};
+
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr8 {
-    pub len: u8,
-    pub alloc: u8,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr16 {
-    pub len: u16,
-    pub alloc: u16,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr32 {
-    pub len: u32,
-    pub alloc: u32,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr64 {
-    pub len: u64,
-    pub alloc: u64,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-pub type otfcc_FDHandle = otfcc_Handle;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
-    pub count: ::core::ffi::c_uint,
-    pub expand_mult: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
-    pub prev: *mut ::core::ffi::c_void,
-    pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
-    pub key: *mut ::core::ffi::c_void,
-    pub keylen: ::core::ffi::c_uint,
-    pub hashv: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
-    pub num_buckets: ::core::ffi::c_uint,
-    pub log2_num_buckets: ::core::ffi::c_uint,
-    pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
-    pub hho: isize,
-    pub ideal_chain_maxlen: ::core::ffi::c_uint,
-    pub nonideal_items: ::core::ffi::c_uint,
-    pub ineff_expands: ::core::ffi::c_uint,
-    pub noexpand: ::core::ffi::c_uint,
-    pub signature: u32,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_GlyphOrderEntry {
-    pub gid: glyphid_t,
-    pub name: sds,
-    pub orderType: u8,
-    pub orderEntry: u32,
-    pub hhID: UT_hash_handle,
-    pub hhName: UT_hash_handle,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_GlyphOrder {
-    pub byGID: *mut otfcc_GlyphOrderEntry,
-    pub byName: *mut otfcc_GlyphOrderEntry,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VV {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut pos_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_AxisSpan {
-    pub start: pos_t,
-    pub peak: pos_t,
-    pub end: pos_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_Region {
-    pub dimensions: shapeid_t,
-    pub spans: [vq_AxisSpan; 0],
-}
-pub type VQSegType = ::core::ffi::c_uint;
-pub const VQ_DELTA: VQSegType = 1;
-pub const VQ_STILL: VQSegType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_Segment {
-    pub type_0: VQSegType,
-    pub val: vq_SegmentValue,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union vq_SegmentValue {
-    pub still: pos_t,
-    pub delta: vq_SegmentDelta,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_SegmentDelta {
-    pub quantity: pos_t,
-    pub touched: bool,
-    pub region: *const vq_Region,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_SegList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut vq_Segment,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VQ {
-    pub kernel: pos_t,
-    pub shift: vq_SegList,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_vectorinterface_VQ {
-    pub init: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut VQ, *const VQ) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VQ, *mut VQ) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> VQ>,
-    pub dup: Option<unsafe extern "C" fn(VQ) -> VQ>,
-    pub neutral: Option<unsafe extern "C" fn() -> VQ>,
-    pub plus: Option<unsafe extern "C" fn(VQ, VQ) -> VQ>,
-    pub inplacePlus: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub inplaceNegate: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub negate: Option<unsafe extern "C" fn(VQ) -> VQ>,
-    pub inplaceMinus: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub minus: Option<unsafe extern "C" fn(VQ, VQ) -> VQ>,
-    pub inplaceScale: Option<unsafe extern "C" fn(*mut VQ, scale_t) -> ()>,
-    pub inplacePlusScale: Option<unsafe extern "C" fn(*mut VQ, scale_t, VQ) -> ()>,
-    pub scale: Option<unsafe extern "C" fn(VQ, scale_t) -> VQ>,
-    pub equal: Option<unsafe extern "C" fn(VQ, VQ) -> bool>,
-    pub compare: Option<unsafe extern "C" fn(VQ, VQ) -> ::core::ffi::c_int>,
-    pub compareRef: Option<unsafe extern "C" fn(*const VQ, *const VQ) -> ::core::ffi::c_int>,
-    pub show: Option<unsafe extern "C" fn(VQ) -> ()>,
-    pub getStill: Option<unsafe extern "C" fn(VQ) -> pos_t>,
-    pub createStill: Option<unsafe extern "C" fn(pos_t) -> VQ>,
-    pub isStill: Option<unsafe extern "C" fn(VQ) -> bool>,
-    pub isZero: Option<unsafe extern "C" fn(VQ, pos_t) -> bool>,
-    pub pointLinearTfm: Option<unsafe extern "C" fn(VQ, pos_t, VQ, pos_t, VQ) -> VQ>,
-    pub addDelta: Option<unsafe extern "C" fn(*mut VQ, bool, *const vq_Region, pos_t) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vf_Axis {
-    pub tag: u32,
-    pub minValue: pos_t,
-    pub defaultValue: pos_t,
-    pub maxValue: pos_t,
-    pub flags: u16,
-    pub axisNameID: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vf_Axes {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut vf_Axis,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct fvar_Instance {
-    pub subfamilyNameID: u16,
-    pub flags: u16,
-    pub coordinates: VV,
-    pub postScriptNameID: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct fvar_InstanceList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut fvar_Instance,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct fvar_Master {
-    pub name: sds,
-    pub region: *mut vq_Region,
-    pub hh: UT_hash_handle,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_fvar {
-    pub majorVersion: u16,
-    pub minorVersion: u16,
-    pub axes: vf_Axes,
-    pub instances: fvar_InstanceList,
-    pub masters: *mut fvar_Master,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_Point {
@@ -744,24 +533,8 @@ pub struct GlyfIOContext {
     pub hasVerticalMetrics: bool,
     pub exportFDSelect: bool,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct json_serialize_opts {
-    pub mode: ::core::ffi::c_int,
-    pub opts: ::core::ffi::c_int,
-    pub indent_size: ::core::ffi::c_int,
-}
 pub const MASK_ON_CURVE: glyf_OnCurveMask = 1;
 pub type glyf_OnCurveMask = ::core::ffi::c_uint;
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const SDS_TYPE_5: ::core::ffi::c_int = 0;
-pub const SDS_TYPE_8: ::core::ffi::c_int = 1;
-pub const SDS_TYPE_16: ::core::ffi::c_int = 2;
-pub const SDS_TYPE_32: ::core::ffi::c_int = 3;
-pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
-pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
-pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
@@ -4463,7 +4236,6 @@ pub unsafe extern "C" fn otfcc_parseGlyf(
     }
     return ::core::ptr::null_mut::<table_glyf>();
 }
-pub const json_serialize_mode_packed: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn json_obj_get(
     mut obj: *const json_value,
@@ -4679,6 +4451,54 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
     (*xx).type_0 = json_pre_serialized;
     return xx;
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct table_GlyfAndLocaBuffers {
+    pub glyf: *mut caryll_Buffer,
+    pub loca: *mut caryll_Buffer,
+}
+
+pub const WE_HAVE_A_TWO_BY_TWO: glyf_ComponentFlags = 128;
+
+pub const WE_HAVE_INSTRUCTIONS: glyf_ComponentFlags = 256;
+
+pub const MORE_COMPONENTS: glyf_ComponentFlags = 32;
+
+pub const WE_HAVE_AN_X_AND_Y_SCALE: glyf_ComponentFlags = 64;
+
+pub const WE_HAVE_A_SCALE: glyf_ComponentFlags = 8;
+
+pub const ARG_1_AND_2_ARE_WORDS: glyf_ComponentFlags = 1;
+
+pub const UNSCALED_COMPONENT_OFFSET: glyf_ComponentFlags = 4096;
+
+pub const USE_MY_METRICS: glyf_ComponentFlags = 512;
+
+pub const ROUND_XY_TO_GRID: glyf_ComponentFlags = 4;
+
+pub const ARGS_ARE_XY_VALUES: glyf_ComponentFlags = 2;
+
+pub const GLYF_FLAG_REPEAT: glyf_PointFlags = 8;
+
+pub const GLYF_FLAG_ON_CURVE: glyf_PointFlags = 1;
+
+pub const GLYF_FLAG_POSITIVE_Y: glyf_PointFlags = 32;
+
+pub const GLYF_FLAG_Y_SHORT: glyf_PointFlags = 4;
+
+pub const GLYF_FLAG_SAME_Y: glyf_PointFlags = 32;
+
+pub const GLYF_FLAG_POSITIVE_X: glyf_PointFlags = 16;
+
+pub const GLYF_FLAG_X_SHORT: glyf_PointFlags = 2;
+
+pub const GLYF_FLAG_SAME_X: glyf_PointFlags = 16;
+
+pub type glyf_PointFlags = ::core::ffi::c_uint;
+
+pub type glyf_ComponentFlags = ::core::ffi::c_uint;
+
+pub const SCALED_COMPONENT_OFFSET: glyf_ComponentFlags = 2048;
+
+pub const OVERLAP_COMPOUND: glyf_ComponentFlags = 1024;

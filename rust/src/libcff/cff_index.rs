@@ -9,6 +9,7 @@ extern "C" {
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::primitives::{arity_t};
+
 pub type cff_IndexCountType = ::core::ffi::c_uint;
 pub const CFF_INDEX_32: cff_IndexCountType = 1;
 pub const CFF_INDEX_16: cff_IndexCountType = 0;
@@ -44,8 +45,6 @@ pub struct __caryll_elementinterface_cff_Index {
     >,
     pub build: Option<unsafe extern "C" fn(*const cff_Index) -> *mut caryll_Buffer>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;

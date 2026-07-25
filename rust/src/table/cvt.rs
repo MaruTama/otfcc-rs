@@ -24,25 +24,8 @@ use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_string, json_type, json_value};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_cvt {
@@ -61,8 +44,6 @@ pub struct __caryll_elementinterface_table_cvt {
     pub create: Option<unsafe extern "C" fn() -> *mut table_cvt>,
     pub free: Option<unsafe extern "C" fn(*mut table_cvt) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeCvt(mut table: *mut table_cvt) {
     if !(*table).words.is_null() {
@@ -383,5 +364,3 @@ unsafe extern "C" fn json_obj_get_type(
     }
     return ::core::ptr::null_mut::<json_value>();
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

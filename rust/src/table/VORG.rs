@@ -9,36 +9,13 @@ extern "C" {
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
-use crate::logger::{log_type_warning, otfcc_ILogger};
+use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t, pos_t};
 use crate::vendor::sds::{sds};
-pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
-pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
-pub const log_vl_info: otfcc_LoggerVerbosity = 5;
-pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
-pub const log_vl_important: otfcc_LoggerVerbosity = 1;
-pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VORG_entry {
@@ -64,8 +41,6 @@ pub struct __caryll_elementinterface_table_VORG {
     pub create: Option<unsafe extern "C" fn() -> *mut table_VORG>,
     pub free: Option<unsafe extern "C" fn(*mut table_VORG) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeVORG(mut vorg: *mut table_VORG) {
     free((*vorg).entries as *mut ::core::ffi::c_void);

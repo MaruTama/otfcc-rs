@@ -2,6 +2,8 @@ use libc::{exit, fclose, fprintf, fread, free, fseek};
 
 use crate::support::stdio::{FILE, stderr};
 use crate::support::alloc::{__caryll_allocate_clean};
+use crate::support::{EXIT_FAILURE};
+use crate::support::binio::{otfcc_EndianProbe16, otfcc_EndianProbe32};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
@@ -29,21 +31,7 @@ pub struct otfcc_SplineFontContainer {
     pub offsets: *mut u32,
     pub packets: *mut otfcc_Packet,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union otfcc_EndianProbe32 {
-    pub i1: [u8; 4],
-    pub i4: u32,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union otfcc_EndianProbe16 {
-    pub i1: [u8; 2],
-    pub i2: u16,
-}
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const SEEK_SET: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 unsafe extern "C" fn otfcc_read_packets(
     mut font: *mut otfcc_SplineFontContainer,
     mut file: *mut FILE,

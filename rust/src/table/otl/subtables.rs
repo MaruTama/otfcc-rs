@@ -10,3 +10,9 @@ pub mod gsub_ligature;
 pub mod gsub_multi;
 pub mod gsub_reverse;
 pub mod gsub_single;
+
+pub type otl_BuildHeuristics = ::core::ffi::c_uint;
+
+pub const OTL_BH_GSUB_VERT: otl_BuildHeuristics = 1;
+
+pub const OTL_BH_NORMAL: otl_BuildHeuristics = 0;

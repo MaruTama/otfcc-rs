@@ -26,87 +26,27 @@ extern "C" {
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
-use crate::table::otl::classdef::{otl_ClassDef_free, readClassDef, otl_ClassDef};
-use crate::table::otl::coverage::{otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage, otl_Coverage};
+use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef, otl_ClassDef_free, readClassDef};
+use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
 use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle_empty, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 use crate::support::binio::{read_16u};
 use crate::logger::{otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{font_file_pointer, glyphclass_t, glyphid_t, pos_t, shapeid_t};
+use crate::support::primitives::{font_file_pointer, glyphid_t, pos_t, shapeid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_pre_serialized, json_type, json_value};
-use crate::support::cvec::{
-    cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
-    cvec_resize_to, CVecRaw,
-};
+use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::bk::bkblock::{b16, b32, bk_Block, bkover, p16};
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+
+use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __otfcc_ICoverage {
-    pub init: Option<unsafe extern "C" fn(*mut otl_Coverage) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otl_Coverage, *const otl_Coverage) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_Coverage) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otl_Coverage) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otl_Coverage, otl_Coverage) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_Coverage, otl_Coverage) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut otl_Coverage>,
-    pub free: Option<unsafe extern "C" fn(*mut otl_Coverage) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut otl_Coverage, u32) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_Coverage>,
-    pub dump: Option<unsafe extern "C" fn(*const otl_Coverage) -> *mut json_value>,
-    pub parse: Option<unsafe extern "C" fn(*const json_value) -> *mut otl_Coverage>,
-    pub build: Option<unsafe extern "C" fn(*const otl_Coverage) -> *mut caryll_Buffer>,
-    pub buildFormat:
-        Option<unsafe extern "C" fn(*const otl_Coverage, u16) -> *mut caryll_Buffer>,
-    pub shrink: Option<unsafe extern "C" fn(*mut otl_Coverage, bool) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otl_Coverage, otfcc_GlyphHandle) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __otfcc_IClassDef {
-    pub init: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otl_ClassDef, *const otl_ClassDef) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otl_ClassDef, *mut otl_ClassDef) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otl_ClassDef, otl_ClassDef) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_ClassDef, otl_ClassDef) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut otl_ClassDef>,
-    pub free: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub push:
-        Option<unsafe extern "C" fn(*mut otl_ClassDef, otfcc_GlyphHandle, glyphclass_t) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_ClassDef>,
-    pub expand:
-        Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_ClassDef) -> *mut otl_ClassDef>,
-    pub dump: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut json_value>,
-    pub parse: Option<unsafe extern "C" fn(*const json_value) -> *mut otl_ClassDef>,
-    pub build: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut caryll_Buffer>,
-    pub shrink: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_CaretValue {
@@ -260,53 +200,6 @@ pub struct __caryll_elementinterface_table_GDEF {
     pub create: Option<unsafe extern "C" fn() -> *mut table_GDEF>,
     pub free: Option<unsafe extern "C" fn(*mut table_GDEF) -> ()>,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct json_serialize_opts {
-    pub mode: ::core::ffi::c_int,
-    pub opts: ::core::ffi::c_int,
-    pub indent_size: ::core::ffi::c_int,
-}
-pub type bk_Block = __caryll_bkblock;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_bkblock {
-    pub _visitstate: bk_cell_visit_state,
-    pub _index: u32,
-    pub _height: u32,
-    pub _depth: u32,
-    pub length: u32,
-    pub free: u32,
-    pub cells: *mut bk_Cell,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct bk_Cell {
-    pub t: bk_CellType,
-    pub c2rust_unnamed: bk_CellValue,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union bk_CellValue {
-    pub z: u32,
-    pub p: *mut __caryll_bkblock,
-}
-pub type bk_CellType = ::core::ffi::c_uint;
-pub const bkembed: bk_CellType = 255;
-pub const bkcopy: bk_CellType = 254;
-pub const sp32: bk_CellType = 129;
-pub const sp16: bk_CellType = 128;
-pub const p32: bk_CellType = 17;
-pub const p16: bk_CellType = 16;
-pub const b32: bk_CellType = 3;
-pub const b16: bk_CellType = 2;
-pub const b8: bk_CellType = 1;
-pub const bkover: bk_CellType = 0;
-pub type bk_cell_visit_state = ::core::ffi::c_uint;
-pub const VISIT_BLACK: bk_cell_visit_state = 2;
-pub const VISIT_GRAY: bk_cell_visit_state = 1;
-pub const VISIT_WHITE: bk_cell_visit_state = 0;
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 #[no_mangle]
 pub static mut otl_iCaretValue: __caryll_elementinterface_otl_CaretValue =
     __caryll_elementinterface_otl_CaretValue {
@@ -1652,7 +1545,6 @@ pub unsafe extern "C" fn otfcc_buildGDEF(
     );
     return bk_build_Block(root);
 }
-pub const json_serialize_mode_packed: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn json_obj_get(
     mut obj: *const json_value,
@@ -1772,6 +1664,3 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
     (*xx).type_0 = json_pre_serialized;
     return xx;
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;

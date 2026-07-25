@@ -170,3 +170,29 @@ pub unsafe extern "C" fn __ctype_toupper_loc() -> *mut *const c_int {
     PTR = UPPER_TABLE.as_ptr().offset(128);
     core::ptr::addr_of_mut!(PTR)
 }
+
+pub const _ISdigit: ctype_class_bits = 2048;
+
+pub type ctype_class_bits = ::core::ffi::c_uint;
+
+pub const _ISalnum: ctype_class_bits = 8;
+
+pub const _ISpunct: ctype_class_bits = 4;
+
+pub const _IScntrl: ctype_class_bits = 2;
+
+pub const _ISblank: ctype_class_bits = 1;
+
+pub const _ISgraph: ctype_class_bits = 32768;
+
+pub const _ISprint: ctype_class_bits = 16384;
+
+pub const _ISspace: ctype_class_bits = 8192;
+
+pub const _ISxdigit: ctype_class_bits = 4096;
+
+pub const _ISalpha: ctype_class_bits = 1024;
+
+pub const _ISlower: ctype_class_bits = 512;
+
+pub const _ISupper: ctype_class_bits = 256;

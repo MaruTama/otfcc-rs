@@ -5,46 +5,11 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
 
 use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{f16dot16, font_file_pointer};
+use crate::support::primitives::{font_file_pointer};
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_maxp {
-    pub version: f16dot16,
-    pub numGlyphs: u16,
-    pub maxPoints: u16,
-    pub maxContours: u16,
-    pub maxCompositePoints: u16,
-    pub maxCompositeContours: u16,
-    pub maxZones: u16,
-    pub maxTwilightPoints: u16,
-    pub maxStorage: u16,
-    pub maxFunctionDefs: u16,
-    pub maxInstructionDefs: u16,
-    pub maxStackElements: u16,
-    pub maxSizeOfInstructions: u16,
-    pub maxComponentElements: u16,
-    pub maxComponentDepth: u16,
-}
+use crate::table::maxp::{table_maxp};
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct device_record {
@@ -72,8 +37,6 @@ pub struct __caryll_elementinterface_table_hdmx {
     pub create: Option<unsafe extern "C" fn() -> *mut table_hdmx>,
     pub free: Option<unsafe extern "C" fn(*mut table_hdmx) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeHdmx(mut table: *mut table_hdmx) {
     if (*table).records.is_null() {

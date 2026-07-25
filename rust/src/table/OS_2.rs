@@ -21,37 +21,14 @@ extern "C" {
     fn json_boolean_new(_: ::core::ffi::c_int) -> *mut json_value;
 }
 use crate::support::binio::{read_16u, read_16s, read_32u};
-use crate::logger::{log_type_warning, otfcc_ILogger};
+use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_boolean, json_double, json_integer, json_object, json_string, json_type, json_value};
-pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
-pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
-pub const log_vl_info: otfcc_LoggerVerbosity = 5;
-pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
-pub const log_vl_important: otfcc_LoggerVerbosity = 1;
-pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::{true_0};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_OS_2 {
@@ -107,7 +84,6 @@ pub struct __caryll_elementinterface_table_OS_2 {
     pub create: Option<unsafe extern "C" fn() -> *mut table_OS_2>,
     pub free: Option<unsafe extern "C" fn(*mut table_OS_2) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 #[inline]
 unsafe extern "C" fn initOS2(mut table: *mut table_OS_2) {
     memset(
@@ -1405,5 +1381,3 @@ unsafe extern "C" fn otfcc_parse_flags(
         return 0 as u32;
     };
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

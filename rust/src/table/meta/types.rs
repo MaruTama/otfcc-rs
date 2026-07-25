@@ -3,10 +3,8 @@ use crate::vendor::sds::{sds};
 extern "C" {
     fn sdsfree(s: sds);
 }
-use crate::support::cvec::{
-    cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
-    cvec_resize_to, CVecRaw,
-};
+use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
@@ -89,7 +87,6 @@ pub struct __caryll_elementinterface_table_meta {
     pub create: Option<unsafe extern "C" fn() -> *mut table_meta>,
     pub free: Option<unsafe extern "C" fn(*mut table_meta) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 unsafe extern "C" fn initMetaEntry(mut e: *mut meta_Entry) {
     (*e).tag = 1 as u32;
     (*e).data = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -504,4 +501,3 @@ unsafe extern "C" fn table_meta_copyReplace(mut dst: *mut table_meta, src: table
     table_meta_dispose(dst);
     table_meta_copy(dst, &raw const src);
 }
-pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;

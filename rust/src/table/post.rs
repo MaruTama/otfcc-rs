@@ -24,134 +24,18 @@ extern "C" {
     fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
     fn json_boolean_new(_: ::core::ffi::c_int) -> *mut json_value;
 }
-use crate::support::handle::{otfcc_GlyphHandle};
+
 use crate::support::binio::{read_16u, read_32u, read_32s};
 use crate::logger::{otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{f16dot16, font_file_pointer, glyphid_t};
-use crate::vendor::sds::{sds};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 use crate::vendor::json::{json_boolean, json_double, json_integer, json_object, json_type, json_value};
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr8 {
-    pub len: u8,
-    pub alloc: u8,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr16 {
-    pub len: u16,
-    pub alloc: u16,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr32 {
-    pub len: u32,
-    pub alloc: u32,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr64 {
-    pub len: u64,
-    pub alloc: u64,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
-    pub count: ::core::ffi::c_uint,
-    pub expand_mult: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
-    pub prev: *mut ::core::ffi::c_void,
-    pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
-    pub key: *mut ::core::ffi::c_void,
-    pub keylen: ::core::ffi::c_uint,
-    pub hashv: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
-    pub num_buckets: ::core::ffi::c_uint,
-    pub log2_num_buckets: ::core::ffi::c_uint,
-    pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
-    pub hho: isize,
-    pub ideal_chain_maxlen: ::core::ffi::c_uint,
-    pub nonideal_items: ::core::ffi::c_uint,
-    pub ineff_expands: ::core::ffi::c_uint,
-    pub noexpand: ::core::ffi::c_uint,
-    pub signature: u32,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_GlyphOrderEntry {
-    pub gid: glyphid_t,
-    pub name: sds,
-    pub orderType: u8,
-    pub orderEntry: u32,
-    pub hhID: UT_hash_handle,
-    pub hhName: UT_hash_handle,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_GlyphOrder {
-    pub byGID: *mut otfcc_GlyphOrderEntry,
-    pub byName: *mut otfcc_GlyphOrderEntry,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_GlyphOrderPackage {
-    pub init: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, *const otfcc_GlyphOrder) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, *mut otfcc_GlyphOrder) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, otfcc_GlyphOrder) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, otfcc_GlyphOrder) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut otfcc_GlyphOrder>,
-    pub free: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder) -> ()>,
-    pub setByGID: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, glyphid_t, sds) -> sds>,
-    pub setByName: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, sds, glyphid_t) -> bool>,
-    pub nameAField_Shared:
-        Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, glyphid_t, *mut sds) -> bool>,
-    pub consolidateHandle:
-        Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, *mut otfcc_GlyphHandle) -> bool>,
-    pub lookupName: Option<unsafe extern "C" fn(*mut otfcc_GlyphOrder, sds) -> bool>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::{NULL};
+use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry, otfcc_GlyphOrderPackage};
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_post {
@@ -178,14 +62,6 @@ pub struct __caryll_elementinterface_table_post {
     pub create: Option<unsafe extern "C" fn() -> *mut table_post>,
     pub free: Option<unsafe extern "C" fn(*mut table_post) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const SDS_TYPE_5: ::core::ffi::c_int = 0;
-pub const SDS_TYPE_8: ::core::ffi::c_int = 1;
-pub const SDS_TYPE_16: ::core::ffi::c_int = 2;
-pub const SDS_TYPE_32: ::core::ffi::c_int = 3;
-pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
-pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
-pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
@@ -1011,5 +887,3 @@ unsafe extern "C" fn json_obj_getbool(
     }
     return false;
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

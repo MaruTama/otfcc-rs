@@ -10,14 +10,19 @@ extern "C" {
     static glyf_iContour: __caryll_vectorinterface_glyf_Contour;
 }
 
-use crate::support::handle::{otfcc_Handle, otfcc_GlyphHandle};
+
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{arity_t, glyphid_t, pos_t, scale_t, shapeid_t};
-use crate::vendor::sds::{sds};
+use crate::support::primitives::{arity_t, pos_t, shapeid_t};
+
+use crate::libcff::{op_cntrmask, op_endchar, op_hhcurveto, op_hintmask, op_hlineto, op_hmoveto, op_hstem, op_hstemhm, op_hvcurveto, op_rcurveline, op_rlinecurve, op_rlineto, op_rmoveto, op_rrcurveto, op_vhcurveto, op_vlineto, op_vmoveto, op_vstem, op_vstemhm, op_vvcurveto, type2_argument_stack};
+use crate::support::{true_0};
+use crate::table::glyf::{__caryll_elementinterface_glyf_Point, __caryll_vectorinterface_glyf_Contour, glyf_Contour, glyf_Glyph, glyf_MaskList, glyf_StemDefList};
+
+use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ};
 pub type __builtin_va_list = __va_list;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -30,304 +35,6 @@ pub struct __va_list {
 }
 pub type __gnuc_va_list = __builtin_va_list;
 pub type va_list = __gnuc_va_list;
-pub type otfcc_FDHandle = otfcc_Handle;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_AxisSpan {
-    pub start: pos_t,
-    pub peak: pos_t,
-    pub end: pos_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_Region {
-    pub dimensions: shapeid_t,
-    pub spans: [vq_AxisSpan; 0],
-}
-pub type VQSegType = ::core::ffi::c_uint;
-pub const VQ_DELTA: VQSegType = 1;
-pub const VQ_STILL: VQSegType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_Segment {
-    pub type_0: VQSegType,
-    pub val: vq_SegmentValue,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union vq_SegmentValue {
-    pub still: pos_t,
-    pub delta: vq_SegmentDelta,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_SegmentDelta {
-    pub quantity: pos_t,
-    pub touched: bool,
-    pub region: *const vq_Region,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_SegList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut vq_Segment,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VQ {
-    pub kernel: pos_t,
-    pub shift: vq_SegList,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_vectorinterface_VQ {
-    pub init: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut VQ, *const VQ) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VQ, *mut VQ) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> VQ>,
-    pub dup: Option<unsafe extern "C" fn(VQ) -> VQ>,
-    pub neutral: Option<unsafe extern "C" fn() -> VQ>,
-    pub plus: Option<unsafe extern "C" fn(VQ, VQ) -> VQ>,
-    pub inplacePlus: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub inplaceNegate: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub negate: Option<unsafe extern "C" fn(VQ) -> VQ>,
-    pub inplaceMinus: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub minus: Option<unsafe extern "C" fn(VQ, VQ) -> VQ>,
-    pub inplaceScale: Option<unsafe extern "C" fn(*mut VQ, scale_t) -> ()>,
-    pub inplacePlusScale: Option<unsafe extern "C" fn(*mut VQ, scale_t, VQ) -> ()>,
-    pub scale: Option<unsafe extern "C" fn(VQ, scale_t) -> VQ>,
-    pub equal: Option<unsafe extern "C" fn(VQ, VQ) -> bool>,
-    pub compare: Option<unsafe extern "C" fn(VQ, VQ) -> ::core::ffi::c_int>,
-    pub compareRef: Option<unsafe extern "C" fn(*const VQ, *const VQ) -> ::core::ffi::c_int>,
-    pub show: Option<unsafe extern "C" fn(VQ) -> ()>,
-    pub getStill: Option<unsafe extern "C" fn(VQ) -> pos_t>,
-    pub createStill: Option<unsafe extern "C" fn(pos_t) -> VQ>,
-    pub isStill: Option<unsafe extern "C" fn(VQ) -> bool>,
-    pub isZero: Option<unsafe extern "C" fn(VQ, pos_t) -> bool>,
-    pub pointLinearTfm: Option<unsafe extern "C" fn(VQ, pos_t, VQ, pos_t, VQ) -> VQ>,
-    pub addDelta: Option<unsafe extern "C" fn(*mut VQ, bool, *const vq_Region, pos_t) -> ()>,
-}
-pub type cff_CharstringOperator = ::core::ffi::c_uint;
-pub const op_flex1: cff_CharstringOperator = 3109;
-pub const op_hflex1: cff_CharstringOperator = 3108;
-pub const op_flex: cff_CharstringOperator = 3107;
-pub const op_hflex: cff_CharstringOperator = 3106;
-pub const op_hvcurveto: cff_CharstringOperator = 31;
-pub const op_roll: cff_CharstringOperator = 3102;
-pub const op_vhcurveto: cff_CharstringOperator = 30;
-pub const op_index: cff_CharstringOperator = 3101;
-pub const op_callgsubr: cff_CharstringOperator = 29;
-pub const op_exch: cff_CharstringOperator = 3100;
-pub const op_dup: cff_CharstringOperator = 3099;
-pub const op_hhcurveto: cff_CharstringOperator = 27;
-pub const op_sqrt: cff_CharstringOperator = 3098;
-pub const op_vvcurveto: cff_CharstringOperator = 26;
-pub const op_rlinecurve: cff_CharstringOperator = 25;
-pub const op_mul: cff_CharstringOperator = 3096;
-pub const op_rcurveline: cff_CharstringOperator = 24;
-pub const op_random: cff_CharstringOperator = 3095;
-pub const op_vstemhm: cff_CharstringOperator = 23;
-pub const op_ifelse: cff_CharstringOperator = 3094;
-pub const op_hmoveto: cff_CharstringOperator = 22;
-pub const op_get: cff_CharstringOperator = 3093;
-pub const op_rmoveto: cff_CharstringOperator = 21;
-pub const op_put: cff_CharstringOperator = 3092;
-pub const op_cntrmask: cff_CharstringOperator = 20;
-pub const op_hintmask: cff_CharstringOperator = 19;
-pub const op_drop: cff_CharstringOperator = 3090;
-pub const op_hstemhm: cff_CharstringOperator = 18;
-pub const op_cff2blend: cff_CharstringOperator = 16;
-pub const op_eq: cff_CharstringOperator = 3087;
-pub const op_cff2vsidx: cff_CharstringOperator = 15;
-pub const op_neg: cff_CharstringOperator = 3086;
-pub const op_endchar: cff_CharstringOperator = 14;
-pub const op_div: cff_CharstringOperator = 3084;
-pub const op_sub: cff_CharstringOperator = 3083;
-pub const op_return: cff_CharstringOperator = 11;
-pub const op_add: cff_CharstringOperator = 3082;
-pub const op_callsubr: cff_CharstringOperator = 10;
-pub const op_abs: cff_CharstringOperator = 3081;
-pub const op_rrcurveto: cff_CharstringOperator = 8;
-pub const op_vlineto: cff_CharstringOperator = 7;
-pub const op_hlineto: cff_CharstringOperator = 6;
-pub const op_not: cff_CharstringOperator = 3077;
-pub const op_rlineto: cff_CharstringOperator = 5;
-pub const op_or: cff_CharstringOperator = 3076;
-pub const op_vmoveto: cff_CharstringOperator = 4;
-pub const op_and: cff_CharstringOperator = 3075;
-pub const op_vstem: cff_CharstringOperator = 3;
-pub const op_hstem: cff_CharstringOperator = 1;
-pub type cff_Type2Limits = ::core::ffi::c_uint;
-pub const type2_transient_array: cff_Type2Limits = 32;
-pub const type2_max_subrs: cff_Type2Limits = 65300;
-pub const type2_charstring_len: cff_Type2Limits = 65535;
-pub const type2_subr_nesting: cff_Type2Limits = 10;
-pub const type2_stem_hints: cff_Type2Limits = 96;
-pub const type2_argument_stack: cff_Type2Limits = 48;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_Point {
-    pub x: VQ,
-    pub y: VQ,
-    pub onCurve: i8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_elementinterface_glyf_Point {
-    pub init: Option<unsafe extern "C" fn(*mut glyf_Point) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut glyf_Point, *const glyf_Point) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut glyf_Point, *mut glyf_Point) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut glyf_Point) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut glyf_Point, glyf_Point) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut glyf_Point, glyf_Point) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> glyf_Point>,
-    pub dup: Option<unsafe extern "C" fn(glyf_Point) -> glyf_Point>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_Contour {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_Point,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_vectorinterface_glyf_Contour {
-    pub init: Option<unsafe extern "C" fn(*mut glyf_Contour) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut glyf_Contour, *const glyf_Contour) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut glyf_Contour, *mut glyf_Contour) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut glyf_Contour) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut glyf_Contour, glyf_Contour) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut glyf_Contour, glyf_Contour) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut glyf_Contour>,
-    pub free: Option<unsafe extern "C" fn(*mut glyf_Contour) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut glyf_Contour, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut glyf_Contour, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut glyf_Contour>,
-    pub fill: Option<unsafe extern "C" fn(*mut glyf_Contour, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut glyf_Contour) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut glyf_Contour, glyf_Point) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut glyf_Contour) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut glyf_Contour) -> glyf_Point>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut glyf_Contour, usize) -> ()>,
-    pub filterEnv: Option<
-        unsafe extern "C" fn(
-            *mut glyf_Contour,
-            Option<unsafe extern "C" fn(*const glyf_Point, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut glyf_Contour,
-            Option<unsafe extern "C" fn(*const glyf_Point, *const glyf_Point) -> ::core::ffi::c_int>,
-        ) -> (),
-    >,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_ContourList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_Contour,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_PostscriptStemDef {
-    pub position: pos_t,
-    pub width: pos_t,
-    pub map: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_StemDefList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_PostscriptStemDef,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_PostscriptHintMask {
-    pub pointsBefore: u16,
-    pub contoursBefore: u16,
-    pub maskH: [bool; 256],
-    pub maskV: [bool; 256],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_MaskList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_PostscriptHintMask,
-}
-pub type RefAnchorStatus = ::core::ffi::c_uint;
-pub const REF_ANCHOR_CONSOLIDATING_XY: RefAnchorStatus = 5;
-pub const REF_ANCHOR_CONSOLIDATING_ANCHOR: RefAnchorStatus = 4;
-pub const REF_ANCHOR_CONSOLIDATED: RefAnchorStatus = 3;
-pub const REF_ANCHOR_XY: RefAnchorStatus = 2;
-pub const REF_ANCHOR_ANCHOR: RefAnchorStatus = 1;
-pub const REF_XY: RefAnchorStatus = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_ComponentReference {
-    pub x: VQ,
-    pub y: VQ,
-    pub roundToGrid: bool,
-    pub useMyMetrics: bool,
-    pub glyph: otfcc_GlyphHandle,
-    pub a: scale_t,
-    pub b: scale_t,
-    pub c: scale_t,
-    pub d: scale_t,
-    pub isAnchored: RefAnchorStatus,
-    pub inner: shapeid_t,
-    pub outer: shapeid_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_ReferenceList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_ComponentReference,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_GlyphStat {
-    pub xMin: pos_t,
-    pub xMax: pos_t,
-    pub yMin: pos_t,
-    pub yMax: pos_t,
-    pub nestDepth: u16,
-    pub nPoints: u16,
-    pub nContours: u16,
-    pub nCompositePoints: u16,
-    pub nCompositeContours: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_Glyph {
-    pub name: sds,
-    pub horizontalOrigin: VQ,
-    pub advanceWidth: VQ,
-    pub verticalOrigin: VQ,
-    pub advanceHeight: VQ,
-    pub contours: glyf_ContourList,
-    pub references: glyf_ReferenceList,
-    pub stemH: glyf_StemDefList,
-    pub stemV: glyf_StemDefList,
-    pub hintMasks: glyf_MaskList,
-    pub contourMasks: glyf_MaskList,
-    pub instructionsLength: u16,
-    pub instructions: *mut u8,
-    pub yPel: u8,
-    pub fdSelect: otfcc_FDHandle,
-    pub cid: glyphid_t,
-    pub stat: glyf_GlyphStat,
-}
 pub type cff_InstructionType = ::core::ffi::c_uint;
 pub const IL_ITEM_PHANTOM_OPERAND: cff_InstructionType = 4;
 pub const IL_ITEM_PHANTOM_OPERATOR: cff_InstructionType = 3;
@@ -354,8 +61,6 @@ pub struct cff_CharstringIL {
     pub free: u32,
     pub instr: *mut cff_CharstringInstruction,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 unsafe extern "C" fn ensureThereIsSpace(mut il: *mut cff_CharstringIL) {
     if (*il).free != 0 {
         return;
@@ -1531,5 +1236,3 @@ pub unsafe extern "C" fn cff_ilEqual(
     }
     return true;
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

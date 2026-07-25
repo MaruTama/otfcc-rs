@@ -6,101 +6,12 @@ extern "C" {
     static table_iMeta: __caryll_elementinterface_table_meta;
 }
 use crate::support::binio::{read_32u};
-use crate::logger::{log_type_warning, otfcc_ILogger};
+use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
 use crate::vendor::sds::{sds};
-pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
-pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
-pub const log_vl_info: otfcc_LoggerVerbosity = 5;
-pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
-pub const log_vl_important: otfcc_LoggerVerbosity = 1;
-pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct meta_Entry {
-    pub tag: u32,
-    pub data: sds,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct meta_Entries {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut meta_Entry,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_vectorinterface_meta_Entries {
-    pub init: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut meta_Entries, *const meta_Entries) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut meta_Entries, *mut meta_Entries) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut meta_Entries, meta_Entries) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut meta_Entries, meta_Entries) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut meta_Entries>,
-    pub free: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut meta_Entries>,
-    pub fill: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut meta_Entries, meta_Entry) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut meta_Entries) -> meta_Entry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
-    pub filterEnv: Option<
-        unsafe extern "C" fn(
-            *mut meta_Entries,
-            Option<unsafe extern "C" fn(*const meta_Entry, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut meta_Entries,
-            Option<unsafe extern "C" fn(*const meta_Entry, *const meta_Entry) -> ::core::ffi::c_int>,
-        ) -> (),
-    >,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_meta {
-    pub version: u32,
-    pub flags: u32,
-    pub entries: meta_Entries,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_elementinterface_table_meta {
-    pub init: Option<unsafe extern "C" fn(*mut table_meta) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_meta, *const table_meta) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_meta, *mut table_meta) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_meta) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_meta, table_meta) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_meta, table_meta) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_meta>,
-    pub free: Option<unsafe extern "C" fn(*mut table_meta) -> ()>,
-}
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+
+use crate::table::meta::types::{__caryll_elementinterface_table_meta, __caryll_vectorinterface_meta_Entries, meta_Entry, table_meta};
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_readMeta(
     packet: otfcc_Packet,
