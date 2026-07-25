@@ -226,10 +226,14 @@ pub struct otl_ChainLookupApplication {
     pub index: tableid_t,
     pub lookup: otfcc_LookupHandle,
 }
-pub type otl_chaining_type = ::core::ffi::c_uint;
-pub const otl_chaining_classified: otl_chaining_type = 2;
-pub const otl_chaining_poly: otl_chaining_type = 1;
-pub const otl_chaining_canonical: otl_chaining_type = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum otl_chaining_type {
+    otl_chaining_canonical = 0,
+    otl_chaining_poly = 1,
+    otl_chaining_classified = 2,
+}
+pub use otl_chaining_type::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_ligature {

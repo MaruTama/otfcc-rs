@@ -104,9 +104,13 @@ pub struct lookup_hash {
     pub orderType: lookup_order_type,
     pub orderVal: u16,
 }
-pub type lookup_order_type = ::core::ffi::c_uint;
-pub const LOOKUP_ORDER_FILE: lookup_order_type = 1;
-pub const LOOKUP_ORDER_FORCE: lookup_order_type = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum lookup_order_type {
+    LOOKUP_ORDER_FORCE = 0,
+    LOOKUP_ORDER_FILE = 1,
+}
+pub use lookup_order_type::*;
 #[inline]
 unsafe extern "C" fn json_obj_get(
     mut obj: *const json_value,

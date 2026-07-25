@@ -37,10 +37,14 @@ pub const b32: bk_CellType = 3;
 pub const b16: bk_CellType = 2;
 pub const b8: bk_CellType = 1;
 pub const bkover: bk_CellType = 0;
-pub type bk_cell_visit_state = ::core::ffi::c_uint;
-pub const VISIT_BLACK: bk_cell_visit_state = 2;
-pub const VISIT_GRAY: bk_cell_visit_state = 1;
-pub const VISIT_WHITE: bk_cell_visit_state = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum bk_cell_visit_state {
+    VISIT_WHITE = 0,
+    VISIT_GRAY = 1,
+    VISIT_BLACK = 2,
+}
+pub use bk_cell_visit_state::*;
 pub type bk_Block = __caryll_bkblock;
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};

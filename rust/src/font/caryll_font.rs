@@ -113,9 +113,13 @@ pub struct _caryll_font {
     pub TSI5: *mut table_TSI5,
     pub glyph_order: *mut otfcc_GlyphOrder,
 }
-pub type otfcc_font_subtype = ::core::ffi::c_uint;
-pub const FONTTYPE_CFF: otfcc_font_subtype = 1;
-pub const FONTTYPE_TTF: otfcc_font_subtype = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum otfcc_font_subtype {
+    FONTTYPE_TTF = 0,
+    FONTTYPE_CFF = 1,
+}
+pub use otfcc_font_subtype::*;
 pub type otfcc_Font = _caryll_font;
 #[derive(Copy, Clone)]
 #[repr(C)]

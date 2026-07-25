@@ -581,17 +581,13 @@ pub unsafe extern "C" fn consolidateAnchorRef(
     mut rr: *mut glyf_ComponentReference,
     mut options: *const otfcc_Options,
 ) -> bool {
-    if (*rr).isAnchored as ::core::ffi::c_uint
-        == REF_ANCHOR_CONSOLIDATED as ::core::ffi::c_int as ::core::ffi::c_uint
-        || (*rr).isAnchored as ::core::ffi::c_uint
-            == REF_XY as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*rr).isAnchored == REF_ANCHOR_CONSOLIDATED
+        || (*rr).isAnchored == REF_XY
     {
         return true;
     }
-    if (*rr).isAnchored as ::core::ffi::c_uint
-        == REF_ANCHOR_CONSOLIDATING_ANCHOR as ::core::ffi::c_int as ::core::ffi::c_uint
-        || (*rr).isAnchored as ::core::ffi::c_uint
-            == REF_ANCHOR_CONSOLIDATING_XY as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*rr).isAnchored == REF_ANCHOR_CONSOLIDATING_ANCHOR
+        || (*rr).isAnchored == REF_ANCHOR_CONSOLIDATING_XY
     {
         (*(*options).logger)
             .logSDS
@@ -608,8 +604,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
         (*rr).isAnchored = REF_XY;
         return false;
     }
-    if (*rr).isAnchored as ::core::ffi::c_uint
-        == REF_ANCHOR_ANCHOR as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*rr).isAnchored == REF_ANCHOR_ANCHOR
     {
         (*rr).isAnchored = REF_ANCHOR_CONSOLIDATING_ANCHOR;
     } else {
@@ -695,8 +690,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
         -((*rr).d as pos_t),
         innerY,
     );
-    if (*rr).isAnchored as ::core::ffi::c_uint
-        == REF_ANCHOR_CONSOLIDATING_ANCHOR as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*rr).isAnchored == REF_ANCHOR_CONSOLIDATING_ANCHOR
     {
         iVQ.replace.expect("non-null function pointer")(&raw mut (*rr).x, rrx);
         iVQ.replace.expect("non-null function pointer")(&raw mut (*rr).y, rry);

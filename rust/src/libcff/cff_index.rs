@@ -10,9 +10,13 @@ use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::primitives::{arity_t};
 
-pub type cff_IndexCountType = ::core::ffi::c_uint;
-pub const CFF_INDEX_32: cff_IndexCountType = 1;
-pub const CFF_INDEX_16: cff_IndexCountType = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum cff_IndexCountType {
+    CFF_INDEX_16 = 0,
+    CFF_INDEX_32 = 1,
+}
+pub use cff_IndexCountType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_Index {

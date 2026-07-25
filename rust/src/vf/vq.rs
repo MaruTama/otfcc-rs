@@ -24,9 +24,13 @@ pub struct __caryll_elementinterface_pos_t {
     pub empty: Option<unsafe extern "C" fn() -> pos_t>,
     pub dup: Option<unsafe extern "C" fn(pos_t) -> pos_t>,
 }
-pub type VQSegType = ::core::ffi::c_uint;
-pub const VQ_DELTA: VQSegType = 1;
-pub const VQ_STILL: VQSegType = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum VQSegType {
+    VQ_STILL = 0,
+    VQ_DELTA = 1,
+}
+pub use VQSegType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vq_Segment {
@@ -1077,8 +1081,7 @@ unsafe extern "C" fn vqInplacePlus(mut a: *mut VQ, b: VQ) {
     let mut p: usize = 0 as usize;
     while p < b.shift.length {
         let mut k: *mut vq_Segment = b.shift.items.offset(p as isize) as *mut vq_Segment;
-        if (*k).type_0 as ::core::ffi::c_uint
-            == VQ_STILL as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*k).type_0 == VQ_STILL
         {
             (*a).kernel += (*k).val.still;
         } else {
@@ -1343,3 +1346,19 @@ pub static mut iVQ: __caryll_vectorinterface_VQ = {
         ),
     }
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // This discriminant is written into the glyph hash byte-for-byte --
+    // `hashVQS` in otf_reader/unconsolidate.rs does `bufwrite8(buf, s.type_0 as
+    // u8)` -- and that hash decides which glyphs are treated as duplicates.
+    // Renumbering the variants would silently change which glyphs get merged.
+    #[test]
+    fn vqsegtype_discriminants_are_the_hashed_values() {
+        assert_eq!(VQ_STILL as u8, 0);
+        assert_eq!(VQ_DELTA as u8, 1);
+        assert_eq!(::core::mem::size_of::<VQSegType>(), 4);
+    }
+}

@@ -36,8 +36,7 @@ pub unsafe extern "C" fn otfcc_chainingLookupIsContextualLookup(
     while (j as usize) < (*lookup).subtables.length {
         let mut subtable: *const subtable_chaining =
             &raw mut (**(*lookup).subtables.items.offset(j as isize)).chaining;
-        if (*subtable).type_0 as ::core::ffi::c_uint
-            == otl_chaining_classified as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*subtable).type_0 == otl_chaining_classified
         {
             let mut k: tableid_t = 0 as tableid_t;
             while (k as ::core::ffi::c_int)
@@ -392,8 +391,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
 pub unsafe extern "C" fn otfcc_build_chaining(
     mut _subtable: *const otl_Subtable,
 ) -> *mut caryll_Buffer {
-    if (*_subtable).chaining.type_0 as ::core::ffi::c_uint
-        == otl_chaining_classified as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*_subtable).chaining.type_0 == otl_chaining_classified
     {
         return otfcc_build_chaining_classes(_subtable);
     } else {
@@ -631,8 +629,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
 pub unsafe extern "C" fn otfcc_build_contextual(
     mut _subtable: *const otl_Subtable,
 ) -> *mut caryll_Buffer {
-    if (*_subtable).chaining.type_0 as ::core::ffi::c_uint
-        == otl_chaining_classified as ::core::ffi::c_int as ::core::ffi::c_uint
+    if (*_subtable).chaining.type_0 == otl_chaining_classified
     {
         return otfcc_build_contextual_classes(_subtable);
     } else {

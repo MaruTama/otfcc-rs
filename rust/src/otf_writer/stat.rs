@@ -55,10 +55,14 @@ use crate::table::vmtx::{table_vmtx, vertical_metric};
 
 use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_SegList, vq_Segment};
 
-pub type stat_status = ::core::ffi::c_uint;
-pub const stat_completed: stat_status = 2;
-pub const stat_doing: stat_status = 1;
-pub const stat_not_started: stat_status = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum stat_status {
+    stat_not_started = 0,
+    stat_doing = 1,
+    stat_completed = 2,
+}
+pub use stat_status::*;
 pub const POS_MAX: ::core::ffi::c_float = FLT_MAX;
 #[no_mangle]
 pub unsafe extern "C" fn stat_single_glyph(

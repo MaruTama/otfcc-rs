@@ -331,13 +331,17 @@ pub struct __caryll_vectorinterface_glyf_MaskList {
         ) -> (),
     >,
 }
-pub type RefAnchorStatus = ::core::ffi::c_uint;
-pub const REF_ANCHOR_CONSOLIDATING_XY: RefAnchorStatus = 5;
-pub const REF_ANCHOR_CONSOLIDATING_ANCHOR: RefAnchorStatus = 4;
-pub const REF_ANCHOR_CONSOLIDATED: RefAnchorStatus = 3;
-pub const REF_ANCHOR_XY: RefAnchorStatus = 2;
-pub const REF_ANCHOR_ANCHOR: RefAnchorStatus = 1;
-pub const REF_XY: RefAnchorStatus = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum RefAnchorStatus {
+    REF_XY = 0,
+    REF_ANCHOR_ANCHOR = 1,
+    REF_ANCHOR_XY = 2,
+    REF_ANCHOR_CONSOLIDATED = 3,
+    REF_ANCHOR_CONSOLIDATING_ANCHOR = 4,
+    REF_ANCHOR_CONSOLIDATING_XY = 5,
+}
+pub use RefAnchorStatus::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_ComponentReference {
@@ -3071,8 +3075,7 @@ unsafe extern "C" fn glyf_glyph_dump_references(
             b"d\0" as *const u8 as *const ::core::ffi::c_char,
             json_new_position((*r).d as pos_t),
         );
-        if (*r).isAnchored as ::core::ffi::c_uint
-            != REF_XY as ::core::ffi::c_int as ::core::ffi::c_uint
+        if (*r).isAnchored != REF_XY
         {
             json_object_push(
                 ref_0,
@@ -4496,3 +4499,23 @@ pub type glyf_ComponentFlags = ::core::ffi::c_uint;
 pub const SCALED_COMPONENT_OFFSET: glyf_ComponentFlags = 2048;
 
 pub const OVERLAP_COMPOUND: glyf_ComponentFlags = 1024;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `glyf/build.rs` writes a component's flags based on
+    // `isAnchored == REF_ANCHOR_CONSOLIDATED`, so these values pick which branch
+    // of the composite-glyph encoding runs. They come from otfcc's own
+    // consolidation pass, never off the wire, but they are still load-bearing for
+    // the bytes that come out.
+    #[test]
+    fn refanchorstatus_discriminants_match_the_c_enum() {
+        assert_eq!(REF_XY as u32, 0);
+        assert_eq!(REF_ANCHOR_ANCHOR as u32, 1);
+        assert_eq!(REF_ANCHOR_XY as u32, 2);
+        assert_eq!(REF_ANCHOR_CONSOLIDATED as u32, 3);
+        assert_eq!(REF_ANCHOR_CONSOLIDATING_ANCHOR as u32, 4);
+        assert_eq!(REF_ANCHOR_CONSOLIDATING_XY as u32, 5);
+    }
+}
