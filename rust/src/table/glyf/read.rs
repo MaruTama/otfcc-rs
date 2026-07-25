@@ -438,11 +438,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
-                    sdsempty(),
-                    b"glyf: SCALED_COMPONENT_OFFSET is not supported.\0" as *const u8
-                        as *const ::core::ffi::c_char,
-                ),
+                crate::sdsbuild!(sdsempty(), b"glyf: SCALED_COMPONENT_OFFSET is not supported."),
             );
         }
         if flags as ::core::ffi::c_int & WE_HAVE_INSTRUCTIONS as ::core::ffi::c_int != 0 {
@@ -1143,10 +1139,9 @@ unsafe extern "C" fn polymorphize(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Axes number in GVAR and FVAR are inequal\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Axes number in GVAR and FVAR are inequal",
                             ),
                         );
                         return;
@@ -1290,11 +1285,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
-                                sdsempty(),
-                                b"table 'loca' corrupted.\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
-                            ),
+                            crate::sdsbuild!(sdsempty(), b"table 'loca' corrupted.\n"),
                         );
                         if !offsets.is_null() {
                             free(offsets as *mut ::core::ffi::c_void);
@@ -1337,11 +1328,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                                     (*options).logger as *mut otfcc_ILogger,
                                     log_vl_important as ::core::ffi::c_int as u8,
                                     log_type_warning,
-                                    sdscatprintf(
-                                        sdsempty(),
-                                        b"table 'glyf' corrupted.\n\0" as *const u8
-                                            as *const ::core::ffi::c_char,
-                                    ),
+                                    crate::sdsbuild!(sdsempty(), b"table 'glyf' corrupted.\n"),
                                 );
                                 if !glyf.is_null() {
                                     table_iGlyf.free.expect("non-null function pointer")(glyf);

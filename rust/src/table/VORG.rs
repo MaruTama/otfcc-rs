@@ -198,10 +198,7 @@ pub unsafe extern "C" fn otfcc_readVORG(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
-                            sdsempty(),
-                            b"Table 'VORG' corrupted.\0" as *const u8 as *const ::core::ffi::c_char,
-                        ),
+                        crate::sdsbuild!(sdsempty(), b"Table 'VORG' corrupted."),
                     );
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;

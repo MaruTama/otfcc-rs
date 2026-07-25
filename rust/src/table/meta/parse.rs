@@ -85,10 +85,7 @@ pub unsafe extern "C" fn otfcc_parseMeta(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"meta\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

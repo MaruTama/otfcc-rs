@@ -94,11 +94,7 @@ pub unsafe extern "C" fn otfcc_readMeta(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
-                            sdsempty(),
-                            b"Table 'meta' corrupted.\n\0" as *const u8
-                                as *const ::core::ffi::c_char,
-                        ),
+                        crate::sdsbuild!(sdsempty(), b"Table 'meta' corrupted.\n"),
                     );
                     table_iMeta.free.expect("non-null function pointer")(meta);
                     meta = ::core::ptr::null_mut::<table_meta>();

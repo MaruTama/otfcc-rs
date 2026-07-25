@@ -444,11 +444,7 @@ unsafe fn main_0(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_critical as ::core::ffi::c_int as u8,
             log_type_error,
-            sdscatprintf(
-                sdsempty(),
-                b"Expected argument for input file name.\n\0" as *const u8
-                    as *const ::core::ffi::c_char,
-            ),
+            otfcc_rust::sdsbuild!(sdsempty(), b"Expected argument for input file name.\n"),
         );
         printHelp();
         exit(EXIT_FAILURE);
@@ -466,10 +462,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Read SFNT\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Read SFNT"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -542,10 +535,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Read Font\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Read Font"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
@@ -592,10 +582,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Consolidate\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Consolidate"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
@@ -618,10 +605,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Dump\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Dump"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
@@ -664,10 +648,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Serialize to JSON\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Serialize to JSON"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
@@ -707,10 +688,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Output\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Output"),
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
@@ -776,10 +754,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Finalize\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Finalize"),
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {

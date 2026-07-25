@@ -1370,10 +1370,7 @@ pub unsafe extern "C" fn otfcc_dumpCPAL(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"CPAL"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1463,10 +1460,7 @@ pub unsafe extern "C" fn otfcc_parseCPAL(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"CPAL"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

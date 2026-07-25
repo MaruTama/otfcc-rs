@@ -5484,11 +5484,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
-                            sdsempty(),
-                            b"table 'cmap' corrupted.\n\0" as *const u8
-                                as *const ::core::ffi::c_char,
-                        ),
+                        crate::sdsbuild!(sdsempty(), b"table 'cmap' corrupted.\n"),
                     );
                     if !cmap.is_null() {
                         free(cmap as *mut ::core::ffi::c_void);
@@ -5519,10 +5515,7 @@ pub unsafe extern "C" fn otfcc_dumpCmap(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -5775,10 +5768,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -5800,10 +5790,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"cmap_uvs\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"cmap_uvs"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {

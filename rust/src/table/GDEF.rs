@@ -1256,10 +1256,7 @@ pub unsafe extern "C" fn otfcc_dumpGDEF(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"GDEF"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1397,10 +1394,7 @@ pub unsafe extern "C" fn otfcc_parseGDEF(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"GDEF"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

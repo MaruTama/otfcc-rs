@@ -595,10 +595,9 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"Found circular reference of out-of-range point reference in anchored reference.\0"
-                    as *const u8 as *const ::core::ffi::c_char,
+                b"Found circular reference of out-of-range point reference in anchored reference.",
             ),
         );
         (*rr).isAnchored = REF_XY;
@@ -1360,10 +1359,7 @@ unsafe extern "C" fn consolidateOTL(mut font: *mut otfcc_Font, mut options: *con
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"GSUB"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1377,10 +1373,7 @@ unsafe extern "C" fn consolidateOTL(mut font: *mut otfcc_Font, mut options: *con
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"GPOS"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
@@ -1394,10 +1387,7 @@ unsafe extern "C" fn consolidateOTL(mut font: *mut otfcc_Font, mut options: *con
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"GDEF"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
@@ -1739,10 +1729,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"glyf"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1756,10 +1743,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"cmap"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
@@ -1776,10 +1760,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"COLR\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"COLR"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
@@ -1793,10 +1774,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"TSI_01\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"TSI_01"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
@@ -1810,10 +1788,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"TSI_23"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
@@ -1827,10 +1802,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"TSI5"),
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {

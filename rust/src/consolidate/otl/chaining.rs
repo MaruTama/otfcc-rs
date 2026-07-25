@@ -71,11 +71,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
-                sdsempty(),
-                b"[Consolidate] Ignoring non-canonical chaining subtable.\0" as *const u8
-                    as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"[Consolidate] Ignoring non-canonical chaining subtable."),
         );
         return false;
     }

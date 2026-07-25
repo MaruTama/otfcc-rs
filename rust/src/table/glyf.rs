@@ -3340,10 +3340,7 @@ pub unsafe extern "C" fn otfcc_dumpGlyf(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"glyf"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -3862,10 +3859,7 @@ pub unsafe extern "C" fn otfcc_parseGlyf(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"glyf"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

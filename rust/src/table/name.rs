@@ -656,11 +656,7 @@ pub unsafe extern "C" fn otfcc_readName(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
-                            sdsempty(),
-                            b"table 'name' corrupted.\n\0" as *const u8
-                                as *const ::core::ffi::c_char,
-                        ),
+                        crate::sdsbuild!(sdsempty(), b"table 'name' corrupted.\n"),
                     );
                     if !name.is_null() {
                         table_iName.free.expect("non-null function pointer")(name);
@@ -690,10 +686,7 @@ pub unsafe extern "C" fn otfcc_dumpName(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"name\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"name"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -778,10 +771,7 @@ pub unsafe extern "C" fn otfcc_parseName(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"name\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"name"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

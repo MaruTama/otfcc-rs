@@ -275,10 +275,7 @@ pub unsafe extern "C" fn otfcc_dumpOtl(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"Languages\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"Languages"),
         );
         let mut ___loggedstep_v_0: bool = true;
         while ___loggedstep_v_0 {
@@ -335,10 +332,7 @@ pub unsafe extern "C" fn otfcc_dumpOtl(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"Features\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"Features"),
         );
         let mut ___loggedstep_v_1: bool = true;
         while ___loggedstep_v_1 {
@@ -384,10 +378,7 @@ pub unsafe extern "C" fn otfcc_dumpOtl(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"Lookups\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"Lookups"),
         );
         let mut ___loggedstep_v_2: bool = true;
         while ___loggedstep_v_2 {

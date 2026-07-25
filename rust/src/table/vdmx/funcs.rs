@@ -176,11 +176,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
-                            sdsempty(),
-                            b"Table 'VDMX' corrupted.\n\0" as *const u8
-                                as *const ::core::ffi::c_char,
-                        ),
+                        crate::sdsbuild!(sdsempty(), b"Table 'VDMX' corrupted.\n"),
                     );
                     table_iVDMX.free.expect("non-null function pointer")(vdmx);
                     vdmx = ::core::ptr::null_mut::<table_VDMX>();
@@ -208,10 +204,7 @@ pub unsafe extern "C" fn otfcc_dumpVDMX(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"VDMX\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"VDMX"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -324,10 +317,7 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"VDMX\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"VDMX"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

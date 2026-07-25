@@ -176,11 +176,7 @@ pub unsafe extern "C" fn otfcc_readHmtx(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
-                                sdsempty(),
-                                b"Table 'hmtx' corrupted.\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
-                            ),
+                            crate::sdsbuild!(sdsempty(), b"Table 'hmtx' corrupted.\n"),
                         );
                         if !hmtx.is_null() {
                             table_iHmtx.free.expect("non-null function pointer")(hmtx);

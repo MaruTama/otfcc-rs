@@ -638,10 +638,7 @@ pub unsafe extern "C" fn otfcc_dumpSVG(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"SVG \0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"SVG "),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -733,10 +730,7 @@ pub unsafe extern "C" fn otfcc_parseSVG(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"SVG \0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"SVG "),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

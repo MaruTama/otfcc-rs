@@ -219,11 +219,7 @@ pub unsafe extern "C" fn otfcc_readVhea(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
-                                sdsempty(),
-                                b"Table 'vhea' corrupted.\0" as *const u8
-                                    as *const ::core::ffi::c_char,
-                            ),
+                            crate::sdsbuild!(sdsempty(), b"Table 'vhea' corrupted."),
                         );
                     }
                     __fortable_k2 = 0 as ::core::ffi::c_int;
@@ -251,10 +247,7 @@ pub unsafe extern "C" fn otfcc_dumpVhea(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"vhea\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"vhea"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -346,10 +339,7 @@ pub unsafe extern "C" fn otfcc_parseVhea(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"vhea\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"vhea"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

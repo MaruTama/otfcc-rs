@@ -2018,10 +2018,9 @@ unsafe extern "C" fn parseGlyphOrder(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_notice as ::core::ffi::c_int as u8,
                     log_type_info,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"OpenType SVG table detected. Glyph order is preserved.\0" as *const u8
-                            as *const ::core::ffi::c_char,
+                        b"OpenType SVG table detected. Glyph order is preserved.",
                     ),
                 );
                 ignoreGlyphOrder = false;

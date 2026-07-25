@@ -1037,11 +1037,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
-                            sdsempty(),
-                            b"Table 'COLR' corrupted.\n\0" as *const u8
-                                as *const ::core::ffi::c_char,
-                        ),
+                        crate::sdsbuild!(sdsempty(), b"Table 'COLR' corrupted.\n"),
                     );
                     table_iCOLR.free.expect("non-null function pointer")(colr);
                     colr = ::core::ptr::null_mut::<table_COLR>();
@@ -1069,10 +1065,7 @@ pub unsafe extern "C" fn otfcc_dumpCOLR(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"COLR\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"COLR"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1154,10 +1147,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"COLR\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"COLR"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
