@@ -6,10 +6,11 @@ extern "C" {
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{caryll_Buffer};
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const cff_FDSELECT_UNSPECED: C2RustUnnamed = 2;
-pub const cff_FDSELECT_FORMAT3: C2RustUnnamed = 1;
-pub const cff_FDSELECT_FORMAT0: C2RustUnnamed = 0;
+
+pub type cff_FDSelectType = ::core::ffi::c_uint;
+pub const cff_FDSELECT_UNSPECED: cff_FDSelectType = 2;
+pub const cff_FDSELECT_FORMAT3: cff_FDSelectType = 1;
+pub const cff_FDSELECT_FORMAT0: cff_FDSelectType = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_FDSelectFormat0 {
@@ -35,16 +36,14 @@ pub struct cff_FDSelectFormat3 {
 pub struct cff_FDSelect {
     pub t: u32,
     pub s: u32,
-    pub c2rust_unnamed: C2RustUnnamed_0,
+    pub c2rust_unnamed: cff_FDSelectBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_0 {
+pub union cff_FDSelectBody {
     pub f0: cff_FDSelectFormat0,
     pub f3: cff_FDSelectFormat3,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;

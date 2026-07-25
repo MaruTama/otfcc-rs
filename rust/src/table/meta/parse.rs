@@ -3,6 +3,8 @@ use crate::logger::{otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_object, json_string, json_type, json_value};
+
+use crate::table::meta::types::{__caryll_elementinterface_table_meta, __caryll_vectorinterface_meta_Entries, meta_Entry, table_meta};
 extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
@@ -11,73 +13,6 @@ extern "C" {
     static table_iMeta: __caryll_elementinterface_table_meta;
     fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct meta_Entry {
-    pub tag: u32,
-    pub data: sds,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct meta_Entries {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut meta_Entry,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_vectorinterface_meta_Entries {
-    pub init: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut meta_Entries, *const meta_Entries) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut meta_Entries, *mut meta_Entries) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut meta_Entries, meta_Entries) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut meta_Entries, meta_Entries) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut meta_Entries>,
-    pub free: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut meta_Entries>,
-    pub fill: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut meta_Entries, meta_Entry) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut meta_Entries) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut meta_Entries) -> meta_Entry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut meta_Entries, usize) -> ()>,
-    pub filterEnv: Option<
-        unsafe extern "C" fn(
-            *mut meta_Entries,
-            Option<unsafe extern "C" fn(*const meta_Entry, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut meta_Entries,
-            Option<unsafe extern "C" fn(*const meta_Entry, *const meta_Entry) -> ::core::ffi::c_int>,
-        ) -> (),
-    >,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_meta {
-    pub version: u32,
-    pub flags: u32,
-    pub entries: meta_Entries,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_elementinterface_table_meta {
-    pub init: Option<unsafe extern "C" fn(*mut table_meta) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_meta, *const table_meta) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_meta, *mut table_meta) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_meta) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_meta, table_meta) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_meta, table_meta) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_meta>,
-    pub free: Option<unsafe extern "C" fn(*mut table_meta) -> ()>,
-}
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 #[no_mangle]
 pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
     if (*v).type_0 as ::core::ffi::c_uint
@@ -240,5 +175,3 @@ unsafe extern "C" fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
     }
     return tag;
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

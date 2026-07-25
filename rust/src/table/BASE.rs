@@ -29,43 +29,21 @@ extern "C" {
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u, read_16s, read_32u};
-use crate::logger::{log_type_warning, otfcc_ILogger};
+use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, pos_t, tableid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_double, json_integer, json_object, json_string, json_type, json_value};
+use crate::bk::bkblock::{b16, b32, bk_Block, bkover, p16};
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::{NULL};
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed_4 = 10;
-pub const log_vl_info: C2RustUnnamed_4 = 5;
-pub const log_vl_notice: C2RustUnnamed_4 = 2;
-pub const log_vl_important: C2RustUnnamed_4 = 1;
-pub const log_vl_critical: C2RustUnnamed_4 = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseValue {
@@ -104,53 +82,12 @@ pub struct __caryll_elementinterface_table_BASE {
     pub create: Option<unsafe extern "C" fn() -> *mut table_BASE>,
     pub free: Option<unsafe extern "C" fn(*mut table_BASE) -> ()>,
 }
-pub type bk_Block = __caryll_bkblock;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_bkblock {
-    pub _visitstate: bk_cell_visit_state,
-    pub _index: u32,
-    pub _height: u32,
-    pub _depth: u32,
-    pub length: u32,
-    pub free: u32,
-    pub cells: *mut bk_Cell,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct bk_Cell {
-    pub t: bk_CellType,
-    pub c2rust_unnamed: C2RustUnnamed_5,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_5 {
-    pub z: u32,
-    pub p: *mut __caryll_bkblock,
-}
-pub type bk_CellType = ::core::ffi::c_uint;
-pub const bkembed: bk_CellType = 255;
-pub const bkcopy: bk_CellType = 254;
-pub const sp32: bk_CellType = 129;
-pub const sp16: bk_CellType = 128;
-pub const p32: bk_CellType = 17;
-pub const p16: bk_CellType = 16;
-pub const b32: bk_CellType = 3;
-pub const b16: bk_CellType = 2;
-pub const b8: bk_CellType = 1;
-pub const bkover: bk_CellType = 0;
-pub type bk_cell_visit_state = ::core::ffi::c_uint;
-pub const VISIT_BLACK: bk_cell_visit_state = 2;
-pub const VISIT_GRAY: bk_cell_visit_state = 1;
-pub const VISIT_WHITE: bk_cell_visit_state = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_6 {
+pub struct base_TagList {
     pub size: tableid_t,
     pub items: *mut u32,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 unsafe extern "C" fn deleteBaseAxis(mut axis: *mut otl_BaseAxis) {
     if axis.is_null() {
         return;
@@ -830,7 +767,7 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
     if axis.is_null() {
         return ::core::ptr::null_mut::<bk_Block>();
     }
-    let mut taglist: C2RustUnnamed_6 = C2RustUnnamed_6 {
+    let mut taglist: base_TagList = base_TagList {
         size: 0,
         items: ::core::ptr::null_mut::<u32>(),
     };
@@ -1166,5 +1103,3 @@ unsafe extern "C" fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
     }
     return tag;
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

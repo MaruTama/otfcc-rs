@@ -6,6 +6,8 @@ extern "C" {
 }
 #[cfg(target_os = "macos")]
 use crate::support::ctype_compat::__ctype_b_loc;
+use crate::support::{NULL};
+use crate::support::ctype_compat::{_ISdigit};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct json_settings {
@@ -96,21 +98,7 @@ pub struct json_state {
     pub cur_line: ::core::ffi::c_uint,
     pub cur_col: ::core::ffi::c_uint,
 }
-pub const _ISdigit: C2RustUnnamed_4 = 2048;
 pub type json_uchar = ::core::ffi::c_uint;
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const _ISalnum: C2RustUnnamed_4 = 8;
-pub const _ISpunct: C2RustUnnamed_4 = 4;
-pub const _IScntrl: C2RustUnnamed_4 = 2;
-pub const _ISblank: C2RustUnnamed_4 = 1;
-pub const _ISgraph: C2RustUnnamed_4 = 32768;
-pub const _ISprint: C2RustUnnamed_4 = 16384;
-pub const _ISspace: C2RustUnnamed_4 = 8192;
-pub const _ISxdigit: C2RustUnnamed_4 = 4096;
-pub const _ISalpha: C2RustUnnamed_4 = 1024;
-pub const _ISlower: C2RustUnnamed_4 = 512;
-pub const _ISupper: C2RustUnnamed_4 = 256;
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const json_enable_comments: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
 #[no_mangle]
 pub static mut json_value_none: _json_value = _json_value {

@@ -29,10 +29,9 @@ use crate::support::handle::{otfcc_GlyphHandle, otfcc_LookupHandle};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{glyphclass_t, glyphid_t, pos_t, tableid_t};
 use crate::vendor::sds::{sds};
-use crate::support::cvec::{
-    cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
-    cvec_resize_to, CVecRaw,
-};
+use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+
+
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
@@ -199,17 +198,17 @@ pub struct subtable_gsub_reverse {
 #[repr(C)]
 pub struct subtable_chaining {
     pub type_0: otl_chaining_type,
-    pub c2rust_unnamed: C2RustUnnamed,
+    pub c2rust_unnamed: otl_ChainingBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union otl_ChainingBody {
     pub rule: otl_ChainingRule,
-    pub c2rust_unnamed: C2RustUnnamed_0,
+    pub c2rust_unnamed: otl_ChainingRuleSet,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_0 {
+pub struct otl_ChainingRuleSet {
     pub rulesCount: tableid_t,
     pub rules: *mut *mut otl_ChainingRule,
     pub bc: *mut otl_ClassDef,
@@ -1004,8 +1003,6 @@ pub struct __caryll_elementinterface_table_OTL {
     pub create: Option<unsafe extern "C" fn() -> *mut table_OTL>,
     pub free: Option<unsafe extern "C" fn(*mut table_OTL) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeSubtableDependent(
     mut subtableRef: *mut otl_SubtablePtr,
@@ -3374,4 +3371,128 @@ unsafe extern "C" fn table_OTL_move(mut dst: *mut table_OTL, mut src: *mut table
     );
     table_OTL_init(src);
 }
-pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct __caryll_vectorinterface_otl_MarkArray {
+    pub init: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut otl_MarkArray, *const otl_MarkArray) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut otl_MarkArray, *mut otl_MarkArray) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkArray) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkArray) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut otl_MarkArray>,
+    pub free: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_MarkArray>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
+    pub clear: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
+    pub push: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkRecord) -> ()>,
+    pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
+    pub pop: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> otl_MarkRecord>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
+    pub filterEnv: Option<
+        unsafe extern "C" fn(
+            *mut otl_MarkArray,
+            Option<unsafe extern "C" fn(*const otl_MarkRecord, *mut ::core::ffi::c_void) -> bool>,
+            *mut ::core::ffi::c_void,
+        ) -> (),
+    >,
+    pub sort: Option<
+        unsafe extern "C" fn(
+            *mut otl_MarkArray,
+            Option<
+                unsafe extern "C" fn(
+                    *const otl_MarkRecord,
+                    *const otl_MarkRecord,
+                ) -> ::core::ffi::c_int,
+            >,
+        ) -> (),
+    >,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct __caryll_vectorinterface_otl_BaseArray {
+    pub init: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut otl_BaseArray, *const otl_BaseArray) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut otl_BaseArray, *mut otl_BaseArray) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut otl_BaseArray, otl_BaseArray) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_BaseArray, otl_BaseArray) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut otl_BaseArray>,
+    pub free: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_BaseArray, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_BaseArray, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_BaseArray>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_BaseArray, usize) -> ()>,
+    pub clear: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> ()>,
+    pub push: Option<unsafe extern "C" fn(*mut otl_BaseArray, otl_BaseRecord) -> ()>,
+    pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> ()>,
+    pub pop: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> otl_BaseRecord>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_BaseArray, usize) -> ()>,
+    pub filterEnv: Option<
+        unsafe extern "C" fn(
+            *mut otl_BaseArray,
+            Option<unsafe extern "C" fn(*const otl_BaseRecord, *mut ::core::ffi::c_void) -> bool>,
+            *mut ::core::ffi::c_void,
+        ) -> (),
+    >,
+    pub sort: Option<
+        unsafe extern "C" fn(
+            *mut otl_BaseArray,
+            Option<
+                unsafe extern "C" fn(
+                    *const otl_BaseRecord,
+                    *const otl_BaseRecord,
+                ) -> ::core::ffi::c_int,
+            >,
+        ) -> (),
+    >,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct __caryll_vectorinterface_otl_LigatureArray {
+    pub init: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut otl_LigatureArray, *const otl_LigatureArray) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut otl_LigatureArray, *mut otl_LigatureArray) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut otl_LigatureArray, otl_LigatureArray) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_LigatureArray, otl_LigatureArray) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut otl_LigatureArray>,
+    pub free: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_LigatureArray, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_LigatureArray, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_LigatureArray>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_LigatureArray, usize) -> ()>,
+    pub clear: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> ()>,
+    pub push: Option<unsafe extern "C" fn(*mut otl_LigatureArray, otl_LigatureBaseRecord) -> ()>,
+    pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> ()>,
+    pub pop: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> otl_LigatureBaseRecord>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_LigatureArray, usize) -> ()>,
+    pub filterEnv: Option<
+        unsafe extern "C" fn(
+            *mut otl_LigatureArray,
+            Option<
+                unsafe extern "C" fn(
+                    *const otl_LigatureBaseRecord,
+                    *mut ::core::ffi::c_void,
+                ) -> bool,
+            >,
+            *mut ::core::ffi::c_void,
+        ) -> (),
+    >,
+    pub sort: Option<
+        unsafe extern "C" fn(
+            *mut otl_LigatureArray,
+            Option<
+                unsafe extern "C" fn(
+                    *const otl_LigatureBaseRecord,
+                    *const otl_LigatureBaseRecord,
+                ) -> ::core::ffi::c_int,
+            >,
+        ) -> (),
+    >,
+}

@@ -15,169 +15,16 @@ extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_progress, otfcc_ILogger};
+use crate::logger::{log_type_progress, log_vl_progress, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{arity_t};
+
 use crate::vendor::sds::{sds};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
-    pub count: ::core::ffi::c_uint,
-    pub expand_mult: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
-    pub prev: *mut ::core::ffi::c_void,
-    pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
-    pub key: *mut ::core::ffi::c_void,
-    pub keylen: ::core::ffi::c_uint,
-    pub hashv: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
-    pub num_buckets: ::core::ffi::c_uint,
-    pub log2_num_buckets: ::core::ffi::c_uint,
-    pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
-    pub hho: isize,
-    pub ideal_chain_maxlen: ::core::ffi::c_uint,
-    pub nonideal_items: ::core::ffi::c_uint,
-    pub ineff_expands: ::core::ffi::c_uint,
-    pub noexpand: ::core::ffi::c_uint,
-    pub signature: u32,
-}
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed = 10;
-pub const log_vl_info: C2RustUnnamed = 5;
-pub const log_vl_notice: C2RustUnnamed = 2;
-pub const log_vl_important: C2RustUnnamed = 1;
-pub const log_vl_critical: C2RustUnnamed = 0;
-pub type C2RustUnnamed_0 = ::core::ffi::c_uint;
-pub const op_flex1: C2RustUnnamed_0 = 3109;
-pub const op_hflex1: C2RustUnnamed_0 = 3108;
-pub const op_flex: C2RustUnnamed_0 = 3107;
-pub const op_hflex: C2RustUnnamed_0 = 3106;
-pub const op_hvcurveto: C2RustUnnamed_0 = 31;
-pub const op_roll: C2RustUnnamed_0 = 3102;
-pub const op_vhcurveto: C2RustUnnamed_0 = 30;
-pub const op_index: C2RustUnnamed_0 = 3101;
-pub const op_callgsubr: C2RustUnnamed_0 = 29;
-pub const op_exch: C2RustUnnamed_0 = 3100;
-pub const op_dup: C2RustUnnamed_0 = 3099;
-pub const op_hhcurveto: C2RustUnnamed_0 = 27;
-pub const op_sqrt: C2RustUnnamed_0 = 3098;
-pub const op_vvcurveto: C2RustUnnamed_0 = 26;
-pub const op_rlinecurve: C2RustUnnamed_0 = 25;
-pub const op_mul: C2RustUnnamed_0 = 3096;
-pub const op_rcurveline: C2RustUnnamed_0 = 24;
-pub const op_random: C2RustUnnamed_0 = 3095;
-pub const op_vstemhm: C2RustUnnamed_0 = 23;
-pub const op_ifelse: C2RustUnnamed_0 = 3094;
-pub const op_hmoveto: C2RustUnnamed_0 = 22;
-pub const op_get: C2RustUnnamed_0 = 3093;
-pub const op_rmoveto: C2RustUnnamed_0 = 21;
-pub const op_put: C2RustUnnamed_0 = 3092;
-pub const op_cntrmask: C2RustUnnamed_0 = 20;
-pub const op_hintmask: C2RustUnnamed_0 = 19;
-pub const op_drop: C2RustUnnamed_0 = 3090;
-pub const op_hstemhm: C2RustUnnamed_0 = 18;
-pub const op_cff2blend: C2RustUnnamed_0 = 16;
-pub const op_eq: C2RustUnnamed_0 = 3087;
-pub const op_cff2vsidx: C2RustUnnamed_0 = 15;
-pub const op_neg: C2RustUnnamed_0 = 3086;
-pub const op_endchar: C2RustUnnamed_0 = 14;
-pub const op_div: C2RustUnnamed_0 = 3084;
-pub const op_sub: C2RustUnnamed_0 = 3083;
-pub const op_return: C2RustUnnamed_0 = 11;
-pub const op_add: C2RustUnnamed_0 = 3082;
-pub const op_callsubr: C2RustUnnamed_0 = 10;
-pub const op_abs: C2RustUnnamed_0 = 3081;
-pub const op_rrcurveto: C2RustUnnamed_0 = 8;
-pub const op_vlineto: C2RustUnnamed_0 = 7;
-pub const op_hlineto: C2RustUnnamed_0 = 6;
-pub const op_not: C2RustUnnamed_0 = 3077;
-pub const op_rlineto: C2RustUnnamed_0 = 5;
-pub const op_or: C2RustUnnamed_0 = 3076;
-pub const op_vmoveto: C2RustUnnamed_0 = 4;
-pub const op_and: C2RustUnnamed_0 = 3075;
-pub const op_vstem: C2RustUnnamed_0 = 3;
-pub const op_hstem: C2RustUnnamed_0 = 1;
-pub type cff_IndexCountType = ::core::ffi::c_uint;
-pub const CFF_INDEX_32: cff_IndexCountType = 1;
-pub const CFF_INDEX_16: cff_IndexCountType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_Index {
-    pub countType: cff_IndexCountType,
-    pub count: arity_t,
-    pub offSize: u8,
-    pub offset: *mut u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_elementinterface_cff_Index {
-    pub init: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut cff_Index, *const cff_Index) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut cff_Index, *mut cff_Index) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut cff_Index, cff_Index) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut cff_Index, cff_Index) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut cff_Index>,
-    pub free: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub empty: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub getLength: Option<unsafe extern "C" fn(*const cff_Index) -> u32>,
-    pub parse: Option<unsafe extern "C" fn(*mut u8, u32, *mut cff_Index) -> ()>,
-    pub fromCallback: Option<
-        unsafe extern "C" fn(
-            *mut ::core::ffi::c_void,
-            u32,
-            Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut caryll_Buffer>,
-        ) -> *mut cff_Index,
-    >,
-    pub build: Option<unsafe extern "C" fn(*const cff_Index) -> *mut caryll_Buffer>,
-}
-pub type C2RustUnnamed_1 = ::core::ffi::c_uint;
-pub const type2_transient_array: C2RustUnnamed_1 = 32;
-pub const type2_max_subrs: C2RustUnnamed_1 = 65300;
-pub const type2_charstring_len: C2RustUnnamed_1 = 65535;
-pub const type2_subr_nesting: C2RustUnnamed_1 = 10;
-pub const type2_stem_hints: C2RustUnnamed_1 = 96;
-pub const type2_argument_stack: C2RustUnnamed_1 = 48;
-pub type cff_InstructionType = ::core::ffi::c_uint;
-pub const IL_ITEM_PHANTOM_OPERAND: cff_InstructionType = 4;
-pub const IL_ITEM_PHANTOM_OPERATOR: cff_InstructionType = 3;
-pub const IL_ITEM_SPECIAL: cff_InstructionType = 2;
-pub const IL_ITEM_OPERATOR: cff_InstructionType = 1;
-pub const IL_ITEM_OPERAND: cff_InstructionType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_CharstringInstruction {
-    pub type_0: cff_InstructionType,
-    pub arity: arity_t,
-    pub c2rust_unnamed: C2RustUnnamed_2,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_2 {
-    pub d: ::core::ffi::c_double,
-    pub i: i32,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_CharstringIL {
-    pub length: u32,
-    pub free: u32,
-    pub instr: *mut cff_CharstringInstruction,
-}
+use crate::libcff::{op_callgsubr, op_callsubr, op_endchar, op_return, type2_max_subrs, type2_subr_nesting};
+use crate::libcff::cff_index::{__caryll_elementinterface_cff_Index, cff_Index};
+use crate::libcff::charstring_il::{cff_CharstringIL};
+use crate::support::{NULL};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __cff_SubrRule {
@@ -235,12 +82,6 @@ pub struct __caryll_elementinterface_cff_SubrGraph {
     pub create: Option<unsafe extern "C" fn() -> *mut cff_SubrGraph>,
     pub free: Option<unsafe extern "C" fn(*mut cff_SubrGraph) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const HASH_INITIAL_NUM_BUCKETS: ::core::ffi::c_uint = 32 as ::core::ffi::c_uint;
-pub const HASH_INITIAL_NUM_BUCKETS_LOG2: ::core::ffi::c_uint = 5 as ::core::ffi::c_uint;
-pub const HASH_BKT_CAPACITY_THRESH: ::core::ffi::c_uint = 10 as ::core::ffi::c_uint;
-pub const HASH_SIGNATURE: ::core::ffi::c_uint = 0xa0111fe1 as ::core::ffi::c_uint;
 unsafe extern "C" fn cff_new_Node() -> *mut cff_SubrNode {
     let mut n: *mut cff_SubrNode = ::core::ptr::null_mut::<cff_SubrNode>();
     n = __caryll_allocate_clean(
@@ -4823,5 +4664,3 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
     cff_iIndex.free.expect("non-null function pointer")(igs);
     cff_iIndex.free.expect("non-null function pointer")(ils);
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

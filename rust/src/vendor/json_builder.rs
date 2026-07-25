@@ -1,5 +1,6 @@
 use libc::{calloc, free, malloc, memcmp, memcpy, realloc, strlen};
 use crate::vendor::json::{_json_value, json_array, json_boolean, json_double, json_integer, json_null, json_object, json_object_entry, json_string, json_value};
+
 extern "C" {
     fn emyg_dtoa(value: ::core::ffi::c_double, buffer: *mut ::core::ffi::c_char);
 }
@@ -18,7 +19,6 @@ pub struct json_serialize_opts {
     pub opts: ::core::ffi::c_int,
     pub indent_size: ::core::ffi::c_int,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const json_serialize_mode_multiline: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
 pub const json_serialize_mode_single_line: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 pub const json_serialize_mode_packed: ::core::ffi::c_int = 2 as ::core::ffi::c_int;

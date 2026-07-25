@@ -1,6 +1,7 @@
 use libc::{memcpy};
 use crate::support::primitives::{glyphid_t};
 use crate::vendor::sds::{sds};
+
 extern "C" {
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
@@ -35,7 +36,6 @@ pub struct otfcc_HandlePackage {
     pub fromConsolidated: Option<unsafe extern "C" fn(glyphid_t, sds) -> otfcc_Handle>,
     pub consolidateTo: Option<unsafe extern "C" fn(*mut otfcc_Handle, glyphid_t, sds) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 #[inline]
 unsafe extern "C" fn initHandle(mut h: *mut otfcc_Handle) {
     (*h).state = HANDLE_STATE_EMPTY;
@@ -182,3 +182,5 @@ pub static mut otfcc_iHandle: otfcc_HandlePackage = {
         ),
     }
 };
+
+pub type otfcc_FDHandle = otfcc_Handle;

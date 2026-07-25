@@ -1,22 +1,11 @@
 use crate::support::primitives::{arity_t};
 use crate::vendor::sds::{sds};
+use crate::libcff::cff_index::{cff_Index};
+
 extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
 }
-pub type cff_IndexCountType = ::core::ffi::c_uint;
-pub const CFF_INDEX_32: cff_IndexCountType = 1;
-pub const CFF_INDEX_16: cff_IndexCountType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_Index {
-    pub countType: cff_IndexCountType,
-    pub count: arity_t,
-    pub offSize: u8,
-    pub offset: *mut u32,
-    pub data: *mut u8,
-}
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 static mut string_standard: [*const ::core::ffi::c_char; 391] = [
     b".notdef\0" as *const u8 as *const ::core::ffi::c_char,
     b"space\0" as *const u8 as *const ::core::ffi::c_char,

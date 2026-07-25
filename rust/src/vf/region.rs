@@ -3,13 +3,8 @@ use libc::{free, memcpy, strncmp};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{pos_t, shapeid_t};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VV {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut pos_t,
-}
+
+use crate::vf::vv::{VV};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vq_AxisSpan {
@@ -23,8 +18,6 @@ pub struct vq_Region {
     pub dimensions: shapeid_t,
     pub spans: [vq_AxisSpan; 0],
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[no_mangle]
 pub unsafe extern "C" fn vq_createRegion(mut dimensions: shapeid_t) -> *mut vq_Region {
     let mut r: *mut vq_Region = ::core::ptr::null_mut::<vq_Region>();

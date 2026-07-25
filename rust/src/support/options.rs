@@ -4,6 +4,7 @@ use libc::{free};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{otfcc_ILogger};
 
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Options {
@@ -33,10 +34,6 @@ pub struct otfcc_Options {
     pub glyph_name_prefix: *mut ::core::ffi::c_char,
     pub logger: *mut otfcc_ILogger,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_newOptions() -> *mut otfcc_Options {
     let mut options: *mut otfcc_Options = ::core::ptr::null_mut::<otfcc_Options>();

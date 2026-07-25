@@ -2,6 +2,8 @@ use libc::{exit, fclose, fprintf, fread, free, fseek};
 
 use crate::support::stdio::{FILE, stderr};
 use crate::support::alloc::{__caryll_allocate_clean};
+use crate::support::{EXIT_FAILURE};
+use crate::support::binio::{otfcc_EndianProbe16, otfcc_EndianProbe32};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
@@ -29,27 +31,7 @@ pub struct otfcc_SplineFontContainer {
     pub offsets: *mut u32,
     pub packets: *mut otfcc_Packet,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed {
-    pub i1: [u8; 4],
-    pub i4: u32,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_0 {
-    pub i1: [u8; 2],
-    pub i2: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_1 {
-    pub i1: [u8; 2],
-    pub i2: u16,
-}
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const SEEK_SET: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 unsafe extern "C" fn otfcc_read_packets(
     mut font: *mut otfcc_SplineFontContainer,
     mut file: *mut FILE,
@@ -229,7 +211,7 @@ pub unsafe extern "C" fn otfcc_deleteSFNT(mut font: *mut otfcc_SplineFontContain
 }
 #[inline]
 unsafe extern "C" fn otfcc_check_endian() -> bool {
-    let mut check_union: C2RustUnnamed_0 = C2RustUnnamed_0 {
+    let mut check_union: otfcc_EndianProbe16 = otfcc_EndianProbe16 {
         i2: 1 as ::core::ffi::c_int as u16,
     };
     return check_union.i1[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
@@ -238,8 +220,8 @@ unsafe extern "C" fn otfcc_check_endian() -> bool {
 #[inline]
 unsafe extern "C" fn otfcc_endian_convert16(mut i: u16) -> u16 {
     if otfcc_check_endian() {
-        let mut src: C2RustUnnamed_1 = C2RustUnnamed_1 { i1: [0; 2] };
-        let mut des: C2RustUnnamed_1 = C2RustUnnamed_1 { i1: [0; 2] };
+        let mut src: otfcc_EndianProbe16 = otfcc_EndianProbe16 { i1: [0; 2] };
+        let mut des: otfcc_EndianProbe16 = otfcc_EndianProbe16 { i1: [0; 2] };
         src.i2 = i;
         des.i1[0 as ::core::ffi::c_int as usize] = src.i1[1 as ::core::ffi::c_int as usize];
         des.i1[1 as ::core::ffi::c_int as usize] = src.i1[0 as ::core::ffi::c_int as usize];
@@ -251,8 +233,8 @@ unsafe extern "C" fn otfcc_endian_convert16(mut i: u16) -> u16 {
 #[inline]
 unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
     if otfcc_check_endian() {
-        let mut src: C2RustUnnamed = C2RustUnnamed { i1: [0; 4] };
-        let mut des: C2RustUnnamed = C2RustUnnamed { i1: [0; 4] };
+        let mut src: otfcc_EndianProbe32 = otfcc_EndianProbe32 { i1: [0; 4] };
+        let mut des: otfcc_EndianProbe32 = otfcc_EndianProbe32 { i1: [0; 4] };
         src.i4 = i;
         des.i1[0 as ::core::ffi::c_int as usize] = src.i1[3 as ::core::ffi::c_int as usize];
         des.i1[1 as ::core::ffi::c_int as usize] = src.i1[2 as ::core::ffi::c_int as usize];

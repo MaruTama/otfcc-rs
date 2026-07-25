@@ -1,4 +1,6 @@
 use libc::{free, malloc, memcmp, memcpy, memmove, memset, realloc, strchr, strlen};
+
+use crate::support::ctype_compat::{_ISprint, _ISspace};
 extern "C" {
     fn vsnprintf(
         __s: *mut ::core::ffi::c_char,
@@ -29,19 +31,6 @@ pub struct __va_list {
 }
 pub type __gnuc_va_list = __builtin_va_list;
 pub type va_list = __gnuc_va_list;
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const _ISalnum: C2RustUnnamed = 8;
-pub const _ISpunct: C2RustUnnamed = 4;
-pub const _IScntrl: C2RustUnnamed = 2;
-pub const _ISblank: C2RustUnnamed = 1;
-pub const _ISgraph: C2RustUnnamed = 32768;
-pub const _ISprint: C2RustUnnamed = 16384;
-pub const _ISspace: C2RustUnnamed = 8192;
-pub const _ISxdigit: C2RustUnnamed = 4096;
-pub const _ISdigit: C2RustUnnamed = 2048;
-pub const _ISalpha: C2RustUnnamed = 1024;
-pub const _ISlower: C2RustUnnamed = 512;
-pub const _ISupper: C2RustUnnamed = 256;
 pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
@@ -81,7 +70,6 @@ pub struct sdshdr64 {
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 #[inline]
 unsafe extern "C" fn tolower(mut __c: ::core::ffi::c_int) -> ::core::ffi::c_int {
     return if __c >= -(128 as ::core::ffi::c_int) && __c < 256 as ::core::ffi::c_int {

@@ -1,5 +1,5 @@
 use libc::{malloc, memset};
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
+
 static mut base64_table: [u8; 64] = unsafe {
     ::core::mem::transmute::<[u8; 64], [u8; 64]>(
         *b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",

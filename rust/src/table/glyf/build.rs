@@ -16,277 +16,26 @@ extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{otfcc_Handle, otfcc_GlyphHandle};
+
 
 use crate::support::binio::{pos_to_u16};
 use crate::support::alloc::{__caryll_allocate_clean};
 
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{f16dot16, glyphid_t, pos_t, scale_t, shapeid_t};
-use crate::vendor::sds::{sds};
-pub type otfcc_FDHandle = otfcc_Handle;
+use crate::support::primitives::{glyphid_t, shapeid_t};
+
+
+use crate::table::glyf::{ARGS_ARE_XY_VALUES, ARG_1_AND_2_ARE_WORDS, GLYF_FLAG_ON_CURVE, GLYF_FLAG_POSITIVE_X, GLYF_FLAG_POSITIVE_Y, GLYF_FLAG_REPEAT, GLYF_FLAG_SAME_X, GLYF_FLAG_SAME_Y, GLYF_FLAG_X_SHORT, GLYF_FLAG_Y_SHORT, MASK_ON_CURVE, MORE_COMPONENTS, REF_ANCHOR_CONSOLIDATED, ROUND_XY_TO_GRID, UNSCALED_COMPONENT_OFFSET, USE_MY_METRICS, WE_HAVE_AN_X_AND_Y_SCALE, WE_HAVE_A_SCALE, WE_HAVE_A_TWO_BY_TWO, WE_HAVE_INSTRUCTIONS, glyf_ComponentReference, glyf_Glyph, glyf_Point, table_GlyfAndLocaBuffers, table_glyf};
+use crate::table::head::{table_head};
+
+use crate::vf::vq::{__caryll_vectorinterface_VQ};
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct vq_AxisSpan {
-    pub start: pos_t,
-    pub peak: pos_t,
-    pub end: pos_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_Region {
-    pub dimensions: shapeid_t,
-    pub spans: [vq_AxisSpan; 0],
-}
-pub type VQSegType = ::core::ffi::c_uint;
-pub const VQ_DELTA: VQSegType = 1;
-pub const VQ_STILL: VQSegType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_Segment {
-    pub type_0: VQSegType,
-    pub val: C2RustUnnamed,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed {
-    pub still: pos_t,
-    pub delta: C2RustUnnamed_0,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_0 {
-    pub quantity: pos_t,
-    pub touched: bool,
-    pub region: *const vq_Region,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_SegList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut vq_Segment,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VQ {
-    pub kernel: pos_t,
-    pub shift: vq_SegList,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_vectorinterface_VQ {
-    pub init: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut VQ, *const VQ) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VQ, *mut VQ) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> VQ>,
-    pub dup: Option<unsafe extern "C" fn(VQ) -> VQ>,
-    pub neutral: Option<unsafe extern "C" fn() -> VQ>,
-    pub plus: Option<unsafe extern "C" fn(VQ, VQ) -> VQ>,
-    pub inplacePlus: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub inplaceNegate: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub negate: Option<unsafe extern "C" fn(VQ) -> VQ>,
-    pub inplaceMinus: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub minus: Option<unsafe extern "C" fn(VQ, VQ) -> VQ>,
-    pub inplaceScale: Option<unsafe extern "C" fn(*mut VQ, scale_t) -> ()>,
-    pub inplacePlusScale: Option<unsafe extern "C" fn(*mut VQ, scale_t, VQ) -> ()>,
-    pub scale: Option<unsafe extern "C" fn(VQ, scale_t) -> VQ>,
-    pub equal: Option<unsafe extern "C" fn(VQ, VQ) -> bool>,
-    pub compare: Option<unsafe extern "C" fn(VQ, VQ) -> ::core::ffi::c_int>,
-    pub compareRef: Option<unsafe extern "C" fn(*const VQ, *const VQ) -> ::core::ffi::c_int>,
-    pub show: Option<unsafe extern "C" fn(VQ) -> ()>,
-    pub getStill: Option<unsafe extern "C" fn(VQ) -> pos_t>,
-    pub createStill: Option<unsafe extern "C" fn(pos_t) -> VQ>,
-    pub isStill: Option<unsafe extern "C" fn(VQ) -> bool>,
-    pub isZero: Option<unsafe extern "C" fn(VQ, pos_t) -> bool>,
-    pub pointLinearTfm: Option<unsafe extern "C" fn(VQ, pos_t, VQ, pos_t, VQ) -> VQ>,
-    pub addDelta: Option<unsafe extern "C" fn(*mut VQ, bool, *const vq_Region, pos_t) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_head {
-    pub version: f16dot16,
-    pub fontRevision: u32,
-    pub checkSumAdjustment: u32,
-    pub magicNumber: u32,
-    pub flags: u16,
-    pub unitsPerEm: u16,
-    pub created: i64,
-    pub modified: i64,
-    pub xMin: i16,
-    pub yMin: i16,
-    pub xMax: i16,
-    pub yMax: i16,
-    pub macStyle: u16,
-    pub lowestRecPPEM: u16,
-    pub fontDirectoryHint: i16,
-    pub indexToLocFormat: i16,
-    pub glyphDataFormat: i16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_Point {
-    pub x: VQ,
-    pub y: VQ,
-    pub onCurve: i8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_Contour {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_Point,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_ContourList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_Contour,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_PostscriptStemDef {
-    pub position: pos_t,
-    pub width: pos_t,
-    pub map: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_StemDefList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_PostscriptStemDef,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_PostscriptHintMask {
-    pub pointsBefore: u16,
-    pub contoursBefore: u16,
-    pub maskH: [bool; 256],
-    pub maskV: [bool; 256],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_MaskList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_PostscriptHintMask,
-}
-pub type RefAnchorStatus = ::core::ffi::c_uint;
-pub const REF_ANCHOR_CONSOLIDATING_XY: RefAnchorStatus = 5;
-pub const REF_ANCHOR_CONSOLIDATING_ANCHOR: RefAnchorStatus = 4;
-pub const REF_ANCHOR_CONSOLIDATED: RefAnchorStatus = 3;
-pub const REF_ANCHOR_XY: RefAnchorStatus = 2;
-pub const REF_ANCHOR_ANCHOR: RefAnchorStatus = 1;
-pub const REF_XY: RefAnchorStatus = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_ComponentReference {
-    pub x: VQ,
-    pub y: VQ,
-    pub roundToGrid: bool,
-    pub useMyMetrics: bool,
-    pub glyph: otfcc_GlyphHandle,
-    pub a: scale_t,
-    pub b: scale_t,
-    pub c: scale_t,
-    pub d: scale_t,
-    pub isAnchored: RefAnchorStatus,
-    pub inner: shapeid_t,
-    pub outer: shapeid_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_ReferenceList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_ComponentReference,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_GlyphStat {
-    pub xMin: pos_t,
-    pub xMax: pos_t,
-    pub yMin: pos_t,
-    pub yMax: pos_t,
-    pub nestDepth: u16,
-    pub nPoints: u16,
-    pub nContours: u16,
-    pub nCompositePoints: u16,
-    pub nCompositeContours: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct glyf_Glyph {
-    pub name: sds,
-    pub horizontalOrigin: VQ,
-    pub advanceWidth: VQ,
-    pub verticalOrigin: VQ,
-    pub advanceHeight: VQ,
-    pub contours: glyf_ContourList,
-    pub references: glyf_ReferenceList,
-    pub stemH: glyf_StemDefList,
-    pub stemV: glyf_StemDefList,
-    pub hintMasks: glyf_MaskList,
-    pub contourMasks: glyf_MaskList,
-    pub instructionsLength: u16,
-    pub instructions: *mut u8,
-    pub yPel: u8,
-    pub fdSelect: otfcc_FDHandle,
-    pub cid: glyphid_t,
-    pub stat: glyf_GlyphStat,
-}
-pub type glyf_GlyphPtr = *mut glyf_Glyph;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_glyf {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut glyf_GlyphPtr,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_GlyfAndLocaBuffers {
-    pub glyf: *mut caryll_Buffer,
-    pub loca: *mut caryll_Buffer,
-}
-pub const WE_HAVE_A_TWO_BY_TWO: C2RustUnnamed_3 = 128;
-pub const WE_HAVE_INSTRUCTIONS: C2RustUnnamed_3 = 256;
-pub const MORE_COMPONENTS: C2RustUnnamed_3 = 32;
-pub const WE_HAVE_AN_X_AND_Y_SCALE: C2RustUnnamed_3 = 64;
-pub const WE_HAVE_A_SCALE: C2RustUnnamed_3 = 8;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_1 {
+pub union glyf_ComponentArg {
     pub pointid: u16,
     pub coord: i16,
 }
-pub const ARG_1_AND_2_ARE_WORDS: C2RustUnnamed_3 = 1;
-pub const UNSCALED_COMPONENT_OFFSET: C2RustUnnamed_3 = 4096;
-pub const USE_MY_METRICS: C2RustUnnamed_3 = 512;
-pub const ROUND_XY_TO_GRID: C2RustUnnamed_3 = 4;
-pub const ARGS_ARE_XY_VALUES: C2RustUnnamed_3 = 2;
-pub const GLYF_FLAG_REPEAT: C2RustUnnamed_2 = 8;
-pub const GLYF_FLAG_ON_CURVE: C2RustUnnamed_2 = 1;
-pub const MASK_ON_CURVE: C2RustUnnamed_4 = 1;
-pub const GLYF_FLAG_POSITIVE_Y: C2RustUnnamed_2 = 32;
-pub const GLYF_FLAG_Y_SHORT: C2RustUnnamed_2 = 4;
-pub const GLYF_FLAG_SAME_Y: C2RustUnnamed_2 = 32;
-pub const GLYF_FLAG_POSITIVE_X: C2RustUnnamed_2 = 16;
-pub const GLYF_FLAG_X_SHORT: C2RustUnnamed_2 = 2;
-pub const GLYF_FLAG_SAME_X: C2RustUnnamed_2 = 16;
-pub type C2RustUnnamed_2 = ::core::ffi::c_uint;
-pub type C2RustUnnamed_3 = ::core::ffi::c_uint;
-pub const SCALED_COMPONENT_OFFSET: C2RustUnnamed_3 = 2048;
-pub const OVERLAP_COMPOUND: C2RustUnnamed_3 = 1024;
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[no_mangle]
 pub unsafe extern "C" fn shrinkFlags(mut flags: *mut caryll_Buffer) -> *mut caryll_Buffer {
     if buflen(flags) == 0 {
@@ -452,8 +201,8 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const glyf_Glyph, mut gbuf: *m
             }) as u16;
         let mut outputAnchor: bool = (*r).isAnchored as ::core::ffi::c_uint
             == REF_ANCHOR_CONSOLIDATED as ::core::ffi::c_int as ::core::ffi::c_uint;
-        let mut arg1: C2RustUnnamed_1 = C2RustUnnamed_1 { pointid: 0 };
-        let mut arg2: C2RustUnnamed_1 = C2RustUnnamed_1 { pointid: 0 };
+        let mut arg1: glyf_ComponentArg = glyf_ComponentArg { pointid: 0 };
+        let mut arg2: glyf_ComponentArg = glyf_ComponentArg { pointid: 0 };
         if outputAnchor {
             arg1.pointid = (*r).outer as u16;
             arg2.pointid = (*r).inner as u16;

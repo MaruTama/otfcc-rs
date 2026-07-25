@@ -29,11 +29,11 @@ pub struct __caryll_bkblock {
 #[repr(C)]
 pub struct bk_Cell {
     pub t: bk_CellType,
-    pub c2rust_unnamed: C2RustUnnamed,
+    pub c2rust_unnamed: bk_CellValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union bk_CellValue {
     pub z: u32,
     pub p: *mut __caryll_bkblock,
 }
@@ -56,9 +56,8 @@ pub type bk_Block = __caryll_bkblock;
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
+
 pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 unsafe extern "C" fn bkblock_acells(mut b: *mut bk_Block, mut len: u32) {
     if len <= (*b).length.wrapping_add((*b).free) {
         (*b).free = (*b).free.wrapping_sub(len.wrapping_sub((*b).length));

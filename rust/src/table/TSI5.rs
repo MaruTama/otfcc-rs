@@ -10,8 +10,8 @@ extern "C" {
     ) -> *mut json_value;
 }
 
-use crate::table::otl::classdef::{otl_ClassDef_create, pushClassDef, otl_ClassDef};
-use crate::table::otl::coverage::{otl_Coverage};
+use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef, otl_ClassDef_create, pushClassDef};
+
 use crate::support::handle::{handle_fromIndex, otfcc_GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -21,50 +21,10 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{glyphclass_t, glyphid_t};
 use crate::vendor::json::{json_object, json_type, json_value};
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __otfcc_IClassDef {
-    pub init: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otl_ClassDef, *const otl_ClassDef) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otl_ClassDef, *mut otl_ClassDef) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otl_ClassDef, otl_ClassDef) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_ClassDef, otl_ClassDef) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut otl_ClassDef>,
-    pub free: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub push:
-        Option<unsafe extern "C" fn(*mut otl_ClassDef, otfcc_GlyphHandle, glyphclass_t) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_ClassDef>,
-    pub expand:
-        Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_ClassDef) -> *mut otl_ClassDef>,
-    pub dump: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut json_value>,
-    pub parse: Option<unsafe extern "C" fn(*const json_value) -> *mut otl_ClassDef>,
-    pub build: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut caryll_Buffer>,
-    pub shrink: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-}
+
 pub type table_TSI5 = otl_ClassDef;
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_readTSI5(
     packet: otfcc_Packet,

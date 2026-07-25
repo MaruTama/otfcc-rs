@@ -6,14 +6,15 @@ extern "C" {
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{caryll_Buffer};
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const cff_CHARSET_FORMAT2: C2RustUnnamed = 5;
-pub const cff_CHARSET_FORMAT1: C2RustUnnamed = 4;
-pub const cff_CHARSET_FORMAT0: C2RustUnnamed = 3;
-pub const cff_CHARSET_EXPERTSUBSET: C2RustUnnamed = 2;
-pub const cff_CHARSET_EXPERT: C2RustUnnamed = 1;
-pub const cff_CHARSET_UNSPECED: C2RustUnnamed = 0;
-pub const cff_CHARSET_ISOADOBE: C2RustUnnamed = 0;
+
+pub type cff_CharsetType = ::core::ffi::c_uint;
+pub const cff_CHARSET_FORMAT2: cff_CharsetType = 5;
+pub const cff_CHARSET_FORMAT1: cff_CharsetType = 4;
+pub const cff_CHARSET_FORMAT0: cff_CharsetType = 3;
+pub const cff_CHARSET_EXPERTSUBSET: cff_CharsetType = 2;
+pub const cff_CHARSET_EXPERT: cff_CharsetType = 1;
+pub const cff_CHARSET_UNSPECED: cff_CharsetType = 0;
+pub const cff_CHARSET_ISOADOBE: cff_CharsetType = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_CharsetFormat0 {
@@ -49,17 +50,15 @@ pub struct cff_CharsetFormat2 {
 pub struct cff_Charset {
     pub t: u32,
     pub s: u32,
-    pub c2rust_unnamed: C2RustUnnamed_0,
+    pub c2rust_unnamed: cff_CharsetBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_0 {
+pub union cff_CharsetBody {
     pub f0: cff_CharsetFormat0,
     pub f1: cff_CharsetFormat1,
     pub f2: cff_CharsetFormat2,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;

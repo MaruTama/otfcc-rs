@@ -250,3 +250,5 @@ mod tests {
         }
     }
 }
+
+pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;

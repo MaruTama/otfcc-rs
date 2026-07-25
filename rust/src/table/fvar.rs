@@ -46,285 +46,26 @@ extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_warning, otfcc_ILogger};
+use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{f16dot16, font_file_pointer, pos_t, scale_t, shapeid_t, tableid_t};
-use crate::vendor::sds::{sds};
+use crate::support::primitives::{f16dot16, font_file_pointer, pos_t};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 use crate::vendor::json::{json_double, json_integer, json_pre_serialized, json_value};
-use crate::support::cvec::{
-    cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
-    cvec_resize_to, CVecRaw,
-};
+use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::{NULL};
+use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::vf::axis::{__caryll_vectorinterface_vf_Axes, vf_Axes, vf_Axis};
+use crate::vf::region::{vq_AxisSpan, vq_Region};
+use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_Segment};
+use crate::vf::vv::{VV, __caryll_vectorinterface_VV};
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr8 {
-    pub len: u8,
-    pub alloc: u8,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr16 {
-    pub len: u16,
-    pub alloc: u16,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr32 {
-    pub len: u32,
-    pub alloc: u32,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr64 {
-    pub len: u64,
-    pub alloc: u64,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
-    pub count: ::core::ffi::c_uint,
-    pub expand_mult: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
-    pub prev: *mut ::core::ffi::c_void,
-    pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
-    pub key: *mut ::core::ffi::c_void,
-    pub keylen: ::core::ffi::c_uint,
-    pub hashv: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
-    pub num_buckets: ::core::ffi::c_uint,
-    pub log2_num_buckets: ::core::ffi::c_uint,
-    pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
-    pub hho: isize,
-    pub ideal_chain_maxlen: ::core::ffi::c_uint,
-    pub nonideal_items: ::core::ffi::c_uint,
-    pub ineff_expands: ::core::ffi::c_uint,
-    pub noexpand: ::core::ffi::c_uint,
-    pub signature: u32,
-}
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed_4 = 10;
-pub const log_vl_info: C2RustUnnamed_4 = 5;
-pub const log_vl_notice: C2RustUnnamed_4 = 2;
-pub const log_vl_important: C2RustUnnamed_4 = 1;
-pub const log_vl_critical: C2RustUnnamed_4 = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: u32,
-    pub checkSum: u32,
-    pub offset: u32,
-    pub length: u32,
-    pub data: *mut u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
-    pub pieces: *mut otfcc_PacketPiece,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VV {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut pos_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_vectorinterface_VV {
-    pub init: Option<unsafe extern "C" fn(*mut VV) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut VV, *const VV) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VV, *mut VV) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut VV) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VV, VV) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VV, VV) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut VV>,
-    pub free: Option<unsafe extern "C" fn(*mut VV) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut VV>,
-    pub fill: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut VV) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut VV, pos_t) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut VV) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut VV) -> pos_t>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,
-    pub filterEnv: Option<
-        unsafe extern "C" fn(
-            *mut VV,
-            Option<unsafe extern "C" fn(*const pos_t, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut VV,
-            Option<unsafe extern "C" fn(*const pos_t, *const pos_t) -> ::core::ffi::c_int>,
-        ) -> (),
-    >,
-    pub neutral: Option<unsafe extern "C" fn(tableid_t) -> VV>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_AxisSpan {
-    pub start: pos_t,
-    pub peak: pos_t,
-    pub end: pos_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_Region {
-    pub dimensions: shapeid_t,
-    pub spans: [vq_AxisSpan; 0],
-}
-pub type VQSegType = ::core::ffi::c_uint;
-pub const VQ_DELTA: VQSegType = 1;
-pub const VQ_STILL: VQSegType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_Segment {
-    pub type_0: VQSegType,
-    pub val: C2RustUnnamed_5,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_5 {
-    pub still: pos_t,
-    pub delta: C2RustUnnamed_6,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_6 {
-    pub quantity: pos_t,
-    pub touched: bool,
-    pub region: *const vq_Region,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vq_SegList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut vq_Segment,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VQ {
-    pub kernel: pos_t,
-    pub shift: vq_SegList,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_vectorinterface_VQ {
-    pub init: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut VQ, *const VQ) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VQ, *mut VQ) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> VQ>,
-    pub dup: Option<unsafe extern "C" fn(VQ) -> VQ>,
-    pub neutral: Option<unsafe extern "C" fn() -> VQ>,
-    pub plus: Option<unsafe extern "C" fn(VQ, VQ) -> VQ>,
-    pub inplacePlus: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub inplaceNegate: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
-    pub negate: Option<unsafe extern "C" fn(VQ) -> VQ>,
-    pub inplaceMinus: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
-    pub minus: Option<unsafe extern "C" fn(VQ, VQ) -> VQ>,
-    pub inplaceScale: Option<unsafe extern "C" fn(*mut VQ, scale_t) -> ()>,
-    pub inplacePlusScale: Option<unsafe extern "C" fn(*mut VQ, scale_t, VQ) -> ()>,
-    pub scale: Option<unsafe extern "C" fn(VQ, scale_t) -> VQ>,
-    pub equal: Option<unsafe extern "C" fn(VQ, VQ) -> bool>,
-    pub compare: Option<unsafe extern "C" fn(VQ, VQ) -> ::core::ffi::c_int>,
-    pub compareRef: Option<unsafe extern "C" fn(*const VQ, *const VQ) -> ::core::ffi::c_int>,
-    pub show: Option<unsafe extern "C" fn(VQ) -> ()>,
-    pub getStill: Option<unsafe extern "C" fn(VQ) -> pos_t>,
-    pub createStill: Option<unsafe extern "C" fn(pos_t) -> VQ>,
-    pub isStill: Option<unsafe extern "C" fn(VQ) -> bool>,
-    pub isZero: Option<unsafe extern "C" fn(VQ, pos_t) -> bool>,
-    pub pointLinearTfm: Option<unsafe extern "C" fn(VQ, pos_t, VQ, pos_t, VQ) -> VQ>,
-    pub addDelta: Option<unsafe extern "C" fn(*mut VQ, bool, *const vq_Region, pos_t) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vf_Axis {
-    pub tag: u32,
-    pub minValue: pos_t,
-    pub defaultValue: pos_t,
-    pub maxValue: pos_t,
-    pub flags: u16,
-    pub axisNameID: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct vf_Axes {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut vf_Axis,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_vectorinterface_vf_Axes {
-    pub init: Option<unsafe extern "C" fn(*mut vf_Axes) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut vf_Axes, *const vf_Axes) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut vf_Axes, *mut vf_Axes) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut vf_Axes) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut vf_Axes, vf_Axes) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut vf_Axes, vf_Axes) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut vf_Axes>,
-    pub free: Option<unsafe extern "C" fn(*mut vf_Axes) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut vf_Axes, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut vf_Axes, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut vf_Axes>,
-    pub fill: Option<unsafe extern "C" fn(*mut vf_Axes, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut vf_Axes) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut vf_Axes, vf_Axis) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut vf_Axes) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut vf_Axes) -> vf_Axis>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut vf_Axes, usize) -> ()>,
-    pub filterEnv: Option<
-        unsafe extern "C" fn(
-            *mut vf_Axes,
-            Option<unsafe extern "C" fn(*const vf_Axis, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut vf_Axes,
-            Option<unsafe extern "C" fn(*const vf_Axis, *const vf_Axis) -> ::core::ffi::c_int>,
-        ) -> (),
-    >,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct fvar_Instance {
@@ -450,22 +191,6 @@ pub struct VariationAxisRecord {
     pub flags: u16,
     pub axisNameID: u16,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct json_serialize_opts {
-    pub mode: ::core::ffi::c_int,
-    pub opts: ::core::ffi::c_int,
-    pub indent_size: ::core::ffi::c_int,
-}
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const SDS_TYPE_5: ::core::ffi::c_int = 0;
-pub const SDS_TYPE_8: ::core::ffi::c_int = 1;
-pub const SDS_TYPE_16: ::core::ffi::c_int = 2;
-pub const SDS_TYPE_32: ::core::ffi::c_int = 3;
-pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
-pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
-pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
@@ -496,10 +221,6 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     }
     return 0 as usize;
 }
-pub const HASH_INITIAL_NUM_BUCKETS: ::core::ffi::c_uint = 32 as ::core::ffi::c_uint;
-pub const HASH_INITIAL_NUM_BUCKETS_LOG2: ::core::ffi::c_uint = 5 as ::core::ffi::c_uint;
-pub const HASH_BKT_CAPACITY_THRESH: ::core::ffi::c_uint = 10 as ::core::ffi::c_uint;
-pub const HASH_SIGNATURE: ::core::ffi::c_uint = 0xa0111fe1 as ::core::ffi::c_uint;
 #[inline]
 unsafe extern "C" fn initFvarInstance(mut inst: *mut fvar_Instance) {
     memset(
@@ -2774,7 +2495,6 @@ pub unsafe extern "C" fn json_new_VQRegion(
         return json_new_VQRegion_Explicit(rs, fvar);
     };
 }
-pub const json_serialize_mode_packed: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn be16(mut x: u16) -> u16 {
     return ((x as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) << 8 as ::core::ffi::c_int
@@ -2849,6 +2569,3 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
     (*xx).type_0 = json_pre_serialized;
     return xx;
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;

@@ -1,8 +1,6 @@
 use libc::{free, malloc, memcpy, memset, qsort};
-use crate::support::cvec::{
-    cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
-    cvec_resize_to, CVecRaw,
-};
+use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
@@ -157,7 +155,6 @@ pub struct __caryll_elementinterface_table_VDMX {
     pub create: Option<unsafe extern "C" fn() -> *mut table_VDMX>,
     pub free: Option<unsafe extern "C" fn(*mut table_VDMX) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 #[inline]
 unsafe extern "C" fn vdmx_Record_init(mut x: *mut vdmx_Record) {
     memset(
@@ -994,4 +991,3 @@ unsafe extern "C" fn table_VDMX_copyReplace(mut dst: *mut table_VDMX, src: table
     table_VDMX_dispose(dst);
     table_VDMX_copy(dst, &raw const src);
 }
-pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;

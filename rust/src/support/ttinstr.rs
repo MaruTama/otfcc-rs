@@ -33,18 +33,13 @@ use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::options::{otfcc_Options};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_integer, json_pre_serialized, json_string, json_value};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct json_serialize_opts {
-    pub mode: ::core::ffi::c_int,
-    pub opts: ::core::ffi::c_int,
-    pub indent_size: ::core::ffi::c_int,
-}
+
+use crate::support::ctype_compat::{_ISdigit};
+use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
 pub const ttf_pushw: ttf_instructions = 184;
 pub const ttf_pushb: ttf_instructions = 176;
 pub const ttf_npushw: ttf_instructions = 65;
 pub const ttf_npushb: ttf_instructions = 64;
-pub const _ISdigit: C2RustUnnamed_4 = 2048;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct instrdata {
@@ -58,18 +53,6 @@ pub const bt_wordhi: byte_types = 3;
 pub const bt_impliedreturn: byte_types = 5;
 pub const bt_wordlo: byte_types = 4;
 pub const bt_instr: byte_types = 0;
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const _ISalnum: C2RustUnnamed_4 = 8;
-pub const _ISpunct: C2RustUnnamed_4 = 4;
-pub const _IScntrl: C2RustUnnamed_4 = 2;
-pub const _ISblank: C2RustUnnamed_4 = 1;
-pub const _ISgraph: C2RustUnnamed_4 = 32768;
-pub const _ISprint: C2RustUnnamed_4 = 16384;
-pub const _ISspace: C2RustUnnamed_4 = 8192;
-pub const _ISxdigit: C2RustUnnamed_4 = 4096;
-pub const _ISalpha: C2RustUnnamed_4 = 1024;
-pub const _ISlower: C2RustUnnamed_4 = 512;
-pub const _ISupper: C2RustUnnamed_4 = 256;
 pub type ttf_instructions = ::core::ffi::c_uint;
 pub const ttf_getvariation: ttf_instructions = 145;
 pub const ttf_ws: ttf_instructions = 66;
@@ -191,9 +174,6 @@ pub const ttf_add: ttf_instructions = 96;
 pub const ttf_abs: ttf_instructions = 100;
 pub const ttf_aa: ttf_instructions = 127;
 pub type byte_types = ::core::ffi::c_uint;
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const json_serialize_mode_packed: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
     let mut opts: json_serialize_opts = json_serialize_opts {

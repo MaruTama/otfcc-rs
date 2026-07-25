@@ -16,45 +16,6 @@ pub type __compar_fn_t = Option<
 >;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_bkblock {
-    pub _visitstate: bk_cell_visit_state,
-    pub _index: u32,
-    pub _height: u32,
-    pub _depth: u32,
-    pub length: u32,
-    pub free: u32,
-    pub cells: *mut bk_Cell,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct bk_Cell {
-    pub t: bk_CellType,
-    pub c2rust_unnamed: C2RustUnnamed,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed {
-    pub z: u32,
-    pub p: *mut __caryll_bkblock,
-}
-pub type bk_CellType = ::core::ffi::c_uint;
-pub const bkembed: bk_CellType = 255;
-pub const bkcopy: bk_CellType = 254;
-pub const sp32: bk_CellType = 129;
-pub const sp16: bk_CellType = 128;
-pub const p32: bk_CellType = 17;
-pub const p16: bk_CellType = 16;
-pub const b32: bk_CellType = 3;
-pub const b16: bk_CellType = 2;
-pub const b8: bk_CellType = 1;
-pub const bkover: bk_CellType = 0;
-pub type bk_cell_visit_state = ::core::ffi::c_uint;
-pub const VISIT_BLACK: bk_cell_visit_state = 2;
-pub const VISIT_GRAY: bk_cell_visit_state = 1;
-pub const VISIT_WHITE: bk_cell_visit_state = 0;
-pub type bk_Block = __caryll_bkblock;
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct bk_GraphNode {
     pub alias: u32,
     pub order: u32,
@@ -69,13 +30,11 @@ pub struct bk_Graph {
     pub free: u32,
     pub entries: *mut bk_GraphNode,
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
+use crate::bk::bkblock::{VISIT_BLACK, VISIT_GRAY, VISIT_WHITE, __caryll_bkblock, b16, b32, b8, bk_Block, bk_Cell, bkcopy, bkover, p16, p32, sp16, sp32};
+
 unsafe extern "C" fn _bkgraph_grow(mut f: *mut bk_Graph) -> *mut bk_GraphNode {
     if (*f).free != 0 {
         (*f).length = (*f).length.wrapping_add(1);

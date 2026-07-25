@@ -43,7 +43,7 @@ rust/Cargo.toml
 rust/src/lib.rs                  crate root: a flat list of `pub mod`
 rust/src/bin/{otfccdump,otfccbuild}.rs
 rust/src/ffi/dll.rs              the four public extern "C" functions
-rust/src/vendor/{sds,json,json_builder,emyg_dtoa}.rs   third-party C
+rust/src/vendor/{sds,json,json_builder,emyg_dtoa,uthash}.rs  third-party C
 rust/src/{bk,consolidate,font,json_reader,json_writer,libcff,logger,
           otf_reader,otf_writer,support,table,vf}[.rs|/]
 ```
@@ -453,21 +453,50 @@ the CI-matching Linux container:
   They are matched by field list and renamed (`json_value_payload`,
   `json_array_value`, `json_object_value`, `json_string_value`,
   `json_value_reserved`).
+- **All 30 remaining anonymous types have real names**, identified the same
+  way but *recursively*, because they nest: the `vq_Segment.val` union's
+  `delta` member is itself anonymous, so two copies of that union differ
+  textually while being one type. Named from the C declaration that produced
+  them — `otl_ChainingBody`/`otl_ChainingRuleSet`, `vq_SegmentValue`/
+  `vq_SegmentDelta`, `bk_CellValue`, the `cff_*Body` format unions,
+  `glyf_PackedPointRun`. The anonymous *enums* needed their constants folded
+  into the signature: `pub type C2RustUnnamed_N = c_uint` is identical text
+  for all 41 of them, so the logger's verbosity levels and CFF's operator
+  tables would otherwise have hashed alike.
+- **Every domain type has one declaration**, in the module matching the C
+  header that declares it: `otl.h` → `table::otl` (47 types, 1,735 copies),
+  `uthash.h` → `vendor::uthash`, `font.h` → `font::caryll_font`. 7,747
+  declarations removed; the crate went from 178k lines to 137k. What is left
+  duplicated is 58 libc declarations (`va_list`, `timespec`,
+  `__compar_fn_t`), which want routing through `libc` rather than relocating.
 
 Every dedup step verifies that all copies are textually identical before
 deleting any of them; a name whose copies disagree is reported and left alone,
 since "same name, different type" is exactly the failure a mechanical pass
-could otherwise introduce in silence.
+could otherwise introduce in silence. Two names did disagree and both were
+real: `table_TSI5`/`otl_ClassDef`, where 17 files carried the inverse of
+`TSI5.h`'s `typedef otl_ClassDef table_TSI5` because c2rust made whichever
+name it met first the struct; and `otfcc_IFontBuilder`/`otfcc_IFontSerializer`,
+still live after PR #17's trait work because the two binaries are separate
+crates that reach the readers and writers through `extern "C"`.
+
+One trap worth knowing before the next mechanical pass: `vendor/sds.rs`
+imports `__ctype_b_loc` and friends under `#[cfg(target_os = "macos")]`, since
+on Linux they come from glibc. Folding an unconditional import into that gated
+line compiles perfectly on macOS and leaves the names undefined on Linux —
+which is also why `cargo fix`'s unused-import removals have to be re-checked
+on the other platform before a commit is trusted.
 
 ## Next steps
 
-- **The remaining ~380 domain types** (`otl_*`, `table_*`, the uthash
-  structures, the `bk_*` graph types) still have 5,356 declarations between
-  them, plus the `C2RustUnnamed_N` types outside json that need real names.
-- **Real `enum`s**: 20 named `pub type X = c_uint` + constant sets and 16
-  anonymous ones become `#[repr(u*)] enum` with `TryFrom`. Values read from a
-  font file must never be `transmute`d — unknown values have to keep taking
-  the same branch the C code takes.
+- **Route the remaining libc types through `libc`**: 58 duplicated
+  declarations of `va_list`, `timespec`, `__compar_fn_t`, `__time_t` and
+  getopt's `option`. Relocating them into a crate module would work but is the
+  wrong fix — they belong to the platform, not to otfcc.
+- **Real `enum`s**: 20 named `pub type X = c_uint` + constant sets, plus the
+  12 formerly-anonymous ones, become `#[repr(u*)] enum` with `TryFrom`. Values
+  read from a font file must never be `transmute`d — unknown values have to
+  keep taking the same branch the C code takes.
 - **200 `static mut`** — 92 are vtables or effectively `const`. Needed before
   edition 2024, where `static_mut_refs` is an error.
 - **Rust naming**, once each type exists in one place: `otfcc_Options` →
