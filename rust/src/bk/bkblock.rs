@@ -27,17 +27,30 @@ pub union bk_CellValue {
     pub z: u32,
     pub p: *mut __caryll_bkblock,
 }
-pub type bk_CellType = ::core::ffi::c_uint;
-pub const bkembed: bk_CellType = 255;
-pub const bkcopy: bk_CellType = 254;
-pub const sp32: bk_CellType = 129;
-pub const sp16: bk_CellType = 128;
-pub const p32: bk_CellType = 17;
-pub const p16: bk_CellType = 16;
-pub const b32: bk_CellType = 3;
-pub const b16: bk_CellType = 2;
-pub const b8: bk_CellType = 1;
-pub const bkover: bk_CellType = 0;
+/// What a [`bk_Cell`] holds, and -- because the values are ordered, not just
+/// distinct -- how wide it is and whether it is a pointer.
+///
+/// C classifies cells by comparing the raw number: `bk_cellIsPointer` is
+/// `cell->t >= p16`, `bkpushitems` takes the integer path for `t < p16`, and
+/// `escalate_sppointers` walks the pointers with `t >= sp16`. Those comparisons
+/// survive here as `Ord`, which compares by *declaration* order -- so the
+/// variants are declared in ascending discriminant order and
+/// `bk_celltype_order_is_its_encoding` pins that they agree.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[repr(u32)]
+pub enum bk_CellType {
+    bkover = 0,
+    b8 = 1,
+    b16 = 2,
+    b32 = 3,
+    p16 = 16,
+    p32 = 17,
+    sp16 = 128,
+    sp32 = 129,
+    bkcopy = 254,
+    bkembed = 255,
+}
+pub use bk_CellType::*;
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum bk_cell_visit_state {
@@ -68,7 +81,7 @@ unsafe extern "C" fn bkblock_acells(mut b: *mut bk_Block, mut len: u32) {
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_cellIsPointer(mut cell: *mut bk_Cell) -> bool {
-    return (*cell).t as ::core::ffi::c_uint >= p16 as ::core::ffi::c_int as ::core::ffi::c_uint;
+    return (*cell).t >= p16;
 }
 unsafe extern "C" fn bkblock_grow(mut b: *mut bk_Block, mut len: u32) -> *mut bk_Cell {
     let mut olen: u32 = (*b).length;
@@ -135,11 +148,6 @@ pub fn bk_ptr(t: bk_CellType, p: *mut bk_Block) -> bk_Item {
 }
 
 unsafe fn bkpushitems(b: *mut bk_Block, items: &[bk_Item]) {
-    // bk_CellType's variants (bkover/b8/b16/b32/p16/p32/sp16/sp32/bkcopy/
-    // bkembed) are all the same c_uint type, so the c2rust-generated
-    // triple-cast comparisons (`x as c_uint == y as c_int as c_uint`) were
-    // always just `x == y`; matching on the named consts directly is
-    // equivalent and self-documenting.
     for item in items {
         let curtype = item.t;
         match curtype {
@@ -258,4 +266,30 @@ pub unsafe extern "C" fn bk_printBlock(b: *mut bk_Block) {
         stderr,
         b"------------------\n\0" as *const u8 as *const ::core::ffi::c_char,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `bk_CellType`'s numbers are load-bearing twice over. `bkpushitems` sends
+    // `t < p16` down the integer path and everything else down the pointer path
+    // -- reading the wrong arm of a union if that split moved -- and
+    // `escalate_sppointers` in bkgraph.rs picks the shared pointers with
+    // `t >= sp16`, which decides layout order and therefore the offsets written
+    // into the font. Both are `Ord` on the enum now, and `Ord` follows
+    // declaration order rather than the discriminants, so this pins that the two
+    // orders are the same one.
+    #[test]
+    fn bk_celltype_order_is_its_encoding() {
+        let all = [bkover, b8, b16, b32, p16, p32, sp16, sp32, bkcopy, bkembed];
+        for w in all.windows(2) {
+            assert!(w[0] < w[1], "{:?} should sort before {:?}", w[0], w[1]);
+            assert!((w[0] as u32) < (w[1] as u32));
+        }
+        assert_eq!([bkover as u32, b8 as u32, b16 as u32, b32 as u32], [0, 1, 2, 3]);
+        assert_eq!([p16 as u32, p32 as u32, sp16 as u32, sp32 as u32], [16, 17, 128, 129]);
+        assert_eq!([bkcopy as u32, bkembed as u32], [254, 255]);
+        assert_eq!(::core::mem::size_of::<bk_CellType>(), 4);
+    }
 }
