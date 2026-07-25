@@ -70,8 +70,16 @@ unsafe extern "C" fn builderize(mut value: *mut json_value) -> ::core::ffi::c_in
     (*(value as *mut json_builder_value)).is_builder_value = 1 as ::core::ffi::c_int;
     return 1 as ::core::ffi::c_int;
 }
-#[no_mangle]
-pub static mut json_builder_extra: usize = 0;
+/// `json-builder.h` documents this as the value to put in `json_settings`'
+/// `value_extra` when parsing into builder values. In C it is an
+/// `extern const size_t` that has to be computed by an initializer, because C
+/// cannot fold `sizeof` into an external definition; c2rust reproduced that as a
+/// `static mut` plus a function planted in `.init_array` to assign it before
+/// `main`. Rust evaluates `size_of` at compile time, so the initializer -- and
+/// the `link_section` hack that ran it -- are gone. Nothing in otfcc reads it;
+/// it is the vendored library's own API.
+pub const json_builder_extra: usize =
+    ::core::mem::size_of::<json_builder_value>() - ::core::mem::size_of::<json_value>();
 #[no_mangle]
 pub static f_spaces_around_brackets: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int;
@@ -1205,12 +1213,3 @@ pub unsafe extern "C" fn json_builder_free(mut value: *mut json_value) {
         free(cur_value as *mut ::core::ffi::c_void);
     }
 }
-unsafe extern "C" fn run_static_initializers() {
-    json_builder_extra = (::core::mem::size_of::<json_builder_value>() as usize)
-        .wrapping_sub(::core::mem::size_of::<json_value>() as usize);
-}
-#[used]
-#[cfg_attr(target_os = "linux", link_section = ".init_array")]
-#[cfg_attr(target_os = "windows", link_section = ".CRT$XIB")]
-#[cfg_attr(target_os = "macos", link_section = "__DATA,__mod_init_func")]
-static INIT_ARRAY: [unsafe extern "C" fn(); 1] = [run_static_initializers];

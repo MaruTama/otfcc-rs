@@ -181,7 +181,6 @@ is_hex_digit
 json_array_new
 json_array_push
 json_boolean_new
-json_builder_extra
 json_builder_free
 json_double_new
 json_ident
