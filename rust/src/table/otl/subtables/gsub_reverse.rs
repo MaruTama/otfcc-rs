@@ -10,8 +10,6 @@ extern "C" {
     ) -> *mut json_value;
     fn json_integer_new(_: i64) -> *mut json_value;
     static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
@@ -27,7 +25,7 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t};
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_type, json_value};
-use crate::bk::bkblock::{b16, bk_Block, bkover, p16};
+use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 
 use crate::table::otl::{__caryll_elementinterface_subtable_gsub_reverse, otl_Subtable, subtable_gsub_reverse};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
@@ -498,68 +496,32 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
 ) -> *mut caryll_Buffer {
     let mut subtable: *const subtable_gsub_reverse = &raw const (*_subtable).gsub_reverse;
     reverseBacktracks((*subtable).match_0, (*subtable).inputIndex);
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             *(*subtable).match_0.offset((*subtable).inputIndex as isize),
-        )),
-        bkover as ::core::ffi::c_int,
-    );
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        (*subtable).inputIndex as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+        )))]);
+    bk_push(root, &[bk_int(b16, ((*subtable).inputIndex as ::core::ffi::c_int) as u32)]);
     let mut j: tableid_t = 0 as tableid_t;
     while (j as ::core::ffi::c_int) < (*subtable).inputIndex as ::core::ffi::c_int {
-        bk_push(
-            root,
-            p16 as ::core::ffi::c_int,
-            bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j as isize),
-            )),
-            bkover as ::core::ffi::c_int,
-        );
+            )))]);
         j = j.wrapping_add(1);
     }
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        (*subtable).matchCount as ::core::ffi::c_int
+    bk_push(root, &[bk_int(b16, ((*subtable).matchCount as ::core::ffi::c_int
             - (*subtable).inputIndex as ::core::ffi::c_int
-            - 1 as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+            - 1 as ::core::ffi::c_int) as u32)]);
     let mut j_0: tableid_t =
         ((*subtable).inputIndex as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as tableid_t;
     while (j_0 as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
-        bk_push(
-            root,
-            p16 as ::core::ffi::c_int,
-            bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j_0 as isize),
-            )),
-            bkover as ::core::ffi::c_int,
-        );
+            )))]);
         j_0 = j_0.wrapping_add(1);
     }
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        (*(*subtable).to).numGlyphs as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    bk_push(root, &[bk_int(b16, ((*(*subtable).to).numGlyphs as ::core::ffi::c_int) as u32)]);
     let mut j_1: tableid_t = 0 as tableid_t;
     while (j_1 as ::core::ffi::c_int) < (*(*subtable).to).numGlyphs as ::core::ffi::c_int {
-        bk_push(
-            root,
-            b16 as ::core::ffi::c_int,
-            (*(*(*subtable).to).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(root, &[bk_int(b16, ((*(*(*subtable).to).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int) as u32)]);
         j_1 = j_1.wrapping_add(1);
     }
     return bk_build_Block(root);

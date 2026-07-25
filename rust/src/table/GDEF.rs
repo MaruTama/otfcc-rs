@@ -21,8 +21,6 @@ extern "C" {
     fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
@@ -37,7 +35,7 @@ use crate::support::primitives::{font_file_pointer, glyphid_t, pos_t, shapeid_t}
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_pre_serialized, json_type, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, b32, bk_Block, bkover, p16};
+use crate::bk::bkblock::{b16, b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
@@ -1436,32 +1434,17 @@ pub unsafe extern "C" fn otfcc_parseGDEF(
     return gdef;
 }
 unsafe extern "C" fn writeLigCaretRec(mut cr: *mut otl_CaretValueRecord) -> *mut bk_Block {
-    let mut bcr: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        (*cr).carets.length,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut bcr: *mut bk_Block = bk_new_Block(&[bk_int(b16, ((*cr).carets.length) as u32)]);
     let mut j: glyphid_t = 0 as glyphid_t;
     while (j as usize) < (*cr).carets.length {
-        bk_push(
-            bcr,
-            p16 as ::core::ffi::c_int,
-            bk_new_Block(
-                b16 as ::core::ffi::c_int,
-                (*(*cr).carets.items.offset(j as isize)).format as ::core::ffi::c_int,
-                b16 as ::core::ffi::c_int,
-                if (*(*cr).carets.items.offset(j as isize)).format as ::core::ffi::c_int
+        bk_push(bcr, &[bk_ptr(p16, bk_new_Block(&[bk_int(b16, ((*(*cr).carets.items.offset(j as isize)).format as ::core::ffi::c_int) as u32), bk_int(b16, (if (*(*cr).carets.items.offset(j as isize)).format as ::core::ffi::c_int
                     == 2 as ::core::ffi::c_int
                 {
                     (*(*cr).carets.items.offset(j as isize)).pointIndex as ::core::ffi::c_int
                 } else {
                     (*(*cr).carets.items.offset(j as isize)).coordiante as i16
                         as ::core::ffi::c_int
-                },
-                bkover as ::core::ffi::c_int,
-            ),
-            bkover as ::core::ffi::c_int,
-        );
+                }) as u32)]))]);
         j = j.wrapping_add(1);
     }
     return bcr;
@@ -1478,21 +1461,10 @@ unsafe extern "C" fn writeLigCarets(mut lc: *const otl_LigCaretTable) -> *mut bk
         );
         j = j.wrapping_add(1);
     }
-    let mut lct: *mut bk_Block = bk_new_Block(
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov)),
-        b16 as ::core::ffi::c_int,
-        (*lc).length,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut lct: *mut bk_Block = bk_new_Block(&[bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(b16, ((*lc).length) as u32)]);
     let mut j_0: glyphid_t = 0 as glyphid_t;
     while (j_0 as usize) < (*lc).length {
-        bk_push(
-            lct,
-            p16 as ::core::ffi::c_int,
-            writeLigCaretRec((*lc).items.offset(j_0 as isize) as *mut otl_CaretValueRecord),
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(lct, &[bk_ptr(p16, writeLigCaretRec((*lc).items.offset(j_0 as isize) as *mut otl_CaretValueRecord))]);
         j_0 = j_0.wrapping_add(1);
     }
     otl_Coverage_free(cov);
@@ -1525,19 +1497,7 @@ pub unsafe extern "C" fn otfcc_buildGDEF(
                 (*gdef).markAttachClassDef,
             ));
     }
-    let mut root: *mut bk_Block = bk_new_Block(
-        b32 as ::core::ffi::c_int,
-        0x10000 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        bGlyphClassDef,
-        p16 as ::core::ffi::c_int,
-        bAttachList,
-        p16 as ::core::ffi::c_int,
-        bLigCaretList,
-        p16 as ::core::ffi::c_int,
-        bMarkAttachClassDef,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b32, 0x10000 as u32), bk_ptr(p16, bGlyphClassDef), bk_ptr(p16, bAttachList), bk_ptr(p16, bLigCaretList), bk_ptr(p16, bMarkAttachClassDef)]);
     return bk_build_Block(root);
 }
 #[inline]

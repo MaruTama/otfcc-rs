@@ -23,8 +23,6 @@ extern "C" {
     ) -> *mut json_value;
     fn json_integer_new(_: i64) -> *mut json_value;
     fn base64_encode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromBufferCopy(buf: *const caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
@@ -36,7 +34,7 @@ use crate::support::primitives::{font_file_pointer, glyphid_t};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_string, json_type, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, b32, bk_Block, bkover, p32};
+use crate::bk::bkblock::{b16, b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{__compar_fn_t};
 
@@ -825,42 +823,19 @@ pub unsafe extern "C" fn otfcc_buildSVG(
                 ) -> ::core::ffi::c_int,
         ),
     );
-    let mut major: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        svg.length,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut major: *mut bk_Block = bk_new_Block(&[bk_int(b16, (svg.length) as u32)]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < svg.length {
         let mut a: *mut svg_Assignment = svg.items.offset(__caryll_index as isize);
         while keep != 0 {
-            bk_push(
-                major,
-                b16 as ::core::ffi::c_int,
-                (*a).start as ::core::ffi::c_int,
-                b16 as ::core::ffi::c_int,
-                (*a).end as ::core::ffi::c_int,
-                p32 as ::core::ffi::c_int,
-                bk_newBlockFromBufferCopy((*a).document),
-                b32 as ::core::ffi::c_int,
-                (*(*a).document).size,
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(major, &[bk_int(b16, ((*a).start as ::core::ffi::c_int) as u32), bk_int(b16, ((*a).end as ::core::ffi::c_int) as u32), bk_ptr(p32, bk_newBlockFromBufferCopy((*a).document)), bk_int(b32, ((*(*a).document).size) as u32)]);
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        p32 as ::core::ffi::c_int,
-        major,
-        b32 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 0 as u32), bk_ptr(p32, major), bk_int(b32, 0 as u32)]);
     table_iSVG.dispose.expect("non-null function pointer")(&raw mut svg);
     return bk_build_Block(root);
 }

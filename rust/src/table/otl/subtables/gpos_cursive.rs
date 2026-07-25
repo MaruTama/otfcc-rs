@@ -15,8 +15,6 @@ extern "C" {
     fn json_builder_free(_: *mut json_value);
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
     fn otl_anchor_absent() -> otl_Anchor;
@@ -40,7 +38,7 @@ use crate::support::primitives::{font_file_pointer, glyphid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_object, json_pre_serialized, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, bk_Block, bkover, p16};
+use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 
 use crate::table::otl::{__caryll_vectorinterface_subtable_gpos_cursive, otl_Anchor, otl_GposCursiveEntry, otl_Subtable, subtable_gpos_cursive};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
@@ -657,25 +655,10 @@ pub unsafe extern "C" fn otfcc_build_gpos_cursive(
         );
         j = j.wrapping_add(1);
     }
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        p16 as ::core::ffi::c_int,
-        bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov)),
-        b16 as ::core::ffi::c_int,
-        (*subtable).length,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(b16, ((*subtable).length) as u32)]);
     let mut j_0: glyphid_t = 0 as glyphid_t;
     while (j_0 as usize) < (*subtable).length {
-        bk_push(
-            root,
-            p16 as ::core::ffi::c_int,
-            bkFromAnchor((*(*subtable).items.offset(j_0 as isize)).enter),
-            p16 as ::core::ffi::c_int,
-            bkFromAnchor((*(*subtable).items.offset(j_0 as isize)).exit),
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(root, &[bk_ptr(p16, bkFromAnchor((*(*subtable).items.offset(j_0 as isize)).enter)), bk_ptr(p16, bkFromAnchor((*(*subtable).items.offset(j_0 as isize)).exit))]);
         j_0 = j_0.wrapping_add(1);
     }
     otl_Coverage_free(cov);

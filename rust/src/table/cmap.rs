@@ -24,8 +24,6 @@ extern "C" {
         length: ::core::ffi::c_uint,
         _: *const ::core::ffi::c_char,
     ) -> *mut json_value;
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_newBlockFromBufferCopy(buf: *const caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
@@ -41,7 +39,7 @@ use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t, unicode_t};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 use crate::vendor::json::{json_object, json_string, json_type, json_value};
-use crate::bk::bkblock::{b16, b32, b8, bk_Block, bkover, p32};
+use crate::bk::bkblock::{b16, b32, b8, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{NULL};
 use crate::support::glyph_order::{glyph_handle};
@@ -6447,15 +6445,7 @@ unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const table_cmap) -> *m
         }
         selector = selector.wrapping_add(1);
     }
-    let mut st: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        14 as ::core::ffi::c_int,
-        b32 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        b32 as ::core::ffi::c_int,
-        nSelectors,
-        bkover as ::core::ffi::c_int,
-    );
+    let mut st: *mut bk_Block = bk_new_Block(&[bk_int(b16, 14 as u32), bk_int(b32, 0 as u32), bk_int(b32, nSelectors as u32)]);
     let mut selector_0: unicode_t = 0 as unicode_t;
     while selector_0 < MAX_UNICODE as unicode_t {
         if *validSelectors.offset(selector_0 as isize) {
@@ -6470,20 +6460,7 @@ unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const table_cmap) -> *m
                 buffree(nondflt);
                 nondflt = ::core::ptr::null_mut::<caryll_Buffer>();
             }
-            bk_push(
-                st,
-                b8 as ::core::ffi::c_int,
-                selector_0 >> 16 as ::core::ffi::c_int & 0xff as unicode_t,
-                b8 as ::core::ffi::c_int,
-                selector_0 >> 8 as ::core::ffi::c_int & 0xff as unicode_t,
-                b8 as ::core::ffi::c_int,
-                selector_0 >> 0 as ::core::ffi::c_int & 0xff as unicode_t,
-                p32 as ::core::ffi::c_int,
-                bk_newBlockFromBuffer(dflt),
-                p32 as ::core::ffi::c_int,
-                bk_newBlockFromBuffer(nondflt),
-                bkover as ::core::ffi::c_int,
-            );
+            bk_push(st, &[bk_int(b8, (selector_0 >> 16 as ::core::ffi::c_int & 0xff as unicode_t) as u32), bk_int(b8, (selector_0 >> 8 as ::core::ffi::c_int & 0xff as unicode_t) as u32), bk_int(b8, (selector_0 >> 0 as ::core::ffi::c_int & 0xff as unicode_t) as u32), bk_ptr(p32, bk_newBlockFromBuffer(dflt)), bk_ptr(p32, bk_newBlockFromBuffer(nondflt))]);
         }
         selector_0 = selector_0.wrapping_add(1);
     }
@@ -6550,69 +6527,18 @@ pub unsafe extern "C" fn otfcc_buildCmap(
         bufwrite16b(format4, 0 as u16);
     }
     let mut format12: *mut caryll_Buffer = otfcc_buildCmap_format12(cmap);
-    let mut root: *mut bk_Block = bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        nTables as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        3 as ::core::ffi::c_int,
-        p32 as ::core::ffi::c_int,
-        bk_newBlockFromBufferCopy(format4),
-        bkover as ::core::ffi::c_int,
-    );
+    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 0 as u32), bk_int(b16, (nTables as ::core::ffi::c_int) as u32)]);
+    bk_push(root, &[bk_int(b16, 0 as u32), bk_int(b16, 3 as u32), bk_ptr(p32, bk_newBlockFromBufferCopy(format4))]);
     if requiresFormat12 {
-        bk_push(
-            root,
-            b16 as ::core::ffi::c_int,
-            0 as ::core::ffi::c_int,
-            b16 as ::core::ffi::c_int,
-            4 as ::core::ffi::c_int,
-            p32 as ::core::ffi::c_int,
-            bk_newBlockFromBufferCopy(format12),
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(root, &[bk_int(b16, 0 as u32), bk_int(b16, 4 as u32), bk_ptr(p32, bk_newBlockFromBufferCopy(format12))]);
     }
     if hasUVS {
         let mut format14: *mut caryll_Buffer = otfcc_buildCmap_format14(cmap);
-        bk_push(
-            root,
-            b16 as ::core::ffi::c_int,
-            0 as ::core::ffi::c_int,
-            b16 as ::core::ffi::c_int,
-            5 as ::core::ffi::c_int,
-            p32 as ::core::ffi::c_int,
-            bk_newBlockFromBuffer(format14),
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(root, &[bk_int(b16, 0 as u32), bk_int(b16, 5 as u32), bk_ptr(p32, bk_newBlockFromBuffer(format14))]);
     }
-    bk_push(
-        root,
-        b16 as ::core::ffi::c_int,
-        3 as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        p32 as ::core::ffi::c_int,
-        bk_newBlockFromBufferCopy(format4),
-        bkover as ::core::ffi::c_int,
-    );
+    bk_push(root, &[bk_int(b16, 3 as u32), bk_int(b16, 1 as u32), bk_ptr(p32, bk_newBlockFromBufferCopy(format4))]);
     if requiresFormat12 {
-        bk_push(
-            root,
-            b16 as ::core::ffi::c_int,
-            3 as ::core::ffi::c_int,
-            b16 as ::core::ffi::c_int,
-            10 as ::core::ffi::c_int,
-            p32 as ::core::ffi::c_int,
-            bk_newBlockFromBufferCopy(format12),
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(root, &[bk_int(b16, 3 as u32), bk_int(b16, 10 as u32), bk_ptr(p32, bk_newBlockFromBufferCopy(format12))]);
     }
     buffree(format4);
     buffree(format12);

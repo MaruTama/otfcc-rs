@@ -20,8 +20,6 @@ extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsfree(s: sds);
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
-    fn bk_push(b: *mut bk_Block, type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
 }
 
 use crate::table::otl::coverage::{otl_Coverage};
@@ -36,7 +34,7 @@ use crate::support::primitives::{font_file_pointer, glyphclass_t, glyphid_t, pos
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_double, json_integer, json_object, json_pre_serialized, json_string, json_type, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, bk_Block, bkover};
+use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_push};
 use crate::support::{NULL, __compar_fn_t};
 use crate::table::otl::{__caryll_vectorinterface_otl_MarkArray, otl_Anchor, otl_MarkArray, otl_MarkRecord, otl_PositionValue};
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
@@ -1993,15 +1991,7 @@ pub unsafe extern "C" fn bkFromAnchor(mut a: otl_Anchor) -> *mut bk_Block {
     if !a.present {
         return ::core::ptr::null_mut::<bk_Block>();
     }
-    return bk_new_Block(
-        b16 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        a.x as i16 as ::core::ffi::c_int,
-        b16 as ::core::ffi::c_int,
-        a.y as i16 as ::core::ffi::c_int,
-        bkover as ::core::ffi::c_int,
-    );
+    return bk_new_Block(&[bk_int(b16, 1 as u32), bk_int(b16, (a.x as i16 as ::core::ffi::c_int) as u32), bk_int(b16, (a.y as i16 as ::core::ffi::c_int) as u32)]);
 }
 #[no_mangle]
 pub static mut FORMAT_DX: u8 = 1 as u8;
@@ -3443,38 +3433,18 @@ pub unsafe extern "C" fn bk_gpos_value(
     mut v: otl_PositionValue,
     mut format: u16,
 ) -> *mut bk_Block {
-    let mut b: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
+    let mut b: *mut bk_Block = bk_new_Block(&[]);
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
-        bk_push(
-            b,
-            b16 as ::core::ffi::c_int,
-            v.dx as i16 as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(b, &[bk_int(b16, (v.dx as i16 as ::core::ffi::c_int) as u32)]);
     }
     if format as ::core::ffi::c_int & FORMAT_DY as ::core::ffi::c_int != 0 {
-        bk_push(
-            b,
-            b16 as ::core::ffi::c_int,
-            v.dy as i16 as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(b, &[bk_int(b16, (v.dy as i16 as ::core::ffi::c_int) as u32)]);
     }
     if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
-        bk_push(
-            b,
-            b16 as ::core::ffi::c_int,
-            v.dWidth as i16 as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(b, &[bk_int(b16, (v.dWidth as i16 as ::core::ffi::c_int) as u32)]);
     }
     if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
-        bk_push(
-            b,
-            b16 as ::core::ffi::c_int,
-            v.dHeight as i16 as ::core::ffi::c_int,
-            bkover as ::core::ffi::c_int,
-        );
+        bk_push(b, &[bk_int(b16, (v.dHeight as i16 as ::core::ffi::c_int) as u32)]);
     }
     return b;
 }

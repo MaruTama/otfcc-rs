@@ -4,7 +4,6 @@ extern "C" {
     fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
     fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
-    fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
     fn bk_cellIsPointer(cell: *mut bk_Cell) -> bool;
 }
 
@@ -27,7 +26,7 @@ pub struct bk_Graph {
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
-use crate::bk::bkblock::{VISIT_BLACK, VISIT_GRAY, VISIT_WHITE, __caryll_bkblock, b16, b32, b8, bk_Block, bk_Cell, bkcopy, bkover, p16, p32, sp16, sp32};
+use crate::bk::bkblock::{VISIT_BLACK, VISIT_GRAY, VISIT_WHITE, __caryll_bkblock, b16, b32, b8, bk_Block, bk_Cell, bk_new_Block, bk_ptr, bkcopy, p16, p32, sp16, sp32};
 
 
 unsafe extern "C" fn _bkgraph_grow(mut f: *mut bk_Graph) -> *mut bk_GraphNode {
@@ -416,11 +415,7 @@ unsafe extern "C" fn try_untabgle_block(
                         let e: *mut bk_GraphNode = _bkgraph_grow(f);
                         (*e).order = 0;
                         (*e).alias = 0;
-                        (*e).block = bk_new_Block(
-                            bkcopy as ::core::ffi::c_int,
-                            (*cell).c2rust_unnamed.p,
-                            bkover as ::core::ffi::c_int,
-                        );
+                        (*e).block = bk_new_Block(&[bk_ptr(bkcopy, (*cell).c2rust_unnamed.p)]);
                         (*cell).t = sp16;
                         (*cell).c2rust_unnamed.p = (*e).block as *mut __caryll_bkblock;
                         did_copy = true;
