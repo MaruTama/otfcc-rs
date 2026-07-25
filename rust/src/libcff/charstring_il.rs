@@ -551,12 +551,17 @@ unsafe extern "C" fn il_matchop(
     }
     return true;
 }
-unsafe extern "C" fn zroll(
+/// Collapse `op` into `op2` when the operands flagged in `zeros` are all zero.
+///
+/// `zeros` was a vararg list of `arity` ints -- the count implied by
+/// `cff_getStandardArity(op)` and trusted, never checked. As a slice the two can
+/// be compared, and the flags read as the booleans they always were.
+unsafe fn zroll(
     mut il: *mut cff_CharstringIL,
     mut j: u32,
     mut op: i32,
     mut op2: i32,
-    mut args: ...
+    zeros: &[bool],
 ) -> u8 {
     let mut arity: u8 = cff_getStandardArity(op as u32);
     if arity as ::core::ffi::c_int > 16 as ::core::ffi::c_int
@@ -576,16 +581,15 @@ unsafe extern "C" fn zroll(
             as ::core::ffi::c_int
             != 0
     {
-        let mut ap: ::core::ffi::VaListImpl;
         let mut check: u8 = true_0 as u8;
         let mut resultArity: u8 = arity;
         let mut mask: [bool; 16] = [false; 16];
-        ap = args.clone();
+        debug_assert_eq!(zeros.len(), arity as usize, "zroll: flag count must match the operator's arity");
         let mut m: u32 = 0 as u32;
         while m < arity as u32 {
-            let mut checkzero: ::core::ffi::c_int = ap.arg::<::core::ffi::c_int>();
-            mask[m as usize] = checkzero != 0;
-            if checkzero != 0 {
+            let checkzero: bool = zeros[m as usize];
+            mask[m as usize] = checkzero;
+            if checkzero {
                 resultArity =
                     (resultArity as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u8;
                 check = (check as ::core::ffi::c_int != 0
@@ -891,107 +895,35 @@ unsafe extern "C" fn decideAdvance(
     mut _optimizeLevel: u8,
 ) -> u8 {
     let mut r: u8 = 0 as u8;
-    r = zroll(
-        il,
-        j,
-        op_rlineto as ::core::ffi::c_int as i32,
-        op_hlineto as ::core::ffi::c_int as i32,
-        0 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-    );
+    r = zroll(il, j, op_rlineto as ::core::ffi::c_int as i32, op_hlineto as ::core::ffi::c_int as i32, &[false, true]);
     if r != 0 {
         return r;
     }
-    r = zroll(
-        il,
-        j,
-        op_rlineto as ::core::ffi::c_int as i32,
-        op_vlineto as ::core::ffi::c_int as i32,
-        1 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-    );
+    r = zroll(il, j, op_rlineto as ::core::ffi::c_int as i32, op_vlineto as ::core::ffi::c_int as i32, &[true, false]);
     if r != 0 {
         return r;
     }
-    r = zroll(
-        il,
-        j,
-        op_rmoveto as ::core::ffi::c_int as i32,
-        op_hmoveto as ::core::ffi::c_int as i32,
-        0 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-    );
+    r = zroll(il, j, op_rmoveto as ::core::ffi::c_int as i32, op_hmoveto as ::core::ffi::c_int as i32, &[false, true]);
     if r != 0 {
         return r;
     }
-    r = zroll(
-        il,
-        j,
-        op_rmoveto as ::core::ffi::c_int as i32,
-        op_vmoveto as ::core::ffi::c_int as i32,
-        1 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-    );
+    r = zroll(il, j, op_rmoveto as ::core::ffi::c_int as i32, op_vmoveto as ::core::ffi::c_int as i32, &[true, false]);
     if r != 0 {
         return r;
     }
-    r = zroll(
-        il,
-        j,
-        op_rrcurveto as ::core::ffi::c_int as i32,
-        op_hvcurveto as ::core::ffi::c_int as i32,
-        0 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-    );
+    r = zroll(il, j, op_rrcurveto as ::core::ffi::c_int as i32, op_hvcurveto as ::core::ffi::c_int as i32, &[false, true, false, false, true, false]);
     if r != 0 {
         return r;
     }
-    r = zroll(
-        il,
-        j,
-        op_rrcurveto as ::core::ffi::c_int as i32,
-        op_vhcurveto as ::core::ffi::c_int as i32,
-        1 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-    );
+    r = zroll(il, j, op_rrcurveto as ::core::ffi::c_int as i32, op_vhcurveto as ::core::ffi::c_int as i32, &[true, false, false, false, false, true]);
     if r != 0 {
         return r;
     }
-    r = zroll(
-        il,
-        j,
-        op_rrcurveto as ::core::ffi::c_int as i32,
-        op_hhcurveto as ::core::ffi::c_int as i32,
-        0 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-    );
+    r = zroll(il, j, op_rrcurveto as ::core::ffi::c_int as i32, op_hhcurveto as ::core::ffi::c_int as i32, &[false, true, false, false, false, true]);
     if r != 0 {
         return r;
     }
-    r = zroll(
-        il,
-        j,
-        op_rrcurveto as ::core::ffi::c_int as i32,
-        op_vvcurveto as ::core::ffi::c_int as i32,
-        1 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-        1 as ::core::ffi::c_int,
-        0 as ::core::ffi::c_int,
-    );
+    r = zroll(il, j, op_rrcurveto as ::core::ffi::c_int as i32, op_vvcurveto as ::core::ffi::c_int as i32, &[true, false, false, false, true, false]);
     if r != 0 {
         return r;
     }
