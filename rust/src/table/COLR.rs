@@ -1,37 +1,11 @@
+use libc::{free, malloc, memcpy, memset, qsort, strcmp};
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn qsort(
-        __base: *mut ::core::ffi::c_void,
-        __nmemb: size_t,
-        __size: size_t,
-        __compar: __compar_fn_t,
-    );
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn strcmp(
-        __s1: *const ::core::ffi::c_char,
-        __s2: *const ::core::ffi::c_char,
-    ) -> ::core::ffi::c_int;
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: size_t) -> sds;
+    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
-    fn json_array_new(length: size_t) -> *mut json_value;
+    fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: size_t) -> *mut json_value;
+    fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
@@ -42,8 +16,8 @@ extern "C" {
         length: ::core::ffi::c_uint,
         _: *mut ::core::ffi::c_char,
     ) -> *mut json_value;
-    fn json_integer_new(_: int64_t) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> size_t;
+    fn json_integer_new(_: i64) -> *mut json_value;
+    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
     fn bk_new_Block(type0: ::core::ffi::c_int, ...) -> *mut bk_Block;
@@ -52,113 +26,25 @@ extern "C" {
 }
 
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_init, otfcc_Handle_move, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
+use crate::logger::{log_type_warning, otfcc_ILogger};
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::options::{otfcc_Options};
+use crate::support::primitives::{colorid_t, glyphid_t};
+use crate::vendor::sds::{sds};
+use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_pre_serialized, json_string, json_type, json_value};
 use crate::support::cvec::{
     cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
     cvec_resize_to, CVecRaw,
 };
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __int32_t = i32;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int32_t = __int32_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-pub type json_type = ::core::ffi::c_uint;
-pub const json_pre_serialized: json_type = 8;
-pub const json_null: json_type = 7;
-pub const json_boolean: json_type = 6;
-pub const json_string: json_type = 5;
-pub const json_double: json_type = 4;
-pub const json_integer: json_type = 3;
-pub const json_array: json_type = 2;
-pub const json_object: json_type = 1;
-pub const json_none: json_type = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_value {
-    pub parent: *mut _json_value,
-    pub type_0: json_type,
-    pub u: C2RustUnnamed_0,
-    pub _reserved: C2RustUnnamed,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed {
-    pub next_alloc: *mut _json_value,
-    pub object_mem: *mut ::core::ffi::c_void,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_0 {
-    pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
-    pub dbl: ::core::ffi::c_double,
-    pub string: C2RustUnnamed_3,
-    pub object: C2RustUnnamed_2,
-    pub array: C2RustUnnamed_1,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_1 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_2 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut json_object_entry,
-}
-pub type json_object_entry = _json_object_entry;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_object_entry {
-    pub name: *mut ::core::ffi::c_char,
-    pub name_length: ::core::ffi::c_uint,
-    pub value: *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_3 {
-    pub length: ::core::ffi::c_uint,
-    pub ptr: *mut ::core::ffi::c_char,
-}
-pub type json_value = _json_value;
-pub type sds = *mut ::core::ffi::c_char;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
-}
-pub type glyphid_t = uint16_t;
-pub type colorid_t = uint16_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILoggerTarget {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()>,
-}
-pub type otfcc_LoggerType = ::core::ffi::c_uint;
-pub const log_type_progress: otfcc_LoggerType = 3;
-pub const log_type_info: otfcc_LoggerType = 2;
-pub const log_type_warning: otfcc_LoggerType = 1;
-pub const log_type_error: otfcc_LoggerType = 0;
 pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
 pub const log_vl_progress: C2RustUnnamed_4 = 10;
 pub const log_vl_info: C2RustUnnamed_4 = 5;
@@ -167,74 +53,21 @@ pub const log_vl_important: C2RustUnnamed_4 = 1;
 pub const log_vl_critical: C2RustUnnamed_4 = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct otfcc_ILogger {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub indent: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub indentSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub start: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub startSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub log: Option<
-        unsafe extern "C" fn(
-            *mut otfcc_ILogger,
-            uint8_t,
-            otfcc_LoggerType,
-            *const ::core::ffi::c_char,
-        ) -> (),
-    >,
-    pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
-    pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
-    pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Options {
-    pub debug_wait_on_start: bool,
-    pub ignore_glyph_order: bool,
-    pub ignore_hints: bool,
-    pub has_vertical_metrics: bool,
-    pub export_fdselect: bool,
-    pub keep_average_char_width: bool,
-    pub keep_unicode_ranges: bool,
-    pub short_post: bool,
-    pub dummy_DSIG: bool,
-    pub keep_modified_time: bool,
-    pub instr_as_bytes: bool,
-    pub verbose: bool,
-    pub quiet: bool,
-    pub cff_short_vmtx: bool,
-    pub merge_lookups: bool,
-    pub merge_features: bool,
-    pub force_cid: bool,
-    pub cff_rollCharString: bool,
-    pub cff_doSubroutinize: bool,
-    pub stub_cmap4: bool,
-    pub decimal_cmap: bool,
-    pub name_glyphs_by_hash: bool,
-    pub name_glyphs_by_gid: bool,
-    pub glyph_name_prefix: *mut ::core::ffi::c_char,
-    pub logger: *mut otfcc_ILogger,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 #[derive(Copy, Clone)]
@@ -256,8 +89,8 @@ pub struct __caryll_elementinterface_colr_Layer {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct colr_LayerList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut colr_Layer,
 }
 #[derive(Copy, Clone)]
@@ -271,15 +104,15 @@ pub struct __caryll_vectorinterface_colr_LayerList {
     pub copyReplace: Option<unsafe extern "C" fn(*mut colr_LayerList, colr_LayerList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut colr_LayerList>,
     pub free: Option<unsafe extern "C" fn(*mut colr_LayerList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut colr_LayerList, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut colr_LayerList, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut colr_LayerList>,
-    pub fill: Option<unsafe extern "C" fn(*mut colr_LayerList, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut colr_LayerList, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut colr_LayerList, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut colr_LayerList>,
+    pub fill: Option<unsafe extern "C" fn(*mut colr_LayerList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut colr_LayerList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut colr_LayerList, colr_Layer) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut colr_LayerList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut colr_LayerList) -> colr_Layer>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut colr_LayerList, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut colr_LayerList, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut colr_LayerList,
@@ -313,8 +146,8 @@ pub struct __caryll_elementinterface_colr_Mapping {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_COLR {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut colr_Mapping,
 }
 #[derive(Copy, Clone)]
@@ -328,15 +161,15 @@ pub struct __caryll_vectorinterface_table_COLR {
     pub copyReplace: Option<unsafe extern "C" fn(*mut table_COLR, table_COLR) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut table_COLR>,
     pub free: Option<unsafe extern "C" fn(*mut table_COLR) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut table_COLR, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut table_COLR, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut table_COLR>,
-    pub fill: Option<unsafe extern "C" fn(*mut table_COLR, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut table_COLR, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut table_COLR, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut table_COLR>,
+    pub fill: Option<unsafe extern "C" fn(*mut table_COLR, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut table_COLR) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut table_COLR, colr_Mapping) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut table_COLR) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut table_COLR) -> colr_Mapping>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut table_COLR, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut table_COLR, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut table_COLR,
@@ -369,11 +202,11 @@ pub type bk_Block = __caryll_bkblock;
 #[repr(C)]
 pub struct __caryll_bkblock {
     pub _visitstate: bk_cell_visit_state,
-    pub _index: uint32_t,
-    pub _height: uint32_t,
-    pub _depth: uint32_t,
-    pub length: uint32_t,
-    pub free: uint32_t,
+    pub _index: u32,
+    pub _height: u32,
+    pub _depth: u32,
+    pub length: u32,
+    pub free: u32,
     pub cells: *mut bk_Cell,
 }
 #[derive(Copy, Clone)]
@@ -385,7 +218,7 @@ pub struct bk_Cell {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed_5 {
-    pub z: uint32_t,
+    pub z: u32,
     pub p: *mut __caryll_bkblock,
 }
 pub type bk_CellType = ::core::ffi::c_uint;
@@ -462,7 +295,7 @@ unsafe extern "C" fn colr_Layer_move(mut dst: *mut colr_Layer, mut src: *mut col
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<colr_Layer>() as size_t,
+        ::core::mem::size_of::<colr_Layer>() as usize,
     );
     colr_Layer_init(src);
 }
@@ -472,11 +305,11 @@ unsafe extern "C" fn colr_Layer_replace(mut dst: *mut colr_Layer, src: colr_Laye
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<colr_Layer>() as size_t,
+        ::core::mem::size_of::<colr_Layer>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn colr_LayerList_growTo(arr: *mut colr_LayerList, target: size_t) {
+unsafe extern "C" fn colr_LayerList_growTo(arr: *mut colr_LayerList, target: usize) {
     cvec_grow_to(colr_LayerList_as_cvec(arr), target);
 }
 #[inline]
@@ -489,7 +322,7 @@ unsafe extern "C" fn colr_LayerList_sort(
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<colr_Layer>() as size_t,
+        ::core::mem::size_of::<colr_Layer>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(*const colr_Layer, *const colr_Layer) -> ::core::ffi::c_int,
@@ -499,7 +332,7 @@ unsafe extern "C" fn colr_LayerList_sort(
     );
 }
 #[inline]
-unsafe extern "C" fn colr_LayerList_fill(mut arr: *mut colr_LayerList, mut n: size_t) {
+unsafe extern "C" fn colr_LayerList_fill(mut arr: *mut colr_LayerList, mut n: usize) {
     while (*arr).length < n {
         let mut x: colr_Layer = colr_Layer {
             glyph: otfcc_Handle {
@@ -515,7 +348,7 @@ unsafe extern "C" fn colr_LayerList_fill(mut arr: *mut colr_LayerList, mut n: si
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<colr_Layer>() as size_t,
+                ::core::mem::size_of::<colr_Layer>() as usize,
             );
         }
         colr_LayerList_push(arr, x);
@@ -553,15 +386,15 @@ pub static mut colr_iLayerList: __caryll_vectorinterface_colr_LayerList = {
         create: Some(colr_LayerList_create),
         free: Some(colr_LayerList_free as unsafe extern "C" fn(*mut colr_LayerList) -> ()),
         initN: Some(
-            colr_LayerList_initN as unsafe extern "C" fn(*mut colr_LayerList, size_t) -> (),
+            colr_LayerList_initN as unsafe extern "C" fn(*mut colr_LayerList, usize) -> (),
         ),
         initCapN: Some(
-            colr_LayerList_initCapN as unsafe extern "C" fn(*mut colr_LayerList, size_t) -> (),
+            colr_LayerList_initCapN as unsafe extern "C" fn(*mut colr_LayerList, usize) -> (),
         ),
         createN: Some(
-            colr_LayerList_createN as unsafe extern "C" fn(size_t) -> *mut colr_LayerList,
+            colr_LayerList_createN as unsafe extern "C" fn(usize) -> *mut colr_LayerList,
         ),
-        fill: Some(colr_LayerList_fill as unsafe extern "C" fn(*mut colr_LayerList, size_t) -> ()),
+        fill: Some(colr_LayerList_fill as unsafe extern "C" fn(*mut colr_LayerList, usize) -> ()),
         clear: Some(colr_LayerList_dispose as unsafe extern "C" fn(*mut colr_LayerList) -> ()),
         push: Some(
             colr_LayerList_push as unsafe extern "C" fn(*mut colr_LayerList, colr_Layer) -> (),
@@ -571,7 +404,7 @@ pub static mut colr_iLayerList: __caryll_vectorinterface_colr_LayerList = {
         ),
         pop: Some(colr_LayerList_pop as unsafe extern "C" fn(*mut colr_LayerList) -> colr_Layer),
         disposeItem: Some(
-            colr_LayerList_disposeItem as unsafe extern "C" fn(*mut colr_LayerList, size_t) -> (),
+            colr_LayerList_disposeItem as unsafe extern "C" fn(*mut colr_LayerList, usize) -> (),
         ),
         filterEnv: Some(
             colr_LayerList_filterEnv
@@ -615,7 +448,7 @@ unsafe extern "C" fn colr_LayerList_copy(
     colr_LayerList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
     if colr_iLayer.copy.is_some() {
-        let mut j: size_t = 0 as size_t;
+        let mut j: usize = 0 as usize;
         while j < (*src).length {
             colr_iLayer.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut colr_Layer,
@@ -624,7 +457,7 @@ unsafe extern "C" fn colr_LayerList_copy(
             j = j.wrapping_add(1);
         }
     } else {
-        let mut j_0: size_t = 0 as size_t;
+        let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
             *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
             j_0 = j_0.wrapping_add(1);
@@ -637,7 +470,7 @@ unsafe extern "C" fn colr_LayerList_dispose(mut arr: *mut colr_LayerList) {
         return;
     }
     if colr_iLayer.dispose.is_some() {
-        let mut j: size_t = (*arr).length;
+        let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
             j = j.wrapping_sub(1);
@@ -651,8 +484,8 @@ unsafe extern "C" fn colr_LayerList_dispose(mut arr: *mut colr_LayerList) {
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<colr_Layer>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn colr_LayerList_replace(mut dst: *mut colr_LayerList, src: colr_LayerList) {
@@ -660,20 +493,20 @@ unsafe extern "C" fn colr_LayerList_replace(mut dst: *mut colr_LayerList, src: c
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<colr_LayerList>() as size_t,
+        ::core::mem::size_of::<colr_LayerList>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn colr_LayerList_initCapN(mut arr: *mut colr_LayerList, mut n: size_t) {
+unsafe extern "C" fn colr_LayerList_initCapN(mut arr: *mut colr_LayerList, mut n: usize) {
     colr_LayerList_init(arr);
     colr_LayerList_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn colr_LayerList_growToN(arr: *mut colr_LayerList, target: size_t) {
+unsafe extern "C" fn colr_LayerList_growToN(arr: *mut colr_LayerList, target: usize) {
     cvec_grow_to_n(colr_LayerList_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn colr_LayerList_initN(mut arr: *mut colr_LayerList, mut n: size_t) {
+unsafe extern "C" fn colr_LayerList_initN(mut arr: *mut colr_LayerList, mut n: usize) {
     colr_LayerList_init(arr);
     colr_LayerList_growToN(arr, n);
     colr_LayerList_fill(arr, n);
@@ -687,16 +520,16 @@ unsafe extern "C" fn colr_LayerList_free(mut x: *mut colr_LayerList) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn colr_LayerList_createN(mut n: size_t) -> *mut colr_LayerList {
+unsafe extern "C" fn colr_LayerList_createN(mut n: usize) -> *mut colr_LayerList {
     let mut t: *mut colr_LayerList =
-        malloc(::core::mem::size_of::<colr_LayerList>() as size_t) as *mut colr_LayerList;
+        malloc(::core::mem::size_of::<colr_LayerList>() as usize) as *mut colr_LayerList;
     colr_LayerList_initN(t, n);
     return t;
 }
 #[inline]
 unsafe extern "C" fn colr_LayerList_create() -> *mut colr_LayerList {
     let mut x: *mut colr_LayerList =
-        malloc(::core::mem::size_of::<colr_LayerList>() as size_t) as *mut colr_LayerList;
+        malloc(::core::mem::size_of::<colr_LayerList>() as usize) as *mut colr_LayerList;
     colr_LayerList_init(x);
     return x;
 }
@@ -705,7 +538,7 @@ unsafe extern "C" fn colr_LayerList_shrinkToFit(mut arr: *mut colr_LayerList) {
     colr_LayerList_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn colr_LayerList_resizeTo(arr: *mut colr_LayerList, target: size_t) {
+unsafe extern "C" fn colr_LayerList_resizeTo(arr: *mut colr_LayerList, target: usize) {
     cvec_resize_to(colr_LayerList_as_cvec(arr), target);
 }
 #[inline]
@@ -721,7 +554,7 @@ unsafe extern "C" fn colr_LayerList_init(arr: *mut colr_LayerList) {
     cvec_init(colr_LayerList_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn colr_LayerList_disposeItem(mut arr: *mut colr_LayerList, mut n: size_t) {
+unsafe extern "C" fn colr_LayerList_disposeItem(mut arr: *mut colr_LayerList, mut n: usize) {
     if colr_iLayer.dispose.is_some() {
         colr_iLayer.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut colr_Layer
@@ -735,8 +568,8 @@ unsafe extern "C" fn colr_LayerList_filterEnv(
     mut fn_0: Option<unsafe extern "C" fn(*const colr_Layer, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: size_t = 0 as size_t;
-    let mut k: size_t = 0 as size_t;
+    let mut j: usize = 0 as usize;
+    let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
             (*arr).items.offset(k as isize) as *mut colr_Layer,
@@ -812,7 +645,7 @@ unsafe extern "C" fn colr_Mapping_move(mut dst: *mut colr_Mapping, mut src: *mut
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<colr_Mapping>() as size_t,
+        ::core::mem::size_of::<colr_Mapping>() as usize,
     );
     colr_Mapping_init(src);
 }
@@ -826,7 +659,7 @@ unsafe extern "C" fn colr_Mapping_replace(mut dst: *mut colr_Mapping, src: colr_
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<colr_Mapping>() as size_t,
+        ::core::mem::size_of::<colr_Mapping>() as usize,
     );
 }
 #[inline]
@@ -839,11 +672,11 @@ unsafe extern "C" fn table_COLR_replace(mut dst: *mut table_COLR, src: table_COL
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_COLR>() as size_t,
+        ::core::mem::size_of::<table_COLR>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_COLR_growTo(arr: *mut table_COLR, target: size_t) {
+unsafe extern "C" fn table_COLR_growTo(arr: *mut table_COLR, target: usize) {
     cvec_grow_to(table_COLR_as_cvec(arr), target);
 }
 #[no_mangle]
@@ -865,16 +698,16 @@ pub static mut table_iCOLR: __caryll_vectorinterface_table_COLR = {
         ),
         create: Some(table_COLR_create),
         free: Some(table_COLR_free as unsafe extern "C" fn(*mut table_COLR) -> ()),
-        initN: Some(table_COLR_initN as unsafe extern "C" fn(*mut table_COLR, size_t) -> ()),
-        initCapN: Some(table_COLR_initCapN as unsafe extern "C" fn(*mut table_COLR, size_t) -> ()),
-        createN: Some(table_COLR_createN as unsafe extern "C" fn(size_t) -> *mut table_COLR),
-        fill: Some(table_COLR_fill as unsafe extern "C" fn(*mut table_COLR, size_t) -> ()),
+        initN: Some(table_COLR_initN as unsafe extern "C" fn(*mut table_COLR, usize) -> ()),
+        initCapN: Some(table_COLR_initCapN as unsafe extern "C" fn(*mut table_COLR, usize) -> ()),
+        createN: Some(table_COLR_createN as unsafe extern "C" fn(usize) -> *mut table_COLR),
+        fill: Some(table_COLR_fill as unsafe extern "C" fn(*mut table_COLR, usize) -> ()),
         clear: Some(table_COLR_dispose as unsafe extern "C" fn(*mut table_COLR) -> ()),
         push: Some(table_COLR_push as unsafe extern "C" fn(*mut table_COLR, colr_Mapping) -> ()),
         shrinkToFit: Some(table_COLR_shrinkToFit as unsafe extern "C" fn(*mut table_COLR) -> ()),
         pop: Some(table_COLR_pop as unsafe extern "C" fn(*mut table_COLR) -> colr_Mapping),
         disposeItem: Some(
-            table_COLR_disposeItem as unsafe extern "C" fn(*mut table_COLR, size_t) -> (),
+            table_COLR_disposeItem as unsafe extern "C" fn(*mut table_COLR, usize) -> (),
         ),
         filterEnv: Some(
             table_COLR_filterEnv
@@ -905,7 +738,7 @@ unsafe extern "C" fn table_COLR_shrinkToFit(mut arr: *mut table_COLR) {
     table_COLR_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn table_COLR_resizeTo(arr: *mut table_COLR, target: size_t) {
+unsafe extern "C" fn table_COLR_resizeTo(arr: *mut table_COLR, target: usize) {
     cvec_resize_to(table_COLR_as_cvec(arr), target);
 }
 #[inline]
@@ -926,8 +759,8 @@ unsafe extern "C" fn table_COLR_filterEnv(
     mut fn_0: Option<unsafe extern "C" fn(*const colr_Mapping, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: size_t = 0 as size_t;
-    let mut k: size_t = 0 as size_t;
+    let mut j: usize = 0 as usize;
+    let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
             (*arr).items.offset(k as isize) as *mut colr_Mapping,
@@ -950,7 +783,7 @@ unsafe extern "C" fn table_COLR_filterEnv(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn table_COLR_disposeItem(mut arr: *mut table_COLR, mut n: size_t) {
+unsafe extern "C" fn table_COLR_disposeItem(mut arr: *mut table_COLR, mut n: usize) {
     if colr_iMapping.dispose.is_some() {
         colr_iMapping.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut colr_Mapping
@@ -968,7 +801,7 @@ unsafe extern "C" fn table_COLR_sort(
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<colr_Mapping>() as size_t,
+        ::core::mem::size_of::<colr_Mapping>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
@@ -981,7 +814,7 @@ unsafe extern "C" fn table_COLR_sort(
     );
 }
 #[inline]
-unsafe extern "C" fn table_COLR_fill(mut arr: *mut table_COLR, mut n: size_t) {
+unsafe extern "C" fn table_COLR_fill(mut arr: *mut table_COLR, mut n: usize) {
     while (*arr).length < n {
         let mut x: colr_Mapping = colr_Mapping {
             glyph: otfcc_Handle {
@@ -1001,7 +834,7 @@ unsafe extern "C" fn table_COLR_fill(mut arr: *mut table_COLR, mut n: size_t) {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<colr_Mapping>() as size_t,
+                ::core::mem::size_of::<colr_Mapping>() as usize,
             );
         }
         table_COLR_push(arr, x);
@@ -1030,7 +863,7 @@ unsafe extern "C" fn table_COLR_copy(mut dst: *mut table_COLR, mut src: *const t
     table_COLR_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
     if colr_iMapping.copy.is_some() {
-        let mut j: size_t = 0 as size_t;
+        let mut j: usize = 0 as usize;
         while j < (*src).length {
             colr_iMapping.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut colr_Mapping,
@@ -1039,7 +872,7 @@ unsafe extern "C" fn table_COLR_copy(mut dst: *mut table_COLR, mut src: *const t
             j = j.wrapping_add(1);
         }
     } else {
-        let mut j_0: size_t = 0 as size_t;
+        let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
             *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
             j_0 = j_0.wrapping_add(1);
@@ -1052,7 +885,7 @@ unsafe extern "C" fn table_COLR_dispose(mut arr: *mut table_COLR) {
         return;
     }
     if colr_iMapping.dispose.is_some() {
-        let mut j: size_t = (*arr).length;
+        let mut j: usize = (*arr).length;
         loop {
             let fresh3 = j;
             j = j.wrapping_sub(1);
@@ -1066,20 +899,20 @@ unsafe extern "C" fn table_COLR_dispose(mut arr: *mut table_COLR) {
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<colr_Mapping>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn table_COLR_initCapN(mut arr: *mut table_COLR, mut n: size_t) {
+unsafe extern "C" fn table_COLR_initCapN(mut arr: *mut table_COLR, mut n: usize) {
     table_COLR_init(arr);
     table_COLR_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn table_COLR_growToN(arr: *mut table_COLR, target: size_t) {
+unsafe extern "C" fn table_COLR_growToN(arr: *mut table_COLR, target: usize) {
     cvec_grow_to_n(table_COLR_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn table_COLR_initN(mut arr: *mut table_COLR, mut n: size_t) {
+unsafe extern "C" fn table_COLR_initN(mut arr: *mut table_COLR, mut n: usize) {
     table_COLR_init(arr);
     table_COLR_growToN(arr, n);
     table_COLR_fill(arr, n);
@@ -1093,30 +926,30 @@ unsafe extern "C" fn table_COLR_free(mut x: *mut table_COLR) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_COLR_createN(mut n: size_t) -> *mut table_COLR {
+unsafe extern "C" fn table_COLR_createN(mut n: usize) -> *mut table_COLR {
     let mut t: *mut table_COLR =
-        malloc(::core::mem::size_of::<table_COLR>() as size_t) as *mut table_COLR;
+        malloc(::core::mem::size_of::<table_COLR>() as usize) as *mut table_COLR;
     table_COLR_initN(t, n);
     return t;
 }
 #[inline]
 unsafe extern "C" fn table_COLR_create() -> *mut table_COLR {
     let mut x: *mut table_COLR =
-        malloc(::core::mem::size_of::<table_COLR>() as size_t) as *mut table_COLR;
+        malloc(::core::mem::size_of::<table_COLR>() as usize) as *mut table_COLR;
     table_COLR_init(x);
     return x;
 }
-static mut baseGlyphRecLength: size_t = 6 as size_t;
-static mut layerRecLength: size_t = 4 as size_t;
+static mut baseGlyphRecLength: usize = 6 as usize;
+static mut layerRecLength: usize = 4 as usize;
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_readCOLR(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
 ) -> *mut table_COLR {
-    let mut numBaseGlyphRecords: uint16_t = 0;
-    let mut numLayerRecords: uint16_t = 0;
-    let mut offsetBaseGlyphRecord: uint32_t = 0;
-    let mut offsetLayerRecord: uint32_t = 0;
+    let mut numBaseGlyphRecords: u16 = 0;
+    let mut numLayerRecords: u16 = 0;
+    let mut offsetBaseGlyphRecord: u32 = 0;
+    let mut offsetLayerRecord: u32 = 0;
     let mut gids: *mut glyphid_t = ::core::ptr::null_mut::<glyphid_t>();
     let mut colors: *mut colorid_t = ::core::ptr::null_mut::<colorid_t>();
     let mut colr: *mut table_COLR = ::core::ptr::null_mut::<table_COLR>();
@@ -1129,10 +962,10 @@ pub unsafe extern "C" fn otfcc_readCOLR(
     {
         let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1129270354i32 as uint32_t {
+            if table.tag == 1129270354i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    if !(table.length < 14 as uint32_t) {
+                    if !(table.length < 14 as u32) {
                         numBaseGlyphRecords =
                             read_16u(table.data.offset(2 as ::core::ffi::c_int as isize));
                         numLayerRecords =
@@ -1141,26 +974,26 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                             read_32u(table.data.offset(4 as ::core::ffi::c_int as isize));
                         offsetLayerRecord =
                             read_32u(table.data.offset(8 as ::core::ffi::c_int as isize));
-                        if !((table.length as size_t)
-                            < (offsetBaseGlyphRecord as size_t).wrapping_add(
-                                baseGlyphRecLength.wrapping_mul(numBaseGlyphRecords as size_t),
+                        if !((table.length as usize)
+                            < (offsetBaseGlyphRecord as usize).wrapping_add(
+                                baseGlyphRecLength.wrapping_mul(numBaseGlyphRecords as usize),
                             ))
                         {
-                            if !((table.length as size_t)
-                                < (offsetLayerRecord as size_t).wrapping_add(
-                                    layerRecLength.wrapping_mul(numLayerRecords as size_t),
+                            if !((table.length as usize)
+                                < (offsetLayerRecord as usize).wrapping_add(
+                                    layerRecLength.wrapping_mul(numLayerRecords as usize),
                                 ))
                             {
                                 gids = ::core::ptr::null_mut::<glyphid_t>();
                                 colors = ::core::ptr::null_mut::<colorid_t>();
                                 gids = __caryll_allocate_clean(
-                                    (::core::mem::size_of::<glyphid_t>() as size_t)
-                                        .wrapping_mul(numLayerRecords as size_t),
+                                    (::core::mem::size_of::<glyphid_t>() as usize)
+                                        .wrapping_mul(numLayerRecords as usize),
                                     52 as ::core::ffi::c_ulong,
                                 ) as *mut glyphid_t;
                                 colors = __caryll_allocate_clean(
-                                    (::core::mem::size_of::<colorid_t>() as size_t)
-                                        .wrapping_mul(numLayerRecords as size_t),
+                                    (::core::mem::size_of::<colorid_t>() as usize)
+                                        .wrapping_mul(numLayerRecords as usize),
                                     53 as ::core::ffi::c_ulong,
                                 ) as *mut colorid_t;
                                 let mut j: glyphid_t = 0 as glyphid_t;
@@ -1169,7 +1002,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                 {
                                     *gids.offset(j as isize) = read_16u(
                                         table.data.offset(offsetLayerRecord as isize).offset(
-                                            layerRecLength.wrapping_mul(j as size_t) as isize,
+                                            layerRecLength.wrapping_mul(j as usize) as isize,
                                         ),
                                     )
                                         as glyphid_t;
@@ -1178,7 +1011,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                             table
                                                 .data
                                                 .offset(offsetLayerRecord as isize)
-                                                .offset(layerRecLength.wrapping_mul(j as size_t)
+                                                .offset(layerRecLength.wrapping_mul(j as usize)
                                                     as isize)
                                                 .offset(2 as ::core::ffi::c_int as isize),
                                         ) as colorid_t;
@@ -1205,26 +1038,26 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                     colr_iMapping.init.expect("non-null function pointer")(
                                         &raw mut mapping,
                                     );
-                                    let mut gid: uint16_t = read_16u(
+                                    let mut gid: u16 = read_16u(
                                         table
                                             .data
                                             .offset(offsetBaseGlyphRecord as isize)
-                                            .offset(baseGlyphRecLength.wrapping_mul(j_0 as size_t)
+                                            .offset(baseGlyphRecLength.wrapping_mul(j_0 as usize)
                                                 as isize),
                                     );
-                                    let mut firstLayerIndex: uint16_t = read_16u(
+                                    let mut firstLayerIndex: u16 = read_16u(
                                         table
                                             .data
                                             .offset(offsetBaseGlyphRecord as isize)
-                                            .offset(baseGlyphRecLength.wrapping_mul(j_0 as size_t)
+                                            .offset(baseGlyphRecLength.wrapping_mul(j_0 as usize)
                                                 as isize)
                                             .offset(2 as ::core::ffi::c_int as isize),
                                     );
-                                    let mut numLayers: uint16_t = read_16u(
+                                    let mut numLayers: u16 = read_16u(
                                         table
                                             .data
                                             .offset(offsetBaseGlyphRecord as isize)
-                                            .offset(baseGlyphRecLength.wrapping_mul(j_0 as size_t)
+                                            .offset(baseGlyphRecLength.wrapping_mul(j_0 as usize)
                                                 as isize)
                                             .offset(4 as ::core::ffi::c_int as isize),
                                     );
@@ -1281,7 +1114,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as uint8_t,
+                        log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
                         sdscatprintf(
                             sdsempty(),
@@ -1323,25 +1156,25 @@ pub unsafe extern "C" fn otfcc_dumpCOLR(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _colr: *mut json_value = json_array_new((*colr).length);
-        let mut __caryll_index: size_t = 0 as size_t;
-        let mut keep: size_t = 1 as size_t;
+        let mut __caryll_index: usize = 0 as usize;
+        let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < (*colr).length {
             let mut mapping: *mut colr_Mapping = (*colr).items.offset(__caryll_index as isize);
             while keep != 0 {
-                let mut _map: *mut json_value = json_object_new(2 as size_t);
+                let mut _map: *mut json_value = json_object_new(2 as usize);
                 json_object_push(
                     _map,
                     b"from\0" as *const u8 as *const ::core::ffi::c_char,
                     json_string_new((*mapping).glyph.name as *const ::core::ffi::c_char),
                 );
                 let mut _layers: *mut json_value = json_array_new((*mapping).layers.length);
-                let mut __caryll_index_0: size_t = 0 as size_t;
-                let mut keep_0: size_t = 1 as size_t;
+                let mut __caryll_index_0: usize = 0 as usize;
+                let mut keep_0: usize = 1 as usize;
                 while keep_0 != 0 && __caryll_index_0 < (*mapping).layers.length {
                     let mut layer: *mut colr_Layer =
                         (*mapping).layers.items.offset(__caryll_index_0 as isize);
                     while keep_0 != 0 {
-                        let mut _layer: *mut json_value = json_object_new(2 as size_t);
+                        let mut _layer: *mut json_value = json_object_new(2 as usize);
                         json_object_push(
                             _layer,
                             b"layer\0" as *const u8 as *const ::core::ffi::c_char,
@@ -1350,12 +1183,12 @@ pub unsafe extern "C" fn otfcc_dumpCOLR(
                         json_object_push(
                             _layer,
                             b"paletteIndex\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new((*layer).paletteIndex as int64_t),
+                            json_integer_new((*layer).paletteIndex as i64),
                         );
                         json_array_push(_layers, _layer);
-                        keep_0 = (keep_0 == 0) as ::core::ffi::c_int as size_t;
+                        keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
                     }
-                    keep_0 = (keep_0 == 0) as ::core::ffi::c_int as size_t;
+                    keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
                     __caryll_index_0 = __caryll_index_0.wrapping_add(1);
                 }
                 json_object_push(
@@ -1364,9 +1197,9 @@ pub unsafe extern "C" fn otfcc_dumpCOLR(
                     preserialize(_layers),
                 );
                 json_array_push(_colr, _map);
-                keep = (keep == 0) as ::core::ffi::c_int as size_t;
+                keep = (keep == 0) as ::core::ffi::c_int as usize;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as size_t;
+            keep = (keep == 0) as ::core::ffi::c_int as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
         json_object_push(
@@ -1441,7 +1274,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
                     colr_iMapping.init.expect("non-null function pointer")(&raw mut m);
                     m.glyph = handle_fromName(sdsnewlen(
                         (*_baseglyph).u.string.ptr as *const ::core::ffi::c_void,
-                        (*_baseglyph).u.string.length as size_t,
+                        (*_baseglyph).u.string.length as usize,
                     )) as otfcc_GlyphHandle;
                     let mut k: glyphid_t = 0 as glyphid_t;
                     while (k as ::core::ffi::c_uint) < (*_layers).u.array.length {
@@ -1464,7 +1297,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
                                             sdsnewlen(
                                                 (*_layerglyph).u.string.ptr
                                                     as *const ::core::ffi::c_void,
-                                                (*_layerglyph).u.string.length as size_t,
+                                                (*_layerglyph).u.string.length as usize,
                                             ),
                                         )
                                             as otfcc_GlyphHandle,
@@ -1472,7 +1305,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
                                             _layer,
                                             b"paletteIndex\0" as *const u8
                                                 as *const ::core::ffi::c_char,
-                                            0xffff as int32_t,
+                                            0xffff as i32,
                                         )
                                             as colorid_t,
                                     },
@@ -1526,8 +1359,8 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
     let mut currentLayerIndex: glyphid_t = 0 as glyphid_t;
     let mut layerRecords: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
     let mut baseRecords: *mut bk_Block = bk_new_Block(bkover as ::core::ffi::c_int);
-    let mut __caryll_index: size_t = 0 as size_t;
-    let mut keep: size_t = 1 as size_t;
+    let mut __caryll_index: usize = 0 as usize;
+    let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < colr.length {
         let mut mapping: *mut colr_Mapping = colr.items.offset(__caryll_index as isize);
         while keep != 0 {
@@ -1541,8 +1374,8 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
                 (*mapping).layers.length,
                 bkover as ::core::ffi::c_int,
             );
-            let mut __caryll_index_0: size_t = 0 as size_t;
-            let mut keep_0: size_t = 1 as size_t;
+            let mut __caryll_index_0: usize = 0 as usize;
+            let mut keep_0: usize = 1 as usize;
             while keep_0 != 0 && __caryll_index_0 < (*mapping).layers.length {
                 let mut layer: *mut colr_Layer =
                     (*mapping).layers.items.offset(__caryll_index_0 as isize);
@@ -1558,14 +1391,14 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
                     currentLayerIndex = (currentLayerIndex as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as glyphid_t;
-                    keep_0 = (keep_0 == 0) as ::core::ffi::c_int as size_t;
+                    keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
                 }
-                keep_0 = (keep_0 == 0) as ::core::ffi::c_int as size_t;
+                keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
                 __caryll_index_0 = __caryll_index_0.wrapping_add(1);
             }
-            keep = (keep == 0) as ::core::ffi::c_int as size_t;
+            keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as size_t;
+        keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut root: *mut bk_Block = bk_new_Block(
@@ -1596,8 +1429,8 @@ unsafe extern "C" fn json_obj_get(
     {
         return ::core::ptr::null_mut::<json_value>();
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
@@ -1622,16 +1455,16 @@ unsafe extern "C" fn json_obj_get_type(
 unsafe extern "C" fn json_obj_getint_fallback(
     mut obj: *const json_value,
     mut key: *const ::core::ffi::c_char,
-    mut fallback: int32_t,
-) -> int32_t {
+    mut fallback: i32,
+) -> i32 {
     if obj.is_null()
         || (*obj).type_0 as ::core::ffi::c_uint
             != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
     {
         return fallback;
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         let mut cv: *mut json_value =
             (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
@@ -1640,13 +1473,13 @@ unsafe extern "C" fn json_obj_getint_fallback(
                 && (*cv).type_0 as ::core::ffi::c_uint
                     == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
             {
-                return (*cv).u.integer as int32_t;
+                return (*cv).u.integer as i32;
             }
             if !cv.is_null()
                 && (*cv).type_0 as ::core::ffi::c_uint
                     == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
             {
-                return (*cv).u.dbl as int32_t;
+                return (*cv).u.dbl as i32;
             }
         }
         _k = _k.wrapping_add(1);
@@ -1660,12 +1493,12 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
         opts: 0,
         indent_size: 0,
     };
-    let mut preserialize_len: size_t = json_measure_ex(x, opts);
+    let mut preserialize_len: usize = json_measure_ex(x, opts);
     let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
     json_serialize_ex(buf, x, opts);
     json_builder_free(x);
     let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as size_t) as ::core::ffi::c_uint,
+        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
         buf,
     );
     (*xx).type_0 = json_pre_serialized;

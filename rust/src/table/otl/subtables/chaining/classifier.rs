@@ -1,23 +1,5 @@
+use libc::{exit, free, malloc, memcmp, memset};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memcmp(
-        __s1: *const ::core::ffi::c_void,
-        __s2: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> ::core::ffi::c_int;
     static otl_iClassDef: __otfcc_IClassDef;
     static iSubtable_chaining: __caryll_elementinterface_subtable_chaining;
     fn otfcc_build_chaining(_subtable: *const otl_Subtable) -> *mut caryll_Buffer;
@@ -28,80 +10,12 @@ extern "C" {
 use crate::table::otl::classdef::{otl_ClassDef_create, pushClassDef, otl_ClassDef};
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{handle_fromConsolidated, handle_fromIndex, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
-pub type json_type = ::core::ffi::c_uint;
-pub const json_pre_serialized: json_type = 8;
-pub const json_null: json_type = 7;
-pub const json_boolean: json_type = 6;
-pub const json_string: json_type = 5;
-pub const json_double: json_type = 4;
-pub const json_integer: json_type = 3;
-pub const json_array: json_type = 2;
-pub const json_object: json_type = 1;
-pub const json_none: json_type = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_value {
-    pub parent: *mut _json_value,
-    pub type_0: json_type,
-    pub u: C2RustUnnamed_0,
-    pub _reserved: C2RustUnnamed,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed {
-    pub next_alloc: *mut _json_value,
-    pub object_mem: *mut ::core::ffi::c_void,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_0 {
-    pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
-    pub dbl: ::core::ffi::c_double,
-    pub string: C2RustUnnamed_3,
-    pub object: C2RustUnnamed_2,
-    pub array: C2RustUnnamed_1,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_1 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_2 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut json_object_entry,
-}
-pub type json_object_entry = _json_object_entry;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_object_entry {
-    pub name: *mut ::core::ffi::c_char,
-    pub name_length: ::core::ffi::c_uint,
-    pub value: *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_3 {
-    pub length: ::core::ffi::c_uint,
-    pub ptr: *mut ::core::ffi::c_char,
-}
-pub type json_value = _json_value;
-pub type sds = *mut ::core::ffi::c_char;
-pub type ptrdiff_t = isize;
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::primitives::{glyphclass_t, glyphid_t, pos_t, tableid_t};
+use crate::vendor::sds::{sds};
+use crate::vendor::json::{json_value};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -129,25 +43,13 @@ pub struct UT_hash_table {
     pub log2_num_buckets: ::core::ffi::c_uint,
     pub num_items: ::core::ffi::c_uint,
     pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
+    pub hho: isize,
     pub ideal_chain_maxlen: ::core::ffi::c_uint,
     pub nonideal_items: ::core::ffi::c_uint,
     pub ineff_expands: ::core::ffi::c_uint,
     pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
+    pub signature: u32,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
-}
-pub type glyphid_t = uint16_t;
-pub type glyphclass_t = uint16_t;
-pub type tableid_t = uint16_t;
-pub type pos_t = ::core::ffi::c_double;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __otfcc_IClassDef {
@@ -161,7 +63,7 @@ pub struct __otfcc_IClassDef {
     pub free: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
     pub push:
         Option<unsafe extern "C" fn(*mut otl_ClassDef, otfcc_GlyphHandle, glyphclass_t) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const uint8_t, uint32_t, uint32_t) -> *mut otl_ClassDef>,
+    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_ClassDef>,
     pub expand:
         Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_ClassDef) -> *mut otl_ClassDef>,
     pub dump: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut json_value>,
@@ -222,8 +124,8 @@ pub struct subtable_gpos_markToLigature {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LigatureArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LigatureBaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -243,8 +145,8 @@ pub struct otl_Anchor {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_MarkArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_MarkRecord,
 }
 #[derive(Copy, Clone)]
@@ -264,8 +166,8 @@ pub struct subtable_gpos_markToSingle {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_BaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -277,8 +179,8 @@ pub struct otl_BaseRecord {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_cursive {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposCursiveEntry,
 }
 #[derive(Copy, Clone)]
@@ -307,8 +209,8 @@ pub struct otl_PositionValue {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -369,8 +271,8 @@ pub const otl_chaining_canonical: otl_chaining_type = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_ligature {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubLigatureEntry,
 }
 #[derive(Copy, Clone)]
@@ -382,8 +284,8 @@ pub struct otl_GsubLigatureEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_multi {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubMultiEntry,
 }
 #[derive(Copy, Clone)]
@@ -395,8 +297,8 @@ pub struct otl_GsubMultiEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -410,15 +312,15 @@ pub struct otl_GsubSingleEntry {
 pub struct _otl_lookup {
     pub name: sds,
     pub type_0: otl_LookupType,
-    pub _offset: uint32_t,
-    pub flags: uint16_t,
+    pub _offset: u32,
+    pub flags: u16,
     pub subtables: otl_SubtableList,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_SubtableList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_SubtablePtr,
 }
 pub type otl_SubtablePtr = *mut otl_Subtable;
@@ -748,7 +650,7 @@ unsafe extern "C" fn classCompatible(
                     if memcmp(
                         (*s).hh.key,
                         &raw mut gid as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                        ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -1074,7 +976,7 @@ unsafe extern "C" fn classCompatible(
                             if memcmp(
                                 (*ss).hh.key,
                                 &raw mut gid_0 as *const ::core::ffi::c_void,
-                                ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                                ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                             ) == 0 as ::core::ffi::c_int
                             {
                                 break;
@@ -1405,7 +1307,7 @@ unsafe extern "C" fn classCompatible(
                             if memcmp(
                                 (*rss).hh.key,
                                 &raw mut gid_1 as *const ::core::ffi::c_void,
-                                ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                                ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                             ) == 0 as ::core::ffi::c_int
                             {
                                 break;
@@ -1425,7 +1327,7 @@ unsafe extern "C" fn classCompatible(
             }
             if rss.is_null() {
                 rss = __caryll_allocate_clean(
-                    ::core::mem::size_of::<classifier_hash>() as size_t,
+                    ::core::mem::size_of::<classifier_hash>() as usize,
                     38 as ::core::ffi::c_ulong,
                 ) as *mut classifier_hash;
                 (*rss).gid = gid_1;
@@ -1716,7 +1618,7 @@ unsafe extern "C" fn classCompatible(
                 if revh.is_null() {
                     (*rss).hh.next = NULL;
                     (*rss).hh.prev = NULL;
-                    (*rss).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+                    (*rss).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                         as *mut UT_hash_table
                         as *mut UT_hash_table;
                     if (*rss).hh.tbl.is_null() {
@@ -1725,7 +1627,7 @@ unsafe extern "C" fn classCompatible(
                         memset(
                             (*rss).hh.tbl as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            ::core::mem::size_of::<UT_hash_table>() as size_t,
+                            ::core::mem::size_of::<UT_hash_table>() as usize,
                         );
                         (*(*rss).hh.tbl).tail = &raw mut (*rss).hh as *mut UT_hash_handle;
                         (*(*rss).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
@@ -1733,20 +1635,20 @@ unsafe extern "C" fn classCompatible(
                         (*(*rss).hh.tbl).hho = (&raw mut (*rss).hh as *mut ::core::ffi::c_char)
                             .offset_from(rss as *mut ::core::ffi::c_char)
                             as ::core::ffi::c_long
-                            as ptrdiff_t;
+                            as isize;
                         (*(*rss).hh.tbl).buckets = malloc(
-                            (32 as size_t)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                            (32 as usize)
+                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                         ) as *mut UT_hash_bucket;
-                        (*(*rss).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                        (*(*rss).hh.tbl).signature = HASH_SIGNATURE as u32;
                         if (*(*rss).hh.tbl).buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
                         } else {
                             memset(
                                 (*(*rss).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
-                                (32 as size_t).wrapping_mul(
-                                    ::core::mem::size_of::<UT_hash_bucket>() as size_t,
+                                (32 as usize).wrapping_mul(
+                                    ::core::mem::size_of::<UT_hash_bucket>() as usize,
                                 ),
                             );
                         }
@@ -1794,9 +1696,9 @@ unsafe extern "C" fn classCompatible(
                     let mut _he_newbkt: *mut UT_hash_bucket =
                         ::core::ptr::null_mut::<UT_hash_bucket>();
                     _he_new_buckets = malloc(
-                        (2 as size_t)
-                            .wrapping_mul((*(*rss).hh.tbl).num_buckets as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (2 as usize)
+                            .wrapping_mul((*(*rss).hh.tbl).num_buckets as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     ) as *mut UT_hash_bucket;
                     if _he_new_buckets.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
@@ -1804,9 +1706,9 @@ unsafe extern "C" fn classCompatible(
                         memset(
                             _he_new_buckets as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            (2 as size_t)
-                                .wrapping_mul((*(*rss).hh.tbl).num_buckets as size_t)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                            (2 as usize)
+                                .wrapping_mul((*(*rss).hh.tbl).num_buckets as usize)
+                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                         );
                         (*(*rss).hh.tbl).ideal_chain_maxlen = ((*(*rss).hh.tbl).num_items
                             >> (*(*rss).hh.tbl)
@@ -2193,7 +2095,7 @@ unsafe extern "C" fn classCompatible(
                                 if memcmp(
                                     (*rss_0).hh.key,
                                     &raw mut gid_2 as *const ::core::ffi::c_void,
-                                    ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                                    ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                                 ) == 0 as ::core::ffi::c_int
                                 {
                                     break;
@@ -2591,7 +2493,7 @@ unsafe extern "C" fn classCompatible(
                             if memcmp(
                                 (*ss_0).hh.key,
                                 &raw mut gid_3 as *const ::core::ffi::c_void,
-                                ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                                ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                             ) == 0 as ::core::ffi::c_int
                             {
                                 break;
@@ -2921,7 +2823,7 @@ unsafe extern "C" fn classCompatible(
                             if memcmp(
                                 (*s_0).hh.key,
                                 &raw mut gid_4 as *const ::core::ffi::c_void,
-                                ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                                ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                             ) == 0 as ::core::ffi::c_int
                             {
                                 break;
@@ -2941,7 +2843,7 @@ unsafe extern "C" fn classCompatible(
             }
             if s_0.is_null() {
                 s_0 = __caryll_allocate_clean(
-                    ::core::mem::size_of::<classifier_hash>() as size_t,
+                    ::core::mem::size_of::<classifier_hash>() as usize,
                     74 as ::core::ffi::c_ulong,
                 ) as *mut classifier_hash;
                 (*s_0).gid = (*(*cov).glyphs.offset(j_2 as isize)).index as ::core::ffi::c_int;
@@ -3232,7 +3134,7 @@ unsafe extern "C" fn classCompatible(
                 if (*h).is_null() {
                     (*s_0).hh.next = NULL;
                     (*s_0).hh.prev = NULL;
-                    (*s_0).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+                    (*s_0).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                         as *mut UT_hash_table
                         as *mut UT_hash_table;
                     if (*s_0).hh.tbl.is_null() {
@@ -3241,7 +3143,7 @@ unsafe extern "C" fn classCompatible(
                         memset(
                             (*s_0).hh.tbl as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            ::core::mem::size_of::<UT_hash_table>() as size_t,
+                            ::core::mem::size_of::<UT_hash_table>() as usize,
                         );
                         (*(*s_0).hh.tbl).tail = &raw mut (*s_0).hh as *mut UT_hash_handle;
                         (*(*s_0).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
@@ -3249,20 +3151,20 @@ unsafe extern "C" fn classCompatible(
                         (*(*s_0).hh.tbl).hho = (&raw mut (*s_0).hh as *mut ::core::ffi::c_char)
                             .offset_from(s_0 as *mut ::core::ffi::c_char)
                             as ::core::ffi::c_long
-                            as ptrdiff_t;
+                            as isize;
                         (*(*s_0).hh.tbl).buckets = malloc(
-                            (32 as size_t)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                            (32 as usize)
+                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                         ) as *mut UT_hash_bucket;
-                        (*(*s_0).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                        (*(*s_0).hh.tbl).signature = HASH_SIGNATURE as u32;
                         if (*(*s_0).hh.tbl).buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
                         } else {
                             memset(
                                 (*(*s_0).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
-                                (32 as size_t).wrapping_mul(
-                                    ::core::mem::size_of::<UT_hash_bucket>() as size_t,
+                                (32 as usize).wrapping_mul(
+                                    ::core::mem::size_of::<UT_hash_bucket>() as usize,
                                 ),
                             );
                         }
@@ -3310,9 +3212,9 @@ unsafe extern "C" fn classCompatible(
                     let mut _he_newbkt_0: *mut UT_hash_bucket =
                         ::core::ptr::null_mut::<UT_hash_bucket>();
                     _he_new_buckets_0 = malloc(
-                        (2 as size_t)
-                            .wrapping_mul((*(*s_0).hh.tbl).num_buckets as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (2 as usize)
+                            .wrapping_mul((*(*s_0).hh.tbl).num_buckets as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     ) as *mut UT_hash_bucket;
                     if _he_new_buckets_0.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
@@ -3320,9 +3222,9 @@ unsafe extern "C" fn classCompatible(
                         memset(
                             _he_new_buckets_0 as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            (2 as size_t)
-                                .wrapping_mul((*(*s_0).hh.tbl).num_buckets as size_t)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                            (2 as usize)
+                                .wrapping_mul((*(*s_0).hh.tbl).num_buckets as usize)
+                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                         );
                         (*(*s_0).hh.tbl).ideal_chain_maxlen = ((*(*s_0).hh.tbl).num_items
                             >> (*(*s_0).hh.tbl)
@@ -3411,28 +3313,28 @@ unsafe extern "C" fn buildRule(
 ) -> *mut otl_ChainingRule {
     let mut newRule: *mut otl_ChainingRule = ::core::ptr::null_mut::<otl_ChainingRule>();
     newRule = __caryll_allocate_clean(
-        ::core::mem::size_of::<otl_ChainingRule>() as size_t,
+        ::core::mem::size_of::<otl_ChainingRule>() as usize,
         88 as ::core::ffi::c_ulong,
     ) as *mut otl_ChainingRule;
     (*newRule).matchCount = (*rule).matchCount;
     (*newRule).inputBegins = (*rule).inputBegins;
     (*newRule).inputEnds = (*rule).inputEnds;
     (*newRule).match_0 = __caryll_allocate_clean(
-        (::core::mem::size_of::<*mut otl_Coverage>() as size_t)
-            .wrapping_mul((*newRule).matchCount as size_t),
+        (::core::mem::size_of::<*mut otl_Coverage>() as usize)
+            .wrapping_mul((*newRule).matchCount as usize),
         92 as ::core::ffi::c_ulong,
     ) as *mut *mut otl_Coverage;
     let mut m: tableid_t = 0 as tableid_t;
     while (m as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
         let ref mut fresh9 = *(*newRule).match_0.offset(m as isize);
         *fresh9 = __caryll_allocate_clean(
-            ::core::mem::size_of::<otl_Coverage>() as size_t,
+            ::core::mem::size_of::<otl_Coverage>() as usize,
             94 as ::core::ffi::c_ulong,
         ) as *mut otl_Coverage;
         (**(*newRule).match_0.offset(m as isize)).numGlyphs = 1 as glyphid_t;
         let ref mut fresh10 = (**(*newRule).match_0.offset(m as isize)).glyphs;
         *fresh10 = __caryll_allocate_clean(
-            ::core::mem::size_of::<otfcc_GlyphHandle>() as size_t,
+            ::core::mem::size_of::<otfcc_GlyphHandle>() as usize,
             96 as ::core::ffi::c_ulong,
         ) as *mut otfcc_GlyphHandle;
         if (**(*rule).match_0.offset(m as isize)).numGlyphs as ::core::ffi::c_int
@@ -3744,7 +3646,7 @@ unsafe extern "C" fn buildRule(
                             if memcmp(
                                 (*s).hh.key,
                                 &raw mut gid as *const ::core::ffi::c_void,
-                                ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                                ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                             ) == 0 as ::core::ffi::c_int
                             {
                                 break;
@@ -3778,8 +3680,8 @@ unsafe extern "C" fn buildRule(
     }
     (*newRule).applyCount = (*rule).applyCount;
     (*newRule).apply = __caryll_allocate_clean(
-        (::core::mem::size_of::<otl_ChainLookupApplication>() as size_t)
-            .wrapping_mul((*newRule).applyCount as size_t),
+        (::core::mem::size_of::<otl_ChainLookupApplication>() as usize)
+            .wrapping_mul((*newRule).applyCount as usize),
         108 as ::core::ffi::c_ulong,
     ) as *mut otl_ChainLookupApplication;
     let mut j: tableid_t = 0 as tableid_t;
@@ -3994,7 +3896,7 @@ pub unsafe extern "C" fn tryClassifyAround(
     match current_block {
         12349973810996921269 => {
             let mut k: tableid_t = (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as tableid_t;
-            's_74: while (k as size_t) < (*lookup).subtables.length {
+            's_74: while (k as usize) < (*lookup).subtables.length {
                 let mut rule: *mut otl_ChainingRule =
                     &raw mut (**(*lookup).subtables.items.offset(k as isize))
                         .chaining
@@ -4040,14 +3942,14 @@ pub unsafe extern "C" fn tryClassifyAround(
             }
             if compatibleCount as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
                 subtable0 = __caryll_allocate_clean(
-                    ::core::mem::size_of::<subtable_chaining>() as size_t,
+                    ::core::mem::size_of::<subtable_chaining>() as usize,
                     170 as ::core::ffi::c_ulong,
                 ) as *mut subtable_chaining;
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.rulesCount =
                     (compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as tableid_t;
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
-                    (::core::mem::size_of::<*mut otl_ChainingRule>() as size_t).wrapping_mul(
-                        (compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as size_t,
+                    (::core::mem::size_of::<*mut otl_ChainingRule>() as usize).wrapping_mul(
+                        (compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
                     ),
                     172 as ::core::ffi::c_ulong,
                 )
@@ -4061,7 +3963,7 @@ pub unsafe extern "C" fn tryClassifyAround(
                 let mut kk: tableid_t = 1 as tableid_t;
                 let mut k_0: tableid_t =
                     (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as tableid_t;
-                while (k_0 as size_t) < (*lookup).subtables.length
+                while (k_0 as usize) < (*lookup).subtables.length
                     && (kk as ::core::ffi::c_int)
                         < compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int
                 {
@@ -4287,17 +4189,17 @@ pub unsafe extern "C" fn tryClassifyAround(
 pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
     mut lookup: *const otl_Lookup,
     mut subtableBuffers: *mut *mut *mut caryll_Buffer,
-    mut lastOffset: *mut size_t,
+    mut lastOffset: *mut usize,
 ) -> tableid_t {
     let mut isContextual: bool = otfcc_chainingLookupIsContextualLookup(lookup);
     let mut subtablesWritten: tableid_t = 0 as tableid_t;
     *subtableBuffers = __caryll_allocate_clean(
-        (::core::mem::size_of::<*mut caryll_Buffer>() as size_t)
+        (::core::mem::size_of::<*mut caryll_Buffer>() as usize)
             .wrapping_mul((*lookup).subtables.length),
         223 as ::core::ffi::c_ulong,
     ) as *mut *mut caryll_Buffer;
     let mut j: tableid_t = 0 as tableid_t;
-    while (j as size_t) < (*lookup).subtables.length {
+    while (j as usize) < (*lookup).subtables.length {
         let mut st0: *mut subtable_chaining =
             &raw mut (**(*lookup).subtables.items.offset(j as isize)).chaining;
         if !((*st0).type_0 as u64 != 0) {

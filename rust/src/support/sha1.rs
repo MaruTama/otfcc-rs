@@ -1,11 +1,4 @@
-extern "C" {
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-}
-pub type size_t = usize;
+use libc::{memset};
 pub type BYTE = ::core::ffi::c_uchar;
 pub type WORD = ::core::ffi::c_uint;
 #[derive(Copy, Clone)]
@@ -146,10 +139,10 @@ pub unsafe extern "C" fn sha1_init(mut ctx: *mut SHA1_CTX) {
 pub unsafe extern "C" fn sha1_update(
     mut ctx: *mut SHA1_CTX,
     mut data: *const BYTE,
-    mut len: size_t,
+    mut len: usize,
 ) {
-    let mut i: size_t = 0;
-    i = 0 as size_t;
+    let mut i: usize = 0;
+    i = 0 as usize;
     while i < len {
         (*ctx).data[(*ctx).datalen as usize] = *data.offset(i as isize);
         (*ctx).datalen = (*ctx).datalen.wrapping_add(1);
@@ -187,7 +180,7 @@ pub unsafe extern "C" fn sha1_final(mut ctx: *mut SHA1_CTX, mut hash: *mut BYTE)
         memset(
             &raw mut (*ctx).data as *mut BYTE as *mut ::core::ffi::c_void,
             0 as ::core::ffi::c_int,
-            56 as size_t,
+            56 as usize,
         );
     }
     (*ctx).bitlen = (*ctx)

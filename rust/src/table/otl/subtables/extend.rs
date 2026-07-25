@@ -1,16 +1,9 @@
+use libc::{free};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
     fn otfcc_readOtl_subtable(
-        data: *mut uint8_t,
-        tableLength: uint32_t,
-        subtableOffset: uint32_t,
+        data: *mut u8,
+        tableLength: u32,
+        subtableOffset: u32,
         lookupType: otl_LookupType,
         maxGlyphs: glyphid_t,
         options: *const otfcc_Options,
@@ -20,86 +13,13 @@ extern "C" {
 use crate::table::otl::classdef::{otl_ClassDef};
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{otfcc_GlyphHandle, otfcc_LookupHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
-pub type sds = *mut ::core::ffi::c_char;
-pub type glyphid_t = uint16_t;
-pub type glyphclass_t = uint16_t;
-pub type tableid_t = uint16_t;
-pub type pos_t = ::core::ffi::c_double;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILoggerTarget {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()>,
-}
-pub type otfcc_LoggerType = ::core::ffi::c_uint;
-pub const log_type_progress: otfcc_LoggerType = 3;
-pub const log_type_info: otfcc_LoggerType = 2;
-pub const log_type_warning: otfcc_LoggerType = 1;
-pub const log_type_error: otfcc_LoggerType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILogger {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub indent: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub indentSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub start: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub startSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub log: Option<
-        unsafe extern "C" fn(
-            *mut otfcc_ILogger,
-            uint8_t,
-            otfcc_LoggerType,
-            *const ::core::ffi::c_char,
-        ) -> (),
-    >,
-    pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
-    pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
-    pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Options {
-    pub debug_wait_on_start: bool,
-    pub ignore_glyph_order: bool,
-    pub ignore_hints: bool,
-    pub has_vertical_metrics: bool,
-    pub export_fdselect: bool,
-    pub keep_average_char_width: bool,
-    pub keep_unicode_ranges: bool,
-    pub short_post: bool,
-    pub dummy_DSIG: bool,
-    pub keep_modified_time: bool,
-    pub instr_as_bytes: bool,
-    pub verbose: bool,
-    pub quiet: bool,
-    pub cff_short_vmtx: bool,
-    pub merge_lookups: bool,
-    pub merge_features: bool,
-    pub force_cid: bool,
-    pub cff_rollCharString: bool,
-    pub cff_doSubroutinize: bool,
-    pub stub_cmap4: bool,
-    pub decimal_cmap: bool,
-    pub name_glyphs_by_hash: bool,
-    pub name_glyphs_by_gid: bool,
-    pub glyph_name_prefix: *mut ::core::ffi::c_char,
-    pub logger: *mut otfcc_ILogger,
-}
-pub type font_file_pointer = *mut uint8_t;
+
+use crate::support::options::{otfcc_Options};
+use crate::support::primitives::{font_file_pointer, glyphclass_t, glyphid_t, pos_t, tableid_t};
+
 pub type otl_LookupType = ::core::ffi::c_uint;
 pub const otl_type_gpos_extend: otl_LookupType = 41;
 pub const otl_type_gpos_chaining: otl_LookupType = 40;
@@ -153,8 +73,8 @@ pub struct subtable_gpos_markToLigature {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LigatureArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LigatureBaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -174,8 +94,8 @@ pub struct otl_Anchor {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_MarkArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_MarkRecord,
 }
 #[derive(Copy, Clone)]
@@ -195,8 +115,8 @@ pub struct subtable_gpos_markToSingle {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_BaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -208,8 +128,8 @@ pub struct otl_BaseRecord {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_cursive {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposCursiveEntry,
 }
 #[derive(Copy, Clone)]
@@ -238,8 +158,8 @@ pub struct otl_PositionValue {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -300,8 +220,8 @@ pub const otl_chaining_canonical: otl_chaining_type = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_ligature {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubLigatureEntry,
 }
 #[derive(Copy, Clone)]
@@ -313,8 +233,8 @@ pub struct otl_GsubLigatureEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_multi {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubMultiEntry,
 }
 #[derive(Copy, Clone)]
@@ -326,8 +246,8 @@ pub struct otl_GsubMultiEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -340,8 +260,8 @@ pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 unsafe extern "C" fn _caryll_read_otl_extend(
     mut data: font_file_pointer,
-    mut tableLength: uint32_t,
-    mut subtableOffset: uint32_t,
+    mut tableLength: u32,
+    mut subtableOffset: u32,
     mut BASIS: otl_LookupType,
     maxGlyphs: glyphid_t,
     mut options: *const otfcc_Options,
@@ -349,26 +269,26 @@ unsafe extern "C" fn _caryll_read_otl_extend(
     let mut subtable: *mut subtable_extend = ::core::ptr::null_mut::<subtable_extend>();
     let mut _subtable: *mut otl_Subtable = ::core::ptr::null_mut::<otl_Subtable>();
     _subtable = __caryll_allocate_clean(
-        ::core::mem::size_of::<otl_Subtable>() as size_t,
+        ::core::mem::size_of::<otl_Subtable>() as usize,
         10 as ::core::ffi::c_ulong,
     ) as *mut otl_Subtable;
-    if tableLength < subtableOffset.wrapping_add(8 as uint32_t) {
+    if tableLength < subtableOffset.wrapping_add(8 as u32) {
         free(_subtable as *mut ::core::ffi::c_void);
         _subtable = ::core::ptr::null_mut::<otl_Subtable>();
     } else {
         subtable = &raw mut (*_subtable).extend;
         (*subtable).type_0 = (read_16u(
             data.offset(subtableOffset as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const uint8_t,
+                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
         ) as ::core::ffi::c_uint)
             .wrapping_add(BASIS as ::core::ffi::c_uint)
             as otl_LookupType;
         (*subtable).subtable = otfcc_readOtl_subtable(
-            data as *mut uint8_t,
+            data as *mut u8,
             tableLength,
             subtableOffset.wrapping_add(read_32u(
                 data.offset(subtableOffset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize) as *const uint8_t,
+                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
             )),
             (*subtable).type_0,
             maxGlyphs,
@@ -380,8 +300,8 @@ unsafe extern "C" fn _caryll_read_otl_extend(
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_readOtl_gsub_extend(
     mut data: font_file_pointer,
-    mut tableLength: uint32_t,
-    mut subtableOffset: uint32_t,
+    mut tableLength: u32,
+    mut subtableOffset: u32,
     maxGlyphs: glyphid_t,
     mut options: *const otfcc_Options,
 ) -> *mut otl_Subtable {
@@ -397,8 +317,8 @@ pub unsafe extern "C" fn otfcc_readOtl_gsub_extend(
 #[no_mangle]
 pub unsafe extern "C" fn otfcc_readOtl_gpos_extend(
     mut data: font_file_pointer,
-    mut tableLength: uint32_t,
-    mut subtableOffset: uint32_t,
+    mut tableLength: u32,
+    mut subtableOffset: u32,
     maxGlyphs: glyphid_t,
     mut options: *const otfcc_Options,
 ) -> *mut otl_Subtable {

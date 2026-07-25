@@ -1,102 +1,8 @@
-extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memcmp(
-        __s1: *const ::core::ffi::c_void,
-        __s2: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> ::core::ffi::c_int;
-    fn strcmp(
-        __s1: *const ::core::ffi::c_char,
-        __s2: *const ::core::ffi::c_char,
-    ) -> ::core::ffi::c_int;
-    fn strdup(__s: *const ::core::ffi::c_char) -> *mut ::core::ffi::c_char;
-    fn strlen(__s: *const ::core::ffi::c_char) -> size_t;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-}
+use libc::{exit, free, malloc, memcmp, memset, strcmp, strdup, strlen};
 
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int64_t = __int64_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
-pub type json_type = ::core::ffi::c_uint;
-pub const json_pre_serialized: json_type = 8;
-pub const json_null: json_type = 7;
-pub const json_boolean: json_type = 6;
-pub const json_string: json_type = 5;
-pub const json_double: json_type = 4;
-pub const json_integer: json_type = 3;
-pub const json_array: json_type = 2;
-pub const json_object: json_type = 1;
-pub const json_none: json_type = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_value {
-    pub parent: *mut _json_value,
-    pub type_0: json_type,
-    pub u: C2RustUnnamed_0,
-    pub _reserved: C2RustUnnamed,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed {
-    pub next_alloc: *mut _json_value,
-    pub object_mem: *mut ::core::ffi::c_void,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_0 {
-    pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
-    pub dbl: ::core::ffi::c_double,
-    pub string: C2RustUnnamed_3,
-    pub object: C2RustUnnamed_2,
-    pub array: C2RustUnnamed_1,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_1 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_2 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut json_object_entry,
-}
-pub type json_object_entry = _json_object_entry;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_object_entry {
-    pub name: *mut ::core::ffi::c_char,
-    pub name_length: ::core::ffi::c_uint,
-    pub value: *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_3 {
-    pub length: ::core::ffi::c_uint,
-    pub ptr: *mut ::core::ffi::c_char,
-}
-pub type json_value = _json_value;
-pub type ptrdiff_t = isize;
+use crate::vendor::json::{json_value};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -124,12 +30,12 @@ pub struct UT_hash_table {
     pub log2_num_buckets: ::core::ffi::c_uint,
     pub num_items: ::core::ffi::c_uint,
     pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
+    pub hho: isize,
     pub ideal_chain_maxlen: ::core::ffi::c_uint,
     pub nonideal_items: ::core::ffi::c_uint,
     pub ineff_expands: ::core::ffi::c_uint,
     pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
+    pub signature: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -151,7 +57,7 @@ unsafe extern "C" fn compare_json_arrays(
     mut a: *const json_value,
     mut b: *const json_value,
 ) -> bool {
-    let mut j: uint16_t = 0 as uint16_t;
+    let mut j: u16 = 0 as u16;
     while (j as ::core::ffi::c_uint) < (*a).u.array.length {
         if !json_ident(
             *(*a).u.array.values.offset(j as isize),
@@ -168,8 +74,8 @@ unsafe extern "C" fn compare_json_objects(
     mut b: *const json_value,
 ) -> bool {
     let mut h: *mut json_obj_entry = ::core::ptr::null_mut::<json_obj_entry>();
-    let mut j: uint32_t = 0 as uint32_t;
-    while j < (*a).u.object.length as uint32_t {
+    let mut j: u32 = 0 as u32;
+    while j < (*a).u.object.length as u32 {
         let mut k: *mut ::core::ffi::c_char = (*(*a).u.object.values.offset(j as isize)).name;
         let mut e: *mut json_obj_entry = ::core::ptr::null_mut::<json_obj_entry>();
         let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -454,7 +360,7 @@ unsafe extern "C" fn compare_json_objects(
                         if memcmp(
                             (*e).hh.key,
                             k as *const ::core::ffi::c_void,
-                            strlen(k) as ::core::ffi::c_uint as size_t,
+                            strlen(k) as ::core::ffi::c_uint as usize,
                         ) == 0 as ::core::ffi::c_int
                         {
                             break;
@@ -474,7 +380,7 @@ unsafe extern "C" fn compare_json_objects(
         }
         if e.is_null() {
             e = __caryll_allocate_clean(
-                ::core::mem::size_of::<json_obj_entry>() as size_t,
+                ::core::mem::size_of::<json_obj_entry>() as usize,
                 28 as ::core::ffi::c_ulong,
             ) as *mut json_obj_entry;
             (*e).key = strdup(k);
@@ -760,7 +666,7 @@ unsafe extern "C" fn compare_json_objects(
             if h.is_null() {
                 (*e).hh.next = NULL;
                 (*e).hh.prev = NULL;
-                (*e).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+                (*e).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                     as *mut UT_hash_table as *mut UT_hash_table;
                 if (*e).hh.tbl.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
@@ -768,7 +674,7 @@ unsafe extern "C" fn compare_json_objects(
                     memset(
                         (*e).hh.tbl as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        ::core::mem::size_of::<UT_hash_table>() as size_t,
+                        ::core::mem::size_of::<UT_hash_table>() as usize,
                     );
                     (*(*e).hh.tbl).tail = &raw mut (*e).hh as *mut UT_hash_handle;
                     (*(*e).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
@@ -776,20 +682,20 @@ unsafe extern "C" fn compare_json_objects(
                     (*(*e).hh.tbl).hho = (&raw mut (*e).hh as *mut ::core::ffi::c_char)
                         .offset_from(e as *mut ::core::ffi::c_char)
                         as ::core::ffi::c_long
-                        as ptrdiff_t;
+                        as isize;
                     (*(*e).hh.tbl).buckets = malloc(
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     ) as *mut UT_hash_bucket;
-                    (*(*e).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                    (*(*e).hh.tbl).signature = HASH_SIGNATURE as u32;
                     if (*(*e).hh.tbl).buckets.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
                         memset(
                             (*(*e).hh.tbl).buckets as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            (32 as size_t)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                            (32 as usize)
+                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                         );
                     }
                 }
@@ -833,9 +739,9 @@ unsafe extern "C" fn compare_json_objects(
                     ::core::ptr::null_mut::<UT_hash_bucket>();
                 let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
                 _he_new_buckets = malloc(
-                    (2 as size_t)
-                        .wrapping_mul((*(*e).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*e).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
                 if _he_new_buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
@@ -843,9 +749,9 @@ unsafe extern "C" fn compare_json_objects(
                     memset(
                         _he_new_buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (2 as size_t)
-                            .wrapping_mul((*(*e).hh.tbl).num_buckets as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (2 as usize)
+                            .wrapping_mul((*(*e).hh.tbl).num_buckets as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                     (*(*e).hh.tbl).ideal_chain_maxlen = ((*(*e).hh.tbl).num_items
                         >> (*(*e).hh.tbl)
@@ -921,8 +827,8 @@ unsafe extern "C" fn compare_json_objects(
         j = j.wrapping_add(1);
     }
     let mut allcheck: bool = true;
-    let mut j_0: uint32_t = 0 as uint32_t;
-    while j_0 < (*b).u.object.length as uint32_t {
+    let mut j_0: u32 = 0 as u32;
+    while j_0 < (*b).u.object.length as u32 {
         let mut k_0: *mut ::core::ffi::c_char = (*(*b).u.object.values.offset(j_0 as isize)).name;
         let mut e_0: *mut json_obj_entry = ::core::ptr::null_mut::<json_obj_entry>();
         let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
@@ -1216,7 +1122,7 @@ unsafe extern "C" fn compare_json_objects(
                         if memcmp(
                             (*e_0).hh.key,
                             k_0 as *const ::core::ffi::c_void,
-                            strlen(k_0) as ::core::ffi::c_uint as size_t,
+                            strlen(k_0) as ::core::ffi::c_uint as usize,
                         ) == 0 as ::core::ffi::c_int
                         {
                             break;

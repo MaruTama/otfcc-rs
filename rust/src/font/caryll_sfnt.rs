@@ -1,79 +1,51 @@
-extern "C" {
-    fn fclose(__stream: *mut FILE) -> ::core::ffi::c_int;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn fread(
-        __ptr: *mut ::core::ffi::c_void,
-        __size: size_t,
-        __n: size_t,
-        __stream: *mut FILE,
-    ) -> ::core::ffi::c_ulong;
-    fn fseek(
-        __stream: *mut FILE,
-        __off: ::core::ffi::c_long,
-        __whence: ::core::ffi::c_int,
-    ) -> ::core::ffi::c_int;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-}
+use libc::{exit, fclose, fprintf, fread, free, fseek};
 
 use crate::support::stdio::{FILE, stderr};
 use crate::support::alloc::{__caryll_allocate_clean};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
+    pub tag: u32,
+    pub checkSum: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
+    pub sfnt_version: u32,
+    pub numTables: u16,
+    pub searchRange: u16,
+    pub entrySelector: u16,
+    pub rangeShift: u16,
     pub pieces: *mut otfcc_PacketPiece,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_SplineFontContainer {
-    pub type_0: uint32_t,
-    pub count: uint32_t,
-    pub offsets: *mut uint32_t,
+    pub type_0: u32,
+    pub count: u32,
+    pub offsets: *mut u32,
     pub packets: *mut otfcc_Packet,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed {
-    pub i1: [uint8_t; 4],
-    pub i4: uint32_t,
+    pub i1: [u8; 4],
+    pub i4: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed_0 {
-    pub i1: [uint8_t; 2],
-    pub i2: uint16_t,
+    pub i1: [u8; 2],
+    pub i2: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union C2RustUnnamed_1 {
-    pub i1: [uint8_t; 2],
-    pub i2: uint16_t,
+    pub i1: [u8; 2],
+    pub i2: u16,
 }
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const SEEK_SET: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -82,7 +54,7 @@ unsafe extern "C" fn otfcc_read_packets(
     mut font: *mut otfcc_SplineFontContainer,
     mut file: *mut FILE,
 ) {
-    let mut count: uint32_t = 0 as uint32_t;
+    let mut count: u32 = 0 as u32;
     while count < (*font).count {
         fseek(
             file,
@@ -96,12 +68,12 @@ unsafe extern "C" fn otfcc_read_packets(
         (*(*font).packets.offset(count as isize)).rangeShift = otfcc_get16u(file);
         let ref mut fresh0 = (*(*font).packets.offset(count as isize)).pieces;
         *fresh0 = __caryll_allocate_clean(
-            (::core::mem::size_of::<otfcc_PacketPiece>() as size_t)
-                .wrapping_mul((*(*font).packets.offset(count as isize)).numTables as size_t),
+            (::core::mem::size_of::<otfcc_PacketPiece>() as usize)
+                .wrapping_mul((*(*font).packets.offset(count as isize)).numTables as usize),
             13 as ::core::ffi::c_ulong,
         ) as *mut otfcc_PacketPiece;
-        let mut i: uint32_t = 0 as uint32_t;
-        while i < (*(*font).packets.offset(count as isize)).numTables as uint32_t {
+        let mut i: u32 = 0 as u32;
+        while i < (*(*font).packets.offset(count as isize)).numTables as u32 {
             (*(*(*font).packets.offset(count as isize))
                 .pieces
                 .offset(i as isize))
@@ -123,19 +95,19 @@ unsafe extern "C" fn otfcc_read_packets(
                 .offset(i as isize))
             .data;
             *fresh1 = __caryll_allocate_clean(
-                (::core::mem::size_of::<uint8_t>() as size_t).wrapping_mul(
+                (::core::mem::size_of::<u8>() as usize).wrapping_mul(
                     (*(*(*font).packets.offset(count as isize))
                         .pieces
                         .offset(i as isize))
-                    .length as size_t,
+                    .length as usize,
                 ),
                 20 as ::core::ffi::c_ulong,
-            ) as *mut uint8_t;
+            ) as *mut u8;
             i = i.wrapping_add(1);
         }
-        let mut i_0: uint32_t = 0 as uint32_t;
+        let mut i_0: u32 = 0 as u32;
         while i_0
-            < (*(*font).packets.offset(0 as ::core::ffi::c_int as isize)).numTables as uint32_t
+            < (*(*font).packets.offset(0 as ::core::ffi::c_int as isize)).numTables as u32
         {
             fseek(
                 file,
@@ -153,8 +125,8 @@ unsafe extern "C" fn otfcc_read_packets(
                 (*(*(*font).packets.offset(count as isize))
                     .pieces
                     .offset(i_0 as isize))
-                .length as size_t,
-                1 as size_t,
+                .length as usize,
+                1 as usize,
                 file,
             );
             i_0 = i_0.wrapping_add(1);
@@ -170,40 +142,40 @@ pub unsafe extern "C" fn otfcc_readSFNT(mut file: *mut FILE) -> *mut otfcc_Splin
     let mut font: *mut otfcc_SplineFontContainer =
         ::core::ptr::null_mut::<otfcc_SplineFontContainer>();
     font = __caryll_allocate_clean(
-        ::core::mem::size_of::<otfcc_SplineFontContainer>() as size_t,
+        ::core::mem::size_of::<otfcc_SplineFontContainer>() as usize,
         34 as ::core::ffi::c_ulong,
     ) as *mut otfcc_SplineFontContainer;
     (*font).type_0 = otfcc_get32u(file);
     match (*font).type_0 {
         1330926671 | 65536 | 1953658213 | 1954115633 => {
-            (*font).count = 1 as uint32_t;
+            (*font).count = 1 as u32;
             (*font).offsets = __caryll_allocate_clean(
-                (::core::mem::size_of::<uint32_t>() as size_t)
-                    .wrapping_mul((*font).count as size_t),
+                (::core::mem::size_of::<u32>() as usize)
+                    .wrapping_mul((*font).count as usize),
                 44 as ::core::ffi::c_ulong,
-            ) as *mut uint32_t;
+            ) as *mut u32;
             (*font).packets = __caryll_allocate_clean(
-                (::core::mem::size_of::<otfcc_Packet>() as size_t)
-                    .wrapping_mul((*font).count as size_t),
+                (::core::mem::size_of::<otfcc_Packet>() as usize)
+                    .wrapping_mul((*font).count as usize),
                 45 as ::core::ffi::c_ulong,
             ) as *mut otfcc_Packet;
-            *(*font).offsets.offset(0 as ::core::ffi::c_int as isize) = 0 as uint32_t;
+            *(*font).offsets.offset(0 as ::core::ffi::c_int as isize) = 0 as u32;
             otfcc_read_packets(font, file);
         }
         1953784678 => {
             otfcc_get32u(file);
             (*font).count = otfcc_get32u(file);
             (*font).offsets = __caryll_allocate_clean(
-                (::core::mem::size_of::<uint32_t>() as size_t)
-                    .wrapping_mul((*font).count as size_t),
+                (::core::mem::size_of::<u32>() as usize)
+                    .wrapping_mul((*font).count as usize),
                 53 as ::core::ffi::c_ulong,
-            ) as *mut uint32_t;
+            ) as *mut u32;
             (*font).packets = __caryll_allocate_clean(
-                (::core::mem::size_of::<otfcc_Packet>() as size_t)
-                    .wrapping_mul((*font).count as size_t),
+                (::core::mem::size_of::<otfcc_Packet>() as usize)
+                    .wrapping_mul((*font).count as usize),
                 54 as ::core::ffi::c_ulong,
             ) as *mut otfcc_Packet;
-            let mut i: uint32_t = 0 as uint32_t;
+            let mut i: u32 = 0 as u32;
             while i < (*font).count {
                 *(*font).offsets.offset(i as isize) = otfcc_get32u(file);
                 i = i.wrapping_add(1);
@@ -211,8 +183,8 @@ pub unsafe extern "C" fn otfcc_readSFNT(mut file: *mut FILE) -> *mut otfcc_Splin
             otfcc_read_packets(font, file);
         }
         _ => {
-            (*font).count = 0 as uint32_t;
-            (*font).offsets = ::core::ptr::null_mut::<uint32_t>();
+            (*font).count = 0 as u32;
+            (*font).offsets = ::core::ptr::null_mut::<u32>();
             (*font).packets = ::core::ptr::null_mut::<otfcc_Packet>();
         }
     }
@@ -224,8 +196,8 @@ pub unsafe extern "C" fn otfcc_deleteSFNT(mut font: *mut otfcc_SplineFontContain
     if font.is_null() {
         return;
     }
-    if (*font).count > 0 as uint32_t {
-        let mut count: uint32_t = 0 as uint32_t;
+    if (*font).count > 0 as u32 {
+        let mut count: u32 = 0 as u32;
         while count < (*font).count {
             let mut i: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
             while i < (*(*font).packets.offset(count as isize)).numTables as ::core::ffi::c_int {
@@ -239,7 +211,7 @@ pub unsafe extern "C" fn otfcc_deleteSFNT(mut font: *mut otfcc_SplineFontContain
                     .pieces
                     .offset(i as isize))
                 .data;
-                *fresh2 = ::core::ptr::null_mut::<uint8_t>();
+                *fresh2 = ::core::ptr::null_mut::<u8>();
                 i += 1;
             }
             free((*(*font).packets.offset(count as isize)).pieces as *mut ::core::ffi::c_void);
@@ -251,20 +223,20 @@ pub unsafe extern "C" fn otfcc_deleteSFNT(mut font: *mut otfcc_SplineFontContain
         (*font).packets = ::core::ptr::null_mut::<otfcc_Packet>();
     }
     free((*font).offsets as *mut ::core::ffi::c_void);
-    (*font).offsets = ::core::ptr::null_mut::<uint32_t>();
+    (*font).offsets = ::core::ptr::null_mut::<u32>();
     free(font as *mut ::core::ffi::c_void);
     font = ::core::ptr::null_mut::<otfcc_SplineFontContainer>();
 }
 #[inline]
 unsafe extern "C" fn otfcc_check_endian() -> bool {
     let mut check_union: C2RustUnnamed_0 = C2RustUnnamed_0 {
-        i2: 1 as ::core::ffi::c_int as uint16_t,
+        i2: 1 as ::core::ffi::c_int as u16,
     };
     return check_union.i1[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
         == 1 as ::core::ffi::c_int;
 }
 #[inline]
-unsafe extern "C" fn otfcc_endian_convert16(mut i: uint16_t) -> uint16_t {
+unsafe extern "C" fn otfcc_endian_convert16(mut i: u16) -> u16 {
     if otfcc_check_endian() {
         let mut src: C2RustUnnamed_1 = C2RustUnnamed_1 { i1: [0; 2] };
         let mut des: C2RustUnnamed_1 = C2RustUnnamed_1 { i1: [0; 2] };
@@ -277,7 +249,7 @@ unsafe extern "C" fn otfcc_endian_convert16(mut i: uint16_t) -> uint16_t {
     };
 }
 #[inline]
-unsafe extern "C" fn otfcc_endian_convert32(mut i: uint32_t) -> uint32_t {
+unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
     if otfcc_check_endian() {
         let mut src: C2RustUnnamed = C2RustUnnamed { i1: [0; 4] };
         let mut des: C2RustUnnamed = C2RustUnnamed { i1: [0; 4] };
@@ -292,14 +264,14 @@ unsafe extern "C" fn otfcc_endian_convert32(mut i: uint32_t) -> uint32_t {
     };
 }
 #[inline]
-unsafe extern "C" fn otfcc_get16u(mut file: *mut FILE) -> uint16_t {
-    let mut tmp: uint16_t = 0;
-    let mut sizeRead: size_t = fread(
+unsafe extern "C" fn otfcc_get16u(mut file: *mut FILE) -> u16 {
+    let mut tmp: u16 = 0;
+    let mut sizeRead: usize = fread(
         &raw mut tmp as *mut ::core::ffi::c_void,
-        2 as size_t,
-        1 as size_t,
+        2 as usize,
+        1 as usize,
         file,
-    ) as size_t;
+    ) as usize;
     if sizeRead == 0 {
         fprintf(
             stderr,
@@ -311,14 +283,14 @@ unsafe extern "C" fn otfcc_get16u(mut file: *mut FILE) -> uint16_t {
     return otfcc_endian_convert16(tmp);
 }
 #[inline]
-unsafe extern "C" fn otfcc_get32u(mut file: *mut FILE) -> uint32_t {
-    let mut tmp: uint32_t = 0;
-    let mut sizeRead: size_t = fread(
+unsafe extern "C" fn otfcc_get32u(mut file: *mut FILE) -> u32 {
+    let mut tmp: u32 = 0;
+    let mut sizeRead: usize = fread(
         &raw mut tmp as *mut ::core::ffi::c_void,
-        4 as size_t,
-        1 as size_t,
+        4 as usize,
+        1 as usize,
         file,
-    ) as size_t;
+    ) as usize;
     if sizeRead == 0 {
         fprintf(
             stderr,

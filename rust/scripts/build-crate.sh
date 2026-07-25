@@ -14,7 +14,12 @@ if [ ! -d "${CRATE}" ]; then
 fi
 
 echo "==> Building the crate (release)"
-( cd "${CRATE}" && rm -f Cargo.lock && cargo build --release )
+# Cargo.lock is committed and used as-is (--locked): the crate has a real
+# dependency now, so an unpinned resolve would make "byte-identical to C" quietly
+# depend on whatever libc version happened to be current. It used to be deleted
+# here, from when the crate had no dependencies at all and the lock file was
+# nothing but c2rust output that went stale.
+( cd "${CRATE}" && cargo build --release --locked )
 
 echo "==> Running cargo test"
-( cd "${CRATE}" && cargo test --release )
+( cd "${CRATE}" && cargo test --release --locked )

@@ -1,8 +1,8 @@
+use libc::{malloc};
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn json_array_new(length: size_t) -> *mut json_value;
+    fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: size_t) -> *mut json_value;
+    fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
@@ -13,9 +13,9 @@ extern "C" {
         length: ::core::ffi::c_uint,
         _: *mut ::core::ffi::c_char,
     ) -> *mut json_value;
-    fn json_integer_new(_: int64_t) -> *mut json_value;
+    fn json_integer_new(_: i64) -> *mut json_value;
     fn json_null_new() -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> size_t;
+    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
     static otl_iCoverage: __otfcc_ICoverage;
@@ -23,76 +23,10 @@ extern "C" {
 use crate::table::otl::classdef::{otl_ClassDef};
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{otfcc_GlyphHandle, otfcc_LookupHandle};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
-pub type json_type = ::core::ffi::c_uint;
-pub const json_pre_serialized: json_type = 8;
-pub const json_null: json_type = 7;
-pub const json_boolean: json_type = 6;
-pub const json_string: json_type = 5;
-pub const json_double: json_type = 4;
-pub const json_integer: json_type = 3;
-pub const json_array: json_type = 2;
-pub const json_object: json_type = 1;
-pub const json_none: json_type = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_value {
-    pub parent: *mut _json_value,
-    pub type_0: json_type,
-    pub u: C2RustUnnamed_0,
-    pub _reserved: C2RustUnnamed,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed {
-    pub next_alloc: *mut _json_value,
-    pub object_mem: *mut ::core::ffi::c_void,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_0 {
-    pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
-    pub dbl: ::core::ffi::c_double,
-    pub string: C2RustUnnamed_3,
-    pub object: C2RustUnnamed_2,
-    pub array: C2RustUnnamed_1,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_1 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_2 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut json_object_entry,
-}
-pub type json_object_entry = _json_object_entry;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_object_entry {
-    pub name: *mut ::core::ffi::c_char,
-    pub name_length: ::core::ffi::c_uint,
-    pub value: *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_3 {
-    pub length: ::core::ffi::c_uint,
-    pub ptr: *mut ::core::ffi::c_char,
-}
-pub type json_value = _json_value;
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::primitives::{glyphclass_t, glyphid_t, pos_t, tableid_t};
+use crate::vendor::json::{json_pre_serialized, json_value};
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct json_serialize_opts {
@@ -100,19 +34,6 @@ pub struct json_serialize_opts {
     pub opts: ::core::ffi::c_int,
     pub indent_size: ::core::ffi::c_int,
 }
-pub type sds = *mut ::core::ffi::c_char;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
-}
-pub type glyphid_t = uint16_t;
-pub type glyphclass_t = uint16_t;
-pub type tableid_t = uint16_t;
-pub type pos_t = ::core::ffi::c_double;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __otfcc_ICoverage {
@@ -124,13 +45,13 @@ pub struct __otfcc_ICoverage {
     pub copyReplace: Option<unsafe extern "C" fn(*mut otl_Coverage, otl_Coverage) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut otl_Coverage>,
     pub free: Option<unsafe extern "C" fn(*mut otl_Coverage) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut otl_Coverage, uint32_t) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const uint8_t, uint32_t, uint32_t) -> *mut otl_Coverage>,
+    pub clear: Option<unsafe extern "C" fn(*mut otl_Coverage, u32) -> ()>,
+    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut otl_Coverage>,
     pub dump: Option<unsafe extern "C" fn(*const otl_Coverage) -> *mut json_value>,
     pub parse: Option<unsafe extern "C" fn(*const json_value) -> *mut otl_Coverage>,
     pub build: Option<unsafe extern "C" fn(*const otl_Coverage) -> *mut caryll_Buffer>,
     pub buildFormat:
-        Option<unsafe extern "C" fn(*const otl_Coverage, uint16_t) -> *mut caryll_Buffer>,
+        Option<unsafe extern "C" fn(*const otl_Coverage, u16) -> *mut caryll_Buffer>,
     pub shrink: Option<unsafe extern "C" fn(*mut otl_Coverage, bool) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut otl_Coverage, otfcc_GlyphHandle) -> ()>,
 }
@@ -187,8 +108,8 @@ pub struct subtable_gpos_markToLigature {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LigatureArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LigatureBaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -208,8 +129,8 @@ pub struct otl_Anchor {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_MarkArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_MarkRecord,
 }
 #[derive(Copy, Clone)]
@@ -229,8 +150,8 @@ pub struct subtable_gpos_markToSingle {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_BaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -242,8 +163,8 @@ pub struct otl_BaseRecord {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_cursive {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposCursiveEntry,
 }
 #[derive(Copy, Clone)]
@@ -272,8 +193,8 @@ pub struct otl_PositionValue {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -334,8 +255,8 @@ pub const otl_chaining_canonical: otl_chaining_type = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_ligature {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubLigatureEntry,
 }
 #[derive(Copy, Clone)]
@@ -347,8 +268,8 @@ pub struct otl_GsubLigatureEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_multi {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubMultiEntry,
 }
 #[derive(Copy, Clone)]
@@ -360,8 +281,8 @@ pub struct otl_GsubMultiEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -378,12 +299,12 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
         opts: 0,
         indent_size: 0,
     };
-    let mut preserialize_len: size_t = json_measure_ex(x, opts);
+    let mut preserialize_len: usize = json_measure_ex(x, opts);
     let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
     json_serialize_ex(buf, x, opts);
     json_builder_free(x);
     let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as size_t) as ::core::ffi::c_uint,
+        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
         buf,
     );
     (*xx).type_0 = json_pre_serialized;
@@ -396,8 +317,8 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const otl_Subtable) -
         return json_null_new();
     }
     let mut rule: *const otl_ChainingRule = &raw const (*subtable).c2rust_unnamed.rule;
-    let mut _st: *mut json_value = json_object_new(4 as size_t);
-    let mut _match: *mut json_value = json_array_new((*rule).matchCount as size_t);
+    let mut _st: *mut json_value = json_object_new(4 as usize);
+    let mut _match: *mut json_value = json_array_new((*rule).matchCount as usize);
     let mut j: tableid_t = 0 as tableid_t;
     while (j as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
         json_array_push(
@@ -413,14 +334,14 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const otl_Subtable) -
         b"match\0" as *const u8 as *const ::core::ffi::c_char,
         _match,
     );
-    let mut _apply: *mut json_value = json_array_new((*rule).applyCount as size_t);
+    let mut _apply: *mut json_value = json_array_new((*rule).applyCount as usize);
     let mut j_0: tableid_t = 0 as tableid_t;
     while (j_0 as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
-        let mut _application: *mut json_value = json_object_new(2 as size_t);
+        let mut _application: *mut json_value = json_object_new(2 as usize);
         json_object_push(
             _application,
             b"at\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*(*rule).apply.offset(j_0 as isize)).index as int64_t),
+            json_integer_new((*(*rule).apply.offset(j_0 as isize)).index as i64),
         );
         json_object_push(
             _application,
@@ -440,12 +361,12 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const otl_Subtable) -
     json_object_push(
         _st,
         b"inputBegins\0" as *const u8 as *const ::core::ffi::c_char,
-        json_integer_new((*rule).inputBegins as int64_t),
+        json_integer_new((*rule).inputBegins as i64),
     );
     json_object_push(
         _st,
         b"inputEnds\0" as *const u8 as *const ::core::ffi::c_char,
-        json_integer_new((*rule).inputEnds as int64_t),
+        json_integer_new((*rule).inputEnds as i64),
     );
     return _st;
 }

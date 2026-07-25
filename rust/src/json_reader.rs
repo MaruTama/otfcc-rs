@@ -1,33 +1,6 @@
+use libc::{exit, free, malloc, memcmp, memset, strcmp, strtol};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn strtol(
-        __nptr: *const ::core::ffi::c_char,
-        __endptr: *mut *mut ::core::ffi::c_char,
-        __base: ::core::ffi::c_int,
-    ) -> ::core::ffi::c_long;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memcmp(
-        __s1: *const ::core::ffi::c_void,
-        __s2: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> ::core::ffi::c_int;
-    fn strcmp(
-        __s1: *const ::core::ffi::c_char,
-        __s2: *const ::core::ffi::c_char,
-    ) -> ::core::ffi::c_int;
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: size_t) -> sds;
+    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
@@ -81,121 +54,47 @@ extern "C" {
 use crate::table::otl::classdef::{otl_ClassDef};
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::otf_reader::FontBuilder;
-pub type __int8_t = i8;
-pub type __uint8_t = u8;
-pub type __int16_t = i16;
-pub type __uint16_t = u16;
-pub type __int32_t = i32;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type __uint64_t = u64;
-pub type int8_t = __int8_t;
-pub type int16_t = __int16_t;
-pub type int32_t = __int32_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type uint64_t = __uint64_t;
-pub type size_t = usize;
-pub type json_type = ::core::ffi::c_uint;
-pub const json_pre_serialized: json_type = 8;
-pub const json_null: json_type = 7;
-pub const json_boolean: json_type = 6;
-pub const json_string: json_type = 5;
-pub const json_double: json_type = 4;
-pub const json_integer: json_type = 3;
-pub const json_array: json_type = 2;
-pub const json_object: json_type = 1;
-pub const json_none: json_type = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_value {
-    pub parent: *mut _json_value,
-    pub type_0: json_type,
-    pub u: C2RustUnnamed_0,
-    pub _reserved: C2RustUnnamed,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed {
-    pub next_alloc: *mut _json_value,
-    pub object_mem: *mut ::core::ffi::c_void,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_0 {
-    pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
-    pub dbl: ::core::ffi::c_double,
-    pub string: C2RustUnnamed_3,
-    pub object: C2RustUnnamed_2,
-    pub array: C2RustUnnamed_1,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_1 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_2 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut json_object_entry,
-}
-pub type json_object_entry = _json_object_entry;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_object_entry {
-    pub name: *mut ::core::ffi::c_char,
-    pub name_length: ::core::ffi::c_uint,
-    pub value: *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_3 {
-    pub length: ::core::ffi::c_uint,
-    pub ptr: *mut ::core::ffi::c_char,
-}
-pub type json_value = _json_value;
-pub type sds = *mut ::core::ffi::c_char;
+use crate::logger::{log_type_info, otfcc_ILogger};
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::options::{otfcc_Options};
+use crate::support::primitives::{arity_t, colorid_t, f16dot16, glyphclass_t, glyphid_t, glyphsize_t, length_t, pos_t, scale_t, shapeid_t, tableid_t};
+use crate::vendor::sds::{sds};
+use crate::vendor::json::{json_array, json_object, json_string, json_type, json_value};
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr8 {
-    pub len: uint8_t,
-    pub alloc: uint8_t,
+    pub len: u8,
+    pub alloc: u8,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr16 {
-    pub len: uint16_t,
-    pub alloc: uint16_t,
+    pub len: u16,
+    pub alloc: u16,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr32 {
-    pub len: uint32_t,
-    pub alloc: uint32_t,
+    pub len: u32,
+    pub alloc: u32,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct sdshdr64 {
-    pub len: uint64_t,
-    pub alloc: uint64_t,
+    pub len: u64,
+    pub alloc: u64,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
-pub type ptrdiff_t = isize;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -223,44 +122,14 @@ pub struct UT_hash_table {
     pub log2_num_buckets: ::core::ffi::c_uint,
     pub num_items: ::core::ffi::c_uint,
     pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
+    pub hho: isize,
     pub ideal_chain_maxlen: ::core::ffi::c_uint,
     pub nonideal_items: ::core::ffi::c_uint,
     pub ineff_expands: ::core::ffi::c_uint,
     pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
+    pub signature: u32,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
-}
-pub type f16dot16 = int32_t;
-pub type glyphid_t = uint16_t;
-pub type glyphclass_t = uint16_t;
-pub type glyphsize_t = uint16_t;
-pub type tableid_t = uint16_t;
-pub type colorid_t = uint16_t;
-pub type shapeid_t = uint16_t;
-pub type arity_t = uint32_t;
-pub type pos_t = ::core::ffi::c_double;
-pub type scale_t = ::core::ffi::c_double;
-pub type length_t = ::core::ffi::c_double;
 pub type otfcc_FDHandle = otfcc_Handle;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILoggerTarget {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()>,
-}
-pub type otfcc_LoggerType = ::core::ffi::c_uint;
-pub const log_type_progress: otfcc_LoggerType = 3;
-pub const log_type_info: otfcc_LoggerType = 2;
-pub const log_type_warning: otfcc_LoggerType = 1;
-pub const log_type_error: otfcc_LoggerType = 0;
 pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
 pub const log_vl_progress: C2RustUnnamed_4 = 10;
 pub const log_vl_info: C2RustUnnamed_4 = 5;
@@ -269,64 +138,11 @@ pub const log_vl_important: C2RustUnnamed_4 = 1;
 pub const log_vl_critical: C2RustUnnamed_4 = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct otfcc_ILogger {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub indent: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub indentSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub start: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub startSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub log: Option<
-        unsafe extern "C" fn(
-            *mut otfcc_ILogger,
-            uint8_t,
-            otfcc_LoggerType,
-            *const ::core::ffi::c_char,
-        ) -> (),
-    >,
-    pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
-    pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
-    pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Options {
-    pub debug_wait_on_start: bool,
-    pub ignore_glyph_order: bool,
-    pub ignore_hints: bool,
-    pub has_vertical_metrics: bool,
-    pub export_fdselect: bool,
-    pub keep_average_char_width: bool,
-    pub keep_unicode_ranges: bool,
-    pub short_post: bool,
-    pub dummy_DSIG: bool,
-    pub keep_modified_time: bool,
-    pub instr_as_bytes: bool,
-    pub verbose: bool,
-    pub quiet: bool,
-    pub cff_short_vmtx: bool,
-    pub merge_lookups: bool,
-    pub merge_features: bool,
-    pub force_cid: bool,
-    pub cff_rollCharString: bool,
-    pub cff_doSubroutinize: bool,
-    pub stub_cmap4: bool,
-    pub decimal_cmap: bool,
-    pub name_glyphs_by_hash: bool,
-    pub name_glyphs_by_gid: bool,
-    pub glyph_name_prefix: *mut ::core::ffi::c_char,
-    pub logger: *mut otfcc_ILogger,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct otfcc_GlyphOrderEntry {
     pub gid: glyphid_t,
     pub name: sds,
-    pub orderType: uint8_t,
-    pub orderEntry: uint32_t,
+    pub orderType: u8,
+    pub orderEntry: u32,
     pub hhID: UT_hash_handle,
     pub hhName: UT_hash_handle,
 }
@@ -358,8 +174,8 @@ pub struct otfcc_GlyphOrderPackage {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VV {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut pos_t,
 }
 #[derive(Copy, Clone)]
@@ -400,8 +216,8 @@ pub struct C2RustUnnamed_6 {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vq_SegList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut vq_Segment,
 }
 #[derive(Copy, Clone)]
@@ -413,33 +229,33 @@ pub struct VQ {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vf_Axis {
-    pub tag: uint32_t,
+    pub tag: u32,
     pub minValue: pos_t,
     pub defaultValue: pos_t,
     pub maxValue: pos_t,
-    pub flags: uint16_t,
-    pub axisNameID: uint16_t,
+    pub flags: u16,
+    pub axisNameID: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vf_Axes {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut vf_Axis,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct fvar_Instance {
-    pub subfamilyNameID: uint16_t,
-    pub flags: uint16_t,
+    pub subfamilyNameID: u16,
+    pub flags: u16,
     pub coordinates: VV,
-    pub postScriptNameID: uint16_t,
+    pub postScriptNameID: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct fvar_InstanceList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut fvar_Instance,
 }
 #[derive(Copy, Clone)]
@@ -452,8 +268,8 @@ pub struct fvar_Master {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_fvar {
-    pub majorVersion: uint16_t,
-    pub minorVersion: uint16_t,
+    pub majorVersion: u16,
+    pub minorVersion: u16,
     pub axes: vf_Axes,
     pub instances: fvar_InstanceList,
     pub masters: *mut fvar_Master,
@@ -500,8 +316,8 @@ pub type table_TSI5 = otl_ClassDef;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_TSI {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut tsi_Entry,
 }
 #[derive(Copy, Clone)]
@@ -520,8 +336,8 @@ pub const TSI_GLYPH: tsi_EntryType = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_SVG {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut svg_Assignment,
 }
 #[derive(Copy, Clone)]
@@ -534,8 +350,8 @@ pub struct svg_Assignment {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_COLR {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut colr_Mapping,
 }
 #[derive(Copy, Clone)]
@@ -547,8 +363,8 @@ pub struct colr_Mapping {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct colr_LayerList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut colr_Layer,
 }
 #[derive(Copy, Clone)]
@@ -560,38 +376,38 @@ pub struct colr_Layer {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_CPAL {
-    pub version: uint16_t,
+    pub version: u16,
     pub palettes: cpal_PaletteSet,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpal_PaletteSet {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut cpal_Palette,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpal_Palette {
     pub colorset: cpal_ColorSet,
-    pub type_0: uint32_t,
-    pub label: uint32_t,
+    pub type_0: u32,
+    pub label: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpal_ColorSet {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut cpal_Color,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpal_Color {
-    pub red: uint8_t,
-    pub green: uint8_t,
-    pub blue: uint8_t,
-    pub alpha: uint8_t,
-    pub label: uint16_t,
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+    pub alpha: u8,
+    pub label: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -608,15 +424,15 @@ pub struct otl_BaseAxis {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseScriptEntry {
-    pub tag: uint32_t,
-    pub defaultBaselineTag: uint32_t,
+    pub tag: u32,
+    pub defaultBaselineTag: u32,
     pub baseValuesCount: tableid_t,
     pub baseValues: *mut otl_BaseValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseValue {
-    pub tag: uint32_t,
+    pub tag: u32,
     pub coordinate: pos_t,
 }
 #[derive(Copy, Clone)]
@@ -629,8 +445,8 @@ pub struct table_GDEF {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LigCaretTable {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_CaretValueRecord,
 }
 #[derive(Copy, Clone)]
@@ -642,16 +458,16 @@ pub struct otl_CaretValueRecord {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_CaretValueList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_CaretValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_CaretValue {
-    pub format: int8_t,
+    pub format: i8,
     pub coordiante: pos_t,
-    pub pointIndex: int16_t,
+    pub pointIndex: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -663,8 +479,8 @@ pub struct table_OTL {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LangSystemList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LanguageSystemPtr,
 }
 pub type otl_LanguageSystemPtr = *mut otl_LanguageSystem;
@@ -678,8 +494,8 @@ pub struct otl_LanguageSystem {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_FeatureRefList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_FeatureRef,
 }
 pub type otl_FeatureRef = *const otl_Feature;
@@ -692,8 +508,8 @@ pub struct otl_Feature {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LookupRefList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LookupRef,
 }
 pub type otl_LookupRef = *const otl_Lookup;
@@ -703,15 +519,15 @@ pub type otl_Lookup = _otl_lookup;
 pub struct _otl_lookup {
     pub name: sds,
     pub type_0: otl_LookupType,
-    pub _offset: uint32_t,
-    pub flags: uint16_t,
+    pub _offset: u32,
+    pub flags: u16,
     pub subtables: otl_SubtableList,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_SubtableList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_SubtablePtr,
 }
 pub type otl_SubtablePtr = *mut otl_Subtable;
@@ -768,8 +584,8 @@ pub struct subtable_gpos_markToLigature {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LigatureArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LigatureBaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -789,8 +605,8 @@ pub struct otl_Anchor {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_MarkArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_MarkRecord,
 }
 #[derive(Copy, Clone)]
@@ -810,8 +626,8 @@ pub struct subtable_gpos_markToSingle {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_BaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -823,8 +639,8 @@ pub struct otl_BaseRecord {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_cursive {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposCursiveEntry,
 }
 #[derive(Copy, Clone)]
@@ -853,8 +669,8 @@ pub struct otl_PositionValue {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -915,8 +731,8 @@ pub const otl_chaining_canonical: otl_chaining_type = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_ligature {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubLigatureEntry,
 }
 #[derive(Copy, Clone)]
@@ -928,8 +744,8 @@ pub struct otl_GsubLigatureEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_multi {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubMultiEntry,
 }
 #[derive(Copy, Clone)]
@@ -941,8 +757,8 @@ pub struct otl_GsubMultiEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -954,73 +770,73 @@ pub struct otl_GsubSingleEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_FeatureList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_FeaturePtr,
 }
 pub type otl_FeaturePtr = *mut otl_Feature;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LookupList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LookupPtr,
 }
 pub type otl_LookupPtr = *mut otl_Lookup;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_LTSH {
-    pub version: uint16_t,
+    pub version: u16,
     pub numGlyphs: glyphid_t,
-    pub yPels: *mut uint8_t,
+    pub yPels: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_VDMX {
-    pub version: uint16_t,
+    pub version: u16,
     pub ratios: vdmx_RatioRagneList,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vdmx_RatioRagneList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut vdmx_RatioRange,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vdmx_RatioRange {
-    pub bCharset: uint8_t,
-    pub xRatio: uint8_t,
-    pub yStartRatio: uint8_t,
-    pub yEndRatio: uint8_t,
+    pub bCharset: u8,
+    pub xRatio: u8,
+    pub yStartRatio: u8,
+    pub yEndRatio: u8,
     pub records: vdmx_Group,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vdmx_Group {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut vdmx_Record,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vdmx_Record {
-    pub yPelHeight: uint16_t,
-    pub yMax: int16_t,
-    pub yMin: int16_t,
+    pub yPelHeight: u16,
+    pub yMax: i16,
+    pub yMin: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_gasp {
-    pub version: uint16_t,
+    pub version: u16,
     pub records: gasp_RecordList,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct gasp_RecordList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut gasp_Record,
 }
 #[derive(Copy, Clone)]
@@ -1035,50 +851,50 @@ pub struct gasp_Record {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_cvt {
-    pub length: uint32_t,
-    pub words: *mut uint16_t,
+    pub length: u32,
+    pub words: *mut u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_fpgm_prep {
     pub tag: sds,
-    pub length: uint32_t,
-    pub bytes: *mut uint8_t,
+    pub length: u32,
+    pub bytes: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_meta {
-    pub version: uint32_t,
-    pub flags: uint32_t,
+    pub version: u32,
+    pub flags: u32,
     pub entries: meta_Entries,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entries {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut meta_Entry,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct meta_Entry {
-    pub tag: uint32_t,
+    pub tag: u32,
     pub data: sds,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_name {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otfcc_NameRecord,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_NameRecord {
-    pub platformID: uint16_t,
-    pub encodingID: uint16_t,
-    pub languageID: uint16_t,
-    pub nameID: uint16_t,
+    pub platformID: u16,
+    pub encodingID: u16,
+    pub languageID: u16,
+    pub nameID: u16,
     pub nameString: sds,
 }
 #[derive(Copy, Clone)]
@@ -1097,8 +913,8 @@ pub struct cmap_UVS_Entry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cmap_UVS_key {
-    pub unicode: uint32_t,
-    pub selector: uint32_t,
+    pub unicode: u32,
+    pub selector: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -1110,8 +926,8 @@ pub struct cmap_Entry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_glyf {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_GlyphPtr,
 }
 pub type glyf_GlyphPtr = *mut glyf_Glyph;
@@ -1129,9 +945,9 @@ pub struct glyf_Glyph {
     pub stemV: glyf_StemDefList,
     pub hintMasks: glyf_MaskList,
     pub contourMasks: glyf_MaskList,
-    pub instructionsLength: uint16_t,
-    pub instructions: *mut uint8_t,
-    pub yPel: uint8_t,
+    pub instructionsLength: u16,
+    pub instructions: *mut u8,
+    pub yPel: u8,
     pub fdSelect: otfcc_FDHandle,
     pub cid: glyphid_t,
     pub stat: glyf_GlyphStat,
@@ -1143,32 +959,32 @@ pub struct glyf_GlyphStat {
     pub xMax: pos_t,
     pub yMin: pos_t,
     pub yMax: pos_t,
-    pub nestDepth: uint16_t,
-    pub nPoints: uint16_t,
-    pub nContours: uint16_t,
-    pub nCompositePoints: uint16_t,
-    pub nCompositeContours: uint16_t,
+    pub nestDepth: u16,
+    pub nPoints: u16,
+    pub nContours: u16,
+    pub nCompositePoints: u16,
+    pub nCompositeContours: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_MaskList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_PostscriptHintMask,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_PostscriptHintMask {
-    pub pointsBefore: uint16_t,
-    pub contoursBefore: uint16_t,
+    pub pointsBefore: u16,
+    pub contoursBefore: u16,
     pub maskH: [bool; 256],
     pub maskV: [bool; 256],
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_StemDefList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_PostscriptStemDef,
 }
 #[derive(Copy, Clone)]
@@ -1176,13 +992,13 @@ pub struct glyf_StemDefList {
 pub struct glyf_PostscriptStemDef {
     pub position: pos_t,
     pub width: pos_t,
-    pub map: uint16_t,
+    pub map: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_ReferenceList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_ComponentReference,
 }
 #[derive(Copy, Clone)]
@@ -1211,15 +1027,15 @@ pub const REF_XY: RefAnchorStatus = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_ContourList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_Contour,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_Contour {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut glyf_Point,
 }
 #[derive(Copy, Clone)]
@@ -1227,7 +1043,7 @@ pub struct glyf_Contour {
 pub struct glyf_Point {
     pub x: VQ,
     pub y: VQ,
-    pub onCurve: int8_t,
+    pub onCurve: i8,
 }
 pub type table_CFF = _table_CFF;
 #[derive(Copy, Clone)]
@@ -1254,11 +1070,11 @@ pub struct _table_CFF {
     pub fontMatrix: *mut cff_FontMatrix,
     pub cidRegistry: sds,
     pub cidOrdering: sds,
-    pub cidSupplement: uint32_t,
+    pub cidSupplement: u32,
     pub cidFontVersion: ::core::ffi::c_double,
     pub cidFontRevision: ::core::ffi::c_double,
-    pub cidCount: uint32_t,
-    pub UIDBase: uint32_t,
+    pub cidCount: u32,
+    pub UIDBase: u32,
     pub fdArrayCount: tableid_t,
     pub fdArray: *mut *mut table_CFF,
 }
@@ -1293,7 +1109,7 @@ pub struct cff_PrivateDict {
     pub stemSnapVCount: arity_t,
     pub stemSnapV: *mut ::core::ffi::c_double,
     pub forceBold: bool,
-    pub languageGroup: uint32_t,
+    pub languageGroup: u32,
     pub expansionFactor: ::core::ffi::c_double,
     pub initialRandomSeed: ::core::ffi::c_double,
     pub defaultWidthX: ::core::ffi::c_double,
@@ -1310,7 +1126,7 @@ pub struct table_VORG {
 #[repr(C)]
 pub struct VORG_entry {
     pub gid: glyphid_t,
-    pub verticalOrigin: int16_t,
+    pub verticalOrigin: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -1328,50 +1144,50 @@ pub struct vertical_metric {
 #[repr(C)]
 pub struct table_vhea {
     pub version: f16dot16,
-    pub ascent: int16_t,
-    pub descent: int16_t,
-    pub lineGap: int16_t,
-    pub advanceHeightMax: int16_t,
-    pub minTop: int16_t,
-    pub minBottom: int16_t,
-    pub yMaxExtent: int16_t,
-    pub caretSlopeRise: int16_t,
-    pub caretSlopeRun: int16_t,
-    pub caretOffset: int16_t,
-    pub dummy0: int16_t,
-    pub dummy1: int16_t,
-    pub dummy2: int16_t,
-    pub dummy3: int16_t,
-    pub metricDataFormat: int16_t,
-    pub numOfLongVerMetrics: uint16_t,
+    pub ascent: i16,
+    pub descent: i16,
+    pub lineGap: i16,
+    pub advanceHeightMax: i16,
+    pub minTop: i16,
+    pub minBottom: i16,
+    pub yMaxExtent: i16,
+    pub caretSlopeRise: i16,
+    pub caretSlopeRun: i16,
+    pub caretOffset: i16,
+    pub dummy0: i16,
+    pub dummy1: i16,
+    pub dummy2: i16,
+    pub dummy3: i16,
+    pub metricDataFormat: i16,
+    pub numOfLongVerMetrics: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_hdmx {
-    pub version: uint16_t,
-    pub numRecords: uint16_t,
-    pub sizeDeviceRecord: uint32_t,
+    pub version: u16,
+    pub numRecords: u16,
+    pub sizeDeviceRecord: u32,
     pub records: *mut device_record,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct device_record {
-    pub pixelSize: uint8_t,
-    pub maxWidth: uint8_t,
-    pub widths: *mut uint8_t,
+    pub pixelSize: u8,
+    pub maxWidth: u8,
+    pub widths: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_post {
     pub version: f16dot16,
     pub italicAngle: f16dot16,
-    pub underlinePosition: int16_t,
-    pub underlineThickness: int16_t,
-    pub isFixedPitch: uint32_t,
-    pub minMemType42: uint32_t,
-    pub maxMemType42: uint32_t,
-    pub minMemType1: uint32_t,
-    pub maxMemType1: uint32_t,
+    pub underlinePosition: i16,
+    pub underlineThickness: i16,
+    pub isFixedPitch: u32,
+    pub minMemType42: u32,
+    pub maxMemType42: u32,
+    pub minMemType1: u32,
+    pub maxMemType1: u32,
     pub post_name_map: *mut otfcc_GlyphOrder,
 }
 #[derive(Copy, Clone)]
@@ -1389,103 +1205,103 @@ pub struct horizontal_metric {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_OS_2 {
-    pub version: uint16_t,
-    pub xAvgCharWidth: int16_t,
-    pub usWeightClass: uint16_t,
-    pub usWidthClass: uint16_t,
-    pub fsType: uint16_t,
-    pub ySubscriptXSize: int16_t,
-    pub ySubscriptYSize: int16_t,
-    pub ySubscriptXOffset: int16_t,
-    pub ySubscriptYOffset: int16_t,
-    pub ySupscriptXSize: int16_t,
-    pub ySupscriptYSize: int16_t,
-    pub ySupscriptXOffset: int16_t,
-    pub ySupscriptYOffset: int16_t,
-    pub yStrikeoutSize: int16_t,
-    pub yStrikeoutPosition: int16_t,
-    pub sFamilyClass: int16_t,
-    pub panose: [uint8_t; 10],
-    pub ulUnicodeRange1: uint32_t,
-    pub ulUnicodeRange2: uint32_t,
-    pub ulUnicodeRange3: uint32_t,
-    pub ulUnicodeRange4: uint32_t,
-    pub achVendID: [uint8_t; 4],
-    pub fsSelection: uint16_t,
-    pub usFirstCharIndex: uint16_t,
-    pub usLastCharIndex: uint16_t,
-    pub sTypoAscender: int16_t,
-    pub sTypoDescender: int16_t,
-    pub sTypoLineGap: int16_t,
-    pub usWinAscent: uint16_t,
-    pub usWinDescent: uint16_t,
-    pub ulCodePageRange1: uint32_t,
-    pub ulCodePageRange2: uint32_t,
-    pub sxHeight: int16_t,
-    pub sCapHeight: int16_t,
-    pub usDefaultChar: uint16_t,
-    pub usBreakChar: uint16_t,
-    pub usMaxContext: uint16_t,
-    pub usLowerOpticalPointSize: uint16_t,
-    pub usUpperOpticalPointSize: uint16_t,
+    pub version: u16,
+    pub xAvgCharWidth: i16,
+    pub usWeightClass: u16,
+    pub usWidthClass: u16,
+    pub fsType: u16,
+    pub ySubscriptXSize: i16,
+    pub ySubscriptYSize: i16,
+    pub ySubscriptXOffset: i16,
+    pub ySubscriptYOffset: i16,
+    pub ySupscriptXSize: i16,
+    pub ySupscriptYSize: i16,
+    pub ySupscriptXOffset: i16,
+    pub ySupscriptYOffset: i16,
+    pub yStrikeoutSize: i16,
+    pub yStrikeoutPosition: i16,
+    pub sFamilyClass: i16,
+    pub panose: [u8; 10],
+    pub ulUnicodeRange1: u32,
+    pub ulUnicodeRange2: u32,
+    pub ulUnicodeRange3: u32,
+    pub ulUnicodeRange4: u32,
+    pub achVendID: [u8; 4],
+    pub fsSelection: u16,
+    pub usFirstCharIndex: u16,
+    pub usLastCharIndex: u16,
+    pub sTypoAscender: i16,
+    pub sTypoDescender: i16,
+    pub sTypoLineGap: i16,
+    pub usWinAscent: u16,
+    pub usWinDescent: u16,
+    pub ulCodePageRange1: u32,
+    pub ulCodePageRange2: u32,
+    pub sxHeight: i16,
+    pub sCapHeight: i16,
+    pub usDefaultChar: u16,
+    pub usBreakChar: u16,
+    pub usMaxContext: u16,
+    pub usLowerOpticalPointSize: u16,
+    pub usUpperOpticalPointSize: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_maxp {
     pub version: f16dot16,
-    pub numGlyphs: uint16_t,
-    pub maxPoints: uint16_t,
-    pub maxContours: uint16_t,
-    pub maxCompositePoints: uint16_t,
-    pub maxCompositeContours: uint16_t,
-    pub maxZones: uint16_t,
-    pub maxTwilightPoints: uint16_t,
-    pub maxStorage: uint16_t,
-    pub maxFunctionDefs: uint16_t,
-    pub maxInstructionDefs: uint16_t,
-    pub maxStackElements: uint16_t,
-    pub maxSizeOfInstructions: uint16_t,
-    pub maxComponentElements: uint16_t,
-    pub maxComponentDepth: uint16_t,
+    pub numGlyphs: u16,
+    pub maxPoints: u16,
+    pub maxContours: u16,
+    pub maxCompositePoints: u16,
+    pub maxCompositeContours: u16,
+    pub maxZones: u16,
+    pub maxTwilightPoints: u16,
+    pub maxStorage: u16,
+    pub maxFunctionDefs: u16,
+    pub maxInstructionDefs: u16,
+    pub maxStackElements: u16,
+    pub maxSizeOfInstructions: u16,
+    pub maxComponentElements: u16,
+    pub maxComponentDepth: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_hhea {
     pub version: f16dot16,
-    pub ascender: int16_t,
-    pub descender: int16_t,
-    pub lineGap: int16_t,
-    pub advanceWidthMax: uint16_t,
-    pub minLeftSideBearing: int16_t,
-    pub minRightSideBearing: int16_t,
-    pub xMaxExtent: int16_t,
-    pub caretSlopeRise: int16_t,
-    pub caretSlopeRun: int16_t,
-    pub caretOffset: int16_t,
-    pub reserved: [int16_t; 4],
-    pub metricDataFormat: int16_t,
-    pub numberOfMetrics: uint16_t,
+    pub ascender: i16,
+    pub descender: i16,
+    pub lineGap: i16,
+    pub advanceWidthMax: u16,
+    pub minLeftSideBearing: i16,
+    pub minRightSideBearing: i16,
+    pub xMaxExtent: i16,
+    pub caretSlopeRise: i16,
+    pub caretSlopeRun: i16,
+    pub caretOffset: i16,
+    pub reserved: [i16; 4],
+    pub metricDataFormat: i16,
+    pub numberOfMetrics: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_head {
     pub version: f16dot16,
-    pub fontRevision: uint32_t,
-    pub checkSumAdjustment: uint32_t,
-    pub magicNumber: uint32_t,
-    pub flags: uint16_t,
-    pub unitsPerEm: uint16_t,
-    pub created: int64_t,
-    pub modified: int64_t,
-    pub xMin: int16_t,
-    pub yMin: int16_t,
-    pub xMax: int16_t,
-    pub yMax: int16_t,
-    pub macStyle: uint16_t,
-    pub lowestRecPPEM: uint16_t,
-    pub fontDirectoryHint: int16_t,
-    pub indexToLocFormat: int16_t,
-    pub glyphDataFormat: int16_t,
+    pub fontRevision: u32,
+    pub checkSumAdjustment: u32,
+    pub magicNumber: u32,
+    pub flags: u16,
+    pub unitsPerEm: u16,
+    pub created: i64,
+    pub modified: i64,
+    pub xMin: i16,
+    pub yMin: i16,
+    pub xMax: i16,
+    pub yMax: i16,
+    pub macStyle: u16,
+    pub lowestRecPPEM: u16,
+    pub fontDirectoryHint: i16,
+    pub indexToLocFormat: i16,
+    pub glyphDataFormat: i16,
 }
 pub type otfcc_font_subtype = ::core::ffi::c_uint;
 pub const FONTTYPE_CFF: otfcc_font_subtype = 1;
@@ -1504,8 +1320,8 @@ pub struct __caryll_elementinterface_otfcc_Font {
     pub free: Option<unsafe extern "C" fn(*mut otfcc_Font) -> ()>,
     pub consolidate: Option<unsafe extern "C" fn(*mut otfcc_Font, *const otfcc_Options) -> ()>,
     pub createTable:
-        Option<unsafe extern "C" fn(*mut otfcc_Font, uint32_t) -> *mut ::core::ffi::c_void>,
-    pub deleteTable: Option<unsafe extern "C" fn(*mut otfcc_Font, uint32_t) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_Font, u32) -> *mut ::core::ffi::c_void>,
+    pub deleteTable: Option<unsafe extern "C" fn(*mut otfcc_Font, u32) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -1513,7 +1329,7 @@ pub struct otfcc_IFontBuilder {
     pub read: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
-            uint32_t,
+            u32,
             *const otfcc_Options,
         ) -> *mut otfcc_Font,
     >,
@@ -1543,34 +1359,34 @@ pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
 pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
 pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> size_t {
+unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
+        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_16 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_32 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_64 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
-                .len as size_t;
+                .len as usize;
         }
         _ => {}
     }
-    return 0 as size_t;
+    return 0 as usize;
 }
 pub const HASH_INITIAL_NUM_BUCKETS: ::core::ffi::c_uint = 32 as ::core::ffi::c_uint;
 pub const HASH_INITIAL_NUM_BUCKETS_LOG2: ::core::ffi::c_uint = 5 as ::core::ffi::c_uint;
@@ -1587,8 +1403,8 @@ unsafe extern "C" fn json_obj_get(
     {
         return ::core::ptr::null_mut::<json_value>();
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
@@ -1627,8 +1443,8 @@ unsafe extern "C" fn otfcc_decideFontSubtypeFromJson(
 unsafe extern "C" fn setOrderByName(
     mut go: *mut otfcc_GlyphOrder,
     mut name: sds,
-    mut orderType: uint8_t,
-    mut orderEntry: uint32_t,
+    mut orderType: u8,
+    mut orderEntry: u32,
 ) {
     let mut s: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -1909,7 +1725,7 @@ unsafe extern "C" fn setOrderByName(
                 s = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
             }
             while !s.is_null() {
-                if (*s).hhName.hashv == _hf_hashv && (*s).hhName.keylen as size_t == sdslen(name) {
+                if (*s).hhName.hashv == _hf_hashv && (*s).hhName.keylen as usize == sdslen(name) {
                     if memcmp(
                         (*s).hhName.key,
                         name as *const ::core::ffi::c_void,
@@ -1933,7 +1749,7 @@ unsafe extern "C" fn setOrderByName(
     }
     if s.is_null() {
         s = __caryll_allocate_clean(
-            ::core::mem::size_of::<otfcc_GlyphOrderEntry>() as size_t,
+            ::core::mem::size_of::<otfcc_GlyphOrderEntry>() as usize,
             21 as ::core::ffi::c_ulong,
         ) as *mut otfcc_GlyphOrderEntry;
         (*s).gid = -(1 as ::core::ffi::c_int) as glyphid_t;
@@ -2213,7 +2029,7 @@ unsafe extern "C" fn setOrderByName(
         if (*go).byName.is_null() {
             (*s).hhName.next = NULL_0;
             (*s).hhName.prev = NULL_0;
-            (*s).hhName.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*s).hhName.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*s).hhName.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2221,26 +2037,26 @@ unsafe extern "C" fn setOrderByName(
                 memset(
                     (*s).hhName.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*s).hhName.tbl).tail = &raw mut (*s).hhName as *mut UT_hash_handle;
                 (*(*s).hhName.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*s).hhName.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*s).hhName.tbl).hho = (&raw mut (*s).hhName as *mut ::core::ffi::c_char)
                     .offset_from(s as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*s).hhName.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*s).hhName.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*s).hhName.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*s).hhName.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*s).hhName.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -2287,9 +2103,9 @@ unsafe extern "C" fn setOrderByName(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*s).hhName.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*s).hhName.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2297,9 +2113,9 @@ unsafe extern "C" fn setOrderByName(
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*s).hhName.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*s).hhName.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*s).hhName.tbl).ideal_chain_maxlen = ((*(*s).hhName.tbl).num_items
                     >> (*(*s).hhName.tbl)
@@ -2807,7 +2623,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
         if (*go).byGID.is_null() {
             (*current).hhID.next = NULL_0;
             (*current).hhID.prev = NULL_0;
-            (*current).hhID.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*current).hhID.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*current).hhID.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2815,7 +2631,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                 memset(
                     (*current).hhID.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*current).hhID.tbl).tail = &raw mut (*current).hhID as *mut UT_hash_handle;
                 (*(*current).hhID.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
@@ -2823,19 +2639,19 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                 (*(*current).hhID.tbl).hho = (&raw mut (*current).hhID as *mut ::core::ffi::c_char)
                     .offset_from(current as *mut ::core::ffi::c_char)
                     as ::core::ffi::c_long
-                    as ptrdiff_t;
+                    as isize;
                 (*(*current).hhID.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*current).hhID.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*current).hhID.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*current).hhID.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*current).hhID.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -2879,9 +2695,9 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*current).hhID.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*current).hhID.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2889,9 +2705,9 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*current).hhID.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*current).hhID.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*current).hhID.tbl).ideal_chain_maxlen = ((*(*current).hhID.tbl).num_items
                     >> (*(*current).hhID.tbl)
@@ -2975,8 +2791,8 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
 unsafe extern "C" fn escalateGlyphOrderByName(
     mut go: *mut otfcc_GlyphOrder,
     mut name: sds,
-    mut orderType: uint8_t,
-    mut orderEntry: uint32_t,
+    mut orderType: u8,
+    mut orderEntry: u32,
 ) {
     let mut s: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -3257,7 +3073,7 @@ unsafe extern "C" fn escalateGlyphOrderByName(
                 s = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
             }
             while !s.is_null() {
-                if (*s).hhName.hashv == _hf_hashv && (*s).hhName.keylen as size_t == sdslen(name) {
+                if (*s).hhName.hashv == _hf_hashv && (*s).hhName.keylen as usize == sdslen(name) {
                     if memcmp(
                         (*s).hhName.key,
                         name as *const ::core::ffi::c_void,
@@ -3288,11 +3104,11 @@ unsafe extern "C" fn placeOrderEntriesFromGlyf(
     mut table: *mut json_value,
     mut go: *mut otfcc_GlyphOrder,
 ) {
-    let mut j: uint32_t = 0 as uint32_t;
-    while j < (*table).u.object.length as uint32_t {
+    let mut j: u32 = 0 as u32;
+    while j < (*table).u.object.length as u32 {
         let mut gname: sds = sdsnewlen(
             (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-            (*(*table).u.object.values.offset(j as isize)).name_length as size_t,
+            (*(*table).u.object.values.offset(j as isize)).name_length as usize,
         );
         if strcmp(
             gname as *const ::core::ffi::c_char,
@@ -3302,8 +3118,8 @@ unsafe extern "C" fn placeOrderEntriesFromGlyf(
             setOrderByName(
                 go,
                 gname,
-                ORD_NOTDEF as ::core::ffi::c_int as uint8_t,
-                0 as uint32_t,
+                ORD_NOTDEF as ::core::ffi::c_int as u8,
+                0 as u32,
             );
         } else if strcmp(
             gname as *const ::core::ffi::c_char,
@@ -3313,11 +3129,11 @@ unsafe extern "C" fn placeOrderEntriesFromGlyf(
             setOrderByName(
                 go,
                 gname,
-                ORD_NOTDEF as ::core::ffi::c_int as uint8_t,
-                1 as uint32_t,
+                ORD_NOTDEF as ::core::ffi::c_int as u8,
+                1 as u32,
             );
         } else {
-            setOrderByName(go, gname, ORD_GLYF as ::core::ffi::c_int as uint8_t, j);
+            setOrderByName(go, gname, ORD_GLYF as ::core::ffi::c_int as u8, j);
         }
         j = j.wrapping_add(1);
     }
@@ -3326,16 +3142,16 @@ unsafe extern "C" fn placeOrderEntriesFromCmap(
     mut table: *mut json_value,
     mut go: *mut otfcc_GlyphOrder,
 ) {
-    let mut j: uint32_t = 0 as uint32_t;
-    while j < (*table).u.object.length as uint32_t {
+    let mut j: u32 = 0 as u32;
+    while j < (*table).u.object.length as u32 {
         let mut unicodeStr: sds = sdsnewlen(
             (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-            (*(*table).u.object.values.offset(j as isize)).name_length as size_t,
+            (*(*table).u.object.values.offset(j as isize)).name_length as usize,
         );
         let mut item: *mut json_value =
             (*(*table).u.object.values.offset(j as isize)).value as *mut json_value;
-        let mut unicode: int32_t = 0;
-        if sdslen(unicodeStr) > 2 as size_t
+        let mut unicode: i32 = 0;
+        if sdslen(unicodeStr) > 2 as usize
             && *unicodeStr.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
                 == 'U' as i32
             && *unicodeStr.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
@@ -3345,25 +3161,25 @@ unsafe extern "C" fn placeOrderEntriesFromCmap(
                 unicodeStr.offset(2 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_char,
                 ::core::ptr::null_mut::<*mut ::core::ffi::c_char>(),
                 16 as ::core::ffi::c_int,
-            ) as int32_t;
+            ) as i32;
         } else {
-            unicode = atoi(unicodeStr as *const ::core::ffi::c_char) as int32_t;
+            unicode = atoi(unicodeStr as *const ::core::ffi::c_char) as i32;
         }
         sdsfree(unicodeStr);
         if (*item).type_0 as ::core::ffi::c_uint
             == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
-            && unicode > 0 as int32_t
-            && unicode <= 0x10ffff as int32_t
+            && unicode > 0 as i32
+            && unicode <= 0x10ffff as i32
         {
             let mut gname: sds = sdsnewlen(
                 (*item).u.string.ptr as *const ::core::ffi::c_void,
-                (*item).u.string.length as size_t,
+                (*item).u.string.length as usize,
             );
             escalateGlyphOrderByName(
                 go,
                 gname,
-                ORD_CMAP as ::core::ffi::c_int as uint8_t,
-                unicode as uint32_t,
+                ORD_CMAP as ::core::ffi::c_int as u8,
+                unicode as u32,
             );
             sdsfree(gname);
         }
@@ -3375,11 +3191,11 @@ unsafe extern "C" fn placeOrderEntriesFromSubtable(
     mut go: *mut otfcc_GlyphOrder,
     mut zeroOnly: bool,
 ) {
-    let mut uplimit: uint32_t = (*table).u.array.length as uint32_t;
-    if uplimit >= 1 as uint32_t && zeroOnly as ::core::ffi::c_int != 0 {
-        uplimit = 1 as uint32_t;
+    let mut uplimit: u32 = (*table).u.array.length as u32;
+    if uplimit >= 1 as u32 && zeroOnly as ::core::ffi::c_int != 0 {
+        uplimit = 1 as u32;
     }
-    let mut j: uint32_t = 0 as uint32_t;
+    let mut j: u32 = 0 as u32;
     while j < uplimit {
         let mut item: *mut json_value =
             *(*table).u.array.values.offset(j as isize) as *mut json_value;
@@ -3388,12 +3204,12 @@ unsafe extern "C" fn placeOrderEntriesFromSubtable(
         {
             let mut gname: sds = sdsnewlen(
                 (*item).u.string.ptr as *const ::core::ffi::c_void,
-                (*item).u.string.length as size_t,
+                (*item).u.string.length as usize,
             );
             escalateGlyphOrderByName(
                 go,
                 gname,
-                ORD_GLYPHORDER as ::core::ffi::c_int as uint8_t,
+                ORD_GLYPHORDER as ::core::ffi::c_int as u8,
                 j,
             );
             sdsfree(gname);
@@ -3449,7 +3265,7 @@ unsafe extern "C" fn parseGlyphOrder(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_notice as ::core::ffi::c_int as uint8_t,
+                    log_vl_notice as ::core::ffi::c_int as u8,
                     log_type_info,
                     sdscatprintf(
                         sdsempty(),
@@ -3469,7 +3285,7 @@ struct JsonReader;
 impl FontBuilder for JsonReader {
     unsafe fn read(
     mut _root: *mut ::core::ffi::c_void,
-    mut _index: uint32_t,
+    mut _index: u32,
     options: *const ::core::ffi::c_void,
 ) -> *mut ::core::ffi::c_void {
     let options = options as *const otfcc_Options;
@@ -3544,7 +3360,7 @@ impl FontBuilder for JsonReader {
 }
 unsafe extern "C" fn readJson(
     mut _root: *mut ::core::ffi::c_void,
-    mut _index: uint32_t,
+    mut _index: u32,
     mut options: *const otfcc_Options,
 ) -> *mut otfcc_Font {
     <JsonReader as FontBuilder>::read(_root, _index, options as *const ::core::ffi::c_void)
@@ -3558,21 +3374,21 @@ unsafe extern "C" fn freeReader(mut self_0: *mut otfcc_IFontBuilder) {
 pub unsafe extern "C" fn otfcc_newJsonReader() -> *mut otfcc_IFontBuilder {
     let mut reader: *mut otfcc_IFontBuilder = ::core::ptr::null_mut::<otfcc_IFontBuilder>();
     reader = __caryll_allocate_clean(
-        ::core::mem::size_of::<otfcc_IFontBuilder>() as size_t,
+        ::core::mem::size_of::<otfcc_IFontBuilder>() as usize,
         177 as ::core::ffi::c_ulong,
     ) as *mut otfcc_IFontBuilder;
     (*reader).read = Some(
         readJson
             as unsafe extern "C" fn(
                 *mut ::core::ffi::c_void,
-                uint32_t,
+                u32,
                 *const otfcc_Options,
             ) -> *mut otfcc_Font,
     )
         as Option<
             unsafe extern "C" fn(
                 *mut ::core::ffi::c_void,
-                uint32_t,
+                u32,
                 *const otfcc_Options,
             ) -> *mut otfcc_Font,
         >;

@@ -3,14 +3,8 @@ extern "C" {
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
 }
 use crate::support::handle::{otfcc_GlyphHandle};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type sds = *mut ::core::ffi::c_char;
-pub type ptrdiff_t = isize;
+use crate::support::primitives::{glyphid_t};
+use crate::vendor::sds::{sds};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct UT_hash_bucket {
@@ -38,21 +32,20 @@ pub struct UT_hash_table {
     pub log2_num_buckets: ::core::ffi::c_uint,
     pub num_items: ::core::ffi::c_uint,
     pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
+    pub hho: isize,
     pub ideal_chain_maxlen: ::core::ffi::c_uint,
     pub nonideal_items: ::core::ffi::c_uint,
     pub ineff_expands: ::core::ffi::c_uint,
     pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
+    pub signature: u32,
 }
-pub type glyphid_t = uint16_t;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_GlyphOrderEntry {
     pub gid: glyphid_t,
     pub name: sds,
-    pub orderType: uint8_t,
-    pub orderEntry: uint32_t,
+    pub orderType: u8,
+    pub orderEntry: u32,
     pub hhID: UT_hash_handle,
     pub hhName: UT_hash_handle,
 }
