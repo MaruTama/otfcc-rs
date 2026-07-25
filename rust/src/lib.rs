@@ -27,3 +27,4 @@ pub mod support;
 pub mod table;
 pub mod vendor;
 pub mod vf;
+pub mod version;

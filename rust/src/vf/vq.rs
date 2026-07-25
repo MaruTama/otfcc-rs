@@ -11,12 +11,7 @@ use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cve
 
 use crate::vf::region::{vq_Region};
 use crate::vf::vv::{VV, __caryll_vectorinterface_VV};
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
+use crate::support::{__compar_fn_t};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_pos_t {

@@ -1,4 +1,4 @@
-use libc::{exit, fclose, fprintf, fread, free, fseek};
+use libc::{SEEK_SET, exit, fclose, fprintf, fread, free, fseek};
 
 use crate::support::stdio::{FILE, stderr};
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -31,7 +31,6 @@ pub struct otfcc_SplineFontContainer {
     pub offsets: *mut u32,
     pub packets: *mut otfcc_Packet,
 }
-pub const SEEK_SET: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
 unsafe extern "C" fn otfcc_read_packets(
     mut font: *mut otfcc_SplineFontContainer,
     mut file: *mut FILE,

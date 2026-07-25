@@ -91,28 +91,14 @@ use otfcc_rust::support::{EXIT_FAILURE, NULL};
 
 
 use otfcc_rust::vendor::json_builder::{json_serialize_mode_multiline, json_serialize_mode_packed, json_serialize_opts};
+use libc::timespec;
+use otfcc_rust::support::getopt::{no_argument, option, required_argument};
+use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 
 
 
 
 
-pub type __time_t = ::core::ffi::c_long;
-pub type __syscall_slong_t = ::core::ffi::c_long;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct timespec {
-    pub tv_sec: __time_t,
-    pub tv_nsec: __syscall_slong_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct option {
-    pub name: *const ::core::ffi::c_char,
-    pub has_arg: ::core::ffi::c_int,
-    pub flag: *mut ::core::ffi::c_int,
-    pub val: ::core::ffi::c_int,
-}
-pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 #[inline]
 unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
     return strtol(
@@ -125,8 +111,6 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
 unsafe extern "C" fn getchar() -> ::core::ffi::c_int {
     return fgetc(stdin);
 }
-pub const no_argument: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const required_argument: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[no_mangle]
 pub unsafe extern "C" fn printInfo() {
     fprintf(
@@ -828,9 +812,6 @@ unsafe fn main_0(
     otfcc_deleteOptions(options);
     return 0 as ::core::ffi::c_int;
 }
-pub const MAIN_VER: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const SECONDARY_VER: ::core::ffi::c_int = 10 as ::core::ffi::c_int;
-pub const PATCH_VER: ::core::ffi::c_int = 4 as ::core::ffi::c_int;
 pub fn main() {
     let mut args_strings: Vec<Vec<u8>> = ::std::env::args()
         .map(|arg| {

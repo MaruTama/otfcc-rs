@@ -37,12 +37,7 @@ use crate::bk::bkblock::{b16, b32, b8, bk_Block, bkover, p32};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
+use crate::support::{__compar_fn_t};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpal_Color {

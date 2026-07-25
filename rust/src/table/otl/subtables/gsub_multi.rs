@@ -31,12 +31,7 @@ use crate::bk::bkblock::{b16, bk_Block, bkover, p16};
 
 use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_multi, otl_GsubMultiEntry, otl_Subtable, subtable_gsub_multi};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
+use crate::support::{__compar_fn_t};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_GsubMultiEntry {

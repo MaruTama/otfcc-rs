@@ -74,18 +74,12 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{json_array, json_object, json_pre_serialized, json_type, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{b16, bk_Block, bkover, p16};
-use crate::support::{NULL};
+use crate::support::{NULL, __compar_fn_t};
 use crate::table::otl::{__caryll_elementinterface_subtable_gpos_markToLigature, __caryll_vectorinterface_otl_LigatureArray, __caryll_vectorinterface_otl_MarkArray, otl_Anchor, otl_LigatureArray, otl_LigatureBaseRecord, otl_MarkArray, otl_Subtable, subtable_gpos_markToLigature};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
 use crate::table::otl::subtables::gpos_common::{otl_ClassnameHash};
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
 use crate::vendor::uthash::{UT_hash_bucket, UT_hash_handle};
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_LigatureBaseRecord {

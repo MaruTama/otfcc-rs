@@ -67,7 +67,7 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{_json_value, json_array, json_boolean, json_double, json_integer, json_object, json_pre_serialized, json_string, json_type, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::support::buffer::{caryll_Buffer};
-use crate::support::{true_0};
+use crate::support::{__compar_fn_t, true_0};
 use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry};
 use crate::table::fvar::{table_fvar};
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
@@ -76,12 +76,6 @@ use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opt
 
 use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_SegList, vq_Segment};
 
-pub type __compar_fn_t = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct glyf_Point {

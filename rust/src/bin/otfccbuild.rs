@@ -11,7 +11,7 @@
 use ::otfcc_rust;
 
 use otfcc_rust::support::stdio::{stderr, stdin, stdout, FILE};
-use libc::{exit, fclose, feof, fgets, fopen, fprintf, fread, free, fseek, ftell, fwrite, malloc, realloc, strcmp, strlen, strtol};
+use libc::{SEEK_SET, exit, fclose, feof, fgets, fopen, fprintf, fread, free, fseek, ftell, fwrite, malloc, realloc, strcmp, strlen, strtol};
 extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
@@ -51,6 +51,9 @@ use otfcc_rust::vendor::json::{json_value};
 use otfcc_rust::font::caryll_font::{__caryll_elementinterface_otfcc_Font, otfcc_Font, otfcc_IFontBuilder, otfcc_IFontSerializer};
 use otfcc_rust::logger::{log_vl_critical, log_vl_progress};
 use otfcc_rust::support::{EXIT_FAILURE, NULL};
+use libc::timespec;
+use otfcc_rust::support::getopt::{no_argument, option, required_argument};
+use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 
 
 
@@ -88,24 +91,6 @@ use otfcc_rust::support::{EXIT_FAILURE, NULL};
 
 
 
-pub type __time_t = ::core::ffi::c_long;
-pub type __syscall_slong_t = ::core::ffi::c_long;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct timespec {
-    pub tv_sec: __time_t,
-    pub tv_nsec: __syscall_slong_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct option {
-    pub name: *const ::core::ffi::c_char,
-    pub has_arg: ::core::ffi::c_int,
-    pub flag: *mut ::core::ffi::c_int,
-    pub val: ::core::ffi::c_int,
-}
-pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const SEEK_SET: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
 pub const SEEK_END: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
@@ -115,8 +100,6 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
         10 as ::core::ffi::c_int,
     ) as ::core::ffi::c_int;
 }
-pub const no_argument: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const required_argument: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[no_mangle]
 pub unsafe extern "C" fn printInfo() {
     fprintf(
@@ -858,9 +841,6 @@ unsafe fn main_0(
     otfcc_deleteOptions(options);
     return 0 as ::core::ffi::c_int;
 }
-pub const MAIN_VER: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const SECONDARY_VER: ::core::ffi::c_int = 10 as ::core::ffi::c_int;
-pub const PATCH_VER: ::core::ffi::c_int = 4 as ::core::ffi::c_int;
 pub fn main() {
     let mut args_strings: Vec<Vec<u8>> = ::std::env::args()
         .map(|arg| {
