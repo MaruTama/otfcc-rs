@@ -3,7 +3,6 @@ extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
     fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
@@ -359,11 +358,7 @@ pub unsafe extern "C" fn otfcc_readOS_2(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
-                            sdsempty(),
-                            b"table 'OS/2' corrupted.\n\0" as *const u8
-                                as *const ::core::ffi::c_char,
-                        ),
+                        crate::sdsbuild!(sdsempty(), b"table 'OS/2' corrupted.\n"),
                     );
                     if !os_2.is_null() {
                         free(os_2 as *mut ::core::ffi::c_void);
@@ -632,10 +627,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"OS/2\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"OS/2"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -905,10 +897,7 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"OS/2\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"OS/2"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

@@ -8,7 +8,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static iVQ: __caryll_vectorinterface_VQ;
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
@@ -3340,10 +3339,7 @@ pub unsafe extern "C" fn otfcc_dumpGlyf(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"glyf"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -3862,10 +3858,7 @@ pub unsafe extern "C" fn otfcc_parseGlyf(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"glyf"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

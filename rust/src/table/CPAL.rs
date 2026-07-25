@@ -1,7 +1,6 @@
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_object_new(length: usize) -> *mut json_value;
@@ -1370,10 +1369,7 @@ pub unsafe extern "C" fn otfcc_dumpCPAL(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"CPAL"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1463,10 +1459,7 @@ pub unsafe extern "C" fn otfcc_parseCPAL(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"CPAL"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

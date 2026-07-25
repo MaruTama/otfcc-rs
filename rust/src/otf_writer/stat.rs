@@ -1,7 +1,6 @@
 use libc::{free, time, time_t};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static glyf_iComponentReference: __caryll_elementinterface_glyf_ComponentReference;
     static iVQ: __caryll_vectorinterface_VQ;
     static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
@@ -97,12 +96,13 @@ pub unsafe extern "C" fn stat_single_glyph(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"[Stat] Circular glyph reference found in gid %d to gid %d. The reference will be dropped.\n\0"
-                    as *const u8 as *const ::core::ffi::c_char,
+                b"[Stat] Circular glyph reference found in gid ",
                 topj as ::core::ffi::c_int,
+                b" to gid ",
                 j as ::core::ffi::c_int,
+                b". The reference will be dropped.\n",
             ),
         );
         *stated.offset(j as isize) = stat_completed;

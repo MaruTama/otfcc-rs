@@ -1,7 +1,6 @@
 use libc::{exit, free, malloc, memcmp, memcpy, memset, strncmp};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
     fn buflen(buf: *mut caryll_Buffer) -> usize;
@@ -4552,12 +4551,7 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
         (*options).logger as *mut otfcc_ILogger,
         log_vl_progress as ::core::ffi::c_int as u8,
         log_type_progress,
-        sdscatprintf(
-            sdsempty(),
-            b"[libcff] Total %d subroutines extracted.\0" as *const u8
-                as *const ::core::ffi::c_char,
-            maxSubroutines,
-        ),
+        crate::sdsbuild!(sdsempty(), b"[libcff] Total ", maxSubroutines, b" subroutines extracted."),
     );
     let mut maxLSubrs: u32 = maxSubroutines;
     let mut maxGSubrs: u32 = 0 as u32;

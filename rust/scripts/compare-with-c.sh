@@ -87,8 +87,22 @@ compare_payload() {
 	# start from byte-identical input.
 	"${C_BIN}/otfccdump" "${in}" -o "${out}.json" --pretty
 
-	"${C_BIN}/otfccbuild" "${out}.json" -o "${out}.c.${ext}" --keep-average-char-width --keep-modified-time
-	"${RUST_BIN}/otfccbuild" "${out}.json" -o "${out}.rust.${ext}" --keep-average-char-width --keep-modified-time
+	# Check both builds actually succeeded. Under `set -e` a crash would abort
+	# the whole script with nothing but the shell's own "Abort trap: 6", which
+	# reads like a harness problem rather than a failing payload; and a stale
+	# output file from an earlier run would still be sitting there. Report it as
+	# a FAIL for this payload and carry on to the rest.
+	rm -f "${out}.c.${ext}" "${out}.rust.${ext}"
+	if ! "${C_BIN}/otfccbuild" "${out}.json" -o "${out}.c.${ext}" --keep-average-char-width --keep-modified-time; then
+		echo "FAIL  ${name}.${ext}: C otfccbuild exited non-zero"
+		fail=1
+		return
+	fi
+	if ! "${RUST_BIN}/otfccbuild" "${out}.json" -o "${out}.rust.${ext}" --keep-average-char-width --keep-modified-time; then
+		echo "FAIL  ${name}.${ext}: Rust otfccbuild exited non-zero"
+		fail=1
+		return
+	fi
 
 	if cmp -s "${out}.c.${ext}" "${out}.rust.${ext}"; then
 		echo "PASS  ${name}.${ext}: byte-identical"

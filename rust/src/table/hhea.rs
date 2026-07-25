@@ -1,7 +1,6 @@
 use libc::{free, malloc, memcpy, memset, strcmp};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
     fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
@@ -170,11 +169,7 @@ pub unsafe extern "C" fn otfcc_readHhea(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
-                                sdsempty(),
-                                b"table 'hhea' corrupted.\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
-                            ),
+                            crate::sdsbuild!(sdsempty(), b"table 'hhea' corrupted.\n"),
                         );
                     } else {
                         let mut hhea: *mut table_hhea = ::core::ptr::null_mut::<table_hhea>();
@@ -261,10 +256,7 @@ pub unsafe extern "C" fn otfcc_dumpHhea(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"hhea\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"hhea"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -353,10 +345,7 @@ pub unsafe extern "C" fn otfcc_parseHhea(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"hhea\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"hhea"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

@@ -4,8 +4,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
-    fn sdscatfmt(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn otfcc_to_f2dot14(x: ::core::ffi::c_double) -> i16;
     fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16;
     static iVQ: __caryll_vectorinterface_VQ;
@@ -35,7 +33,7 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{f16dot16, glyphid_t, pos_t, tableid_t};
-use crate::vendor::sds::{sds};
+use crate::vendor::sds::{Hex2Upper, Hex4Upper, sds};
 use crate::font::caryll_font::{otfcc_Font};
 use crate::support::{NULL};
 use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry, otfcc_GlyphOrderPackage};
@@ -279,16 +277,15 @@ unsafe extern "C" fn createGlyphOrder(
             let mut gname: sds = sdsempty();
             for j_0 in 0..SHA1_BLOCK_SIZE as u16 {
                 if j_0 % 4 == 0 && j_0 / 4 != 0 {
-                    gname = sdscatprintf(
+                    gname = crate::sdsbuild!(
                         gname,
-                        b"-%02X\0" as *const u8 as *const ::core::ffi::c_char,
-                        h.hash[j_0 as usize] as ::core::ffi::c_int,
+                        b"-",
+                        Hex2Upper((h.hash[j_0 as usize] as ::core::ffi::c_int) as u32),
                     );
                 } else {
-                    gname = sdscatprintf(
+                    gname = crate::sdsbuild!(
                         gname,
-                        b"%02X\0" as *const u8 as *const ::core::ffi::c_char,
-                        h.hash[j_0 as usize] as ::core::ffi::c_int,
+                        Hex2Upper((h.hash[j_0 as usize] as ::core::ffi::c_int) as u32),
                     );
                 }
             }
@@ -302,13 +299,7 @@ unsafe extern "C" fn createGlyphOrder(
                     if stillIn {
                         n = (n as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as glyphid_t;
                     }
-                    let mut newname: sds = sdscatprintf(
-                        sdsempty(),
-                        b"%s-%s%d\0" as *const u8 as *const ::core::ffi::c_char,
-                        gname,
-                        prefix,
-                        n as ::core::ffi::c_int,
-                    );
+                    let mut newname: sds = crate::sdsbuild!(sdsempty(), gname, b"-", prefix, n as ::core::ffi::c_int);
                     stillIn = otfcc_pkgGlyphOrder
                         .lookupName
                         .expect("non-null function pointer")(
@@ -319,13 +310,7 @@ unsafe extern "C" fn createGlyphOrder(
                         break;
                     }
                 }
-                let mut newname_0: sds = sdscatprintf(
-                    sdsempty(),
-                    b"%s-%s%d\0" as *const u8 as *const ::core::ffi::c_char,
-                    gname,
-                    prefix,
-                    n as ::core::ffi::c_int,
-                );
+                let mut newname_0: sds = crate::sdsbuild!(sdsempty(), gname, b"-", prefix, n as ::core::ffi::c_int);
                 let mut sharedName: sds = otfcc_pkgGlyphOrder
                     .setByGID
                     .expect("non-null function pointer")(
@@ -349,12 +334,7 @@ unsafe extern "C" fn createGlyphOrder(
             }
         } else if !((*options).ignore_glyph_order || (*options).name_glyphs_by_gid) {
             if !(*g).name.is_null() {
-                let mut gname_0: sds = sdscatprintf(
-                    sdsempty(),
-                    b"%s%s\0" as *const u8 as *const ::core::ffi::c_char,
-                    prefix,
-                    (*g).name,
-                );
+                let mut gname_0: sds = crate::sdsbuild!(sdsempty(), prefix, (*g).name);
                 let sharedName_1: sds = otfcc_pkgGlyphOrder
                     .setByGID
                     .expect("non-null function pointer")(
@@ -381,12 +361,7 @@ unsafe extern "C" fn createGlyphOrder(
             NULL
         }) as *mut otfcc_GlyphOrderEntry as *mut otfcc_GlyphOrderEntry;
         while !s.is_null() {
-            let mut gname_1: sds = sdscatprintf(
-                sdsempty(),
-                b"%s%s\0" as *const u8 as *const ::core::ffi::c_char,
-                prefix,
-                (*s).name,
-            );
+            let mut gname_1: sds = crate::sdsbuild!(sdsempty(), prefix, (*s).name);
             otfcc_pkgGlyphOrder
                 .setByGID
                 .expect("non-null function pointer")(glyph_order, (*s).gid, gname_1);
@@ -422,19 +397,9 @@ unsafe extern "C" fn createGlyphOrder(
                     );
                 }
                 if name.is_null() {
-                    name = sdscatprintf(
-                        sdsempty(),
-                        b"%suni%04X\0" as *const u8 as *const ::core::ffi::c_char,
-                        prefix,
-                        (*s_0).unicode,
-                    );
+                    name = crate::sdsbuild!(sdsempty(), prefix, b"uni", Hex4Upper(((*s_0).unicode) as u32));
                 } else {
-                    name = sdscatprintf(
-                        sdsempty(),
-                        b"%s%s\0" as *const u8 as *const ::core::ffi::c_char,
-                        prefix,
-                        name,
-                    );
+                    name = crate::sdsbuild!(sdsempty(), prefix, name);
                 }
                 otfcc_pkgGlyphOrder
                     .setByGID
@@ -449,12 +414,7 @@ unsafe extern "C" fn createGlyphOrder(
     for j_1 in 0..numGlyphs {
         let mut name_0: sds = ::core::ptr::null_mut::<::core::ffi::c_char>();
         if j_1 > 1 {
-            name_0 = sdscatfmt(
-                sdsempty(),
-                b"%sglyph%u\0" as *const u8 as *const ::core::ffi::c_char,
-                prefix,
-                j_1 as ::core::ffi::c_int,
-            );
+            name_0 = crate::sdsbuild!(sdsempty(), prefix, b"glyph", j_1 as ::core::ffi::c_int);
         } else if j_1 == 1 {
             if !(*(*(*font).glyf)
                 .items
@@ -473,25 +433,12 @@ unsafe extern "C" fn createGlyphOrder(
                 .length
                     == 0
             {
-                name_0 = sdscatfmt(
-                    sdsempty(),
-                    b"%s.null\0" as *const u8 as *const ::core::ffi::c_char,
-                    prefix,
-                );
+                name_0 = crate::sdsbuild!(sdsempty(), prefix, b".null");
             } else {
-                name_0 = sdscatfmt(
-                    sdsempty(),
-                    b"%sglyph%u\0" as *const u8 as *const ::core::ffi::c_char,
-                    prefix,
-                    j_1 as ::core::ffi::c_int,
-                );
+                name_0 = crate::sdsbuild!(sdsempty(), prefix, b"glyph", j_1 as ::core::ffi::c_int);
             }
         } else {
-            name_0 = sdscatfmt(
-                sdsempty(),
-                b"%s.notdef\0" as *const u8 as *const ::core::ffi::c_char,
-                prefix,
-            );
+            name_0 = crate::sdsbuild!(sdsempty(), prefix, b".notdef");
         }
         otfcc_pkgGlyphOrder
             .setByGID

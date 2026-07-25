@@ -3,7 +3,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
     static iSubtable_gsub_single: __caryll_vectorinterface_subtable_gsub_single;
 }
@@ -85,11 +84,11 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /%s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored missing glyph /",
                     (*(*subtable).items.offset(k as isize)).from.name,
+                    b".\n",
                 ),
             );
         } else if !otfcc_pkgGlyphOrder
@@ -104,11 +103,11 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /%s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored missing glyph /",
                     (*(*subtable).items.offset(k as isize)).to.name,
+                    b".\n",
                 ),
             );
         } else {
@@ -433,11 +432,11 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Double-mapping a glyph in a single substitution /%s.\n\0"
-                            as *const u8 as *const ::core::ffi::c_char,
+                        b"[Consolidate] Double-mapping a glyph in a single substitution /",
                         (*(*subtable).items.offset(k as isize)).from.name,
+                        b".\n",
                     ),
                 );
             } else {
@@ -1047,10 +1046,9 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"[Consolidate] In this lookup, some mappings are ignored.\n\0" as *const u8
-                    as *const ::core::ffi::c_char,
+                b"[Consolidate] In this lookup, some mappings are ignored.\n",
             ),
         );
     }

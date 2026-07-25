@@ -1,7 +1,6 @@
 use libc::{exit, free, malloc, memcmp, memset};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn fontop_consolidateCoverage(
         font: *mut otfcc_Font,
         coverage: *mut otl_Coverage,
@@ -402,11 +401,11 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Double-mapping a glyph in a reverse substitution /%s.\n\0"
-                        as *const u8 as *const ::core::ffi::c_char,
+                    b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
                     (*(*from).glyphs.offset(k as isize)).name,
+                    b".\n",
                 ),
             );
         } else {
@@ -1008,10 +1007,9 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n\0"
-                    as *const u8 as *const ::core::ffi::c_char,
+                b"[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n",
             ),
         );
     }

@@ -3,7 +3,6 @@ extern "C" {
     fn sqrt(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static cff_iIndex: __caryll_elementinterface_cff_Index;
     static cff_iDict: __caryll_elementinterface_cff_Dict;
     fn cff_close_Charset(cset: cff_Charset);
@@ -29,7 +28,7 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{arity_t};
-use crate::vendor::sds::{sds};
+use crate::vendor::sds::{Hex4, sds};
 use crate::libcff::{cff_Encoding, cff_EncodingRangeFormat1, cff_EncodingSupplement, cff_File, cff_IOutlineBuilder, cff_Stack, op_CharStrings, op_Encoding, op_FDArray, op_FDSelect, op_Private, op_Subrs, op_abs, op_add, op_and, op_callgsubr, op_callsubr, op_charset, op_cntrmask, op_div, op_drop, op_dup, op_eq, op_exch, op_flex, op_flex1, op_get, op_hflex, op_hflex1, op_hmoveto, op_ifelse, op_index, op_mul, op_neg, op_not, op_or, op_put, op_rmoveto, op_roll, op_sqrt, op_sub, op_vmoveto, op_vstem, op_vstemhm, type2_transient_array};
 use crate::libcff::cff_charset::{cff_CHARSET_UNSPECED, cff_Charset};
 use crate::libcff::cff_dict::{__caryll_elementinterface_cff_Dict};
@@ -168,12 +167,13 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"[libcff] Bad CFF font: (%d, name), (%d, top_dict).\n\0" as *const u8
-                    as *const ::core::ffi::c_char,
+                b"[libcff] Bad CFF font: (",
                 (*cff).name.count,
+                b", name), (",
                 (*cff).top_dict.count,
+                b", top_dict).\n",
             ),
         );
     }
@@ -238,11 +238,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
-                    sdsempty(),
-                    b"[libcff] Bad CFF font: no any glyph data.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
-                ),
+                crate::sdsbuild!(sdsempty(), b"[libcff] Bad CFF font: no any glyph data.\n"),
             );
         }
         offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
@@ -956,12 +952,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_vmoveto\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_vmoveto as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_vmoveto as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -1001,12 +998,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_rmoveto\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_rmoveto as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_rmoveto as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -1050,12 +1048,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hmoveto\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_hmoveto as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_hmoveto as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -1755,12 +1754,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hflex\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_hflex as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_hflex as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -1811,12 +1811,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_flex\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_flex as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_flex as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -1875,12 +1876,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hflex1\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_hflex1 as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_hflex1 as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -1941,12 +1943,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_flex1\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_flex1 as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_flex1 as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2044,12 +2047,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_and\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_and as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_and as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2085,12 +2089,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_or\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_or as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_or as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2126,12 +2131,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_not\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_not as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_not as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2157,12 +2163,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_abs\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_abs as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_abs as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2188,12 +2195,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_add\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_add as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_add as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2225,12 +2233,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_sub\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_sub as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_sub as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2262,12 +2271,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_div\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_div as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_div as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2299,12 +2309,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_neg\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_neg as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_neg as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2330,12 +2341,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_eq\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_eq as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_eq as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2367,12 +2379,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_drop\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_drop as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_drop as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2389,12 +2402,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_put\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_put as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_put as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2426,12 +2440,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_get\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_get as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_get as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2461,12 +2476,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_ifelse\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_ifelse as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_ifelse as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2515,12 +2531,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_mul\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_mul as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_mul as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2552,12 +2569,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_sqrt\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_sqrt as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_sqrt as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2583,12 +2601,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_dup\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_dup as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_dup as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2608,12 +2627,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_exch\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_exch as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_exch as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2649,12 +2669,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_index\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_index as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_index as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2680,12 +2701,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_roll\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_roll as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_roll as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2708,12 +2730,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     (*options).logger as *mut otfcc_ILogger,
                                     log_vl_important as ::core::ffi::c_int as u8,
                                     log_type_warning,
-                                    sdscatprintf(
+                                    crate::sdsbuild!(
                                         sdsempty(),
-                                        b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                            as *const u8 as *const ::core::ffi::c_char,
+                                        b"[libcff] Stack cannot provide enough parameters for ",
                                         b"op_roll\0" as *const u8 as *const ::core::ffi::c_char,
-                                        op_roll as ::core::ffi::c_int,
+                                        b" (",
+                                        Hex4((op_roll as ::core::ffi::c_int) as u32),
+                                        b"). This operation is ignored.\n",
                                     ),
                                 );
                             } else {
@@ -2752,12 +2775,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_callsubr\0" as *const u8 as *const ::core::ffi::c_char,
-                                    op_callsubr as ::core::ffi::c_int,
+                                    b" (",
+                                    Hex4((op_callsubr as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2807,13 +2831,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for %s (%04x). This operation is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
-                                    b"op_callgsubr\0" as *const u8
-                                        as *const ::core::ffi::c_char,
-                                    op_callgsubr as ::core::ffi::c_int,
+                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                    b"op_callgsubr\0" as *const u8 as *const ::core::ffi::c_char,
+                                    b" (",
+                                    Hex4((op_callgsubr as ::core::ffi::c_int) as u32),
+                                    b"). This operation is ignored.\n",
                                 ),
                             );
                         } else {
@@ -2858,11 +2882,11 @@ pub unsafe extern "C" fn cff_parseOutline(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Warning: unknown operator %d occurs in Type 2 CharString. It may caused by file corruption.\0"
-                                    as *const u8 as *const ::core::ffi::c_char,
+                                b"Warning: unknown operator ",
                                 val.c2rust_unnamed.i,
+                                b" occurs in Type 2 CharString. It may caused by file corruption.",
                             ),
                         );
                         return;

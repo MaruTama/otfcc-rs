@@ -6,7 +6,6 @@ extern "C" {
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
     fn sdscat(s: sds, t: *const ::core::ffi::c_char) -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
     fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds);
@@ -1340,9 +1339,8 @@ unsafe extern "C" fn buildOutline(
     (*context).seed = bc.randx;
 }
 unsafe extern "C" fn formCIDString(mut cid: cffsid_t) -> sds {
-    return sdscatprintf(
+    return crate::sdsbuild!(
         sdsnew(b"CID\0" as *const u8 as *const ::core::ffi::c_char),
-        b"%d\0" as *const u8 as *const ::core::ffi::c_char,
         cid as ::core::ffi::c_int,
     );
 }
@@ -1717,11 +1715,7 @@ pub unsafe extern "C" fn otfcc_readCFFAndGlyfTables(
                             {
                                 let ref mut fresh1 =
                                     (**(*context.meta).fdArray.offset(j as isize)).fontName;
-                                *fresh1 = sdscatprintf(
-                                    sdsempty(),
-                                    b"_Subfont%d\0" as *const u8 as *const ::core::ffi::c_char,
-                                    j as ::core::ffi::c_int,
-                                );
+                                *fresh1 = crate::sdsbuild!(sdsempty(), b"_Subfont", j as ::core::ffi::c_int);
                             }
                             j = j.wrapping_add(1);
                         }
@@ -2111,10 +2105,7 @@ pub unsafe extern "C" fn otfcc_dumpCFF(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"CFF\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"CFF"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -2436,10 +2427,7 @@ pub unsafe extern "C" fn otfcc_parseCFF(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"CFF\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"CFF"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

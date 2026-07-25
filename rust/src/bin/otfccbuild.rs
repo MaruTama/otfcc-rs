@@ -16,7 +16,6 @@ extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn json_parse(json: *const ::core::ffi::c_char, length: usize) -> *mut json_value;
     fn json_value_free(_: *mut json_value);
     fn otfcc_newLogger(target: *mut otfcc_ILoggerTarget) -> *mut otfcc_ILogger;
@@ -562,10 +561,9 @@ unsafe fn main_0(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_critical as ::core::ffi::c_int as u8,
             log_type_error,
-            sdscatprintf(
+            otfcc_rust::sdsbuild!(
                 sdsempty(),
-                b"Unable to build OpenType font tile : output path not specified. Exit.\n\0"
-                    as *const u8 as *const ::core::ffi::c_char,
+                b"Unable to build OpenType font tile : output path not specified. Exit.\n",
             ),
         );
         printHelp();
@@ -577,10 +575,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Load file\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Load file"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -589,11 +584,7 @@ unsafe fn main_0(
                 .startSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                sdscatprintf(
-                    sdsempty(),
-                    b"Load from file %s\0" as *const u8 as *const ::core::ffi::c_char,
-                    inPath,
-                ),
+                otfcc_rust::sdsbuild!(sdsempty(), b"Load from file ", inPath),
             );
             let mut ___loggedstep_v_0: bool = true;
             while ___loggedstep_v_0 {
@@ -615,10 +606,7 @@ unsafe fn main_0(
                 .startSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                sdscatprintf(
-                    sdsempty(),
-                    b"Load from stdin\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
+                otfcc_rust::sdsbuild!(sdsempty(), b"Load from stdin"),
             );
             let mut ___loggedstep_v_1: bool = true;
             while ___loggedstep_v_1 {
@@ -649,10 +637,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Parse into JSON\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Parse into JSON"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
@@ -673,11 +658,11 @@ unsafe fn main_0(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_critical as ::core::ffi::c_int as u8,
                 log_type_error,
-                sdscatprintf(
+                otfcc_rust::sdsbuild!(
                     sdsempty(),
-                    b"Cannot parse JSON file \"%s\". Exit.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"Cannot parse JSON file \"",
                     inPath,
+                    b"\". Exit.\n",
                 ),
             );
             exit(EXIT_FAILURE);
@@ -692,10 +677,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Parse\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Parse"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
@@ -712,11 +694,11 @@ unsafe fn main_0(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_critical as ::core::ffi::c_int as u8,
                 log_type_error,
-                sdscatprintf(
+                otfcc_rust::sdsbuild!(
                     sdsempty(),
-                    b"Cannot parse JSON file \"%s\" as a font. Exit.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"Cannot parse JSON file \"",
                     inPath,
+                    b"\" as a font. Exit.\n",
                 ),
             );
             exit(EXIT_FAILURE);
@@ -740,10 +722,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Consolidate\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Consolidate"),
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
@@ -765,10 +744,7 @@ unsafe fn main_0(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"Build\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        otfcc_rust::sdsbuild!(sdsempty(), b"Build"),
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
@@ -780,10 +756,7 @@ unsafe fn main_0(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"Write to file\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            otfcc_rust::sdsbuild!(sdsempty(), b"Write to file"),
         );
         let mut ___loggedstep_v_6: bool = true;
         while ___loggedstep_v_6 {
@@ -798,11 +771,11 @@ unsafe fn main_0(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_critical as ::core::ffi::c_int as u8,
                     log_type_error,
-                    sdscatprintf(
+                    otfcc_rust::sdsbuild!(
                         sdsempty(),
-                        b"Cannot write to file \"%s\". Exit.\n\0" as *const u8
-                            as *const ::core::ffi::c_char,
+                        b"Cannot write to file \"",
                         outputPath,
+                        b"\". Exit.\n",
                     ),
                 );
                 exit(EXIT_FAILURE);

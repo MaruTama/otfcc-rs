@@ -4,12 +4,11 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
     fn sdscat(s: sds, t: *const ::core::ffi::c_char) -> sds;
-    fn sdscatfmt(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
 }
 
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, Sds, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -227,27 +226,14 @@ unsafe extern "C" fn loggerLogSDS(
                 demand = sdscat(demand, b" |-\0" as *const u8 as *const ::core::ffi::c_char);
             }
         } else {
-            demand = sdscatfmt(
-                demand,
-                b"%S : \0" as *const u8 as *const ::core::ffi::c_char,
-                *(*self_0).indents.offset(level as isize),
-            );
+            demand = crate::sdsbuild!(demand, Sds(*(*self_0).indents.offset(level as isize)), b" : ");
         }
         level = level.wrapping_add(1);
     }
     if (type_0 as ::core::ffi::c_uint) < 3 as ::core::ffi::c_uint {
-        demand = sdscatfmt(
-            demand,
-            b"%s %S\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_LoggerTypeNames[type_0 as usize],
-            data,
-        );
+        demand = crate::sdsbuild!(demand, otfcc_LoggerTypeNames[type_0 as usize], b" ", Sds(data));
     } else {
-        demand = sdscatfmt(
-            demand,
-            b"%S\0" as *const u8 as *const ::core::ffi::c_char,
-            data,
-        );
+        demand = crate::sdsbuild!(demand, Sds(data));
     }
     sdsfree(data);
     if verbosity as ::core::ffi::c_int <= (*self_0).verbosityLimit as ::core::ffi::c_int {

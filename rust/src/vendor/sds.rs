@@ -2,12 +2,6 @@ use libc::{free, malloc, memcmp, memcpy, memmove, memset, realloc, strchr, strle
 
 use crate::support::ctype_compat::{_ISprint, _ISspace};
 extern "C" {
-    fn vsnprintf(
-        __s: *mut ::core::ffi::c_char,
-        __maxlen: usize,
-        __format: *const ::core::ffi::c_char,
-        __arg: ::core::ffi::VaList,
-    ) -> ::core::ffi::c_int;
     #[cfg(not(target_os = "macos"))]
     fn __ctype_b_loc() -> *mut *const ::core::ffi::c_ushort;
     #[cfg(not(target_os = "macos"))]
@@ -753,168 +747,182 @@ pub unsafe extern "C" fn sdsfromlonglong(mut value: ::core::ffi::c_longlong) -> 
         len as usize,
     );
 }
-#[no_mangle]
-pub unsafe extern "C" fn sdscatvprintf(
-    mut s: sds,
-    mut fmt: *const ::core::ffi::c_char,
-    mut ap: ::core::ffi::VaList,
-) -> sds {
-    let mut cpy: ::core::ffi::VaListImpl;
-    let mut staticbuf: [::core::ffi::c_char; 1024] = [0; 1024];
-    let mut buf: *mut ::core::ffi::c_char = &raw mut staticbuf as *mut ::core::ffi::c_char;
-    let mut t: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut buflen: usize = strlen(fmt).wrapping_mul(2 as usize);
-    if buflen > ::core::mem::size_of::<[::core::ffi::c_char; 1024]>() {
-        buf = malloc(buflen) as *mut ::core::ffi::c_char;
-        if buf.is_null() {
-            return ::core::ptr::null_mut::<::core::ffi::c_char>();
-        }
-    } else {
-        buflen = ::core::mem::size_of::<[::core::ffi::c_char; 1024]>() as usize;
-    }
-    loop {
-        *buf.offset(buflen.wrapping_sub(2 as usize) as isize) = '\0' as i32 as ::core::ffi::c_char;
-        cpy = ap.clone();
-        vsnprintf(buf, buflen, fmt, cpy.as_va_list());
-        if !(*buf.offset(buflen.wrapping_sub(2 as usize) as isize) as ::core::ffi::c_int
-            != '\0' as i32)
-        {
-            break;
-        }
-        if buf != &raw mut staticbuf as *mut ::core::ffi::c_char {
-            free(buf as *mut ::core::ffi::c_void);
-        }
-        buflen = buflen.wrapping_mul(2 as usize);
-        buf = malloc(buflen) as *mut ::core::ffi::c_char;
-        if buf.is_null() {
-            return ::core::ptr::null_mut::<::core::ffi::c_char>();
-        }
-    }
-    t = sdscat(s, buf) as *mut ::core::ffi::c_char;
-    if buf != &raw mut staticbuf as *mut ::core::ffi::c_char {
-        free(buf as *mut ::core::ffi::c_void);
-    }
-    return t as sds;
+// ---------------------------------------------------------------------------
+// Building an sds from typed pieces
+// ---------------------------------------------------------------------------
+
+/// One piece of a string being assembled by [`sdsbuild!`].
+///
+/// This replaces `sdscatprintf`/`sdscatfmt`. Every one of their 252 call sites
+/// passed a *literal* format string, so the format never had to be interpreted
+/// at run time: the pieces can simply be appended, and the compiler can check
+/// that each argument matches the conversion the C code asked for -- which a
+/// `printf` cannot.
+///
+/// Text is appended **as bytes**, deliberately. The `%s` arguments here are C
+/// strings that came out of a font file: glyph names, table strings, PostScript
+/// names. Routing them through Rust's `format!` would mean a `CStr` -> `str`
+/// conversion, and a glyph name that is not valid UTF-8 would then come out
+/// different (`to_str` fails; `to_string_lossy` substitutes U+FFFD) -- a change
+/// no test payload would catch. Integers *are* formatted with `format!`, where
+/// the output is ASCII digits and no such hazard exists.
+pub trait SdsPart {
+    /// Append this piece to `s`, returning the (possibly reallocated) string.
+    unsafe fn append_to(self, s: sds) -> sds;
 }
-#[no_mangle]
-pub unsafe extern "C" fn sdscatprintf(
-    mut s: sds,
-    mut fmt: *const ::core::ffi::c_char,
-    mut args: ...
-) -> sds {
-    let mut ap: ::core::ffi::VaListImpl;
-    let mut t: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    ap = args.clone();
-    t = sdscatvprintf(s, fmt, ap.as_va_list()) as *mut ::core::ffi::c_char;
-    return t as sds;
-}
-#[no_mangle]
-pub unsafe extern "C" fn sdscatfmt(
-    mut s: sds,
-    mut fmt: *const ::core::ffi::c_char,
-    mut args: ...
-) -> sds {
-    let mut initlen: usize = sdslen(s);
-    let mut f: *const ::core::ffi::c_char = fmt;
-    let mut i: ::core::ffi::c_int = 0;
-    let mut ap: ::core::ffi::VaListImpl;
-    ap = args.clone();
-    f = fmt;
-    i = initlen as ::core::ffi::c_int;
-    while *f != 0 {
-        let mut next: ::core::ffi::c_char = 0;
-        let mut str: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-        let mut l: usize = 0;
-        let mut num: ::core::ffi::c_longlong = 0;
-        let mut unum: ::core::ffi::c_ulonglong = 0;
-        if sdsavail(s) == 0 as usize {
-            s = sdsMakeRoomFor(s, 1 as usize);
-        }
-        match *f as ::core::ffi::c_int {
-            37 => {
-                next = *f.offset(1 as ::core::ffi::c_int as isize);
-                f = f.offset(1);
-                match next as ::core::ffi::c_int {
-                    115 | 83 => {
-                        str = ap.arg::<*mut ::core::ffi::c_char>();
-                        l = if next as ::core::ffi::c_int == 's' as i32 {
-                            strlen(str)
-                        } else {
-                            sdslen(str as sds)
-                        };
-                        if sdsavail(s) < l {
-                            s = sdsMakeRoomFor(s, l);
-                        }
-                        memcpy(
-                            s.offset(i as isize) as *mut ::core::ffi::c_void,
-                            str as *const ::core::ffi::c_void,
-                            l,
-                        );
-                        sdsinclen(s, l);
-                        i = (i as usize).wrapping_add(l) as ::core::ffi::c_int
-                            as ::core::ffi::c_int;
-                    }
-                    105 | 73 => {
-                        if next as ::core::ffi::c_int == 'i' as i32 {
-                            num = ap.arg::<::core::ffi::c_int>() as ::core::ffi::c_longlong;
-                        } else {
-                            num = ap.arg::<::core::ffi::c_longlong>();
-                        }
-                        let mut buf: [::core::ffi::c_char; 21] = [0; 21];
-                        l = sdsll2str(&raw mut buf as *mut ::core::ffi::c_char, num) as usize;
-                        if sdsavail(s) < l {
-                            s = sdsMakeRoomFor(s, l);
-                        }
-                        memcpy(
-                            s.offset(i as isize) as *mut ::core::ffi::c_void,
-                            &raw mut buf as *mut ::core::ffi::c_char as *const ::core::ffi::c_void,
-                            l,
-                        );
-                        sdsinclen(s, l);
-                        i = (i as usize).wrapping_add(l) as ::core::ffi::c_int
-                            as ::core::ffi::c_int;
-                    }
-                    117 | 85 => {
-                        if next as ::core::ffi::c_int == 'u' as i32 {
-                            unum = ap.arg::<::core::ffi::c_uint>() as ::core::ffi::c_ulonglong;
-                        } else {
-                            unum = ap.arg::<::core::ffi::c_ulonglong>();
-                        }
-                        let mut buf_0: [::core::ffi::c_char; 21] = [0; 21];
-                        l = sdsull2str(&raw mut buf_0 as *mut ::core::ffi::c_char, unum) as usize;
-                        if sdsavail(s) < l {
-                            s = sdsMakeRoomFor(s, l);
-                        }
-                        memcpy(
-                            s.offset(i as isize) as *mut ::core::ffi::c_void,
-                            &raw mut buf_0 as *mut ::core::ffi::c_char
-                                as *const ::core::ffi::c_void,
-                            l,
-                        );
-                        sdsinclen(s, l);
-                        i = (i as usize).wrapping_add(l) as ::core::ffi::c_int
-                            as ::core::ffi::c_int;
-                    }
-                    _ => {
-                        let fresh4 = i;
-                        i = i + 1;
-                        *s.offset(fresh4 as isize) = next;
-                        sdsinclen(s, 1 as usize);
-                    }
-                }
-            }
-            _ => {
-                let fresh5 = i;
-                i = i + 1;
-                *s.offset(fresh5 as isize) = *f;
-                sdsinclen(s, 1 as usize);
-            }
-        }
-        f = f.offset(1);
+
+impl SdsPart for &[u8] {
+    unsafe fn append_to(self, s: sds) -> sds {
+        sdscatlen(s, self.as_ptr() as *const ::core::ffi::c_void, self.len())
     }
-    *s.offset(i as isize) = '\0' as i32 as ::core::ffi::c_char;
-    return s;
 }
+
+impl<const N: usize> SdsPart for &[u8; N] {
+    unsafe fn append_to(self, s: sds) -> sds {
+        (&self[..]).append_to(s)
+    }
+}
+
+/// A C string (`%s`): the bytes up to the terminating NUL.
+///
+/// A null pointer appends `(null)`, which is what both glibc and Apple's libc
+/// print for `%s`. The old code handed the pointer straight to `vsnprintf`, so
+/// any call site that can pass null was already relying on that.
+impl SdsPart for *const ::core::ffi::c_char {
+    unsafe fn append_to(self, s: sds) -> sds {
+        if self.is_null() {
+            return b"(null)".append_to(s);
+        }
+        sdscatlen(s, self as *const ::core::ffi::c_void, strlen(self))
+    }
+}
+
+/// `sds` is `*mut c_char`, so this covers both a plain C string and an sds
+/// passed to `%s` -- which, like C, measures it with `strlen` and therefore
+/// stops at an embedded NUL. Use [`Sds`] for `%S`.
+impl SdsPart for *mut ::core::ffi::c_char {
+    unsafe fn append_to(self, s: sds) -> sds {
+        (self as *const ::core::ffi::c_char).append_to(s)
+    }
+}
+
+/// An sds appended by its stored length (`%S`), so unlike `%s` it keeps any
+/// embedded NUL bytes.
+pub struct Sds(pub sds);
+
+impl SdsPart for Sds {
+    unsafe fn append_to(self, s: sds) -> sds {
+        sdscatsds(s, self.0)
+    }
+}
+
+/// A single byte (`%c`).
+///
+/// C converts the argument to `unsigned char`, so this is one raw byte and
+/// *not* a `char`: formatting a `char` would UTF-8 encode anything above 0x7f
+/// into two bytes. `otl/read.rs` builds lookup names out of the four bytes of
+/// an OpenType tag this way, and those names reach the JSON output.
+pub struct Byte(pub u8);
+
+impl SdsPart for Byte {
+    unsafe fn append_to(self, s: sds) -> sds {
+        sdscatlen(
+            s,
+            &self.0 as *const u8 as *const ::core::ffi::c_void,
+            1 as usize,
+        )
+    }
+}
+
+/// `%04x`
+pub struct Hex4(pub u32);
+/// `%04X`
+pub struct Hex4Upper(pub u32);
+/// `%02x`
+pub struct Hex2(pub u32);
+/// `%02X`
+pub struct Hex2Upper(pub u32);
+/// `%05d`
+pub struct Dec5(pub ::core::ffi::c_int);
+
+/// Append an ASCII rendering of an integer.
+///
+/// Safe to route through `format!` because the result is digits: see the note
+/// on [`SdsPart`] for why text may not be.
+unsafe fn cat_ascii(s: sds, digits: &str) -> sds {
+    digits.as_bytes().append_to(s)
+}
+
+impl SdsPart for ::core::ffi::c_int {
+    unsafe fn append_to(self, s: sds) -> sds {
+        cat_ascii(s, &format!("{self}"))
+    }
+}
+
+impl SdsPart for ::core::ffi::c_uint {
+    unsafe fn append_to(self, s: sds) -> sds {
+        cat_ascii(s, &format!("{self}"))
+    }
+}
+
+impl SdsPart for Dec5 {
+    unsafe fn append_to(self, s: sds) -> sds {
+        cat_ascii(s, &format!("{:05}", self.0))
+    }
+}
+
+/// The `u32` casts at the call sites are not cosmetic: C's `%x` reads an
+/// `unsigned int`, so a negative `int` argument prints as its 32-bit two's
+/// complement -- eight digits, not four. `as u32` reproduces exactly that,
+/// and widens a `u16` the same way C's default promotion does.
+impl SdsPart for Hex4 {
+    unsafe fn append_to(self, s: sds) -> sds {
+        cat_ascii(s, &format!("{:04x}", self.0))
+    }
+}
+
+impl SdsPart for Hex4Upper {
+    unsafe fn append_to(self, s: sds) -> sds {
+        cat_ascii(s, &format!("{:04X}", self.0))
+    }
+}
+
+impl SdsPart for Hex2 {
+    unsafe fn append_to(self, s: sds) -> sds {
+        cat_ascii(s, &format!("{:02x}", self.0))
+    }
+}
+
+impl SdsPart for Hex2Upper {
+    unsafe fn append_to(self, s: sds) -> sds {
+        cat_ascii(s, &format!("{:02X}", self.0))
+    }
+}
+
+/// Append pieces to an sds, in order, and evaluate to the result.
+///
+/// ```ignore
+/// sdscatprintf(sdsempty(), "lookup_%s_%02x_%d\0", name, kind, index)
+/// ```
+/// becomes
+/// ```ignore
+/// sdsbuild!(sdsempty(), b"lookup_", name, b"_", Hex2(kind as u32), b"_", index)
+/// ```
+///
+/// Each piece is appended through [`SdsPart`], so its type decides how it is
+/// rendered. Returns null if any reallocation fails, exactly as the `sdscat*`
+/// functions do.
+#[macro_export]
+macro_rules! sdsbuild {
+    ($base:expr $(, $part:expr)* $(,)?) => {{
+        let mut __sds: $crate::vendor::sds::sds = $base;
+        $(
+            __sds = $crate::vendor::sds::SdsPart::append_to($part, __sds);
+        )*
+        __sds
+    }};
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn sdstrim(mut s: sds, mut cset: *const ::core::ffi::c_char) -> sds {
     let mut start: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -1209,11 +1217,7 @@ pub unsafe extern "C" fn sdscatrepr(
         }
         match *p as ::core::ffi::c_int {
             92 | 34 => {
-                s = sdscatprintf(
-                    s,
-                    b"\\%c\0" as *const u8 as *const ::core::ffi::c_char,
-                    *p as ::core::ffi::c_int,
-                );
+                s = crate::sdsbuild!(s, b"\\", Byte((*p as ::core::ffi::c_int) as u8));
             }
             10 => {
                 s = sdscatlen(
@@ -1261,16 +1265,12 @@ pub unsafe extern "C" fn sdscatrepr(
                     & _ISprint as ::core::ffi::c_int as ::core::ffi::c_ushort as ::core::ffi::c_int
                     != 0
                 {
-                    s = sdscatprintf(
-                        s,
-                        b"%c\0" as *const u8 as *const ::core::ffi::c_char,
-                        *p as ::core::ffi::c_int,
-                    );
+                    s = crate::sdsbuild!(s, Byte((*p as ::core::ffi::c_int) as u8));
                 } else {
-                    s = sdscatprintf(
+                    s = crate::sdsbuild!(
                         s,
-                        b"\\x%02x\0" as *const u8 as *const ::core::ffi::c_char,
-                        *p as ::core::ffi::c_uchar as ::core::ffi::c_int,
+                        b"\\x",
+                        Hex2((*p as ::core::ffi::c_uchar as ::core::ffi::c_int) as u32),
                     );
                 }
             }
@@ -1558,4 +1558,140 @@ pub unsafe extern "C" fn sdsjoinsds(
         j += 1;
     }
     return join;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What C's `printf` makes of the same conversion and argument.
+    ///
+    /// The helpers are checked against the C library rather than against
+    /// hand-written expectations: the whole point of them is to reproduce
+    /// `sdscatprintf` byte for byte, and only libc can settle what that was.
+    macro_rules! assert_matches_printf {
+        ($fmt:expr, $c_arg:expr, $built:expr) => {{
+            let mut expect = [0 as ::core::ffi::c_char; 64];
+            let n = libc::snprintf(
+                expect.as_mut_ptr(),
+                expect.len(),
+                concat!($fmt, "\0").as_ptr() as *const ::core::ffi::c_char,
+                $c_arg,
+            );
+            assert!(n >= 0 && (n as usize) < expect.len(), "snprintf overflowed");
+            let expect =
+                ::core::slice::from_raw_parts(expect.as_ptr() as *const u8, n as usize).to_vec();
+            let got = $built;
+            let got_bytes = ::core::slice::from_raw_parts(got as *const u8, sdslen(got)).to_vec();
+            sdsfree(got);
+            assert_eq!(
+                String::from_utf8_lossy(&got_bytes),
+                String::from_utf8_lossy(&expect),
+                "conversion {} disagrees with libc",
+                $fmt
+            );
+        }};
+    }
+
+    #[test]
+    fn decimal_matches_printf() {
+        unsafe {
+            for v in [0, 1, -1, 42, -42, i32::MAX, i32::MIN] {
+                assert_matches_printf!("%d", v, sdsbuild!(sdsempty(), v));
+                assert_matches_printf!("%05d", v, sdsbuild!(sdsempty(), Dec5(v)));
+            }
+            for v in [0u32, 1, 65535, u32::MAX] {
+                assert_matches_printf!("%u", v, sdsbuild!(sdsempty(), v));
+            }
+        }
+    }
+
+    // A negative `int` reaches `%x` as an `unsigned int`, so it prints eight
+    // digits and not four. Casting to `u16` at the call site -- the obvious
+    // reading of "%04x" -- would silently drop the top half.
+    #[test]
+    fn hex_matches_printf_including_negatives() {
+        unsafe {
+            for v in [0i32, 1, 0x0a, 0xabcd, 0xfffff, -1, -32768] {
+                assert_matches_printf!("%04x", v, sdsbuild!(sdsempty(), Hex4(v as u32)));
+                assert_matches_printf!("%04X", v, sdsbuild!(sdsempty(), Hex4Upper(v as u32)));
+                assert_matches_printf!("%02x", v, sdsbuild!(sdsempty(), Hex2(v as u32)));
+                assert_matches_printf!("%02X", v, sdsbuild!(sdsempty(), Hex2Upper(v as u32)));
+            }
+        }
+    }
+
+    // `%c` is a byte, not a character: 0xe9 is one byte for C, and would be the
+    // two bytes of U+00E9 if it went through Rust's `char` formatting.
+    #[test]
+    fn byte_is_one_byte_not_a_char() {
+        unsafe {
+            for v in [b'A' as i32, 0, 0x7f, 0x80, 0xe9, 0xff] {
+                assert_matches_printf!("%c", v, sdsbuild!(sdsempty(), Byte(v as u8)));
+            }
+            let got = sdsbuild!(sdsempty(), Byte(0xe9));
+            assert_eq!(sdslen(got), 1);
+            sdsfree(got);
+            assert_eq!('\u{e9}'.to_string().len(), 2); // ...which this is not
+        }
+    }
+
+    // The reason these helpers exist instead of `format!`: a glyph name that is
+    // not valid UTF-8 has to survive unchanged. `to_string_lossy` would replace
+    // the 0xe9 with U+FFFD and the font would come out with a different name.
+    #[test]
+    fn c_string_is_copied_as_bytes_even_when_not_utf8() {
+        unsafe {
+            let name = b"caf\xe9\0";
+            let got = sdsbuild!(sdsempty(), name.as_ptr() as *const ::core::ffi::c_char);
+            let bytes = ::core::slice::from_raw_parts(got as *const u8, sdslen(got));
+            assert_eq!(bytes, b"caf\xe9");
+            sdsfree(got);
+        }
+    }
+
+    #[test]
+    fn null_c_string_prints_like_libc() {
+        unsafe {
+            assert_matches_printf!(
+                "%s",
+                ::core::ptr::null::<::core::ffi::c_char>(),
+                sdsbuild!(sdsempty(), ::core::ptr::null::<::core::ffi::c_char>())
+            );
+        }
+    }
+
+    // `%s` stops at the NUL and `%S` does not -- the distinction sdscatfmt drew
+    // by calling `strlen` for one and `sdslen` for the other.
+    #[test]
+    fn sds_part_keeps_embedded_nul_but_c_string_does_not() {
+        unsafe {
+            let s = sdsnewlen(b"ab\0cd".as_ptr() as *const ::core::ffi::c_void, 5 as usize);
+            let by_len = sdsbuild!(sdsempty(), Sds(s));
+            assert_eq!(sdslen(by_len), 5);
+            let by_nul = sdsbuild!(sdsempty(), s);
+            assert_eq!(sdslen(by_nul), 2);
+            sdsfree(by_len);
+            sdsfree(by_nul);
+            sdsfree(s);
+        }
+    }
+
+    #[test]
+    fn pieces_are_appended_in_order() {
+        unsafe {
+            let got = sdsbuild!(
+                sdsempty(),
+                b"lookup_",
+                b"ccmp\0".as_ptr() as *const ::core::ffi::c_char,
+                b"_",
+                Hex2(0x1f),
+                b"_",
+                7 as ::core::ffi::c_int,
+            );
+            let bytes = ::core::slice::from_raw_parts(got as *const u8, sdslen(got));
+            assert_eq!(bytes, b"lookup_ccmp_1f_7");
+            sdsfree(got);
+        }
+    }
 }

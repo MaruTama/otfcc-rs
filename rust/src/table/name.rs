@@ -4,7 +4,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
     fn sdsgrowzero(s: sds, len: usize) -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
     fn bufseek(buf: *mut caryll_Buffer, pos: usize);
@@ -656,11 +655,7 @@ pub unsafe extern "C" fn otfcc_readName(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
-                            sdsempty(),
-                            b"table 'name' corrupted.\n\0" as *const u8
-                                as *const ::core::ffi::c_char,
-                        ),
+                        crate::sdsbuild!(sdsempty(), b"table 'name' corrupted.\n"),
                     );
                     if !name.is_null() {
                         table_iName.free.expect("non-null function pointer")(name);
@@ -690,10 +685,7 @@ pub unsafe extern "C" fn otfcc_dumpName(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"name\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"name"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -778,10 +770,7 @@ pub unsafe extern "C" fn otfcc_parseName(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"name\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"name"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
@@ -806,11 +795,11 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Missing or invalid platformID for name entry %d\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Missing or invalid platformID for name entry ",
                                 j,
+                                b"\n",
                             ),
                         );
                     } else if json_obj_get_type(
@@ -826,11 +815,11 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Missing or invalid encodingID for name entry %d\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Missing or invalid encodingID for name entry ",
                                 j,
+                                b"\n",
                             ),
                         );
                     } else if json_obj_get_type(
@@ -846,11 +835,11 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Missing or invalid languageID for name entry %d\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Missing or invalid languageID for name entry ",
                                 j,
+                                b"\n",
                             ),
                         );
                     } else if json_obj_get_type(
@@ -866,11 +855,11 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Missing or invalid nameID for name entry %d\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Missing or invalid nameID for name entry ",
                                 j,
+                                b"\n",
                             ),
                         );
                     } else if json_obj_get_type(
@@ -886,11 +875,11 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Missing or invalid name string for name entry %d\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Missing or invalid name string for name entry ",
                                 j,
+                                b"\n",
                             ),
                         );
                     } else {
@@ -1001,14 +990,23 @@ pub unsafe extern "C" fn otfcc_buildName(
         bufwrite16b(buf, cbefore as u16);
         j = j.wrapping_add(1);
     }
-    let mut copyright: sds = sdscatprintf(
+    let mut copyright: sds = crate::sdsbuild!(
         sdsempty(),
-        b"-- By OTFCC %d.%d.%d --\0" as *const u8 as *const ::core::ffi::c_char,
+        b"-- By OTFCC ",
         MAIN_VER,
+        b".",
         SECONDARY_VER,
+        b".",
         PATCH_VER,
+        b" --",
     );
-    sdsgrowzero(copyright, COPYRIGHT_LEN as usize);
+    // `sdsgrowzero` may reallocate, so its result has to be assigned back.
+    // `name.c:188` drops it -- a use-after-free that has never fired only
+    // because `sdscatprintf` happened to over-allocate: it grew the buffer to
+    // twice the 21-byte version string, and 42 bytes is (just) enough for the
+    // 32 this then asks for. Appending the string in pieces allocates 24, so
+    // the growth reallocates, and the stale pointer aborts in `sdsfree`.
+    copyright = sdsgrowzero(copyright, COPYRIGHT_LEN as usize);
     bufwrite_bytes(strings, COPYRIGHT_LEN as usize, copyright as *mut u8);
     sdsfree(copyright);
     let mut stringsOffset: usize = (*buf).cursor;

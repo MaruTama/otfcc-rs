@@ -3,7 +3,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
     static iSubtable_gpos_cursive: __caryll_vectorinterface_subtable_gpos_cursive;
 }
@@ -93,11 +92,11 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /%s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored missing glyph /",
                     (*(*subtable).items.offset(k as isize)).target.name,
+                    b".\n",
                 ),
             );
         } else {
@@ -422,11 +421,11 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Double-mapping a glyph in a cursive positioning /%s.\n\0"
-                            as *const u8 as *const ::core::ffi::c_char,
+                        b"[Consolidate] Double-mapping a glyph in a cursive positioning /",
                         (*(*subtable).items.offset(k as isize)).target.name,
+                        b".\n",
                     ),
                 );
             } else {

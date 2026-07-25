@@ -1,7 +1,6 @@
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
@@ -467,11 +466,7 @@ pub unsafe extern "C" fn otfcc_readBASE(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
-                                sdsempty(),
-                                b"Table 'BASE' Corrupted\0" as *const u8
-                                    as *const ::core::ffi::c_char,
-                            ),
+                            crate::sdsbuild!(sdsempty(), b"Table 'BASE' Corrupted"),
                         );
                         table_iBASE.free.expect("non-null function pointer")(base);
                         base = ::core::ptr::null_mut::<table_BASE>();
@@ -577,10 +572,7 @@ pub unsafe extern "C" fn otfcc_dumpBASE(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"BASE\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"BASE"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -717,10 +709,7 @@ pub unsafe extern "C" fn otfcc_parseBASE(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"BASE\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"BASE"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

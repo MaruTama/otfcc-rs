@@ -3,7 +3,6 @@ extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite_bytes(buf: *mut caryll_Buffer, size: usize, str: *const u8);
     fn json_object_push(
@@ -227,11 +226,7 @@ pub unsafe extern "C" fn table_dumpTableFpgmPrep(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-            tag,
-        ),
+        crate::sdsbuild!(sdsempty(), tag),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -277,11 +272,7 @@ pub unsafe extern "C" fn otfcc_parseFpgmPrep(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-                tag,
-            ),
+            crate::sdsbuild!(sdsempty(), tag),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

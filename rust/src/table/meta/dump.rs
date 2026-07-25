@@ -7,7 +7,6 @@ use crate::vendor::json::{json_value};
 use crate::table::meta::types::{meta_Entry, table_meta};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
     fn json_object_new(length: usize) -> *mut json_value;
@@ -70,10 +69,7 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"meta\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

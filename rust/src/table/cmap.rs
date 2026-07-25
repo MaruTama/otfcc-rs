@@ -3,7 +3,6 @@ extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn sdsfromlonglong(value: ::core::ffi::c_longlong) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
@@ -37,7 +36,7 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t, unicode_t};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
+use crate::vendor::sds::{Hex4Upper, SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 use crate::vendor::json::{json_object, json_string, json_type, json_value};
 use crate::bk::bkblock::{b16, b32, b8, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
@@ -5484,11 +5483,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
-                            sdsempty(),
-                            b"table 'cmap' corrupted.\n\0" as *const u8
-                                as *const ::core::ffi::c_char,
-                        ),
+                        crate::sdsbuild!(sdsempty(), b"table 'cmap' corrupted.\n"),
                     );
                     if !cmap.is_null() {
                         free(cmap as *mut ::core::ffi::c_void);
@@ -5519,10 +5514,7 @@ pub unsafe extern "C" fn otfcc_dumpCmap(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -5542,11 +5534,7 @@ pub unsafe extern "C" fn otfcc_dumpCmap(
                     if (*options).decimal_cmap {
                         key = sdsfromlonglong((*item).unicode as ::core::ffi::c_longlong);
                     } else {
-                        key = sdscatprintf(
-                            sdsempty(),
-                            b"U+%04X\0" as *const u8 as *const ::core::ffi::c_char,
-                            (*item).unicode,
-                        );
+                        key = crate::sdsbuild!(sdsempty(), b"U+", Hex4Upper(((*item).unicode) as u32));
                     }
                     json_object_push(
                         cmap,
@@ -5580,18 +5568,19 @@ pub unsafe extern "C" fn otfcc_dumpCmap(
                 if !(*item_0).glyph.name.is_null() {
                     let mut key_0: sds = ::core::ptr::null_mut::<::core::ffi::c_char>();
                     if (*options).decimal_cmap {
-                        key_0 = sdscatprintf(
+                        key_0 = crate::sdsbuild!(
                             sdsempty(),
-                            b"%d %d\0" as *const u8 as *const ::core::ffi::c_char,
                             (*item_0).key.unicode,
+                            b" ",
                             (*item_0).key.selector,
                         );
                     } else {
-                        key_0 = sdscatprintf(
+                        key_0 = crate::sdsbuild!(
                             sdsempty(),
-                            b"U+%04X U+%04X\0" as *const u8 as *const ::core::ffi::c_char,
-                            (*item_0).key.unicode,
-                            (*item_0).key.selector,
+                            b"U+",
+                            Hex4Upper(((*item_0).key.unicode) as u32),
+                            b" U+",
+                            Hex4Upper(((*item_0).key.selector) as u32),
                         );
                     }
                     json_object_push(
@@ -5672,13 +5661,15 @@ unsafe extern "C" fn parseCmapUnicodes(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"U+%04X is already mapped to %s. Assignment to %s is ignored.\0"
-                            as *const u8 as *const ::core::ffi::c_char,
-                        unicode,
+                        b"U+",
+                        Hex4Upper(unicode as u32),
+                        b" is already mapped to ",
                         (*currentMap).name,
+                        b". Assignment to ",
                         gname,
+                        b" is ignored.",
                     ),
                 );
             }
@@ -5744,14 +5735,17 @@ unsafe extern "C" fn parseCmapUVS(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"UVS U+%04X U+%04X is already mapped to %s. Assignment to %s is ignored.\0"
-                            as *const u8 as *const ::core::ffi::c_char,
-                        k.unicode,
-                        k.selector,
+                        b"UVS U+",
+                        Hex4Upper((k.unicode) as u32),
+                        b" U+",
+                        Hex4Upper((k.selector) as u32),
+                        b" is already mapped to ",
                         (*currentMap).name,
+                        b". Assignment to ",
                         gname,
+                        b" is ignored.",
                     ),
                 );
             }
@@ -5775,10 +5769,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -5800,10 +5791,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"cmap_uvs\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"cmap_uvs"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {

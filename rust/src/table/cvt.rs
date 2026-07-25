@@ -1,7 +1,6 @@
 use libc::{free, malloc, memcpy, memset, strcmp};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
     fn json_array_new(length: usize) -> *mut json_value;
@@ -187,10 +186,7 @@ pub unsafe extern "C" fn otfcc_dumpCvt(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"cvt\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"cvt"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -224,10 +220,7 @@ pub unsafe extern "C" fn otfcc_parseCvt(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"cvt\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"cvt"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
@@ -272,10 +265,7 @@ pub unsafe extern "C" fn otfcc_parseCvt(
                 .startSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                sdscatprintf(
-                    sdsempty(),
-                    b"cvt\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
+                crate::sdsbuild!(sdsempty(), b"cvt"),
             );
             let mut ___loggedstep_v_0: bool = true;
             while ___loggedstep_v_0 {

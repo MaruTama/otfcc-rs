@@ -1,6 +1,5 @@
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
 }
 use crate::table::otl::coverage::{otl_Coverage};
@@ -70,11 +69,11 @@ pub unsafe extern "C" fn fontop_consolidateCoverage(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /%s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored missing glyph /",
                     (*h).name,
+                    b".\n",
                 ),
             );
             otfcc_Handle_dispose(h as *mut otfcc_Handle);
@@ -105,11 +104,11 @@ pub unsafe extern "C" fn fontop_consolidateClassDef(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /%s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored missing glyph /",
                     (*h).name,
+                    b".\n",
                 ),
             );
             otfcc_Handle_dispose(h as *mut otfcc_Handle);

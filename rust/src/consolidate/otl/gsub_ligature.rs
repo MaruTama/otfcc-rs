@@ -1,6 +1,5 @@
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
     static iSubtable_gsub_ligature: __caryll_vectorinterface_subtable_gsub_ligature;
     static otl_iCoverage: __otfcc_ICoverage;
@@ -86,11 +85,11 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /%s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored missing glyph /",
                     (*(*subtable).items.offset(k as isize)).to.name,
+                    b".\n",
                 ),
             );
         } else {
@@ -106,11 +105,11 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Ignoring empty ligature substitution to glyph /%s.\n\0"
-                            as *const u8 as *const ::core::ffi::c_char,
+                        b"[Consolidate] Ignoring empty ligature substitution to glyph /",
                         (*(*subtable).items.offset(k as isize)).to.name,
+                        b".\n",
                     ),
                 );
             } else {

@@ -2,7 +2,6 @@ use libc::{free, malloc, memcpy, memset, qsort, strcmp};
 extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
     static otl_iClassDef: __otfcc_IClassDef;
     fn json_array_new(length: usize) -> *mut json_value;
@@ -1256,10 +1255,7 @@ pub unsafe extern "C" fn otfcc_dumpGDEF(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"GDEF"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1397,10 +1393,7 @@ pub unsafe extern "C" fn otfcc_parseGDEF(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"GDEF"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

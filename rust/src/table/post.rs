@@ -5,7 +5,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
     fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
@@ -586,10 +585,7 @@ pub unsafe extern "C" fn otfcc_dumpPost(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"post\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"post"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -668,10 +664,7 @@ pub unsafe extern "C" fn otfcc_parsePost(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"post\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"post"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

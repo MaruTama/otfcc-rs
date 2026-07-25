@@ -9,7 +9,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn json_ident(a: *const json_value, b: *const json_value) -> bool;
     static otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList;
     static otl_iLookupPtr: __caryll_elementinterface_otl_LookupPtr;
@@ -505,11 +504,11 @@ unsafe extern "C" fn _declareLookupParser(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"Lookup %s does not have a valid 'type' field.\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"Lookup ",
                     lookupName,
+                    b" does not have a valid 'type' field.",
                 ),
             );
         }
@@ -820,11 +819,7 @@ unsafe extern "C" fn _declareLookupParser(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
-                sdsempty(),
-                b"Lookup %s already exists.\0" as *const u8 as *const ::core::ffi::c_char,
-                lookupName,
-            ),
+            crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" already exists."),
         );
         return false;
     }
@@ -840,11 +835,11 @@ unsafe extern "C" fn _declareLookupParser(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"Lookup %s does not have a valid subtable list.\0" as *const u8
-                    as *const ::core::ffi::c_char,
+                b"Lookup ",
                 lookupName,
+                b" does not have a valid subtable list.",
             ),
         );
         return false;
@@ -873,11 +868,7 @@ unsafe extern "C" fn _declareLookupParser(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-            lookupName,
-        ),
+        crate::sdsbuild!(sdsempty(), lookupName),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -910,12 +901,7 @@ unsafe extern "C" fn _declareLookupParser(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
-                sdsempty(),
-                b"Lookup %s does not have any subtables.\0" as *const u8
-                    as *const ::core::ffi::c_char,
-                lookupName,
-            ),
+            crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" does not have any subtables."),
         );
         otfcc_delete_lookup(lookup);
         return false;
@@ -1373,11 +1359,11 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[OTFCC-fea] Ignoring invalid or unsupported lookup %s.\n\0" as *const u8
-                            as *const ::core::ffi::c_char,
+                        b"[OTFCC-fea] Ignoring invalid or unsupported lookup ",
                         lookupName,
+                        b".\n",
                     ),
                 );
             }
@@ -2210,13 +2196,15 @@ unsafe extern "C" fn feature_merger_activate(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_notice as ::core::ffi::c_int as u8,
                         log_type_info,
-                        sdscatprintf(
+                        crate::sdsbuild!(
                             sdsempty(),
-                            b"[OTFCC-fea] Merged duplicate %s '%s' into '%s'.\n\0" as *const u8
-                                as *const ::core::ffi::c_char,
+                            b"[OTFCC-fea] Merged duplicate ",
                             objtype,
+                            b" '",
                             kthat,
+                            b"' into '",
                             kthis,
+                            b"'.\n",
                         ),
                     );
                 }
@@ -2600,14 +2588,15 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Lookup assignment %s for feature [%s/%s] is missing or invalid.\0"
-                                    as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Lookup assignment ",
                                 (*term).u.string.ptr,
+                                b" for feature [",
                                 tag,
+                                b"/",
                                 featureName,
+                                b"] is missing or invalid.",
                             ),
                         );
                     }
@@ -3414,12 +3403,13 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
+                        crate::sdsbuild!(
                             sdsempty(),
-                            b"[OTFCC-fea] Duplicate feature for [%s/%s]. This feature will be ignored.\n\0"
-                                as *const u8 as *const ::core::ffi::c_char,
+                            b"[OTFCC-fea] Duplicate feature for [",
                             tag,
+                            b"/",
                             featureName,
+                            b"]. This feature will be ignored.\n",
                         ),
                     );
                     otl_iLookupRefList
@@ -3435,12 +3425,13 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[OTFCC-fea] There is no valid lookup assignments for [%s/%s]. This feature will be ignored.\n\0"
-                            as *const u8 as *const ::core::ffi::c_char,
+                        b"[OTFCC-fea] There is no valid lookup assignments for [",
                         tag,
+                        b"/",
                         featureName,
+                        b"]. This feature will be ignored.\n",
                     ),
                 );
                 otl_iLookupRefList
@@ -5753,12 +5744,13 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
+                        crate::sdsbuild!(
                             sdsempty(),
-                            b"[OTFCC-fea] Duplicate language item [%s/%s]. This language term will be ignored.\n\0"
-                                as *const u8 as *const ::core::ffi::c_char,
+                            b"[OTFCC-fea] Duplicate language item [",
                             tag,
+                            b"/",
                             languageName,
+                            b"]. This language term will be ignored.\n",
                         ),
                     );
                     otl_iFeatureRefList
@@ -5774,12 +5766,13 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[OTFCC-fea] There is no valid feature assignments for [%s/%s]. This language term will be ignored.\n\0"
-                            as *const u8 as *const ::core::ffi::c_char,
+                        b"[OTFCC-fea] There is no valid feature assignments for [",
                         tag,
+                        b"/",
                         languageName,
+                        b"]. This language term will be ignored.\n",
                     ),
                 );
                 otl_iFeatureRefList
@@ -5850,11 +5843,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                 .startSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                sdscatprintf(
-                    sdsempty(),
-                    b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-                    tag,
-                ),
+                crate::sdsbuild!(sdsempty(), tag),
             );
             let mut ___loggedstep_v: bool = true;
             loop {
@@ -6907,11 +6896,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"[OTFCC-fea] Ignoring invalid or incomplete OTL table %s.\n\0" as *const u8
-                    as *const ::core::ffi::c_char,
+                b"[OTFCC-fea] Ignoring invalid or incomplete OTL table ",
                 tag,
+                b".\n",
             ),
         );
         table_iOTL.free.expect("non-null function pointer")(otl);

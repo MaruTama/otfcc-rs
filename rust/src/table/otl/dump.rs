@@ -19,7 +19,6 @@ extern "C" {
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn otl_gsub_dump_single(_subtable: *const otl_Subtable) -> *mut json_value;
     fn otl_gsub_dump_multi(_subtable: *const otl_Subtable) -> *mut json_value;
     fn otl_gsub_dump_ligature(_subtable: *const otl_Subtable) -> *mut json_value;
@@ -262,11 +261,7 @@ pub unsafe extern "C" fn otfcc_dumpOtl(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-            tag,
-        ),
+        crate::sdsbuild!(sdsempty(), tag),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -275,10 +270,7 @@ pub unsafe extern "C" fn otfcc_dumpOtl(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"Languages\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"Languages"),
         );
         let mut ___loggedstep_v_0: bool = true;
         while ___loggedstep_v_0 {
@@ -335,10 +327,7 @@ pub unsafe extern "C" fn otfcc_dumpOtl(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"Features\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"Features"),
         );
         let mut ___loggedstep_v_1: bool = true;
         while ___loggedstep_v_1 {
@@ -384,10 +373,7 @@ pub unsafe extern "C" fn otfcc_dumpOtl(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"Lookups\0" as *const u8 as *const ::core::ffi::c_char,
-            ),
+            crate::sdsbuild!(sdsempty(), b"Lookups"),
         );
         let mut ___loggedstep_v_2: bool = true;
         while ___loggedstep_v_2 {

@@ -5,8 +5,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
-    fn sdscatfmt(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static tsi_iEntry: __caryll_elementinterface_tsi_Entry;
     static table_iTSI: __caryll_vectorinterface_table_TSI;
     static glyf_iContourList: __caryll_vectorinterface_glyf_ContourList;
@@ -122,7 +120,7 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{glyphid_t, pos_t, shapeid_t, tableid_t};
-use crate::vendor::sds::{sds};
+use crate::vendor::sds::{Hex4Upper, sds};
 use crate::font::caryll_font::{otfcc_Font};
 use crate::support::{NULL};
 use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderPackage};
@@ -222,12 +220,13 @@ unsafe extern "C" fn consolidateGlyphContours(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Removed empty contour #%d in glyph %s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Removed empty contour #",
                     j as ::core::ffi::c_int,
+                    b" in glyph ",
                     (*g).name,
+                    b".\n",
                 ),
             );
             skip = (skip as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as shapeid_t;
@@ -257,12 +256,13 @@ unsafe extern "C" fn consolidateGlyphReferences(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored absent glyph component reference /%s within /%s.\n\0"
-                        as *const u8 as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored absent glyph component reference /",
                     (*(*g).references.items.offset(j as isize)).glyph.name,
+                    b" within /",
                     (*g).name,
+                    b".\n",
                 ),
             );
             glyf_iReferenceList
@@ -452,12 +452,13 @@ unsafe extern "C" fn consolidateFDSelect(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] CID Subfont %s is not defined. (in glyph /%s).\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] CID Subfont ",
                     (*h).name,
+                    b" is not defined. (in glyph /",
                     gname,
+                    b").\n",
                 ),
             );
             otfcc_Handle_dispose(h as *mut otfcc_Handle);
@@ -595,10 +596,9 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"Found circular reference of out-of-range point reference in anchored reference.\0"
-                    as *const u8 as *const ::core::ffi::c_char,
+                b"Found circular reference of out-of-range point reference in anchored reference.",
             ),
         );
         (*rr).isAnchored = REF_XY;
@@ -652,11 +652,11 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"Failed to access point %d in outer glyph.\0" as *const u8
-                    as *const ::core::ffi::c_char,
+                b"Failed to access point ",
                 (*rr).outer as ::core::ffi::c_int,
+                b" in outer glyph.",
             ),
         );
     }
@@ -667,12 +667,13 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_important as ::core::ffi::c_int as u8,
             log_type_warning,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"Failed to access point %d in reference to %s.\0" as *const u8
-                    as *const ::core::ffi::c_char,
+                b"Failed to access point ",
                 (*rr).outer as ::core::ffi::c_int,
+                b" in reference to ",
                 (*rr).glyph.name,
+                b".",
             ),
         );
     }
@@ -712,11 +713,11 @@ pub unsafe extern "C" fn consolidateAnchorRef(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"Anchored reference to %s does not match its X/Y offset data.\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"Anchored reference to ",
                     (*rr).glyph.name,
+                    b" does not match its X/Y offset data.",
                 ),
             );
         }
@@ -762,11 +763,7 @@ pub unsafe extern "C" fn consolidateGlyf(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-                (*g).name,
-            ),
+            crate::sdsbuild!(sdsempty(), (*g).name),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
@@ -817,12 +814,13 @@ pub unsafe extern "C" fn consolidateCmap(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Ignored mapping U+%04X to non-existent glyph /%s.\n\0"
-                            as *const u8 as *const ::core::ffi::c_char,
-                        (*item).unicode,
+                        b"[Consolidate] Ignored mapping U+",
+                        Hex4Upper(((*item).unicode) as u32),
+                        b" to non-existent glyph /",
                         (*item).glyph.name,
+                        b".\n",
                     ),
                 );
                 otfcc_Handle_dispose(&raw mut (*item).glyph);
@@ -847,13 +845,15 @@ pub unsafe extern "C" fn consolidateCmap(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Ignored UVS mapping [U+%04X U+%04X] to non-existent glyph /%s.\n\0"
-                            as *const u8 as *const ::core::ffi::c_char,
-                        (*item_0).key.unicode,
-                        (*item_0).key.selector,
+                        b"[Consolidate] Ignored UVS mapping [U+",
+                        Hex4Upper(((*item_0).key.unicode) as u32),
+                        b" U+",
+                        Hex4Upper(((*item_0).key.selector) as u32),
+                        b"] to non-existent glyph /",
                         (*item_0).glyph.name,
+                        b".\n",
                     ),
                 );
                 otfcc_Handle_dispose(&raw mut (*item_0).glyph);
@@ -881,11 +881,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-            (*lookup).name,
-        ),
+        crate::sdsbuild!(sdsempty(), (*lookup).name),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -898,12 +894,13 @@ unsafe extern "C" fn __declare_otl_consolidation(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Ignored empty subtable %d of lookup %s.\n\0" as *const u8
-                            as *const ::core::ffi::c_char,
+                        b"[Consolidate] Ignored empty subtable ",
                         j as ::core::ffi::c_int,
+                        b" of lookup ",
                         (*lookup).name,
+                        b".\n",
                     ),
                 );
             } else {
@@ -926,13 +923,13 @@ unsafe extern "C" fn __declare_otl_consolidation(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
+                        crate::sdsbuild!(
                             sdsempty(),
-                            b"[Consolidate] Ignored empty subtable %d of lookup %s.\n\0"
-                                as *const u8
-                                as *const ::core::ffi::c_char,
+                            b"[Consolidate] Ignored empty subtable ",
                             j as ::core::ffi::c_int,
+                            b" of lookup ",
                             (*lookup).name,
+                            b".\n",
                         ),
                     );
                 }
@@ -958,11 +955,11 @@ unsafe extern "C" fn __declare_otl_consolidation(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Lookup %s is empty and will be removed.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Lookup ",
                     (*lookup).name,
+                    b" is empty and will be removed.\n",
                 ),
             );
         }
@@ -1360,10 +1357,7 @@ unsafe extern "C" fn consolidateOTL(mut font: *mut otfcc_Font, mut options: *con
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"GSUB"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1377,10 +1371,7 @@ unsafe extern "C" fn consolidateOTL(mut font: *mut otfcc_Font, mut options: *con
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"GPOS"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
@@ -1394,10 +1385,7 @@ unsafe extern "C" fn consolidateOTL(mut font: *mut otfcc_Font, mut options: *con
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"GDEF"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
@@ -1430,10 +1418,9 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut otfcc_Font, mut options: *co
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Ignored missing glyph of /%s\0" as *const u8
-                            as *const ::core::ffi::c_char,
+                        b"[Consolidate] Ignored missing glyph of /",
                         (*mapping).glyph.name,
                     ),
                 );
@@ -1473,10 +1460,9 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut otfcc_Font, mut options: *co
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[Consolidate] Ignored missing glyph of /%s\0" as *const u8
-                                        as *const ::core::ffi::c_char,
+                                    b"[Consolidate] Ignored missing glyph of /",
                                     (*layer).glyph.name,
                                 ),
                             );
@@ -1512,11 +1498,11 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut otfcc_Font, mut options: *co
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
+                        crate::sdsbuild!(
                             sdsempty(),
-                            b"[Consolidate] COLR decomposition for /%s is empth\0" as *const u8
-                                as *const ::core::ffi::c_char,
+                            b"[Consolidate] COLR decomposition for /",
                             (*mapping).glyph.name,
+                            b" is empth",
                         ),
                     );
                     colr_iMapping.dispose.expect("non-null function pointer")(&raw mut m);
@@ -1583,10 +1569,9 @@ unsafe extern "C" fn consolidateTSI(
                         (*options).logger as *mut otfcc_ILogger,
                         log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
-                        sdscatprintf(
+                        crate::sdsbuild!(
                             sdsempty(),
-                            b"[Consolidate] Ignored missing glyph of /%s\0" as *const u8
-                                as *const ::core::ffi::c_char,
+                            b"[Consolidate] Ignored missing glyph of /",
                             (*entry).glyph.name,
                         ),
                     );
@@ -1664,11 +1649,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
             if !glyfName.is_null() {
                 name = sdsdup(glyfName);
             } else {
-                name = sdscatprintf(
-                    sdsempty(),
-                    b"$$gid%d\0" as *const u8 as *const ::core::ffi::c_char,
-                    j as ::core::ffi::c_int,
-                );
+                name = crate::sdsbuild!(sdsempty(), b"$$gid", j as ::core::ffi::c_int);
                 let ref mut fresh0 = (**(*(*font).glyf).items.offset(j as isize)).name;
                 *fresh0 = sdsdup(name);
             }
@@ -1682,22 +1663,17 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Glyph name %s is already in use.\0" as *const u8
-                            as *const ::core::ffi::c_char,
+                        b"[Consolidate] Glyph name ",
                         name,
+                        b" is already in use.",
                     ),
                 );
                 let mut suffix: u32 = 2 as u32;
                 let mut success: bool = false;
                 loop {
-                    let mut newname: sds = sdscatfmt(
-                        sdsempty(),
-                        b"%s_%u\0" as *const u8 as *const ::core::ffi::c_char,
-                        name,
-                        suffix,
-                    );
+                    let mut newname: sds = crate::sdsbuild!(sdsempty(), name, b"_", suffix);
                     success = otfcc_pkgGlyphOrder
                         .setByName
                         .expect("non-null function pointer")(
@@ -1713,12 +1689,13 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"[Consolidate] Glyph %s is renamed into %s.\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"[Consolidate] Glyph ",
                                 name,
+                                b" is renamed into ",
                                 newname,
+                                b".",
                             ),
                         );
                         sdsfree((**(*(*font).glyf).items.offset(j as isize)).name);
@@ -1739,10 +1716,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"glyf"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1756,10 +1730,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"cmap"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
@@ -1776,10 +1747,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"COLR\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"COLR"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
@@ -1793,10 +1761,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"TSI_01\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"TSI_01"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
@@ -1810,10 +1775,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"TSI_23"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
@@ -1827,10 +1789,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
+        crate::sdsbuild!(sdsempty(), b"TSI5"),
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
