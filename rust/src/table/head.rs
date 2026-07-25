@@ -27,9 +27,9 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{f16dot16, font_file_pointer};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_boolean, json_double, json_integer, json_object, json_type, json_value};
+use crate::vendor::json::{json_double, json_integer, json_object, json_type, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
-use crate::support::{true_0};
+use crate::support::json_funcs::{otfcc_dump_flags, otfcc_parse_flags};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_head {
@@ -246,33 +246,31 @@ pub unsafe extern "C" fn otfcc_readHead(
     }
     return ::core::ptr::null_mut::<table_head>();
 }
-static mut headFlagsLabels: [*const ::core::ffi::c_char; 16] = [
-    b"baselineAtY_0\0" as *const u8 as *const ::core::ffi::c_char,
-    b"lsbAtX_0\0" as *const u8 as *const ::core::ffi::c_char,
-    b"instrMayDependOnPointSize\0" as *const u8 as *const ::core::ffi::c_char,
-    b"alwaysUseIntegerSize\0" as *const u8 as *const ::core::ffi::c_char,
-    b"instrMayAlterAdvanceWidth\0" as *const u8 as *const ::core::ffi::c_char,
-    b"designedForVertical\0" as *const u8 as *const ::core::ffi::c_char,
-    b"_reserved1\0" as *const u8 as *const ::core::ffi::c_char,
-    b"designedForComplexScript\0" as *const u8 as *const ::core::ffi::c_char,
-    b"hasMetamorphosisEffects\0" as *const u8 as *const ::core::ffi::c_char,
-    b"containsStrongRTL\0" as *const u8 as *const ::core::ffi::c_char,
-    b"containsIndicRearrangement\0" as *const u8 as *const ::core::ffi::c_char,
-    b"fontIsLossless\0" as *const u8 as *const ::core::ffi::c_char,
-    b"fontIsConverted\0" as *const u8 as *const ::core::ffi::c_char,
-    b"optimizedForCleartype\0" as *const u8 as *const ::core::ffi::c_char,
-    b"lastResortFont\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+static headFlagsLabels: [&::core::ffi::CStr; 15] = [
+    c"baselineAtY_0",
+    c"lsbAtX_0",
+    c"instrMayDependOnPointSize",
+    c"alwaysUseIntegerSize",
+    c"instrMayAlterAdvanceWidth",
+    c"designedForVertical",
+    c"_reserved1",
+    c"designedForComplexScript",
+    c"hasMetamorphosisEffects",
+    c"containsStrongRTL",
+    c"containsIndicRearrangement",
+    c"fontIsLossless",
+    c"fontIsConverted",
+    c"optimizedForCleartype",
+    c"lastResortFont",
 ];
-static mut macStyleLabels: [*const ::core::ffi::c_char; 8] = [
-    b"bold\0" as *const u8 as *const ::core::ffi::c_char,
-    b"italic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"underline\0" as *const u8 as *const ::core::ffi::c_char,
-    b"outline\0" as *const u8 as *const ::core::ffi::c_char,
-    b"shadow\0" as *const u8 as *const ::core::ffi::c_char,
-    b"condensed\0" as *const u8 as *const ::core::ffi::c_char,
-    b"extended\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+static macStyleLabels: [&::core::ffi::CStr; 7] = [
+    c"bold",
+    c"italic",
+    c"underline",
+    c"outline",
+    c"shadow",
+    c"condensed",
+    c"extended",
 ];
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpHead(
@@ -307,7 +305,7 @@ pub unsafe extern "C" fn otfcc_dumpHead(
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).flags as ::core::ffi::c_int,
-                &raw mut headFlagsLabels as *mut *const ::core::ffi::c_char,
+                &headFlagsLabels,
             ),
         );
         json_object_push(
@@ -350,7 +348,7 @@ pub unsafe extern "C" fn otfcc_dumpHead(
             b"macStyle\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).macStyle as ::core::ffi::c_int,
-                &raw mut macStyleLabels as *mut *const ::core::ffi::c_char,
+                &macStyleLabels,
             ),
         );
         json_object_push(
@@ -418,7 +416,7 @@ pub unsafe extern "C" fn otfcc_parseHead(
             )) as u32;
             (*head).flags = otfcc_parse_flags(
                 json_obj_get(table, b"flags\0" as *const u8 as *const ::core::ffi::c_char),
-                &raw mut headFlagsLabels as *mut *const ::core::ffi::c_char,
+                &headFlagsLabels,
             ) as u16;
             (*head).unitsPerEm = json_obj_getnum_fallback(
                 table,
@@ -460,7 +458,7 @@ pub unsafe extern "C" fn otfcc_parseHead(
                     table,
                     b"macStyle\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &raw mut macStyleLabels as *mut *const ::core::ffi::c_char,
+                &macStyleLabels,
             ) as u16;
             (*head).lowestRecPPEM = json_obj_getnum_fallback(
                 table,
@@ -587,79 +585,4 @@ unsafe extern "C" fn json_obj_getnum_fallback(
         _k = _k.wrapping_add(1);
     }
     return fallback;
-}
-#[inline]
-unsafe extern "C" fn json_obj_getbool(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> bool {
-    if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        return false;
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        let mut cv: *mut json_value =
-            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_boolean as ::core::ffi::c_int as ::core::ffi::c_uint
-            {
-                return (*cv).u.boolean != 0;
-            }
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return false;
-}
-#[inline]
-unsafe extern "C" fn otfcc_dump_flags(
-    mut flags: ::core::ffi::c_int,
-    mut labels: *mut *const ::core::ffi::c_char,
-) -> *mut json_value {
-    let mut v: *mut json_value = json_object_new(0 as usize);
-    let mut j: u16 = 0 as u16;
-    while !(*labels.offset(j as isize)).is_null() {
-        if flags & (1 as ::core::ffi::c_int) << j as ::core::ffi::c_int != 0 {
-            json_object_push(v, *labels.offset(j as isize), json_boolean_new(true_0));
-        }
-        j = j.wrapping_add(1);
-    }
-    return v;
-}
-#[inline]
-unsafe extern "C" fn otfcc_parse_flags(
-    mut v: *const json_value,
-    mut labels: *mut *const ::core::ffi::c_char,
-) -> u32 {
-    if v.is_null() {
-        return 0 as u32;
-    }
-    if (*v).type_0 as ::core::ffi::c_uint
-        == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        return (*v).u.integer as u32;
-    } else if (*v).type_0 as ::core::ffi::c_uint
-        == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        return (*v).u.dbl as u32;
-    } else if (*v).type_0 as ::core::ffi::c_uint
-        == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        let mut flags: u32 = 0 as u32;
-        let mut j: u16 = 0 as u16;
-        while !(*labels.offset(j as isize)).is_null() {
-            if json_obj_getbool(v, *labels.offset(j as isize)) {
-                flags |= ((1 as ::core::ffi::c_int) << j as ::core::ffi::c_int) as u32;
-            }
-            j = j.wrapping_add(1);
-        }
-        return flags;
-    } else {
-        return 0 as u32;
-    };
 }

@@ -101,8 +101,14 @@ pub struct json_state {
 }
 pub type json_uchar = ::core::ffi::c_uint;
 pub const json_enable_comments: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
-#[unsafe(no_mangle)]
-pub static mut json_value_none: _json_value = _json_value {
+/// `json.h` exposes this as `extern const json_value json_value_none`, an empty
+/// value for a caller to compare against or assign from. A `static` cannot hold
+/// it -- `_json_value` has raw pointer fields, so it is not `Sync` -- but a
+/// `const` can, and being a compile-time constant is closer to what C meant by
+/// `const` here than a mutable global was. Nothing in otfcc reads it; like
+/// `json_builder_extra` it is the vendored library's own API, and it stops
+/// being an exported symbol.
+pub const json_value_none: _json_value = _json_value {
     parent: ::core::ptr::null::<_json_value>() as *mut _json_value,
     type_0: json_none,
     u: json_value_payload { boolean: 0 },

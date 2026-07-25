@@ -21,10 +21,11 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphsize_t, tableid_t};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_array, json_boolean, json_double, json_integer, json_object, json_type, json_value};
+use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_type, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{__compar_fn_t};
+use crate::support::json_funcs::{json_obj_getbool};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -888,32 +889,4 @@ unsafe extern "C" fn json_obj_getint_fallback(
         _k = _k.wrapping_add(1);
     }
     return fallback;
-}
-#[inline]
-unsafe extern "C" fn json_obj_getbool(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> bool {
-    if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        return false;
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        let mut cv: *mut json_value =
-            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_boolean as ::core::ffi::c_int as ::core::ffi::c_uint
-            {
-                return (*cv).u.boolean != 0;
-            }
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return false;
 }

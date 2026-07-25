@@ -29,8 +29,6 @@ unsafe extern "C" {
     fn otl_gpos_dump_markToSingle(st: *const otl_Subtable) -> *mut json_value;
     fn otl_gpos_dump_markToLigature(st: *const otl_Subtable) -> *mut json_value;
     fn otl_dump_chaining(_subtable: *const otl_Subtable) -> *mut json_value;
-    static mut lookupFlagsLabels: [*const ::core::ffi::c_char; 0];
-    static mut tableNames: [*const ::core::ffi::c_char; 0];
     fn otl_gpos_dump_pair(_subtable: *const otl_Subtable) -> *mut json_value;
 }
 
@@ -41,24 +39,10 @@ use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{tableid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_pre_serialized, json_value};
-use crate::support::{true_0};
 use crate::table::otl::{otl_Feature, otl_LanguageSystem, otl_Lookup, otl_LookupType, otl_Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, table_OTL};
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
-#[inline]
-unsafe extern "C" fn otfcc_dump_flags(
-    mut flags: ::core::ffi::c_int,
-    mut labels: *mut *const ::core::ffi::c_char,
-) -> *mut json_value {
-    let mut v: *mut json_value = json_object_new(0 as usize);
-    let mut j: u16 = 0 as u16;
-    while !(*labels.offset(j as isize)).is_null() {
-        if flags & (1 as ::core::ffi::c_int) << j as ::core::ffi::c_int != 0 {
-            json_object_push(v, *labels.offset(j as isize), json_boolean_new(true_0));
-        }
-        j = j.wrapping_add(1);
-    }
-    return v;
-}
+use crate::support::json_funcs::{otfcc_dump_flags};
+use crate::table::otl::constants::{lookupFlagsLabels, tableNames};
 #[inline]
 unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
     let mut opts: json_serialize_opts = json_serialize_opts {
@@ -95,7 +79,7 @@ unsafe extern "C" fn _declare_lookup_dumper(
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*lookup).flags as ::core::ffi::c_int,
-                &raw mut lookupFlagsLabels as *mut *const ::core::ffi::c_char,
+                &lookupFlagsLabels,
             ),
         );
         if (*lookup).flags as ::core::ffi::c_int >> 8 as ::core::ffi::c_int != 0 {

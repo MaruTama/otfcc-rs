@@ -1,13 +1,11 @@
 
 #[unsafe(no_mangle)]
 pub static SCRIPT_LANGUAGE_SEPARATOR: ::core::ffi::c_char = '_' as i32 as ::core::ffi::c_char;
-#[unsafe(no_mangle)]
-pub static mut lookupFlagsLabels: [*const ::core::ffi::c_char; 5] = [
-    b"rightToLeft\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ignoreBases\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ignoreLigatures\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ignoreMarks\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+pub static lookupFlagsLabels: [&::core::ffi::CStr; 4] = [
+    c"rightToLeft",
+    c"ignoreBases",
+    c"ignoreLigatures",
+    c"ignoreMarks",
 ];
 #[unsafe(no_mangle)]
 pub static mut tableNames: [*const ::core::ffi::c_char; 42] = [

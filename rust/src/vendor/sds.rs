@@ -807,6 +807,15 @@ impl SdsPart for *mut ::core::ffi::c_char {
     }
 }
 
+/// A static C string (`%s`), for the label tables that reach the log and the
+/// JSON output. Identical to the `*const c_char` impl above, minus the `strlen`
+/// and the null check: a `CStr` carries its own length and cannot be null.
+impl SdsPart for &::core::ffi::CStr {
+    unsafe fn append_to(self, s: sds) -> sds {
+        self.to_bytes().append_to(s)
+    }
+}
+
 /// An sds appended by its stored length (`%S`), so unlike `%s` it keeps any
 /// embedded NUL bytes.
 pub struct Sds(pub sds);

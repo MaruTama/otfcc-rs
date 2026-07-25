@@ -26,9 +26,9 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_array, json_boolean, json_double, json_integer, json_object, json_string, json_type, json_value};
+use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_string, json_type, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
-use crate::support::{true_0};
+use crate::support::json_funcs::{otfcc_dump_flags, otfcc_parse_flags};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_OS_2 {
@@ -376,244 +376,228 @@ pub unsafe extern "C" fn otfcc_readOS_2(
     }
     return ::core::ptr::null_mut::<table_OS_2>();
 }
-#[unsafe(no_mangle)]
-pub static mut fsTypeLabels: [*const ::core::ffi::c_char; 11] = [
-    b"_reserved1\0" as *const u8 as *const ::core::ffi::c_char,
-    b"restrictedLicense\0" as *const u8 as *const ::core::ffi::c_char,
-    b"previewPrintLicense\0" as *const u8 as *const ::core::ffi::c_char,
-    b"editableEmbedding\0" as *const u8 as *const ::core::ffi::c_char,
-    b"_reserved2\0" as *const u8 as *const ::core::ffi::c_char,
-    b"_reserved3\0" as *const u8 as *const ::core::ffi::c_char,
-    b"_reserved4\0" as *const u8 as *const ::core::ffi::c_char,
-    b"_reserved5\0" as *const u8 as *const ::core::ffi::c_char,
-    b"noSubsetting\0" as *const u8 as *const ::core::ffi::c_char,
-    b"bitmapEmbeddingOnly\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+pub static fsTypeLabels: [&::core::ffi::CStr; 10] = [
+    c"_reserved1",
+    c"restrictedLicense",
+    c"previewPrintLicense",
+    c"editableEmbedding",
+    c"_reserved2",
+    c"_reserved3",
+    c"_reserved4",
+    c"_reserved5",
+    c"noSubsetting",
+    c"bitmapEmbeddingOnly",
 ];
-#[unsafe(no_mangle)]
-pub static mut fsSelectionLabels: [*const ::core::ffi::c_char; 11] = [
-    b"italic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"underscore\0" as *const u8 as *const ::core::ffi::c_char,
-    b"negative\0" as *const u8 as *const ::core::ffi::c_char,
-    b"outlined\0" as *const u8 as *const ::core::ffi::c_char,
-    b"strikeout\0" as *const u8 as *const ::core::ffi::c_char,
-    b"bold\0" as *const u8 as *const ::core::ffi::c_char,
-    b"regular\0" as *const u8 as *const ::core::ffi::c_char,
-    b"useTypoMetrics\0" as *const u8 as *const ::core::ffi::c_char,
-    b"wws\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oblique\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+pub static fsSelectionLabels: [&::core::ffi::CStr; 10] = [
+    c"italic",
+    c"underscore",
+    c"negative",
+    c"outlined",
+    c"strikeout",
+    c"bold",
+    c"regular",
+    c"useTypoMetrics",
+    c"wws",
+    c"oblique",
 ];
-#[unsafe(no_mangle)]
-pub static mut codePageLabels1: [*const ::core::ffi::c_char; 33] = [
-    b"latin1\0" as *const u8 as *const ::core::ffi::c_char,
-    b"latin2\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cyrillic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"greek\0" as *const u8 as *const ::core::ffi::c_char,
-    b"turkish\0" as *const u8 as *const ::core::ffi::c_char,
-    b"hebrew\0" as *const u8 as *const ::core::ffi::c_char,
-    b"arabic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"windowsBaltic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"vietnamese\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ansi1\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ansi2\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ansi3\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ansi4\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ansi5\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ansi6\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ansi7\0" as *const u8 as *const ::core::ffi::c_char,
-    b"thai\0" as *const u8 as *const ::core::ffi::c_char,
-    b"jis\0" as *const u8 as *const ::core::ffi::c_char,
-    b"gbk\0" as *const u8 as *const ::core::ffi::c_char,
-    b"korean\0" as *const u8 as *const ::core::ffi::c_char,
-    b"big5\0" as *const u8 as *const ::core::ffi::c_char,
-    b"koreanJohab\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem1\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem2\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem3\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem4\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem5\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem6\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem7\0" as *const u8 as *const ::core::ffi::c_char,
-    b"macRoman\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem\0" as *const u8 as *const ::core::ffi::c_char,
-    b"symbol\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+pub static codePageLabels1: [&::core::ffi::CStr; 32] = [
+    c"latin1",
+    c"latin2",
+    c"cyrillic",
+    c"greek",
+    c"turkish",
+    c"hebrew",
+    c"arabic",
+    c"windowsBaltic",
+    c"vietnamese",
+    c"ansi1",
+    c"ansi2",
+    c"ansi3",
+    c"ansi4",
+    c"ansi5",
+    c"ansi6",
+    c"ansi7",
+    c"thai",
+    c"jis",
+    c"gbk",
+    c"korean",
+    c"big5",
+    c"koreanJohab",
+    c"oem1",
+    c"oem2",
+    c"oem3",
+    c"oem4",
+    c"oem5",
+    c"oem6",
+    c"oem7",
+    c"macRoman",
+    c"oem",
+    c"symbol",
 ];
-#[unsafe(no_mangle)]
-pub static mut codePageLabels2: [*const ::core::ffi::c_char; 33] = [
-    b"oem8\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem9\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem10\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem11\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem12\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem13\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem14\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem15\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem16\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem17\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem18\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem19\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem20\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem21\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem22\0" as *const u8 as *const ::core::ffi::c_char,
-    b"oem23\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp869\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp866\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp865\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp864\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp863\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp862\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp861\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp860\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp857\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp855\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp852\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp775\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp737\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp708\0" as *const u8 as *const ::core::ffi::c_char,
-    b"cp850\0" as *const u8 as *const ::core::ffi::c_char,
-    b"ascii\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+pub static codePageLabels2: [&::core::ffi::CStr; 32] = [
+    c"oem8",
+    c"oem9",
+    c"oem10",
+    c"oem11",
+    c"oem12",
+    c"oem13",
+    c"oem14",
+    c"oem15",
+    c"oem16",
+    c"oem17",
+    c"oem18",
+    c"oem19",
+    c"oem20",
+    c"oem21",
+    c"oem22",
+    c"oem23",
+    c"cp869",
+    c"cp866",
+    c"cp865",
+    c"cp864",
+    c"cp863",
+    c"cp862",
+    c"cp861",
+    c"cp860",
+    c"cp857",
+    c"cp855",
+    c"cp852",
+    c"cp775",
+    c"cp737",
+    c"cp708",
+    c"cp850",
+    c"ascii",
 ];
-#[unsafe(no_mangle)]
-pub static mut unicodeRangeLabels1: [*const ::core::ffi::c_char; 33] = [
-    b"Basic_Latin\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Latin_1_Supplement\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Latin_Extended_A\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Latin_Extended_B\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Phonetics\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Spacing_Modifiers\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Combining_Diacritical_Marks\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Greek_and_Coptic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Coptic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Cyrillic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Armenian\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Hebrew\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Vai\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Arabic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"NKo\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Devanagari\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Bengali\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Gurmukhi\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Gujarati\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Oriya\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Tamil\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Telugu\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Kannada\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Malayalam\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Thai\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Lao\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Georgian\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Balinese\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Hangul_Jamo\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Latin_Extended_Additional\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Greek_Extended\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Punctuations\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+pub static unicodeRangeLabels1: [&::core::ffi::CStr; 32] = [
+    c"Basic_Latin",
+    c"Latin_1_Supplement",
+    c"Latin_Extended_A",
+    c"Latin_Extended_B",
+    c"Phonetics",
+    c"Spacing_Modifiers",
+    c"Combining_Diacritical_Marks",
+    c"Greek_and_Coptic",
+    c"Coptic",
+    c"Cyrillic",
+    c"Armenian",
+    c"Hebrew",
+    c"Vai",
+    c"Arabic",
+    c"NKo",
+    c"Devanagari",
+    c"Bengali",
+    c"Gurmukhi",
+    c"Gujarati",
+    c"Oriya",
+    c"Tamil",
+    c"Telugu",
+    c"Kannada",
+    c"Malayalam",
+    c"Thai",
+    c"Lao",
+    c"Georgian",
+    c"Balinese",
+    c"Hangul_Jamo",
+    c"Latin_Extended_Additional",
+    c"Greek_Extended",
+    c"Punctuations",
 ];
-#[unsafe(no_mangle)]
-pub static mut unicodeRangeLabels2: [*const ::core::ffi::c_char; 33] = [
-    b"Superscripts_And_Subscripts\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Currency_Symbols\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Combining_Diacritical_Marks_For_Symbols\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Letterlike_Symbols\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Number_Forms\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Arrows\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Mathematical_Operators\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Miscellaneous_Technical\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Control_Pictures\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Optical_Character_Recognition\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Enclosed_Alphanumerics\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Box_Drawing\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Block_Elements\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Geometric_Shapes\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Miscellaneous_Symbols\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Dingbats\0" as *const u8 as *const ::core::ffi::c_char,
-    b"CJK_Symbols_And_Punctuation\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Hiragana\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Katakana\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Bopomofo\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Hangul_Compatibility_Jamo\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Phags_pa\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Enclosed_CJK_Letters_And_Months\0" as *const u8 as *const ::core::ffi::c_char,
-    b"CJK_Compatibility\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Hangul_Syllables\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Non_Plane_0\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Phoenician\0" as *const u8 as *const ::core::ffi::c_char,
-    b"CJK_Unified_Ideographs\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Private_Use_Area_p0\0" as *const u8 as *const ::core::ffi::c_char,
-    b"CJK_Strokes\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Alphabetic_Presentation_Forms\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Arabic_Presentation_Forms_A\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+pub static unicodeRangeLabels2: [&::core::ffi::CStr; 32] = [
+    c"Superscripts_And_Subscripts",
+    c"Currency_Symbols",
+    c"Combining_Diacritical_Marks_For_Symbols",
+    c"Letterlike_Symbols",
+    c"Number_Forms",
+    c"Arrows",
+    c"Mathematical_Operators",
+    c"Miscellaneous_Technical",
+    c"Control_Pictures",
+    c"Optical_Character_Recognition",
+    c"Enclosed_Alphanumerics",
+    c"Box_Drawing",
+    c"Block_Elements",
+    c"Geometric_Shapes",
+    c"Miscellaneous_Symbols",
+    c"Dingbats",
+    c"CJK_Symbols_And_Punctuation",
+    c"Hiragana",
+    c"Katakana",
+    c"Bopomofo",
+    c"Hangul_Compatibility_Jamo",
+    c"Phags_pa",
+    c"Enclosed_CJK_Letters_And_Months",
+    c"CJK_Compatibility",
+    c"Hangul_Syllables",
+    c"Non_Plane_0",
+    c"Phoenician",
+    c"CJK_Unified_Ideographs",
+    c"Private_Use_Area_p0",
+    c"CJK_Strokes",
+    c"Alphabetic_Presentation_Forms",
+    c"Arabic_Presentation_Forms_A",
 ];
-#[unsafe(no_mangle)]
-pub static mut unicodeRangeLabels3: [*const ::core::ffi::c_char; 33] = [
-    b"Combining_Half_Marks\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Vertical_Forms_and_CJK_Compatibility_Forms\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Small_Form_Variants\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Arabic_Presentation_Forms_B\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Halfwidth_And_Fullwidth_Forms\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Specials\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Tibetan\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Syriac\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Thaana\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Sinhala\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Myanmar\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Ethiopic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Cherokee\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Unified_Canadian_Aboriginal_Syllabics\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Ogham\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Runic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Khmer\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Mongolian\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Braille_Patterns\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Yi_Syllables\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Tagalog\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Old_Italic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Gothic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Deseret\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Musical_Symbols\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Mathematical_Alphanumeric_Symbols\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Private_Use_p15_and_p16\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Variation_Selectors\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Tags\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Limbu\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Tai_Le\0" as *const u8 as *const ::core::ffi::c_char,
-    b"New_Tai_Lue\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+pub static unicodeRangeLabels3: [&::core::ffi::CStr; 32] = [
+    c"Combining_Half_Marks",
+    c"Vertical_Forms_and_CJK_Compatibility_Forms",
+    c"Small_Form_Variants",
+    c"Arabic_Presentation_Forms_B",
+    c"Halfwidth_And_Fullwidth_Forms",
+    c"Specials",
+    c"Tibetan",
+    c"Syriac",
+    c"Thaana",
+    c"Sinhala",
+    c"Myanmar",
+    c"Ethiopic",
+    c"Cherokee",
+    c"Unified_Canadian_Aboriginal_Syllabics",
+    c"Ogham",
+    c"Runic",
+    c"Khmer",
+    c"Mongolian",
+    c"Braille_Patterns",
+    c"Yi_Syllables",
+    c"Tagalog",
+    c"Old_Italic",
+    c"Gothic",
+    c"Deseret",
+    c"Musical_Symbols",
+    c"Mathematical_Alphanumeric_Symbols",
+    c"Private_Use_p15_and_p16",
+    c"Variation_Selectors",
+    c"Tags",
+    c"Limbu",
+    c"Tai_Le",
+    c"New_Tai_Lue",
 ];
-#[unsafe(no_mangle)]
-pub static mut unicodeRangeLabels4: [*const ::core::ffi::c_char; 28] = [
-    b"Buginese\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Glagolitic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Tifinagh\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Yijing_Hexagram_Symbols\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Syloti_Nagri\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Linear_B_Syllabary_Ideograms_and_Aegean_Numbers\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Ancient_Greek_Numbers\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Ugaritic\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Old_Persian\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Shavian\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Osmanya\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Cypriot_Syllabary\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Kharoshthi\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Tai_Xuan_Jing_Symbols\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Cuneiform\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Counting_Rod_Numerals\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Sundanese\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Lepcha\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Ol_Chiki\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Saurashtra\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Kayah_Li\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Rejang\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Cham\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Ancient_Symbols\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Phaistos_Disc\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Carian_and_Lycian\0" as *const u8 as *const ::core::ffi::c_char,
-    b"Domino_and_Mahjong_Tiles\0" as *const u8 as *const ::core::ffi::c_char,
-    ::core::ptr::null::<::core::ffi::c_char>(),
+pub static unicodeRangeLabels4: [&::core::ffi::CStr; 27] = [
+    c"Buginese",
+    c"Glagolitic",
+    c"Tifinagh",
+    c"Yijing_Hexagram_Symbols",
+    c"Syloti_Nagri",
+    c"Linear_B_Syllabary_Ideograms_and_Aegean_Numbers",
+    c"Ancient_Greek_Numbers",
+    c"Ugaritic",
+    c"Old_Persian",
+    c"Shavian",
+    c"Osmanya",
+    c"Cypriot_Syllabary",
+    c"Kharoshthi",
+    c"Tai_Xuan_Jing_Symbols",
+    c"Cuneiform",
+    c"Counting_Rod_Numerals",
+    c"Sundanese",
+    c"Lepcha",
+    c"Ol_Chiki",
+    c"Saurashtra",
+    c"Kayah_Li",
+    c"Rejang",
+    c"Cham",
+    c"Ancient_Symbols",
+    c"Phaistos_Disc",
+    c"Carian_and_Lycian",
+    c"Domino_and_Mahjong_Tiles",
 ];
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpOS_2(
@@ -658,7 +642,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"fsType\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).fsType as ::core::ffi::c_int,
-                &raw mut fsTypeLabels as *mut *const ::core::ffi::c_char,
+                &fsTypeLabels,
             ),
         );
         json_object_push(
@@ -735,7 +719,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulUnicodeRange1\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulUnicodeRange1 as ::core::ffi::c_int,
-                &raw mut unicodeRangeLabels1 as *mut *const ::core::ffi::c_char,
+                &unicodeRangeLabels1,
             ),
         );
         json_object_push(
@@ -743,7 +727,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulUnicodeRange2\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulUnicodeRange2 as ::core::ffi::c_int,
-                &raw mut unicodeRangeLabels2 as *mut *const ::core::ffi::c_char,
+                &unicodeRangeLabels2,
             ),
         );
         json_object_push(
@@ -751,7 +735,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulUnicodeRange3\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulUnicodeRange3 as ::core::ffi::c_int,
-                &raw mut unicodeRangeLabels3 as *mut *const ::core::ffi::c_char,
+                &unicodeRangeLabels3,
             ),
         );
         json_object_push(
@@ -759,7 +743,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulUnicodeRange4\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulUnicodeRange4 as ::core::ffi::c_int,
-                &raw mut unicodeRangeLabels4 as *mut *const ::core::ffi::c_char,
+                &unicodeRangeLabels4,
             ),
         );
         let mut vendorid: sds = sdsnewlen(
@@ -777,7 +761,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"fsSelection\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).fsSelection as ::core::ffi::c_int,
-                &raw mut fsSelectionLabels as *mut *const ::core::ffi::c_char,
+                &fsSelectionLabels,
             ),
         );
         json_object_push(
@@ -820,7 +804,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulCodePageRange1\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulCodePageRange1 as ::core::ffi::c_int,
-                &raw mut codePageLabels1 as *mut *const ::core::ffi::c_char,
+                &codePageLabels1,
             ),
         );
         json_object_push(
@@ -828,7 +812,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulCodePageRange2\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulCodePageRange2 as ::core::ffi::c_int,
-                &raw mut codePageLabels2 as *mut *const ::core::ffi::c_char,
+                &codePageLabels2,
             ),
         );
         json_object_push(
@@ -927,7 +911,7 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
                     table,
                     b"fsType\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &raw mut fsTypeLabels as *mut *const ::core::ffi::c_char,
+                &fsTypeLabels,
             ) as u16;
             (*os_2).ySubscriptXSize = json_obj_getnum_fallback(
                 table,
@@ -989,7 +973,7 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
                     table,
                     b"fsSelection\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &raw mut fsSelectionLabels as *mut *const ::core::ffi::c_char,
+                &fsSelectionLabels,
             ) as u16;
             (*os_2).usFirstCharIndex = json_obj_getnum_fallback(
                 table,
@@ -1031,42 +1015,42 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
                     table,
                     b"ulCodePageRange1\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &raw mut codePageLabels1 as *mut *const ::core::ffi::c_char,
+                &codePageLabels1,
             );
             (*os_2).ulCodePageRange2 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulCodePageRange2\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &raw mut codePageLabels2 as *mut *const ::core::ffi::c_char,
+                &codePageLabels2,
             );
             (*os_2).ulUnicodeRange1 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange1\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &raw mut unicodeRangeLabels1 as *mut *const ::core::ffi::c_char,
+                &unicodeRangeLabels1,
             );
             (*os_2).ulUnicodeRange2 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange2\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &raw mut unicodeRangeLabels2 as *mut *const ::core::ffi::c_char,
+                &unicodeRangeLabels2,
             );
             (*os_2).ulUnicodeRange3 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange3\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &raw mut unicodeRangeLabels3 as *mut *const ::core::ffi::c_char,
+                &unicodeRangeLabels3,
             );
             (*os_2).ulUnicodeRange4 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange4\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &raw mut unicodeRangeLabels4 as *mut *const ::core::ffi::c_char,
+                &unicodeRangeLabels4,
             );
             (*os_2).sxHeight = json_obj_getnum_fallback(
                 table,
@@ -1295,79 +1279,4 @@ unsafe extern "C" fn json_obj_getnum_fallback(
         _k = _k.wrapping_add(1);
     }
     return fallback;
-}
-#[inline]
-unsafe extern "C" fn json_obj_getbool(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> bool {
-    if obj.is_null()
-        || (*obj).type_0 as ::core::ffi::c_uint
-            != json_object as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        return false;
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        let mut cv: *mut json_value =
-            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            if !cv.is_null()
-                && (*cv).type_0 as ::core::ffi::c_uint
-                    == json_boolean as ::core::ffi::c_int as ::core::ffi::c_uint
-            {
-                return (*cv).u.boolean != 0;
-            }
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return false;
-}
-#[inline]
-unsafe extern "C" fn otfcc_dump_flags(
-    mut flags: ::core::ffi::c_int,
-    mut labels: *mut *const ::core::ffi::c_char,
-) -> *mut json_value {
-    let mut v: *mut json_value = json_object_new(0 as usize);
-    let mut j: u16 = 0 as u16;
-    while !(*labels.offset(j as isize)).is_null() {
-        if flags & (1 as ::core::ffi::c_int) << j as ::core::ffi::c_int != 0 {
-            json_object_push(v, *labels.offset(j as isize), json_boolean_new(true_0));
-        }
-        j = j.wrapping_add(1);
-    }
-    return v;
-}
-#[inline]
-unsafe extern "C" fn otfcc_parse_flags(
-    mut v: *const json_value,
-    mut labels: *mut *const ::core::ffi::c_char,
-) -> u32 {
-    if v.is_null() {
-        return 0 as u32;
-    }
-    if (*v).type_0 as ::core::ffi::c_uint
-        == json_integer as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        return (*v).u.integer as u32;
-    } else if (*v).type_0 as ::core::ffi::c_uint
-        == json_double as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        return (*v).u.dbl as u32;
-    } else if (*v).type_0 as ::core::ffi::c_uint
-        == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        let mut flags: u32 = 0 as u32;
-        let mut j: u16 = 0 as u16;
-        while !(*labels.offset(j as isize)).is_null() {
-            if json_obj_getbool(v, *labels.offset(j as isize)) {
-                flags |= ((1 as ::core::ffi::c_int) << j as ::core::ffi::c_int) as u32;
-            }
-            j = j.wrapping_add(1);
-        }
-        return flags;
-    } else {
-        return 0 as u32;
-    };
 }

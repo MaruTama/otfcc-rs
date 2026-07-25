@@ -102,11 +102,10 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     }
     return 0 as usize;
 }
-#[unsafe(no_mangle)]
-pub static mut otfcc_LoggerTypeNames: [*const ::core::ffi::c_char; 3] = [
-    b"[ERROR]\0" as *const u8 as *const ::core::ffi::c_char,
-    b"[WARNING]\0" as *const u8 as *const ::core::ffi::c_char,
-    b"[NOTE]\0" as *const u8 as *const ::core::ffi::c_char,
+pub static otfcc_LoggerTypeNames: [&::core::ffi::CStr; 3] = [
+    c"[ERROR]",
+    c"[WARNING]",
+    c"[NOTE]",
 ];
 unsafe extern "C" fn loggerIndent(
     mut _self: *mut otfcc_ILogger,

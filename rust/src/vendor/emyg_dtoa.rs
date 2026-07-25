@@ -124,7 +124,7 @@ unsafe extern "C" fn GetCachedPower(
     mut e: ::core::ffi::c_int,
     mut K: *mut ::core::ffi::c_int,
 ) -> DiyFp {
-    static mut kCachedPowers_F: [u64; 87] = [
+    static kCachedPowers_F: [u64; 87] = [
         (0xfa8fd5a0 as ::core::ffi::c_uint as u64) << 32 as ::core::ffi::c_int
             | 0x81c0288 as ::core::ffi::c_int as u64,
         (0xbaaee17f as ::core::ffi::c_uint as u64) << 32 as ::core::ffi::c_int
@@ -300,7 +300,7 @@ unsafe extern "C" fn GetCachedPower(
         (0xaf87023b as ::core::ffi::c_uint as u64) << 32 as ::core::ffi::c_int
             | 0x9bf0ee6b as ::core::ffi::c_uint as u64,
     ];
-    static mut kCachedPowers_E: [i16; 87] = [
+    static kCachedPowers_E: [i16; 87] = [
         -(1220 as ::core::ffi::c_int) as i16,
         -(1193 as ::core::ffi::c_int) as i16,
         -(1166 as ::core::ffi::c_int) as i16,
@@ -463,7 +463,7 @@ unsafe extern "C" fn DigitGen(
     mut len: *mut ::core::ffi::c_int,
     mut K: *mut ::core::ffi::c_int,
 ) {
-    static mut kPow10: [u32; 10] = [
+    static kPow10: [u32; 10] = [
         1 as ::core::ffi::c_int as u32,
         10 as ::core::ffi::c_int as u32,
         100 as ::core::ffi::c_int as u32,
@@ -598,7 +598,7 @@ unsafe extern "C" fn Grisu2(
 }
 #[inline]
 unsafe extern "C" fn GetDigitsLut() -> *const ::core::ffi::c_char {
-    static mut cDigitsLut: [::core::ffi::c_char; 200] = [
+    static cDigitsLut: [::core::ffi::c_char; 200] = [
         '0' as i32 as ::core::ffi::c_char,
         '0' as i32 as ::core::ffi::c_char,
         '0' as i32 as ::core::ffi::c_char,

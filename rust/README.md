@@ -254,7 +254,8 @@ transpile step itself needs arm64.
   payload produced and reports a single pass/fail summary.
 - `compare-with-c.sh` — builds the C toolchain **with clang** and compares
   its output against an already-built Rust crate byte-for-byte, on the same
-  machine. Defaults to clang, not gcc: c2rust's transpile is based on parsing
+  machine. Both directions: `otfccdump`'s JSON, and the font that `otfccbuild`
+  produces from the C dump. Defaults to clang, not gcc: c2rust's transpile is based on parsing
   with clang's AST, and gcc vs clang produce measurably different
   floating-point rounding in this codebase (verified: a gcc build differs
   byte-for-byte from a clang build of the *identical* source on the
@@ -440,7 +441,7 @@ the CI-matching Linux container:
   the same export list as the one before it, which is what makes "this changed
   nothing observable" a checked claim rather than an assertion. The count only
   moves when a symbol is deliberately internalized, and then the diff is small
-  enough to read: 574 at the start, 566 now.
+  enough to read: 574 at the start, 554 now.
 - **Standard cargo layout**: `src/lib.rs` + `src/bin/` + `src/ffi/` +
   `src/vendor/`, replacing c2rust's `src::lib::` / `src::dep::r#extern::` /
   `src::src::` scaffolding. See "Crate layout" above.
@@ -528,10 +529,9 @@ the CI-matching Linux container:
   was decided by the compiler, not by reading the types: convert them all, then
   revert what rustc rejects. A struct of fn pointers is `Sync` and the same
   struct with one raw pointer field is not, and the two declarations look
-  identical. 19 stay, all because their type holds a raw pointer
-  (`[*const c_char; N]` tables of JSON key names); the fix there is
-  `&'static CStr` and a slice instead of the NUL-terminated
-  `*mut *const c_char` that `otfcc_dump_flags` walks. Also gone: the
+  identical. The 19 that stayed held raw pointers — `[*const c_char; N]`
+  tables of JSON key names — and are now `[&CStr; N]`, which *is* `Sync`; see
+  the next bullet. Also gone: the
   `.init_array` / `.CRT$XIB` / `__DATA,__mod_init_func` hack that existed to
   assign `json_builder_extra` before `main`, which in Rust is a `const`
   (`size_of` is a compile-time question).
@@ -542,6 +542,29 @@ the CI-matching Linux container:
   collide with another object's; and `extern "C" { … }` →
   `unsafe extern "C" { … }` (107 blocks), because writing down a foreign
   signature is the unsafe act and getting it wrong is UB at every call site.
+
+- **The label tables are `&CStr` slices.** Sixteen `static mut
+  [*const c_char; N]` tables — eleven naming the bits of a flag field, five
+  indexed by a code (CFF standard strings, Macintosh glyph names, TrueType
+  instruction mnemonics) — became `static [&CStr; N]`. The flag tables were
+  NUL-terminated so that `otfcc_dump_flags`/`otfcc_parse_flags` could walk them
+  without being told a length; every one was dense up to a single trailing null
+  (checked entry by entry), so a slice carries the same information and the
+  sentinel is gone.
+
+  Those two helpers are `static inline` in `json-funcs.h`, so there were three
+  copies of each plus seven of the `json_obj_getbool` they call, all textually
+  identical; they live in `support/json_funcs.rs` now. Two copies had been
+  reaching another module's tables by declaring them
+  `extern "C" { static mut X: [*const c_char; 0] }` — a length-0 array
+  declaration typechecks against anything, and it went through the linker
+  rather than the module system.
+
+  This is also where `compare-with-c.sh` grew a check it should always have
+  had: the canonical JSON both builds consume is dumped by the *C* tool, so
+  nothing compared `otfccdump`'s own output between implementations. A changed
+  JSON key would only have been caught if it also changed the build result.
+  It is compared now, and matches byte-for-byte on all eight payloads.
 
   The third, `unsafe_op_in_unsafe_fn`, fires **48,000 times**, and it is the one
   worth having: it separates "this function is unsafe to call" from "this line is
@@ -586,11 +609,9 @@ on the other platform before a commit is trusted.
   12 formerly-anonymous ones, become `#[repr(u*)] enum` with `TryFrom`. Values
   read from a font file must never be `transmute`d — unknown values have to
   keep taking the same branch the C code takes.
-- **The last 19 `static mut`** — the `[*const c_char; N]` label tables, which
-  need `&'static CStr` (`c"…"` literals) and a slice in place of the
-  NUL-terminated `*mut *const c_char` that `otfcc_dump_flags`/`otfcc_parse_flags`
-  walk. Those two functions are also still copied into four files each, a C
-  `static inline` that c2rust duplicated per translation unit.
+- **The rest of `json-funcs.h`**: `json_obj_get` still has 32 identical
+  copies, and `json_obj_getnum`/`json_obj_getint`/`…_fallback` nine each. Same
+  consolidation as the flag helpers, just more of it.
 - **Rust naming**, once each type exists in one place: `otfcc_Options` →
   `Options`, functions → inherent methods, fields → snake_case. Then the
   crate-level `allow(non_camel_case_types)`/`non_snake_case`/
