@@ -8,7 +8,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static iVQ: __caryll_vectorinterface_VQ;
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;

@@ -8,7 +8,6 @@ use crate::table::meta::types::{__caryll_elementinterface_table_meta, __caryll_v
 extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static meta_iEntries: __caryll_vectorinterface_meta_Entries;
     static table_iMeta: __caryll_elementinterface_table_meta;
     fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;

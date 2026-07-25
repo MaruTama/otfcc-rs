@@ -1,7 +1,6 @@
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(

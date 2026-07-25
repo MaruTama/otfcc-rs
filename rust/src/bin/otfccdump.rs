@@ -27,7 +27,6 @@ extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn otfcc_newLogger(target: *mut otfcc_ILoggerTarget) -> *mut otfcc_ILogger;
     fn otfcc_newStdErrTarget() -> *mut otfcc_ILoggerTarget;
     fn otfcc_newOptions() -> *mut otfcc_Options;

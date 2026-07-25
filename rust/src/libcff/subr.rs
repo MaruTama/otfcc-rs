@@ -1,7 +1,6 @@
 use libc::{exit, free, malloc, memcmp, memcpy, memset, strncmp};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
     fn buflen(buf: *mut caryll_Buffer) -> usize;

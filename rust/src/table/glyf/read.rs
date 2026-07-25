@@ -1,7 +1,6 @@
 use libc::{free, memcpy};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn otfcc_from_f2dot14(x: f2dot14) -> ::core::ffi::c_double;
     fn otfcc_from_fixed(x: f16dot16) -> ::core::ffi::c_double;
     fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16;

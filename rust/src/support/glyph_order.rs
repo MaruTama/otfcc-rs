@@ -2,7 +2,6 @@ use libc::{exit, free, malloc, memcmp, memcpy, memset};
 extern "C" {
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
 }
 
 use crate::support::handle::{handle_consolidateTo, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_CONSOLIDATED, HANDLE_STATE_NAME, HANDLE_STATE_INDEX};

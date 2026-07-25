@@ -3,7 +3,6 @@ extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn sdsfromlonglong(value: ::core::ffi::c_longlong) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);

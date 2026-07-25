@@ -3,7 +3,6 @@ extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
     fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
     fn otfcc_build_gsub_single_subtable(

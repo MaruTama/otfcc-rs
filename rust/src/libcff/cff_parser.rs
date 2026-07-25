@@ -3,7 +3,6 @@ extern "C" {
     fn sqrt(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static cff_iIndex: __caryll_elementinterface_cff_Index;
     static cff_iDict: __caryll_elementinterface_cff_Dict;
     fn cff_close_Charset(cset: cff_Charset);

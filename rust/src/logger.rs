@@ -4,7 +4,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
     fn sdscat(s: sds, t: *const ::core::ffi::c_char) -> sds;
-    fn sdscatfmt(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
 }
 
 use crate::support::stdio::{stderr};

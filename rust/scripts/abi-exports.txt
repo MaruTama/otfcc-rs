@@ -467,12 +467,9 @@ sdsIncrLen
 sdsMakeRoomFor
 sdsRemoveFreeSpace
 sdscat
-sdscatfmt
 sdscatlen
-sdscatprintf
 sdscatrepr
 sdscatsds
-sdscatvprintf
 sdsclear
 sdscmp
 sdscpy

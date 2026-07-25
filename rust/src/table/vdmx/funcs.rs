@@ -1,7 +1,6 @@
 use libc::{strcmp};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static vdmx_iGroup: __caryll_vectorinterface_vdmx_Group;
     static vdmx_iRatioRange: __caryll_elementinterface_vdmx_RatioRange;
     static vdmx_iRatioRangeList: __caryll_vectorinterface_vdmx_RatioRagneList;

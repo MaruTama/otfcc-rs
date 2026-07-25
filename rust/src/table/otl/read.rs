@@ -1,7 +1,6 @@
 use libc::{free};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList;
     static otl_iLookupPtr: __caryll_elementinterface_otl_LookupPtr;
     static otl_iLookupList: __caryll_vectorinterface_otl_LookupList;

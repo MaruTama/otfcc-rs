@@ -1,7 +1,6 @@
 use libc::{free, time, time_t};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static glyf_iComponentReference: __caryll_elementinterface_glyf_ComponentReference;
     static iVQ: __caryll_vectorinterface_VQ;
     static otfcc_iFont: __caryll_elementinterface_otfcc_Font;

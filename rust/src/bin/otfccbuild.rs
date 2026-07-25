@@ -16,7 +16,6 @@ extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn json_parse(json: *const ::core::ffi::c_char, length: usize) -> *mut json_value;
     fn json_value_free(_: *mut json_value);
     fn otfcc_newLogger(target: *mut otfcc_ILoggerTarget) -> *mut otfcc_ILogger;

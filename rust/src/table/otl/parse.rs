@@ -9,7 +9,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn json_ident(a: *const json_value, b: *const json_value) -> bool;
     static otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList;
     static otl_iLookupPtr: __caryll_elementinterface_otl_LookupPtr;

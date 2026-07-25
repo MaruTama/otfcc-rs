@@ -6,7 +6,6 @@ extern "C" {
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
     fn sdscat(s: sds, t: *const ::core::ffi::c_char) -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
     fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds);

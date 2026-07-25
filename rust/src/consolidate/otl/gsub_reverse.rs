@@ -1,7 +1,6 @@
 use libc::{exit, free, malloc, memcmp, memset};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn fontop_consolidateCoverage(
         font: *mut otfcc_Font,
         coverage: *mut otl_Coverage,

@@ -19,7 +19,6 @@ extern "C" {
     fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
     fn json_builder_free(_: *mut json_value);
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn otl_gsub_dump_single(_subtable: *const otl_Subtable) -> *mut json_value;
     fn otl_gsub_dump_multi(_subtable: *const otl_Subtable) -> *mut json_value;
     fn otl_gsub_dump_ligature(_subtable: *const otl_Subtable) -> *mut json_value;

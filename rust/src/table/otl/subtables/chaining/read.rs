@@ -1,7 +1,6 @@
 use libc::{free};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
     static otl_iClassDef: __otfcc_IClassDef;
     static iSubtable_chaining: __caryll_elementinterface_subtable_chaining;

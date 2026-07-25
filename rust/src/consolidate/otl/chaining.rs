@@ -1,7 +1,6 @@
 use libc::{strcmp};
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
     fn fontop_consolidateCoverage(
         font: *mut otfcc_Font,

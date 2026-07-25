@@ -1,6 +1,5 @@
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
     static iSubtable_gsub_ligature: __caryll_vectorinterface_subtable_gsub_ligature;
     static otl_iCoverage: __otfcc_ICoverage;

@@ -3,7 +3,6 @@ extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn bufwrite_bytes(buf: *mut caryll_Buffer, size: usize, str: *const u8);
     fn json_object_push(

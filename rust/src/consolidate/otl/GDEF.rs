@@ -3,7 +3,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
     static otl_iClassDef: __otfcc_IClassDef;
     static otl_iCaretValueList: __caryll_vectorinterface_otl_CaretValueList;

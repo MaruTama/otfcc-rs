@@ -4,8 +4,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
-    fn sdscatfmt(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn otfcc_to_f2dot14(x: ::core::ffi::c_double) -> i16;
     fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16;
     static iVQ: __caryll_vectorinterface_VQ;

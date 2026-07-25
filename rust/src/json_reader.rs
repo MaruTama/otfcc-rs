@@ -3,7 +3,6 @@ extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
     static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
     fn otfcc_parseHead(root: *const json_value, options: *const otfcc_Options) -> *mut table_head;

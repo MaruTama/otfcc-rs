@@ -5,8 +5,6 @@ extern "C" {
     fn sdsempty() -> sds;
     fn sdsdup(s: sds) -> sds;
     fn sdsfree(s: sds);
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
-    fn sdscatfmt(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static tsi_iEntry: __caryll_elementinterface_tsi_Entry;
     static table_iTSI: __caryll_vectorinterface_table_TSI;
     static glyf_iContourList: __caryll_vectorinterface_glyf_ContourList;

@@ -1,6 +1,5 @@
 extern "C" {
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
 }
 use crate::table::otl::coverage::{otl_Coverage};

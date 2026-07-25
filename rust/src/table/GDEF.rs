@@ -2,7 +2,6 @@ use libc::{free, malloc, memcpy, memset, qsort, strcmp};
 extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
-    fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     static otl_iCoverage: __otfcc_ICoverage;
     static otl_iClassDef: __otfcc_IClassDef;
     fn json_array_new(length: usize) -> *mut json_value;
