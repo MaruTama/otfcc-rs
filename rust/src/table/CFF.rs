@@ -3237,41 +3237,52 @@ unsafe extern "C" fn cffdict_givemeablank(mut dict: *mut cff_Dict) -> *mut cff_D
         .offset((*dict).count.wrapping_sub(1 as u32) as isize)
         as *mut cff_DictEntry;
 }
-unsafe extern "C" fn cffdict_input(
-    mut dict: *mut cff_Dict,
-    mut op: u32,
-    mut t: cff_Value_Type,
-    mut arity: arity_t,
-    mut args: ...
-) {
-    let mut last: *mut cff_DictEntry = cffdict_givemeablank(dict);
+/// Append a DICT entry whose operands are numbers.
+///
+/// Was `cffdict_input(dict, op, t, arity, ...)`: a count, a value type, and that
+/// many varargs read as `c_double` or `c_int` depending on `t`. Every one of the
+/// 30 call sites passes either `cff_DOUBLE` with `pos_t` operands or
+/// `cff_INTEGER` with integer ones, so the runtime branch on `t` is really two
+/// functions -- this one and [`cffdict_input_ints`] -- and the count is the
+/// slice's length.
+unsafe fn cffdict_input_doubles(dict: *mut cff_Dict, op: u32, values: &[f64]) {
+    let last: *mut cff_DictEntry = cffdict_givemeablank(dict);
     (*last).op = op;
-    (*last).cnt = arity as u32;
+    (*last).cnt = values.len() as u32;
     (*last).vals = __caryll_allocate_clean(
-        (::core::mem::size_of::<cff_Value>() as usize).wrapping_mul(arity as usize),
+        (::core::mem::size_of::<cff_Value>() as usize).wrapping_mul(values.len()),
         966 as ::core::ffi::c_ulong,
     ) as *mut cff_Value;
-    let mut ap: ::core::ffi::VaListImpl;
-    ap = args.clone();
-    let mut j: arity_t = 0 as arity_t;
-    while j < arity {
-        if t as ::core::ffi::c_uint == cff_DOUBLE as ::core::ffi::c_int as ::core::ffi::c_uint {
-            let mut x: ::core::ffi::c_double = ap.arg::<::core::ffi::c_double>();
-            if x == round(x) {
-                (*(*last).vals.offset(j as isize)).t = cff_INTEGER;
-                (*(*last).vals.offset(j as isize)).c2rust_unnamed.i = round(x) as i32;
-            } else {
-                (*(*last).vals.offset(j as isize)).t = cff_DOUBLE;
-                (*(*last).vals.offset(j as isize)).c2rust_unnamed.d = x;
-            }
+    for (j, &x) in values.iter().enumerate() {
+        let slot = (*last).vals.add(j);
+        // A whole number is stored as an integer, which is what decides whether
+        // the DICT is encoded with an integer or a real operand later.
+        if x == round(x) {
+            (*slot).t = cff_INTEGER;
+            (*slot).c2rust_unnamed.i = round(x) as i32;
         } else {
-            let mut x_0: ::core::ffi::c_int = ap.arg::<::core::ffi::c_int>();
-            (*(*last).vals.offset(j as isize)).t = t;
-            (*(*last).vals.offset(j as isize)).c2rust_unnamed.i = x_0 as i32;
+            (*slot).t = cff_DOUBLE;
+            (*slot).c2rust_unnamed.d = x;
         }
-        j = j.wrapping_add(1);
     }
 }
+
+/// Append a DICT entry whose operands are integers. See [`cffdict_input_doubles`].
+unsafe fn cffdict_input_ints(dict: *mut cff_Dict, op: u32, values: &[i32]) {
+    let last: *mut cff_DictEntry = cffdict_givemeablank(dict);
+    (*last).op = op;
+    (*last).cnt = values.len() as u32;
+    (*last).vals = __caryll_allocate_clean(
+        (::core::mem::size_of::<cff_Value>() as usize).wrapping_mul(values.len()),
+        966 as ::core::ffi::c_ulong,
+    ) as *mut cff_Value;
+    for (j, &x) in values.iter().enumerate() {
+        let slot = (*last).vals.add(j);
+        (*slot).t = cff_INTEGER;
+        (*slot).c2rust_unnamed.i = x;
+    }
+}
+
 unsafe extern "C" fn cffdict_input_array(
     mut dict: *mut cff_Dict,
     mut op: u32,
@@ -3314,173 +3325,49 @@ unsafe extern "C" fn cff_make_fd_dict(
     let mut dict: *mut cff_Dict = (
         cff_iDict.create.expect("non-null function pointer"))();
     if !(*fd).cidRegistry.is_null() && !(*fd).cidOrdering.is_null() {
-        cffdict_input(
-            dict,
-            op_ROS as ::core::ffi::c_int as u32,
-            cff_INTEGER,
-            3 as arity_t,
-            sidof(h, (*fd).cidRegistry),
-            sidof(h, (*fd).cidOrdering),
-            (*fd).cidSupplement,
-        );
+        cffdict_input_ints(dict, op_ROS as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).cidRegistry)) as i32, (sidof(h, (*fd).cidOrdering)) as i32, ((*fd).cidSupplement) as i32]);
     }
     if !(*fd).version.is_null() {
-        cffdict_input(
-            dict,
-            op_version as ::core::ffi::c_int as u32,
-            cff_INTEGER,
-            1 as arity_t,
-            sidof(h, (*fd).version),
-        );
+        cffdict_input_ints(dict, op_version as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).version)) as i32]);
     }
     if !(*fd).notice.is_null() {
-        cffdict_input(
-            dict,
-            op_Notice as ::core::ffi::c_int as u32,
-            cff_INTEGER,
-            1 as arity_t,
-            sidof(h, (*fd).notice),
-        );
+        cffdict_input_ints(dict, op_Notice as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).notice)) as i32]);
     }
     if !(*fd).copyright.is_null() {
-        cffdict_input(
-            dict,
-            op_Copyright as ::core::ffi::c_int as u32,
-            cff_INTEGER,
-            1 as arity_t,
-            sidof(h, (*fd).copyright),
-        );
+        cffdict_input_ints(dict, op_Copyright as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).copyright)) as i32]);
     }
     if !(*fd).fullName.is_null() {
-        cffdict_input(
-            dict,
-            op_FullName as ::core::ffi::c_int as u32,
-            cff_INTEGER,
-            1 as arity_t,
-            sidof(h, (*fd).fullName),
-        );
+        cffdict_input_ints(dict, op_FullName as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).fullName)) as i32]);
     }
     if !(*fd).familyName.is_null() {
-        cffdict_input(
-            dict,
-            op_FamilyName as ::core::ffi::c_int as u32,
-            cff_INTEGER,
-            1 as arity_t,
-            sidof(h, (*fd).familyName),
-        );
+        cffdict_input_ints(dict, op_FamilyName as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).familyName)) as i32]);
     }
     if !(*fd).weight.is_null() {
-        cffdict_input(
-            dict,
-            op_Weight as ::core::ffi::c_int as u32,
-            cff_INTEGER,
-            1 as arity_t,
-            sidof(h, (*fd).weight),
-        );
+        cffdict_input_ints(dict, op_Weight as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).weight)) as i32]);
     }
-    cffdict_input(
-        dict,
-        op_FontBBox as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        4 as arity_t,
-        (*fd).fontBBoxLeft,
-        (*fd).fontBBoxBottom,
-        (*fd).fontBBoxRight,
-        (*fd).fontBBoxTop,
-    );
-    cffdict_input(
-        dict,
-        op_isFixedPitch as ::core::ffi::c_int as u32,
-        cff_INTEGER,
-        1 as arity_t,
-        (*fd).isFixedPitch as ::core::ffi::c_int,
-    );
-    cffdict_input(
-        dict,
-        op_ItalicAngle as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*fd).italicAngle,
-    );
-    cffdict_input(
-        dict,
-        op_UnderlinePosition as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*fd).underlinePosition,
-    );
-    cffdict_input(
-        dict,
-        op_UnderlineThickness as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*fd).underlineThickness,
-    );
-    cffdict_input(
-        dict,
-        op_StrokeWidth as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*fd).strokeWidth,
-    );
+    cffdict_input_doubles(dict, op_FontBBox as ::core::ffi::c_int as u32, &[((*fd).fontBBoxLeft) as f64, ((*fd).fontBBoxBottom) as f64, ((*fd).fontBBoxRight) as f64, ((*fd).fontBBoxTop) as f64]);
+    cffdict_input_ints(dict, op_isFixedPitch as ::core::ffi::c_int as u32, &[((*fd).isFixedPitch as ::core::ffi::c_int) as i32]);
+    cffdict_input_doubles(dict, op_ItalicAngle as ::core::ffi::c_int as u32, &[((*fd).italicAngle) as f64]);
+    cffdict_input_doubles(dict, op_UnderlinePosition as ::core::ffi::c_int as u32, &[((*fd).underlinePosition) as f64]);
+    cffdict_input_doubles(dict, op_UnderlineThickness as ::core::ffi::c_int as u32, &[((*fd).underlineThickness) as f64]);
+    cffdict_input_doubles(dict, op_StrokeWidth as ::core::ffi::c_int as u32, &[((*fd).strokeWidth) as f64]);
     if !(*fd).fontMatrix.is_null() {
-        cffdict_input(
-            dict,
-            op_FontMatrix as ::core::ffi::c_int as u32,
-            cff_DOUBLE,
-            6 as arity_t,
-            (*(*fd).fontMatrix).a,
-            (*(*fd).fontMatrix).b,
-            (*(*fd).fontMatrix).c,
-            (*(*fd).fontMatrix).d,
-            iVQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).x),
-            iVQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).y),
-        );
+        cffdict_input_doubles(dict, op_FontMatrix as ::core::ffi::c_int as u32, &[((*(*fd).fontMatrix).a) as f64, ((*(*fd).fontMatrix).b) as f64, ((*(*fd).fontMatrix).c) as f64, ((*(*fd).fontMatrix).d) as f64, (iVQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).x)) as f64, (iVQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).y)) as f64]);
     }
     if !(*fd).fontName.is_null() {
-        cffdict_input(
-            dict,
-            op_FontName as ::core::ffi::c_int as u32,
-            cff_INTEGER,
-            1 as arity_t,
-            sidof(h, (*fd).fontName),
-        );
+        cffdict_input_ints(dict, op_FontName as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).fontName)) as i32]);
     }
     if (*fd).cidFontVersion != 0. {
-        cffdict_input(
-            dict,
-            op_CIDFontVersion as ::core::ffi::c_int as u32,
-            cff_DOUBLE,
-            1 as arity_t,
-            (*fd).cidFontVersion,
-        );
+        cffdict_input_doubles(dict, op_CIDFontVersion as ::core::ffi::c_int as u32, &[((*fd).cidFontVersion) as f64]);
     }
     if (*fd).cidFontRevision != 0. {
-        cffdict_input(
-            dict,
-            op_CIDFontRevision as ::core::ffi::c_int as u32,
-            cff_DOUBLE,
-            1 as arity_t,
-            (*fd).cidFontRevision,
-        );
+        cffdict_input_doubles(dict, op_CIDFontRevision as ::core::ffi::c_int as u32, &[((*fd).cidFontRevision) as f64]);
     }
     if (*fd).cidCount != 0 {
-        cffdict_input(
-            dict,
-            op_CIDCount as ::core::ffi::c_int as u32,
-            cff_INTEGER,
-            1 as arity_t,
-            (*fd).cidCount,
-        );
+        cffdict_input_ints(dict, op_CIDCount as ::core::ffi::c_int as u32, &[((*fd).cidCount) as i32]);
     }
     if (*fd).UIDBase != 0 {
-        cffdict_input(
-            dict,
-            op_UIDBase as ::core::ffi::c_int as u32,
-            cff_INTEGER,
-            1 as arity_t,
-            (*fd).UIDBase,
-        );
+        cffdict_input_ints(dict, op_UIDBase as ::core::ffi::c_int as u32, &[((*fd).UIDBase) as i32]);
     }
     return dict;
 }
@@ -3535,83 +3422,17 @@ unsafe extern "C" fn cff_make_private_dict(mut pd: *mut cff_PrivateDict) -> *mut
         (*pd).stemSnapVCount,
         (*pd).stemSnapV,
     );
-    cffdict_input(
-        dict,
-        op_BlueScale as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*pd).blueScale,
-    );
-    cffdict_input(
-        dict,
-        op_BlueShift as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*pd).blueShift,
-    );
-    cffdict_input(
-        dict,
-        op_BlueFuzz as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*pd).blueFuzz,
-    );
-    cffdict_input(
-        dict,
-        op_StdHW as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*pd).stdHW,
-    );
-    cffdict_input(
-        dict,
-        op_StdVW as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*pd).stdVW,
-    );
-    cffdict_input(
-        dict,
-        op_ForceBold as ::core::ffi::c_int as u32,
-        cff_INTEGER,
-        1 as arity_t,
-        (*pd).forceBold as ::core::ffi::c_int,
-    );
-    cffdict_input(
-        dict,
-        op_LanguageGroup as ::core::ffi::c_int as u32,
-        cff_INTEGER,
-        1 as arity_t,
-        (*pd).languageGroup,
-    );
-    cffdict_input(
-        dict,
-        op_ExpansionFactor as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*pd).expansionFactor,
-    );
-    cffdict_input(
-        dict,
-        op_initialRandomSeed as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*pd).initialRandomSeed,
-    );
-    cffdict_input(
-        dict,
-        op_defaultWidthX as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*pd).defaultWidthX,
-    );
-    cffdict_input(
-        dict,
-        op_nominalWidthX as ::core::ffi::c_int as u32,
-        cff_DOUBLE,
-        1 as arity_t,
-        (*pd).nominalWidthX,
-    );
+    cffdict_input_doubles(dict, op_BlueScale as ::core::ffi::c_int as u32, &[((*pd).blueScale) as f64]);
+    cffdict_input_doubles(dict, op_BlueShift as ::core::ffi::c_int as u32, &[((*pd).blueShift) as f64]);
+    cffdict_input_doubles(dict, op_BlueFuzz as ::core::ffi::c_int as u32, &[((*pd).blueFuzz) as f64]);
+    cffdict_input_doubles(dict, op_StdHW as ::core::ffi::c_int as u32, &[((*pd).stdHW) as f64]);
+    cffdict_input_doubles(dict, op_StdVW as ::core::ffi::c_int as u32, &[((*pd).stdVW) as f64]);
+    cffdict_input_ints(dict, op_ForceBold as ::core::ffi::c_int as u32, &[((*pd).forceBold as ::core::ffi::c_int) as i32]);
+    cffdict_input_ints(dict, op_LanguageGroup as ::core::ffi::c_int as u32, &[((*pd).languageGroup) as i32]);
+    cffdict_input_doubles(dict, op_ExpansionFactor as ::core::ffi::c_int as u32, &[((*pd).expansionFactor) as f64]);
+    cffdict_input_doubles(dict, op_initialRandomSeed as ::core::ffi::c_int as u32, &[((*pd).initialRandomSeed) as f64]);
+    cffdict_input_doubles(dict, op_defaultWidthX as ::core::ffi::c_int as u32, &[((*pd).defaultWidthX) as f64]);
+    cffdict_input_doubles(dict, op_nominalWidthX as ::core::ffi::c_int as u32, &[((*pd).nominalWidthX) as f64]);
     return dict;
 }
 unsafe extern "C" fn by_sid(
