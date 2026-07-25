@@ -6,7 +6,6 @@
     unused_assignments,
     unused_mut
 )]
-#![feature(raw_ref_op)]
 #[allow(unused_imports)]
 use ::otfcc_rust;
 

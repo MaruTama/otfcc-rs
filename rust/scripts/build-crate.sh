@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the transpiled crate (release) with the pinned nightly toolchain in
+# Builds the transpiled crate (release) with the pinned stable toolchain in
 # rust-toolchain.toml. Requires only rustup + cargo — no c2rust/Docker needed;
 # works on any architecture.
 #

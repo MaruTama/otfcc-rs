@@ -1,3 +1,12 @@
 [toolchain]
-channel = "nightly-2023-04-15" # 1.70 (1.68 for syn v2.0, 1.70 for sparse registry)
+# Stable, not nightly: the three unstable features the transpiled crate needed
+# are all gone (`extern_types` -> the `libc` dependency, `raw_ref_op` -> stable
+# since 1.82, `c_variadic` -> PRs #29/#30/#31 removed all eight variadics).
+#
+# Pinned to an exact version rather than tracking "stable", for the same reason
+# Cargo.lock is committed and built with --locked: "byte-identical to C" must not
+# depend on whatever compiler happened to be current, and a new stable's new
+# warnings would otherwise break CI on a day nothing in the repo changed. Bump
+# deliberately. Edition 2024 sets the floor at 1.85.
+channel = "1.97.1"
 components = ["rustfmt"]
