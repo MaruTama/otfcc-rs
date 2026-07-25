@@ -1,185 +1,23 @@
+use libc::{free, malloc, memcpy, memset};
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
 }
 
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_16u, read_16s};
-pub type __uint8_t = u8;
-pub type __int16_t = i16;
-pub type __uint16_t = u16;
-pub type __int32_t = i32;
-pub type __uint32_t = u32;
-pub type int16_t = __int16_t;
-pub type int32_t = __int32_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
-pub type sds = *mut ::core::ffi::c_char;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
-}
-pub type f16dot16 = int32_t;
-pub type glyphid_t = uint16_t;
-pub type pos_t = ::core::ffi::c_double;
-pub type length_t = ::core::ffi::c_double;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILoggerTarget {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()>,
-}
-pub type otfcc_LoggerType = ::core::ffi::c_uint;
-pub const log_type_progress: otfcc_LoggerType = 3;
-pub const log_type_info: otfcc_LoggerType = 2;
-pub const log_type_warning: otfcc_LoggerType = 1;
-pub const log_type_error: otfcc_LoggerType = 0;
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed = 10;
-pub const log_vl_info: C2RustUnnamed = 5;
-pub const log_vl_notice: C2RustUnnamed = 2;
-pub const log_vl_important: C2RustUnnamed = 1;
-pub const log_vl_critical: C2RustUnnamed = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILogger {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub indent: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub indentSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub start: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub startSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub log: Option<
-        unsafe extern "C" fn(
-            *mut otfcc_ILogger,
-            uint8_t,
-            otfcc_LoggerType,
-            *const ::core::ffi::c_char,
-        ) -> (),
-    >,
-    pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
-    pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
-    pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Options {
-    pub debug_wait_on_start: bool,
-    pub ignore_glyph_order: bool,
-    pub ignore_hints: bool,
-    pub has_vertical_metrics: bool,
-    pub export_fdselect: bool,
-    pub keep_average_char_width: bool,
-    pub keep_unicode_ranges: bool,
-    pub short_post: bool,
-    pub dummy_DSIG: bool,
-    pub keep_modified_time: bool,
-    pub instr_as_bytes: bool,
-    pub verbose: bool,
-    pub quiet: bool,
-    pub cff_short_vmtx: bool,
-    pub merge_lookups: bool,
-    pub merge_features: bool,
-    pub force_cid: bool,
-    pub cff_rollCharString: bool,
-    pub cff_doSubroutinize: bool,
-    pub stub_cmap4: bool,
-    pub decimal_cmap: bool,
-    pub name_glyphs_by_hash: bool,
-    pub name_glyphs_by_gid: bool,
-    pub glyph_name_prefix: *mut ::core::ffi::c_char,
-    pub logger: *mut otfcc_ILogger,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
-    pub pieces: *mut otfcc_PacketPiece,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_vhea {
-    pub version: f16dot16,
-    pub ascent: int16_t,
-    pub descent: int16_t,
-    pub lineGap: int16_t,
-    pub advanceHeightMax: int16_t,
-    pub minTop: int16_t,
-    pub minBottom: int16_t,
-    pub yMaxExtent: int16_t,
-    pub caretSlopeRise: int16_t,
-    pub caretSlopeRun: int16_t,
-    pub caretOffset: int16_t,
-    pub dummy0: int16_t,
-    pub dummy1: int16_t,
-    pub dummy2: int16_t,
-    pub dummy3: int16_t,
-    pub metricDataFormat: int16_t,
-    pub numOfLongVerMetrics: uint16_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct table_maxp {
-    pub version: f16dot16,
-    pub numGlyphs: uint16_t,
-    pub maxPoints: uint16_t,
-    pub maxContours: uint16_t,
-    pub maxCompositePoints: uint16_t,
-    pub maxCompositeContours: uint16_t,
-    pub maxZones: uint16_t,
-    pub maxTwilightPoints: uint16_t,
-    pub maxStorage: uint16_t,
-    pub maxFunctionDefs: uint16_t,
-    pub maxInstructionDefs: uint16_t,
-    pub maxStackElements: uint16_t,
-    pub maxSizeOfInstructions: uint16_t,
-    pub maxComponentElements: uint16_t,
-    pub maxComponentDepth: uint16_t,
-}
+use crate::support::binio::{pos_to_u16, read_16u, read_16s};
+use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::options::{otfcc_Options};
+use crate::support::primitives::{font_file_pointer, glyphid_t, length_t, pos_t};
+use crate::vendor::sds::{sds};
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+
+use crate::table::maxp::{table_maxp};
+use crate::table::vhea::{table_vhea};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vertical_metric {
@@ -204,9 +42,6 @@ pub struct __caryll_elementinterface_table_vmtx {
     pub create: Option<unsafe extern "C" fn() -> *mut table_vmtx>,
     pub free: Option<unsafe extern "C" fn(*mut table_vmtx) -> ()>,
 }
-pub type font_file_pointer = *mut uint8_t;
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeVmtx(mut table: *mut table_vmtx) {
     if !(*table).metrics.is_null() {
@@ -227,13 +62,13 @@ unsafe extern "C" fn table_vmtx_copy(mut dst: *mut table_vmtx, mut src: *const t
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_vmtx>() as size_t,
+        ::core::mem::size_of::<table_vmtx>() as usize,
     );
 }
 #[inline]
 unsafe extern "C" fn table_vmtx_create() -> *mut table_vmtx {
     let mut x: *mut table_vmtx =
-        malloc(::core::mem::size_of::<table_vmtx>() as size_t) as *mut table_vmtx;
+        malloc(::core::mem::size_of::<table_vmtx>() as usize) as *mut table_vmtx;
     table_vmtx_init(x);
     return x;
 }
@@ -242,7 +77,7 @@ unsafe extern "C" fn table_vmtx_init(mut x: *mut table_vmtx) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_vmtx>() as size_t,
+        ::core::mem::size_of::<table_vmtx>() as usize,
     );
 }
 #[inline]
@@ -255,7 +90,7 @@ unsafe extern "C" fn table_vmtx_move(mut dst: *mut table_vmtx, mut src: *mut tab
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_vmtx>() as size_t,
+        ::core::mem::size_of::<table_vmtx>() as usize,
     );
     table_vmtx_init(src);
 }
@@ -265,7 +100,7 @@ unsafe extern "C" fn table_vmtx_replace(mut dst: *mut table_vmtx, src: table_vmt
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_vmtx>() as size_t,
+        ::core::mem::size_of::<table_vmtx>() as usize,
     );
 }
 #[no_mangle]
@@ -321,11 +156,11 @@ pub unsafe extern "C" fn otfcc_readVmtx(
     {
         let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1986884728i32 as uint32_t {
+            if table.tag == 1986884728i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     let mut data: font_file_pointer = table.data as font_file_pointer;
-                    let mut length: uint32_t = table.length;
+                    let mut length: u32 = table.length;
                     let mut vmtx: *mut table_vmtx = ::core::ptr::null_mut::<table_vmtx>();
                     let mut count_a: glyphid_t = (*vhea).numOfLongVerMetrics as glyphid_t;
                     let mut count_k: glyphid_t = ((*maxp).numGlyphs as ::core::ffi::c_int
@@ -334,13 +169,13 @@ pub unsafe extern "C" fn otfcc_readVmtx(
                     if length
                         < (count_a as ::core::ffi::c_int * 4 as ::core::ffi::c_int
                             + count_k as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                            as uint32_t
+                            as u32
                     {
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut otfcc_ILogger,
-                            log_vl_important as ::core::ffi::c_int as uint8_t,
+                            log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
                             sdscatprintf(
                                 sdsempty(),
@@ -354,17 +189,17 @@ pub unsafe extern "C" fn otfcc_readVmtx(
                         }
                     } else {
                         vmtx = __caryll_allocate_clean(
-                            ::core::mem::size_of::<table_vmtx>() as size_t,
+                            ::core::mem::size_of::<table_vmtx>() as usize,
                             27 as ::core::ffi::c_ulong,
                         ) as *mut table_vmtx;
                         (*vmtx).metrics = __caryll_allocate_clean(
-                            (::core::mem::size_of::<vertical_metric>() as size_t)
-                                .wrapping_mul(count_a as size_t),
+                            (::core::mem::size_of::<vertical_metric>() as usize)
+                                .wrapping_mul(count_a as usize),
                             28 as ::core::ffi::c_ulong,
                         ) as *mut vertical_metric;
                         (*vmtx).topSideBearing = __caryll_allocate_clean(
-                            (::core::mem::size_of::<pos_t>() as size_t)
-                                .wrapping_mul(count_k as size_t),
+                            (::core::mem::size_of::<pos_t>() as usize)
+                                .wrapping_mul(count_k as usize),
                             29 as ::core::ffi::c_ulong,
                         ) as *mut pos_t;
                         let mut ia: glyphid_t = 0 as glyphid_t;
@@ -372,13 +207,13 @@ pub unsafe extern "C" fn otfcc_readVmtx(
                             (*(*vmtx).metrics.offset(ia as isize)).advanceHeight =
                                 read_16u(data.offset(
                                     (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
-                                ) as *const uint8_t) as length_t;
+                                ) as *const u8) as length_t;
                             (*(*vmtx).metrics.offset(ia as isize)).tsb = read_16s(
                                 data.offset(
                                     (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
                                 )
                                 .offset(2 as ::core::ffi::c_int as isize)
-                                    as *const uint8_t,
+                                    as *const u8,
                             )
                                 as pos_t;
                             ia = ia.wrapping_add(1);
@@ -392,7 +227,7 @@ pub unsafe extern "C" fn otfcc_readVmtx(
                                 )
                                 .offset(
                                     (ik as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
-                                ) as *const uint8_t,
+                                ) as *const u8,
                             )
                                 as pos_t;
                             ik = ik.wrapping_add(1);
@@ -426,9 +261,9 @@ pub unsafe extern "C" fn otfcc_buildVmtx(
         while (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
             bufwrite16b(
                 buf,
-                (*(*vmtx).metrics.offset(j as isize)).advanceHeight as uint16_t,
+                (*(*vmtx).metrics.offset(j as isize)).advanceHeight as u16,
             );
-            bufwrite16b(buf, (*(*vmtx).metrics.offset(j as isize)).tsb as int16_t as uint16_t);
+            bufwrite16b(buf, pos_to_u16((*(*vmtx).metrics.offset(j as isize)).tsb));
             j = j.wrapping_add(1);
         }
     }
@@ -437,7 +272,7 @@ pub unsafe extern "C" fn otfcc_buildVmtx(
         while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
             bufwrite16b(
                 buf,
-                *(*vmtx).topSideBearing.offset(j_0 as isize) as int16_t as uint16_t,
+                pos_to_u16(*(*vmtx).topSideBearing.offset(j_0 as isize)),
             );
             j_0 = j_0.wrapping_add(1);
         }

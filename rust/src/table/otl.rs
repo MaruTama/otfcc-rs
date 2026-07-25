@@ -7,30 +7,8 @@ pub mod parse;
 pub mod read;
 pub mod subtables;
 
+use libc::{free, malloc, memcpy, memset, qsort};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn qsort(
-        __base: *mut ::core::ffi::c_void,
-        __nmemb: size_t,
-        __size: size_t,
-        __compar: __compar_fn_t,
-    );
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
     fn sdsfree(s: sds);
     static iSubtable_gsub_single: __caryll_vectorinterface_subtable_gsub_single;
     static iSubtable_gsub_multi: __caryll_vectorinterface_subtable_gsub_multi;
@@ -47,28 +25,19 @@ extern "C" {
 use crate::table::otl::classdef::{otl_ClassDef};
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{otfcc_GlyphHandle, otfcc_LookupHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::cvec::{
-    cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push,
-    cvec_resize_to, CVecRaw,
-};
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
+use crate::support::primitives::{glyphclass_t, glyphid_t, pos_t, tableid_t};
+use crate::vendor::sds::{sds};
+use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+
+
 pub type __compar_fn_t = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-pub type sds = *mut ::core::ffi::c_char;
-pub type glyphid_t = uint16_t;
-pub type glyphclass_t = uint16_t;
-pub type tableid_t = uint16_t;
-pub type pos_t = ::core::ffi::c_double;
 pub type otl_LookupType = ::core::ffi::c_uint;
 pub const otl_type_gpos_extend: otl_LookupType = 41;
 pub const otl_type_gpos_chaining: otl_LookupType = 40;
@@ -122,8 +91,8 @@ pub struct subtable_gpos_markToLigature {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LigatureArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LigatureBaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -143,8 +112,8 @@ pub struct otl_Anchor {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_MarkArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_MarkRecord,
 }
 #[derive(Copy, Clone)]
@@ -164,8 +133,8 @@ pub struct subtable_gpos_markToSingle {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_BaseArray {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_BaseRecord,
 }
 #[derive(Copy, Clone)]
@@ -177,8 +146,8 @@ pub struct otl_BaseRecord {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_cursive {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposCursiveEntry,
 }
 #[derive(Copy, Clone)]
@@ -207,8 +176,8 @@ pub struct otl_PositionValue {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gpos_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GposSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -229,17 +198,17 @@ pub struct subtable_gsub_reverse {
 #[repr(C)]
 pub struct subtable_chaining {
     pub type_0: otl_chaining_type,
-    pub c2rust_unnamed: C2RustUnnamed,
+    pub c2rust_unnamed: otl_ChainingBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union otl_ChainingBody {
     pub rule: otl_ChainingRule,
-    pub c2rust_unnamed: C2RustUnnamed_0,
+    pub c2rust_unnamed: otl_ChainingRuleSet,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_0 {
+pub struct otl_ChainingRuleSet {
     pub rulesCount: tableid_t,
     pub rules: *mut *mut otl_ChainingRule,
     pub bc: *mut otl_ClassDef,
@@ -269,8 +238,8 @@ pub const otl_chaining_canonical: otl_chaining_type = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_ligature {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubLigatureEntry,
 }
 #[derive(Copy, Clone)]
@@ -282,8 +251,8 @@ pub struct otl_GsubLigatureEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_multi {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubMultiEntry,
 }
 #[derive(Copy, Clone)]
@@ -295,8 +264,8 @@ pub struct otl_GsubMultiEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct subtable_gsub_single {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_GsubSingleEntry,
 }
 #[derive(Copy, Clone)]
@@ -310,15 +279,15 @@ pub struct otl_GsubSingleEntry {
 pub struct _otl_lookup {
     pub name: sds,
     pub type_0: otl_LookupType,
-    pub _offset: uint32_t,
-    pub flags: uint16_t,
+    pub _offset: u32,
+    pub flags: u16,
     pub subtables: otl_SubtableList,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_SubtableList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_SubtablePtr,
 }
 pub type otl_SubtablePtr = *mut otl_Subtable;
@@ -338,15 +307,15 @@ pub struct __caryll_vectorinterface_subtable_gsub_single {
         Option<unsafe extern "C" fn(*mut subtable_gsub_single, subtable_gsub_single) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut subtable_gsub_single>,
     pub free: Option<unsafe extern "C" fn(*mut subtable_gsub_single) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut subtable_gsub_single, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut subtable_gsub_single, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut subtable_gsub_single>,
-    pub fill: Option<unsafe extern "C" fn(*mut subtable_gsub_single, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut subtable_gsub_single, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut subtable_gsub_single, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut subtable_gsub_single>,
+    pub fill: Option<unsafe extern "C" fn(*mut subtable_gsub_single, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut subtable_gsub_single) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut subtable_gsub_single, otl_GsubSingleEntry) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut subtable_gsub_single) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut subtable_gsub_single) -> otl_GsubSingleEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut subtable_gsub_single, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut subtable_gsub_single, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut subtable_gsub_single,
@@ -382,15 +351,15 @@ pub struct __caryll_vectorinterface_subtable_gsub_multi {
         Option<unsafe extern "C" fn(*mut subtable_gsub_multi, subtable_gsub_multi) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut subtable_gsub_multi>,
     pub free: Option<unsafe extern "C" fn(*mut subtable_gsub_multi) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut subtable_gsub_multi, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut subtable_gsub_multi, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut subtable_gsub_multi>,
-    pub fill: Option<unsafe extern "C" fn(*mut subtable_gsub_multi, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut subtable_gsub_multi, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut subtable_gsub_multi, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut subtable_gsub_multi>,
+    pub fill: Option<unsafe extern "C" fn(*mut subtable_gsub_multi, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut subtable_gsub_multi) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut subtable_gsub_multi, otl_GsubMultiEntry) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut subtable_gsub_multi) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut subtable_gsub_multi) -> otl_GsubMultiEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut subtable_gsub_multi, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut subtable_gsub_multi, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut subtable_gsub_multi,
@@ -429,16 +398,16 @@ pub struct __caryll_vectorinterface_subtable_gsub_ligature {
         Option<unsafe extern "C" fn(*mut subtable_gsub_ligature, subtable_gsub_ligature) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut subtable_gsub_ligature>,
     pub free: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut subtable_gsub_ligature>,
-    pub fill: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut subtable_gsub_ligature>,
+    pub fill: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature) -> ()>,
     pub push:
         Option<unsafe extern "C" fn(*mut subtable_gsub_ligature, otl_GsubLigatureEntry) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature) -> otl_GsubLigatureEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut subtable_gsub_ligature, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut subtable_gsub_ligature,
@@ -507,15 +476,15 @@ pub struct __caryll_vectorinterface_subtable_gpos_single {
         Option<unsafe extern "C" fn(*mut subtable_gpos_single, subtable_gpos_single) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut subtable_gpos_single>,
     pub free: Option<unsafe extern "C" fn(*mut subtable_gpos_single) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut subtable_gpos_single, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut subtable_gpos_single, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut subtable_gpos_single>,
-    pub fill: Option<unsafe extern "C" fn(*mut subtable_gpos_single, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut subtable_gpos_single, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut subtable_gpos_single, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut subtable_gpos_single>,
+    pub fill: Option<unsafe extern "C" fn(*mut subtable_gpos_single, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut subtable_gpos_single) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut subtable_gpos_single, otl_GposSingleEntry) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut subtable_gpos_single) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut subtable_gpos_single) -> otl_GposSingleEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut subtable_gpos_single, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut subtable_gpos_single, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut subtable_gpos_single,
@@ -568,15 +537,15 @@ pub struct __caryll_vectorinterface_subtable_gpos_cursive {
         Option<unsafe extern "C" fn(*mut subtable_gpos_cursive, subtable_gpos_cursive) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut subtable_gpos_cursive>,
     pub free: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut subtable_gpos_cursive>,
-    pub fill: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut subtable_gpos_cursive>,
+    pub fill: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive, otl_GposCursiveEntry) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive) -> otl_GposCursiveEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut subtable_gpos_cursive, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut subtable_gpos_cursive,
@@ -661,15 +630,15 @@ pub struct __caryll_vectorinterface_otl_SubtableList {
     pub copyReplace: Option<unsafe extern "C" fn(*mut otl_SubtableList, otl_SubtableList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut otl_SubtableList>,
     pub free: Option<unsafe extern "C" fn(*mut otl_SubtableList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut otl_SubtableList, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut otl_SubtableList, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut otl_SubtableList>,
-    pub fill: Option<unsafe extern "C" fn(*mut otl_SubtableList, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_SubtableList, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_SubtableList, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_SubtableList>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_SubtableList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut otl_SubtableList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut otl_SubtableList, otl_SubtablePtr) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_SubtableList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut otl_SubtableList) -> otl_SubtablePtr>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_SubtableList, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_SubtableList, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut otl_SubtableList,
@@ -715,8 +684,8 @@ pub struct __caryll_elementinterface_otl_LookupPtr {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LookupList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LookupPtr,
 }
 #[derive(Copy, Clone)]
@@ -730,15 +699,15 @@ pub struct __caryll_vectorinterface_otl_LookupList {
     pub copyReplace: Option<unsafe extern "C" fn(*mut otl_LookupList, otl_LookupList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut otl_LookupList>,
     pub free: Option<unsafe extern "C" fn(*mut otl_LookupList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut otl_LookupList, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut otl_LookupList, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut otl_LookupList>,
-    pub fill: Option<unsafe extern "C" fn(*mut otl_LookupList, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_LookupList, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_LookupList, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_LookupList>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_LookupList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut otl_LookupList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut otl_LookupList, otl_LookupPtr) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_LookupList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut otl_LookupList) -> otl_LookupPtr>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_LookupList, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_LookupList, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut otl_LookupList,
@@ -772,8 +741,8 @@ pub struct __caryll_elementinterface_otl_LookupRef {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LookupRefList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LookupRef,
 }
 #[derive(Copy, Clone)]
@@ -787,15 +756,15 @@ pub struct __caryll_vectorinterface_otl_LookupRefList {
     pub copyReplace: Option<unsafe extern "C" fn(*mut otl_LookupRefList, otl_LookupRefList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut otl_LookupRefList>,
     pub free: Option<unsafe extern "C" fn(*mut otl_LookupRefList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut otl_LookupRefList, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut otl_LookupRefList, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut otl_LookupRefList>,
-    pub fill: Option<unsafe extern "C" fn(*mut otl_LookupRefList, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_LookupRefList, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_LookupRefList, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_LookupRefList>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_LookupRefList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut otl_LookupRefList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut otl_LookupRefList, otl_LookupRef) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_LookupRefList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut otl_LookupRefList) -> otl_LookupRef>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_LookupRefList, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_LookupRefList, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut otl_LookupRefList,
@@ -835,8 +804,8 @@ pub struct __caryll_elementinterface_otl_FeaturePtr {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_FeatureList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_FeaturePtr,
 }
 #[derive(Copy, Clone)]
@@ -850,15 +819,15 @@ pub struct __caryll_vectorinterface_otl_FeatureList {
     pub copyReplace: Option<unsafe extern "C" fn(*mut otl_FeatureList, otl_FeatureList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut otl_FeatureList>,
     pub free: Option<unsafe extern "C" fn(*mut otl_FeatureList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut otl_FeatureList, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut otl_FeatureList, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut otl_FeatureList>,
-    pub fill: Option<unsafe extern "C" fn(*mut otl_FeatureList, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_FeatureList, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_FeatureList, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_FeatureList>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_FeatureList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut otl_FeatureList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut otl_FeatureList, otl_FeaturePtr) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_FeatureList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut otl_FeatureList) -> otl_FeaturePtr>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_FeatureList, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_FeatureList, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut otl_FeatureList,
@@ -892,8 +861,8 @@ pub struct __caryll_elementinterface_otl_FeatureRef {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_FeatureRefList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_FeatureRef,
 }
 #[derive(Copy, Clone)]
@@ -910,15 +879,15 @@ pub struct __caryll_vectorinterface_otl_FeatureRefList {
         Option<unsafe extern "C" fn(*mut otl_FeatureRefList, otl_FeatureRefList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut otl_FeatureRefList>,
     pub free: Option<unsafe extern "C" fn(*mut otl_FeatureRefList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut otl_FeatureRefList, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut otl_FeatureRefList, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut otl_FeatureRefList>,
-    pub fill: Option<unsafe extern "C" fn(*mut otl_FeatureRefList, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_FeatureRefList, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_FeatureRefList, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_FeatureRefList>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_FeatureRefList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut otl_FeatureRefList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut otl_FeatureRefList, otl_FeatureRef) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_FeatureRefList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut otl_FeatureRefList) -> otl_FeatureRef>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_FeatureRefList, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_FeatureRefList, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut otl_FeatureRefList,
@@ -964,8 +933,8 @@ pub struct __caryll_elementinterface_otl_LanguageSystemPtr {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_LangSystemList {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut otl_LanguageSystemPtr,
 }
 #[derive(Copy, Clone)]
@@ -982,15 +951,15 @@ pub struct __caryll_vectorinterface_otl_LangSystemList {
         Option<unsafe extern "C" fn(*mut otl_LangSystemList, otl_LangSystemList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut otl_LangSystemList>,
     pub free: Option<unsafe extern "C" fn(*mut otl_LangSystemList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut otl_LangSystemList, size_t) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut otl_LangSystemList, size_t) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(size_t) -> *mut otl_LangSystemList>,
-    pub fill: Option<unsafe extern "C" fn(*mut otl_LangSystemList, size_t) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_LangSystemList, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_LangSystemList, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_LangSystemList>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_LangSystemList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut otl_LangSystemList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut otl_LangSystemList, otl_LanguageSystemPtr) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_LangSystemList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut otl_LangSystemList) -> otl_LanguageSystemPtr>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_LangSystemList, size_t) -> ()>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_LangSystemList, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut otl_LangSystemList,
@@ -1034,8 +1003,6 @@ pub struct __caryll_elementinterface_table_OTL {
     pub create: Option<unsafe extern "C" fn() -> *mut table_OTL>,
     pub free: Option<unsafe extern "C" fn(*mut table_OTL) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn disposeSubtableDependent(
     mut subtableRef: *mut otl_SubtablePtr,
@@ -1153,7 +1120,7 @@ unsafe extern "C" fn otl_SubtableList_disposeDependent(
     if arr.is_null() {
         return;
     }
-    let mut j: size_t = (*arr).length;
+    let mut j: usize = (*arr).length;
     loop {
         let fresh0 = j;
         j = j.wrapping_sub(1);
@@ -1167,8 +1134,8 @@ unsafe extern "C" fn otl_SubtableList_disposeDependent(
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<otl_SubtablePtr>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn otl_SubtableList_filterEnv(
@@ -1178,8 +1145,8 @@ unsafe extern "C" fn otl_SubtableList_filterEnv(
     >,
     mut env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: size_t = 0 as size_t;
-    let mut k: size_t = 0 as size_t;
+    let mut j: usize = 0 as usize;
+    let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
             (*arr).items.offset(k as isize) as *mut otl_SubtablePtr,
@@ -1203,9 +1170,9 @@ unsafe extern "C" fn otl_SubtableList_filterEnv(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn otl_SubtableList_createN(mut n: size_t) -> *mut otl_SubtableList {
+unsafe extern "C" fn otl_SubtableList_createN(mut n: usize) -> *mut otl_SubtableList {
     let mut t: *mut otl_SubtableList =
-        malloc(::core::mem::size_of::<otl_SubtableList>() as size_t) as *mut otl_SubtableList;
+        malloc(::core::mem::size_of::<otl_SubtableList>() as usize) as *mut otl_SubtableList;
     otl_SubtableList_initN(t, n);
     return t;
 }
@@ -1219,7 +1186,7 @@ unsafe extern "C" fn otl_SubtableList_sort(
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<otl_SubtablePtr>() as size_t,
+        ::core::mem::size_of::<otl_SubtablePtr>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
@@ -1236,7 +1203,7 @@ unsafe extern "C" fn otl_SubtableList_shrinkToFit(mut arr: *mut otl_SubtableList
     otl_SubtableList_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn otl_SubtableList_resizeTo(arr: *mut otl_SubtableList, target: size_t) {
+unsafe extern "C" fn otl_SubtableList_resizeTo(arr: *mut otl_SubtableList, target: usize) {
     cvec_resize_to(otl_SubtableList_as_cvec(arr), target);
 }
 #[inline]
@@ -1262,12 +1229,12 @@ unsafe extern "C" fn otl_SubtableList_free(mut x: *mut otl_SubtableList) {
 #[inline]
 unsafe extern "C" fn otl_SubtableList_create() -> *mut otl_SubtableList {
     let mut x: *mut otl_SubtableList =
-        malloc(::core::mem::size_of::<otl_SubtableList>() as size_t) as *mut otl_SubtableList;
+        malloc(::core::mem::size_of::<otl_SubtableList>() as usize) as *mut otl_SubtableList;
     otl_SubtableList_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn otl_SubtableList_fill(mut arr: *mut otl_SubtableList, mut n: size_t) {
+unsafe extern "C" fn otl_SubtableList_fill(mut arr: *mut otl_SubtableList, mut n: usize) {
     while (*arr).length < n {
         let mut x: otl_SubtablePtr = ::core::ptr::null_mut::<otl_Subtable>();
         if otl_iSubtablePtr.init.is_some() {
@@ -1276,14 +1243,14 @@ unsafe extern "C" fn otl_SubtableList_fill(mut arr: *mut otl_SubtableList, mut n
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<otl_SubtablePtr>() as size_t,
+                ::core::mem::size_of::<otl_SubtablePtr>() as usize,
             );
         }
         otl_SubtableList_push(arr, x);
     }
 }
 #[inline]
-unsafe extern "C" fn otl_SubtableList_disposeItem(mut arr: *mut otl_SubtableList, mut n: size_t) {
+unsafe extern "C" fn otl_SubtableList_disposeItem(mut arr: *mut otl_SubtableList, mut n: usize) {
     if otl_iSubtablePtr.dispose.is_some() {
         otl_iSubtablePtr.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut otl_SubtablePtr,
@@ -1300,7 +1267,7 @@ unsafe extern "C" fn otl_SubtableList_grow(arr: *mut otl_SubtableList) {
     cvec_grow(otl_SubtableList_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn otl_SubtableList_growTo(arr: *mut otl_SubtableList, target: size_t) {
+unsafe extern "C" fn otl_SubtableList_growTo(arr: *mut otl_SubtableList, target: usize) {
     cvec_grow_to(otl_SubtableList_as_cvec(arr), target);
 }
 #[inline]
@@ -1324,7 +1291,7 @@ unsafe extern "C" fn otl_SubtableList_copy(
     otl_SubtableList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
     if otl_iSubtablePtr.copy.is_some() {
-        let mut j: size_t = 0 as size_t;
+        let mut j: usize = 0 as usize;
         while j < (*src).length {
             otl_iSubtablePtr.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut otl_SubtablePtr,
@@ -1333,7 +1300,7 @@ unsafe extern "C" fn otl_SubtableList_copy(
             j = j.wrapping_add(1);
         }
     } else {
-        let mut j_0: size_t = 0 as size_t;
+        let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
             let ref mut fresh4 = *(*dst).items.offset(j_0 as isize);
             *fresh4 = *(*src).items.offset(j_0 as isize);
@@ -1347,7 +1314,7 @@ unsafe extern "C" fn otl_SubtableList_dispose(mut arr: *mut otl_SubtableList) {
         return;
     }
     if otl_iSubtablePtr.dispose.is_some() {
-        let mut j: size_t = (*arr).length;
+        let mut j: usize = (*arr).length;
         loop {
             let fresh5 = j;
             j = j.wrapping_sub(1);
@@ -1361,8 +1328,8 @@ unsafe extern "C" fn otl_SubtableList_dispose(mut arr: *mut otl_SubtableList) {
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<otl_SubtablePtr>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn otl_SubtableList_replace(
@@ -1373,20 +1340,20 @@ unsafe extern "C" fn otl_SubtableList_replace(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_SubtableList>() as size_t,
+        ::core::mem::size_of::<otl_SubtableList>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn otl_SubtableList_initCapN(mut arr: *mut otl_SubtableList, mut n: size_t) {
+unsafe extern "C" fn otl_SubtableList_initCapN(mut arr: *mut otl_SubtableList, mut n: usize) {
     otl_SubtableList_init(arr);
     otl_SubtableList_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_SubtableList_growToN(arr: *mut otl_SubtableList, target: size_t) {
+unsafe extern "C" fn otl_SubtableList_growToN(arr: *mut otl_SubtableList, target: usize) {
     cvec_grow_to_n(otl_SubtableList_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_SubtableList_initN(mut arr: *mut otl_SubtableList, mut n: size_t) {
+unsafe extern "C" fn otl_SubtableList_initN(mut arr: *mut otl_SubtableList, mut n: usize) {
     otl_SubtableList_init(arr);
     otl_SubtableList_growToN(arr, n);
     otl_SubtableList_fill(arr, n);
@@ -1417,16 +1384,16 @@ pub static mut otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList = {
         create: Some(otl_SubtableList_create),
         free: Some(otl_SubtableList_free as unsafe extern "C" fn(*mut otl_SubtableList) -> ()),
         initN: Some(
-            otl_SubtableList_initN as unsafe extern "C" fn(*mut otl_SubtableList, size_t) -> (),
+            otl_SubtableList_initN as unsafe extern "C" fn(*mut otl_SubtableList, usize) -> (),
         ),
         initCapN: Some(
-            otl_SubtableList_initCapN as unsafe extern "C" fn(*mut otl_SubtableList, size_t) -> (),
+            otl_SubtableList_initCapN as unsafe extern "C" fn(*mut otl_SubtableList, usize) -> (),
         ),
         createN: Some(
-            otl_SubtableList_createN as unsafe extern "C" fn(size_t) -> *mut otl_SubtableList,
+            otl_SubtableList_createN as unsafe extern "C" fn(usize) -> *mut otl_SubtableList,
         ),
         fill: Some(
-            otl_SubtableList_fill as unsafe extern "C" fn(*mut otl_SubtableList, size_t) -> (),
+            otl_SubtableList_fill as unsafe extern "C" fn(*mut otl_SubtableList, usize) -> (),
         ),
         clear: Some(otl_SubtableList_dispose as unsafe extern "C" fn(*mut otl_SubtableList) -> ()),
         push: Some(
@@ -1441,7 +1408,7 @@ pub static mut otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList = {
         ),
         disposeItem: Some(
             otl_SubtableList_disposeItem
-                as unsafe extern "C" fn(*mut otl_SubtableList, size_t) -> (),
+                as unsafe extern "C" fn(*mut otl_SubtableList, usize) -> (),
         ),
         filterEnv: Some(
             otl_SubtableList_filterEnv
@@ -1489,7 +1456,7 @@ pub unsafe extern "C" fn otfcc_delete_lookup(mut lookup: *mut otl_Lookup) {
 #[inline]
 unsafe extern "C" fn initLookupPtr(mut entry: *mut otl_LookupPtr) {
     *entry = __caryll_allocate_clean(
-        ::core::mem::size_of::<otl_Lookup>() as size_t,
+        ::core::mem::size_of::<otl_Lookup>() as usize,
         47 as ::core::ffi::c_ulong,
     ) as otl_LookupPtr;
     (**entry).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -1533,7 +1500,7 @@ unsafe extern "C" fn otl_LookupPtr_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_LookupPtr>() as size_t,
+        ::core::mem::size_of::<otl_LookupPtr>() as usize,
     );
 }
 #[inline]
@@ -1547,7 +1514,7 @@ unsafe extern "C" fn otl_LookupPtr_replace(mut dst: *mut otl_LookupPtr, src: otl
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_LookupPtr>() as size_t,
+        ::core::mem::size_of::<otl_LookupPtr>() as usize,
     );
 }
 #[inline]
@@ -1555,7 +1522,7 @@ unsafe extern "C" fn otl_LookupPtr_move(mut dst: *mut otl_LookupPtr, mut src: *m
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_LookupPtr>() as size_t,
+        ::core::mem::size_of::<otl_LookupPtr>() as usize,
     );
     otl_LookupPtr_init(src);
 }
@@ -1564,7 +1531,7 @@ unsafe extern "C" fn otl_LookupPtr_init(mut x: *mut otl_LookupPtr) {
     initLookupPtr(x);
 }
 #[inline]
-unsafe extern "C" fn otl_LookupList_resizeTo(arr: *mut otl_LookupList, target: size_t) {
+unsafe extern "C" fn otl_LookupList_resizeTo(arr: *mut otl_LookupList, target: usize) {
     cvec_resize_to(otl_LookupList_as_cvec(arr), target);
 }
 #[inline]
@@ -1589,8 +1556,8 @@ unsafe extern "C" fn otl_LookupList_filterEnv(
     mut fn_0: Option<unsafe extern "C" fn(*const otl_LookupPtr, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: size_t = 0 as size_t;
-    let mut k: size_t = 0 as size_t;
+    let mut j: usize = 0 as usize;
+    let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
             (*arr).items.offset(k as isize) as *mut otl_LookupPtr,
@@ -1614,7 +1581,7 @@ unsafe extern "C" fn otl_LookupList_filterEnv(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn otl_LookupList_disposeItem(mut arr: *mut otl_LookupList, mut n: size_t) {
+unsafe extern "C" fn otl_LookupList_disposeItem(mut arr: *mut otl_LookupList, mut n: usize) {
     if otl_iLookupPtr.dispose.is_some() {
         otl_iLookupPtr.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut otl_LookupPtr
@@ -1632,7 +1599,7 @@ unsafe extern "C" fn otl_LookupList_sort(
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<otl_LookupPtr>() as size_t,
+        ::core::mem::size_of::<otl_LookupPtr>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
@@ -1645,7 +1612,7 @@ unsafe extern "C" fn otl_LookupList_sort(
     );
 }
 #[inline]
-unsafe extern "C" fn otl_LookupList_fill(mut arr: *mut otl_LookupList, mut n: size_t) {
+unsafe extern "C" fn otl_LookupList_fill(mut arr: *mut otl_LookupList, mut n: usize) {
     while (*arr).length < n {
         let mut x: otl_LookupPtr = ::core::ptr::null_mut::<otl_Lookup>();
         if otl_iLookupPtr.init.is_some() {
@@ -1654,7 +1621,7 @@ unsafe extern "C" fn otl_LookupList_fill(mut arr: *mut otl_LookupList, mut n: si
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<otl_LookupPtr>() as size_t,
+                ::core::mem::size_of::<otl_LookupPtr>() as usize,
             );
         }
         otl_LookupList_push(arr, x);
@@ -1669,7 +1636,7 @@ unsafe extern "C" fn otl_LookupList_grow(arr: *mut otl_LookupList) {
     cvec_grow(otl_LookupList_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn otl_LookupList_growTo(arr: *mut otl_LookupList, target: size_t) {
+unsafe extern "C" fn otl_LookupList_growTo(arr: *mut otl_LookupList, target: usize) {
     cvec_grow_to(otl_LookupList_as_cvec(arr), target);
 }
 #[inline]
@@ -1690,7 +1657,7 @@ unsafe extern "C" fn otl_LookupList_copy(
     otl_LookupList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
     if otl_iLookupPtr.copy.is_some() {
-        let mut j: size_t = 0 as size_t;
+        let mut j: usize = 0 as usize;
         while j < (*src).length {
             otl_iLookupPtr.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut otl_LookupPtr,
@@ -1699,7 +1666,7 @@ unsafe extern "C" fn otl_LookupList_copy(
             j = j.wrapping_add(1);
         }
     } else {
-        let mut j_0: size_t = 0 as size_t;
+        let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
             let ref mut fresh9 = *(*dst).items.offset(j_0 as isize);
             *fresh9 = *(*src).items.offset(j_0 as isize);
@@ -1713,7 +1680,7 @@ unsafe extern "C" fn otl_LookupList_dispose(mut arr: *mut otl_LookupList) {
         return;
     }
     if otl_iLookupPtr.dispose.is_some() {
-        let mut j: size_t = (*arr).length;
+        let mut j: usize = (*arr).length;
         loop {
             let fresh10 = j;
             j = j.wrapping_sub(1);
@@ -1727,8 +1694,8 @@ unsafe extern "C" fn otl_LookupList_dispose(mut arr: *mut otl_LookupList) {
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<otl_LookupPtr>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn otl_LookupList_replace(mut dst: *mut otl_LookupList, src: otl_LookupList) {
@@ -1736,20 +1703,20 @@ unsafe extern "C" fn otl_LookupList_replace(mut dst: *mut otl_LookupList, src: o
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_LookupList>() as size_t,
+        ::core::mem::size_of::<otl_LookupList>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn otl_LookupList_initCapN(mut arr: *mut otl_LookupList, mut n: size_t) {
+unsafe extern "C" fn otl_LookupList_initCapN(mut arr: *mut otl_LookupList, mut n: usize) {
     otl_LookupList_init(arr);
     otl_LookupList_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_LookupList_growToN(arr: *mut otl_LookupList, target: size_t) {
+unsafe extern "C" fn otl_LookupList_growToN(arr: *mut otl_LookupList, target: usize) {
     cvec_grow_to_n(otl_LookupList_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_LookupList_initN(mut arr: *mut otl_LookupList, mut n: size_t) {
+unsafe extern "C" fn otl_LookupList_initN(mut arr: *mut otl_LookupList, mut n: usize) {
     otl_LookupList_init(arr);
     otl_LookupList_growToN(arr, n);
     otl_LookupList_fill(arr, n);
@@ -1763,16 +1730,16 @@ unsafe extern "C" fn otl_LookupList_free(mut x: *mut otl_LookupList) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otl_LookupList_createN(mut n: size_t) -> *mut otl_LookupList {
+unsafe extern "C" fn otl_LookupList_createN(mut n: usize) -> *mut otl_LookupList {
     let mut t: *mut otl_LookupList =
-        malloc(::core::mem::size_of::<otl_LookupList>() as size_t) as *mut otl_LookupList;
+        malloc(::core::mem::size_of::<otl_LookupList>() as usize) as *mut otl_LookupList;
     otl_LookupList_initN(t, n);
     return t;
 }
 #[inline]
 unsafe extern "C" fn otl_LookupList_create() -> *mut otl_LookupList {
     let mut x: *mut otl_LookupList =
-        malloc(::core::mem::size_of::<otl_LookupList>() as size_t) as *mut otl_LookupList;
+        malloc(::core::mem::size_of::<otl_LookupList>() as usize) as *mut otl_LookupList;
     otl_LookupList_init(x);
     return x;
 }
@@ -1800,15 +1767,15 @@ pub static mut otl_iLookupList: __caryll_vectorinterface_otl_LookupList = {
         create: Some(otl_LookupList_create),
         free: Some(otl_LookupList_free as unsafe extern "C" fn(*mut otl_LookupList) -> ()),
         initN: Some(
-            otl_LookupList_initN as unsafe extern "C" fn(*mut otl_LookupList, size_t) -> (),
+            otl_LookupList_initN as unsafe extern "C" fn(*mut otl_LookupList, usize) -> (),
         ),
         initCapN: Some(
-            otl_LookupList_initCapN as unsafe extern "C" fn(*mut otl_LookupList, size_t) -> (),
+            otl_LookupList_initCapN as unsafe extern "C" fn(*mut otl_LookupList, usize) -> (),
         ),
         createN: Some(
-            otl_LookupList_createN as unsafe extern "C" fn(size_t) -> *mut otl_LookupList,
+            otl_LookupList_createN as unsafe extern "C" fn(usize) -> *mut otl_LookupList,
         ),
-        fill: Some(otl_LookupList_fill as unsafe extern "C" fn(*mut otl_LookupList, size_t) -> ()),
+        fill: Some(otl_LookupList_fill as unsafe extern "C" fn(*mut otl_LookupList, usize) -> ()),
         clear: Some(otl_LookupList_dispose as unsafe extern "C" fn(*mut otl_LookupList) -> ()),
         push: Some(
             otl_LookupList_push as unsafe extern "C" fn(*mut otl_LookupList, otl_LookupPtr) -> (),
@@ -1818,7 +1785,7 @@ pub static mut otl_iLookupList: __caryll_vectorinterface_otl_LookupList = {
         ),
         pop: Some(otl_LookupList_pop as unsafe extern "C" fn(*mut otl_LookupList) -> otl_LookupPtr),
         disposeItem: Some(
-            otl_LookupList_disposeItem as unsafe extern "C" fn(*mut otl_LookupList, size_t) -> (),
+            otl_LookupList_disposeItem as unsafe extern "C" fn(*mut otl_LookupList, usize) -> (),
         ),
         filterEnv: Some(
             otl_LookupList_filterEnv
@@ -1859,7 +1826,7 @@ unsafe extern "C" fn otl_LookupRef_move(mut dst: *mut otl_LookupRef, mut src: *m
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_LookupRef>() as size_t,
+        ::core::mem::size_of::<otl_LookupRef>() as usize,
     );
     otl_LookupRef_init(src);
 }
@@ -1868,7 +1835,7 @@ unsafe extern "C" fn otl_LookupRef_init(mut x: *mut otl_LookupRef) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<otl_LookupRef>() as size_t,
+        ::core::mem::size_of::<otl_LookupRef>() as usize,
     );
 }
 #[inline]
@@ -1879,7 +1846,7 @@ unsafe extern "C" fn otl_LookupRef_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_LookupRef>() as size_t,
+        ::core::mem::size_of::<otl_LookupRef>() as usize,
     );
 }
 #[inline]
@@ -1888,7 +1855,7 @@ unsafe extern "C" fn otl_LookupRef_replace(mut dst: *mut otl_LookupRef, src: otl
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_LookupRef>() as size_t,
+        ::core::mem::size_of::<otl_LookupRef>() as usize,
     );
 }
 #[no_mangle]
@@ -1943,17 +1910,17 @@ pub static mut otl_iLookupRefList: __caryll_vectorinterface_otl_LookupRefList = 
         create: Some(otl_LookupRefList_create),
         free: Some(otl_LookupRefList_free as unsafe extern "C" fn(*mut otl_LookupRefList) -> ()),
         initN: Some(
-            otl_LookupRefList_initN as unsafe extern "C" fn(*mut otl_LookupRefList, size_t) -> (),
+            otl_LookupRefList_initN as unsafe extern "C" fn(*mut otl_LookupRefList, usize) -> (),
         ),
         initCapN: Some(
             otl_LookupRefList_initCapN
-                as unsafe extern "C" fn(*mut otl_LookupRefList, size_t) -> (),
+                as unsafe extern "C" fn(*mut otl_LookupRefList, usize) -> (),
         ),
         createN: Some(
-            otl_LookupRefList_createN as unsafe extern "C" fn(size_t) -> *mut otl_LookupRefList,
+            otl_LookupRefList_createN as unsafe extern "C" fn(usize) -> *mut otl_LookupRefList,
         ),
         fill: Some(
-            otl_LookupRefList_fill as unsafe extern "C" fn(*mut otl_LookupRefList, size_t) -> (),
+            otl_LookupRefList_fill as unsafe extern "C" fn(*mut otl_LookupRefList, usize) -> (),
         ),
         clear: Some(
             otl_LookupRefList_dispose as unsafe extern "C" fn(*mut otl_LookupRefList) -> (),
@@ -1970,7 +1937,7 @@ pub static mut otl_iLookupRefList: __caryll_vectorinterface_otl_LookupRefList = 
         ),
         disposeItem: Some(
             otl_LookupRefList_disposeItem
-                as unsafe extern "C" fn(*mut otl_LookupRefList, size_t) -> (),
+                as unsafe extern "C" fn(*mut otl_LookupRefList, usize) -> (),
         ),
         filterEnv: Some(
             otl_LookupRefList_filterEnv
@@ -2004,7 +1971,7 @@ unsafe extern "C" fn otl_LookupRefList_shrinkToFit(mut arr: *mut otl_LookupRefLi
     otl_LookupRefList_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn otl_LookupRefList_resizeTo(arr: *mut otl_LookupRefList, target: size_t) {
+unsafe extern "C" fn otl_LookupRefList_resizeTo(arr: *mut otl_LookupRefList, target: usize) {
     cvec_resize_to(otl_LookupRefList_as_cvec(arr), target);
 }
 #[inline]
@@ -2025,8 +1992,8 @@ unsafe extern "C" fn otl_LookupRefList_filterEnv(
     mut fn_0: Option<unsafe extern "C" fn(*const otl_LookupRef, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: size_t = 0 as size_t;
-    let mut k: size_t = 0 as size_t;
+    let mut j: usize = 0 as usize;
+    let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
             (*arr).items.offset(k as isize) as *mut otl_LookupRef,
@@ -2050,7 +2017,7 @@ unsafe extern "C" fn otl_LookupRefList_filterEnv(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn otl_LookupRefList_disposeItem(mut arr: *mut otl_LookupRefList, mut n: size_t) {
+unsafe extern "C" fn otl_LookupRefList_disposeItem(mut arr: *mut otl_LookupRefList, mut n: usize) {
     if otl_iLookupRef.dispose.is_some() {
         otl_iLookupRef.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut otl_LookupRef
@@ -2068,7 +2035,7 @@ unsafe extern "C" fn otl_LookupRefList_sort(
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<otl_LookupRef>() as size_t,
+        ::core::mem::size_of::<otl_LookupRef>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
@@ -2081,7 +2048,7 @@ unsafe extern "C" fn otl_LookupRefList_sort(
     );
 }
 #[inline]
-unsafe extern "C" fn otl_LookupRefList_fill(mut arr: *mut otl_LookupRefList, mut n: size_t) {
+unsafe extern "C" fn otl_LookupRefList_fill(mut arr: *mut otl_LookupRefList, mut n: usize) {
     while (*arr).length < n {
         let mut x: otl_LookupRef = ::core::ptr::null::<otl_Lookup>();
         if otl_iLookupRef.init.is_some() {
@@ -2090,7 +2057,7 @@ unsafe extern "C" fn otl_LookupRefList_fill(mut arr: *mut otl_LookupRefList, mut
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<otl_LookupRef>() as size_t,
+                ::core::mem::size_of::<otl_LookupRef>() as usize,
             );
         }
         otl_LookupRefList_push(arr, x);
@@ -2101,9 +2068,9 @@ unsafe extern "C" fn otl_LookupRefList_push(arr: *mut otl_LookupRefList, elem: o
     cvec_push(otl_LookupRefList_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn otl_LookupRefList_createN(mut n: size_t) -> *mut otl_LookupRefList {
+unsafe extern "C" fn otl_LookupRefList_createN(mut n: usize) -> *mut otl_LookupRefList {
     let mut t: *mut otl_LookupRefList =
-        malloc(::core::mem::size_of::<otl_LookupRefList>() as size_t) as *mut otl_LookupRefList;
+        malloc(::core::mem::size_of::<otl_LookupRefList>() as usize) as *mut otl_LookupRefList;
     otl_LookupRefList_initN(t, n);
     return t;
 }
@@ -2112,13 +2079,13 @@ unsafe extern "C" fn otl_LookupRefList_grow(arr: *mut otl_LookupRefList) {
     cvec_grow(otl_LookupRefList_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn otl_LookupRefList_growTo(arr: *mut otl_LookupRefList, target: size_t) {
+unsafe extern "C" fn otl_LookupRefList_growTo(arr: *mut otl_LookupRefList, target: usize) {
     cvec_grow_to(otl_LookupRefList_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn otl_LookupRefList_create() -> *mut otl_LookupRefList {
     let mut x: *mut otl_LookupRefList =
-        malloc(::core::mem::size_of::<otl_LookupRefList>() as size_t) as *mut otl_LookupRefList;
+        malloc(::core::mem::size_of::<otl_LookupRefList>() as usize) as *mut otl_LookupRefList;
     otl_LookupRefList_init(x);
     return x;
 }
@@ -2139,7 +2106,7 @@ unsafe extern "C" fn otl_LookupRefList_copy(
     otl_LookupRefList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
     if otl_iLookupRef.copy.is_some() {
-        let mut j: size_t = 0 as size_t;
+        let mut j: usize = 0 as usize;
         while j < (*src).length {
             otl_iLookupRef.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut otl_LookupRef,
@@ -2148,7 +2115,7 @@ unsafe extern "C" fn otl_LookupRefList_copy(
             j = j.wrapping_add(1);
         }
     } else {
-        let mut j_0: size_t = 0 as size_t;
+        let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
             let ref mut fresh14 = *(*dst).items.offset(j_0 as isize);
             *fresh14 = *(*src).items.offset(j_0 as isize);
@@ -2162,7 +2129,7 @@ unsafe extern "C" fn otl_LookupRefList_dispose(mut arr: *mut otl_LookupRefList) 
         return;
     }
     if otl_iLookupRef.dispose.is_some() {
-        let mut j: size_t = (*arr).length;
+        let mut j: usize = (*arr).length;
         loop {
             let fresh15 = j;
             j = j.wrapping_sub(1);
@@ -2176,8 +2143,8 @@ unsafe extern "C" fn otl_LookupRefList_dispose(mut arr: *mut otl_LookupRefList) 
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<otl_LookupRef>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn otl_LookupRefList_replace(
@@ -2188,16 +2155,16 @@ unsafe extern "C" fn otl_LookupRefList_replace(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_LookupRefList>() as size_t,
+        ::core::mem::size_of::<otl_LookupRefList>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn otl_LookupRefList_initCapN(mut arr: *mut otl_LookupRefList, mut n: size_t) {
+unsafe extern "C" fn otl_LookupRefList_initCapN(mut arr: *mut otl_LookupRefList, mut n: usize) {
     otl_LookupRefList_init(arr);
     otl_LookupRefList_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_LookupRefList_initN(mut arr: *mut otl_LookupRefList, mut n: size_t) {
+unsafe extern "C" fn otl_LookupRefList_initN(mut arr: *mut otl_LookupRefList, mut n: usize) {
     otl_LookupRefList_init(arr);
     otl_LookupRefList_growToN(arr, n);
     otl_LookupRefList_fill(arr, n);
@@ -2211,13 +2178,13 @@ unsafe extern "C" fn otl_LookupRefList_free(mut x: *mut otl_LookupRefList) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otl_LookupRefList_growToN(arr: *mut otl_LookupRefList, target: size_t) {
+unsafe extern "C" fn otl_LookupRefList_growToN(arr: *mut otl_LookupRefList, target: usize) {
     cvec_grow_to_n(otl_LookupRefList_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn initFeaturePtr(mut feature: *mut otl_FeaturePtr) {
     *feature = __caryll_allocate_clean(
-        ::core::mem::size_of::<otl_Feature>() as size_t,
+        ::core::mem::size_of::<otl_Feature>() as usize,
         61 as ::core::ffi::c_ulong,
     ) as otl_FeaturePtr;
     otl_iLookupRefList.init.expect("non-null function pointer")(&raw mut (**feature).lookups);
@@ -2248,7 +2215,7 @@ unsafe extern "C" fn otl_FeaturePtr_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_FeaturePtr>() as size_t,
+        ::core::mem::size_of::<otl_FeaturePtr>() as usize,
     );
 }
 #[inline]
@@ -2257,7 +2224,7 @@ unsafe extern "C" fn otl_FeaturePtr_replace(mut dst: *mut otl_FeaturePtr, src: o
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_FeaturePtr>() as size_t,
+        ::core::mem::size_of::<otl_FeaturePtr>() as usize,
     );
 }
 #[inline]
@@ -2268,7 +2235,7 @@ unsafe extern "C" fn otl_FeaturePtr_move(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_FeaturePtr>() as size_t,
+        ::core::mem::size_of::<otl_FeaturePtr>() as usize,
     );
     otl_FeaturePtr_init(src);
 }
@@ -2305,7 +2272,7 @@ unsafe extern "C" fn otl_FeaturePtr_copyReplace(mut dst: *mut otl_FeaturePtr, sr
     otl_FeaturePtr_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureList_fill(mut arr: *mut otl_FeatureList, mut n: size_t) {
+unsafe extern "C" fn otl_FeatureList_fill(mut arr: *mut otl_FeatureList, mut n: usize) {
     while (*arr).length < n {
         let mut x: otl_FeaturePtr = ::core::ptr::null_mut::<otl_Feature>();
         if otl_iFeaturePtr.init.is_some() {
@@ -2314,22 +2281,22 @@ unsafe extern "C" fn otl_FeatureList_fill(mut arr: *mut otl_FeatureList, mut n: 
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<otl_FeaturePtr>() as size_t,
+                ::core::mem::size_of::<otl_FeaturePtr>() as usize,
             );
         }
         otl_FeatureList_push(arr, x);
     }
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureList_growTo(arr: *mut otl_FeatureList, target: size_t) {
+unsafe extern "C" fn otl_FeatureList_growTo(arr: *mut otl_FeatureList, target: usize) {
     cvec_grow_to(otl_FeatureList_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureList_growToN(arr: *mut otl_FeatureList, target: size_t) {
+unsafe extern "C" fn otl_FeatureList_growToN(arr: *mut otl_FeatureList, target: usize) {
     cvec_grow_to_n(otl_FeatureList_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureList_initN(mut arr: *mut otl_FeatureList, mut n: size_t) {
+unsafe extern "C" fn otl_FeatureList_initN(mut arr: *mut otl_FeatureList, mut n: usize) {
     otl_FeatureList_init(arr);
     otl_FeatureList_growToN(arr, n);
     otl_FeatureList_fill(arr, n);
@@ -2343,16 +2310,16 @@ unsafe extern "C" fn otl_FeatureList_free(mut x: *mut otl_FeatureList) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureList_createN(mut n: size_t) -> *mut otl_FeatureList {
+unsafe extern "C" fn otl_FeatureList_createN(mut n: usize) -> *mut otl_FeatureList {
     let mut t: *mut otl_FeatureList =
-        malloc(::core::mem::size_of::<otl_FeatureList>() as size_t) as *mut otl_FeatureList;
+        malloc(::core::mem::size_of::<otl_FeatureList>() as usize) as *mut otl_FeatureList;
     otl_FeatureList_initN(t, n);
     return t;
 }
 #[inline]
 unsafe extern "C" fn otl_FeatureList_create() -> *mut otl_FeatureList {
     let mut x: *mut otl_FeatureList =
-        malloc(::core::mem::size_of::<otl_FeatureList>() as size_t) as *mut otl_FeatureList;
+        malloc(::core::mem::size_of::<otl_FeatureList>() as usize) as *mut otl_FeatureList;
     otl_FeatureList_init(x);
     return x;
 }
@@ -2366,7 +2333,7 @@ unsafe extern "C" fn otl_FeatureList_sort(
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<otl_FeaturePtr>() as size_t,
+        ::core::mem::size_of::<otl_FeaturePtr>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
@@ -2411,7 +2378,7 @@ unsafe extern "C" fn otl_FeatureList_copy(
     otl_FeatureList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
     if otl_iFeaturePtr.copy.is_some() {
-        let mut j: size_t = 0 as size_t;
+        let mut j: usize = 0 as usize;
         while j < (*src).length {
             otl_iFeaturePtr.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut otl_FeaturePtr,
@@ -2420,7 +2387,7 @@ unsafe extern "C" fn otl_FeatureList_copy(
             j = j.wrapping_add(1);
         }
     } else {
-        let mut j_0: size_t = 0 as size_t;
+        let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
             let ref mut fresh19 = *(*dst).items.offset(j_0 as isize);
             *fresh19 = *(*src).items.offset(j_0 as isize);
@@ -2438,7 +2405,7 @@ unsafe extern "C" fn otl_FeatureList_dispose(mut arr: *mut otl_FeatureList) {
         return;
     }
     if otl_iFeaturePtr.dispose.is_some() {
-        let mut j: size_t = (*arr).length;
+        let mut j: usize = (*arr).length;
         loop {
             let fresh20 = j;
             j = j.wrapping_sub(1);
@@ -2452,8 +2419,8 @@ unsafe extern "C" fn otl_FeatureList_dispose(mut arr: *mut otl_FeatureList) {
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<otl_FeaturePtr>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn otl_FeatureList_replace(mut dst: *mut otl_FeatureList, src: otl_FeatureList) {
@@ -2461,11 +2428,11 @@ unsafe extern "C" fn otl_FeatureList_replace(mut dst: *mut otl_FeatureList, src:
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_FeatureList>() as size_t,
+        ::core::mem::size_of::<otl_FeatureList>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureList_initCapN(mut arr: *mut otl_FeatureList, mut n: size_t) {
+unsafe extern "C" fn otl_FeatureList_initCapN(mut arr: *mut otl_FeatureList, mut n: usize) {
     otl_FeatureList_init(arr);
     otl_FeatureList_growToN(arr, n);
 }
@@ -2493,16 +2460,16 @@ pub static mut otl_iFeatureList: __caryll_vectorinterface_otl_FeatureList = {
         create: Some(otl_FeatureList_create),
         free: Some(otl_FeatureList_free as unsafe extern "C" fn(*mut otl_FeatureList) -> ()),
         initN: Some(
-            otl_FeatureList_initN as unsafe extern "C" fn(*mut otl_FeatureList, size_t) -> (),
+            otl_FeatureList_initN as unsafe extern "C" fn(*mut otl_FeatureList, usize) -> (),
         ),
         initCapN: Some(
-            otl_FeatureList_initCapN as unsafe extern "C" fn(*mut otl_FeatureList, size_t) -> (),
+            otl_FeatureList_initCapN as unsafe extern "C" fn(*mut otl_FeatureList, usize) -> (),
         ),
         createN: Some(
-            otl_FeatureList_createN as unsafe extern "C" fn(size_t) -> *mut otl_FeatureList,
+            otl_FeatureList_createN as unsafe extern "C" fn(usize) -> *mut otl_FeatureList,
         ),
         fill: Some(
-            otl_FeatureList_fill as unsafe extern "C" fn(*mut otl_FeatureList, size_t) -> (),
+            otl_FeatureList_fill as unsafe extern "C" fn(*mut otl_FeatureList, usize) -> (),
         ),
         clear: Some(otl_FeatureList_dispose as unsafe extern "C" fn(*mut otl_FeatureList) -> ()),
         push: Some(
@@ -2516,7 +2483,7 @@ pub static mut otl_iFeatureList: __caryll_vectorinterface_otl_FeatureList = {
             otl_FeatureList_pop as unsafe extern "C" fn(*mut otl_FeatureList) -> otl_FeaturePtr,
         ),
         disposeItem: Some(
-            otl_FeatureList_disposeItem as unsafe extern "C" fn(*mut otl_FeatureList, size_t) -> (),
+            otl_FeatureList_disposeItem as unsafe extern "C" fn(*mut otl_FeatureList, usize) -> (),
         ),
         filterEnv: Some(
             otl_FeatureList_filterEnv
@@ -2550,7 +2517,7 @@ unsafe extern "C" fn otl_FeatureList_shrinkToFit(mut arr: *mut otl_FeatureList) 
     otl_FeatureList_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureList_resizeTo(arr: *mut otl_FeatureList, target: size_t) {
+unsafe extern "C" fn otl_FeatureList_resizeTo(arr: *mut otl_FeatureList, target: usize) {
     cvec_resize_to(otl_FeatureList_as_cvec(arr), target);
 }
 #[inline]
@@ -2563,8 +2530,8 @@ unsafe extern "C" fn otl_FeatureList_filterEnv(
     mut fn_0: Option<unsafe extern "C" fn(*const otl_FeaturePtr, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: size_t = 0 as size_t;
-    let mut k: size_t = 0 as size_t;
+    let mut j: usize = 0 as usize;
+    let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
             (*arr).items.offset(k as isize) as *mut otl_FeaturePtr,
@@ -2588,7 +2555,7 @@ unsafe extern "C" fn otl_FeatureList_filterEnv(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureList_disposeItem(mut arr: *mut otl_FeatureList, mut n: size_t) {
+unsafe extern "C" fn otl_FeatureList_disposeItem(mut arr: *mut otl_FeatureList, mut n: usize) {
     if otl_iFeaturePtr.dispose.is_some() {
         otl_iFeaturePtr.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut otl_FeaturePtr,
@@ -2632,7 +2599,7 @@ unsafe extern "C" fn otl_FeatureRef_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_FeatureRef>() as size_t,
+        ::core::mem::size_of::<otl_FeatureRef>() as usize,
     );
 }
 #[inline]
@@ -2643,7 +2610,7 @@ unsafe extern "C" fn otl_FeatureRef_replace(mut dst: *mut otl_FeatureRef, src: o
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_FeatureRef>() as size_t,
+        ::core::mem::size_of::<otl_FeatureRef>() as usize,
     );
 }
 #[inline]
@@ -2654,7 +2621,7 @@ unsafe extern "C" fn otl_FeatureRef_move(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_FeatureRef>() as size_t,
+        ::core::mem::size_of::<otl_FeatureRef>() as usize,
     );
     otl_FeatureRef_init(src);
 }
@@ -2663,11 +2630,11 @@ unsafe extern "C" fn otl_FeatureRef_init(mut x: *mut otl_FeatureRef) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<otl_FeatureRef>() as size_t,
+        ::core::mem::size_of::<otl_FeatureRef>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureRefList_fill(mut arr: *mut otl_FeatureRefList, mut n: size_t) {
+unsafe extern "C" fn otl_FeatureRefList_fill(mut arr: *mut otl_FeatureRefList, mut n: usize) {
     while (*arr).length < n {
         let mut x: otl_FeatureRef = ::core::ptr::null::<otl_Feature>();
         if otl_iFeatureRef.init.is_some() {
@@ -2676,14 +2643,14 @@ unsafe extern "C" fn otl_FeatureRefList_fill(mut arr: *mut otl_FeatureRefList, m
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<otl_FeatureRef>() as size_t,
+                ::core::mem::size_of::<otl_FeatureRef>() as usize,
             );
         }
         otl_FeatureRefList_push(arr, x);
     }
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureRefList_growTo(arr: *mut otl_FeatureRefList, target: size_t) {
+unsafe extern "C" fn otl_FeatureRefList_growTo(arr: *mut otl_FeatureRefList, target: usize) {
     cvec_grow_to(otl_FeatureRefList_as_cvec(arr), target);
 }
 #[inline]
@@ -2707,7 +2674,7 @@ unsafe extern "C" fn otl_FeatureRefList_copy(
     otl_FeatureRefList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
     if otl_iFeatureRef.copy.is_some() {
-        let mut j: size_t = 0 as size_t;
+        let mut j: usize = 0 as usize;
         while j < (*src).length {
             otl_iFeatureRef.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut otl_FeatureRef,
@@ -2716,7 +2683,7 @@ unsafe extern "C" fn otl_FeatureRefList_copy(
             j = j.wrapping_add(1);
         }
     } else {
-        let mut j_0: size_t = 0 as size_t;
+        let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
             let ref mut fresh24 = *(*dst).items.offset(j_0 as isize);
             *fresh24 = *(*src).items.offset(j_0 as isize);
@@ -2730,7 +2697,7 @@ unsafe extern "C" fn otl_FeatureRefList_dispose(mut arr: *mut otl_FeatureRefList
         return;
     }
     if otl_iFeatureRef.dispose.is_some() {
-        let mut j: size_t = (*arr).length;
+        let mut j: usize = (*arr).length;
         loop {
             let fresh25 = j;
             j = j.wrapping_sub(1);
@@ -2744,8 +2711,8 @@ unsafe extern "C" fn otl_FeatureRefList_dispose(mut arr: *mut otl_FeatureRefList
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<otl_FeatureRef>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn otl_FeatureRefList_replace(
@@ -2756,20 +2723,20 @@ unsafe extern "C" fn otl_FeatureRefList_replace(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_FeatureRefList>() as size_t,
+        ::core::mem::size_of::<otl_FeatureRefList>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureRefList_initCapN(mut arr: *mut otl_FeatureRefList, mut n: size_t) {
+unsafe extern "C" fn otl_FeatureRefList_initCapN(mut arr: *mut otl_FeatureRefList, mut n: usize) {
     otl_FeatureRefList_init(arr);
     otl_FeatureRefList_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureRefList_growToN(arr: *mut otl_FeatureRefList, target: size_t) {
+unsafe extern "C" fn otl_FeatureRefList_growToN(arr: *mut otl_FeatureRefList, target: usize) {
     cvec_grow_to_n(otl_FeatureRefList_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureRefList_initN(mut arr: *mut otl_FeatureRefList, mut n: size_t) {
+unsafe extern "C" fn otl_FeatureRefList_initN(mut arr: *mut otl_FeatureRefList, mut n: usize) {
     otl_FeatureRefList_init(arr);
     otl_FeatureRefList_growToN(arr, n);
     otl_FeatureRefList_fill(arr, n);
@@ -2783,16 +2750,16 @@ unsafe extern "C" fn otl_FeatureRefList_free(mut x: *mut otl_FeatureRefList) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureRefList_createN(mut n: size_t) -> *mut otl_FeatureRefList {
+unsafe extern "C" fn otl_FeatureRefList_createN(mut n: usize) -> *mut otl_FeatureRefList {
     let mut t: *mut otl_FeatureRefList =
-        malloc(::core::mem::size_of::<otl_FeatureRefList>() as size_t) as *mut otl_FeatureRefList;
+        malloc(::core::mem::size_of::<otl_FeatureRefList>() as usize) as *mut otl_FeatureRefList;
     otl_FeatureRefList_initN(t, n);
     return t;
 }
 #[inline]
 unsafe extern "C" fn otl_FeatureRefList_create() -> *mut otl_FeatureRefList {
     let mut x: *mut otl_FeatureRefList =
-        malloc(::core::mem::size_of::<otl_FeatureRefList>() as size_t) as *mut otl_FeatureRefList;
+        malloc(::core::mem::size_of::<otl_FeatureRefList>() as usize) as *mut otl_FeatureRefList;
     otl_FeatureRefList_init(x);
     return x;
 }
@@ -2822,17 +2789,17 @@ pub static mut otl_iFeatureRefList: __caryll_vectorinterface_otl_FeatureRefList 
         create: Some(otl_FeatureRefList_create),
         free: Some(otl_FeatureRefList_free as unsafe extern "C" fn(*mut otl_FeatureRefList) -> ()),
         initN: Some(
-            otl_FeatureRefList_initN as unsafe extern "C" fn(*mut otl_FeatureRefList, size_t) -> (),
+            otl_FeatureRefList_initN as unsafe extern "C" fn(*mut otl_FeatureRefList, usize) -> (),
         ),
         initCapN: Some(
             otl_FeatureRefList_initCapN
-                as unsafe extern "C" fn(*mut otl_FeatureRefList, size_t) -> (),
+                as unsafe extern "C" fn(*mut otl_FeatureRefList, usize) -> (),
         ),
         createN: Some(
-            otl_FeatureRefList_createN as unsafe extern "C" fn(size_t) -> *mut otl_FeatureRefList,
+            otl_FeatureRefList_createN as unsafe extern "C" fn(usize) -> *mut otl_FeatureRefList,
         ),
         fill: Some(
-            otl_FeatureRefList_fill as unsafe extern "C" fn(*mut otl_FeatureRefList, size_t) -> (),
+            otl_FeatureRefList_fill as unsafe extern "C" fn(*mut otl_FeatureRefList, usize) -> (),
         ),
         clear: Some(
             otl_FeatureRefList_dispose as unsafe extern "C" fn(*mut otl_FeatureRefList) -> (),
@@ -2850,7 +2817,7 @@ pub static mut otl_iFeatureRefList: __caryll_vectorinterface_otl_FeatureRefList 
         ),
         disposeItem: Some(
             otl_FeatureRefList_disposeItem
-                as unsafe extern "C" fn(*mut otl_FeatureRefList, size_t) -> (),
+                as unsafe extern "C" fn(*mut otl_FeatureRefList, usize) -> (),
         ),
         filterEnv: Some(
             otl_FeatureRefList_filterEnv
@@ -2884,7 +2851,7 @@ unsafe extern "C" fn otl_FeatureRefList_shrinkToFit(mut arr: *mut otl_FeatureRef
     otl_FeatureRefList_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn otl_FeatureRefList_resizeTo(arr: *mut otl_FeatureRefList, target: size_t) {
+unsafe extern "C" fn otl_FeatureRefList_resizeTo(arr: *mut otl_FeatureRefList, target: usize) {
     cvec_resize_to(otl_FeatureRefList_as_cvec(arr), target);
 }
 #[inline]
@@ -2897,8 +2864,8 @@ unsafe extern "C" fn otl_FeatureRefList_filterEnv(
     mut fn_0: Option<unsafe extern "C" fn(*const otl_FeatureRef, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: size_t = 0 as size_t;
-    let mut k: size_t = 0 as size_t;
+    let mut j: usize = 0 as usize;
+    let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
             (*arr).items.offset(k as isize) as *mut otl_FeatureRef,
@@ -2931,7 +2898,7 @@ unsafe extern "C" fn otl_FeatureRefList_sort(
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<otl_FeatureRef>() as size_t,
+        ::core::mem::size_of::<otl_FeatureRef>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
@@ -2962,7 +2929,7 @@ unsafe extern "C" fn otl_FeatureRefList_grow(arr: *mut otl_FeatureRefList) {
 #[inline]
 unsafe extern "C" fn otl_FeatureRefList_disposeItem(
     mut arr: *mut otl_FeatureRefList,
-    mut n: size_t,
+    mut n: usize,
 ) {
     if otl_iFeatureRef.dispose.is_some() {
         otl_iFeatureRef.dispose.expect("non-null function pointer")(
@@ -2974,7 +2941,7 @@ unsafe extern "C" fn otl_FeatureRefList_disposeItem(
 #[inline]
 unsafe extern "C" fn initLanguagePtr(mut language: *mut otl_LanguageSystemPtr) {
     *language = __caryll_allocate_clean(
-        ::core::mem::size_of::<otl_LanguageSystem>() as size_t,
+        ::core::mem::size_of::<otl_LanguageSystem>() as usize,
         77 as ::core::ffi::c_ulong,
     ) as otl_LanguageSystemPtr;
     otl_iFeatureRefList.init.expect("non-null function pointer")(&raw mut (**language).features);
@@ -3012,8 +2979,8 @@ unsafe extern "C" fn otl_LangSystemList_filterEnv(
     >,
     mut env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: size_t = 0 as size_t;
-    let mut k: size_t = 0 as size_t;
+    let mut j: usize = 0 as usize;
+    let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
             (*arr).items.offset(k as isize) as *mut otl_LanguageSystemPtr,
@@ -3072,17 +3039,17 @@ pub static mut otl_iLangSystemList: __caryll_vectorinterface_otl_LangSystemList 
         create: Some(otl_LangSystemList_create),
         free: Some(otl_LangSystemList_free as unsafe extern "C" fn(*mut otl_LangSystemList) -> ()),
         initN: Some(
-            otl_LangSystemList_initN as unsafe extern "C" fn(*mut otl_LangSystemList, size_t) -> (),
+            otl_LangSystemList_initN as unsafe extern "C" fn(*mut otl_LangSystemList, usize) -> (),
         ),
         initCapN: Some(
             otl_LangSystemList_initCapN
-                as unsafe extern "C" fn(*mut otl_LangSystemList, size_t) -> (),
+                as unsafe extern "C" fn(*mut otl_LangSystemList, usize) -> (),
         ),
         createN: Some(
-            otl_LangSystemList_createN as unsafe extern "C" fn(size_t) -> *mut otl_LangSystemList,
+            otl_LangSystemList_createN as unsafe extern "C" fn(usize) -> *mut otl_LangSystemList,
         ),
         fill: Some(
-            otl_LangSystemList_fill as unsafe extern "C" fn(*mut otl_LangSystemList, size_t) -> (),
+            otl_LangSystemList_fill as unsafe extern "C" fn(*mut otl_LangSystemList, usize) -> (),
         ),
         clear: Some(
             otl_LangSystemList_dispose as unsafe extern "C" fn(*mut otl_LangSystemList) -> (),
@@ -3100,7 +3067,7 @@ pub static mut otl_iLangSystemList: __caryll_vectorinterface_otl_LangSystemList 
         ),
         disposeItem: Some(
             otl_LangSystemList_disposeItem
-                as unsafe extern "C" fn(*mut otl_LangSystemList, size_t) -> (),
+                as unsafe extern "C" fn(*mut otl_LangSystemList, usize) -> (),
         ),
         filterEnv: Some(
             otl_LangSystemList_filterEnv
@@ -3132,7 +3099,7 @@ pub static mut otl_iLangSystemList: __caryll_vectorinterface_otl_LangSystemList 
 #[inline]
 unsafe extern "C" fn otl_LangSystemList_disposeItem(
     mut arr: *mut otl_LangSystemList,
-    mut n: size_t,
+    mut n: usize,
 ) {
     if otl_iLanguageSystem.dispose.is_some() {
         otl_iLanguageSystem
@@ -3156,7 +3123,7 @@ unsafe extern "C" fn otl_LangSystemList_sort(
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<otl_LanguageSystemPtr>() as size_t,
+        ::core::mem::size_of::<otl_LanguageSystemPtr>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
@@ -3169,7 +3136,7 @@ unsafe extern "C" fn otl_LangSystemList_sort(
     );
 }
 #[inline]
-unsafe extern "C" fn otl_LangSystemList_fill(mut arr: *mut otl_LangSystemList, mut n: size_t) {
+unsafe extern "C" fn otl_LangSystemList_fill(mut arr: *mut otl_LangSystemList, mut n: usize) {
     while (*arr).length < n {
         let mut x: otl_LanguageSystemPtr = ::core::ptr::null_mut::<otl_LanguageSystem>();
         if otl_iLanguageSystem.init.is_some() {
@@ -3178,7 +3145,7 @@ unsafe extern "C" fn otl_LangSystemList_fill(mut arr: *mut otl_LangSystemList, m
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<otl_LanguageSystemPtr>() as size_t,
+                ::core::mem::size_of::<otl_LanguageSystemPtr>() as usize,
             );
         }
         otl_LangSystemList_push(arr, x);
@@ -3193,7 +3160,7 @@ unsafe extern "C" fn otl_LangSystemList_grow(arr: *mut otl_LangSystemList) {
     cvec_grow(otl_LangSystemList_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn otl_LangSystemList_growTo(arr: *mut otl_LangSystemList, target: size_t) {
+unsafe extern "C" fn otl_LangSystemList_growTo(arr: *mut otl_LangSystemList, target: usize) {
     cvec_grow_to(otl_LangSystemList_as_cvec(arr), target);
 }
 #[inline]
@@ -3217,7 +3184,7 @@ unsafe extern "C" fn otl_LangSystemList_copy(
     otl_LangSystemList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
     if otl_iLanguageSystem.copy.is_some() {
-        let mut j: size_t = 0 as size_t;
+        let mut j: usize = 0 as usize;
         while j < (*src).length {
             otl_iLanguageSystem.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut otl_LanguageSystemPtr,
@@ -3227,7 +3194,7 @@ unsafe extern "C" fn otl_LangSystemList_copy(
             j = j.wrapping_add(1);
         }
     } else {
-        let mut j_0: size_t = 0 as size_t;
+        let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
             let ref mut fresh29 = *(*dst).items.offset(j_0 as isize);
             *fresh29 = *(*src).items.offset(j_0 as isize);
@@ -3241,7 +3208,7 @@ unsafe extern "C" fn otl_LangSystemList_dispose(mut arr: *mut otl_LangSystemList
         return;
     }
     if otl_iLanguageSystem.dispose.is_some() {
-        let mut j: size_t = (*arr).length;
+        let mut j: usize = (*arr).length;
         loop {
             let fresh30 = j;
             j = j.wrapping_sub(1);
@@ -3257,8 +3224,8 @@ unsafe extern "C" fn otl_LangSystemList_dispose(mut arr: *mut otl_LangSystemList
     }
     free((*arr).items as *mut ::core::ffi::c_void);
     (*arr).items = ::core::ptr::null_mut::<otl_LanguageSystemPtr>();
-    (*arr).length = 0 as size_t;
-    (*arr).capacity = 0 as size_t;
+    (*arr).length = 0 as usize;
+    (*arr).capacity = 0 as usize;
 }
 #[inline]
 unsafe extern "C" fn otl_LangSystemList_replace(
@@ -3269,20 +3236,20 @@ unsafe extern "C" fn otl_LangSystemList_replace(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_LangSystemList>() as size_t,
+        ::core::mem::size_of::<otl_LangSystemList>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn otl_LangSystemList_initCapN(mut arr: *mut otl_LangSystemList, mut n: size_t) {
+unsafe extern "C" fn otl_LangSystemList_initCapN(mut arr: *mut otl_LangSystemList, mut n: usize) {
     otl_LangSystemList_init(arr);
     otl_LangSystemList_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_LangSystemList_growToN(arr: *mut otl_LangSystemList, target: size_t) {
+unsafe extern "C" fn otl_LangSystemList_growToN(arr: *mut otl_LangSystemList, target: usize) {
     cvec_grow_to_n(otl_LangSystemList_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_LangSystemList_initN(mut arr: *mut otl_LangSystemList, mut n: size_t) {
+unsafe extern "C" fn otl_LangSystemList_initN(mut arr: *mut otl_LangSystemList, mut n: usize) {
     otl_LangSystemList_init(arr);
     otl_LangSystemList_growToN(arr, n);
     otl_LangSystemList_fill(arr, n);
@@ -3296,16 +3263,16 @@ unsafe extern "C" fn otl_LangSystemList_free(mut x: *mut otl_LangSystemList) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otl_LangSystemList_createN(mut n: size_t) -> *mut otl_LangSystemList {
+unsafe extern "C" fn otl_LangSystemList_createN(mut n: usize) -> *mut otl_LangSystemList {
     let mut t: *mut otl_LangSystemList =
-        malloc(::core::mem::size_of::<otl_LangSystemList>() as size_t) as *mut otl_LangSystemList;
+        malloc(::core::mem::size_of::<otl_LangSystemList>() as usize) as *mut otl_LangSystemList;
     otl_LangSystemList_initN(t, n);
     return t;
 }
 #[inline]
 unsafe extern "C" fn otl_LangSystemList_create() -> *mut otl_LangSystemList {
     let mut x: *mut otl_LangSystemList =
-        malloc(::core::mem::size_of::<otl_LangSystemList>() as size_t) as *mut otl_LangSystemList;
+        malloc(::core::mem::size_of::<otl_LangSystemList>() as usize) as *mut otl_LangSystemList;
     otl_LangSystemList_init(x);
     return x;
 }
@@ -3314,7 +3281,7 @@ unsafe extern "C" fn otl_LangSystemList_shrinkToFit(mut arr: *mut otl_LangSystem
     otl_LangSystemList_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn otl_LangSystemList_resizeTo(arr: *mut otl_LangSystemList, target: size_t) {
+unsafe extern "C" fn otl_LangSystemList_resizeTo(arr: *mut otl_LangSystemList, target: usize) {
     cvec_resize_to(otl_LangSystemList_as_cvec(arr), target);
 }
 #[inline]
@@ -3355,7 +3322,7 @@ unsafe extern "C" fn table_OTL_free(mut x: *mut table_OTL) {
 #[inline]
 unsafe extern "C" fn table_OTL_create() -> *mut table_OTL {
     let mut x: *mut table_OTL =
-        malloc(::core::mem::size_of::<table_OTL>() as size_t) as *mut table_OTL;
+        malloc(::core::mem::size_of::<table_OTL>() as usize) as *mut table_OTL;
     table_OTL_init(x);
     return x;
 }
@@ -3383,7 +3350,7 @@ unsafe extern "C" fn table_OTL_copy(mut dst: *mut table_OTL, mut src: *const tab
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_OTL>() as size_t,
+        ::core::mem::size_of::<table_OTL>() as usize,
     );
 }
 #[inline]
@@ -3392,7 +3359,7 @@ unsafe extern "C" fn table_OTL_replace(mut dst: *mut table_OTL, src: table_OTL) 
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_OTL>() as size_t,
+        ::core::mem::size_of::<table_OTL>() as usize,
     );
 }
 #[inline]
@@ -3400,8 +3367,132 @@ unsafe extern "C" fn table_OTL_move(mut dst: *mut table_OTL, mut src: *mut table
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_OTL>() as size_t,
+        ::core::mem::size_of::<table_OTL>() as usize,
     );
     table_OTL_init(src);
 }
-pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct __caryll_vectorinterface_otl_MarkArray {
+    pub init: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut otl_MarkArray, *const otl_MarkArray) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut otl_MarkArray, *mut otl_MarkArray) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkArray) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkArray) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut otl_MarkArray>,
+    pub free: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_MarkArray>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
+    pub clear: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
+    pub push: Option<unsafe extern "C" fn(*mut otl_MarkArray, otl_MarkRecord) -> ()>,
+    pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> ()>,
+    pub pop: Option<unsafe extern "C" fn(*mut otl_MarkArray) -> otl_MarkRecord>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_MarkArray, usize) -> ()>,
+    pub filterEnv: Option<
+        unsafe extern "C" fn(
+            *mut otl_MarkArray,
+            Option<unsafe extern "C" fn(*const otl_MarkRecord, *mut ::core::ffi::c_void) -> bool>,
+            *mut ::core::ffi::c_void,
+        ) -> (),
+    >,
+    pub sort: Option<
+        unsafe extern "C" fn(
+            *mut otl_MarkArray,
+            Option<
+                unsafe extern "C" fn(
+                    *const otl_MarkRecord,
+                    *const otl_MarkRecord,
+                ) -> ::core::ffi::c_int,
+            >,
+        ) -> (),
+    >,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct __caryll_vectorinterface_otl_BaseArray {
+    pub init: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut otl_BaseArray, *const otl_BaseArray) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut otl_BaseArray, *mut otl_BaseArray) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut otl_BaseArray, otl_BaseArray) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_BaseArray, otl_BaseArray) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut otl_BaseArray>,
+    pub free: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_BaseArray, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_BaseArray, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_BaseArray>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_BaseArray, usize) -> ()>,
+    pub clear: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> ()>,
+    pub push: Option<unsafe extern "C" fn(*mut otl_BaseArray, otl_BaseRecord) -> ()>,
+    pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> ()>,
+    pub pop: Option<unsafe extern "C" fn(*mut otl_BaseArray) -> otl_BaseRecord>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_BaseArray, usize) -> ()>,
+    pub filterEnv: Option<
+        unsafe extern "C" fn(
+            *mut otl_BaseArray,
+            Option<unsafe extern "C" fn(*const otl_BaseRecord, *mut ::core::ffi::c_void) -> bool>,
+            *mut ::core::ffi::c_void,
+        ) -> (),
+    >,
+    pub sort: Option<
+        unsafe extern "C" fn(
+            *mut otl_BaseArray,
+            Option<
+                unsafe extern "C" fn(
+                    *const otl_BaseRecord,
+                    *const otl_BaseRecord,
+                ) -> ::core::ffi::c_int,
+            >,
+        ) -> (),
+    >,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct __caryll_vectorinterface_otl_LigatureArray {
+    pub init: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut otl_LigatureArray, *const otl_LigatureArray) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut otl_LigatureArray, *mut otl_LigatureArray) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut otl_LigatureArray, otl_LigatureArray) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_LigatureArray, otl_LigatureArray) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut otl_LigatureArray>,
+    pub free: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut otl_LigatureArray, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut otl_LigatureArray, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut otl_LigatureArray>,
+    pub fill: Option<unsafe extern "C" fn(*mut otl_LigatureArray, usize) -> ()>,
+    pub clear: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> ()>,
+    pub push: Option<unsafe extern "C" fn(*mut otl_LigatureArray, otl_LigatureBaseRecord) -> ()>,
+    pub shrinkToFit: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> ()>,
+    pub pop: Option<unsafe extern "C" fn(*mut otl_LigatureArray) -> otl_LigatureBaseRecord>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut otl_LigatureArray, usize) -> ()>,
+    pub filterEnv: Option<
+        unsafe extern "C" fn(
+            *mut otl_LigatureArray,
+            Option<
+                unsafe extern "C" fn(
+                    *const otl_LigatureBaseRecord,
+                    *mut ::core::ffi::c_void,
+                ) -> bool,
+            >,
+            *mut ::core::ffi::c_void,
+        ) -> (),
+    >,
+    pub sort: Option<
+        unsafe extern "C" fn(
+            *mut otl_LigatureArray,
+            Option<
+                unsafe extern "C" fn(
+                    *const otl_LigatureBaseRecord,
+                    *const otl_LigatureBaseRecord,
+                ) -> ::core::ffi::c_int,
+            >,
+        ) -> (),
+    >,
+}

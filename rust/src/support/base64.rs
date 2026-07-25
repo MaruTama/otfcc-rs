@@ -1,40 +1,30 @@
-extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-}
-pub type size_t = usize;
-pub type __uint8_t = u8;
-pub type uint8_t = __uint8_t;
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-static mut base64_table: [uint8_t; 64] = unsafe {
-    ::core::mem::transmute::<[u8; 64], [uint8_t; 64]>(
+use libc::{malloc, memset};
+
+static mut base64_table: [u8; 64] = unsafe {
+    ::core::mem::transmute::<[u8; 64], [u8; 64]>(
         *b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
     )
 };
 #[no_mangle]
 pub unsafe extern "C" fn base64_encode(
-    mut src: *const uint8_t,
-    mut len: size_t,
-    mut out_len: *mut size_t,
-) -> *mut uint8_t {
-    let mut out: *mut uint8_t = ::core::ptr::null_mut::<uint8_t>();
-    let mut pos: *mut uint8_t = ::core::ptr::null_mut::<uint8_t>();
-    let mut end: *const uint8_t = ::core::ptr::null::<uint8_t>();
-    let mut in_0: *const uint8_t = ::core::ptr::null::<uint8_t>();
-    let mut olen: size_t = 0;
+    mut src: *const u8,
+    mut len: usize,
+    mut out_len: *mut usize,
+) -> *mut u8 {
+    let mut out: *mut u8 = ::core::ptr::null_mut::<u8>();
+    let mut pos: *mut u8 = ::core::ptr::null_mut::<u8>();
+    let mut end: *const u8 = ::core::ptr::null::<u8>();
+    let mut in_0: *const u8 = ::core::ptr::null::<u8>();
+    let mut olen: usize = 0;
     olen = len
-        .wrapping_add(3 as size_t)
-        .wrapping_sub(1 as size_t)
-        .wrapping_div(3 as size_t)
-        .wrapping_mul(4 as size_t);
+        .wrapping_add(3 as usize)
+        .wrapping_sub(1 as usize)
+        .wrapping_div(3 as usize)
+        .wrapping_mul(4 as usize);
     olen = olen.wrapping_add(1);
-    out = malloc((::core::mem::size_of::<uint8_t>() as size_t).wrapping_mul(olen)) as *mut uint8_t;
+    out = malloc((::core::mem::size_of::<u8>() as usize).wrapping_mul(olen)) as *mut u8;
     if out.is_null() {
-        return ::core::ptr::null_mut::<uint8_t>();
+        return ::core::ptr::null_mut::<u8>();
     }
     end = src.offset(len as isize);
     in_0 = src;
@@ -83,7 +73,7 @@ pub unsafe extern "C" fn base64_encode(
                 << 4 as ::core::ffi::c_int) as usize];
             let fresh6 = pos;
             pos = pos.offset(1);
-            *fresh6 = '=' as i32 as uint8_t;
+            *fresh6 = '=' as i32 as u8;
         } else {
             let fresh7 = pos;
             pos = pos.offset(1);
@@ -102,41 +92,41 @@ pub unsafe extern "C" fn base64_encode(
         }
         let fresh9 = pos;
         pos = pos.offset(1);
-        *fresh9 = '=' as i32 as uint8_t;
+        *fresh9 = '=' as i32 as u8;
     }
-    *pos = '\0' as i32 as uint8_t;
+    *pos = '\0' as i32 as u8;
     if !out_len.is_null() {
-        *out_len = pos.offset_from(out) as ::core::ffi::c_long as size_t;
+        *out_len = pos.offset_from(out) as ::core::ffi::c_long as usize;
     }
     return out;
 }
 #[no_mangle]
 pub unsafe extern "C" fn base64_decode(
-    mut src: *const uint8_t,
-    mut len: size_t,
-    mut out_len: *mut size_t,
-) -> *mut uint8_t {
-    let mut dtable: [uint8_t; 256] = [0; 256];
-    let mut out: *mut uint8_t = ::core::ptr::null_mut::<uint8_t>();
-    let mut pos: *mut uint8_t = ::core::ptr::null_mut::<uint8_t>();
-    let mut in_0: [uint8_t; 4] = [0; 4];
-    let mut block: [uint8_t; 4] = [0; 4];
-    let mut tmp: uint8_t = 0;
-    let mut i: size_t = 0;
-    let mut count: size_t = 0;
+    mut src: *const u8,
+    mut len: usize,
+    mut out_len: *mut usize,
+) -> *mut u8 {
+    let mut dtable: [u8; 256] = [0; 256];
+    let mut out: *mut u8 = ::core::ptr::null_mut::<u8>();
+    let mut pos: *mut u8 = ::core::ptr::null_mut::<u8>();
+    let mut in_0: [u8; 4] = [0; 4];
+    let mut block: [u8; 4] = [0; 4];
+    let mut tmp: u8 = 0;
+    let mut i: usize = 0;
+    let mut count: usize = 0;
     memset(
-        &raw mut dtable as *mut uint8_t as *mut ::core::ffi::c_void,
+        &raw mut dtable as *mut u8 as *mut ::core::ffi::c_void,
         0x80 as ::core::ffi::c_int,
-        256 as size_t,
+        256 as usize,
     );
-    i = 0 as size_t;
-    while i < ::core::mem::size_of::<[uint8_t; 64]>() {
-        dtable[base64_table[i] as usize] = i as uint8_t;
+    i = 0 as usize;
+    while i < ::core::mem::size_of::<[u8; 64]>() {
+        dtable[base64_table[i] as usize] = i as u8;
         i = i.wrapping_add(1);
     }
-    dtable['=' as i32 as usize] = 0 as uint8_t;
-    count = 0 as size_t;
-    i = 0 as size_t;
+    dtable['=' as i32 as usize] = 0 as u8;
+    count = 0 as usize;
+    i = 0 as usize;
     while i < len {
         if dtable[*src.offset(i as isize) as usize] as ::core::ffi::c_int
             != 0x80 as ::core::ffi::c_int
@@ -145,42 +135,42 @@ pub unsafe extern "C" fn base64_decode(
         }
         i = i.wrapping_add(1);
     }
-    if count.wrapping_rem(4 as size_t) != 0 {
-        return ::core::ptr::null_mut::<uint8_t>();
+    if count.wrapping_rem(4 as usize) != 0 {
+        return ::core::ptr::null_mut::<u8>();
     }
-    out = malloc((::core::mem::size_of::<uint8_t>() as size_t).wrapping_mul(count)) as *mut uint8_t;
+    out = malloc((::core::mem::size_of::<u8>() as usize).wrapping_mul(count)) as *mut u8;
     pos = out;
     if out.is_null() {
-        return ::core::ptr::null_mut::<uint8_t>();
+        return ::core::ptr::null_mut::<u8>();
     }
-    count = 0 as size_t;
-    i = 0 as size_t;
+    count = 0 as usize;
+    i = 0 as usize;
     while i < len {
         tmp = dtable[*src.offset(i as isize) as usize];
         if !(tmp as ::core::ffi::c_int == 0x80 as ::core::ffi::c_int) {
             in_0[count] = *src.offset(i as isize);
             block[count] = tmp;
             count = count.wrapping_add(1);
-            if count == 4 as size_t {
+            if count == 4 as usize {
                 let fresh10 = pos;
                 pos = pos.offset(1);
                 *fresh10 = ((block[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
                     << 2 as ::core::ffi::c_int
                     | block[1 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
-                        >> 4 as ::core::ffi::c_int) as uint8_t;
+                        >> 4 as ::core::ffi::c_int) as u8;
                 let fresh11 = pos;
                 pos = pos.offset(1);
                 *fresh11 = ((block[1 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
                     << 4 as ::core::ffi::c_int
                     | block[2 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
-                        >> 2 as ::core::ffi::c_int) as uint8_t;
+                        >> 2 as ::core::ffi::c_int) as u8;
                 let fresh12 = pos;
                 pos = pos.offset(1);
                 *fresh12 = ((block[2 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
                     << 6 as ::core::ffi::c_int
                     | block[3 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
-                    as uint8_t;
-                count = 0 as size_t;
+                    as u8;
+                count = 0 as usize;
             }
         }
         i = i.wrapping_add(1);
@@ -192,6 +182,6 @@ pub unsafe extern "C" fn base64_decode(
             pos = pos.offset(-1);
         }
     }
-    *out_len = pos.offset_from(out) as ::core::ffi::c_long as size_t;
+    *out_len = pos.offset_from(out) as ::core::ffi::c_long as usize;
     return out;
 }

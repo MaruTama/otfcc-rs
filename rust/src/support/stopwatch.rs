@@ -1,3 +1,4 @@
+use crate::vendor::sds::{sds};
 extern "C" {
     fn clock_gettime(__clock_id: clockid_t, __tp: *mut timespec) -> ::core::ffi::c_int;
     fn sdsempty() -> sds;
@@ -13,7 +14,6 @@ pub struct timespec {
     pub tv_sec: __time_t,
     pub tv_nsec: __syscall_slong_t,
 }
-pub type sds = *mut ::core::ffi::c_char;
 pub const CLOCK_REALTIME: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
 #[no_mangle]
 pub unsafe extern "C" fn time_now(mut tv: *mut timespec) {

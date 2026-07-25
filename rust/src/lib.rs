@@ -5,7 +5,6 @@
 #![allow(unused_assignments)]
 #![allow(unused_mut)]
 #![feature(c_variadic)]
-#![feature(extern_types)]
 #![feature(raw_ref_op)]
 
 //! otfcc — an OpenType font manipulation library, transpiled from C and

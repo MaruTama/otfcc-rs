@@ -1,13 +1,5 @@
+use libc::{fprintf, free};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
@@ -15,50 +7,10 @@ extern "C" {
     fn sdscatfmt(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
 }
 
-use crate::support::stdio::{FILE, stderr};
+use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __uint64_t = u64;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type uint64_t = __uint64_t;
-pub type size_t = usize;
-pub type sds = *mut ::core::ffi::c_char;
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr8 {
-    pub len: uint8_t,
-    pub alloc: uint8_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr16 {
-    pub len: uint16_t,
-    pub alloc: uint16_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr32 {
-    pub len: uint32_t,
-    pub alloc: uint32_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr64 {
-    pub len: uint64_t,
-    pub alloc: uint64_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_ILoggerTarget {
@@ -70,12 +22,12 @@ pub const log_type_progress: otfcc_LoggerType = 3;
 pub const log_type_info: otfcc_LoggerType = 2;
 pub const log_type_warning: otfcc_LoggerType = 1;
 pub const log_type_error: otfcc_LoggerType = 0;
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed = 10;
-pub const log_vl_info: C2RustUnnamed = 5;
-pub const log_vl_notice: C2RustUnnamed = 2;
-pub const log_vl_important: C2RustUnnamed = 1;
-pub const log_vl_critical: C2RustUnnamed = 0;
+pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
+pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
+pub const log_vl_info: otfcc_LoggerVerbosity = 5;
+pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
+pub const log_vl_important: otfcc_LoggerVerbosity = 1;
+pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_ILogger {
@@ -87,17 +39,17 @@ pub struct otfcc_ILogger {
     pub log: Option<
         unsafe extern "C" fn(
             *mut otfcc_ILogger,
-            uint8_t,
+            u8,
             otfcc_LoggerType,
             *const ::core::ffi::c_char,
         ) -> (),
     >,
     pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
+        Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> ()>,
     pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
+    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> ()>,
     pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
 }
 #[derive(Copy, Clone)]
@@ -105,55 +57,46 @@ pub struct otfcc_ILogger {
 pub struct Logger {
     pub vtable: otfcc_ILogger,
     pub target: *mut ::core::ffi::c_void,
-    pub level: uint16_t,
-    pub lastLoggedLevel: uint16_t,
-    pub levelCap: uint16_t,
+    pub level: u16,
+    pub lastLoggedLevel: u16,
+    pub levelCap: u16,
     pub indents: *mut sds,
-    pub verbosityLimit: uint8_t,
+    pub verbosityLimit: u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct StderrTarget {
     pub vtable: otfcc_ILoggerTarget,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const SDS_TYPE_5: ::core::ffi::c_int = 0;
-pub const SDS_TYPE_8: ::core::ffi::c_int = 1;
-pub const SDS_TYPE_16: ::core::ffi::c_int = 2;
-pub const SDS_TYPE_32: ::core::ffi::c_int = 3;
-pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
-pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
-pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> size_t {
+unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
+        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_16 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_32 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_64 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
-                .len as size_t;
+                .len as usize;
         }
         _ => {}
     }
-    return 0 as size_t;
+    return 0 as usize;
 }
 #[no_mangle]
 pub static mut otfcc_LoggerTypeNames: [*const ::core::ffi::c_char; 3] = [
@@ -172,15 +115,15 @@ unsafe extern "C" fn loggerIndent(
 }
 unsafe extern "C" fn loggerIndentSDS(mut _self: *mut otfcc_ILogger, mut segment: sds) {
     let mut self_0: *mut Logger = _self as *mut Logger;
-    let mut newLevel: uint8_t =
-        ((*self_0).level as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as uint8_t;
+    let mut newLevel: u8 =
+        ((*self_0).level as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
     if newLevel as ::core::ffi::c_int > (*self_0).levelCap as ::core::ffi::c_int {
         (*self_0).levelCap = ((*self_0).levelCap as ::core::ffi::c_int
             + ((*self_0).levelCap as ::core::ffi::c_int / 2 as ::core::ffi::c_int
-                + 1 as ::core::ffi::c_int)) as uint16_t;
+                + 1 as ::core::ffi::c_int)) as u16;
         (*self_0).indents = __caryll_reallocate(
             (*self_0).indents as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<sds>() as size_t).wrapping_mul((*self_0).levelCap as size_t),
+            (::core::mem::size_of::<sds>() as usize).wrapping_mul((*self_0).levelCap as usize),
             24 as ::core::ffi::c_ulong,
         ) as *mut sds;
     }
@@ -200,7 +143,7 @@ unsafe extern "C" fn loggerDedent(mut _self: *mut otfcc_ILogger) {
             .indents
             .offset(((*self_0).level as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
     );
-    (*self_0).level = ((*self_0).level as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as uint16_t;
+    (*self_0).level = ((*self_0).level as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u16;
     if ((*self_0).level as ::core::ffi::c_int) < (*self_0).lastLoggedLevel as ::core::ffi::c_int {
         (*self_0).lastLoggedLevel = (*self_0).level;
     }
@@ -209,7 +152,7 @@ unsafe extern "C" fn loggerFinish(mut self_0: *mut otfcc_ILogger) {
     (*self_0).logSDS.expect("non-null function pointer")(
         self_0 as *mut otfcc_ILogger,
         (log_vl_progress as ::core::ffi::c_int
-            + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as uint8_t,
+            + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
         log_type_progress,
         sdsnew(b"Finish\0" as *const u8 as *const ::core::ffi::c_char),
     );
@@ -226,7 +169,7 @@ unsafe extern "C" fn loggerStart(
     (*self_0).logSDS.expect("non-null function pointer")(
         self_0 as *mut otfcc_ILogger,
         (log_vl_progress as ::core::ffi::c_int
-            + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as uint8_t,
+            + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
         log_type_progress,
         sdsnew(b"Begin\0" as *const u8 as *const ::core::ffi::c_char),
     );
@@ -236,14 +179,14 @@ unsafe extern "C" fn loggerStartSDS(mut self_0: *mut otfcc_ILogger, mut segment:
     (*self_0).logSDS.expect("non-null function pointer")(
         self_0 as *mut otfcc_ILogger,
         (log_vl_progress as ::core::ffi::c_int
-            + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as uint8_t,
+            + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
         log_type_progress,
         sdsnew(b"Begin\0" as *const u8 as *const ::core::ffi::c_char),
     );
 }
 unsafe extern "C" fn loggerLog(
     mut self_0: *mut otfcc_ILogger,
-    mut verbosity: uint8_t,
+    mut verbosity: u8,
     mut type_0: otfcc_LoggerType,
     mut data: *const ::core::ffi::c_char,
 ) {
@@ -256,18 +199,18 @@ unsafe extern "C" fn loggerLog(
 }
 unsafe extern "C" fn loggerLogSDS(
     mut _self: *mut otfcc_ILogger,
-    mut verbosity: uint8_t,
+    mut verbosity: u8,
     mut type_0: otfcc_LoggerType,
     mut data: sds,
 ) {
     let mut self_0: *mut Logger = _self as *mut Logger;
     let mut demand: sds = sdsempty();
-    let mut level: uint16_t = 0 as uint16_t;
+    let mut level: u16 = 0 as u16;
     while (level as ::core::ffi::c_int) < (*self_0).level as ::core::ffi::c_int {
         if (level as ::core::ffi::c_int)
             < (*self_0).lastLoggedLevel as ::core::ffi::c_int - 1 as ::core::ffi::c_int
         {
-            let mut j: size_t = 0 as size_t;
+            let mut j: usize = 0 as usize;
             while j < sdslen(*(*self_0).indents.offset(level as isize)) {
                 demand = sdscat(demand, b" \0" as *const u8 as *const ::core::ffi::c_char);
                 j = j.wrapping_add(1);
@@ -319,7 +262,7 @@ unsafe extern "C" fn loggerGetTarget(mut _self: *mut otfcc_ILogger) -> *mut otfc
     let mut self_0: *mut Logger = _self as *mut Logger;
     return (*self_0).target as *mut otfcc_ILoggerTarget;
 }
-unsafe extern "C" fn loggerSetVerbosity(mut _self: *mut otfcc_ILogger, mut verbosity: uint8_t) {
+unsafe extern "C" fn loggerSetVerbosity(mut _self: *mut otfcc_ILogger, mut verbosity: u8) {
     let mut self_0: *mut Logger = _self as *mut Logger;
     (*self_0).verbosityLimit = verbosity;
 }
@@ -332,7 +275,7 @@ unsafe extern "C" fn loggerDispose(mut _self: *mut otfcc_ILogger) {
     let mut target: *mut otfcc_ILoggerTarget =
         (*_self).getTarget.expect("non-null function pointer")(_self as *mut otfcc_ILogger);
     (*target).dispose.expect("non-null function pointer")(target as *mut otfcc_ILoggerTarget);
-    let mut level: uint16_t = 0 as uint16_t;
+    let mut level: u16 = 0 as u16;
     while (level as ::core::ffi::c_int) < (*self_0).level as ::core::ffi::c_int {
         sdsfree(*(*self_0).indents.offset(level as isize));
         level = level.wrapping_add(1);
@@ -360,20 +303,20 @@ pub static mut VTABLE_LOGGER: otfcc_ILogger = {
             loggerLog
                 as unsafe extern "C" fn(
                     *mut otfcc_ILogger,
-                    uint8_t,
+                    u8,
                     otfcc_LoggerType,
                     *const ::core::ffi::c_char,
                 ) -> (),
         ),
         logSDS: Some(
             loggerLogSDS
-                as unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> (),
+                as unsafe extern "C" fn(*mut otfcc_ILogger, u8, otfcc_LoggerType, sds) -> (),
         ),
         dedent: Some(loggerDedent as unsafe extern "C" fn(*mut otfcc_ILogger) -> ()),
         finish: Some(loggerFinish as unsafe extern "C" fn(*mut otfcc_ILogger) -> ()),
         end: None,
         setVerbosity: Some(
-            loggerSetVerbosity as unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> (),
+            loggerSetVerbosity as unsafe extern "C" fn(*mut otfcc_ILogger, u8) -> (),
         ),
         getTarget: Some(
             loggerGetTarget as unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget,
@@ -386,7 +329,7 @@ pub unsafe extern "C" fn otfcc_newLogger(
 ) -> *mut otfcc_ILogger {
     let mut logger: *mut Logger = ::core::ptr::null_mut::<Logger>();
     logger = __caryll_allocate_clean(
-        ::core::mem::size_of::<Logger>() as size_t,
+        ::core::mem::size_of::<Logger>() as usize,
         120 as ::core::ffi::c_ulong,
     ) as *mut Logger;
     (*logger).target = target as *mut ::core::ffi::c_void;
@@ -413,7 +356,7 @@ impl LoggerTarget for StderrLoggerTarget {
             b"%s\0" as *const u8 as *const ::core::ffi::c_char,
             data,
         );
-        if *data.offset(sdslen(data).wrapping_sub(1 as size_t) as isize) as ::core::ffi::c_int
+        if *data.offset(sdslen(data).wrapping_sub(1 as usize) as isize) as ::core::ffi::c_int
             != '\n' as i32
         {
             fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
@@ -440,7 +383,7 @@ pub static mut VTABLE_STDERR_TARGET: otfcc_ILoggerTarget = {
 pub unsafe extern "C" fn otfcc_newStdErrTarget() -> *mut otfcc_ILoggerTarget {
     let mut target: *mut StderrTarget = ::core::ptr::null_mut::<StderrTarget>();
     target = __caryll_allocate_clean(
-        ::core::mem::size_of::<StderrTarget>() as size_t,
+        ::core::mem::size_of::<StderrTarget>() as usize,
         146 as ::core::ffi::c_ulong,
     ) as *mut StderrTarget;
     (*target).vtable = VTABLE_STDERR_TARGET;
@@ -479,7 +422,7 @@ pub static mut VTABLE_EMPTY_TARGET: otfcc_ILoggerTarget = {
 pub unsafe extern "C" fn otfcc_newEmptyTarget() -> *mut otfcc_ILoggerTarget {
     let mut target: *mut StderrTarget = ::core::ptr::null_mut::<StderrTarget>();
     target = __caryll_allocate_clean(
-        ::core::mem::size_of::<StderrTarget>() as size_t,
+        ::core::mem::size_of::<StderrTarget>() as usize,
         168 as ::core::ffi::c_ulong,
     ) as *mut StderrTarget;
     (*target).vtable = VTABLE_EMPTY_TARGET;

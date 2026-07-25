@@ -8,3 +8,4 @@ pub mod emyg_dtoa;
 pub mod json;
 pub mod json_builder;
 pub mod sds;
+pub mod uthash;

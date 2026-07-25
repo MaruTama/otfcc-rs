@@ -1,52 +1,20 @@
+use libc::{exit, free, malloc, memcmp, memcpy, memset, strcmp, strtol};
 extern "C" {
-    fn strtol(
-        __nptr: *const ::core::ffi::c_char,
-        __endptr: *mut *mut ::core::ffi::c_char,
-        __base: ::core::ffi::c_int,
-    ) -> ::core::ffi::c_long;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memcmp(
-        __s1: *const ::core::ffi::c_void,
-        __s2: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> ::core::ffi::c_int;
-    fn strcmp(
-        __s1: *const ::core::ffi::c_char,
-        __s2: *const ::core::ffi::c_char,
-    ) -> ::core::ffi::c_int;
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: size_t) -> sds;
+    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsempty() -> sds;
     fn sdsfree(s: sds);
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn sdsfromlonglong(value: ::core::ffi::c_longlong) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
-    fn buflen(buf: *mut caryll_Buffer) -> size_t;
-    fn bufseek(buf: *mut caryll_Buffer, pos: size_t);
-    fn bufwrite8(buf: *mut caryll_Buffer, byte: uint8_t);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t);
-    fn bufwrite24b(buf: *mut caryll_Buffer, x: uint32_t);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: uint32_t);
+    fn buflen(buf: *mut caryll_Buffer) -> usize;
+    fn bufseek(buf: *mut caryll_Buffer, pos: usize);
+    fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
+    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
+    fn bufwrite24b(buf: *mut caryll_Buffer, x: u32);
+    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
     fn bufwrite_buf(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-    fn json_object_new(length: size_t) -> *mut json_value;
+    fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
         object: *mut json_value,
         name: *const ::core::ffi::c_char,
@@ -64,251 +32,20 @@ extern "C" {
 }
 
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_GlyphHandle};
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_16u, read_24u, read_32u};
-pub type __uint8_t = u8;
-pub type __int16_t = i16;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type __uint64_t = u64;
-pub type int16_t = __int16_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type uint64_t = __uint64_t;
-pub type size_t = usize;
-pub type json_type = ::core::ffi::c_uint;
-pub const json_pre_serialized: json_type = 8;
-pub const json_null: json_type = 7;
-pub const json_boolean: json_type = 6;
-pub const json_string: json_type = 5;
-pub const json_double: json_type = 4;
-pub const json_integer: json_type = 3;
-pub const json_array: json_type = 2;
-pub const json_object: json_type = 1;
-pub const json_none: json_type = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_value {
-    pub parent: *mut _json_value,
-    pub type_0: json_type,
-    pub u: C2RustUnnamed_0,
-    pub _reserved: C2RustUnnamed,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed {
-    pub next_alloc: *mut _json_value,
-    pub object_mem: *mut ::core::ffi::c_void,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_0 {
-    pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
-    pub dbl: ::core::ffi::c_double,
-    pub string: C2RustUnnamed_3,
-    pub object: C2RustUnnamed_2,
-    pub array: C2RustUnnamed_1,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_1 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_2 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut json_object_entry,
-}
-pub type json_object_entry = _json_object_entry;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_object_entry {
-    pub name: *mut ::core::ffi::c_char,
-    pub name_length: ::core::ffi::c_uint,
-    pub value: *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_3 {
-    pub length: ::core::ffi::c_uint,
-    pub ptr: *mut ::core::ffi::c_char,
-}
-pub type json_value = _json_value;
-pub type sds = *mut ::core::ffi::c_char;
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr8 {
-    pub len: uint8_t,
-    pub alloc: uint8_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr16 {
-    pub len: uint16_t,
-    pub alloc: uint16_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr32 {
-    pub len: uint32_t,
-    pub alloc: uint32_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr64 {
-    pub len: uint64_t,
-    pub alloc: uint64_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
-}
-pub type ptrdiff_t = isize;
-pub type glyphid_t = uint16_t;
-pub type tableid_t = uint16_t;
-pub type unicode_t = uint32_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
-    pub count: ::core::ffi::c_uint,
-    pub expand_mult: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
-    pub prev: *mut ::core::ffi::c_void,
-    pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
-    pub key: *mut ::core::ffi::c_void,
-    pub keylen: ::core::ffi::c_uint,
-    pub hashv: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
-    pub num_buckets: ::core::ffi::c_uint,
-    pub log2_num_buckets: ::core::ffi::c_uint,
-    pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
-    pub ideal_chain_maxlen: ::core::ffi::c_uint,
-    pub nonideal_items: ::core::ffi::c_uint,
-    pub ineff_expands: ::core::ffi::c_uint,
-    pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILoggerTarget {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()>,
-}
-pub type otfcc_LoggerType = ::core::ffi::c_uint;
-pub const log_type_progress: otfcc_LoggerType = 3;
-pub const log_type_info: otfcc_LoggerType = 2;
-pub const log_type_warning: otfcc_LoggerType = 1;
-pub const log_type_error: otfcc_LoggerType = 0;
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed_4 = 10;
-pub const log_vl_info: C2RustUnnamed_4 = 5;
-pub const log_vl_notice: C2RustUnnamed_4 = 2;
-pub const log_vl_important: C2RustUnnamed_4 = 1;
-pub const log_vl_critical: C2RustUnnamed_4 = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILogger {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub indent: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub indentSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub start: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub startSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub log: Option<
-        unsafe extern "C" fn(
-            *mut otfcc_ILogger,
-            uint8_t,
-            otfcc_LoggerType,
-            *const ::core::ffi::c_char,
-        ) -> (),
-    >,
-    pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
-    pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
-    pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Options {
-    pub debug_wait_on_start: bool,
-    pub ignore_glyph_order: bool,
-    pub ignore_hints: bool,
-    pub has_vertical_metrics: bool,
-    pub export_fdselect: bool,
-    pub keep_average_char_width: bool,
-    pub keep_unicode_ranges: bool,
-    pub short_post: bool,
-    pub dummy_DSIG: bool,
-    pub keep_modified_time: bool,
-    pub instr_as_bytes: bool,
-    pub verbose: bool,
-    pub quiet: bool,
-    pub cff_short_vmtx: bool,
-    pub merge_lookups: bool,
-    pub merge_features: bool,
-    pub force_cid: bool,
-    pub cff_rollCharString: bool,
-    pub cff_doSubroutinize: bool,
-    pub stub_cmap4: bool,
-    pub decimal_cmap: bool,
-    pub name_glyphs_by_hash: bool,
-    pub name_glyphs_by_gid: bool,
-    pub glyph_name_prefix: *mut ::core::ffi::c_char,
-    pub logger: *mut otfcc_ILogger,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_PacketPiece {
-    pub tag: uint32_t,
-    pub checkSum: uint32_t,
-    pub offset: uint32_t,
-    pub length: uint32_t,
-    pub data: *mut uint8_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Packet {
-    pub sfnt_version: uint32_t,
-    pub numTables: uint16_t,
-    pub searchRange: uint16_t,
-    pub entrySelector: uint16_t,
-    pub rangeShift: uint16_t,
-    pub pieces: *mut otfcc_PacketPiece,
-}
+use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::options::{otfcc_Options};
+use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t, unicode_t};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
+use crate::vendor::json::{json_object, json_string, json_type, json_value};
+use crate::bk::bkblock::{b16, b32, b8, bk_Block, bkover, p32};
+use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::{NULL};
+use crate::support::glyph_order::{glyph_handle};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cmap_Entry {
@@ -319,8 +56,8 @@ pub struct cmap_Entry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cmap_UVS_key {
-    pub unicode: uint32_t,
-    pub selector: uint32_t,
+    pub unicode: u32,
+    pub selector: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -347,7 +84,7 @@ pub struct __caryll_elementinterface_table_cmap {
     pub create: Option<unsafe extern "C" fn() -> *mut table_cmap>,
     pub free: Option<unsafe extern "C" fn(*mut table_cmap) -> ()>,
     pub encodeByIndex:
-        Option<unsafe extern "C" fn(*mut table_cmap, ::core::ffi::c_int, uint16_t) -> bool>,
+        Option<unsafe extern "C" fn(*mut table_cmap, ::core::ffi::c_int, u16) -> bool>,
     pub encodeByName:
         Option<unsafe extern "C" fn(*mut table_cmap, ::core::ffi::c_int, sds) -> bool>,
     pub unmap: Option<unsafe extern "C" fn(*mut table_cmap, ::core::ffi::c_int) -> bool>,
@@ -355,57 +92,14 @@ pub struct __caryll_elementinterface_table_cmap {
         unsafe extern "C" fn(*const table_cmap, ::core::ffi::c_int) -> *mut otfcc_GlyphHandle,
     >,
     pub encodeUVSByIndex:
-        Option<unsafe extern "C" fn(*mut table_cmap, cmap_UVS_key, uint16_t) -> bool>,
+        Option<unsafe extern "C" fn(*mut table_cmap, cmap_UVS_key, u16) -> bool>,
     pub encodeUVSByName: Option<unsafe extern "C" fn(*mut table_cmap, cmap_UVS_key, sds) -> bool>,
     pub unmapUVS: Option<unsafe extern "C" fn(*mut table_cmap, cmap_UVS_key) -> bool>,
     pub lookupUVS:
         Option<unsafe extern "C" fn(*const table_cmap, cmap_UVS_key) -> *mut otfcc_GlyphHandle>,
 }
-pub type font_file_pointer = *mut uint8_t;
-pub type glyph_handle = otfcc_GlyphHandle;
-pub type bk_Block = __caryll_bkblock;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_bkblock {
-    pub _visitstate: bk_cell_visit_state,
-    pub _index: uint32_t,
-    pub _height: uint32_t,
-    pub _depth: uint32_t,
-    pub length: uint32_t,
-    pub free: uint32_t,
-    pub cells: *mut bk_Cell,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct bk_Cell {
-    pub t: bk_CellType,
-    pub c2rust_unnamed: C2RustUnnamed_5,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_5 {
-    pub z: uint32_t,
-    pub p: *mut __caryll_bkblock,
-}
-pub type bk_CellType = ::core::ffi::c_uint;
-pub const bkembed: bk_CellType = 255;
-pub const bkcopy: bk_CellType = 254;
-pub const sp32: bk_CellType = 129;
-pub const sp16: bk_CellType = 128;
-pub const p32: bk_CellType = 17;
-pub const p16: bk_CellType = 16;
-pub const b32: bk_CellType = 3;
-pub const b16: bk_CellType = 2;
-pub const b8: bk_CellType = 1;
-pub const bkover: bk_CellType = 0;
-pub type bk_cell_visit_state = ::core::ffi::c_uint;
-pub const VISIT_BLACK: bk_cell_visit_state = 2;
-pub const VISIT_GRAY: bk_cell_visit_state = 1;
-pub const VISIT_WHITE: bk_cell_visit_state = 0;
 pub const UINT16_MAX: ::core::ffi::c_int = 65535 as ::core::ffi::c_int;
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
     return strtol(
@@ -414,47 +108,36 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
         10 as ::core::ffi::c_int,
     ) as ::core::ffi::c_int;
 }
-pub const SDS_TYPE_5: ::core::ffi::c_int = 0;
-pub const SDS_TYPE_8: ::core::ffi::c_int = 1;
-pub const SDS_TYPE_16: ::core::ffi::c_int = 2;
-pub const SDS_TYPE_32: ::core::ffi::c_int = 3;
-pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
-pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
-pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> size_t {
+unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
+        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_16 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_32 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_64 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
-                .len as size_t;
+                .len as usize;
         }
         _ => {}
     }
-    return 0 as size_t;
+    return 0 as usize;
 }
-pub const HASH_INITIAL_NUM_BUCKETS: ::core::ffi::c_uint = 32 as ::core::ffi::c_uint;
-pub const HASH_INITIAL_NUM_BUCKETS_LOG2: ::core::ffi::c_uint = 5 as ::core::ffi::c_uint;
-pub const HASH_BKT_CAPACITY_THRESH: ::core::ffi::c_uint = 10 as ::core::ffi::c_uint;
-pub const HASH_SIGNATURE: ::core::ffi::c_uint = 0xa0111fe1 as ::core::ffi::c_uint;
 #[inline]
 unsafe extern "C" fn initCmap(mut cmap: *mut table_cmap) {
     (*cmap).unicodes = ::core::ptr::null_mut::<cmap_Entry>();
@@ -605,7 +288,7 @@ unsafe extern "C" fn table_cmap_dispose(mut x: *mut table_cmap) {
 #[inline]
 unsafe extern "C" fn table_cmap_create() -> *mut table_cmap {
     let mut x: *mut table_cmap =
-        malloc(::core::mem::size_of::<table_cmap>() as size_t) as *mut table_cmap;
+        malloc(::core::mem::size_of::<table_cmap>() as usize) as *mut table_cmap;
     table_cmap_init(x);
     return x;
 }
@@ -627,7 +310,7 @@ unsafe extern "C" fn table_cmap_copy(mut dst: *mut table_cmap, mut src: *const t
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_cmap>() as size_t,
+        ::core::mem::size_of::<table_cmap>() as usize,
     );
 }
 #[inline]
@@ -636,7 +319,7 @@ unsafe extern "C" fn table_cmap_replace(mut dst: *mut table_cmap, src: table_cma
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_cmap>() as size_t,
+        ::core::mem::size_of::<table_cmap>() as usize,
     );
 }
 #[inline]
@@ -644,7 +327,7 @@ unsafe extern "C" fn table_cmap_move(mut dst: *mut table_cmap, mut src: *mut tab
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_cmap>() as size_t,
+        ::core::mem::size_of::<table_cmap>() as usize,
     );
     table_cmap_init(src);
 }
@@ -656,7 +339,7 @@ unsafe extern "C" fn table_cmap_init(mut x: *mut table_cmap) {
 pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
     mut cmap: *mut table_cmap,
     mut c: ::core::ffi::c_int,
-    mut gid: uint16_t,
+    mut gid: u16,
 ) -> bool {
     let mut s: *mut cmap_Entry = ::core::ptr::null_mut::<cmap_Entry>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -945,7 +628,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
                     if memcmp(
                         (*s).hh.key,
                         &raw mut c as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                        ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -964,7 +647,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
     }
     if s.is_null() {
         s = __caryll_allocate_clean(
-            ::core::mem::size_of::<cmap_Entry>() as size_t,
+            ::core::mem::size_of::<cmap_Entry>() as usize,
             38 as ::core::ffi::c_ulong,
         ) as *mut cmap_Entry;
         (*s).glyph = handle_fromIndex(gid as glyphid_t)
@@ -1242,7 +925,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
         if (*cmap).unicodes.is_null() {
             (*s).hh.next = NULL_0;
             (*s).hh.prev = NULL_0;
-            (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*s).hh.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -1250,26 +933,26 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
                 memset(
                     (*s).hh.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
                 (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*s).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
                     .offset_from(s as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*s).hh.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*s).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*s).hh.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -1316,9 +999,9 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*s).hh.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -1326,9 +1009,9 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*s).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
                     >> (*(*s).hh.tbl)
@@ -1697,7 +1380,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
                     if memcmp(
                         (*s).hh.key,
                         &raw mut c as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                        ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -1716,7 +1399,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
     }
     if s.is_null() {
         s = __caryll_allocate_clean(
-            ::core::mem::size_of::<cmap_Entry>() as size_t,
+            ::core::mem::size_of::<cmap_Entry>() as usize,
             51 as ::core::ffi::c_ulong,
         ) as *mut cmap_Entry;
         (*s).glyph =
@@ -1994,7 +1677,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
         if (*cmap).unicodes.is_null() {
             (*s).hh.next = NULL_0;
             (*s).hh.prev = NULL_0;
-            (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*s).hh.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2002,26 +1685,26 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
                 memset(
                     (*s).hh.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
                 (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*s).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
                     .offset_from(s as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*s).hh.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*s).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*s).hh.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -2068,9 +1751,9 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*s).hh.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2078,9 +1761,9 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*s).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
                     >> (*(*s).hh.tbl)
@@ -2448,7 +2131,7 @@ pub unsafe extern "C" fn otfcc_unmapCmap(
                     if memcmp(
                         (*s).hh.key,
                         &raw mut c as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                        ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -2816,7 +2499,7 @@ pub unsafe extern "C" fn otfcc_cmapLookup(
                     if memcmp(
                         (*s).hh.key,
                         &raw mut c as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<::core::ffi::c_int>() as size_t,
+                        ::core::mem::size_of::<::core::ffi::c_int>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -2843,7 +2526,7 @@ pub unsafe extern "C" fn otfcc_cmapLookup(
 pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
     mut cmap: *mut table_cmap,
     mut c: cmap_UVS_key,
-    mut gid: uint16_t,
+    mut gid: u16,
 ) -> bool {
     let mut s: *mut cmap_UVS_Entry = ::core::ptr::null_mut::<cmap_UVS_Entry>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -3127,7 +2810,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
                     if memcmp(
                         (*s).hh.key,
                         &raw mut c as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<cmap_UVS_key>() as size_t,
+                        ::core::mem::size_of::<cmap_UVS_key>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -3146,7 +2829,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
     }
     if s.is_null() {
         s = __caryll_allocate_clean(
-            ::core::mem::size_of::<cmap_UVS_Entry>() as size_t,
+            ::core::mem::size_of::<cmap_UVS_Entry>() as usize,
             87 as ::core::ffi::c_ulong,
         ) as *mut cmap_UVS_Entry;
         (*s).glyph = handle_fromIndex(gid as glyphid_t)
@@ -3424,7 +3107,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
         if (*cmap).uvs.is_null() {
             (*s).hh.next = NULL_0;
             (*s).hh.prev = NULL_0;
-            (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*s).hh.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -3432,26 +3115,26 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
                 memset(
                     (*s).hh.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
                 (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*s).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
                     .offset_from(s as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*s).hh.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*s).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*s).hh.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -3495,9 +3178,9 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*s).hh.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -3505,9 +3188,9 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*s).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
                     >> (*(*s).hh.tbl)
@@ -3871,7 +3554,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
                     if memcmp(
                         (*s).hh.key,
                         &raw mut c as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<cmap_UVS_key>() as size_t,
+                        ::core::mem::size_of::<cmap_UVS_key>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -3890,7 +3573,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
     }
     if s.is_null() {
         s = __caryll_allocate_clean(
-            ::core::mem::size_of::<cmap_UVS_Entry>() as size_t,
+            ::core::mem::size_of::<cmap_UVS_Entry>() as usize,
             100 as ::core::ffi::c_ulong,
         ) as *mut cmap_UVS_Entry;
         (*s).glyph =
@@ -4168,7 +3851,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
         if (*cmap).uvs.is_null() {
             (*s).hh.next = NULL_0;
             (*s).hh.prev = NULL_0;
-            (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*s).hh.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -4176,26 +3859,26 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
                 memset(
                     (*s).hh.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
                 (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*s).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
                     .offset_from(s as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*s).hh.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*s).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*s).hh.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -4239,9 +3922,9 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*s).hh.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -4249,9 +3932,9 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*s).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
                     >> (*(*s).hh.tbl)
@@ -4614,7 +4297,7 @@ pub unsafe extern "C" fn otfcc_unmapCmapUVS(
                     if memcmp(
                         (*s).hh.key,
                         &raw mut c as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<cmap_UVS_key>() as size_t,
+                        ::core::mem::size_of::<cmap_UVS_key>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -4974,7 +4657,7 @@ pub unsafe extern "C" fn otfcc_cmapLookupUVS(
                     if memcmp(
                         (*s).hh.key,
                         &raw mut c as *const ::core::ffi::c_void,
-                        ::core::mem::size_of::<cmap_UVS_key>() as size_t,
+                        ::core::mem::size_of::<cmap_UVS_key>() as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -5018,7 +4701,7 @@ pub static mut table_iCmap: __caryll_elementinterface_table_cmap = {
         free: Some(table_cmap_free as unsafe extern "C" fn(*mut table_cmap) -> ()),
         encodeByIndex: Some(
             otfcc_encodeCmapByIndex
-                as unsafe extern "C" fn(*mut table_cmap, ::core::ffi::c_int, uint16_t) -> bool,
+                as unsafe extern "C" fn(*mut table_cmap, ::core::ffi::c_int, u16) -> bool,
         ),
         encodeByName: Some(
             otfcc_encodeCmapByName
@@ -5036,7 +4719,7 @@ pub static mut table_iCmap: __caryll_elementinterface_table_cmap = {
         ),
         encodeUVSByIndex: Some(
             otfcc_encodeCmapUVSByIndex
-                as unsafe extern "C" fn(*mut table_cmap, cmap_UVS_key, uint16_t) -> bool,
+                as unsafe extern "C" fn(*mut table_cmap, cmap_UVS_key, u16) -> bool,
         ),
         encodeUVSByName: Some(
             otfcc_encodeCmapUVSByName
@@ -5053,42 +4736,42 @@ pub static mut table_iCmap: __caryll_elementinterface_table_cmap = {
 };
 unsafe extern "C" fn readFormat12(
     mut start: font_file_pointer,
-    mut lengthLimit: uint32_t,
+    mut lengthLimit: u32,
     mut cmap: *mut table_cmap,
 ) {
-    if lengthLimit < 16 as uint32_t {
+    if lengthLimit < 16 as u32 {
         return;
     }
-    let mut nGroups: uint32_t =
-        read_32u(start.offset(12 as ::core::ffi::c_int as isize) as *const uint8_t);
-    if lengthLimit < (16 as uint32_t).wrapping_add((12 as uint32_t).wrapping_mul(nGroups)) {
+    let mut nGroups: u32 =
+        read_32u(start.offset(12 as ::core::ffi::c_int as isize) as *const u8);
+    if lengthLimit < (16 as u32).wrapping_add((12 as u32).wrapping_mul(nGroups)) {
         return;
     }
-    let mut j: uint32_t = 0 as uint32_t;
+    let mut j: u32 = 0 as u32;
     while j < nGroups {
-        let mut startCode: uint32_t = read_32u(
+        let mut startCode: u32 = read_32u(
             start
                 .offset(16 as ::core::ffi::c_int as isize)
-                .offset((12 as uint32_t).wrapping_mul(j) as isize) as *const uint8_t,
+                .offset((12 as u32).wrapping_mul(j) as isize) as *const u8,
         );
-        let mut endCode: uint32_t = read_32u(
+        let mut endCode: u32 = read_32u(
             start
                 .offset(16 as ::core::ffi::c_int as isize)
-                .offset((12 as uint32_t).wrapping_mul(j) as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const uint8_t,
+                .offset((12 as u32).wrapping_mul(j) as isize)
+                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
         );
-        let mut startGID: uint32_t = read_32u(
+        let mut startGID: u32 = read_32u(
             start
                 .offset(16 as ::core::ffi::c_int as isize)
-                .offset((12 as uint32_t).wrapping_mul(j) as isize)
-                .offset(8 as ::core::ffi::c_int as isize) as *const uint8_t,
+                .offset((12 as u32).wrapping_mul(j) as isize)
+                .offset(8 as ::core::ffi::c_int as isize) as *const u8,
         );
-        let mut c: uint32_t = startCode;
+        let mut c: u32 = startCode;
         while c <= endCode {
             otfcc_encodeCmapByIndex(
                 cmap,
                 c as ::core::ffi::c_int,
-                c.wrapping_sub(startCode).wrapping_add(startGID) as uint16_t,
+                c.wrapping_sub(startCode).wrapping_add(startGID) as u16,
             );
             c = c.wrapping_add(1);
         }
@@ -5097,76 +4780,76 @@ unsafe extern "C" fn readFormat12(
 }
 unsafe extern "C" fn readFormat4(
     mut start: font_file_pointer,
-    mut lengthLimit: uint32_t,
+    mut lengthLimit: u32,
     mut cmap: *mut table_cmap,
 ) {
-    if lengthLimit < 14 as uint32_t {
+    if lengthLimit < 14 as u32 {
         return;
     }
-    let mut segmentsCount: uint16_t =
-        (read_16u(start.offset(6 as ::core::ffi::c_int as isize) as *const uint8_t)
+    let mut segmentsCount: u16 =
+        (read_16u(start.offset(6 as ::core::ffi::c_int as isize) as *const u8)
             as ::core::ffi::c_int
-            / 2 as ::core::ffi::c_int) as uint16_t;
+            / 2 as ::core::ffi::c_int) as u16;
     if lengthLimit
         < (16 as ::core::ffi::c_int + segmentsCount as ::core::ffi::c_int * 8 as ::core::ffi::c_int)
-            as uint32_t
+            as u32
     {
         return;
     }
-    let mut j: uint16_t = 0 as uint16_t;
+    let mut j: u16 = 0 as u16;
     while (j as ::core::ffi::c_int) < segmentsCount as ::core::ffi::c_int {
-        let mut endCode: uint16_t = read_16u(
+        let mut endCode: u16 = read_16u(
             start
                 .offset(14 as ::core::ffi::c_int as isize)
                 .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                as *const uint8_t,
+                as *const u8,
         );
-        let mut startCode: uint16_t = read_16u(
+        let mut startCode: u16 = read_16u(
             start
                 .offset(14 as ::core::ffi::c_int as isize)
                 .offset((segmentsCount as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
                 .offset(2 as ::core::ffi::c_int as isize)
                 .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                as *const uint8_t,
+                as *const u8,
         );
-        let mut idDelta: int16_t = read_16u(
+        let mut idDelta: i16 = read_16u(
             start
                 .offset(14 as ::core::ffi::c_int as isize)
                 .offset((segmentsCount as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
                 .offset(2 as ::core::ffi::c_int as isize)
                 .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                as *const uint8_t,
-        ) as int16_t;
-        let mut idRangeOffsetOffset: uint32_t = (14 as ::core::ffi::c_int
+                as *const u8,
+        ) as i16;
+        let mut idRangeOffsetOffset: u32 = (14 as ::core::ffi::c_int
             + segmentsCount as ::core::ffi::c_int * 6 as ::core::ffi::c_int
             + 2 as ::core::ffi::c_int
             + j as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-            as uint32_t;
-        let mut idRangeOffset: uint16_t =
-            read_16u(start.offset(idRangeOffsetOffset as isize) as *const uint8_t);
+            as u32;
+        let mut idRangeOffset: u16 =
+            read_16u(start.offset(idRangeOffsetOffset as isize) as *const u8);
         if idRangeOffset as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
-            let mut c: uint32_t = startCode as uint32_t;
-            while c < 0xffff as uint32_t && c <= endCode as uint32_t {
-                let mut gid: uint16_t =
-                    (c.wrapping_add(idDelta as uint32_t) & 0xffff as uint32_t) as uint16_t;
+            let mut c: u32 = startCode as u32;
+            while c < 0xffff as u32 && c <= endCode as u32 {
+                let mut gid: u16 =
+                    (c.wrapping_add(idDelta as u32) & 0xffff as u32) as u16;
                 otfcc_encodeCmapByIndex(cmap, c as ::core::ffi::c_int, gid);
                 c = c.wrapping_add(1);
             }
         } else {
-            let mut c_0: uint32_t = startCode as uint32_t;
-            while c_0 < 0xffff as uint32_t && c_0 <= endCode as uint32_t {
-                let mut glyphOffset: uint32_t = (idRangeOffset as uint32_t)
+            let mut c_0: u32 = startCode as u32;
+            while c_0 < 0xffff as u32 && c_0 <= endCode as u32 {
+                let mut glyphOffset: u32 = (idRangeOffset as u32)
                     .wrapping_add(
-                        c_0.wrapping_sub(startCode as uint32_t)
-                            .wrapping_mul(2 as uint32_t),
+                        c_0.wrapping_sub(startCode as u32)
+                            .wrapping_mul(2 as u32),
                     )
                     .wrapping_add(idRangeOffsetOffset);
-                if !(glyphOffset.wrapping_add(2 as uint32_t) > lengthLimit) {
-                    let mut gid_0: uint16_t =
-                        (read_16u(start.offset(glyphOffset as isize) as *const uint8_t)
+                if !(glyphOffset.wrapping_add(2 as u32) > lengthLimit) {
+                    let mut gid_0: u16 =
+                        (read_16u(start.offset(glyphOffset as isize) as *const u8)
                             as ::core::ffi::c_int
                             + idDelta as ::core::ffi::c_int
-                            & 0xffff as ::core::ffi::c_int) as uint16_t;
+                            & 0xffff as ::core::ffi::c_int) as u16;
                     otfcc_encodeCmapByIndex(cmap, c_0 as ::core::ffi::c_int, gid_0);
                 }
                 c_0 = c_0.wrapping_add(1);
@@ -5177,27 +4860,27 @@ unsafe extern "C" fn readFormat4(
 }
 unsafe extern "C" fn readUVSDefault(
     mut start: font_file_pointer,
-    mut lengthLimit: uint32_t,
+    mut lengthLimit: u32,
     mut selector: unicode_t,
     mut cmap: *mut table_cmap,
 ) {
-    if lengthLimit < 4 as uint32_t {
+    if lengthLimit < 4 as u32 {
         return;
     }
-    let mut numUnicodeValueRanges: uint32_t = read_32u(start as *const uint8_t);
+    let mut numUnicodeValueRanges: u32 = read_32u(start as *const u8);
     if lengthLimit
-        < (4 as uint32_t).wrapping_add((4 as uint32_t).wrapping_mul(numUnicodeValueRanges))
+        < (4 as u32).wrapping_add((4 as u32).wrapping_mul(numUnicodeValueRanges))
     {
         return;
     }
-    let mut j: uint32_t = 0 as uint32_t;
+    let mut j: u32 = 0 as u32;
     while j < numUnicodeValueRanges {
         let mut vsr: font_file_pointer = start
             .offset(4 as ::core::ffi::c_int as isize)
-            .offset((4 as uint32_t).wrapping_mul(j) as isize);
-        let mut startUnicodeValue: unicode_t = read_24u(vsr as *const uint8_t) as unicode_t;
-        let mut additionalCount: uint8_t =
-            read_8u(vsr.offset(3 as ::core::ffi::c_int as isize) as *const uint8_t);
+            .offset((4 as u32).wrapping_mul(j) as isize);
+        let mut startUnicodeValue: unicode_t = read_24u(vsr as *const u8) as unicode_t;
+        let mut additionalCount: u8 =
+            read_8u(vsr.offset(3 as ::core::ffi::c_int as isize) as *const u8);
         let mut u: unicode_t = startUnicodeValue;
         while u <= startUnicodeValue.wrapping_add(additionalCount as unicode_t) {
             let mut g: *mut otfcc_GlyphHandle = table_iCmap
@@ -5211,10 +4894,10 @@ unsafe extern "C" fn readUVSDefault(
                     .expect("non-null function pointer")(
                     cmap,
                     cmap_UVS_key {
-                        unicode: u as uint32_t,
-                        selector: selector as uint32_t,
+                        unicode: u as u32,
+                        selector: selector as u32,
                     },
-                    (*g).index as uint16_t,
+                    (*g).index as u16,
                 );
             }
             u = u.wrapping_add(1);
@@ -5224,61 +4907,61 @@ unsafe extern "C" fn readUVSDefault(
 }
 unsafe extern "C" fn readUVSNonDefault(
     mut start: font_file_pointer,
-    mut lengthLimit: uint32_t,
+    mut lengthLimit: u32,
     mut selector: unicode_t,
     mut cmap: *mut table_cmap,
 ) {
-    if lengthLimit < 4 as uint32_t {
+    if lengthLimit < 4 as u32 {
         return;
     }
-    let mut numUVSMappings: uint32_t = read_32u(start as *const uint8_t);
-    if lengthLimit < (4 as uint32_t).wrapping_add((5 as uint32_t).wrapping_mul(numUVSMappings)) {
+    let mut numUVSMappings: u32 = read_32u(start as *const u8);
+    if lengthLimit < (4 as u32).wrapping_add((5 as u32).wrapping_mul(numUVSMappings)) {
         return;
     }
-    let mut j: uint32_t = 0 as uint32_t;
+    let mut j: u32 = 0 as u32;
     while j < numUVSMappings {
         let mut vsr: font_file_pointer = start
             .offset(4 as ::core::ffi::c_int as isize)
-            .offset((5 as uint32_t).wrapping_mul(j) as isize);
-        let mut unicodeValue: unicode_t = read_24u(vsr as *const uint8_t) as unicode_t;
+            .offset((5 as u32).wrapping_mul(j) as isize);
+        let mut unicodeValue: unicode_t = read_24u(vsr as *const u8) as unicode_t;
         let mut glyphID: glyphid_t =
-            read_16u(vsr.offset(3 as ::core::ffi::c_int as isize) as *const uint8_t) as glyphid_t;
+            read_16u(vsr.offset(3 as ::core::ffi::c_int as isize) as *const u8) as glyphid_t;
         table_iCmap
             .encodeUVSByIndex
             .expect("non-null function pointer")(
             cmap,
             cmap_UVS_key {
-                unicode: unicodeValue as uint32_t,
-                selector: selector as uint32_t,
+                unicode: unicodeValue as u32,
+                selector: selector as u32,
             },
-            glyphID as uint16_t,
+            glyphID as u16,
         );
         j = j.wrapping_add(1);
     }
 }
 unsafe extern "C" fn readFormat14(
     mut start: font_file_pointer,
-    mut lengthLimit: uint32_t,
+    mut lengthLimit: u32,
     mut cmap: *mut table_cmap,
 ) {
-    if lengthLimit < 10 as uint32_t {
+    if lengthLimit < 10 as u32 {
         return;
     }
-    let mut nGroups: uint32_t =
-        read_32u(start.offset(6 as ::core::ffi::c_int as isize) as *const uint8_t);
-    if lengthLimit < (11 as uint32_t).wrapping_add((11 as uint32_t).wrapping_mul(nGroups)) {
+    let mut nGroups: u32 =
+        read_32u(start.offset(6 as ::core::ffi::c_int as isize) as *const u8);
+    if lengthLimit < (11 as u32).wrapping_add((11 as u32).wrapping_mul(nGroups)) {
         return;
     }
-    let mut j: uint32_t = 0 as uint32_t;
+    let mut j: u32 = 0 as u32;
     while j < nGroups {
         let mut vsr: font_file_pointer = start
             .offset(10 as ::core::ffi::c_int as isize)
-            .offset((11 as uint32_t).wrapping_mul(j) as isize);
-        let mut selector: unicode_t = read_24u(vsr as *const uint8_t) as unicode_t;
-        let mut defaultUVSOffset: uint32_t =
-            read_32u(vsr.offset(3 as ::core::ffi::c_int as isize) as *const uint8_t);
-        let mut nonDefaultUVSOffset: uint32_t =
-            read_32u(vsr.offset(7 as ::core::ffi::c_int as isize) as *const uint8_t);
+            .offset((11 as u32).wrapping_mul(j) as isize);
+        let mut selector: unicode_t = read_24u(vsr as *const u8) as unicode_t;
+        let mut defaultUVSOffset: u32 =
+            read_32u(vsr.offset(3 as ::core::ffi::c_int as isize) as *const u8);
+        let mut nonDefaultUVSOffset: u32 =
+            read_32u(vsr.offset(7 as ::core::ffi::c_int as isize) as *const u8);
         if defaultUVSOffset != 0 {
             readUVSDefault(
                 start.offset(defaultUVSOffset as isize),
@@ -5300,11 +4983,11 @@ unsafe extern "C" fn readFormat14(
 }
 unsafe extern "C" fn readCmapMappingTable(
     mut start: font_file_pointer,
-    mut lengthLimit: uint32_t,
+    mut lengthLimit: u32,
     mut cmap: *mut table_cmap,
     mut requiredFormat: tableid_t,
 ) {
-    let mut format: uint16_t = read_16u(start as *const uint8_t);
+    let mut format: u16 = read_16u(start as *const u8);
     if format as ::core::ffi::c_int == requiredFormat as ::core::ffi::c_int {
         if format as ::core::ffi::c_int == 4 as ::core::ffi::c_int {
             readFormat4(start, lengthLimit, cmap);
@@ -5315,10 +4998,10 @@ unsafe extern "C" fn readCmapMappingTable(
 }
 unsafe extern "C" fn readCmapMappingTableUVS(
     mut start: font_file_pointer,
-    mut lengthLimit: uint32_t,
+    mut lengthLimit: u32,
     mut cmap: *mut table_cmap,
 ) {
-    let mut format: uint16_t = read_16u(start as *const uint8_t);
+    let mut format: u16 = read_16u(start as *const u8);
     if format as ::core::ffi::c_int == 14 as ::core::ffi::c_int {
         readFormat14(start, lengthLimit, cmap);
     }
@@ -5340,7 +5023,7 @@ unsafe extern "C" fn by_uvs_key(
     };
 }
 #[inline]
-unsafe extern "C" fn isValidCmapEncoding(mut platform: uint16_t, mut encoding: uint16_t) -> bool {
+unsafe extern "C" fn isValidCmapEncoding(mut platform: u16, mut encoding: u16) -> bool {
     return platform as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         && encoding as ::core::ffi::c_int == 3 as ::core::ffi::c_int
         || platform as ::core::ffi::c_int == 0 as ::core::ffi::c_int
@@ -5363,7 +5046,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
 ) -> *mut table_cmap {
-    let mut numTables: uint16_t = 0;
+    let mut numTables: u16 = 0;
     let mut cmap: *mut table_cmap = ::core::ptr::null_mut::<table_cmap>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -5374,43 +5057,43 @@ pub unsafe extern "C" fn otfcc_readCmap(
     {
         let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1668112752i32 as uint32_t {
+            if table.tag == 1668112752i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     let mut data: font_file_pointer = table.data as font_file_pointer;
-                    let mut length: uint32_t = table.length;
-                    if !(length < 4 as uint32_t) {
+                    let mut length: u32 = table.length;
+                    if !(length < 4 as u32) {
                         cmap = (
                             table_iCmap.create.expect("non-null function pointer"))();
                         numTables = read_16u(
-                            data.offset(2 as ::core::ffi::c_int as isize) as *const uint8_t
+                            data.offset(2 as ::core::ffi::c_int as isize) as *const u8
                         );
                         if !(length
                             < (4 as ::core::ffi::c_int
                                 + 8 as ::core::ffi::c_int * numTables as ::core::ffi::c_int)
-                                as uint32_t)
+                                as u32)
                         {
-                            let mut kSubtableType: size_t = 0 as size_t;
+                            let mut kSubtableType: usize = 0 as usize;
                             while formatPriorities[kSubtableType] != 0 {
-                                let mut j: uint16_t = 0 as uint16_t;
+                                let mut j: u16 = 0 as u16;
                                 while (j as ::core::ffi::c_int) < numTables as ::core::ffi::c_int {
-                                    let mut platform: uint16_t = read_16u(
+                                    let mut platform: u16 = read_16u(
                                         data.offset(4 as ::core::ffi::c_int as isize).offset(
                                             (8 as ::core::ffi::c_int * j as ::core::ffi::c_int)
                                                 as isize,
-                                        ) as *const uint8_t,
+                                        ) as *const u8,
                                     );
-                                    let mut encoding: uint16_t = read_16u(
+                                    let mut encoding: u16 = read_16u(
                                         data.offset(4 as ::core::ffi::c_int as isize)
                                             .offset(
                                                 (8 as ::core::ffi::c_int * j as ::core::ffi::c_int)
                                                     as isize,
                                             )
                                             .offset(2 as ::core::ffi::c_int as isize)
-                                            as *const uint8_t,
+                                            as *const u8,
                                     );
                                     if isValidCmapEncoding(platform, encoding) {
-                                        let mut tableOffset: uint32_t = read_32u(
+                                        let mut tableOffset: u32 = read_32u(
                                             data.offset(4 as ::core::ffi::c_int as isize)
                                                 .offset(
                                                     (8 as ::core::ffi::c_int
@@ -5418,7 +5101,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                         as isize,
                                                 )
                                                 .offset(4 as ::core::ffi::c_int as isize)
-                                                as *const uint8_t,
+                                                as *const u8,
                                         );
                                         readCmapMappingTable(
                                             data.offset(tableOffset as isize),
@@ -5594,25 +5277,25 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                     _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
                                 }
                             }
-                            let mut j_0: uint16_t = 0 as uint16_t;
+                            let mut j_0: u16 = 0 as u16;
                             while (j_0 as ::core::ffi::c_int) < numTables as ::core::ffi::c_int {
-                                let mut platform_0: uint16_t = read_16u(
+                                let mut platform_0: u16 = read_16u(
                                     data.offset(4 as ::core::ffi::c_int as isize).offset(
                                         (8 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int)
                                             as isize,
-                                    ) as *const uint8_t,
+                                    ) as *const u8,
                                 );
-                                let mut encoding_0: uint16_t = read_16u(
+                                let mut encoding_0: u16 = read_16u(
                                     data.offset(4 as ::core::ffi::c_int as isize)
                                         .offset(
                                             (8 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int)
                                                 as isize,
                                         )
                                         .offset(2 as ::core::ffi::c_int as isize)
-                                        as *const uint8_t,
+                                        as *const u8,
                                 );
                                 if isValidCmapEncoding(platform_0, encoding_0) {
-                                    let mut tableOffset_0: uint32_t = read_32u(
+                                    let mut tableOffset_0: u32 = read_32u(
                                         data.offset(4 as ::core::ffi::c_int as isize)
                                             .offset(
                                                 (8 as ::core::ffi::c_int
@@ -5620,7 +5303,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                     as isize,
                                             )
                                             .offset(4 as ::core::ffi::c_int as isize)
-                                            as *const uint8_t,
+                                            as *const u8,
                                     );
                                     readCmapMappingTableUVS(
                                         data.offset(tableOffset_0 as isize),
@@ -5802,7 +5485,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as uint8_t,
+                        log_vl_important as ::core::ffi::c_int as u8,
                         log_type_warning,
                         sdscatprintf(
                             sdsempty(),
@@ -5852,7 +5535,7 @@ pub unsafe extern "C" fn otfcc_dumpCmap(
                     (*(*(*table).unicodes).hh.tbl).num_items
                 } else {
                     0 as ::core::ffi::c_uint
-                }) as size_t,
+                }) as usize,
             );
             let mut item: *mut cmap_Entry = ::core::ptr::null_mut::<cmap_Entry>();
             item = (*table).unicodes;
@@ -5892,7 +5575,7 @@ pub unsafe extern "C" fn otfcc_dumpCmap(
                     (*(*(*table).uvs).hh.tbl).num_items
                 } else {
                     0 as ::core::ffi::c_uint
-                }) as size_t,
+                }) as usize,
             );
             let mut item_0: *mut cmap_UVS_Entry = ::core::ptr::null_mut::<cmap_UVS_Entry>();
             item_0 = (*table).uvs;
@@ -5940,7 +5623,7 @@ pub unsafe extern "C" fn otfcc_dumpCmap(
 }
 #[inline]
 unsafe extern "C" fn parseUnicode(unicodeStr: sds) -> unicode_t {
-    if sdslen(unicodeStr) > 2 as size_t
+    if sdslen(unicodeStr) > 2 as usize
         && *unicodeStr.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int == 'U' as i32
         && *unicodeStr.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int == '+' as i32
     {
@@ -5964,11 +5647,11 @@ unsafe extern "C" fn parseCmapUnicodes(
     {
         return;
     }
-    let mut j: uint32_t = 0 as uint32_t;
-    while j < (*table).u.object.length as uint32_t {
+    let mut j: u32 = 0 as u32;
+    while j < (*table).u.object.length as u32 {
         let mut unicodeStr: sds = sdsnewlen(
             (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-            (*(*table).u.object.values.offset(j as isize)).name_length as size_t,
+            (*(*table).u.object.values.offset(j as isize)).name_length as usize,
         );
         let mut item: *mut json_value =
             (*(*table).u.object.values.offset(j as isize)).value as *mut json_value;
@@ -5981,7 +5664,7 @@ unsafe extern "C" fn parseCmapUnicodes(
         {
             let mut gname: sds = sdsnewlen(
                 (*item).u.string.ptr as *const ::core::ffi::c_void,
-                (*item).u.string.length as size_t,
+                (*item).u.string.length as usize,
             );
             if !otfcc_encodeCmapByName(cmap, unicode as ::core::ffi::c_int, gname) {
                 let mut currentMap: *mut glyph_handle =
@@ -5990,7 +5673,7 @@ unsafe extern "C" fn parseCmapUnicodes(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as uint8_t,
+                    log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
                     sdscatprintf(
                         sdsempty(),
@@ -6008,16 +5691,16 @@ unsafe extern "C" fn parseCmapUnicodes(
 }
 #[inline]
 unsafe extern "C" fn parseUVSKey(uvsStr: sds) -> cmap_UVS_key {
-    let mut len: size_t = sdslen(uvsStr);
+    let mut len: usize = sdslen(uvsStr);
     let mut k: cmap_UVS_key = cmap_UVS_key {
-        unicode: 0 as uint32_t,
-        selector: 0 as uint32_t,
+        unicode: 0 as u32,
+        selector: 0 as u32,
     };
     let mut scan: sds = uvsStr;
     while scan < uvsStr.offset(len as isize) {
         if *scan as ::core::ffi::c_int == ' ' as i32 {
-            k.unicode = parseUnicode(uvsStr) as uint32_t;
-            k.selector = parseUnicode(scan.offset(1 as ::core::ffi::c_int as isize)) as uint32_t;
+            k.unicode = parseUnicode(uvsStr) as u32;
+            k.selector = parseUnicode(scan.offset(1 as ::core::ffi::c_int as isize)) as u32;
             return k;
         }
         scan = scan.offset(1);
@@ -6035,25 +5718,25 @@ unsafe extern "C" fn parseCmapUVS(
     {
         return;
     }
-    let mut j: uint32_t = 0 as uint32_t;
-    while j < (*table).u.object.length as uint32_t {
+    let mut j: u32 = 0 as u32;
+    while j < (*table).u.object.length as u32 {
         let mut uvsStr: sds = sdsnewlen(
             (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-            (*(*table).u.object.values.offset(j as isize)).name_length as size_t,
+            (*(*table).u.object.values.offset(j as isize)).name_length as usize,
         );
         let mut k: cmap_UVS_key = parseUVSKey(uvsStr);
         let mut item: *mut json_value =
             (*(*table).u.object.values.offset(j as isize)).value as *mut json_value;
         if (*item).type_0 as ::core::ffi::c_uint
             == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
-            && k.unicode > 0 as uint32_t
-            && k.unicode <= 0x10ffff as uint32_t
-            && k.selector > 0 as uint32_t
-            && k.selector <= 0x10ffff as uint32_t
+            && k.unicode > 0 as u32
+            && k.unicode <= 0x10ffff as u32
+            && k.selector > 0 as u32
+            && k.selector <= 0x10ffff as u32
         {
             let mut gname: sds = sdsnewlen(
                 (*item).u.string.ptr as *const ::core::ffi::c_void,
-                (*item).u.string.length as size_t,
+                (*item).u.string.length as usize,
             );
             if !otfcc_encodeCmapUVSByName(cmap, k, gname) {
                 let mut currentMap: *mut glyph_handle =
@@ -6062,7 +5745,7 @@ unsafe extern "C" fn parseCmapUVS(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as uint8_t,
+                    log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
                     sdscatprintf(
                         sdsempty(),
@@ -6425,9 +6108,9 @@ unsafe extern "C" fn otfcc_buildCmap_format4(mut cmap: *const table_cmap) -> *mu
     let mut lastUnicodeEnd: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
     let mut lastGIDStart: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
     let mut lastGIDEnd: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
-    let mut lastGlyphIdArrayOffset: size_t = 0 as size_t;
+    let mut lastGlyphIdArrayOffset: usize = 0 as usize;
     let mut isSequencial: bool = true;
-    let mut segmentsCount: uint16_t = 0 as uint16_t;
+    let mut segmentsCount: u16 = 0 as u16;
     let mut item: *mut cmap_Entry = ::core::ptr::null_mut::<cmap_Entry>();
     item = (*cmap).unicodes;
     while !item.is_null() {
@@ -6452,7 +6135,7 @@ unsafe extern "C" fn otfcc_buildCmap_format4(mut cmap: *const table_cmap) -> *mu
                     lastGlyphIdArrayOffset = (*glyphIdArray).cursor;
                     let mut j: ::core::ffi::c_int = lastGIDStart;
                     while j <= lastGIDEnd {
-                        bufwrite16b(glyphIdArray, j as uint16_t);
+                        bufwrite16b(glyphIdArray, j as u16);
                         j += 1;
                     }
                 }
@@ -6462,23 +6145,23 @@ unsafe extern "C" fn otfcc_buildCmap_format4(mut cmap: *const table_cmap) -> *mu
                         == lastGIDEnd + 1 as ::core::ffi::c_int;
                 lastGIDEnd = (*item).glyph.index as ::core::ffi::c_int;
                 if !isSequencial {
-                    bufwrite16b(glyphIdArray, lastGIDEnd as uint16_t);
+                    bufwrite16b(glyphIdArray, lastGIDEnd as u16);
                 }
             } else {
-                bufwrite16b(endCount, lastUnicodeEnd as uint16_t);
-                bufwrite16b(startCount, lastUnicodeStart as uint16_t);
+                bufwrite16b(endCount, lastUnicodeEnd as u16);
+                bufwrite16b(startCount, lastUnicodeStart as u16);
                 if isSequencial {
-                    bufwrite16b(idDelta, (lastGIDStart - lastUnicodeStart) as uint16_t);
-                    bufwrite16b(idRangeOffset, 0 as uint16_t);
+                    bufwrite16b(idDelta, (lastGIDStart - lastUnicodeStart) as u16);
+                    bufwrite16b(idRangeOffset, 0 as u16);
                 } else {
-                    bufwrite16b(idDelta, 0 as uint16_t);
+                    bufwrite16b(idDelta, 0 as u16);
                     bufwrite16b(
                         idRangeOffset,
-                        lastGlyphIdArrayOffset.wrapping_add(1 as size_t) as uint16_t,
+                        lastGlyphIdArrayOffset.wrapping_add(1 as usize) as u16,
                     );
                 }
                 segmentsCount =
-                    (segmentsCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as uint16_t;
+                    (segmentsCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
                 lastUnicodeEnd = (*item).unicode;
                 lastUnicodeStart = lastUnicodeEnd;
                 lastGIDEnd = (*item).glyph.index as ::core::ffi::c_int;
@@ -6488,73 +6171,73 @@ unsafe extern "C" fn otfcc_buildCmap_format4(mut cmap: *const table_cmap) -> *mu
         }
         item = (*item).hh.next as *mut cmap_Entry;
     }
-    bufwrite16b(endCount, lastUnicodeEnd as uint16_t);
-    bufwrite16b(startCount, lastUnicodeStart as uint16_t);
+    bufwrite16b(endCount, lastUnicodeEnd as u16);
+    bufwrite16b(startCount, lastUnicodeStart as u16);
     if isSequencial {
-        bufwrite16b(idDelta, (lastGIDStart - lastUnicodeStart) as uint16_t);
-        bufwrite16b(idRangeOffset, 0 as uint16_t);
+        bufwrite16b(idDelta, (lastGIDStart - lastUnicodeStart) as u16);
+        bufwrite16b(idRangeOffset, 0 as u16);
     } else {
-        bufwrite16b(idDelta, 0 as uint16_t);
+        bufwrite16b(idDelta, 0 as u16);
         bufwrite16b(
             idRangeOffset,
-            lastGlyphIdArrayOffset.wrapping_add(1 as size_t) as uint16_t,
+            lastGlyphIdArrayOffset.wrapping_add(1 as usize) as u16,
         );
     }
-    segmentsCount = (segmentsCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as uint16_t;
+    segmentsCount = (segmentsCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
     if lastGIDEnd < 0xffff as ::core::ffi::c_int {
-        bufwrite16b(endCount, 0xffff as uint16_t);
-        bufwrite16b(startCount, 0xffff as uint16_t);
-        bufwrite16b(idDelta, 1 as uint16_t);
-        bufwrite16b(idRangeOffset, 0 as uint16_t);
-        segmentsCount = (segmentsCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as uint16_t;
+        bufwrite16b(endCount, 0xffff as u16);
+        bufwrite16b(startCount, 0xffff as u16);
+        bufwrite16b(idDelta, 1 as u16);
+        bufwrite16b(idRangeOffset, 0 as u16);
+        segmentsCount = (segmentsCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
     }
     let mut j_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     while j_0 < segmentsCount as ::core::ffi::c_int {
-        let mut ro: uint16_t = read_16u(
+        let mut ro: u16 = read_16u(
             (*idRangeOffset)
                 .data
                 .offset((j_0 * 2 as ::core::ffi::c_int) as isize),
         );
         if ro != 0 {
-            ro = (ro as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as uint16_t;
+            ro = (ro as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u16;
             ro = (ro as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int * (segmentsCount as ::core::ffi::c_int - j_0))
-                as uint16_t;
-            bufseek(idRangeOffset, (2 as ::core::ffi::c_int * j_0) as size_t);
+                as u16;
+            bufseek(idRangeOffset, (2 as ::core::ffi::c_int * j_0) as usize);
             bufwrite16b(idRangeOffset, ro);
         }
         j_0 += 1;
     }
-    bufwrite16b(buf, 4 as uint16_t);
-    bufwrite16b(buf, 0 as uint16_t);
-    bufwrite16b(buf, 0 as uint16_t);
+    bufwrite16b(buf, 4 as u16);
+    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 0 as u16);
     bufwrite16b(
         buf,
-        ((segmentsCount as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as uint16_t,
+        ((segmentsCount as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as u16,
     );
-    let mut i: uint32_t = 0;
-    let mut j_1: uint32_t = 0;
-    j_1 = 0 as uint32_t;
-    i = 1 as uint32_t;
-    while i <= segmentsCount as uint32_t {
+    let mut i: u32 = 0;
+    let mut j_1: u32 = 0;
+    j_1 = 0 as u32;
+    i = 1 as u32;
+    while i <= segmentsCount as u32 {
         i <<= 1 as ::core::ffi::c_int;
         j_1 = j_1.wrapping_add(1);
     }
-    bufwrite16b(buf, i as uint16_t);
-    bufwrite16b(buf, j_1.wrapping_sub(1 as uint32_t) as uint16_t);
+    bufwrite16b(buf, i as u16);
+    bufwrite16b(buf, j_1.wrapping_sub(1 as u32) as u16);
     bufwrite16b(
         buf,
-        ((2 as ::core::ffi::c_int * segmentsCount as ::core::ffi::c_int) as uint32_t)
-            .wrapping_sub(i) as uint16_t,
+        ((2 as ::core::ffi::c_int * segmentsCount as ::core::ffi::c_int) as u32)
+            .wrapping_sub(i) as u16,
     );
     bufwrite_buf(buf, endCount);
-    bufwrite16b(buf, 0 as uint16_t);
+    bufwrite16b(buf, 0 as u16);
     bufwrite_buf(buf, startCount);
     bufwrite_buf(buf, idDelta);
     bufwrite_buf(buf, idRangeOffset);
     bufwrite_buf(buf, glyphIdArray);
-    bufseek(buf, 2 as size_t);
-    bufwrite16b(buf, buflen(buf) as uint16_t);
+    bufseek(buf, 2 as usize);
+    bufwrite16b(buf, buflen(buf) as u16);
     buffree(endCount);
     buffree(startCount);
     buffree(idDelta);
@@ -6564,7 +6247,7 @@ unsafe extern "C" fn otfcc_buildCmap_format4(mut cmap: *const table_cmap) -> *mu
 }
 unsafe extern "C" fn otfcc_tryBuildCmap_format4(mut cmap: *const table_cmap) -> *mut caryll_Buffer {
     let mut buf: *mut caryll_Buffer = otfcc_buildCmap_format4(cmap);
-    if buflen(buf) > UINT16_MAX as size_t {
+    if buflen(buf) > UINT16_MAX as usize {
         buffree(buf);
         return ::core::ptr::null_mut::<caryll_Buffer>();
     } else {
@@ -6573,12 +6256,12 @@ unsafe extern "C" fn otfcc_tryBuildCmap_format4(mut cmap: *const table_cmap) -> 
 }
 unsafe extern "C" fn otfcc_buildCmap_format12(mut cmap: *const table_cmap) -> *mut caryll_Buffer {
     let mut buf: *mut caryll_Buffer = bufnew();
-    bufwrite16b(buf, 12 as uint16_t);
-    bufwrite16b(buf, 0 as uint16_t);
-    bufwrite32b(buf, 0 as uint32_t);
-    bufwrite32b(buf, 0 as uint32_t);
-    bufwrite32b(buf, 0 as uint32_t);
-    let mut nGroups: uint32_t = 0 as uint32_t;
+    bufwrite16b(buf, 12 as u16);
+    bufwrite16b(buf, 0 as u16);
+    bufwrite32b(buf, 0 as u32);
+    bufwrite32b(buf, 0 as u32);
+    bufwrite32b(buf, 0 as u32);
+    let mut nGroups: u32 = 0 as u32;
     let mut started: bool = false;
     let mut lastUnicodeStart: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
     let mut lastUnicodeEnd: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
@@ -6599,10 +6282,10 @@ unsafe extern "C" fn otfcc_buildCmap_format12(mut cmap: *const table_cmap) -> *m
             lastUnicodeEnd = (*item).unicode;
             lastGIDEnd = (*item).glyph.index as ::core::ffi::c_int;
         } else {
-            bufwrite32b(buf, lastUnicodeStart as uint32_t);
-            bufwrite32b(buf, lastUnicodeEnd as uint32_t);
-            bufwrite32b(buf, lastGIDStart as uint32_t);
-            nGroups = nGroups.wrapping_add(1 as uint32_t);
+            bufwrite32b(buf, lastUnicodeStart as u32);
+            bufwrite32b(buf, lastUnicodeEnd as u32);
+            bufwrite32b(buf, lastGIDStart as u32);
+            nGroups = nGroups.wrapping_add(1 as u32);
             lastUnicodeEnd = (*item).unicode;
             lastUnicodeStart = lastUnicodeEnd;
             lastGIDEnd = (*item).glyph.index as ::core::ffi::c_int;
@@ -6610,13 +6293,13 @@ unsafe extern "C" fn otfcc_buildCmap_format12(mut cmap: *const table_cmap) -> *m
         }
         item = (*item).hh.next as *mut cmap_Entry;
     }
-    bufwrite32b(buf, lastUnicodeStart as uint32_t);
-    bufwrite32b(buf, lastUnicodeEnd as uint32_t);
-    bufwrite32b(buf, lastGIDStart as uint32_t);
-    nGroups = nGroups.wrapping_add(1 as uint32_t);
-    bufseek(buf, 4 as size_t);
-    bufwrite32b(buf, buflen(buf) as uint32_t);
-    bufseek(buf, 12 as size_t);
+    bufwrite32b(buf, lastUnicodeStart as u32);
+    bufwrite32b(buf, lastUnicodeEnd as u32);
+    bufwrite32b(buf, lastGIDStart as u32);
+    nGroups = nGroups.wrapping_add(1 as u32);
+    bufseek(buf, 4 as usize);
+    bufwrite32b(buf, buflen(buf) as u32);
+    bufseek(buf, 12 as usize);
     bufwrite32b(buf, nGroups);
     return buf;
 }
@@ -6626,36 +6309,36 @@ pub const HAS_NON_DEFAULT: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn writeDefaultRange(
     mut dflt: *mut caryll_Buffer,
-    mut nRanges: *mut uint32_t,
+    mut nRanges: *mut u32,
     mut start: unicode_t,
     mut end: unicode_t,
 ) {
     while end.wrapping_sub(start) > 0xff as unicode_t {
-        bufwrite24b(dflt, start as uint32_t);
-        bufwrite8(dflt, 0xff as uint8_t);
+        bufwrite24b(dflt, start as u32);
+        bufwrite8(dflt, 0xff as u8);
         start = start.wrapping_add(0x100 as unicode_t);
-        *nRanges = (*nRanges).wrapping_add(1 as uint32_t);
+        *nRanges = (*nRanges).wrapping_add(1 as u32);
     }
-    bufwrite24b(dflt, start as uint32_t);
-    bufwrite8(dflt, end.wrapping_sub(start) as uint8_t);
-    *nRanges = (*nRanges).wrapping_add(1 as uint32_t);
+    bufwrite24b(dflt, start as u32);
+    bufwrite8(dflt, end.wrapping_sub(start) as u8);
+    *nRanges = (*nRanges).wrapping_add(1 as u32);
 }
 unsafe extern "C" fn buildFormat14ForSelector(
     mut cmap: *const table_cmap,
     mut selector: unicode_t,
     mut dflt: *mut caryll_Buffer,
     mut nondflt: *mut caryll_Buffer,
-) -> uint8_t {
+) -> u8 {
     let mut defaults: *mut glyphid_t = ::core::ptr::null_mut::<glyphid_t>();
     let mut nonDefaults: *mut glyphid_t = ::core::ptr::null_mut::<glyphid_t>();
     defaults = __caryll_allocate_clean(
-        (::core::mem::size_of::<glyphid_t>() as size_t)
-            .wrapping_mul(0x110001 as ::core::ffi::c_int as size_t),
+        (::core::mem::size_of::<glyphid_t>() as usize)
+            .wrapping_mul(0x110001 as ::core::ffi::c_int as usize),
         626 as ::core::ffi::c_ulong,
     ) as *mut glyphid_t;
     nonDefaults = __caryll_allocate_clean(
-        (::core::mem::size_of::<glyphid_t>() as size_t)
-            .wrapping_mul(0x110001 as ::core::ffi::c_int as size_t),
+        (::core::mem::size_of::<glyphid_t>() as usize)
+            .wrapping_mul(0x110001 as ::core::ffi::c_int as usize),
         627 as ::core::ffi::c_ulong,
     ) as *mut glyphid_t;
     let mut s: unicode_t = 0 as unicode_t;
@@ -6693,11 +6376,11 @@ unsafe extern "C" fn buildFormat14ForSelector(
     let ref mut fresh9 = *nonDefaults.offset((MAX_UNICODE - 1 as ::core::ffi::c_int) as isize);
     *fresh9 = 0xffff as glyphid_t;
     *defaults.offset((MAX_UNICODE - 1 as ::core::ffi::c_int) as isize) = *fresh9;
-    let mut numUnicodeValueRanges: uint32_t = 0 as uint32_t;
+    let mut numUnicodeValueRanges: u32 = 0 as u32;
     let mut startUnicodeValue: unicode_t = 0 as unicode_t;
-    let mut numUVSMappings: uint32_t = 0 as uint32_t;
-    bufwrite32b(dflt, 0 as uint32_t);
-    bufwrite32b(nondflt, 0 as uint32_t);
+    let mut numUVSMappings: u32 = 0 as u32;
+    bufwrite32b(dflt, 0 as u32);
+    bufwrite32b(nondflt, 0 as u32);
     let mut u_0: unicode_t = 1 as unicode_t;
     while u_0 < MAX_UNICODE as unicode_t {
         if *defaults.offset(u_0 as isize) as ::core::ffi::c_int != 0xffff as ::core::ffi::c_int
@@ -6718,15 +6401,15 @@ unsafe extern "C" fn buildFormat14ForSelector(
             );
         }
         if *nonDefaults.offset(u_0 as isize) as ::core::ffi::c_int != 0xffff as ::core::ffi::c_int {
-            bufwrite24b(nondflt, u_0 as uint32_t);
-            bufwrite16b(nondflt, *nonDefaults.offset(u_0 as isize) as uint16_t);
+            bufwrite24b(nondflt, u_0 as u32);
+            bufwrite16b(nondflt, *nonDefaults.offset(u_0 as isize) as u16);
             numUVSMappings = numUVSMappings.wrapping_add(1);
         }
         u_0 = u_0.wrapping_add(1);
     }
-    bufseek(dflt, 0 as size_t);
+    bufseek(dflt, 0 as usize);
     bufwrite32b(dflt, numUnicodeValueRanges);
-    bufseek(nondflt, 0 as size_t);
+    bufseek(nondflt, 0 as usize);
     bufwrite32b(nondflt, numUVSMappings);
     free(defaults as *mut ::core::ffi::c_void);
     defaults = ::core::ptr::null_mut::<glyphid_t>();
@@ -6740,24 +6423,24 @@ unsafe extern "C" fn buildFormat14ForSelector(
         HAS_NON_DEFAULT
     } else {
         0 as ::core::ffi::c_int
-    })) as uint8_t;
+    })) as u8;
 }
 unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const table_cmap) -> *mut caryll_Buffer {
     let mut validSelectors: *mut bool = ::core::ptr::null_mut::<bool>();
     validSelectors = __caryll_allocate_clean(
-        (::core::mem::size_of::<bool>() as size_t)
-            .wrapping_mul(0x110001 as ::core::ffi::c_int as size_t),
+        (::core::mem::size_of::<bool>() as usize)
+            .wrapping_mul(0x110001 as ::core::ffi::c_int as usize),
         681 as ::core::ffi::c_ulong,
     ) as *mut bool;
     let mut item: *mut cmap_UVS_Entry = ::core::ptr::null_mut::<cmap_UVS_Entry>();
     item = (*cmap).uvs;
     while !item.is_null() {
-        if (*item).key.selector < MAX_UNICODE as uint32_t {
+        if (*item).key.selector < MAX_UNICODE as u32 {
             *validSelectors.offset((*item).key.selector as isize) = true;
         }
         item = (*item).hh.next as *mut cmap_UVS_Entry;
     }
-    let mut nSelectors: uint32_t = 0 as uint32_t;
+    let mut nSelectors: u32 = 0 as u32;
     let mut selector: unicode_t = 0 as unicode_t;
     while selector < MAX_UNICODE as unicode_t {
         if *validSelectors.offset(selector as isize) {
@@ -6779,7 +6462,7 @@ unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const table_cmap) -> *m
         if *validSelectors.offset(selector_0 as isize) {
             let mut dflt: *mut caryll_Buffer = bufnew();
             let mut nondflt: *mut caryll_Buffer = bufnew();
-            let mut results: uint8_t = buildFormat14ForSelector(cmap, selector_0, dflt, nondflt);
+            let mut results: u8 = buildFormat14ForSelector(cmap, selector_0, dflt, nondflt);
             if results as ::core::ffi::c_int & HAS_DEFAULT == 0 {
                 buffree(dflt);
                 dflt = ::core::ptr::null_mut::<caryll_Buffer>();
@@ -6806,8 +6489,8 @@ unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const table_cmap) -> *m
         selector_0 = selector_0.wrapping_add(1);
     }
     let mut buf: *mut caryll_Buffer = bk_build_Block(st);
-    bufseek(buf, 2 as size_t);
-    bufwrite32b(buf, buflen(buf) as uint32_t);
+    bufseek(buf, 2 as usize);
+    bufwrite32b(buf, buflen(buf) as u32);
     return buf;
 }
 #[no_mangle]
@@ -6840,32 +6523,32 @@ pub unsafe extern "C" fn otfcc_buildCmap(
             requiresFormat12 = true;
         }
     }
-    let mut nTables: uint8_t = (if requiresFormat12 as ::core::ffi::c_int != 0 {
+    let mut nTables: u8 = (if requiresFormat12 as ::core::ffi::c_int != 0 {
         4 as ::core::ffi::c_int
     } else {
         2 as ::core::ffi::c_int
-    }) as uint8_t;
+    }) as u8;
     if hasUVS {
-        nTables = (nTables as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as uint8_t;
+        nTables = (nTables as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
     }
     if format4.is_null() {
         format4 = bufnew();
-        bufwrite16b(format4, 4 as uint16_t);
-        bufwrite16b(format4, 32 as uint16_t);
-        bufwrite16b(format4, 0 as uint16_t);
-        bufwrite16b(format4, 4 as uint16_t);
-        bufwrite16b(format4, 4 as uint16_t);
-        bufwrite16b(format4, 1 as uint16_t);
-        bufwrite16b(format4, 0 as uint16_t);
-        bufwrite16b(format4, 0 as uint16_t);
-        bufwrite16b(format4, 0xffff as uint16_t);
-        bufwrite16b(format4, 0 as uint16_t);
-        bufwrite16b(format4, 0 as uint16_t);
-        bufwrite16b(format4, 0xffff as uint16_t);
-        bufwrite16b(format4, 0 as uint16_t);
-        bufwrite16b(format4, 1 as uint16_t);
-        bufwrite16b(format4, 0 as uint16_t);
-        bufwrite16b(format4, 0 as uint16_t);
+        bufwrite16b(format4, 4 as u16);
+        bufwrite16b(format4, 32 as u16);
+        bufwrite16b(format4, 0 as u16);
+        bufwrite16b(format4, 4 as u16);
+        bufwrite16b(format4, 4 as u16);
+        bufwrite16b(format4, 1 as u16);
+        bufwrite16b(format4, 0 as u16);
+        bufwrite16b(format4, 0 as u16);
+        bufwrite16b(format4, 0xffff as u16);
+        bufwrite16b(format4, 0 as u16);
+        bufwrite16b(format4, 0 as u16);
+        bufwrite16b(format4, 0xffff as u16);
+        bufwrite16b(format4, 0 as u16);
+        bufwrite16b(format4, 1 as u16);
+        bufwrite16b(format4, 0 as u16);
+        bufwrite16b(format4, 0 as u16);
     }
     let mut format12: *mut caryll_Buffer = otfcc_buildCmap_format12(cmap);
     let mut root: *mut bk_Block = bk_new_Block(
@@ -6947,8 +6630,8 @@ unsafe extern "C" fn json_obj_get(
     {
         return ::core::ptr::null_mut::<json_value>();
     }
-    let mut _k: uint32_t = 0 as uint32_t;
-    while _k < (*obj).u.object.length as uint32_t {
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
         let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
         if strcmp(ck, key) == 0 as ::core::ffi::c_int {
             return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
@@ -6969,5 +6652,3 @@ unsafe extern "C" fn json_obj_get_type(
     }
     return ::core::ptr::null_mut::<json_value>();
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

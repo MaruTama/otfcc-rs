@@ -1,301 +1,41 @@
+use libc::{exit, free, malloc, memcmp, memcpy, memset, strncmp};
 extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memcmp(
-        __s1: *const ::core::ffi::c_void,
-        __s2: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> ::core::ffi::c_int;
-    fn strncmp(
-        __s1: *const ::core::ffi::c_char,
-        __s2: *const ::core::ffi::c_char,
-        __n: size_t,
-    ) -> ::core::ffi::c_int;
     fn sdsempty() -> sds;
     fn sdscatprintf(s: sds, fmt: *const ::core::ffi::c_char, ...) -> sds;
     fn bufnew() -> *mut caryll_Buffer;
     fn buffree(buf: *mut caryll_Buffer);
-    fn buflen(buf: *mut caryll_Buffer) -> size_t;
+    fn buflen(buf: *mut caryll_Buffer) -> usize;
     fn bufwrite_buf(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
     static cff_iIndex: __caryll_elementinterface_cff_Index;
-    fn cff_mergeCS2Int(blob: *mut caryll_Buffer, val: int32_t);
-    fn cff_mergeCS2Operator(blob: *mut caryll_Buffer, val: int32_t);
+    fn cff_mergeCS2Int(blob: *mut caryll_Buffer, val: i32);
+    fn cff_mergeCS2Operator(blob: *mut caryll_Buffer, val: i32);
     fn cff_mergeCS2Operand(blob: *mut caryll_Buffer, val: ::core::ffi::c_double);
-    fn cff_mergeCS2Special(blob: *mut caryll_Buffer, val: uint8_t);
+    fn cff_mergeCS2Special(blob: *mut caryll_Buffer, val: u8);
 }
 
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __int32_t = i32;
-pub type __uint32_t = u32;
-pub type int32_t = __int32_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
-pub type sds = *mut ::core::ffi::c_char;
-pub type ptrdiff_t = isize;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
-    pub count: ::core::ffi::c_uint,
-    pub expand_mult: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
-    pub prev: *mut ::core::ffi::c_void,
-    pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
-    pub key: *mut ::core::ffi::c_void,
-    pub keylen: ::core::ffi::c_uint,
-    pub hashv: ::core::ffi::c_uint,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
-    pub num_buckets: ::core::ffi::c_uint,
-    pub log2_num_buckets: ::core::ffi::c_uint,
-    pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
-    pub hho: ptrdiff_t,
-    pub ideal_chain_maxlen: ::core::ffi::c_uint,
-    pub nonideal_items: ::core::ffi::c_uint,
-    pub ineff_expands: ::core::ffi::c_uint,
-    pub noexpand: ::core::ffi::c_uint,
-    pub signature: uint32_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
-}
-pub type arity_t = uint32_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILoggerTarget {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()>,
-}
-pub type otfcc_LoggerType = ::core::ffi::c_uint;
-pub const log_type_progress: otfcc_LoggerType = 3;
-pub const log_type_info: otfcc_LoggerType = 2;
-pub const log_type_warning: otfcc_LoggerType = 1;
-pub const log_type_error: otfcc_LoggerType = 0;
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed = 10;
-pub const log_vl_info: C2RustUnnamed = 5;
-pub const log_vl_notice: C2RustUnnamed = 2;
-pub const log_vl_important: C2RustUnnamed = 1;
-pub const log_vl_critical: C2RustUnnamed = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_ILogger {
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub indent: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub indentSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub start: Option<unsafe extern "C" fn(*mut otfcc_ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub startSDS: Option<unsafe extern "C" fn(*mut otfcc_ILogger, sds) -> ()>,
-    pub log: Option<
-        unsafe extern "C" fn(
-            *mut otfcc_ILogger,
-            uint8_t,
-            otfcc_LoggerType,
-            *const ::core::ffi::c_char,
-        ) -> (),
-    >,
-    pub logSDS:
-        Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t, otfcc_LoggerType, sds) -> ()>,
-    pub dedent: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub finish: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub end: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> ()>,
-    pub setVerbosity: Option<unsafe extern "C" fn(*mut otfcc_ILogger, uint8_t) -> ()>,
-    pub getTarget: Option<unsafe extern "C" fn(*mut otfcc_ILogger) -> *mut otfcc_ILoggerTarget>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otfcc_Options {
-    pub debug_wait_on_start: bool,
-    pub ignore_glyph_order: bool,
-    pub ignore_hints: bool,
-    pub has_vertical_metrics: bool,
-    pub export_fdselect: bool,
-    pub keep_average_char_width: bool,
-    pub keep_unicode_ranges: bool,
-    pub short_post: bool,
-    pub dummy_DSIG: bool,
-    pub keep_modified_time: bool,
-    pub instr_as_bytes: bool,
-    pub verbose: bool,
-    pub quiet: bool,
-    pub cff_short_vmtx: bool,
-    pub merge_lookups: bool,
-    pub merge_features: bool,
-    pub force_cid: bool,
-    pub cff_rollCharString: bool,
-    pub cff_doSubroutinize: bool,
-    pub stub_cmap4: bool,
-    pub decimal_cmap: bool,
-    pub name_glyphs_by_hash: bool,
-    pub name_glyphs_by_gid: bool,
-    pub glyph_name_prefix: *mut ::core::ffi::c_char,
-    pub logger: *mut otfcc_ILogger,
-}
-pub type C2RustUnnamed_0 = ::core::ffi::c_uint;
-pub const op_flex1: C2RustUnnamed_0 = 3109;
-pub const op_hflex1: C2RustUnnamed_0 = 3108;
-pub const op_flex: C2RustUnnamed_0 = 3107;
-pub const op_hflex: C2RustUnnamed_0 = 3106;
-pub const op_hvcurveto: C2RustUnnamed_0 = 31;
-pub const op_roll: C2RustUnnamed_0 = 3102;
-pub const op_vhcurveto: C2RustUnnamed_0 = 30;
-pub const op_index: C2RustUnnamed_0 = 3101;
-pub const op_callgsubr: C2RustUnnamed_0 = 29;
-pub const op_exch: C2RustUnnamed_0 = 3100;
-pub const op_dup: C2RustUnnamed_0 = 3099;
-pub const op_hhcurveto: C2RustUnnamed_0 = 27;
-pub const op_sqrt: C2RustUnnamed_0 = 3098;
-pub const op_vvcurveto: C2RustUnnamed_0 = 26;
-pub const op_rlinecurve: C2RustUnnamed_0 = 25;
-pub const op_mul: C2RustUnnamed_0 = 3096;
-pub const op_rcurveline: C2RustUnnamed_0 = 24;
-pub const op_random: C2RustUnnamed_0 = 3095;
-pub const op_vstemhm: C2RustUnnamed_0 = 23;
-pub const op_ifelse: C2RustUnnamed_0 = 3094;
-pub const op_hmoveto: C2RustUnnamed_0 = 22;
-pub const op_get: C2RustUnnamed_0 = 3093;
-pub const op_rmoveto: C2RustUnnamed_0 = 21;
-pub const op_put: C2RustUnnamed_0 = 3092;
-pub const op_cntrmask: C2RustUnnamed_0 = 20;
-pub const op_hintmask: C2RustUnnamed_0 = 19;
-pub const op_drop: C2RustUnnamed_0 = 3090;
-pub const op_hstemhm: C2RustUnnamed_0 = 18;
-pub const op_cff2blend: C2RustUnnamed_0 = 16;
-pub const op_eq: C2RustUnnamed_0 = 3087;
-pub const op_cff2vsidx: C2RustUnnamed_0 = 15;
-pub const op_neg: C2RustUnnamed_0 = 3086;
-pub const op_endchar: C2RustUnnamed_0 = 14;
-pub const op_div: C2RustUnnamed_0 = 3084;
-pub const op_sub: C2RustUnnamed_0 = 3083;
-pub const op_return: C2RustUnnamed_0 = 11;
-pub const op_add: C2RustUnnamed_0 = 3082;
-pub const op_callsubr: C2RustUnnamed_0 = 10;
-pub const op_abs: C2RustUnnamed_0 = 3081;
-pub const op_rrcurveto: C2RustUnnamed_0 = 8;
-pub const op_vlineto: C2RustUnnamed_0 = 7;
-pub const op_hlineto: C2RustUnnamed_0 = 6;
-pub const op_not: C2RustUnnamed_0 = 3077;
-pub const op_rlineto: C2RustUnnamed_0 = 5;
-pub const op_or: C2RustUnnamed_0 = 3076;
-pub const op_vmoveto: C2RustUnnamed_0 = 4;
-pub const op_and: C2RustUnnamed_0 = 3075;
-pub const op_vstem: C2RustUnnamed_0 = 3;
-pub const op_hstem: C2RustUnnamed_0 = 1;
-pub type cff_IndexCountType = ::core::ffi::c_uint;
-pub const CFF_INDEX_32: cff_IndexCountType = 1;
-pub const CFF_INDEX_16: cff_IndexCountType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_Index {
-    pub countType: cff_IndexCountType,
-    pub count: arity_t,
-    pub offSize: uint8_t,
-    pub offset: *mut uint32_t,
-    pub data: *mut uint8_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_elementinterface_cff_Index {
-    pub init: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut cff_Index, *const cff_Index) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut cff_Index, *mut cff_Index) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut cff_Index, cff_Index) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut cff_Index, cff_Index) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut cff_Index>,
-    pub free: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub empty: Option<unsafe extern "C" fn(*mut cff_Index) -> ()>,
-    pub getLength: Option<unsafe extern "C" fn(*const cff_Index) -> uint32_t>,
-    pub parse: Option<unsafe extern "C" fn(*mut uint8_t, uint32_t, *mut cff_Index) -> ()>,
-    pub fromCallback: Option<
-        unsafe extern "C" fn(
-            *mut ::core::ffi::c_void,
-            uint32_t,
-            Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, uint32_t) -> *mut caryll_Buffer>,
-        ) -> *mut cff_Index,
-    >,
-    pub build: Option<unsafe extern "C" fn(*const cff_Index) -> *mut caryll_Buffer>,
-}
-pub type C2RustUnnamed_1 = ::core::ffi::c_uint;
-pub const type2_transient_array: C2RustUnnamed_1 = 32;
-pub const type2_max_subrs: C2RustUnnamed_1 = 65300;
-pub const type2_charstring_len: C2RustUnnamed_1 = 65535;
-pub const type2_subr_nesting: C2RustUnnamed_1 = 10;
-pub const type2_stem_hints: C2RustUnnamed_1 = 96;
-pub const type2_argument_stack: C2RustUnnamed_1 = 48;
-pub type cff_InstructionType = ::core::ffi::c_uint;
-pub const IL_ITEM_PHANTOM_OPERAND: cff_InstructionType = 4;
-pub const IL_ITEM_PHANTOM_OPERATOR: cff_InstructionType = 3;
-pub const IL_ITEM_SPECIAL: cff_InstructionType = 2;
-pub const IL_ITEM_OPERATOR: cff_InstructionType = 1;
-pub const IL_ITEM_OPERAND: cff_InstructionType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_CharstringInstruction {
-    pub type_0: cff_InstructionType,
-    pub arity: arity_t,
-    pub c2rust_unnamed: C2RustUnnamed_2,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_2 {
-    pub d: ::core::ffi::c_double,
-    pub i: int32_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_CharstringIL {
-    pub length: uint32_t,
-    pub free: uint32_t,
-    pub instr: *mut cff_CharstringInstruction,
-}
+use crate::logger::{log_type_progress, log_vl_progress, otfcc_ILogger};
+use crate::support::buffer::{caryll_Buffer};
+use crate::support::options::{otfcc_Options};
+
+use crate::vendor::sds::{sds};
+use crate::libcff::{op_callgsubr, op_callsubr, op_endchar, op_return, type2_max_subrs, type2_subr_nesting};
+use crate::libcff::cff_index::{__caryll_elementinterface_cff_Index, cff_Index};
+use crate::libcff::charstring_il::{cff_CharstringIL};
+use crate::support::{NULL};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __cff_SubrRule {
     pub printed: bool,
     pub numbered: bool,
-    pub number: uint32_t,
-    pub height: uint32_t,
-    pub uniqueIndex: uint32_t,
-    pub cffIndex: uint16_t,
-    pub refcount: uint32_t,
-    pub effectiveLength: uint32_t,
+    pub number: u32,
+    pub height: u32,
+    pub uniqueIndex: u32,
+    pub cffIndex: u16,
+    pub refcount: u32,
+    pub effectiveLength: u32,
     pub guard: *mut cff_SubrNode,
     pub next: *mut cff_SubrRule,
 }
@@ -315,8 +55,8 @@ pub struct __cff_SubrNode {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_SubrDiagramIndex {
-    pub arity: uint8_t,
-    pub key: *mut uint8_t,
+    pub arity: u8,
+    pub key: *mut u8,
     pub start: *mut cff_SubrNode,
     pub hh: UT_hash_handle,
 }
@@ -326,8 +66,8 @@ pub struct cff_SubrGraph {
     pub root: *mut cff_SubrRule,
     pub last: *mut cff_SubrRule,
     pub diagramIndex: *mut cff_SubrDiagramIndex,
-    pub totalRules: uint32_t,
-    pub totalCharStrings: uint32_t,
+    pub totalRules: u32,
+    pub totalCharStrings: u32,
     pub doSubroutinize: bool,
 }
 #[derive(Copy, Clone)]
@@ -342,16 +82,10 @@ pub struct __caryll_elementinterface_cff_SubrGraph {
     pub create: Option<unsafe extern "C" fn() -> *mut cff_SubrGraph>,
     pub free: Option<unsafe extern "C" fn(*mut cff_SubrGraph) -> ()>,
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const HASH_INITIAL_NUM_BUCKETS: ::core::ffi::c_uint = 32 as ::core::ffi::c_uint;
-pub const HASH_INITIAL_NUM_BUCKETS_LOG2: ::core::ffi::c_uint = 5 as ::core::ffi::c_uint;
-pub const HASH_BKT_CAPACITY_THRESH: ::core::ffi::c_uint = 10 as ::core::ffi::c_uint;
-pub const HASH_SIGNATURE: ::core::ffi::c_uint = 0xa0111fe1 as ::core::ffi::c_uint;
 unsafe extern "C" fn cff_new_Node() -> *mut cff_SubrNode {
     let mut n: *mut cff_SubrNode = ::core::ptr::null_mut::<cff_SubrNode>();
     n = __caryll_allocate_clean(
-        ::core::mem::size_of::<cff_SubrNode>() as size_t,
+        ::core::mem::size_of::<cff_SubrNode>() as usize,
         19 as ::core::ffi::c_ulong,
     ) as *mut cff_SubrNode;
     (*n).rule = ::core::ptr::null_mut::<cff_SubrRule>();
@@ -365,10 +99,10 @@ unsafe extern "C" fn cff_new_Node() -> *mut cff_SubrNode {
 unsafe extern "C" fn cff_new_Rule() -> *mut cff_SubrRule {
     let mut r: *mut cff_SubrRule = ::core::ptr::null_mut::<cff_SubrRule>();
     r = __caryll_allocate_clean(
-        ::core::mem::size_of::<cff_SubrRule>() as size_t,
+        ::core::mem::size_of::<cff_SubrRule>() as usize,
         34 as ::core::ffi::c_ulong,
     ) as *mut cff_SubrRule;
-    (*r).refcount = 0 as uint32_t;
+    (*r).refcount = 0 as u32;
     (*r).guard = cff_new_Node();
     (*(*r).guard).prev = (*r).guard;
     (*(*r).guard).next = (*r).guard;
@@ -382,13 +116,13 @@ unsafe extern "C" fn initSubrGraph(mut g: *mut cff_SubrGraph) {
     (*g).root = cff_new_Rule();
     (*g).last = (*g).root;
     (*g).diagramIndex = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
-    (*g).totalRules = 0 as uint32_t;
-    (*g).totalCharStrings = 0 as uint32_t;
+    (*g).totalRules = 0 as u32;
+    (*g).totalCharStrings = 0 as u32;
     (*g).doSubroutinize = false;
 }
 unsafe extern "C" fn clean_Node(mut x: *mut cff_SubrNode) {
     if !(*x).rule.is_null() {
-        (*(*x).rule).refcount = (*(*x).rule).refcount.wrapping_sub(1 as uint32_t);
+        (*(*x).rule).refcount = (*(*x).rule).refcount.wrapping_sub(1 as u32);
     }
     (*x).rule = ::core::ptr::null_mut::<cff_SubrRule>();
     buffree((*x).terminal);
@@ -488,7 +222,7 @@ unsafe extern "C" fn disposeSubrGraph(mut g: *mut cff_SubrGraph) {
                 (*(*(*g).diagramIndex).hh.tbl).num_items.wrapping_sub(1);
         }
         free((*s).key as *mut ::core::ffi::c_void);
-        (*s).key = ::core::ptr::null_mut::<uint8_t>();
+        (*s).key = ::core::ptr::null_mut::<u8>();
         free(s as *mut ::core::ffi::c_void);
         s = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
         s = tmp;
@@ -531,7 +265,7 @@ unsafe extern "C" fn cff_SubrGraph_free(mut x: *mut cff_SubrGraph) {
 #[inline]
 unsafe extern "C" fn cff_SubrGraph_create() -> *mut cff_SubrGraph {
     let mut x: *mut cff_SubrGraph =
-        malloc(::core::mem::size_of::<cff_SubrGraph>() as size_t) as *mut cff_SubrGraph;
+        malloc(::core::mem::size_of::<cff_SubrGraph>() as usize) as *mut cff_SubrGraph;
     cff_SubrGraph_init(x);
     return x;
 }
@@ -556,7 +290,7 @@ unsafe extern "C" fn cff_SubrGraph_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<cff_SubrGraph>() as size_t,
+        ::core::mem::size_of::<cff_SubrGraph>() as usize,
     );
 }
 #[inline]
@@ -564,7 +298,7 @@ unsafe extern "C" fn cff_SubrGraph_move(mut dst: *mut cff_SubrGraph, mut src: *m
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<cff_SubrGraph>() as size_t,
+        ::core::mem::size_of::<cff_SubrGraph>() as usize,
     );
     cff_SubrGraph_init(src);
 }
@@ -574,33 +308,33 @@ unsafe extern "C" fn cff_SubrGraph_replace(mut dst: *mut cff_SubrGraph, src: cff
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<cff_SubrGraph>() as size_t,
+        ::core::mem::size_of::<cff_SubrGraph>() as usize,
     );
 }
 unsafe extern "C" fn getSingletHashKey(
     mut n: *mut cff_SubrNode,
-    mut len: *mut size_t,
-) -> *mut uint8_t {
-    let mut l1: size_t = 0;
+    mut len: *mut usize,
+) -> *mut u8 {
+    let mut l1: usize = 0;
     if !(*n).rule.is_null() {
-        l1 = ::core::mem::size_of::<uint32_t>() as size_t;
+        l1 = ::core::mem::size_of::<u32>() as usize;
     } else {
-        l1 = buflen((*n).terminal).wrapping_mul(::core::mem::size_of::<uint8_t>() as size_t);
+        l1 = buflen((*n).terminal).wrapping_mul(::core::mem::size_of::<u8>() as usize);
     }
-    *len = (3 as size_t).wrapping_add(l1).wrapping_add(1 as size_t);
-    let mut key: *mut uint8_t = ::core::ptr::null_mut::<uint8_t>();
+    *len = (3 as usize).wrapping_add(l1).wrapping_add(1 as usize);
+    let mut key: *mut u8 = ::core::ptr::null_mut::<u8>();
     key = __caryll_allocate_clean(
-        (::core::mem::size_of::<uint8_t>() as size_t).wrapping_mul(*len),
+        (::core::mem::size_of::<u8>() as usize).wrapping_mul(*len),
         135 as ::core::ffi::c_ulong,
-    ) as *mut uint8_t;
-    *key.offset(0 as ::core::ffi::c_int as isize) = '1' as i32 as uint8_t;
+    ) as *mut u8;
+    *key.offset(0 as ::core::ffi::c_int as isize) = '1' as i32 as u8;
     *key.offset(1 as ::core::ffi::c_int as isize) = (if !(*n).rule.is_null() {
         '1' as i32
     } else {
         '0' as i32
-    }) as uint8_t;
-    *key.offset(2 as ::core::ffi::c_int as isize) = '0' as i32 as uint8_t;
-    *key.offset((*len).wrapping_sub(1 as size_t) as isize) = 0 as uint8_t;
+    }) as u8;
+    *key.offset(2 as ::core::ffi::c_int as isize) = '0' as i32 as u8;
+    *key.offset((*len).wrapping_sub(1 as usize) as isize) = 0 as u8;
     if !(*n).rule.is_null() {
         memcpy(
             key.offset(3 as ::core::ffi::c_int as isize) as *mut ::core::ffi::c_void,
@@ -618,42 +352,42 @@ unsafe extern "C" fn getSingletHashKey(
 }
 unsafe extern "C" fn getDoubletHashKey(
     mut n: *mut cff_SubrNode,
-    mut len: *mut size_t,
-) -> *mut uint8_t {
-    let mut l1: size_t = 0;
-    let mut l2: size_t = 0;
+    mut len: *mut usize,
+) -> *mut u8 {
+    let mut l1: usize = 0;
+    let mut l2: usize = 0;
     if !(*n).rule.is_null() {
-        l1 = ::core::mem::size_of::<uint32_t>() as size_t;
+        l1 = ::core::mem::size_of::<u32>() as usize;
     } else {
-        l1 = buflen((*n).terminal).wrapping_mul(::core::mem::size_of::<uint8_t>() as size_t);
+        l1 = buflen((*n).terminal).wrapping_mul(::core::mem::size_of::<u8>() as usize);
     }
     if !(*(*n).next).rule.is_null() {
-        l2 = ::core::mem::size_of::<uint32_t>() as size_t;
+        l2 = ::core::mem::size_of::<u32>() as usize;
     } else {
         l2 =
-            buflen((*(*n).next).terminal).wrapping_mul(::core::mem::size_of::<uint8_t>() as size_t);
+            buflen((*(*n).next).terminal).wrapping_mul(::core::mem::size_of::<u8>() as usize);
     }
-    *len = (3 as size_t)
+    *len = (3 as usize)
         .wrapping_add(l1)
         .wrapping_add(l2)
-        .wrapping_add(1 as size_t);
-    let mut key: *mut uint8_t = ::core::ptr::null_mut::<uint8_t>();
+        .wrapping_add(1 as usize);
+    let mut key: *mut u8 = ::core::ptr::null_mut::<u8>();
     key = __caryll_allocate_clean(
-        (::core::mem::size_of::<uint8_t>() as size_t).wrapping_mul(*len),
+        (::core::mem::size_of::<u8>() as usize).wrapping_mul(*len),
         163 as ::core::ffi::c_ulong,
-    ) as *mut uint8_t;
-    *key.offset(0 as ::core::ffi::c_int as isize) = '2' as i32 as uint8_t;
+    ) as *mut u8;
+    *key.offset(0 as ::core::ffi::c_int as isize) = '2' as i32 as u8;
     *key.offset(1 as ::core::ffi::c_int as isize) = (if !(*n).rule.is_null() {
         '1' as i32
     } else {
         '0' as i32
-    }) as uint8_t;
+    }) as u8;
     *key.offset(2 as ::core::ffi::c_int as isize) = (if !(*(*n).next).rule.is_null() {
         '1' as i32
     } else {
         '0' as i32
-    }) as uint8_t;
-    *key.offset((*len).wrapping_sub(1 as size_t) as isize) = 0 as uint8_t;
+    }) as u8;
+    *key.offset((*len).wrapping_sub(1 as usize) as isize) = 0 as u8;
     if !(*n).rule.is_null() {
         memcpy(
             key.offset(3 as ::core::ffi::c_int as isize) as *mut ::core::ffi::c_void,
@@ -691,7 +425,7 @@ unsafe extern "C" fn copyNode(mut n: *mut cff_SubrNode) -> *mut cff_SubrNode {
     let mut m: *mut cff_SubrNode = cff_new_Node();
     if !(*n).rule.is_null() {
         (*m).rule = (*n).rule;
-        (*(*m).rule).refcount = (*(*m).rule).refcount.wrapping_add(1 as uint32_t);
+        (*(*m).rule).refcount = (*(*m).rule).refcount.wrapping_add(1 as u32);
     } else {
         (*m).terminal = bufnew();
         bufwrite_buf((*m).terminal, (*n).terminal);
@@ -703,8 +437,8 @@ unsafe extern "C" fn unlinkNode(mut g: *mut cff_SubrGraph, mut a: *mut cff_SubrN
     if (*a).hard as ::core::ffi::c_int != 0 || (*a).guard as ::core::ffi::c_int != 0 {
         return;
     }
-    let mut len: size_t = 0;
-    let mut key: *mut uint8_t = getDoubletHashKey(a, &raw mut len);
+    let mut len: usize = 0;
+    let mut key: *mut u8 = getDoubletHashKey(a, &raw mut len);
     let mut di: *mut cff_SubrDiagramIndex = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
     let mut _hj_i: ::core::ffi::c_uint = 0;
@@ -984,7 +718,7 @@ unsafe extern "C" fn unlinkNode(mut g: *mut cff_SubrGraph, mut a: *mut cff_SubrN
                 di = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
             }
             while !di.is_null() {
-                if (*di).hh.hashv == _hf_hashv && (*di).hh.keylen as size_t == len {
+                if (*di).hh.hashv == _hf_hashv && (*di).hh.keylen as usize == len {
                     if memcmp((*di).hh.key, key as *const ::core::ffi::c_void, len)
                         == 0 as ::core::ffi::c_int
                     {
@@ -1056,12 +790,12 @@ unsafe extern "C" fn unlinkNode(mut g: *mut cff_SubrGraph, mut a: *mut cff_SubrN
                 (*(*(*g).diagramIndex).hh.tbl).num_items.wrapping_sub(1);
         }
         free((*di).key as *mut ::core::ffi::c_void);
-        (*di).key = ::core::ptr::null_mut::<uint8_t>();
+        (*di).key = ::core::ptr::null_mut::<u8>();
         free(di as *mut ::core::ffi::c_void);
         di = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
     }
     free(key as *mut ::core::ffi::c_void);
-    key = ::core::ptr::null_mut::<uint8_t>();
+    key = ::core::ptr::null_mut::<u8>();
     key = getSingletHashKey(a, &raw mut len);
     di = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
     let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
@@ -1342,7 +1076,7 @@ unsafe extern "C" fn unlinkNode(mut g: *mut cff_SubrGraph, mut a: *mut cff_SubrN
                 di = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
             }
             while !di.is_null() {
-                if (*di).hh.hashv == _hf_hashv_0 && (*di).hh.keylen as size_t == len {
+                if (*di).hh.hashv == _hf_hashv_0 && (*di).hh.keylen as usize == len {
                     if memcmp((*di).hh.key, key as *const ::core::ffi::c_void, len)
                         == 0 as ::core::ffi::c_int
                     {
@@ -1414,12 +1148,12 @@ unsafe extern "C" fn unlinkNode(mut g: *mut cff_SubrGraph, mut a: *mut cff_SubrN
                 (*(*(*g).diagramIndex).hh.tbl).num_items.wrapping_sub(1);
         }
         free((*di).key as *mut ::core::ffi::c_void);
-        (*di).key = ::core::ptr::null_mut::<uint8_t>();
+        (*di).key = ::core::ptr::null_mut::<u8>();
         free(di as *mut ::core::ffi::c_void);
         di = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
     }
     free(key as *mut ::core::ffi::c_void);
-    key = ::core::ptr::null_mut::<uint8_t>();
+    key = ::core::ptr::null_mut::<u8>();
 }
 unsafe extern "C" fn addDoublet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrNode) {
     if n.is_null()
@@ -1431,8 +1165,8 @@ unsafe extern "C" fn addDoublet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
     {
         return;
     }
-    let mut len: size_t = 0;
-    let mut key: *mut uint8_t = getDoubletHashKey(n, &raw mut len);
+    let mut len: usize = 0;
+    let mut key: *mut u8 = getDoubletHashKey(n, &raw mut len);
     let mut di: *mut cff_SubrDiagramIndex = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
     let mut _hj_i: ::core::ffi::c_uint = 0;
@@ -1712,7 +1446,7 @@ unsafe extern "C" fn addDoublet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
                 di = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
             }
             while !di.is_null() {
-                if (*di).hh.hashv == _hf_hashv && (*di).hh.keylen as size_t == len {
+                if (*di).hh.hashv == _hf_hashv && (*di).hh.keylen as usize == len {
                     if memcmp((*di).hh.key, key as *const ::core::ffi::c_void, len)
                         == 0 as ::core::ffi::c_int
                     {
@@ -1733,10 +1467,10 @@ unsafe extern "C" fn addDoublet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
     }
     if di.is_null() {
         di = __caryll_allocate_clean(
-            ::core::mem::size_of::<cff_SubrDiagramIndex>() as size_t,
+            ::core::mem::size_of::<cff_SubrDiagramIndex>() as usize,
             232 as ::core::ffi::c_ulong,
         ) as *mut cff_SubrDiagramIndex;
-        (*di).arity = 2 as uint8_t;
+        (*di).arity = 2 as u8;
         (*di).key = key;
         (*di).start = n;
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
@@ -2009,7 +1743,7 @@ unsafe extern "C" fn addDoublet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
         if (*g).diagramIndex.is_null() {
             (*di).hh.next = NULL;
             (*di).hh.prev = NULL;
-            (*di).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*di).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*di).hh.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2017,26 +1751,26 @@ unsafe extern "C" fn addDoublet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
                 memset(
                     (*di).hh.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*di).hh.tbl).tail = &raw mut (*di).hh as *mut UT_hash_handle;
                 (*(*di).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*di).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*di).hh.tbl).hho = (&raw mut (*di).hh as *mut ::core::ffi::c_char)
                     .offset_from(di as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*di).hh.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*di).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*di).hh.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*di).hh.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*di).hh.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -2083,9 +1817,9 @@ unsafe extern "C" fn addDoublet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*di).hh.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*di).hh.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2093,9 +1827,9 @@ unsafe extern "C" fn addDoublet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*di).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*di).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*di).hh.tbl).ideal_chain_maxlen = ((*(*di).hh.tbl).num_items
                     >> (*(*di).hh.tbl)
@@ -2169,7 +1903,7 @@ unsafe extern "C" fn addDoublet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
     } else {
         (*di).start = n;
         free(key as *mut ::core::ffi::c_void);
-        key = ::core::ptr::null_mut::<uint8_t>();
+        key = ::core::ptr::null_mut::<u8>();
     };
 }
 unsafe extern "C" fn addSinglet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrNode) {
@@ -2177,8 +1911,8 @@ unsafe extern "C" fn addSinglet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
     {
         return;
     }
-    let mut len: size_t = 0;
-    let mut key: *mut uint8_t = getSingletHashKey(n, &raw mut len);
+    let mut len: usize = 0;
+    let mut key: *mut u8 = getSingletHashKey(n, &raw mut len);
     let mut di: *mut cff_SubrDiagramIndex = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
     let mut _hj_i: ::core::ffi::c_uint = 0;
@@ -2458,7 +2192,7 @@ unsafe extern "C" fn addSinglet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
                 di = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
             }
             while !di.is_null() {
-                if (*di).hh.hashv == _hf_hashv && (*di).hh.keylen as size_t == len {
+                if (*di).hh.hashv == _hf_hashv && (*di).hh.keylen as usize == len {
                     if memcmp((*di).hh.key, key as *const ::core::ffi::c_void, len)
                         == 0 as ::core::ffi::c_int
                     {
@@ -2479,10 +2213,10 @@ unsafe extern "C" fn addSinglet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
     }
     if di.is_null() {
         di = __caryll_allocate_clean(
-            ::core::mem::size_of::<cff_SubrDiagramIndex>() as size_t,
+            ::core::mem::size_of::<cff_SubrDiagramIndex>() as usize,
             249 as ::core::ffi::c_ulong,
         ) as *mut cff_SubrDiagramIndex;
-        (*di).arity = 1 as uint8_t;
+        (*di).arity = 1 as u8;
         (*di).key = key;
         (*di).start = n;
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
@@ -2755,7 +2489,7 @@ unsafe extern "C" fn addSinglet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
         if (*g).diagramIndex.is_null() {
             (*di).hh.next = NULL;
             (*di).hh.prev = NULL;
-            (*di).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*di).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*di).hh.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2763,26 +2497,26 @@ unsafe extern "C" fn addSinglet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
                 memset(
                     (*di).hh.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*di).hh.tbl).tail = &raw mut (*di).hh as *mut UT_hash_handle;
                 (*(*di).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*di).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*di).hh.tbl).hho = (&raw mut (*di).hh as *mut ::core::ffi::c_char)
                     .offset_from(di as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*di).hh.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*di).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*di).hh.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*di).hh.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*di).hh.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -2829,9 +2563,9 @@ unsafe extern "C" fn addSinglet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*di).hh.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*di).hh.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -2839,9 +2573,9 @@ unsafe extern "C" fn addSinglet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*di).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*di).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*di).hh.tbl).ideal_chain_maxlen = ((*(*di).hh.tbl).num_items
                     >> (*(*di).hh.tbl)
@@ -2915,7 +2649,7 @@ unsafe extern "C" fn addSinglet(mut g: *mut cff_SubrGraph, mut n: *mut cff_SubrN
     } else {
         (*di).start = n;
         free(key as *mut ::core::ffi::c_void);
-        key = ::core::ptr::null_mut::<uint8_t>();
+        key = ::core::ptr::null_mut::<u8>();
     };
 }
 unsafe extern "C" fn identNode(mut m: *mut cff_SubrNode, mut n: *mut cff_SubrNode) -> bool {
@@ -2984,7 +2718,7 @@ unsafe extern "C" fn expandCall(mut g: *mut cff_SubrGraph, mut a: *mut cff_SubrN
     addDoublet(g, r2);
     (*(*r).guard).next = (*r).guard;
     (*(*r).guard).prev = (*(*r).guard).next;
-    (*r).refcount = (*r).refcount.wrapping_sub(1 as uint32_t);
+    (*r).refcount = (*r).refcount.wrapping_sub(1 as u32);
     delete_Node(a);
 }
 unsafe extern "C" fn substituteDoubletWithRule(
@@ -2997,7 +2731,7 @@ unsafe extern "C" fn substituteDoubletWithRule(
     removeNodeFromGraph(g, (*prev).next);
     let mut invoke: *mut cff_SubrNode = cff_new_Node();
     (*invoke).rule = r;
-    (*(*invoke).rule).refcount = (*(*invoke).rule).refcount.wrapping_add(1 as uint32_t);
+    (*(*invoke).rule).refcount = (*(*invoke).rule).refcount.wrapping_add(1 as u32);
     xInsertNodeAfter(g, prev, invoke);
     addDoublet(g, prev);
     addDoublet(g, invoke);
@@ -3015,7 +2749,7 @@ unsafe extern "C" fn substituteSingletWithRule(
     removeNodeFromGraph(g, (*prev).next);
     let mut invoke: *mut cff_SubrNode = cff_new_Node();
     (*invoke).rule = r;
-    (*(*invoke).rule).refcount = (*(*invoke).rule).refcount.wrapping_add(1 as uint32_t);
+    (*(*invoke).rule).refcount = (*(*invoke).rule).refcount.wrapping_add(1 as u32);
     xInsertNodeAfter(g, prev, invoke);
     addDoublet(g, prev);
     addDoublet(g, invoke);
@@ -3035,7 +2769,7 @@ unsafe extern "C" fn processMatchDoublet(
     } else {
         rule = cff_new_Rule();
         (*rule).uniqueIndex = (*g).totalRules;
-        (*g).totalRules = (*g).totalRules.wrapping_add(1 as uint32_t);
+        (*g).totalRules = (*g).totalRules.wrapping_add(1 as u32);
         (*(*g).last).next = rule;
         (*g).last = rule;
         xInsertNodeAfter(g, lastNodeOf(rule), copyNode(m));
@@ -3047,7 +2781,7 @@ unsafe extern "C" fn processMatchDoublet(
         addSinglet(g, (*(*(*rule).guard).next).next);
     }
     if !(*(*(*rule).guard).next).rule.is_null()
-        && (*(*(*(*rule).guard).next).rule).refcount == 1 as uint32_t
+        && (*(*(*(*rule).guard).next).rule).refcount == 1 as u32
     {
         expandCall(g, (*(*rule).guard).next);
     }
@@ -3066,7 +2800,7 @@ unsafe extern "C" fn processMatchSinglet(
     } else {
         rule = cff_new_Rule();
         (*rule).uniqueIndex = (*g).totalRules;
-        (*g).totalRules = (*g).totalRules.wrapping_add(1 as uint32_t);
+        (*g).totalRules = (*g).totalRules.wrapping_add(1 as u32);
         (*(*g).last).next = rule;
         (*g).last = rule;
         xInsertNodeAfter(g, lastNodeOf(rule), copyNode(m));
@@ -3086,8 +2820,8 @@ unsafe extern "C" fn checkDoubletMatch(
     {
         return false;
     }
-    let mut len: size_t = 0;
-    let mut key: *mut uint8_t = getDoubletHashKey(n, &raw mut len);
+    let mut len: usize = 0;
+    let mut key: *mut u8 = getDoubletHashKey(n, &raw mut len);
     let mut di: *mut cff_SubrDiagramIndex = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
     let mut _hj_i: ::core::ffi::c_uint = 0;
@@ -3367,7 +3101,7 @@ unsafe extern "C" fn checkDoubletMatch(
                 di = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
             }
             while !di.is_null() {
-                if (*di).hh.hashv == _hf_hashv && (*di).hh.keylen as size_t == len {
+                if (*di).hh.hashv == _hf_hashv && (*di).hh.keylen as usize == len {
                     if memcmp((*di).hh.key, key as *const ::core::ffi::c_void, len)
                         == 0 as ::core::ffi::c_int
                     {
@@ -3388,10 +3122,10 @@ unsafe extern "C" fn checkDoubletMatch(
     }
     if di.is_null() {
         di = __caryll_allocate_clean(
-            ::core::mem::size_of::<cff_SubrDiagramIndex>() as size_t,
+            ::core::mem::size_of::<cff_SubrDiagramIndex>() as usize,
             390 as ::core::ffi::c_ulong,
         ) as *mut cff_SubrDiagramIndex;
-        (*di).arity = 2 as uint8_t;
+        (*di).arity = 2 as u8;
         (*di).key = key;
         (*di).start = n;
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
@@ -3664,7 +3398,7 @@ unsafe extern "C" fn checkDoubletMatch(
         if (*g).diagramIndex.is_null() {
             (*di).hh.next = NULL;
             (*di).hh.prev = NULL;
-            (*di).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*di).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*di).hh.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -3672,26 +3406,26 @@ unsafe extern "C" fn checkDoubletMatch(
                 memset(
                     (*di).hh.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*di).hh.tbl).tail = &raw mut (*di).hh as *mut UT_hash_handle;
                 (*(*di).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*di).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*di).hh.tbl).hho = (&raw mut (*di).hh as *mut ::core::ffi::c_char)
                     .offset_from(di as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*di).hh.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*di).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*di).hh.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*di).hh.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*di).hh.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -3738,9 +3472,9 @@ unsafe extern "C" fn checkDoubletMatch(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*di).hh.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*di).hh.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -3748,9 +3482,9 @@ unsafe extern "C" fn checkDoubletMatch(
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*di).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*di).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*di).hh.tbl).ideal_chain_maxlen = ((*(*di).hh.tbl).num_items
                     >> (*(*di).hh.tbl)
@@ -3828,12 +3562,12 @@ unsafe extern "C" fn checkDoubletMatch(
         && !(*(*(*di).start).next).guard
     {
         free(key as *mut ::core::ffi::c_void);
-        key = ::core::ptr::null_mut::<uint8_t>();
+        key = ::core::ptr::null_mut::<u8>();
         processMatchDoublet(g, (*di).start, n);
         return true;
     } else {
         free(key as *mut ::core::ffi::c_void);
-        key = ::core::ptr::null_mut::<uint8_t>();
+        key = ::core::ptr::null_mut::<u8>();
         return true;
     };
 }
@@ -3844,8 +3578,8 @@ unsafe extern "C" fn checkSingletMatch(
     if (*n).guard as ::core::ffi::c_int != 0 || (*n).hard as ::core::ffi::c_int != 0 {
         return false;
     }
-    let mut len: size_t = 0;
-    let mut key: *mut uint8_t = getSingletHashKey(n, &raw mut len);
+    let mut len: usize = 0;
+    let mut key: *mut u8 = getSingletHashKey(n, &raw mut len);
     let mut di: *mut cff_SubrDiagramIndex = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
     let mut _hj_i: ::core::ffi::c_uint = 0;
@@ -4125,7 +3859,7 @@ unsafe extern "C" fn checkSingletMatch(
                 di = ::core::ptr::null_mut::<cff_SubrDiagramIndex>();
             }
             while !di.is_null() {
-                if (*di).hh.hashv == _hf_hashv && (*di).hh.keylen as size_t == len {
+                if (*di).hh.hashv == _hf_hashv && (*di).hh.keylen as usize == len {
                     if memcmp((*di).hh.key, key as *const ::core::ffi::c_void, len)
                         == 0 as ::core::ffi::c_int
                     {
@@ -4146,10 +3880,10 @@ unsafe extern "C" fn checkSingletMatch(
     }
     if di.is_null() {
         di = __caryll_allocate_clean(
-            ::core::mem::size_of::<cff_SubrDiagramIndex>() as size_t,
+            ::core::mem::size_of::<cff_SubrDiagramIndex>() as usize,
             413 as ::core::ffi::c_ulong,
         ) as *mut cff_SubrDiagramIndex;
-        (*di).arity = 1 as uint8_t;
+        (*di).arity = 1 as u8;
         (*di).key = key;
         (*di).start = n;
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
@@ -4422,7 +4156,7 @@ unsafe extern "C" fn checkSingletMatch(
         if (*g).diagramIndex.is_null() {
             (*di).hh.next = NULL;
             (*di).hh.prev = NULL;
-            (*di).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as size_t)
+            (*di).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
                 as *mut UT_hash_table as *mut UT_hash_table;
             if (*di).hh.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -4430,26 +4164,26 @@ unsafe extern "C" fn checkSingletMatch(
                 memset(
                     (*di).hh.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as size_t,
+                    ::core::mem::size_of::<UT_hash_table>() as usize,
                 );
                 (*(*di).hh.tbl).tail = &raw mut (*di).hh as *mut UT_hash_handle;
                 (*(*di).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*di).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*di).hh.tbl).hho = (&raw mut (*di).hh as *mut ::core::ffi::c_char)
                     .offset_from(di as *mut ::core::ffi::c_char)
-                    as ::core::ffi::c_long as ptrdiff_t;
+                    as ::core::ffi::c_long as isize;
                 (*(*di).hh.tbl).buckets = malloc(
-                    (32 as size_t).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 ) as *mut UT_hash_bucket;
-                (*(*di).hh.tbl).signature = HASH_SIGNATURE as uint32_t;
+                (*(*di).hh.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*di).hh.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*(*di).hh.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        (32 as size_t)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                        (32 as usize)
+                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                     );
                 }
             }
@@ -4496,9 +4230,9 @@ unsafe extern "C" fn checkSingletMatch(
                 ::core::ptr::null_mut::<UT_hash_bucket>();
             let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
             _he_new_buckets = malloc(
-                (2 as size_t)
-                    .wrapping_mul((*(*di).hh.tbl).num_buckets as size_t)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                (2 as usize)
+                    .wrapping_mul((*(*di).hh.tbl).num_buckets as usize)
+                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
             ) as *mut UT_hash_bucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -4506,9 +4240,9 @@ unsafe extern "C" fn checkSingletMatch(
                 memset(
                     _he_new_buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (2 as size_t)
-                        .wrapping_mul((*(*di).hh.tbl).num_buckets as size_t)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as size_t),
+                    (2 as usize)
+                        .wrapping_mul((*(*di).hh.tbl).num_buckets as usize)
+                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
                 );
                 (*(*di).hh.tbl).ideal_chain_maxlen = ((*(*di).hh.tbl).num_items
                     >> (*(*di).hh.tbl)
@@ -4585,12 +4319,12 @@ unsafe extern "C" fn checkSingletMatch(
         && !(*(*di).start).guard
     {
         free(key as *mut ::core::ffi::c_void);
-        key = ::core::ptr::null_mut::<uint8_t>();
+        key = ::core::ptr::null_mut::<u8>();
         processMatchSinglet(g, (*di).start, n);
         return true;
     } else {
         free(key as *mut ::core::ffi::c_void);
-        key = ::core::ptr::null_mut::<uint8_t>();
+        key = ::core::ptr::null_mut::<u8>();
         return false;
     };
 }
@@ -4599,7 +4333,7 @@ unsafe extern "C" fn appendNodeToGraph(mut g: *mut cff_SubrGraph, mut n: *mut cf
     xInsertNodeAfter(g, last, n);
     if (*g).doSubroutinize {
         if !checkDoubletMatch(g, last) {
-            if buflen((*n).terminal) > 15 as size_t {
+            if buflen((*n).terminal) > 15 as usize {
                 checkSingletMatch(g, n);
             }
         }
@@ -4613,7 +4347,7 @@ pub unsafe extern "C" fn cff_insertILToGraph(
     let mut blob: *mut caryll_Buffer = bufnew();
     let mut flush: bool = false;
     let mut last: bool = false;
-    let mut j: uint32_t = 0 as uint32_t;
+    let mut j: u32 = 0 as u32;
     while j < (*il).length {
         match (*(*il).instr.offset(j as isize)).type_0 as ::core::ffi::c_uint {
             0 => {
@@ -4631,7 +4365,7 @@ pub unsafe extern "C" fn cff_insertILToGraph(
             1 => {
                 cff_mergeCS2Operator(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.i);
                 if (*(*il).instr.offset(j as isize)).c2rust_unnamed.i
-                    == op_endchar as ::core::ffi::c_int as int32_t
+                    == op_endchar as ::core::ffi::c_int as i32
                 {
                     last = true;
                 }
@@ -4640,7 +4374,7 @@ pub unsafe extern "C" fn cff_insertILToGraph(
             2 => {
                 cff_mergeCS2Special(
                     blob,
-                    (*(*il).instr.offset(j as isize)).c2rust_unnamed.i as uint8_t,
+                    (*(*il).instr.offset(j as isize)).c2rust_unnamed.i as u8,
                 );
                 flush = true;
             }
@@ -4661,39 +4395,39 @@ pub unsafe extern "C" fn cff_insertILToGraph(
     (*n_1).terminal = blob;
     (*n_1).hard = true;
     appendNodeToGraph(g, n_1);
-    (*g).totalCharStrings = (*g).totalCharStrings.wrapping_add(1 as uint32_t);
+    (*g).totalCharStrings = (*g).totalCharStrings.wrapping_add(1 as u32);
 }
-unsafe extern "C" fn cff_statHeight(mut r: *mut cff_SubrRule, mut height: uint32_t) {
+unsafe extern "C" fn cff_statHeight(mut r: *mut cff_SubrRule, mut height: u32) {
     if height > (*r).height {
         (*r).height = height;
     }
-    let mut effectiveLength: uint32_t = 0 as uint32_t;
+    let mut effectiveLength: u32 = 0 as u32;
     let mut e: *mut cff_SubrNode = (*(*r).guard).next;
     while e != (*r).guard {
         if !(*e).rule.is_null() {
-            cff_statHeight((*e).rule, height.wrapping_add(1 as uint32_t));
-            effectiveLength = effectiveLength.wrapping_add(4 as uint32_t);
+            cff_statHeight((*e).rule, height.wrapping_add(1 as u32));
+            effectiveLength = effectiveLength.wrapping_add(4 as u32);
         } else {
-            effectiveLength = (effectiveLength as size_t).wrapping_add((*(*e).terminal).size)
-                as uint32_t as uint32_t;
+            effectiveLength = (effectiveLength as usize).wrapping_add((*(*e).terminal).size)
+                as u32 as u32;
         }
         e = (*e).next;
     }
     (*r).effectiveLength = effectiveLength;
 }
-unsafe extern "C" fn numberASubroutine(mut r: *mut cff_SubrRule, mut current: *mut uint32_t) {
+unsafe extern "C" fn numberASubroutine(mut r: *mut cff_SubrRule, mut current: *mut u32) {
     if (*r).numbered {
         return;
     }
-    if (*r).height >= type2_subr_nesting as ::core::ffi::c_int as uint32_t {
+    if (*r).height >= type2_subr_nesting as ::core::ffi::c_int as u32 {
         return;
     }
     if (*r)
         .effectiveLength
-        .wrapping_sub(4 as uint32_t)
-        .wrapping_mul((*r).refcount.wrapping_sub(1 as uint32_t))
-        .wrapping_sub(4 as uint32_t)
-        <= 0 as uint32_t
+        .wrapping_sub(4 as u32)
+        .wrapping_mul((*r).refcount.wrapping_sub(1 as u32))
+        .wrapping_sub(4 as u32)
+        <= 0 as u32
     {
         return;
     }
@@ -4708,8 +4442,8 @@ unsafe extern "C" fn numberASubroutine(mut r: *mut cff_SubrRule, mut current: *m
         e = (*e).next;
     }
 }
-unsafe extern "C" fn cff_numberSubroutines(mut g: *mut cff_SubrGraph) -> uint32_t {
-    let mut current: uint32_t = 0 as uint32_t;
+unsafe extern "C" fn cff_numberSubroutines(mut g: *mut cff_SubrGraph) -> u32 {
+    let mut current: u32 = 0 as u32;
     let mut e: *mut cff_SubrNode = (*(*(*g).root).guard).next;
     while e != (*(*g).root).guard {
         if !(*e).rule.is_null() {
@@ -4720,13 +4454,13 @@ unsafe extern "C" fn cff_numberSubroutines(mut g: *mut cff_SubrGraph) -> uint32_
     return current;
 }
 #[inline]
-unsafe extern "C" fn subroutineBias(mut cnt: int32_t) -> int32_t {
-    if cnt < 1240 as int32_t {
-        return 107 as int32_t;
-    } else if cnt < 33900 as int32_t {
-        return 1131 as int32_t;
+unsafe extern "C" fn subroutineBias(mut cnt: i32) -> i32 {
+    if cnt < 1240 as i32 {
+        return 107 as i32;
+    } else if cnt < 33900 as i32 {
+        return 1131 as i32;
     } else {
-        return 32768 as int32_t;
+        return 32768 as i32;
     };
 }
 unsafe extern "C" fn endsWithEndChar(mut rule: *mut cff_SubrRule) -> bool {
@@ -4741,33 +4475,33 @@ unsafe extern "C" fn serializeNodeToBuffer(
     mut node: *mut cff_SubrNode,
     mut buf: *mut caryll_Buffer,
     mut gsubrs: *mut caryll_Buffer,
-    mut maxGSubrs: uint32_t,
+    mut maxGSubrs: u32,
     mut lsubrs: *mut caryll_Buffer,
-    mut maxLSubrs: uint32_t,
+    mut maxLSubrs: u32,
 ) {
     if !(*node).rule.is_null() {
         if (*(*node).rule).numbered as ::core::ffi::c_int != 0
             && (*(*node).rule).number < maxLSubrs.wrapping_add(maxGSubrs)
-            && (*(*node).rule).height < type2_subr_nesting as ::core::ffi::c_int as uint32_t
+            && (*(*node).rule).height < type2_subr_nesting as ::core::ffi::c_int as u32
         {
             let mut target: *mut caryll_Buffer = ::core::ptr::null_mut::<caryll_Buffer>();
             if (*(*node).rule).number < maxLSubrs {
-                let mut stacknum: int32_t = (*(*node).rule)
+                let mut stacknum: i32 = (*(*node).rule)
                     .number
-                    .wrapping_sub(subroutineBias(maxLSubrs as int32_t) as uint32_t)
-                    as int32_t;
+                    .wrapping_sub(subroutineBias(maxLSubrs as i32) as u32)
+                    as i32;
                 target = lsubrs.offset((*(*node).rule).number as isize);
                 cff_mergeCS2Int(buf, stacknum);
-                cff_mergeCS2Operator(buf, op_callsubr as ::core::ffi::c_int as int32_t);
+                cff_mergeCS2Operator(buf, op_callsubr as ::core::ffi::c_int as i32);
             } else {
-                let mut stacknum_0: int32_t = (*(*node).rule)
+                let mut stacknum_0: i32 = (*(*node).rule)
                     .number
                     .wrapping_sub(maxLSubrs)
-                    .wrapping_sub(subroutineBias(maxGSubrs as int32_t) as uint32_t)
-                    as int32_t;
+                    .wrapping_sub(subroutineBias(maxGSubrs as i32) as u32)
+                    as i32;
                 target = gsubrs.offset((*(*node).rule).number.wrapping_sub(maxLSubrs) as isize);
                 cff_mergeCS2Int(buf, stacknum_0);
-                cff_mergeCS2Operator(buf, op_callgsubr as ::core::ffi::c_int as int32_t);
+                cff_mergeCS2Operator(buf, op_callgsubr as ::core::ffi::c_int as i32);
             }
             let mut r: *mut cff_SubrRule = (*node).rule;
             if !(*r).printed {
@@ -4778,7 +4512,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
                     e = (*e).next;
                 }
                 if !endsWithEndChar(r) {
-                    cff_mergeCS2Operator(target, op_return as ::core::ffi::c_int as int32_t);
+                    cff_mergeCS2Operator(target, op_return as ::core::ffi::c_int as i32);
                 }
             }
         } else {
@@ -4795,7 +4529,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
 }
 unsafe extern "C" fn from_array(
     mut _context: *mut ::core::ffi::c_void,
-    mut j: uint32_t,
+    mut j: u32,
 ) -> *mut caryll_Buffer {
     let mut context: *mut caryll_Buffer = _context as *mut caryll_Buffer;
     let mut blob: *mut caryll_Buffer = bufnew();
@@ -4810,13 +4544,13 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
     mut ls: *mut *mut caryll_Buffer,
     mut options: *const otfcc_Options,
 ) {
-    cff_statHeight((*g).root, 0 as uint32_t);
-    let mut maxSubroutines: uint32_t = cff_numberSubroutines(g);
+    cff_statHeight((*g).root, 0 as u32);
+    let mut maxSubroutines: u32 = cff_numberSubroutines(g);
     (*(*options).logger)
         .logSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        log_vl_progress as ::core::ffi::c_int as uint8_t,
+        log_vl_progress as ::core::ffi::c_int as u8,
         log_type_progress,
         sdscatprintf(
             sdsempty(),
@@ -4825,37 +4559,37 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
             maxSubroutines,
         ),
     );
-    let mut maxLSubrs: uint32_t = maxSubroutines;
-    let mut maxGSubrs: uint32_t = 0 as uint32_t;
-    if maxLSubrs > type2_max_subrs as ::core::ffi::c_int as uint32_t {
-        maxLSubrs = type2_max_subrs as ::core::ffi::c_int as uint32_t;
+    let mut maxLSubrs: u32 = maxSubroutines;
+    let mut maxGSubrs: u32 = 0 as u32;
+    if maxLSubrs > type2_max_subrs as ::core::ffi::c_int as u32 {
+        maxLSubrs = type2_max_subrs as ::core::ffi::c_int as u32;
         maxGSubrs = maxSubroutines.wrapping_sub(maxLSubrs);
     }
-    if maxGSubrs > type2_max_subrs as ::core::ffi::c_int as uint32_t {
-        maxGSubrs = type2_max_subrs as ::core::ffi::c_int as uint32_t;
+    if maxGSubrs > type2_max_subrs as ::core::ffi::c_int as u32 {
+        maxGSubrs = type2_max_subrs as ::core::ffi::c_int as u32;
     }
-    let mut total: uint32_t = maxLSubrs.wrapping_add(maxGSubrs);
-    maxLSubrs = total.wrapping_div(2 as uint32_t);
+    let mut total: u32 = maxLSubrs.wrapping_add(maxGSubrs);
+    maxLSubrs = total.wrapping_div(2 as u32);
     maxGSubrs = total.wrapping_sub(maxLSubrs);
     let mut charStrings: *mut caryll_Buffer = ::core::ptr::null_mut::<caryll_Buffer>();
     let mut gsubrs: *mut caryll_Buffer = ::core::ptr::null_mut::<caryll_Buffer>();
     let mut lsubrs: *mut caryll_Buffer = ::core::ptr::null_mut::<caryll_Buffer>();
     charStrings = __caryll_allocate_clean(
-        (::core::mem::size_of::<caryll_Buffer>() as size_t)
-            .wrapping_mul((*g).totalCharStrings.wrapping_add(1 as uint32_t) as size_t),
+        (::core::mem::size_of::<caryll_Buffer>() as usize)
+            .wrapping_mul((*g).totalCharStrings.wrapping_add(1 as u32) as usize),
         608 as ::core::ffi::c_ulong,
     ) as *mut caryll_Buffer;
     lsubrs = __caryll_allocate_clean(
-        (::core::mem::size_of::<caryll_Buffer>() as size_t)
-            .wrapping_mul(maxLSubrs.wrapping_add(1 as uint32_t) as size_t),
+        (::core::mem::size_of::<caryll_Buffer>() as usize)
+            .wrapping_mul(maxLSubrs.wrapping_add(1 as u32) as usize),
         609 as ::core::ffi::c_ulong,
     ) as *mut caryll_Buffer;
     gsubrs = __caryll_allocate_clean(
-        (::core::mem::size_of::<caryll_Buffer>() as size_t)
-            .wrapping_mul(maxGSubrs.wrapping_add(1 as uint32_t) as size_t),
+        (::core::mem::size_of::<caryll_Buffer>() as usize)
+            .wrapping_mul(maxGSubrs.wrapping_add(1 as u32) as usize),
         610 as ::core::ffi::c_ulong,
     ) as *mut caryll_Buffer;
-    let mut j: uint32_t = 0 as uint32_t;
+    let mut j: u32 = 0 as u32;
     let mut r: *mut cff_SubrRule = (*g).root;
     let mut e: *mut cff_SubrNode = (*(*r).guard).next;
     while e != (*r).guard {
@@ -4877,7 +4611,7 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
         (*g).totalCharStrings,
         Some(
             from_array
-                as unsafe extern "C" fn(*mut ::core::ffi::c_void, uint32_t) -> *mut caryll_Buffer,
+                as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut caryll_Buffer,
         ),
     );
     let mut igs: *mut cff_Index = cff_iIndex.fromCallback.expect("non-null function pointer")(
@@ -4885,7 +4619,7 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
         maxGSubrs,
         Some(
             from_array
-                as unsafe extern "C" fn(*mut ::core::ffi::c_void, uint32_t) -> *mut caryll_Buffer,
+                as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut caryll_Buffer,
         ),
     );
     let mut ils: *mut cff_Index = cff_iIndex.fromCallback.expect("non-null function pointer")(
@@ -4893,28 +4627,28 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
         maxLSubrs,
         Some(
             from_array
-                as unsafe extern "C" fn(*mut ::core::ffi::c_void, uint32_t) -> *mut caryll_Buffer,
+                as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut caryll_Buffer,
         ),
     );
-    let mut j_0: uint32_t = 0 as uint32_t;
+    let mut j_0: u32 = 0 as u32;
     while j_0 < (*g).totalCharStrings {
         free((*charStrings.offset(j_0 as isize)).data as *mut ::core::ffi::c_void);
         let ref mut fresh6 = (*charStrings.offset(j_0 as isize)).data;
-        *fresh6 = ::core::ptr::null_mut::<uint8_t>();
+        *fresh6 = ::core::ptr::null_mut::<u8>();
         j_0 = j_0.wrapping_add(1);
     }
-    let mut j_1: uint32_t = 0 as uint32_t;
+    let mut j_1: u32 = 0 as u32;
     while j_1 < maxGSubrs {
         free((*gsubrs.offset(j_1 as isize)).data as *mut ::core::ffi::c_void);
         let ref mut fresh7 = (*gsubrs.offset(j_1 as isize)).data;
-        *fresh7 = ::core::ptr::null_mut::<uint8_t>();
+        *fresh7 = ::core::ptr::null_mut::<u8>();
         j_1 = j_1.wrapping_add(1);
     }
-    let mut j_2: uint32_t = 0 as uint32_t;
+    let mut j_2: u32 = 0 as u32;
     while j_2 < maxLSubrs {
         free((*lsubrs.offset(j_2 as isize)).data as *mut ::core::ffi::c_void);
         let ref mut fresh8 = (*lsubrs.offset(j_2 as isize)).data;
-        *fresh8 = ::core::ptr::null_mut::<uint8_t>();
+        *fresh8 = ::core::ptr::null_mut::<u8>();
         j_2 = j_2.wrapping_add(1);
     }
     free(charStrings as *mut ::core::ffi::c_void);
@@ -4930,5 +4664,3 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
     cff_iIndex.free.expect("non-null function pointer")(igs);
     cff_iIndex.free.expect("non-null function pointer")(ils);
 }
-pub const true_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

@@ -1,29 +1,11 @@
+use crate::support::primitives::{arity_t};
+use crate::vendor::sds::{sds};
+use crate::libcff::cff_index::{cff_Index};
+
 extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: size_t) -> sds;
+    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
 }
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
-pub type sds = *mut ::core::ffi::c_char;
-pub type arity_t = uint32_t;
-pub type cff_IndexCountType = ::core::ffi::c_uint;
-pub const CFF_INDEX_32: cff_IndexCountType = 1;
-pub const CFF_INDEX_16: cff_IndexCountType = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct cff_Index {
-    pub countType: cff_IndexCountType,
-    pub count: arity_t,
-    pub offSize: uint8_t,
-    pub offset: *mut uint32_t,
-    pub data: *mut uint8_t,
-}
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 static mut string_standard: [*const ::core::ffi::c_char; 391] = [
     b".notdef\0" as *const u8 as *const ::core::ffi::c_char,
     b"space\0" as *const u8 as *const ::core::ffi::c_char,
@@ -418,7 +400,7 @@ static mut string_standard: [*const ::core::ffi::c_char; 391] = [
     b"Semibold\0" as *const u8 as *const ::core::ffi::c_char,
 ];
 #[no_mangle]
-pub unsafe extern "C" fn sdsget_cff_sid(mut idx: uint16_t, mut str: cff_Index) -> sds {
+pub unsafe extern "C" fn sdsget_cff_sid(mut idx: u16, mut str: cff_Index) -> sds {
     if idx as ::core::ffi::c_int <= 390 as ::core::ffi::c_int {
         return sdsnew(string_standard[idx as usize]);
     } else if str.count > 0 as arity_t
@@ -439,7 +421,7 @@ pub unsafe extern "C" fn sdsget_cff_sid(mut idx: uint16_t, mut str: cff_Index) -
             .wrapping_sub(
                 *str.offset
                     .offset((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as isize),
-            ) as size_t,
+            ) as usize,
         );
     } else {
         return ::core::ptr::null_mut::<::core::ffi::c_char>();

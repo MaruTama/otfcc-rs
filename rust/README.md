@@ -43,7 +43,7 @@ rust/Cargo.toml
 rust/src/lib.rs                  crate root: a flat list of `pub mod`
 rust/src/bin/{otfccdump,otfccbuild}.rs
 rust/src/ffi/dll.rs              the four public extern "C" functions
-rust/src/vendor/{sds,json,json_builder,emyg_dtoa}.rs   third-party C
+rust/src/vendor/{sds,json,json_builder,emyg_dtoa,uthash}.rs  third-party C
 rust/src/{bk,consolidate,font,json_reader,json_writer,libcff,logger,
           otf_reader,otf_writer,support,table,vf}[.rs|/]
 ```
@@ -411,34 +411,107 @@ matrix (`compare-with-c.sh`), all round-trip payloads
 changes specifically — the issue #1 golden regression test, before moving
 to the next file.
 
-## Next steps (Phase 2 continued)
+## Status: Phase 3 in progress (structure, then safe Rust)
 
-- **Public vtable → trait conversion**: `bk_CellType`'s *type* (still a
-  plain `c_uint`, not a real Rust `enum`) and the struct-of-function-pointer
-  "interfaces" (`otl_iCoverage`, `otfcc_iHandle`, etc.) were deliberately
-  left alone in this pass. They're referenced via duplicated `extern "C"`
-  declarations in dozens of other files (there are no `use` statements
-  anywhere pre-idiomatization — every file redeclares everything it calls),
-  so changing their *public* shape needs a coordinated, crate-wide pass, not
-  a local one.
-- **Crate-wide rollout of `alloc.rs`/a `binio.rs`**: extend the dedup done
-  here to the remaining files with their own copy of the alloc helpers, and
-  factor out the also-duplicated `read_8u/16u/24u/32u` family (used
-  throughout `table/**`, unused in support/bk/otf_reader/otf_writer).
-- **Redundant same-width casts** (`x as c_int == y as c_int` where both
-  sides are already the same type, ~130 occurrences crate-wide) and ternary-
-  cast-to-bool chains: skipped in this pass because — unlike the `true_0`/
-  `false_0` sweep — safely removing them requires confirming per-site that
-  both operands really are the same original width/signedness (and, per the
-  `onCurve` mistake caught above, that the source field really is `bool`);
-  the compiler only catches an outright type error, not a silently-wrong
-  comparison or normalization from an incorrectly-dropped cast.
-- Continue module by module: `table/otl` next (the OTL builder/reader is the
-  largest single cluster, 60 files / 105K lines, and directly touches the
-  issue #1 code path from the C side), then `consolidate`/`json_reader`/
-  `json_writer`, then `libcff`/`glyf`/`vf`, per the original plan's ordering
-  — keeping the round-trip tests green throughout.
-- Once Rust is trusted as the sole implementation, retire the C build by
-  deleting `c/` (`quick.make`, `premake5.lua`, `lib/`, `src/`, `dep/`,
-  `include/` all live there now, precisely so this is a single directory
-  removal) and `compare-with-c.sh`.
+Phase 2 idiomatized function *bodies*. Phase 3 attacks the thing that made
+that work harder than it should have been: this was still 123 independent C
+translation units rather than one crate. c2rust processes one `.c` file at a
+time and has no way to say "that type is declared over there", so it
+redeclared every type in every file that touched it — 8,090 declarations of
+458 distinct types, 30.8% of the crate's lines. Because Rust types are
+*nominal*, those were 8,090 genuinely distinct types, which is why PR #17's
+trait work had to erase its boundaries to `*mut c_void`.
+
+Landed so far, each commit verified against the full matrix on macOS and in
+the CI-matching Linux container:
+
+- **The public ABI is guarded** (`check-abi.sh`, see above). Every subsequent
+  commit reports the same 574 exported symbols, which is what makes "this
+  changed nothing observable" a checked claim rather than an assertion.
+- **Standard cargo layout**: `src/lib.rs` + `src/bin/` + `src/ffi/` +
+  `src/vendor/`, replacing c2rust's `src::lib::` / `src::dep::r#extern::` /
+  `src::src::` scaffolding. See "Crate layout" above.
+- **C's integer typedefs are gone**: 1,227 declarations of `uint16_t`,
+  `size_t`, `__int32_t` and friends replaced by `u16`/`usize`/`i32`.
+  `c_int`/`c_long`/`c_char`/`c_void` stay — their width really is
+  platform-dependent, and issue #14 (Windows, LLP64) depends on that.
+- **The C library comes from `libc`**: 648 duplicated declarations delegated,
+  and `FILE` is now `libc::FILE` (opaque) instead of a hand-copied glibc
+  `_IO_FILE` struct that didn't describe macOS at all. That removed the
+  crate's last `extern type`, so **`#![feature(extern_types)]` is gone** — one
+  of the three nightly features between here and a stable toolchain.
+- **The base types have one declaration each**: `sds` (was 95 copies),
+  `caryll_Buffer` (80), `otfcc_ILogger`/`ILoggerTarget`/`LoggerType` (79),
+  `otfcc_Options` (78), and otfcc's scalar vocabulary — `glyphid_t`, `pos_t`,
+  `tableid_t`, … — collected into `support/primitives.rs` along with the
+  explanatory comments from `c/include/otfcc/primitives.h`.
+- **The vendored JSON types too** (59 copies each), including the five
+  anonymous struct/unions inside `_json_value`. Those could not be deduped by
+  name: c2rust numbers anonymous types per translation unit, so the same type
+  is `C2RustUnnamed_0` in 52 files and `C2RustUnnamed_4` in 7 others, while
+  those names mean unrelated things in the 46 files that don't touch json.
+  They are matched by field list and renamed (`json_value_payload`,
+  `json_array_value`, `json_object_value`, `json_string_value`,
+  `json_value_reserved`).
+- **All 30 remaining anonymous types have real names**, identified the same
+  way but *recursively*, because they nest: the `vq_Segment.val` union's
+  `delta` member is itself anonymous, so two copies of that union differ
+  textually while being one type. Named from the C declaration that produced
+  them — `otl_ChainingBody`/`otl_ChainingRuleSet`, `vq_SegmentValue`/
+  `vq_SegmentDelta`, `bk_CellValue`, the `cff_*Body` format unions,
+  `glyf_PackedPointRun`. The anonymous *enums* needed their constants folded
+  into the signature: `pub type C2RustUnnamed_N = c_uint` is identical text
+  for all 41 of them, so the logger's verbosity levels and CFF's operator
+  tables would otherwise have hashed alike.
+- **Every domain type has one declaration**, in the module matching the C
+  header that declares it: `otl.h` → `table::otl` (47 types, 1,735 copies),
+  `uthash.h` → `vendor::uthash`, `font.h` → `font::caryll_font`. 7,747
+  declarations removed; the crate went from 178k lines to 137k. What is left
+  duplicated is 58 libc declarations (`va_list`, `timespec`,
+  `__compar_fn_t`), which want routing through `libc` rather than relocating.
+
+Every dedup step verifies that all copies are textually identical before
+deleting any of them; a name whose copies disagree is reported and left alone,
+since "same name, different type" is exactly the failure a mechanical pass
+could otherwise introduce in silence. Two names did disagree and both were
+real: `table_TSI5`/`otl_ClassDef`, where 17 files carried the inverse of
+`TSI5.h`'s `typedef otl_ClassDef table_TSI5` because c2rust made whichever
+name it met first the struct; and `otfcc_IFontBuilder`/`otfcc_IFontSerializer`,
+still live after PR #17's trait work because the two binaries are separate
+crates that reach the readers and writers through `extern "C"`.
+
+One trap worth knowing before the next mechanical pass: `vendor/sds.rs`
+imports `__ctype_b_loc` and friends under `#[cfg(target_os = "macos")]`, since
+on Linux they come from glibc. Folding an unconditional import into that gated
+line compiles perfectly on macOS and leaves the names undefined on Linux —
+which is also why `cargo fix`'s unused-import removals have to be re-checked
+on the other platform before a commit is trusted.
+
+## Next steps
+
+- **Route the remaining libc types through `libc`**: 58 duplicated
+  declarations of `va_list`, `timespec`, `__compar_fn_t`, `__time_t` and
+  getopt's `option`. Relocating them into a crate module would work but is the
+  wrong fix — they belong to the platform, not to otfcc.
+- **Real `enum`s**: 20 named `pub type X = c_uint` + constant sets, plus the
+  12 formerly-anonymous ones, become `#[repr(u*)] enum` with `TryFrom`. Values
+  read from a font file must never be `transmute`d — unknown values have to
+  keep taking the same branch the C code takes.
+- **200 `static mut`** — 92 are vtables or effectively `const`. Needed before
+  edition 2024, where `static_mut_refs` is an error.
+- **Rust naming**, once each type exists in one place: `otfcc_Options` →
+  `Options`, functions → inherent methods, fields → snake_case. Then the
+  crate-level `allow(non_camel_case_types)`/`non_snake_case`/
+  `non_upper_case_globals` come out, which is what turns "this is idiomatic
+  now" from an opinion into something the compiler checks.
+- **Stable toolchain + edition 2024**: `raw_ref_op` is stable since 1.82;
+  `c_variadic` goes away by replacing the variadic `bk_new_Block`/`bk_push`/
+  `sdscatprintf` with slice- and `format_args!`-taking APIs. A native stable
+  toolchain also fixes the Apple Silicon `otfccdll` ctypes mismatch.
+- **Then safe Rust, type by type**: `CVecRaw<T>` → `Vec<T>` first (one
+  implementation backs ~37 container types), then `sds` → `String`,
+  `caryll_Buffer` → `Vec<u8>`, `malloc`/`dispose` → `Box` + `Drop`, and the
+  7,682 `.offset()` calls into slices and iterators.
+- Before `c/` can be deleted, freeze each payload's expected output into
+  `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
+  removing C removes the safety net that makes all of this checkable.

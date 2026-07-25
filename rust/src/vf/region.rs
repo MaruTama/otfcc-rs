@@ -1,38 +1,10 @@
-extern "C" {
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn exit(__status: ::core::ffi::c_int) -> !;
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn strncmp(
-        __s1: *const ::core::ffi::c_char,
-        __s2: *const ::core::ffi::c_char,
-        __n: size_t,
-    ) -> ::core::ffi::c_int;
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-}
+use libc::{free, memcpy, strncmp};
 
-use crate::support::stdio::FILE;
+
 use crate::support::alloc::{__caryll_allocate_clean};
-pub type size_t = usize;
-pub type __uint16_t = u16;
-pub type uint16_t = __uint16_t;
-pub type shapeid_t = uint16_t;
-pub type pos_t = ::core::ffi::c_double;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VV {
-    pub length: size_t,
-    pub capacity: size_t,
-    pub items: *mut pos_t,
-}
+use crate::support::primitives::{pos_t, shapeid_t};
+
+use crate::vf::vv::{VV};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vq_AxisSpan {
@@ -46,14 +18,12 @@ pub struct vq_Region {
     pub dimensions: shapeid_t,
     pub spans: [vq_AxisSpan; 0],
 }
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[no_mangle]
 pub unsafe extern "C" fn vq_createRegion(mut dimensions: shapeid_t) -> *mut vq_Region {
     let mut r: *mut vq_Region = ::core::ptr::null_mut::<vq_Region>();
     r = __caryll_allocate_clean(
-        (::core::mem::size_of::<vq_Region>() as size_t).wrapping_add(
-            (::core::mem::size_of::<vq_AxisSpan>() as size_t).wrapping_mul(dimensions as size_t),
+        (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
+            (::core::mem::size_of::<vq_AxisSpan>() as usize).wrapping_mul(dimensions as usize),
         ),
         6 as ::core::ffi::c_ulong,
     ) as *mut vq_Region;
@@ -71,9 +41,9 @@ pub unsafe extern "C" fn vq_copyRegion(mut region: *const vq_Region) -> *mut vq_
     memcpy(
         dst as *mut ::core::ffi::c_void,
         region as *const ::core::ffi::c_void,
-        (::core::mem::size_of::<vq_Region>() as size_t).wrapping_add(
-            (::core::mem::size_of::<vq_AxisSpan>() as size_t)
-                .wrapping_mul((*region).dimensions as size_t),
+        (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
+            (::core::mem::size_of::<vq_AxisSpan>() as usize)
+                .wrapping_mul((*region).dimensions as usize),
         ),
     );
     return dst;
@@ -92,9 +62,9 @@ pub unsafe extern "C" fn vq_compareRegion(
     return strncmp(
         a as *const ::core::ffi::c_char,
         b as *const ::core::ffi::c_char,
-        (::core::mem::size_of::<vq_Region>() as size_t).wrapping_add(
-            (::core::mem::size_of::<vq_AxisSpan>() as size_t)
-                .wrapping_mul((*a).dimensions as size_t),
+        (::core::mem::size_of::<vq_Region>() as usize).wrapping_add(
+            (::core::mem::size_of::<vq_AxisSpan>() as usize)
+                .wrapping_mul((*a).dimensions as usize),
         ),
     );
 }
@@ -137,8 +107,8 @@ unsafe extern "C" fn weightAxisRegion(mut as_0: *const vq_AxisSpan, x: pos_t) ->
 #[no_mangle]
 pub unsafe extern "C" fn vqRegionGetWeight(mut r: *const vq_Region, mut v: *const VV) -> pos_t {
     let mut w: pos_t = 1 as ::core::ffi::c_int as pos_t;
-    let mut j: size_t = 0 as size_t;
-    while j < (*r).dimensions as size_t && (*v).length != 0 {
+    let mut j: usize = 0 as usize;
+    while j < (*r).dimensions as usize && (*v).length != 0 {
         w *= weightAxisRegion(
             (&raw const (*r).spans as *const vq_AxisSpan).offset(j as isize) as *const vq_AxisSpan,
             *(*v).items.offset(j as isize),

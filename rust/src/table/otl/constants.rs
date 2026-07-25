@@ -1,4 +1,4 @@
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
+
 #[no_mangle]
 pub static mut SCRIPT_LANGUAGE_SEPARATOR: ::core::ffi::c_char = '_' as i32 as ::core::ffi::c_char;
 #[no_mangle]

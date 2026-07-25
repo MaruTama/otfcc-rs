@@ -1,36 +1,13 @@
+use libc::{calloc, free, malloc, memcpy, memset, sprintf, strcpy};
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn sprintf(
-        __s: *mut ::core::ffi::c_char,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn strcpy(
-        __dest: *mut ::core::ffi::c_char,
-        __src: *const ::core::ffi::c_char,
-    ) -> *mut ::core::ffi::c_char;
     #[cfg(not(target_os = "macos"))]
     fn __ctype_b_loc() -> *mut *const ::core::ffi::c_ushort;
     fn pow(__x: ::core::ffi::c_double, __y: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 #[cfg(target_os = "macos")]
 use crate::support::ctype_compat::__ctype_b_loc;
-pub type __int64_t = i64;
-pub type int64_t = __int64_t;
-pub type uintptr_t = usize;
-pub type size_t = usize;
+use crate::support::{NULL};
+use crate::support::ctype_compat::{_ISdigit};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct json_settings {
@@ -38,7 +15,7 @@ pub struct json_settings {
     pub settings: ::core::ffi::c_int,
     pub mem_alloc: Option<
         unsafe extern "C" fn(
-            size_t,
+            usize,
             ::core::ffi::c_int,
             *mut ::core::ffi::c_void,
         ) -> *mut ::core::ffi::c_void,
@@ -46,7 +23,7 @@ pub struct json_settings {
     pub mem_free:
         Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_void) -> ()>,
     pub user_data: *mut ::core::ffi::c_void,
-    pub value_extra: size_t,
+    pub value_extra: usize,
 }
 pub type json_type = ::core::ffi::c_uint;
 pub const json_pre_serialized: json_type = 8;
@@ -63,34 +40,34 @@ pub const json_none: json_type = 0;
 pub struct _json_value {
     pub parent: *mut _json_value,
     pub type_0: json_type,
-    pub u: C2RustUnnamed_0,
-    pub _reserved: C2RustUnnamed,
+    pub u: json_value_payload,
+    pub _reserved: json_value_reserved,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union json_value_reserved {
     pub next_alloc: *mut _json_value,
     pub object_mem: *mut ::core::ffi::c_void,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_0 {
+pub union json_value_payload {
     pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
+    pub integer: i64,
     pub dbl: ::core::ffi::c_double,
-    pub string: C2RustUnnamed_3,
-    pub object: C2RustUnnamed_2,
-    pub array: C2RustUnnamed_1,
+    pub string: json_string_value,
+    pub object: json_object_value,
+    pub array: json_array_value,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_1 {
+pub struct json_array_value {
     pub length: ::core::ffi::c_uint,
     pub values: *mut *mut _json_value,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_2 {
+pub struct json_object_value {
     pub length: ::core::ffi::c_uint,
     pub values: *mut json_object_entry,
 }
@@ -104,7 +81,7 @@ pub struct _json_object_entry {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_3 {
+pub struct json_string_value {
     pub length: ::core::ffi::c_uint,
     pub ptr: *mut ::core::ffi::c_char,
 }
@@ -121,28 +98,14 @@ pub struct json_state {
     pub cur_line: ::core::ffi::c_uint,
     pub cur_col: ::core::ffi::c_uint,
 }
-pub const _ISdigit: C2RustUnnamed_4 = 2048;
 pub type json_uchar = ::core::ffi::c_uint;
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const _ISalnum: C2RustUnnamed_4 = 8;
-pub const _ISpunct: C2RustUnnamed_4 = 4;
-pub const _IScntrl: C2RustUnnamed_4 = 2;
-pub const _ISblank: C2RustUnnamed_4 = 1;
-pub const _ISgraph: C2RustUnnamed_4 = 32768;
-pub const _ISprint: C2RustUnnamed_4 = 16384;
-pub const _ISspace: C2RustUnnamed_4 = 8192;
-pub const _ISxdigit: C2RustUnnamed_4 = 4096;
-pub const _ISalpha: C2RustUnnamed_4 = 1024;
-pub const _ISlower: C2RustUnnamed_4 = 512;
-pub const _ISupper: C2RustUnnamed_4 = 256;
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const json_enable_comments: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
 #[no_mangle]
 pub static mut json_value_none: _json_value = _json_value {
     parent: ::core::ptr::null::<_json_value>() as *mut _json_value,
     type_0: json_none,
-    u: C2RustUnnamed_0 { boolean: 0 },
-    _reserved: C2RustUnnamed {
+    u: json_value_payload { boolean: 0 },
+    _reserved: json_value_reserved {
         next_alloc: ::core::ptr::null::<_json_value>() as *mut _json_value,
     },
 };
@@ -164,12 +127,12 @@ unsafe extern "C" fn hex_value(mut c: ::core::ffi::c_char) -> ::core::ffi::c_uch
     };
 }
 unsafe extern "C" fn default_alloc(
-    mut size: size_t,
+    mut size: usize,
     mut zero: ::core::ffi::c_int,
     mut _user_data: *mut ::core::ffi::c_void,
 ) -> *mut ::core::ffi::c_void {
     return if zero != 0 {
-        calloc(1 as size_t, size)
+        calloc(1 as usize, size)
     } else {
         malloc(size)
     };
@@ -198,7 +161,7 @@ unsafe extern "C" fn json_alloc(
         .settings
         .mem_alloc
         .expect("non-null function pointer")(
-        size as size_t, zero, (*state).settings.user_data
+        size as usize, zero, (*state).settings.user_data
     );
 }
 unsafe extern "C" fn new_value(
@@ -333,7 +296,7 @@ static mut flag_num_e: ::core::ffi::c_long =
 pub unsafe extern "C" fn json_parse_ex(
     mut settings: *mut json_settings,
     mut json: *const ::core::ffi::c_char,
-    mut length: size_t,
+    mut length: usize,
     mut error_buf: *mut ::core::ffi::c_char,
 ) -> *mut json_value {
     let mut current_block: u64;
@@ -367,7 +330,7 @@ pub unsafe extern "C" fn json_parse_ex(
     state.settings.mem_free = None;
     state.settings.settings = 0 as ::core::ffi::c_int;
     state.settings.user_data = NULL;
-    state.settings.value_extra = 0 as size_t;
+    state.settings.value_extra = 0 as usize;
     state.first_pass = 0 as ::core::ffi::c_int;
     state.ptr = ::core::ptr::null::<::core::ffi::c_char>();
     state.cur_col = 0 as ::core::ffi::c_uint;
@@ -375,8 +338,8 @@ pub unsafe extern "C" fn json_parse_ex(
     let mut flags: ::core::ffi::c_long = 0;
     let mut num_digits: ::core::ffi::c_long = 0 as ::core::ffi::c_long;
     let mut num_e: ::core::ffi::c_long = 0 as ::core::ffi::c_long;
-    let mut num_fraction: int64_t = 0 as int64_t;
-    if length >= 3 as size_t
+    let mut num_fraction: i64 = 0 as i64;
+    if length >= 3 as usize
         && *json.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_uchar
             as ::core::ffi::c_int
             == 0xef as ::core::ffi::c_int
@@ -388,27 +351,27 @@ pub unsafe extern "C" fn json_parse_ex(
             == 0xbf as ::core::ffi::c_int
     {
         json = json.offset(3 as ::core::ffi::c_int as isize);
-        length = length.wrapping_sub(3 as size_t);
+        length = length.wrapping_sub(3 as usize);
     }
     error[0 as ::core::ffi::c_int as usize] = '\0' as i32 as ::core::ffi::c_char;
     end = json.offset(length as isize);
     memcpy(
         &raw mut state.settings as *mut ::core::ffi::c_void,
         settings as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<json_settings>() as size_t,
+        ::core::mem::size_of::<json_settings>() as usize,
     );
     if state.settings.mem_alloc.is_none() {
         state.settings.mem_alloc = Some(
             default_alloc
                 as unsafe extern "C" fn(
-                    size_t,
+                    usize,
                     ::core::ffi::c_int,
                     *mut ::core::ffi::c_void,
                 ) -> *mut ::core::ffi::c_void,
         )
             as Option<
                 unsafe extern "C" fn(
-                    size_t,
+                    usize,
                     ::core::ffi::c_int,
                     *mut ::core::ffi::c_void,
                 ) -> *mut ::core::ffi::c_void,
@@ -426,12 +389,12 @@ pub unsafe extern "C" fn json_parse_ex(
     memset(
         &raw mut state.uint_max as *mut ::core::ffi::c_void,
         0xff as ::core::ffi::c_int,
-        ::core::mem::size_of::<::core::ffi::c_uint>() as size_t,
+        ::core::mem::size_of::<::core::ffi::c_uint>() as usize,
     );
     memset(
         &raw mut state.ulong_max as *mut ::core::ffi::c_void,
         0xff as ::core::ffi::c_int,
-        ::core::mem::size_of::<::core::ffi::c_ulong>() as size_t,
+        ::core::mem::size_of::<::core::ffi::c_ulong>() as usize,
     );
     state.uint_max = state.uint_max.wrapping_sub(8 as ::core::ffi::c_uint);
     state.ulong_max = state.ulong_max.wrapping_sub(8 as ::core::ffi::c_ulong);
@@ -1302,7 +1265,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             | flag_num_zero);
                                                                         num_digits = 0
                                                                             as ::core::ffi::c_long;
-                                                                        num_fraction = 0 as int64_t;
+                                                                        num_fraction = 0 as i64;
                                                                         num_e = 0
                                                                             as ::core::ffi::c_long;
                                                                         if b as ::core::ffi::c_int
@@ -1666,7 +1629,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             | flag_num_zero);
                                                                         num_digits = 0
                                                                             as ::core::ffi::c_long;
-                                                                        num_fraction = 0 as int64_t;
+                                                                        num_fraction = 0 as i64;
                                                                         num_e = 0
                                                                             as ::core::ffi::c_long;
                                                                         if b as ::core::ffi::c_int
@@ -2027,7 +1990,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             | flag_num_zero);
                                                                         num_digits = 0
                                                                             as ::core::ffi::c_long;
-                                                                        num_fraction = 0 as int64_t;
+                                                                        num_fraction = 0 as i64;
                                                                         num_e = 0
                                                                             as ::core::ffi::c_long;
                                                                         if b as ::core::ffi::c_int
@@ -2477,10 +2440,10 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     (*top).u.integer = (*top)
                                                                         .u
                                                                         .integer
-                                                                        * 10 as int64_t
+                                                                        * 10 as i64
                                                                         + (b as ::core::ffi::c_int
                                                                             - '0' as i32)
-                                                                            as int64_t;
+                                                                            as i64;
                                                                 }
                                                             } else {
                                                                 flags |= flag_num_e_got_sign;
@@ -2492,10 +2455,10 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             }
                                                         } else {
                                                             num_fraction = num_fraction
-                                                                * 10 as int64_t
+                                                                * 10 as i64
                                                                 + (b as ::core::ffi::c_int
                                                                     - '0' as i32)
-                                                                    as int64_t;
+                                                                    as i64;
                                                         }
                                                         current_block = 11057878835866523405;
                                                     } else {
@@ -3059,10 +3022,10 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     (*top).u.integer = (*top)
                                                                         .u
                                                                         .integer
-                                                                        * 10 as int64_t
+                                                                        * 10 as i64
                                                                         + (b as ::core::ffi::c_int
                                                                             - '0' as i32)
-                                                                            as int64_t;
+                                                                            as i64;
                                                                 }
                                                             } else {
                                                                 flags |= flag_num_e_got_sign;
@@ -3074,10 +3037,10 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             }
                                                         } else {
                                                             num_fraction = num_fraction
-                                                                * 10 as int64_t
+                                                                * 10 as i64
                                                                 + (b as ::core::ffi::c_int
                                                                     - '0' as i32)
-                                                                    as int64_t;
+                                                                    as i64;
                                                         }
                                                         current_block = 11057878835866523405;
                                                     } else {
@@ -3355,7 +3318,7 @@ pub unsafe extern "C" fn json_parse_ex(
 #[no_mangle]
 pub unsafe extern "C" fn json_parse(
     mut json: *const ::core::ffi::c_char,
-    mut length: size_t,
+    mut length: usize,
 ) -> *mut json_value {
     let mut settings: json_settings = json_settings {
         max_memory: 0,
@@ -3370,7 +3333,7 @@ pub unsafe extern "C" fn json_parse(
     settings.mem_alloc = None;
     settings.mem_free = None;
     settings.user_data = NULL;
-    settings.value_extra = 0 as size_t;
+    settings.value_extra = 0 as usize;
     return json_parse_ex(
         &raw mut settings,
         json,
@@ -3455,7 +3418,7 @@ pub unsafe extern "C" fn json_value_free(mut value: *mut json_value) {
     settings.mem_alloc = None;
     settings.mem_free = None;
     settings.user_data = NULL;
-    settings.value_extra = 0 as size_t;
+    settings.value_extra = 0 as usize;
     settings.mem_free = Some(
         default_free
             as unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_void) -> (),

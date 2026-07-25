@@ -8,7 +8,7 @@
 // rather than a single generic implementation.
 //
 // `CVecRaw<T>` is layout-compatible with every one of those per-type
-// structs (`#[repr(C)] { length: size_t, capacity: size_t, items: *mut T }`,
+// structs (`#[repr(C)] { length: usize, capacity: usize, items: *mut T }`,
 // in that field order) -- callers cast their own container's pointer to
 // `*mut CVecRaw<ElementType>` to use these functions, without needing to
 // change the original struct's definition (which stays independently
@@ -21,19 +21,15 @@
 // struct, custom init, sort/filterEnv taking element-specific function
 // pointers) stay written out per container, since genericizing callback
 // dispatch is a separate, larger design question than this arithmetic.
-pub type size_t = usize;
 
-extern "C" {
-    fn calloc(__nmemb: size_t, __size: size_t) -> *mut ::core::ffi::c_void;
-    fn realloc(__ptr: *mut ::core::ffi::c_void, __size: size_t) -> *mut ::core::ffi::c_void;
-}
+use libc::{calloc, realloc};
 
-const INITIAL_SIZE: size_t = 2;
+const INITIAL_SIZE: usize = 2;
 
 #[repr(C)]
 pub(crate) struct CVecRaw<T> {
-    pub length: size_t,
-    pub capacity: size_t,
+    pub length: usize,
+    pub capacity: usize,
     pub items: *mut T,
 }
 // Copy/Clone regardless of T: every field is either a plain integer or a
@@ -54,7 +50,7 @@ pub(crate) unsafe fn cvec_init<T>(arr: *mut CVecRaw<T>) {
 }
 
 #[inline]
-pub(crate) unsafe fn cvec_grow_to<T>(arr: *mut CVecRaw<T>, target: size_t) {
+pub(crate) unsafe fn cvec_grow_to<T>(arr: *mut CVecRaw<T>, target: usize) {
     if target <= (*arr).capacity {
         return;
     }
@@ -68,7 +64,7 @@ pub(crate) unsafe fn cvec_grow_to<T>(arr: *mut CVecRaw<T>, target: size_t) {
 }
 
 #[inline]
-pub(crate) unsafe fn cvec_grow_to_n<T>(arr: *mut CVecRaw<T>, target: size_t) {
+pub(crate) unsafe fn cvec_grow_to_n<T>(arr: *mut CVecRaw<T>, target: usize) {
     if target <= (*arr).capacity {
         return;
     }
@@ -82,7 +78,7 @@ pub(crate) unsafe fn cvec_grow_to_n<T>(arr: *mut CVecRaw<T>, target: size_t) {
 }
 
 #[inline]
-pub(crate) unsafe fn cvec_resize_to<T>(arr: *mut CVecRaw<T>, target: size_t) {
+pub(crate) unsafe fn cvec_resize_to<T>(arr: *mut CVecRaw<T>, target: usize) {
     (*arr).capacity = target;
     cvec_realloc_items(arr);
 }
@@ -254,3 +250,5 @@ mod tests {
         }
     }
 }
+
+pub const __CARYLL_VECTOR_INITIAL_SIZE: ::core::ffi::c_int = 2 as ::core::ffi::c_int;

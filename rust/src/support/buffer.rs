@@ -1,17 +1,4 @@
-extern "C" {
-    fn fprintf(
-        __stream: *mut FILE,
-        __format: *const ::core::ffi::c_char,
-        ...
-    ) -> ::core::ffi::c_int;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn strlen(__s: *const ::core::ffi::c_char) -> size_t;
-}
+use libc::{fprintf, free, strlen};
 
 pub type __builtin_va_list = __va_list;
 #[derive(Copy, Clone)]
@@ -23,107 +10,58 @@ pub struct __va_list {
     pub __gr_offs: ::core::ffi::c_int,
     pub __vr_offs: ::core::ffi::c_int,
 }
-pub type size_t = usize;
 pub type __gnuc_va_list = __builtin_va_list;
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __uint64_t = u64;
 pub type va_list = __gnuc_va_list;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type uint64_t = __uint64_t;
-pub type sds = *mut ::core::ffi::c_char;
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr8 {
-    pub len: uint8_t,
-    pub alloc: uint8_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr16 {
-    pub len: uint16_t,
-    pub alloc: uint16_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr32 {
-    pub len: uint32_t,
-    pub alloc: uint32_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct sdshdr64 {
-    pub len: uint64_t,
-    pub alloc: uint64_t,
-    pub flags: ::core::ffi::c_uchar,
-    pub buf: [::core::ffi::c_char; 0],
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
+    pub cursor: usize,
+    pub size: usize,
+    pub free: usize,
+    pub data: *mut u8,
 }
-use crate::support::stdio::{FILE, stderr};
+use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const SDS_TYPE_5: ::core::ffi::c_int = 0;
-pub const SDS_TYPE_8: ::core::ffi::c_int = 1;
-pub const SDS_TYPE_16: ::core::ffi::c_int = 2;
-pub const SDS_TYPE_32: ::core::ffi::c_int = 3;
-pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
-pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
-pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
+
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> size_t {
+unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as size_t,
+        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
                 as *mut sdshdr8))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_16 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
                 as *mut sdshdr16))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_32 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
                 as *mut sdshdr32))
-                .len as size_t;
+                .len as usize;
         }
         SDS_TYPE_64 => {
             return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
                 as *mut sdshdr64))
-                .len as size_t;
+                .len as usize;
         }
         _ => {}
     }
-    return 0 as size_t;
+    return 0 as usize;
 }
 #[no_mangle]
 pub unsafe extern "C" fn bufnew() -> *mut caryll_Buffer {
     let mut buf: *mut caryll_Buffer = ::core::ptr::null_mut::<caryll_Buffer>();
     buf = __caryll_allocate_clean(
-        ::core::mem::size_of::<caryll_Buffer>() as size_t,
+        ::core::mem::size_of::<caryll_Buffer>() as usize,
         6 as ::core::ffi::c_ulong,
     ) as *mut caryll_Buffer;
-    (*buf).free = 0 as size_t;
+    (*buf).free = 0 as usize;
     (*buf).size = (*buf).free;
     return buf;
 }
@@ -134,33 +72,33 @@ pub unsafe extern "C" fn buffree(mut buf: *mut caryll_Buffer) {
     }
     if !(*buf).data.is_null() {
         free((*buf).data as *mut ::core::ffi::c_void);
-        (*buf).data = ::core::ptr::null_mut::<uint8_t>();
+        (*buf).data = ::core::ptr::null_mut::<u8>();
     }
     free(buf as *mut ::core::ffi::c_void);
     buf = ::core::ptr::null_mut::<caryll_Buffer>();
 }
 #[no_mangle]
-pub unsafe extern "C" fn buflen(mut buf: *mut caryll_Buffer) -> size_t {
+pub unsafe extern "C" fn buflen(mut buf: *mut caryll_Buffer) -> usize {
     return (*buf).size;
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufpos(mut buf: *mut caryll_Buffer) -> size_t {
+pub unsafe extern "C" fn bufpos(mut buf: *mut caryll_Buffer) -> usize {
     return (*buf).cursor;
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufseek(mut buf: *mut caryll_Buffer, mut pos: size_t) {
+pub unsafe extern "C" fn bufseek(mut buf: *mut caryll_Buffer, mut pos: usize) {
     (*buf).cursor = pos;
 }
 #[no_mangle]
 pub unsafe extern "C" fn bufclear(mut buf: *mut caryll_Buffer) {
-    (*buf).cursor = 0 as size_t;
+    (*buf).cursor = 0 as usize;
     (*buf).free = (*buf).size.wrapping_add((*buf).free);
-    (*buf).size = 0 as size_t;
+    (*buf).size = 0 as usize;
 }
-unsafe extern "C" fn bufbeforewrite(mut buf: *mut caryll_Buffer, mut towrite: size_t) {
-    let mut currentSize: size_t = (*buf).size;
-    let mut allocated: size_t = (*buf).size.wrapping_add((*buf).free);
-    let mut required: size_t = (*buf).cursor.wrapping_add(towrite);
+unsafe extern "C" fn bufbeforewrite(mut buf: *mut caryll_Buffer, mut towrite: usize) {
+    let mut currentSize: usize = (*buf).size;
+    let mut allocated: usize = (*buf).size.wrapping_add((*buf).free);
+    let mut required: usize = (*buf).cursor.wrapping_add(towrite);
     if required < currentSize {
         return;
     } else if required <= allocated {
@@ -169,15 +107,15 @@ unsafe extern "C" fn bufbeforewrite(mut buf: *mut caryll_Buffer, mut towrite: si
     } else {
         (*buf).size = required;
         (*buf).free = required;
-        if (*buf).free > 0x1000000 as ::core::ffi::c_int as size_t {
-            (*buf).free = 0x1000000 as ::core::ffi::c_int as size_t;
+        if (*buf).free > 0x1000000 as ::core::ffi::c_int as usize {
+            (*buf).free = 0x1000000 as ::core::ffi::c_int as usize;
         }
         (*buf).data = __caryll_reallocate(
             (*buf).data as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<uint8_t>() as size_t)
+            (::core::mem::size_of::<u8>() as usize)
                 .wrapping_mul((*buf).size.wrapping_add((*buf).free)),
             46 as ::core::ffi::c_ulong,
-        ) as *mut uint8_t;
+        ) as *mut u8;
     };
 }
 // Pushes `bytes` at the cursor, growing the buffer first, and advances the
@@ -192,59 +130,59 @@ unsafe fn buf_push_bytes(buf: *mut caryll_Buffer, bytes: &[u8]) {
     (*buf).cursor = (*buf).cursor.wrapping_add(bytes.len());
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufwrite8(buf: *mut caryll_Buffer, byte: uint8_t) {
+pub unsafe extern "C" fn bufwrite8(buf: *mut caryll_Buffer, byte: u8) {
     buf_push_bytes(buf, &[byte]);
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufwrite16l(buf: *mut caryll_Buffer, x: uint16_t) {
+pub unsafe extern "C" fn bufwrite16l(buf: *mut caryll_Buffer, x: u16) {
     buf_push_bytes(buf, &x.to_le_bytes());
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufwrite16b(buf: *mut caryll_Buffer, x: uint16_t) {
+pub unsafe extern "C" fn bufwrite16b(buf: *mut caryll_Buffer, x: u16) {
     buf_push_bytes(buf, &x.to_be_bytes());
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufwrite24l(buf: *mut caryll_Buffer, x: uint32_t) {
+pub unsafe extern "C" fn bufwrite24l(buf: *mut caryll_Buffer, x: u32) {
     // Low 3 bytes only, matching the original's shift-mask expansion, which
     // never touched bits 24-31 either.
     buf_push_bytes(buf, &x.to_le_bytes()[..3]);
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufwrite24b(buf: *mut caryll_Buffer, x: uint32_t) {
+pub unsafe extern "C" fn bufwrite24b(buf: *mut caryll_Buffer, x: u32) {
     buf_push_bytes(buf, &x.to_be_bytes()[1..]);
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufwrite32l(buf: *mut caryll_Buffer, x: uint32_t) {
+pub unsafe extern "C" fn bufwrite32l(buf: *mut caryll_Buffer, x: u32) {
     buf_push_bytes(buf, &x.to_le_bytes());
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufwrite32b(buf: *mut caryll_Buffer, x: uint32_t) {
+pub unsafe extern "C" fn bufwrite32b(buf: *mut caryll_Buffer, x: u32) {
     buf_push_bytes(buf, &x.to_be_bytes());
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufwrite64l(buf: *mut caryll_Buffer, x: uint64_t) {
+pub unsafe extern "C" fn bufwrite64l(buf: *mut caryll_Buffer, x: u64) {
     buf_push_bytes(buf, &x.to_le_bytes());
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufwrite64b(buf: *mut caryll_Buffer, x: uint64_t) {
+pub unsafe extern "C" fn bufwrite64b(buf: *mut caryll_Buffer, x: u64) {
     buf_push_bytes(buf, &x.to_be_bytes());
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufninit(n: uint32_t, mut args: ...) -> *mut caryll_Buffer {
+pub unsafe extern "C" fn bufninit(n: u32, mut args: ...) -> *mut caryll_Buffer {
     let buf: *mut caryll_Buffer = bufnew();
-    bufbeforewrite(buf, n as size_t);
+    bufbeforewrite(buf, n as usize);
     let mut ap: ::core::ffi::VaListImpl = args.clone();
     for _ in 0..n {
-        bufwrite8(buf, ap.arg::<::core::ffi::c_int>() as uint8_t);
+        bufwrite8(buf, ap.arg::<::core::ffi::c_int>() as u8);
     }
     return buf;
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufnwrite8(buf: *mut caryll_Buffer, n: uint32_t, mut args: ...) {
-    bufbeforewrite(buf, n as size_t);
+pub unsafe extern "C" fn bufnwrite8(buf: *mut caryll_Buffer, n: u32, mut args: ...) {
+    bufbeforewrite(buf, n as usize);
     let mut ap: ::core::ffi::VaListImpl = args.clone();
     for _ in 0..n {
-        bufwrite8(buf, ap.arg::<::core::ffi::c_int>() as uint8_t);
+        bufwrite8(buf, ap.arg::<::core::ffi::c_int>() as u8);
     }
 }
 #[no_mangle]
@@ -252,7 +190,7 @@ pub unsafe extern "C" fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds) {
     if str.is_null() {
         return;
     }
-    let len: size_t = sdslen(str);
+    let len: usize = sdslen(str);
     if len == 0 {
         return;
     }
@@ -263,14 +201,14 @@ pub unsafe extern "C" fn bufwrite_str(buf: *mut caryll_Buffer, str: *const ::cor
     if str.is_null() {
         return;
     }
-    let len: size_t = strlen(str);
+    let len: usize = strlen(str);
     if len == 0 {
         return;
     }
     buf_push_bytes(buf, ::core::slice::from_raw_parts(str as *const u8, len));
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufwrite_bytes(buf: *mut caryll_Buffer, len: size_t, str: *const uint8_t) {
+pub unsafe extern "C" fn bufwrite_bytes(buf: *mut caryll_Buffer, len: usize, str: *const u8) {
     if str.is_null() || len == 0 {
         return;
     }
@@ -297,7 +235,7 @@ pub unsafe extern "C" fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut car
 }
 #[no_mangle]
 pub unsafe extern "C" fn buflongalign(buf: *mut caryll_Buffer) {
-    let cp: size_t = (*buf).cursor;
+    let cp: usize = (*buf).cursor;
     bufseek(buf, buflen(buf));
     let padding = buflen(buf).wrapping_rem(4);
     if (1..4).contains(&padding) {
@@ -308,24 +246,24 @@ pub unsafe extern "C" fn buflongalign(buf: *mut caryll_Buffer) {
     bufseek(buf, cp);
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufping16b(buf: *mut caryll_Buffer, offset: *mut size_t, cp: *mut size_t) {
-    bufwrite16b(buf, *offset as uint16_t);
+pub unsafe extern "C" fn bufping16b(buf: *mut caryll_Buffer, offset: *mut usize, cp: *mut usize) {
+    bufwrite16b(buf, *offset as u16);
     *cp = (*buf).cursor;
     bufseek(buf, *offset);
 }
 #[no_mangle]
 pub unsafe extern "C" fn bufping16bd(
     buf: *mut caryll_Buffer,
-    offset: *mut size_t,
-    shift: *mut size_t,
-    cp: *mut size_t,
+    offset: *mut usize,
+    shift: *mut usize,
+    cp: *mut usize,
 ) {
-    bufwrite16b(buf, (*offset).wrapping_sub(*shift) as uint16_t);
+    bufwrite16b(buf, (*offset).wrapping_sub(*shift) as u16);
     *cp = (*buf).cursor;
     bufseek(buf, *offset);
 }
 #[no_mangle]
-pub unsafe extern "C" fn bufpong(buf: *mut caryll_Buffer, offset: *mut size_t, cp: *mut size_t) {
+pub unsafe extern "C" fn bufpong(buf: *mut caryll_Buffer, offset: *mut usize, cp: *mut usize) {
     *offset = (*buf).cursor;
     bufseek(buf, *cp);
 }
@@ -333,10 +271,10 @@ pub unsafe extern "C" fn bufpong(buf: *mut caryll_Buffer, offset: *mut size_t, c
 pub unsafe extern "C" fn bufpingpong16b(
     buf: *mut caryll_Buffer,
     that: *mut caryll_Buffer,
-    offset: *mut size_t,
-    cp: *mut size_t,
+    offset: *mut usize,
+    cp: *mut usize,
 ) {
-    bufwrite16b(buf, *offset as uint16_t);
+    bufwrite16b(buf, *offset as u16);
     *cp = (*buf).cursor;
     bufseek(buf, *offset);
     bufwrite_bufdel(buf, that);
@@ -494,8 +432,8 @@ mod tests {
         // goes, write it, then come back.
         unsafe {
             let buf = bufnew();
-            let mut offset: size_t = 4; // data will start at byte 4
-            let mut cp: size_t = 0;
+            let mut offset: usize = 4; // data will start at byte 4
+            let mut cp: usize = 0;
             bufwrite16b(buf, 0xffff); // placeholder we'll leave alone
             bufping16b(buf, &mut offset, &mut cp);
             assert_eq!(bufpos(buf), 4, "jumped to the data position");

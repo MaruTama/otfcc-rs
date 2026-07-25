@@ -1,206 +1,23 @@
+use libc::{free, malloc, memcpy, memset};
 extern "C" {
-    fn malloc(__size: size_t) -> *mut ::core::ffi::c_void;
-    fn free(__ptr: *mut ::core::ffi::c_void);
-    fn memcpy(
-        __dest: *mut ::core::ffi::c_void,
-        __src: *const ::core::ffi::c_void,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
-    fn memset(
-        __s: *mut ::core::ffi::c_void,
-        __c: ::core::ffi::c_int,
-        __n: size_t,
-    ) -> *mut ::core::ffi::c_void;
     static otl_iCoverage: __otfcc_ICoverage;
     static otl_iClassDef: __otfcc_IClassDef;
 }
-use crate::table::otl::classdef::{otl_ClassDef_free, otl_ClassDef};
-use crate::table::otl::coverage::{otl_Coverage_free, otl_Coverage};
-use crate::support::handle::{otfcc_Handle_dispose, otfcc_GlyphHandle, otfcc_LookupHandle};
-pub type __uint8_t = u8;
-pub type __uint16_t = u16;
-pub type __uint32_t = u32;
-pub type __int64_t = i64;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint32_t = __uint32_t;
-pub type size_t = usize;
-pub type json_type = ::core::ffi::c_uint;
-pub const json_pre_serialized: json_type = 8;
-pub const json_null: json_type = 7;
-pub const json_boolean: json_type = 6;
-pub const json_string: json_type = 5;
-pub const json_double: json_type = 4;
-pub const json_integer: json_type = 3;
-pub const json_array: json_type = 2;
-pub const json_object: json_type = 1;
-pub const json_none: json_type = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_value {
-    pub parent: *mut _json_value,
-    pub type_0: json_type,
-    pub u: C2RustUnnamed_0,
-    pub _reserved: C2RustUnnamed,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed {
-    pub next_alloc: *mut _json_value,
-    pub object_mem: *mut ::core::ffi::c_void,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_0 {
-    pub boolean: ::core::ffi::c_int,
-    pub integer: int64_t,
-    pub dbl: ::core::ffi::c_double,
-    pub string: C2RustUnnamed_3,
-    pub object: C2RustUnnamed_2,
-    pub array: C2RustUnnamed_1,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_1 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_2 {
-    pub length: ::core::ffi::c_uint,
-    pub values: *mut json_object_entry,
-}
-pub type json_object_entry = _json_object_entry;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _json_object_entry {
-    pub name: *mut ::core::ffi::c_char,
-    pub name_length: ::core::ffi::c_uint,
-    pub value: *mut _json_value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_3 {
-    pub length: ::core::ffi::c_uint,
-    pub ptr: *mut ::core::ffi::c_char,
-}
-pub type json_value = _json_value;
-pub type sds = *mut ::core::ffi::c_char;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct caryll_Buffer {
-    pub cursor: size_t,
-    pub size: size_t,
-    pub free: size_t,
-    pub data: *mut uint8_t,
-}
-pub type glyphid_t = uint16_t;
-pub type glyphclass_t = uint16_t;
-pub type tableid_t = uint16_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __otfcc_ICoverage {
-    pub init: Option<unsafe extern "C" fn(*mut otl_Coverage) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otl_Coverage, *const otl_Coverage) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_Coverage) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otl_Coverage) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otl_Coverage, otl_Coverage) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_Coverage, otl_Coverage) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut otl_Coverage>,
-    pub free: Option<unsafe extern "C" fn(*mut otl_Coverage) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut otl_Coverage, uint32_t) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const uint8_t, uint32_t, uint32_t) -> *mut otl_Coverage>,
-    pub dump: Option<unsafe extern "C" fn(*const otl_Coverage) -> *mut json_value>,
-    pub parse: Option<unsafe extern "C" fn(*const json_value) -> *mut otl_Coverage>,
-    pub build: Option<unsafe extern "C" fn(*const otl_Coverage) -> *mut caryll_Buffer>,
-    pub buildFormat:
-        Option<unsafe extern "C" fn(*const otl_Coverage, uint16_t) -> *mut caryll_Buffer>,
-    pub shrink: Option<unsafe extern "C" fn(*mut otl_Coverage, bool) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut otl_Coverage, otfcc_GlyphHandle) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __otfcc_IClassDef {
-    pub init: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otl_ClassDef, *const otl_ClassDef) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otl_ClassDef, *mut otl_ClassDef) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otl_ClassDef, otl_ClassDef) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_ClassDef, otl_ClassDef) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut otl_ClassDef>,
-    pub free: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-    pub push:
-        Option<unsafe extern "C" fn(*mut otl_ClassDef, otfcc_GlyphHandle, glyphclass_t) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const uint8_t, uint32_t, uint32_t) -> *mut otl_ClassDef>,
-    pub expand:
-        Option<unsafe extern "C" fn(*mut otl_Coverage, *mut otl_ClassDef) -> *mut otl_ClassDef>,
-    pub dump: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut json_value>,
-    pub parse: Option<unsafe extern "C" fn(*const json_value) -> *mut otl_ClassDef>,
-    pub build: Option<unsafe extern "C" fn(*const otl_ClassDef) -> *mut caryll_Buffer>,
-    pub shrink: Option<unsafe extern "C" fn(*mut otl_ClassDef) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct subtable_chaining {
-    pub type_0: otl_chaining_type,
-    pub c2rust_unnamed: C2RustUnnamed_4,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_4 {
-    pub rule: otl_ChainingRule,
-    pub c2rust_unnamed: C2RustUnnamed_5,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct C2RustUnnamed_5 {
-    pub rulesCount: tableid_t,
-    pub rules: *mut *mut otl_ChainingRule,
-    pub bc: *mut otl_ClassDef,
-    pub ic: *mut otl_ClassDef,
-    pub fc: *mut otl_ClassDef,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otl_ChainingRule {
-    pub matchCount: tableid_t,
-    pub inputBegins: tableid_t,
-    pub inputEnds: tableid_t,
-    pub match_0: *mut *mut otl_Coverage,
-    pub applyCount: tableid_t,
-    pub apply: *mut otl_ChainLookupApplication,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct otl_ChainLookupApplication {
-    pub index: tableid_t,
-    pub lookup: otfcc_LookupHandle,
-}
-pub type otl_chaining_type = ::core::ffi::c_uint;
-pub const otl_chaining_classified: otl_chaining_type = 2;
-pub const otl_chaining_poly: otl_chaining_type = 1;
-pub const otl_chaining_canonical: otl_chaining_type = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __caryll_elementinterface_subtable_chaining {
-    pub init: Option<unsafe extern "C" fn(*mut subtable_chaining) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut subtable_chaining, *const subtable_chaining) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut subtable_chaining, *mut subtable_chaining) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut subtable_chaining) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut subtable_chaining, subtable_chaining) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut subtable_chaining, subtable_chaining) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut subtable_chaining>,
-    pub free: Option<unsafe extern "C" fn(*mut subtable_chaining) -> ()>,
-}
-pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
+use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef_free};
+use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_free};
+use crate::support::handle::{otfcc_Handle_dispose};
+
+use crate::support::primitives::{tableid_t};
+
+
+use crate::table::otl::{__caryll_elementinterface_subtable_chaining, otl_ChainLookupApplication, otl_ChainingRule, subtable_chaining};
+
 #[no_mangle]
 pub unsafe extern "C" fn otl_init_chaining(mut subtable: *mut subtable_chaining) {
     memset(
         subtable as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<subtable_chaining>() as size_t,
+        ::core::mem::size_of::<subtable_chaining>() as usize,
     );
 }
 #[no_mangle]
@@ -289,7 +106,7 @@ unsafe extern "C" fn subtable_chaining_init(mut x: *mut subtable_chaining) {
 #[inline]
 unsafe extern "C" fn subtable_chaining_create() -> *mut subtable_chaining {
     let mut x: *mut subtable_chaining =
-        malloc(::core::mem::size_of::<subtable_chaining>() as size_t) as *mut subtable_chaining;
+        malloc(::core::mem::size_of::<subtable_chaining>() as usize) as *mut subtable_chaining;
     subtable_chaining_init(x);
     return x;
 }
@@ -310,7 +127,7 @@ unsafe extern "C" fn subtable_chaining_replace(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<subtable_chaining>() as size_t,
+        ::core::mem::size_of::<subtable_chaining>() as usize,
     );
 }
 #[inline]
@@ -321,7 +138,7 @@ unsafe extern "C" fn subtable_chaining_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<subtable_chaining>() as size_t,
+        ::core::mem::size_of::<subtable_chaining>() as usize,
     );
 }
 #[inline]
@@ -332,7 +149,7 @@ unsafe extern "C" fn subtable_chaining_move(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<subtable_chaining>() as size_t,
+        ::core::mem::size_of::<subtable_chaining>() as usize,
     );
     subtable_chaining_init(src);
 }
