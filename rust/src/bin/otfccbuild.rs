@@ -165,8 +165,8 @@ pub unsafe extern "C" fn readEntireStdin(
     mut _buffer: *mut *mut ::core::ffi::c_char,
     mut _length: *mut ::core::ffi::c_long,
 ) {
-    static mut BUF_SIZE: ::core::ffi::c_long = 0x400000 as ::core::ffi::c_long;
-    static mut BUF_MIN: ::core::ffi::c_long = 0x1000 as ::core::ffi::c_long;
+    const BUF_SIZE: ::core::ffi::c_long = 0x400000 as ::core::ffi::c_long;
+    const BUF_MIN: ::core::ffi::c_long = 0x1000 as ::core::ffi::c_long;
     let mut buffer: *mut ::core::ffi::c_char =
         malloc(BUF_SIZE as usize) as *mut ::core::ffi::c_char;
     let mut length: ::core::ffi::c_long = 0 as ::core::ffi::c_long;
