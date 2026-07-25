@@ -605,10 +605,26 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
-- **Real `enum`s**: 20 named `pub type X = c_uint` + constant sets, plus the
-  12 formerly-anonymous ones, become `#[repr(u*)] enum` with `TryFrom`. Values
-  read from a font file must never be `transmute`d — unknown values have to
-  keep taking the same branch the C code takes.
+- **Real `enum`s, the rest.** Thirteen are done — `handle_state`, the ten
+  whose values the crate generates itself, and `bk_CellType`/`tsi_EntryType`.
+  Twenty `pub type X = c_uint` aliases are left, and what remains is
+  everything a plain `enum` cannot express:
+  - values that come **out of a font file** (`otl_LookupType`, the CFF
+    operator and format-byte tables, `ttf_instructions`) need `TryFrom` and a
+    look at what C's `default` branch does with an unknown value. Never
+    `transmute` — an out-of-range discriminant is instant UB, and C's
+    behaviour there is usually "warn and skip", not "assume".
+  - **bit sets** (`glyf_PointFlags`, `glyf_ComponentFlags`,
+    `glyf_OnCurveMask`, `json_GlyphOrderPass`, `ctype_class_bits`) stay bit
+    sets — a newtype or `bitflags`, not an enum.
+  - **one number, two names**: `cff_Value_Type` spells the same value as both
+    a DICT and a CharString operator, `cff_CharsetType` has
+    `UNSPECED` == `ISOADOBE` == 0. Rust says that with a variant plus an
+    associated constant.
+  - not enumerations at all: `cff_Type2Limits` is a table of capacity
+    ceilings, `otfcc_LoggerVerbosity` an ordered threshold compared with
+    `<=`, and `WORD`/`json_uchar`/`byte_types` are plain typedefs (the last
+    has no constants left at all).
 - **The rest of `json-funcs.h`**: `json_obj_get` still has 32 identical
   copies, and `json_obj_getnum`/`json_obj_getint`/`…_fallback` nine each. Same
   consolidation as the flag helpers, just more of it.

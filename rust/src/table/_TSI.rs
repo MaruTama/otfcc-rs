@@ -32,12 +32,16 @@ use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cve
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{__compar_fn_t};
 
-pub type tsi_EntryType = ::core::ffi::c_uint;
-pub const TSI_RESERVED_FFFC: tsi_EntryType = 4;
-pub const TSI_CVT: tsi_EntryType = 3;
-pub const TSI_PREP: tsi_EntryType = 2;
-pub const TSI_FPGM: tsi_EntryType = 1;
-pub const TSI_GLYPH: tsi_EntryType = 0;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum tsi_EntryType {
+    TSI_GLYPH = 0,
+    TSI_FPGM = 1,
+    TSI_PREP = 2,
+    TSI_CVT = 3,
+    TSI_RESERVED_FFFC = 4,
+}
+pub use tsi_EntryType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct tsi_Entry {
