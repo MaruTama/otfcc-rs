@@ -120,11 +120,11 @@ unsafe extern "C" fn consolidateMarkArray(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored unknown glyph name %s.\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored unknown glyph name ",
                     (*(*markArray).items.offset(k as isize)).glyph.name,
+                    b".",
                 ),
             );
         } else {
@@ -911,11 +911,11 @@ unsafe extern "C" fn consolidateMarkArray(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Ignored invalid or double-mapping mark definition for /%s.\0"
-                            as *const u8 as *const ::core::ffi::c_char,
+                        b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
                         (*(*markArray).items.offset(k as isize)).glyph.name,
+                        b".",
                     ),
                 );
             }
@@ -1145,11 +1145,11 @@ unsafe extern "C" fn consolidateBaseArray(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored unknown glyph name %s.\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored unknown glyph name ",
                     (*(*baseArray).items.offset(k as isize)).glyph.name,
+                    b".",
                 ),
             );
         } else {
@@ -1930,11 +1930,11 @@ unsafe extern "C" fn consolidateBaseArray(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Ignored anchor double-definition for /%s.\0" as *const u8
-                            as *const ::core::ffi::c_char,
+                        b"[Consolidate] Ignored anchor double-definition for /",
                         (*(*baseArray).items.offset(k as isize)).glyph.name,
+                        b".",
                     ),
                 );
             }
@@ -2163,11 +2163,11 @@ unsafe extern "C" fn consolidateLigArray(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored unknown glyph name %s.\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored unknown glyph name ",
                     (*(*ligArray).items.offset(k as isize)).glyph.name,
+                    b".",
                 ),
             );
         } else {
@@ -2949,11 +2949,11 @@ unsafe extern "C" fn consolidateLigArray(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Ignored anchor double-definition for /%s.\0" as *const u8
-                            as *const ::core::ffi::c_char,
+                        b"[Consolidate] Ignored anchor double-definition for /",
                         (*(*ligArray).items.offset(k as isize)).glyph.name,
+                        b".",
                     ),
                 );
             }

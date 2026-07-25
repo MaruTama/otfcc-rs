@@ -510,12 +510,15 @@ unsafe extern "C" fn writeOTLLookups(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_progress as ::core::ffi::c_int as u8,
             log_type_progress,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"Building lookup %s (%u/%u)\n\0" as *const u8 as *const ::core::ffi::c_char,
+                b"Building lookup ",
                 (*lookup).name,
+                b" (",
                 j as ::core::ffi::c_int,
+                b"/",
                 (*table).lookups.length as u32,
+                b")\n",
             ),
         );
         *subtableQuantity.offset(j as isize) = _build_lookup(
@@ -552,10 +555,11 @@ unsafe extern "C" fn writeOTLLookups(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_notice as ::core::ffi::c_int as u8,
                 log_type_info,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"Lookup %s is empty.\n\0" as *const u8 as *const ::core::ffi::c_char,
+                    b"Lookup ",
                     (**(*table).lookups.items.offset(j_1 as isize)).name,
+                    b" is empty.\n",
                 ),
             );
         }
@@ -571,12 +575,13 @@ unsafe extern "C" fn writeOTLLookups(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_notice as ::core::ffi::c_int as u8,
                 log_type_info,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[OTFCC-fea] Using extended OpenType table layout for %s/%s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[OTFCC-fea] Using extended OpenType table layout for ",
                     tag,
+                    b"/",
                     (*lookup_0).name,
+                    b".\n",
                 ),
             );
         }
@@ -1647,11 +1652,7 @@ pub unsafe extern "C" fn otfcc_buildOtl(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-            tag,
-        ),
+        crate::sdsbuild!(sdsempty(), tag),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

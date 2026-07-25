@@ -898,11 +898,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
         }
         if !t.is_null() {
             sdsfree(name);
-            name = sdscatprintf(
-                sdsempty(),
-                b"$$gid%d\0" as *const u8 as *const ::core::ffi::c_char,
-                gid as ::core::ffi::c_int,
-            );
+            name = crate::sdsbuild!(sdsempty(), b"$$gid", gid as ::core::ffi::c_int);
         }
         s = __caryll_allocate_clean(
             ::core::mem::size_of::<otfcc_GlyphOrderEntry>() as usize,

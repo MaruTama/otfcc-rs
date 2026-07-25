@@ -472,11 +472,7 @@ unsafe fn main_0(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_progress as ::core::ffi::c_int as u8,
             log_type_progress,
-            sdscatprintf(
-                sdsempty(),
-                b"From file %s\0" as *const u8 as *const ::core::ffi::c_char,
-                inPath,
-            ),
+            otfcc_rust::sdsbuild!(sdsempty(), b"From file ", inPath),
         );
         let mut file: *mut FILE = fopen(
             inPath as *const ::core::ffi::c_char,
@@ -490,11 +486,11 @@ unsafe fn main_0(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_critical as ::core::ffi::c_int as u8,
                 log_type_error,
-                sdscatprintf(
+                otfcc_rust::sdsbuild!(
                     sdsempty(),
-                    b"Cannot read SFNT file \"%s\". Exit.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"Cannot read SFNT file \"",
                     inPath,
+                    b"\". Exit.\n",
                 ),
             );
             exit(EXIT_FAILURE);
@@ -506,13 +502,15 @@ unsafe fn main_0(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_critical as ::core::ffi::c_int as u8,
                 log_type_error,
-                sdscatprintf(
+                otfcc_rust::sdsbuild!(
                     sdsempty(),
-                    b"Subfont index %d out of range for \"%s\" (0 -- %d). Exit.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"Subfont index ",
                     ttcindex,
+                    b" out of range for \"",
                     inPath,
+                    b"\" (0 -- ",
                     (*sfnt).count.wrapping_sub(1 as u32),
+                    b"). Exit.\n",
                 ),
             );
             exit(EXIT_FAILURE);
@@ -552,11 +550,11 @@ unsafe fn main_0(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_critical as ::core::ffi::c_int as u8,
                 log_type_error,
-                sdscatprintf(
+                otfcc_rust::sdsbuild!(
                     sdsempty(),
-                    b"Font structure broken or corrupted \"%s\". Exit.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"Font structure broken or corrupted \"",
                     inPath,
+                    b"\". Exit.\n",
                 ),
             );
             exit(EXIT_FAILURE);
@@ -619,11 +617,11 @@ unsafe fn main_0(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_critical as ::core::ffi::c_int as u8,
                 log_type_error,
-                sdscatprintf(
+                otfcc_rust::sdsbuild!(
                     sdsempty(),
-                    b"Font structure broken or corrupted \"%s\". Exit.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"Font structure broken or corrupted \"",
                     inPath,
+                    b"\". Exit.\n",
                 ),
             );
             exit(EXIT_FAILURE);
@@ -704,11 +702,11 @@ unsafe fn main_0(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_critical as ::core::ffi::c_int as u8,
                     log_type_error,
-                    sdscatprintf(
+                    otfcc_rust::sdsbuild!(
                         sdsempty(),
-                        b"Cannot write to file \"%s\". Exit.\0" as *const u8
-                            as *const ::core::ffi::c_char,
+                        b"Cannot write to file \"",
                         outputPath,
+                        b"\". Exit.",
                     ),
                 );
                 exit(EXIT_FAILURE);

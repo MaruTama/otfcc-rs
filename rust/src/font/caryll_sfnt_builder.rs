@@ -17,7 +17,7 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{log_type_progress, log_vl_progress, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
-use crate::vendor::sds::{sds};
+use crate::vendor::sds::{Byte, sds};
 use crate::support::{NULL};
 use crate::support::binio::{otfcc_EndianProbe16, otfcc_EndianProbe32};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
@@ -951,14 +951,14 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
             (*options).logger as *mut otfcc_ILogger,
             log_vl_progress as ::core::ffi::c_int as u8,
             log_type_progress,
-            sdscatprintf(
+            crate::sdsbuild!(
                 sdsempty(),
-                b"OpenType table %c%c%c%c successfully built.\n\0" as *const u8
-                    as *const ::core::ffi::c_char,
-                tag >> 24 as ::core::ffi::c_int & 0xff as u32,
-                tag >> 16 as ::core::ffi::c_int & 0xff as u32,
-                tag >> 8 as ::core::ffi::c_int & 0xff as u32,
-                tag & 0xff as u32,
+                b"OpenType table ",
+                Byte((tag >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
+                Byte((tag >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
+                Byte((tag >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
+                Byte((tag & 0xff as u32) as u8),
+                b" successfully built.\n",
             ),
         );
     } else {

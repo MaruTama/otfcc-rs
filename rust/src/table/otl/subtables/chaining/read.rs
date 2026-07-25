@@ -680,11 +680,7 @@ pub unsafe extern "C" fn otl_read_contextual(
         (*options).logger as *mut otfcc_ILogger,
         log_vl_important as ::core::ffi::c_int as u8,
         log_type_warning,
-        sdscatprintf(
-            sdsempty(),
-            b"Unsupported format %d.\n\0" as *const u8 as *const ::core::ffi::c_char,
-            format as ::core::ffi::c_int,
-        ),
+        crate::sdsbuild!(sdsempty(), b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
     iSubtable_chaining.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
@@ -1330,11 +1326,7 @@ pub unsafe extern "C" fn otl_read_chaining(
         (*options).logger as *mut otfcc_ILogger,
         log_vl_important as ::core::ffi::c_int as u8,
         log_type_warning,
-        sdscatprintf(
-            sdsempty(),
-            b"Unsupported format %d.\n\0" as *const u8 as *const ::core::ffi::c_char,
-            format as ::core::ffi::c_int,
-        ),
+        crate::sdsbuild!(sdsempty(), b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
     iSubtable_chaining.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();

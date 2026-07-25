@@ -1385,11 +1385,7 @@ pub unsafe extern "C" fn sdscatrepr(
         }
         match *p as ::core::ffi::c_int {
             92 | 34 => {
-                s = sdscatprintf(
-                    s,
-                    b"\\%c\0" as *const u8 as *const ::core::ffi::c_char,
-                    *p as ::core::ffi::c_int,
-                );
+                s = crate::sdsbuild!(s, b"\\", Byte((*p as ::core::ffi::c_int) as u8));
             }
             10 => {
                 s = sdscatlen(
@@ -1437,16 +1433,12 @@ pub unsafe extern "C" fn sdscatrepr(
                     & _ISprint as ::core::ffi::c_int as ::core::ffi::c_ushort as ::core::ffi::c_int
                     != 0
                 {
-                    s = sdscatprintf(
-                        s,
-                        b"%c\0" as *const u8 as *const ::core::ffi::c_char,
-                        *p as ::core::ffi::c_int,
-                    );
+                    s = crate::sdsbuild!(s, Byte((*p as ::core::ffi::c_int) as u8));
                 } else {
-                    s = sdscatprintf(
+                    s = crate::sdsbuild!(
                         s,
-                        b"\\x%02x\0" as *const u8 as *const ::core::ffi::c_char,
-                        *p as ::core::ffi::c_uchar as ::core::ffi::c_int,
+                        b"\\x",
+                        Hex2((*p as ::core::ffi::c_uchar as ::core::ffi::c_int) as u32),
                     );
                 }
             }

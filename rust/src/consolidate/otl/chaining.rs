@@ -134,11 +134,11 @@ pub unsafe extern "C" fn consolidate_chaining(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Quoting an invalid lookup %s. This lookup application is ignored.\0"
-                            as *const u8 as *const ::core::ffi::c_char,
+                        b"[Consolidate] Quoting an invalid lookup ",
                         (*(*rule).apply.offset(j_0 as isize)).lookup.name,
+                        b". This lookup application is ignored.",
                     ),
                 );
                 otfcc_Handle_dispose(
@@ -154,11 +154,11 @@ pub unsafe extern "C" fn consolidate_chaining(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Quoting an invalid lookup #%d.\0" as *const u8
-                            as *const ::core::ffi::c_char,
+                        b"[Consolidate] Quoting an invalid lookup #",
                         (*h).index as ::core::ffi::c_int,
+                        b".",
                     ),
                 );
                 (*h).index = 0 as glyphid_t;

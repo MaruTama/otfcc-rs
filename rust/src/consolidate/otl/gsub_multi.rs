@@ -99,11 +99,11 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /%s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored missing glyph /",
                     (*(*subtable).items.offset(k as isize)).from.name,
+                    b".\n",
                 ),
             );
         } else {
@@ -121,11 +121,11 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /%s.\n\0"
-                            as *const u8 as *const ::core::ffi::c_char,
+                        b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /",
                         (*(*subtable).items.offset(k as isize)).from.name,
+                        b".\n",
                     ),
                 );
             } else {

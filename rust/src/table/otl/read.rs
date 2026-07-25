@@ -113,7 +113,7 @@ use crate::support::binio::{read_16u, read_32u};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t};
-use crate::vendor::sds::{sds};
+use crate::vendor::sds::{Byte, Dec5, Hex2, sds};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::table::otl::{__caryll_elementinterface_otl_FeaturePtr, __caryll_elementinterface_otl_LanguageSystemPtr, __caryll_elementinterface_otl_LookupPtr, __caryll_elementinterface_table_OTL, __caryll_vectorinterface_otl_FeatureList, __caryll_vectorinterface_otl_FeatureRefList, __caryll_vectorinterface_otl_LangSystemList, __caryll_vectorinterface_otl_LookupList, __caryll_vectorinterface_otl_LookupRefList, __caryll_vectorinterface_otl_SubtableList, otl_Feature, otl_FeatureList, otl_FeaturePtr, otl_FeatureRef, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_context, otl_type_gpos_extend, otl_type_gpos_unknown, otl_type_gsub_chaining, otl_type_gsub_context, otl_type_gsub_extend, otl_type_gsub_unknown, otl_type_unknown, table_OTL};
@@ -374,33 +374,32 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                     as *const u8,
                                             );
                                             if !(*options).glyph_name_prefix.is_null() {
-                                                (*feature).name = sdscatprintf(
+                                                (*feature).name = crate::sdsbuild!(
                                                     sdsempty(),
-                                                    b"%c%c%c%c_%s_%05d\0" as *const u8
-                                                        as *const ::core::ffi::c_char,
-                                                    tag >> 24 as ::core::ffi::c_int
-                                                        & 0xff as u32,
-                                                    tag >> 16 as ::core::ffi::c_int
-                                                        & 0xff as u32,
-                                                    tag >> 8 as ::core::ffi::c_int
-                                                        & 0xff as u32,
-                                                    tag & 0xff as u32,
+                                                    Byte((tag >> 24 as ::core::ffi::c_int
+                                                        & 0xff as u32) as u8),
+                                                    Byte((tag >> 16 as ::core::ffi::c_int
+                                                        & 0xff as u32) as u8),
+                                                    Byte((tag >> 8 as ::core::ffi::c_int
+                                                        & 0xff as u32) as u8),
+                                                    Byte((tag & 0xff as u32) as u8),
+                                                    b"_",
                                                     (*options).glyph_name_prefix,
-                                                    j_0 as ::core::ffi::c_int,
+                                                    b"_",
+                                                    Dec5((j_0 as ::core::ffi::c_int) as ::core::ffi::c_int),
                                                 );
                                             } else {
-                                                (*feature).name = sdscatprintf(
+                                                (*feature).name = crate::sdsbuild!(
                                                     sdsempty(),
-                                                    b"%c%c%c%c_%05d\0" as *const u8
-                                                        as *const ::core::ffi::c_char,
-                                                    tag >> 24 as ::core::ffi::c_int
-                                                        & 0xff as u32,
-                                                    tag >> 16 as ::core::ffi::c_int
-                                                        & 0xff as u32,
-                                                    tag >> 8 as ::core::ffi::c_int
-                                                        & 0xff as u32,
-                                                    tag & 0xff as u32,
-                                                    j_0 as ::core::ffi::c_int,
+                                                    Byte((tag >> 24 as ::core::ffi::c_int
+                                                        & 0xff as u32) as u8),
+                                                    Byte((tag >> 16 as ::core::ffi::c_int
+                                                        & 0xff as u32) as u8),
+                                                    Byte((tag >> 8 as ::core::ffi::c_int
+                                                        & 0xff as u32) as u8),
+                                                    Byte((tag & 0xff as u32) as u8),
+                                                    b"_",
+                                                    Dec5((j_0 as ::core::ffi::c_int) as ::core::ffi::c_int),
                                                 );
                                             }
                                             let mut featureOffset: u32 = featureListOffset
@@ -465,35 +464,35 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                         if !(*options).glyph_name_prefix.is_null() {
                                                             let fresh3 = lnk;
                                                             lnk = lnk.wrapping_add(1);
-                                                            (*lookup_0).name = sdscatprintf(
+                                                            (*lookup_0).name = crate::sdsbuild!(
                                                                 sdsempty(),
-                                                                b"lookup_%s_%c%c%c%c_%d\0"
-                                                                    as *const u8
-                                                                    as *const ::core::ffi::c_char,
+                                                                b"lookup_",
                                                                 (*options).glyph_name_prefix,
-                                                                tag >> 24 as ::core::ffi::c_int
-                                                                    & 0xff as u32,
-                                                                tag >> 16 as ::core::ffi::c_int
-                                                                    & 0xff as u32,
-                                                                tag >> 8 as ::core::ffi::c_int
-                                                                    & 0xff as u32,
-                                                                tag & 0xff as u32,
+                                                                b"_",
+                                                                Byte((tag >> 24 as ::core::ffi::c_int
+                                                                    & 0xff as u32) as u8),
+                                                                Byte((tag >> 16 as ::core::ffi::c_int
+                                                                    & 0xff as u32) as u8),
+                                                                Byte((tag >> 8 as ::core::ffi::c_int
+                                                                    & 0xff as u32) as u8),
+                                                                Byte((tag & 0xff as u32) as u8),
+                                                                b"_",
                                                                 fresh3 as ::core::ffi::c_int,
                                                             );
                                                         } else {
                                                             let fresh4 = lnk;
                                                             lnk = lnk.wrapping_add(1);
-                                                            (*lookup_0).name = sdscatprintf(
+                                                            (*lookup_0).name = crate::sdsbuild!(
                                                                 sdsempty(),
-                                                                b"lookup_%c%c%c%c_%d\0" as *const u8
-                                                                    as *const ::core::ffi::c_char,
-                                                                tag >> 24 as ::core::ffi::c_int
-                                                                    & 0xff as u32,
-                                                                tag >> 16 as ::core::ffi::c_int
-                                                                    & 0xff as u32,
-                                                                tag >> 8 as ::core::ffi::c_int
-                                                                    & 0xff as u32,
-                                                                tag & 0xff as u32,
+                                                                b"lookup_",
+                                                                Byte((tag >> 24 as ::core::ffi::c_int
+                                                                    & 0xff as u32) as u8),
+                                                                Byte((tag >> 16 as ::core::ffi::c_int
+                                                                    & 0xff as u32) as u8),
+                                                                Byte((tag >> 8 as ::core::ffi::c_int
+                                                                    & 0xff as u32) as u8),
+                                                                Byte((tag & 0xff as u32) as u8),
+                                                                b"_",
                                                                 fresh4 as ::core::ffi::c_int,
                                                             );
                                                         }
@@ -643,15 +642,14 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                     )(
                                                                         &raw mut lang
                                                                     );
-                                                                    (*lang).name = sdscatprintf(
+                                                                    (*lang).name = crate::sdsbuild!(
                                                                         sdsempty(),
-                                                                        b"%c%c%c%c%cDFLT\0" as *const u8
-                                                                            as *const ::core::ffi::c_char,
-                                                                        tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32,
-                                                                        tag_0 >> 16 as ::core::ffi::c_int & 0xff as u32,
-                                                                        tag_0 >> 8 as ::core::ffi::c_int & 0xff as u32,
-                                                                        tag_0 & 0xff as u32,
-                                                                        SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int,
+                                                                        Byte((tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
+                                                                        Byte((tag_0 >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
+                                                                        Byte((tag_0 >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
+                                                                        Byte((tag_0 & 0xff as u32) as u8),
+                                                                        Byte((SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int) as u8),
+                                                                        b"DFLT",
                                                                     );
                                                                     parseLanguage(
                                                                         data,
@@ -720,19 +718,17 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                     )(
                                                                         &raw mut lang_0
                                                                     );
-                                                                    (*lang_0).name = sdscatprintf(
+                                                                    (*lang_0).name = crate::sdsbuild!(
                                                                         sdsempty(),
-                                                                        b"%c%c%c%c%c%c%c%c%c\0" as *const u8
-                                                                            as *const ::core::ffi::c_char,
-                                                                        tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32,
-                                                                        tag_0 >> 16 as ::core::ffi::c_int & 0xff as u32,
-                                                                        tag_0 >> 8 as ::core::ffi::c_int & 0xff as u32,
-                                                                        tag_0 & 0xff as u32,
-                                                                        SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int,
-                                                                        langTag >> 24 as ::core::ffi::c_int & 0xff as u32,
-                                                                        langTag >> 16 as ::core::ffi::c_int & 0xff as u32,
-                                                                        langTag >> 8 as ::core::ffi::c_int & 0xff as u32,
-                                                                        langTag & 0xff as u32,
+                                                                        Byte((tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
+                                                                        Byte((tag_0 >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
+                                                                        Byte((tag_0 >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
+                                                                        Byte((tag_0 & 0xff as u32) as u8),
+                                                                        Byte((SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int) as u8),
+                                                                        Byte((langTag >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
+                                                                        Byte((langTag >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
+                                                                        Byte((langTag >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
+                                                                        Byte((langTag & 0xff as u32) as u8),
                                                                     );
                                                                     parseLanguage(
                                                                         data,
@@ -779,13 +775,14 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                                     j_3 as isize,
                                                                                 ))
                                                                             .name;
-                                                                        *fresh5 = sdscatprintf(
+                                                                        *fresh5 = crate::sdsbuild!(
                                                                             sdsempty(),
-                                                                            b"lookup_%s_%02x_%d\0" as *const u8
-                                                                                as *const ::core::ffi::c_char,
+                                                                            b"lookup_",
                                                                             (*options).glyph_name_prefix,
-                                                                            (**(*table).lookups.items.offset(j_3 as isize)).type_0
-                                                                                as ::core::ffi::c_uint,
+                                                                            b"_",
+                                                                            Hex2(((**(*table).lookups.items.offset(j_3 as isize)).type_0
+                                                                                as ::core::ffi::c_uint) as u32),
+                                                                            b"_",
                                                                             j_3 as ::core::ffi::c_int,
                                                                         );
                                                                     } else {
@@ -797,12 +794,12 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                                     j_3 as isize,
                                                                                 ))
                                                                             .name;
-                                                                        *fresh6 = sdscatprintf(
+                                                                        *fresh6 = crate::sdsbuild!(
                                                                             sdsempty(),
-                                                                            b"lookup_%02x_%d\0" as *const u8
-                                                                                as *const ::core::ffi::c_char,
-                                                                            (**(*table).lookups.items.offset(j_3 as isize)).type_0
-                                                                                as ::core::ffi::c_uint,
+                                                                            b"lookup_",
+                                                                            Hex2(((**(*table).lookups.items.offset(j_3 as isize)).type_0
+                                                                                as ::core::ffi::c_uint) as u32),
+                                                                            b"_",
                                                                             j_3 as ::core::ffi::c_int,
                                                                         );
                                                                     }

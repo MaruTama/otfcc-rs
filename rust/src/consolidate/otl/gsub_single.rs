@@ -85,11 +85,11 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /%s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored missing glyph /",
                     (*(*subtable).items.offset(k as isize)).from.name,
+                    b".\n",
                 ),
             );
         } else if !otfcc_pkgGlyphOrder
@@ -104,11 +104,11 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 (*options).logger as *mut otfcc_ILogger,
                 log_vl_important as ::core::ffi::c_int as u8,
                 log_type_warning,
-                sdscatprintf(
+                crate::sdsbuild!(
                     sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /%s.\n\0" as *const u8
-                        as *const ::core::ffi::c_char,
+                    b"[Consolidate] Ignored missing glyph /",
                     (*(*subtable).items.offset(k as isize)).to.name,
+                    b".\n",
                 ),
             );
         } else {
@@ -433,11 +433,11 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                     (*options).logger as *mut otfcc_ILogger,
                     log_vl_important as ::core::ffi::c_int as u8,
                     log_type_warning,
-                    sdscatprintf(
+                    crate::sdsbuild!(
                         sdsempty(),
-                        b"[Consolidate] Double-mapping a glyph in a single substitution /%s.\n\0"
-                            as *const u8 as *const ::core::ffi::c_char,
+                        b"[Consolidate] Double-mapping a glyph in a single substitution /",
                         (*(*subtable).items.offset(k as isize)).from.name,
+                        b".\n",
                     ),
                 );
             } else {

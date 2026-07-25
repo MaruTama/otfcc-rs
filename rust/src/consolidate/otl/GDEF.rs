@@ -928,10 +928,9 @@ pub unsafe extern "C" fn consolidate_GDEF(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"[Consolidate] Detected caret value double-mapping about glyph %s\0"
-                                    as *const u8 as *const ::core::ffi::c_char,
+                                b"[Consolidate] Detected caret value double-mapping about glyph ",
                                 gname,
                             ),
                         );

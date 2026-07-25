@@ -837,9 +837,9 @@ pub unsafe extern "C" fn otl_gpos_dump_markToLigature(
     let mut j: glyphid_t = 0 as glyphid_t;
     while (j as usize) < (*subtable).markArray.length {
         let mut _mark: *mut json_value = json_object_new(3 as usize);
-        let mut markClassName: sds = sdscatfmt(
+        let mut markClassName: sds = crate::sdsbuild!(
             sdsempty(),
-            b"ac_%i\0" as *const u8 as *const ::core::ffi::c_char,
+            b"ac_",
             (*(*subtable).markArray.items.offset(j as isize)).markClass as ::core::ffi::c_int,
         );
         json_object_push(
@@ -897,11 +897,7 @@ pub unsafe extern "C" fn otl_gpos_dump_markToLigature(
                                 as i64,
                         ),
                     );
-                    let mut markClassName_0: sds = sdscatfmt(
-                        sdsempty(),
-                        b"ac_%i\0" as *const u8 as *const ::core::ffi::c_char,
-                        m as ::core::ffi::c_int,
-                    );
+                    let mut markClassName_0: sds = crate::sdsbuild!(sdsempty(), b"ac_", m as ::core::ffi::c_int);
                     json_object_push_length(
                         _bk,
                         sdslen(markClassName_0) as ::core::ffi::c_uint,
@@ -1354,12 +1350,13 @@ unsafe extern "C" fn parseBases(
                                 (*options).logger as *mut otfcc_ILogger,
                                 log_vl_important as ::core::ffi::c_int as u8,
                                 log_type_warning,
-                                sdscatprintf(
+                                crate::sdsbuild!(
                                     sdsempty(),
-                                    b"[OTFCC-fea] Invalid anchor class name <%s> for /%s. This base anchor is ignored.\n\0"
-                                        as *const u8 as *const ::core::ffi::c_char,
+                                    b"[OTFCC-fea] Invalid anchor class name <",
                                     className,
+                                    b"> for /",
                                     gname,
+                                    b". This base anchor is ignored.\n",
                                 ),
                             );
                         } else {

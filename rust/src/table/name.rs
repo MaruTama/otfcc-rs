@@ -796,11 +796,11 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Missing or invalid platformID for name entry %d\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Missing or invalid platformID for name entry ",
                                 j,
+                                b"\n",
                             ),
                         );
                     } else if json_obj_get_type(
@@ -816,11 +816,11 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Missing or invalid encodingID for name entry %d\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Missing or invalid encodingID for name entry ",
                                 j,
+                                b"\n",
                             ),
                         );
                     } else if json_obj_get_type(
@@ -836,11 +836,11 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Missing or invalid languageID for name entry %d\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Missing or invalid languageID for name entry ",
                                 j,
+                                b"\n",
                             ),
                         );
                     } else if json_obj_get_type(
@@ -856,11 +856,11 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Missing or invalid nameID for name entry %d\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Missing or invalid nameID for name entry ",
                                 j,
+                                b"\n",
                             ),
                         );
                     } else if json_obj_get_type(
@@ -876,11 +876,11 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*options).logger as *mut otfcc_ILogger,
                             log_vl_important as ::core::ffi::c_int as u8,
                             log_type_warning,
-                            sdscatprintf(
+                            crate::sdsbuild!(
                                 sdsempty(),
-                                b"Missing or invalid name string for name entry %d\n\0" as *const u8
-                                    as *const ::core::ffi::c_char,
+                                b"Missing or invalid name string for name entry ",
                                 j,
+                                b"\n",
                             ),
                         );
                     } else {
@@ -991,12 +991,15 @@ pub unsafe extern "C" fn otfcc_buildName(
         bufwrite16b(buf, cbefore as u16);
         j = j.wrapping_add(1);
     }
-    let mut copyright: sds = sdscatprintf(
+    let mut copyright: sds = crate::sdsbuild!(
         sdsempty(),
-        b"-- By OTFCC %d.%d.%d --\0" as *const u8 as *const ::core::ffi::c_char,
+        b"-- By OTFCC ",
         MAIN_VER,
+        b".",
         SECONDARY_VER,
+        b".",
         PATCH_VER,
+        b" --",
     );
     sdsgrowzero(copyright, COPYRIGHT_LEN as usize);
     bufwrite_bytes(strings, COPYRIGHT_LEN as usize, copyright as *mut u8);

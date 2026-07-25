@@ -227,11 +227,7 @@ pub unsafe extern "C" fn table_dumpTableFpgmPrep(
         .startSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        sdscatprintf(
-            sdsempty(),
-            b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-            tag,
-        ),
+        crate::sdsbuild!(sdsempty(), tag),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -277,11 +273,7 @@ pub unsafe extern "C" fn otfcc_parseFpgmPrep(
             .startSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            sdscatprintf(
-                sdsempty(),
-                b"%s\0" as *const u8 as *const ::core::ffi::c_char,
-                tag,
-            ),
+            crate::sdsbuild!(sdsempty(), tag),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
