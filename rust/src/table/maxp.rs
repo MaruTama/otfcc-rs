@@ -23,12 +23,12 @@ use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{f16dot16, font_file_pointer};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_double, json_integer, json_object, json_type, json_value};
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed_4 = 10;
-pub const log_vl_info: C2RustUnnamed_4 = 5;
-pub const log_vl_notice: C2RustUnnamed_4 = 2;
-pub const log_vl_important: C2RustUnnamed_4 = 1;
-pub const log_vl_critical: C2RustUnnamed_4 = 0;
+pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
+pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
+pub const log_vl_info: otfcc_LoggerVerbosity = 5;
+pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
+pub const log_vl_important: otfcc_LoggerVerbosity = 1;
+pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {

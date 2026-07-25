@@ -29,19 +29,19 @@ pub struct __va_list {
 }
 pub type __gnuc_va_list = __builtin_va_list;
 pub type va_list = __gnuc_va_list;
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const _ISalnum: C2RustUnnamed = 8;
-pub const _ISpunct: C2RustUnnamed = 4;
-pub const _IScntrl: C2RustUnnamed = 2;
-pub const _ISblank: C2RustUnnamed = 1;
-pub const _ISgraph: C2RustUnnamed = 32768;
-pub const _ISprint: C2RustUnnamed = 16384;
-pub const _ISspace: C2RustUnnamed = 8192;
-pub const _ISxdigit: C2RustUnnamed = 4096;
-pub const _ISdigit: C2RustUnnamed = 2048;
-pub const _ISalpha: C2RustUnnamed = 1024;
-pub const _ISlower: C2RustUnnamed = 512;
-pub const _ISupper: C2RustUnnamed = 256;
+pub type ctype_class_bits = ::core::ffi::c_uint;
+pub const _ISalnum: ctype_class_bits = 8;
+pub const _ISpunct: ctype_class_bits = 4;
+pub const _IScntrl: ctype_class_bits = 2;
+pub const _ISblank: ctype_class_bits = 1;
+pub const _ISgraph: ctype_class_bits = 32768;
+pub const _ISprint: ctype_class_bits = 16384;
+pub const _ISspace: ctype_class_bits = 8192;
+pub const _ISxdigit: ctype_class_bits = 4096;
+pub const _ISdigit: ctype_class_bits = 2048;
+pub const _ISalpha: ctype_class_bits = 1024;
+pub const _ISlower: ctype_class_bits = 512;
+pub const _ISupper: ctype_class_bits = 256;
 pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C, packed)]

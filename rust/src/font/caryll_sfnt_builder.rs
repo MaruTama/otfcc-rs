@@ -52,21 +52,21 @@ pub struct UT_hash_table {
     pub noexpand: ::core::ffi::c_uint,
     pub signature: u32,
 }
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed = 10;
-pub const log_vl_info: C2RustUnnamed = 5;
-pub const log_vl_notice: C2RustUnnamed = 2;
-pub const log_vl_important: C2RustUnnamed = 1;
-pub const log_vl_critical: C2RustUnnamed = 0;
+pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
+pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
+pub const log_vl_info: otfcc_LoggerVerbosity = 5;
+pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
+pub const log_vl_important: otfcc_LoggerVerbosity = 1;
+pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_0 {
+pub union otfcc_EndianProbe16 {
     pub i1: [u8; 2],
     pub i2: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_1 {
+pub union otfcc_EndianProbe32 {
     pub i1: [u8; 4],
     pub i4: u32,
 }
@@ -95,7 +95,7 @@ pub const HASH_BKT_CAPACITY_THRESH: ::core::ffi::c_uint = 10 as ::core::ffi::c_u
 pub const HASH_SIGNATURE: ::core::ffi::c_uint = 0xa0111fe1 as ::core::ffi::c_uint;
 #[inline]
 unsafe extern "C" fn otfcc_check_endian() -> bool {
-    let mut check_union: C2RustUnnamed_0 = C2RustUnnamed_0 {
+    let mut check_union: otfcc_EndianProbe16 = otfcc_EndianProbe16 {
         i2: 1 as ::core::ffi::c_int as u16,
     };
     return check_union.i1[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
@@ -104,8 +104,8 @@ unsafe extern "C" fn otfcc_check_endian() -> bool {
 #[inline]
 unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
     if otfcc_check_endian() {
-        let mut src: C2RustUnnamed_1 = C2RustUnnamed_1 { i1: [0; 4] };
-        let mut des: C2RustUnnamed_1 = C2RustUnnamed_1 { i1: [0; 4] };
+        let mut src: otfcc_EndianProbe32 = otfcc_EndianProbe32 { i1: [0; 4] };
+        let mut des: otfcc_EndianProbe32 = otfcc_EndianProbe32 { i1: [0; 4] };
         src.i4 = i;
         des.i1[0 as ::core::ffi::c_int as usize] = src.i1[3 as ::core::ffi::c_int as usize];
         des.i1[1 as ::core::ffi::c_int as usize] = src.i1[2 as ::core::ffi::c_int as usize];

@@ -91,17 +91,17 @@ pub const VQ_STILL: VQSegType = 0;
 #[repr(C)]
 pub struct vq_Segment {
     pub type_0: VQSegType,
-    pub val: C2RustUnnamed,
+    pub val: vq_SegmentValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union vq_SegmentValue {
     pub still: pos_t,
-    pub delta: C2RustUnnamed_0,
+    pub delta: vq_SegmentDelta,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_0 {
+pub struct vq_SegmentDelta {
     pub quantity: pos_t,
     pub touched: bool,
     pub region: *const vq_Region,
@@ -566,7 +566,7 @@ unsafe extern "C" fn vq_Segment_copyReplace(mut dst: *mut vq_Segment, src: vq_Se
 unsafe extern "C" fn vq_Segment_empty() -> vq_Segment {
     let mut x: vq_Segment = vq_Segment {
         type_0: VQ_STILL,
-        val: C2RustUnnamed { still: 0. },
+        val: vq_SegmentValue { still: 0. },
     };
     vq_Segment_init(&raw mut x);
     return x;
@@ -579,7 +579,7 @@ unsafe extern "C" fn vq_Segment_copy(mut dst: *mut vq_Segment, mut src: *const v
 unsafe extern "C" fn vq_Segment_dup(src: vq_Segment) -> vq_Segment {
     let mut dst: vq_Segment = vq_Segment {
         type_0: VQ_STILL,
-        val: C2RustUnnamed { still: 0. },
+        val: vq_SegmentValue { still: 0. },
     };
     vq_Segment_copy(&raw mut dst, &raw const src);
     return dst;
@@ -604,7 +604,7 @@ unsafe extern "C" fn vq_Segment_move(mut dst: *mut vq_Segment, mut src: *mut vq_
 unsafe extern "C" fn vqsCreateStill(mut x: pos_t) -> vq_Segment {
     let mut vqs: vq_Segment = vq_Segment {
         type_0: VQ_STILL,
-        val: C2RustUnnamed { still: 0. },
+        val: vq_SegmentValue { still: 0. },
     };
     vq_iSegment.init.expect("non-null function pointer")(&raw mut vqs);
     vqs.val.still = x;
@@ -613,7 +613,7 @@ unsafe extern "C" fn vqsCreateStill(mut x: pos_t) -> vq_Segment {
 unsafe extern "C" fn vqsCreateDelta(mut delta: pos_t, mut region: *mut vq_Region) -> vq_Segment {
     let mut vqs: vq_Segment = vq_Segment {
         type_0: VQ_STILL,
-        val: C2RustUnnamed { still: 0. },
+        val: vq_SegmentValue { still: 0. },
     };
     vq_iSegment.init.expect("non-null function pointer")(&raw mut vqs);
     vqs.type_0 = VQ_DELTA;
@@ -826,7 +826,7 @@ unsafe extern "C" fn vq_SegList_fill(mut arr: *mut vq_SegList, mut n: usize) {
     while (*arr).length < n {
         let mut x: vq_Segment = vq_Segment {
             type_0: VQ_STILL,
-            val: C2RustUnnamed { still: 0. },
+            val: vq_SegmentValue { still: 0. },
         };
         if vq_iSegment.init.is_some() {
             vq_iSegment.init.expect("non-null function pointer")(&raw mut x);
@@ -1145,7 +1145,7 @@ unsafe extern "C" fn vqInplacePlus(mut a: *mut VQ, b: VQ) {
         } else {
             let mut s: vq_Segment = vq_Segment {
                 type_0: VQ_STILL,
-                val: C2RustUnnamed { still: 0. },
+                val: vq_SegmentValue { still: 0. },
             };
             vq_iSegment.copy.expect("non-null function pointer")(&raw mut s, k);
             vq_iSegList.push.expect("non-null function pointer")(&raw mut (*a).shift, s);
@@ -1349,7 +1349,7 @@ unsafe extern "C" fn vqAddDelta(
     }
     let mut nudge: vq_Segment = vq_Segment {
         type_0: VQ_STILL,
-        val: C2RustUnnamed { still: 0. },
+        val: vq_SegmentValue { still: 0. },
     };
     nudge.type_0 = VQ_DELTA;
     nudge.val.delta.region = r;

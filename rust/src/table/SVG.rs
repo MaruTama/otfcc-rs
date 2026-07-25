@@ -177,11 +177,11 @@ pub struct __caryll_bkblock {
 #[repr(C)]
 pub struct bk_Cell {
     pub t: bk_CellType,
-    pub c2rust_unnamed: C2RustUnnamed_4,
+    pub c2rust_unnamed: bk_CellValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_4 {
+pub union bk_CellValue {
     pub z: u32,
     pub p: *mut __caryll_bkblock,
 }

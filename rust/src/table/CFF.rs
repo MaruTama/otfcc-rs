@@ -223,17 +223,17 @@ pub const VQ_STILL: VQSegType = 0;
 #[repr(C)]
 pub struct vq_Segment {
     pub type_0: VQSegType,
-    pub val: C2RustUnnamed_4,
+    pub val: vq_SegmentValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_4 {
+pub union vq_SegmentValue {
     pub still: pos_t,
-    pub delta: C2RustUnnamed_5,
+    pub delta: vq_SegmentDelta,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_5 {
+pub struct vq_SegmentDelta {
     pub quantity: pos_t,
     pub touched: bool,
     pub region: *const vq_Region,
@@ -809,11 +809,11 @@ pub const CFF_INDEX_16: cff_IndexCountType = 0;
 pub struct cff_FDSelect {
     pub t: u32,
     pub s: u32,
-    pub c2rust_unnamed: C2RustUnnamed_6,
+    pub c2rust_unnamed: cff_FDSelectBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_6 {
+pub union cff_FDSelectBody {
     pub f0: cff_FDSelectFormat0,
     pub f3: cff_FDSelectFormat3,
 }
@@ -842,11 +842,11 @@ pub struct cff_FDSelectFormat0 {
 pub struct cff_Charset {
     pub t: u32,
     pub s: u32,
-    pub c2rust_unnamed: C2RustUnnamed_7,
+    pub c2rust_unnamed: cff_CharsetBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_7 {
+pub union cff_CharsetBody {
     pub f0: cff_CharsetFormat0,
     pub f1: cff_CharsetFormat1,
     pub f2: cff_CharsetFormat2,
@@ -885,11 +885,11 @@ pub struct cff_CharsetFormat0 {
 #[repr(C)]
 pub struct cff_Encoding {
     pub t: u32,
-    pub c2rust_unnamed: C2RustUnnamed_8,
+    pub c2rust_unnamed: cff_EncodingBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_8 {
+pub union cff_EncodingBody {
     pub f0: cff_EncodingFormat0,
     pub f1: cff_EncodingFormat1,
     pub ns: cff_EncodingNS,
@@ -943,9 +943,9 @@ pub struct cff_extract_context {
     pub cffFile: *mut cff_File,
     pub seed: u64,
 }
-pub const cff_CHARSET_FORMAT2: C2RustUnnamed_13 = 5;
-pub const cff_CHARSET_FORMAT1: C2RustUnnamed_13 = 4;
-pub const cff_CHARSET_FORMAT0: C2RustUnnamed_13 = 3;
+pub const cff_CHARSET_FORMAT2: cff_CharsetType = 5;
+pub const cff_CHARSET_FORMAT1: cff_CharsetType = 4;
+pub const cff_CHARSET_FORMAT0: cff_CharsetType = 3;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct outline_builder_context {
@@ -964,11 +964,11 @@ pub struct outline_builder_context {
 #[repr(C)]
 pub struct cff_Value {
     pub t: cff_Value_Type,
-    pub c2rust_unnamed: C2RustUnnamed_9,
+    pub c2rust_unnamed: cff_ValueBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_9 {
+pub union cff_ValueBody {
     pub i: i32,
     pub d: ::core::ffi::c_double,
 }
@@ -1048,29 +1048,29 @@ pub struct cff_IOutlineBuilder {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_10 {
+pub union cff_DoubleBits {
     pub u: u64,
     pub d: ::core::ffi::c_double,
 }
-pub const cff_FDSELECT_UNSPECED: C2RustUnnamed_14 = 2;
-pub const op_ROS: C2RustUnnamed_12 = 3102;
-pub const op_nominalWidthX: C2RustUnnamed_12 = 21;
-pub const op_defaultWidthX: C2RustUnnamed_12 = 20;
-pub const op_initialRandomSeed: C2RustUnnamed_12 = 3091;
-pub const op_ExpansionFactor: C2RustUnnamed_12 = 3090;
-pub const op_LanguageGroup: C2RustUnnamed_12 = 3089;
-pub const op_ForceBold: C2RustUnnamed_12 = 3086;
-pub const op_StdVW: C2RustUnnamed_12 = 11;
-pub const op_StdHW: C2RustUnnamed_12 = 10;
-pub const op_BlueFuzz: C2RustUnnamed_12 = 3083;
-pub const op_BlueShift: C2RustUnnamed_12 = 3082;
-pub const op_BlueScale: C2RustUnnamed_12 = 3081;
-pub const op_StemSnapV: C2RustUnnamed_12 = 3085;
-pub const op_StemSnapH: C2RustUnnamed_12 = 3084;
-pub const op_FamilyOtherBlues: C2RustUnnamed_12 = 9;
-pub const op_FamilyBlues: C2RustUnnamed_12 = 8;
-pub const op_OtherBlues: C2RustUnnamed_12 = 7;
-pub const op_BlueValues: C2RustUnnamed_12 = 6;
+pub const cff_FDSELECT_UNSPECED: cff_FDSelectType = 2;
+pub const op_ROS: cff_DictOperator = 3102;
+pub const op_nominalWidthX: cff_DictOperator = 21;
+pub const op_defaultWidthX: cff_DictOperator = 20;
+pub const op_initialRandomSeed: cff_DictOperator = 3091;
+pub const op_ExpansionFactor: cff_DictOperator = 3090;
+pub const op_LanguageGroup: cff_DictOperator = 3089;
+pub const op_ForceBold: cff_DictOperator = 3086;
+pub const op_StdVW: cff_DictOperator = 11;
+pub const op_StdHW: cff_DictOperator = 10;
+pub const op_BlueFuzz: cff_DictOperator = 3083;
+pub const op_BlueShift: cff_DictOperator = 3082;
+pub const op_BlueScale: cff_DictOperator = 3081;
+pub const op_StemSnapV: cff_DictOperator = 3085;
+pub const op_StemSnapH: cff_DictOperator = 3084;
+pub const op_FamilyOtherBlues: cff_DictOperator = 9;
+pub const op_FamilyBlues: cff_DictOperator = 8;
+pub const op_OtherBlues: cff_DictOperator = 7;
+pub const op_BlueValues: cff_DictOperator = 6;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_cff_Dict {
@@ -1115,21 +1115,21 @@ pub struct cff_DictEntry {
     pub cnt: u32,
     pub vals: *mut cff_Value,
 }
-pub const op_Private: C2RustUnnamed_12 = 18;
-pub const op_StrokeWidth: C2RustUnnamed_12 = 3080;
-pub const op_UnderlineThickness: C2RustUnnamed_12 = 3076;
-pub const op_UnderlinePosition: C2RustUnnamed_12 = 3075;
-pub const op_ItalicAngle: C2RustUnnamed_12 = 3074;
-pub const op_isFixedPitch: C2RustUnnamed_12 = 3073;
-pub const op_FontMatrix: C2RustUnnamed_12 = 3079;
-pub const op_FontBBox: C2RustUnnamed_12 = 5;
-pub const op_Weight: C2RustUnnamed_12 = 4;
-pub const op_FamilyName: C2RustUnnamed_12 = 3;
-pub const op_FullName: C2RustUnnamed_12 = 2;
-pub const op_FontName: C2RustUnnamed_12 = 3110;
-pub const op_Copyright: C2RustUnnamed_12 = 3072;
-pub const op_Notice: C2RustUnnamed_12 = 1;
-pub const op_version: C2RustUnnamed_12 = 0;
+pub const op_Private: cff_DictOperator = 18;
+pub const op_StrokeWidth: cff_DictOperator = 3080;
+pub const op_UnderlineThickness: cff_DictOperator = 3076;
+pub const op_UnderlinePosition: cff_DictOperator = 3075;
+pub const op_ItalicAngle: cff_DictOperator = 3074;
+pub const op_isFixedPitch: cff_DictOperator = 3073;
+pub const op_FontMatrix: cff_DictOperator = 3079;
+pub const op_FontBBox: cff_DictOperator = 5;
+pub const op_Weight: cff_DictOperator = 4;
+pub const op_FamilyName: cff_DictOperator = 3;
+pub const op_FullName: cff_DictOperator = 2;
+pub const op_FontName: cff_DictOperator = 3110;
+pub const op_Copyright: cff_DictOperator = 3072;
+pub const op_Notice: cff_DictOperator = 1;
+pub const op_version: cff_DictOperator = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_sid_entry {
@@ -1137,17 +1137,17 @@ pub struct cff_sid_entry {
     pub str_0: *mut ::core::ffi::c_char,
     pub hh: UT_hash_handle,
 }
-pub const op_UIDBase: C2RustUnnamed_12 = 3107;
-pub const op_CIDCount: C2RustUnnamed_12 = 3106;
-pub const op_CIDFontRevision: C2RustUnnamed_12 = 3104;
-pub const op_CIDFontVersion: C2RustUnnamed_12 = 3103;
-pub const op_Subrs: C2RustUnnamed_12 = 19;
-pub const cff_FDSELECT_FORMAT3: C2RustUnnamed_14 = 1;
-pub const cff_CHARSET_ISOADOBE: C2RustUnnamed_13 = 0;
-pub const op_FDArray: C2RustUnnamed_12 = 3108;
-pub const op_CharStrings: C2RustUnnamed_12 = 17;
-pub const op_FDSelect: C2RustUnnamed_12 = 3109;
-pub const op_charset: C2RustUnnamed_12 = 15;
+pub const op_UIDBase: cff_DictOperator = 3107;
+pub const op_CIDCount: cff_DictOperator = 3106;
+pub const op_CIDFontRevision: cff_DictOperator = 3104;
+pub const op_CIDFontVersion: cff_DictOperator = 3103;
+pub const op_Subrs: cff_DictOperator = 19;
+pub const cff_FDSELECT_FORMAT3: cff_FDSelectType = 1;
+pub const cff_CHARSET_ISOADOBE: cff_CharsetType = 0;
+pub const op_FDArray: cff_DictOperator = 3108;
+pub const op_CharStrings: cff_DictOperator = 17;
+pub const op_FDSelect: cff_DictOperator = 3109;
+pub const op_charset: cff_DictOperator = 15;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_SubrGraph {
@@ -1226,11 +1226,11 @@ pub struct cff_CharstringIL {
 pub struct cff_CharstringInstruction {
     pub type_0: cff_InstructionType,
     pub arity: arity_t,
-    pub c2rust_unnamed: C2RustUnnamed_11,
+    pub c2rust_unnamed: cff_CharstringArgument,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_11 {
+pub union cff_CharstringArgument {
     pub d: ::core::ffi::c_double,
     pub i: i32,
 }
@@ -1246,27 +1246,27 @@ pub struct fdarray_compile_context {
     pub fdArray: *mut *mut table_CFF,
     pub stringHash: *mut *mut cff_sid_entry,
 }
-pub type C2RustUnnamed_12 = ::core::ffi::c_uint;
-pub const op_CIDFontType: C2RustUnnamed_12 = 3105;
-pub const op_maxstack: C2RustUnnamed_12 = 25;
-pub const op_vstore: C2RustUnnamed_12 = 24;
-pub const op_BaseFontBlend: C2RustUnnamed_12 = 3095;
-pub const op_blend: C2RustUnnamed_12 = 23;
-pub const op_BaseFontName: C2RustUnnamed_12 = 3094;
-pub const op_vsindex: C2RustUnnamed_12 = 22;
-pub const op_PostScript: C2RustUnnamed_12 = 3093;
-pub const op_SyntheicBase: C2RustUnnamed_12 = 3092;
-pub const op_Encoding: C2RustUnnamed_12 = 16;
-pub const op_XUID: C2RustUnnamed_12 = 14;
-pub const op_UniqueID: C2RustUnnamed_12 = 13;
-pub const op_CharstringType: C2RustUnnamed_12 = 3078;
-pub const op_PaintType: C2RustUnnamed_12 = 3077;
-pub type C2RustUnnamed_13 = ::core::ffi::c_uint;
-pub const cff_CHARSET_EXPERTSUBSET: C2RustUnnamed_13 = 2;
-pub const cff_CHARSET_EXPERT: C2RustUnnamed_13 = 1;
-pub const cff_CHARSET_UNSPECED: C2RustUnnamed_13 = 0;
-pub type C2RustUnnamed_14 = ::core::ffi::c_uint;
-pub const cff_FDSELECT_FORMAT0: C2RustUnnamed_14 = 0;
+pub type cff_DictOperator = ::core::ffi::c_uint;
+pub const op_CIDFontType: cff_DictOperator = 3105;
+pub const op_maxstack: cff_DictOperator = 25;
+pub const op_vstore: cff_DictOperator = 24;
+pub const op_BaseFontBlend: cff_DictOperator = 3095;
+pub const op_blend: cff_DictOperator = 23;
+pub const op_BaseFontName: cff_DictOperator = 3094;
+pub const op_vsindex: cff_DictOperator = 22;
+pub const op_PostScript: cff_DictOperator = 3093;
+pub const op_SyntheicBase: cff_DictOperator = 3092;
+pub const op_Encoding: cff_DictOperator = 16;
+pub const op_XUID: cff_DictOperator = 14;
+pub const op_UniqueID: cff_DictOperator = 13;
+pub const op_CharstringType: cff_DictOperator = 3078;
+pub const op_PaintType: cff_DictOperator = 3077;
+pub type cff_CharsetType = ::core::ffi::c_uint;
+pub const cff_CHARSET_EXPERTSUBSET: cff_CharsetType = 2;
+pub const cff_CHARSET_EXPERT: cff_CharsetType = 1;
+pub const cff_CHARSET_UNSPECED: cff_CharsetType = 0;
+pub type cff_FDSelectType = ::core::ffi::c_uint;
+pub const cff_FDSELECT_FORMAT0: cff_FDSelectType = 0;
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 pub const SDS_TYPE_5: ::core::ffi::c_int = 0;
@@ -2140,7 +2140,7 @@ unsafe extern "C" fn callback_draw_getrand(
     x ^= x << 25 as ::core::ffi::c_int;
     x ^= x >> 27 as ::core::ffi::c_int;
     (*context).randx = x;
-    let mut a: C2RustUnnamed_10 = C2RustUnnamed_10 { u: 0 };
+    let mut a: cff_DoubleBits = cff_DoubleBits { u: 0 };
     a.u = x.wrapping_mul(2685821657736338717 as u64);
     a.u = a.u >> 12 as ::core::ffi::c_int | 0x3ff0000000000000 as u64;
     let mut q: ::core::ffi::c_double = if a.u & 2048 as u64 != 0 {
@@ -2220,7 +2220,7 @@ unsafe extern "C" fn buildOutline(
         stack: ::core::ptr::null_mut::<cff_Value>(),
         transient: [cff_Value {
             t: 0 as cff_Value_Type,
-            c2rust_unnamed: C2RustUnnamed_9 { i: 0 },
+            c2rust_unnamed: cff_ValueBody { i: 0 },
         }; 32],
         index: 0,
         max: 0,

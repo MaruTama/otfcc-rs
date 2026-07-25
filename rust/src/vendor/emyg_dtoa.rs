@@ -8,7 +8,7 @@ pub struct DiyFp_s {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union dtoa_DoubleBits {
     pub d: ::core::ffi::c_double,
     pub u64_0: u64,
 }
@@ -36,7 +36,7 @@ unsafe extern "C" fn DiyFp_from_parts(mut f: u64, mut e: ::core::ffi::c_int) -> 
 }
 #[no_mangle]
 pub unsafe extern "C" fn DiyFp_from_double(mut d: ::core::ffi::c_double) -> DiyFp {
-    let mut u: C2RustUnnamed = C2RustUnnamed { d: d };
+    let mut u: dtoa_DoubleBits = dtoa_DoubleBits { d: d };
     let mut res: DiyFp = DiyFp_s { f: 0, e: 0 };
     let mut biased_e: ::core::ffi::c_int =
         ((u.u64_0 & kDpExponentMask) >> kDpSignificandSize) as ::core::ffi::c_int;

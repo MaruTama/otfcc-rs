@@ -22,11 +22,11 @@ pub const cff_OPERATOR: cff_Value_Type = 1;
 #[repr(C)]
 pub struct cff_Value {
     pub t: cff_Value_Type,
-    pub c2rust_unnamed: C2RustUnnamed,
+    pub c2rust_unnamed: cff_ValueBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union cff_ValueBody {
     pub i: i32,
     pub d: ::core::ffi::c_double,
 }
@@ -164,11 +164,11 @@ unsafe extern "C" fn parseDict(mut data: *const u8, len: u32) -> *mut cff_Dict {
     let mut advance: u32 = 0;
     let mut val: cff_Value = cff_Value {
         t: 0 as cff_Value_Type,
-        c2rust_unnamed: C2RustUnnamed { i: 0 },
+        c2rust_unnamed: cff_ValueBody { i: 0 },
     };
     let mut stack: [cff_Value; 48] = [cff_Value {
         t: 0 as cff_Value_Type,
-        c2rust_unnamed: C2RustUnnamed { i: 0 },
+        c2rust_unnamed: cff_ValueBody { i: 0 },
     }; 48];
     let mut temp: *const u8 = data;
     while temp < data.offset(len as isize) {
@@ -220,11 +220,11 @@ unsafe extern "C" fn parseToCallback(
     let mut advance: u32 = 0;
     let mut val: cff_Value = cff_Value {
         t: 0 as cff_Value_Type,
-        c2rust_unnamed: C2RustUnnamed { i: 0 },
+        c2rust_unnamed: cff_ValueBody { i: 0 },
     };
     let mut stack: [cff_Value; 256] = [cff_Value {
         t: 0 as cff_Value_Type,
-        c2rust_unnamed: C2RustUnnamed { i: 0 },
+        c2rust_unnamed: cff_ValueBody { i: 0 },
     }; 256];
     let mut temp: *const u8 = data;
     while temp < data.offset(len as isize) {
@@ -271,7 +271,7 @@ unsafe extern "C" fn parseDictKey(
         found: false,
         res: cff_Value {
             t: 0 as cff_Value_Type,
-            c2rust_unnamed: C2RustUnnamed { i: 0 },
+            c2rust_unnamed: cff_ValueBody { i: 0 },
         },
         op: 0,
         idx: 0,

@@ -18,11 +18,11 @@ pub const cff_OPERATOR: cff_Value_Type = 1;
 #[repr(C)]
 pub struct cff_Value {
     pub t: cff_Value_Type,
-    pub c2rust_unnamed: C2RustUnnamed,
+    pub c2rust_unnamed: cff_ValueBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union cff_ValueBody {
     pub i: i32,
     pub d: ::core::ffi::c_double,
 }

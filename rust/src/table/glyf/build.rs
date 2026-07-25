@@ -46,17 +46,17 @@ pub const VQ_STILL: VQSegType = 0;
 #[repr(C)]
 pub struct vq_Segment {
     pub type_0: VQSegType,
-    pub val: C2RustUnnamed,
+    pub val: vq_SegmentValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union vq_SegmentValue {
     pub still: pos_t,
-    pub delta: C2RustUnnamed_0,
+    pub delta: vq_SegmentDelta,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_0 {
+pub struct vq_SegmentDelta {
     pub quantity: pos_t,
     pub touched: bool,
     pub region: *const vq_Region,
@@ -255,36 +255,36 @@ pub struct table_GlyfAndLocaBuffers {
     pub glyf: *mut caryll_Buffer,
     pub loca: *mut caryll_Buffer,
 }
-pub const WE_HAVE_A_TWO_BY_TWO: C2RustUnnamed_3 = 128;
-pub const WE_HAVE_INSTRUCTIONS: C2RustUnnamed_3 = 256;
-pub const MORE_COMPONENTS: C2RustUnnamed_3 = 32;
-pub const WE_HAVE_AN_X_AND_Y_SCALE: C2RustUnnamed_3 = 64;
-pub const WE_HAVE_A_SCALE: C2RustUnnamed_3 = 8;
+pub const WE_HAVE_A_TWO_BY_TWO: glyf_ComponentFlags = 128;
+pub const WE_HAVE_INSTRUCTIONS: glyf_ComponentFlags = 256;
+pub const MORE_COMPONENTS: glyf_ComponentFlags = 32;
+pub const WE_HAVE_AN_X_AND_Y_SCALE: glyf_ComponentFlags = 64;
+pub const WE_HAVE_A_SCALE: glyf_ComponentFlags = 8;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_1 {
+pub union glyf_ComponentArg {
     pub pointid: u16,
     pub coord: i16,
 }
-pub const ARG_1_AND_2_ARE_WORDS: C2RustUnnamed_3 = 1;
-pub const UNSCALED_COMPONENT_OFFSET: C2RustUnnamed_3 = 4096;
-pub const USE_MY_METRICS: C2RustUnnamed_3 = 512;
-pub const ROUND_XY_TO_GRID: C2RustUnnamed_3 = 4;
-pub const ARGS_ARE_XY_VALUES: C2RustUnnamed_3 = 2;
-pub const GLYF_FLAG_REPEAT: C2RustUnnamed_2 = 8;
-pub const GLYF_FLAG_ON_CURVE: C2RustUnnamed_2 = 1;
-pub const MASK_ON_CURVE: C2RustUnnamed_4 = 1;
-pub const GLYF_FLAG_POSITIVE_Y: C2RustUnnamed_2 = 32;
-pub const GLYF_FLAG_Y_SHORT: C2RustUnnamed_2 = 4;
-pub const GLYF_FLAG_SAME_Y: C2RustUnnamed_2 = 32;
-pub const GLYF_FLAG_POSITIVE_X: C2RustUnnamed_2 = 16;
-pub const GLYF_FLAG_X_SHORT: C2RustUnnamed_2 = 2;
-pub const GLYF_FLAG_SAME_X: C2RustUnnamed_2 = 16;
-pub type C2RustUnnamed_2 = ::core::ffi::c_uint;
-pub type C2RustUnnamed_3 = ::core::ffi::c_uint;
-pub const SCALED_COMPONENT_OFFSET: C2RustUnnamed_3 = 2048;
-pub const OVERLAP_COMPOUND: C2RustUnnamed_3 = 1024;
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
+pub const ARG_1_AND_2_ARE_WORDS: glyf_ComponentFlags = 1;
+pub const UNSCALED_COMPONENT_OFFSET: glyf_ComponentFlags = 4096;
+pub const USE_MY_METRICS: glyf_ComponentFlags = 512;
+pub const ROUND_XY_TO_GRID: glyf_ComponentFlags = 4;
+pub const ARGS_ARE_XY_VALUES: glyf_ComponentFlags = 2;
+pub const GLYF_FLAG_REPEAT: glyf_PointFlags = 8;
+pub const GLYF_FLAG_ON_CURVE: glyf_PointFlags = 1;
+pub const MASK_ON_CURVE: glyf_OnCurveMask = 1;
+pub const GLYF_FLAG_POSITIVE_Y: glyf_PointFlags = 32;
+pub const GLYF_FLAG_Y_SHORT: glyf_PointFlags = 4;
+pub const GLYF_FLAG_SAME_Y: glyf_PointFlags = 32;
+pub const GLYF_FLAG_POSITIVE_X: glyf_PointFlags = 16;
+pub const GLYF_FLAG_X_SHORT: glyf_PointFlags = 2;
+pub const GLYF_FLAG_SAME_X: glyf_PointFlags = 16;
+pub type glyf_PointFlags = ::core::ffi::c_uint;
+pub type glyf_ComponentFlags = ::core::ffi::c_uint;
+pub const SCALED_COMPONENT_OFFSET: glyf_ComponentFlags = 2048;
+pub const OVERLAP_COMPOUND: glyf_ComponentFlags = 1024;
+pub type glyf_OnCurveMask = ::core::ffi::c_uint;
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 #[no_mangle]
@@ -452,8 +452,8 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const glyf_Glyph, mut gbuf: *m
             }) as u16;
         let mut outputAnchor: bool = (*r).isAnchored as ::core::ffi::c_uint
             == REF_ANCHOR_CONSOLIDATED as ::core::ffi::c_int as ::core::ffi::c_uint;
-        let mut arg1: C2RustUnnamed_1 = C2RustUnnamed_1 { pointid: 0 };
-        let mut arg2: C2RustUnnamed_1 = C2RustUnnamed_1 { pointid: 0 };
+        let mut arg1: glyf_ComponentArg = glyf_ComponentArg { pointid: 0 };
+        let mut arg2: glyf_ComponentArg = glyf_ComponentArg { pointid: 0 };
         if outputAnchor {
             arg1.pointid = (*r).outer as u16;
             arg2.pointid = (*r).inner as u16;

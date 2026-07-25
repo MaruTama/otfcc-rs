@@ -61,12 +61,12 @@ pub struct UT_hash_table {
     pub noexpand: ::core::ffi::c_uint,
     pub signature: u32,
 }
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed = 10;
-pub const log_vl_info: C2RustUnnamed = 5;
-pub const log_vl_notice: C2RustUnnamed = 2;
-pub const log_vl_important: C2RustUnnamed = 1;
-pub const log_vl_critical: C2RustUnnamed = 0;
+pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
+pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
+pub const log_vl_info: otfcc_LoggerVerbosity = 5;
+pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
+pub const log_vl_important: otfcc_LoggerVerbosity = 1;
+pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
@@ -113,17 +113,17 @@ pub const VQ_STILL: VQSegType = 0;
 #[repr(C)]
 pub struct vq_Segment {
     pub type_0: VQSegType,
-    pub val: C2RustUnnamed_0,
+    pub val: vq_SegmentValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_0 {
+pub union vq_SegmentValue {
     pub still: pos_t,
-    pub delta: C2RustUnnamed_1,
+    pub delta: vq_SegmentDelta,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_1 {
+pub struct vq_SegmentDelta {
     pub quantity: pos_t,
     pub touched: bool,
     pub region: *const vq_Region,
@@ -619,39 +619,39 @@ pub struct TuplePolymorphizerCtx {
 pub type CoordPartGetter = Option<unsafe extern "C" fn(*mut glyf_Point) -> *mut VQ>;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_2 {
+pub struct glyf_PackedDeltaRun {
     pub length: shapeid_t,
     pub wide: bool,
     pub zero: bool,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_3 {
+pub struct glyf_PackedPointRun {
     pub length: shapeid_t,
     pub wide: bool,
 }
-pub const MORE_COMPONENTS: C2RustUnnamed_5 = 32;
-pub const WE_HAVE_INSTRUCTIONS: C2RustUnnamed_5 = 256;
-pub const WE_HAVE_A_TWO_BY_TWO: C2RustUnnamed_5 = 128;
-pub const WE_HAVE_AN_X_AND_Y_SCALE: C2RustUnnamed_5 = 64;
-pub const SCALED_COMPONENT_OFFSET: C2RustUnnamed_5 = 2048;
-pub const USE_MY_METRICS: C2RustUnnamed_5 = 512;
-pub const ROUND_XY_TO_GRID: C2RustUnnamed_5 = 4;
-pub const WE_HAVE_A_SCALE: C2RustUnnamed_5 = 8;
-pub const ARG_1_AND_2_ARE_WORDS: C2RustUnnamed_5 = 1;
-pub const ARGS_ARE_XY_VALUES: C2RustUnnamed_5 = 2;
-pub const GLYF_FLAG_SAME_Y: C2RustUnnamed_4 = 32;
-pub const GLYF_FLAG_POSITIVE_Y: C2RustUnnamed_4 = 32;
-pub const GLYF_FLAG_Y_SHORT: C2RustUnnamed_4 = 4;
-pub const GLYF_FLAG_SAME_X: C2RustUnnamed_4 = 16;
-pub const GLYF_FLAG_POSITIVE_X: C2RustUnnamed_4 = 16;
-pub const GLYF_FLAG_X_SHORT: C2RustUnnamed_4 = 2;
-pub const GLYF_FLAG_ON_CURVE: C2RustUnnamed_4 = 1;
-pub const GLYF_FLAG_REPEAT: C2RustUnnamed_4 = 8;
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub type C2RustUnnamed_5 = ::core::ffi::c_uint;
-pub const UNSCALED_COMPONENT_OFFSET: C2RustUnnamed_5 = 4096;
-pub const OVERLAP_COMPOUND: C2RustUnnamed_5 = 1024;
+pub const MORE_COMPONENTS: glyf_ComponentFlags = 32;
+pub const WE_HAVE_INSTRUCTIONS: glyf_ComponentFlags = 256;
+pub const WE_HAVE_A_TWO_BY_TWO: glyf_ComponentFlags = 128;
+pub const WE_HAVE_AN_X_AND_Y_SCALE: glyf_ComponentFlags = 64;
+pub const SCALED_COMPONENT_OFFSET: glyf_ComponentFlags = 2048;
+pub const USE_MY_METRICS: glyf_ComponentFlags = 512;
+pub const ROUND_XY_TO_GRID: glyf_ComponentFlags = 4;
+pub const WE_HAVE_A_SCALE: glyf_ComponentFlags = 8;
+pub const ARG_1_AND_2_ARE_WORDS: glyf_ComponentFlags = 1;
+pub const ARGS_ARE_XY_VALUES: glyf_ComponentFlags = 2;
+pub const GLYF_FLAG_SAME_Y: glyf_PointFlags = 32;
+pub const GLYF_FLAG_POSITIVE_Y: glyf_PointFlags = 32;
+pub const GLYF_FLAG_Y_SHORT: glyf_PointFlags = 4;
+pub const GLYF_FLAG_SAME_X: glyf_PointFlags = 16;
+pub const GLYF_FLAG_POSITIVE_X: glyf_PointFlags = 16;
+pub const GLYF_FLAG_X_SHORT: glyf_PointFlags = 2;
+pub const GLYF_FLAG_ON_CURVE: glyf_PointFlags = 1;
+pub const GLYF_FLAG_REPEAT: glyf_PointFlags = 8;
+pub type glyf_PointFlags = ::core::ffi::c_uint;
+pub type glyf_ComponentFlags = ::core::ffi::c_uint;
+pub const UNSCALED_COMPONENT_OFFSET: glyf_ComponentFlags = 4096;
+pub const OVERLAP_COMPOUND: glyf_ComponentFlags = 1024;
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 unsafe extern "C" fn next_point(
@@ -1132,7 +1132,7 @@ unsafe extern "C" fn parsePointNumbers(
         data = data.offset(1);
     }
     if nPoints as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-        let mut run: C2RustUnnamed_3 = C2RustUnnamed_3 {
+        let mut run: glyf_PackedPointRun = glyf_PackedPointRun {
             length: 0 as shapeid_t,
             wide: false,
         };
@@ -1192,7 +1192,7 @@ unsafe extern "C" fn readPackedDelta(
     mut nPoints: shapeid_t,
     mut deltas: *mut pos_t,
 ) -> font_file_pointer {
-    let mut run: C2RustUnnamed_2 = C2RustUnnamed_2 {
+    let mut run: glyf_PackedDeltaRun = glyf_PackedDeltaRun {
         length: 0 as shapeid_t,
         wide: false,
         zero: false,

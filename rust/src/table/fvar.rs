@@ -127,12 +127,12 @@ pub struct UT_hash_table {
     pub noexpand: ::core::ffi::c_uint,
     pub signature: u32,
 }
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed_4 = 10;
-pub const log_vl_info: C2RustUnnamed_4 = 5;
-pub const log_vl_notice: C2RustUnnamed_4 = 2;
-pub const log_vl_important: C2RustUnnamed_4 = 1;
-pub const log_vl_critical: C2RustUnnamed_4 = 0;
+pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
+pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
+pub const log_vl_info: otfcc_LoggerVerbosity = 5;
+pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
+pub const log_vl_important: otfcc_LoggerVerbosity = 1;
+pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
@@ -214,17 +214,17 @@ pub const VQ_STILL: VQSegType = 0;
 #[repr(C)]
 pub struct vq_Segment {
     pub type_0: VQSegType,
-    pub val: C2RustUnnamed_5,
+    pub val: vq_SegmentValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_5 {
+pub union vq_SegmentValue {
     pub still: pos_t,
-    pub delta: C2RustUnnamed_6,
+    pub delta: vq_SegmentDelta,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_6 {
+pub struct vq_SegmentDelta {
     pub quantity: pos_t,
     pub touched: bool,
     pub region: *const vq_Region,

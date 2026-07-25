@@ -31,19 +31,13 @@ pub struct otfcc_SplineFontContainer {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed {
+pub union otfcc_EndianProbe32 {
     pub i1: [u8; 4],
     pub i4: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_0 {
-    pub i1: [u8; 2],
-    pub i2: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union C2RustUnnamed_1 {
+pub union otfcc_EndianProbe16 {
     pub i1: [u8; 2],
     pub i2: u16,
 }
@@ -229,7 +223,7 @@ pub unsafe extern "C" fn otfcc_deleteSFNT(mut font: *mut otfcc_SplineFontContain
 }
 #[inline]
 unsafe extern "C" fn otfcc_check_endian() -> bool {
-    let mut check_union: C2RustUnnamed_0 = C2RustUnnamed_0 {
+    let mut check_union: otfcc_EndianProbe16 = otfcc_EndianProbe16 {
         i2: 1 as ::core::ffi::c_int as u16,
     };
     return check_union.i1[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
@@ -238,8 +232,8 @@ unsafe extern "C" fn otfcc_check_endian() -> bool {
 #[inline]
 unsafe extern "C" fn otfcc_endian_convert16(mut i: u16) -> u16 {
     if otfcc_check_endian() {
-        let mut src: C2RustUnnamed_1 = C2RustUnnamed_1 { i1: [0; 2] };
-        let mut des: C2RustUnnamed_1 = C2RustUnnamed_1 { i1: [0; 2] };
+        let mut src: otfcc_EndianProbe16 = otfcc_EndianProbe16 { i1: [0; 2] };
+        let mut des: otfcc_EndianProbe16 = otfcc_EndianProbe16 { i1: [0; 2] };
         src.i2 = i;
         des.i1[0 as ::core::ffi::c_int as usize] = src.i1[1 as ::core::ffi::c_int as usize];
         des.i1[1 as ::core::ffi::c_int as usize] = src.i1[0 as ::core::ffi::c_int as usize];
@@ -251,8 +245,8 @@ unsafe extern "C" fn otfcc_endian_convert16(mut i: u16) -> u16 {
 #[inline]
 unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
     if otfcc_check_endian() {
-        let mut src: C2RustUnnamed = C2RustUnnamed { i1: [0; 4] };
-        let mut des: C2RustUnnamed = C2RustUnnamed { i1: [0; 4] };
+        let mut src: otfcc_EndianProbe32 = otfcc_EndianProbe32 { i1: [0; 4] };
+        let mut des: otfcc_EndianProbe32 = otfcc_EndianProbe32 { i1: [0; 4] };
         src.i4 = i;
         des.i1[0 as ::core::ffi::c_int as usize] = src.i1[3 as ::core::ffi::c_int as usize];
         des.i1[1 as ::core::ffi::c_int as usize] = src.i1[2 as ::core::ffi::c_int as usize];

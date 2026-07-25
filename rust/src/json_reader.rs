@@ -130,12 +130,12 @@ pub struct UT_hash_table {
     pub signature: u32,
 }
 pub type otfcc_FDHandle = otfcc_Handle;
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed_4 = 10;
-pub const log_vl_info: C2RustUnnamed_4 = 5;
-pub const log_vl_notice: C2RustUnnamed_4 = 2;
-pub const log_vl_important: C2RustUnnamed_4 = 1;
-pub const log_vl_critical: C2RustUnnamed_4 = 0;
+pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
+pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
+pub const log_vl_info: otfcc_LoggerVerbosity = 5;
+pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
+pub const log_vl_important: otfcc_LoggerVerbosity = 1;
+pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_GlyphOrderEntry {
@@ -198,17 +198,17 @@ pub const VQ_STILL: VQSegType = 0;
 #[repr(C)]
 pub struct vq_Segment {
     pub type_0: VQSegType,
-    pub val: C2RustUnnamed_5,
+    pub val: vq_SegmentValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_5 {
+pub union vq_SegmentValue {
     pub still: pos_t,
-    pub delta: C2RustUnnamed_6,
+    pub delta: vq_SegmentDelta,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_6 {
+pub struct vq_SegmentDelta {
     pub quantity: pos_t,
     pub touched: bool,
     pub region: *const vq_Region,
@@ -691,17 +691,17 @@ pub struct subtable_gsub_reverse {
 #[repr(C)]
 pub struct subtable_chaining {
     pub type_0: otl_chaining_type,
-    pub c2rust_unnamed: C2RustUnnamed_7,
+    pub c2rust_unnamed: otl_ChainingBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_7 {
+pub union otl_ChainingBody {
     pub rule: otl_ChainingRule,
-    pub c2rust_unnamed: C2RustUnnamed_8,
+    pub c2rust_unnamed: otl_ChainingRuleSet,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_8 {
+pub struct otl_ChainingRuleSet {
     pub rulesCount: tableid_t,
     pub rules: *mut *mut otl_ChainingRule,
     pub bc: *mut otl_ClassDef,
@@ -1335,11 +1335,11 @@ pub struct otfcc_IFontBuilder {
     >,
     pub free: Option<unsafe extern "C" fn(*mut otfcc_IFontBuilder) -> ()>,
 }
-pub const ORD_GLYPHORDER: C2RustUnnamed_9 = 1;
-pub const ORD_CMAP: C2RustUnnamed_9 = 3;
-pub const ORD_GLYF: C2RustUnnamed_9 = 4;
-pub const ORD_NOTDEF: C2RustUnnamed_9 = 2;
-pub type C2RustUnnamed_9 = ::core::ffi::c_uint;
+pub const ORD_GLYPHORDER: json_GlyphOrderPass = 1;
+pub const ORD_CMAP: json_GlyphOrderPass = 3;
+pub const ORD_GLYF: json_GlyphOrderPass = 4;
+pub const ORD_NOTDEF: json_GlyphOrderPass = 2;
+pub type json_GlyphOrderPass = ::core::ffi::c_uint;
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const NULL_0: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;

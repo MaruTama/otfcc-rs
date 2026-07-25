@@ -129,12 +129,12 @@ pub struct UT_hash_table {
     pub noexpand: ::core::ffi::c_uint,
     pub signature: u32,
 }
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed = 10;
-pub const log_vl_info: C2RustUnnamed = 5;
-pub const log_vl_notice: C2RustUnnamed = 2;
-pub const log_vl_important: C2RustUnnamed = 1;
-pub const log_vl_critical: C2RustUnnamed = 0;
+pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
+pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
+pub const log_vl_info: otfcc_LoggerVerbosity = 5;
+pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
+pub const log_vl_important: otfcc_LoggerVerbosity = 1;
+pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_bkblock {
@@ -150,11 +150,11 @@ pub struct __caryll_bkblock {
 #[repr(C)]
 pub struct bk_Cell {
     pub t: bk_CellType,
-    pub c2rust_unnamed: C2RustUnnamed_0,
+    pub c2rust_unnamed: bk_CellValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_0 {
+pub union bk_CellValue {
     pub z: u32,
     pub p: *mut __caryll_bkblock,
 }
@@ -334,17 +334,17 @@ pub struct subtable_gsub_reverse {
 #[repr(C)]
 pub struct subtable_chaining {
     pub type_0: otl_chaining_type,
-    pub c2rust_unnamed: C2RustUnnamed_1,
+    pub c2rust_unnamed: otl_ChainingBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_1 {
+pub union otl_ChainingBody {
     pub rule: otl_ChainingRule,
-    pub c2rust_unnamed: C2RustUnnamed_2,
+    pub c2rust_unnamed: otl_ChainingRuleSet,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_2 {
+pub struct otl_ChainingRuleSet {
     pub rulesCount: tableid_t,
     pub rules: *mut *mut otl_ChainingRule,
     pub bc: *mut otl_ClassDef,

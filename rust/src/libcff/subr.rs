@@ -54,62 +54,62 @@ pub struct UT_hash_table {
     pub noexpand: ::core::ffi::c_uint,
     pub signature: u32,
 }
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed = 10;
-pub const log_vl_info: C2RustUnnamed = 5;
-pub const log_vl_notice: C2RustUnnamed = 2;
-pub const log_vl_important: C2RustUnnamed = 1;
-pub const log_vl_critical: C2RustUnnamed = 0;
-pub type C2RustUnnamed_0 = ::core::ffi::c_uint;
-pub const op_flex1: C2RustUnnamed_0 = 3109;
-pub const op_hflex1: C2RustUnnamed_0 = 3108;
-pub const op_flex: C2RustUnnamed_0 = 3107;
-pub const op_hflex: C2RustUnnamed_0 = 3106;
-pub const op_hvcurveto: C2RustUnnamed_0 = 31;
-pub const op_roll: C2RustUnnamed_0 = 3102;
-pub const op_vhcurveto: C2RustUnnamed_0 = 30;
-pub const op_index: C2RustUnnamed_0 = 3101;
-pub const op_callgsubr: C2RustUnnamed_0 = 29;
-pub const op_exch: C2RustUnnamed_0 = 3100;
-pub const op_dup: C2RustUnnamed_0 = 3099;
-pub const op_hhcurveto: C2RustUnnamed_0 = 27;
-pub const op_sqrt: C2RustUnnamed_0 = 3098;
-pub const op_vvcurveto: C2RustUnnamed_0 = 26;
-pub const op_rlinecurve: C2RustUnnamed_0 = 25;
-pub const op_mul: C2RustUnnamed_0 = 3096;
-pub const op_rcurveline: C2RustUnnamed_0 = 24;
-pub const op_random: C2RustUnnamed_0 = 3095;
-pub const op_vstemhm: C2RustUnnamed_0 = 23;
-pub const op_ifelse: C2RustUnnamed_0 = 3094;
-pub const op_hmoveto: C2RustUnnamed_0 = 22;
-pub const op_get: C2RustUnnamed_0 = 3093;
-pub const op_rmoveto: C2RustUnnamed_0 = 21;
-pub const op_put: C2RustUnnamed_0 = 3092;
-pub const op_cntrmask: C2RustUnnamed_0 = 20;
-pub const op_hintmask: C2RustUnnamed_0 = 19;
-pub const op_drop: C2RustUnnamed_0 = 3090;
-pub const op_hstemhm: C2RustUnnamed_0 = 18;
-pub const op_cff2blend: C2RustUnnamed_0 = 16;
-pub const op_eq: C2RustUnnamed_0 = 3087;
-pub const op_cff2vsidx: C2RustUnnamed_0 = 15;
-pub const op_neg: C2RustUnnamed_0 = 3086;
-pub const op_endchar: C2RustUnnamed_0 = 14;
-pub const op_div: C2RustUnnamed_0 = 3084;
-pub const op_sub: C2RustUnnamed_0 = 3083;
-pub const op_return: C2RustUnnamed_0 = 11;
-pub const op_add: C2RustUnnamed_0 = 3082;
-pub const op_callsubr: C2RustUnnamed_0 = 10;
-pub const op_abs: C2RustUnnamed_0 = 3081;
-pub const op_rrcurveto: C2RustUnnamed_0 = 8;
-pub const op_vlineto: C2RustUnnamed_0 = 7;
-pub const op_hlineto: C2RustUnnamed_0 = 6;
-pub const op_not: C2RustUnnamed_0 = 3077;
-pub const op_rlineto: C2RustUnnamed_0 = 5;
-pub const op_or: C2RustUnnamed_0 = 3076;
-pub const op_vmoveto: C2RustUnnamed_0 = 4;
-pub const op_and: C2RustUnnamed_0 = 3075;
-pub const op_vstem: C2RustUnnamed_0 = 3;
-pub const op_hstem: C2RustUnnamed_0 = 1;
+pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
+pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
+pub const log_vl_info: otfcc_LoggerVerbosity = 5;
+pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
+pub const log_vl_important: otfcc_LoggerVerbosity = 1;
+pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
+pub type cff_CharstringOperator = ::core::ffi::c_uint;
+pub const op_flex1: cff_CharstringOperator = 3109;
+pub const op_hflex1: cff_CharstringOperator = 3108;
+pub const op_flex: cff_CharstringOperator = 3107;
+pub const op_hflex: cff_CharstringOperator = 3106;
+pub const op_hvcurveto: cff_CharstringOperator = 31;
+pub const op_roll: cff_CharstringOperator = 3102;
+pub const op_vhcurveto: cff_CharstringOperator = 30;
+pub const op_index: cff_CharstringOperator = 3101;
+pub const op_callgsubr: cff_CharstringOperator = 29;
+pub const op_exch: cff_CharstringOperator = 3100;
+pub const op_dup: cff_CharstringOperator = 3099;
+pub const op_hhcurveto: cff_CharstringOperator = 27;
+pub const op_sqrt: cff_CharstringOperator = 3098;
+pub const op_vvcurveto: cff_CharstringOperator = 26;
+pub const op_rlinecurve: cff_CharstringOperator = 25;
+pub const op_mul: cff_CharstringOperator = 3096;
+pub const op_rcurveline: cff_CharstringOperator = 24;
+pub const op_random: cff_CharstringOperator = 3095;
+pub const op_vstemhm: cff_CharstringOperator = 23;
+pub const op_ifelse: cff_CharstringOperator = 3094;
+pub const op_hmoveto: cff_CharstringOperator = 22;
+pub const op_get: cff_CharstringOperator = 3093;
+pub const op_rmoveto: cff_CharstringOperator = 21;
+pub const op_put: cff_CharstringOperator = 3092;
+pub const op_cntrmask: cff_CharstringOperator = 20;
+pub const op_hintmask: cff_CharstringOperator = 19;
+pub const op_drop: cff_CharstringOperator = 3090;
+pub const op_hstemhm: cff_CharstringOperator = 18;
+pub const op_cff2blend: cff_CharstringOperator = 16;
+pub const op_eq: cff_CharstringOperator = 3087;
+pub const op_cff2vsidx: cff_CharstringOperator = 15;
+pub const op_neg: cff_CharstringOperator = 3086;
+pub const op_endchar: cff_CharstringOperator = 14;
+pub const op_div: cff_CharstringOperator = 3084;
+pub const op_sub: cff_CharstringOperator = 3083;
+pub const op_return: cff_CharstringOperator = 11;
+pub const op_add: cff_CharstringOperator = 3082;
+pub const op_callsubr: cff_CharstringOperator = 10;
+pub const op_abs: cff_CharstringOperator = 3081;
+pub const op_rrcurveto: cff_CharstringOperator = 8;
+pub const op_vlineto: cff_CharstringOperator = 7;
+pub const op_hlineto: cff_CharstringOperator = 6;
+pub const op_not: cff_CharstringOperator = 3077;
+pub const op_rlineto: cff_CharstringOperator = 5;
+pub const op_or: cff_CharstringOperator = 3076;
+pub const op_vmoveto: cff_CharstringOperator = 4;
+pub const op_and: cff_CharstringOperator = 3075;
+pub const op_vstem: cff_CharstringOperator = 3;
+pub const op_hstem: cff_CharstringOperator = 1;
 pub type cff_IndexCountType = ::core::ffi::c_uint;
 pub const CFF_INDEX_32: cff_IndexCountType = 1;
 pub const CFF_INDEX_16: cff_IndexCountType = 0;
@@ -145,13 +145,13 @@ pub struct __caryll_elementinterface_cff_Index {
     >,
     pub build: Option<unsafe extern "C" fn(*const cff_Index) -> *mut caryll_Buffer>,
 }
-pub type C2RustUnnamed_1 = ::core::ffi::c_uint;
-pub const type2_transient_array: C2RustUnnamed_1 = 32;
-pub const type2_max_subrs: C2RustUnnamed_1 = 65300;
-pub const type2_charstring_len: C2RustUnnamed_1 = 65535;
-pub const type2_subr_nesting: C2RustUnnamed_1 = 10;
-pub const type2_stem_hints: C2RustUnnamed_1 = 96;
-pub const type2_argument_stack: C2RustUnnamed_1 = 48;
+pub type cff_Type2Limits = ::core::ffi::c_uint;
+pub const type2_transient_array: cff_Type2Limits = 32;
+pub const type2_max_subrs: cff_Type2Limits = 65300;
+pub const type2_charstring_len: cff_Type2Limits = 65535;
+pub const type2_subr_nesting: cff_Type2Limits = 10;
+pub const type2_stem_hints: cff_Type2Limits = 96;
+pub const type2_argument_stack: cff_Type2Limits = 48;
 pub type cff_InstructionType = ::core::ffi::c_uint;
 pub const IL_ITEM_PHANTOM_OPERAND: cff_InstructionType = 4;
 pub const IL_ITEM_PHANTOM_OPERATOR: cff_InstructionType = 3;
@@ -163,11 +163,11 @@ pub const IL_ITEM_OPERAND: cff_InstructionType = 0;
 pub struct cff_CharstringInstruction {
     pub type_0: cff_InstructionType,
     pub arity: arity_t,
-    pub c2rust_unnamed: C2RustUnnamed_2,
+    pub c2rust_unnamed: cff_CharstringArgument,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_2 {
+pub union cff_CharstringArgument {
     pub d: ::core::ffi::c_double,
     pub i: i32,
 }

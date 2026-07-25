@@ -30,119 +30,119 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{arity_t};
 use crate::vendor::sds::{sds};
-pub type C2RustUnnamed = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed = 10;
-pub const log_vl_info: C2RustUnnamed = 5;
-pub const log_vl_notice: C2RustUnnamed = 2;
-pub const log_vl_important: C2RustUnnamed = 1;
-pub const log_vl_critical: C2RustUnnamed = 0;
-pub type C2RustUnnamed_0 = ::core::ffi::c_uint;
-pub const op_FontName: C2RustUnnamed_0 = 3110;
-pub const op_FDSelect: C2RustUnnamed_0 = 3109;
-pub const op_FDArray: C2RustUnnamed_0 = 3108;
-pub const op_UIDBase: C2RustUnnamed_0 = 3107;
-pub const op_CIDCount: C2RustUnnamed_0 = 3106;
-pub const op_CIDFontType: C2RustUnnamed_0 = 3105;
-pub const op_CIDFontRevision: C2RustUnnamed_0 = 3104;
-pub const op_CIDFontVersion: C2RustUnnamed_0 = 3103;
-pub const op_ROS: C2RustUnnamed_0 = 3102;
-pub const op_maxstack: C2RustUnnamed_0 = 25;
-pub const op_vstore: C2RustUnnamed_0 = 24;
-pub const op_BaseFontBlend: C2RustUnnamed_0 = 3095;
-pub const op_blend: C2RustUnnamed_0 = 23;
-pub const op_BaseFontName: C2RustUnnamed_0 = 3094;
-pub const op_vsindex: C2RustUnnamed_0 = 22;
-pub const op_PostScript: C2RustUnnamed_0 = 3093;
-pub const op_nominalWidthX: C2RustUnnamed_0 = 21;
-pub const op_SyntheicBase: C2RustUnnamed_0 = 3092;
-pub const op_defaultWidthX: C2RustUnnamed_0 = 20;
-pub const op_initialRandomSeed: C2RustUnnamed_0 = 3091;
-pub const op_Subrs: C2RustUnnamed_0 = 19;
-pub const op_ExpansionFactor: C2RustUnnamed_0 = 3090;
-pub const op_Private: C2RustUnnamed_0 = 18;
-pub const op_LanguageGroup: C2RustUnnamed_0 = 3089;
-pub const op_CharStrings: C2RustUnnamed_0 = 17;
-pub const op_Encoding: C2RustUnnamed_0 = 16;
-pub const op_charset: C2RustUnnamed_0 = 15;
-pub const op_ForceBold: C2RustUnnamed_0 = 3086;
-pub const op_XUID: C2RustUnnamed_0 = 14;
-pub const op_StemSnapV: C2RustUnnamed_0 = 3085;
-pub const op_UniqueID: C2RustUnnamed_0 = 13;
-pub const op_StemSnapH: C2RustUnnamed_0 = 3084;
-pub const op_BlueFuzz: C2RustUnnamed_0 = 3083;
-pub const op_StdVW: C2RustUnnamed_0 = 11;
-pub const op_BlueShift: C2RustUnnamed_0 = 3082;
-pub const op_StdHW: C2RustUnnamed_0 = 10;
-pub const op_BlueScale: C2RustUnnamed_0 = 3081;
-pub const op_FamilyOtherBlues: C2RustUnnamed_0 = 9;
-pub const op_StrokeWidth: C2RustUnnamed_0 = 3080;
-pub const op_FamilyBlues: C2RustUnnamed_0 = 8;
-pub const op_FontMatrix: C2RustUnnamed_0 = 3079;
-pub const op_OtherBlues: C2RustUnnamed_0 = 7;
-pub const op_CharstringType: C2RustUnnamed_0 = 3078;
-pub const op_BlueValues: C2RustUnnamed_0 = 6;
-pub const op_PaintType: C2RustUnnamed_0 = 3077;
-pub const op_FontBBox: C2RustUnnamed_0 = 5;
-pub const op_UnderlineThickness: C2RustUnnamed_0 = 3076;
-pub const op_Weight: C2RustUnnamed_0 = 4;
-pub const op_UnderlinePosition: C2RustUnnamed_0 = 3075;
-pub const op_FamilyName: C2RustUnnamed_0 = 3;
-pub const op_ItalicAngle: C2RustUnnamed_0 = 3074;
-pub const op_FullName: C2RustUnnamed_0 = 2;
-pub const op_isFixedPitch: C2RustUnnamed_0 = 3073;
-pub const op_Notice: C2RustUnnamed_0 = 1;
-pub const op_Copyright: C2RustUnnamed_0 = 3072;
-pub const op_version: C2RustUnnamed_0 = 0;
-pub type C2RustUnnamed_1 = ::core::ffi::c_uint;
-pub const op_flex1: C2RustUnnamed_1 = 3109;
-pub const op_hflex1: C2RustUnnamed_1 = 3108;
-pub const op_flex: C2RustUnnamed_1 = 3107;
-pub const op_hflex: C2RustUnnamed_1 = 3106;
-pub const op_hvcurveto: C2RustUnnamed_1 = 31;
-pub const op_roll: C2RustUnnamed_1 = 3102;
-pub const op_vhcurveto: C2RustUnnamed_1 = 30;
-pub const op_index: C2RustUnnamed_1 = 3101;
-pub const op_callgsubr: C2RustUnnamed_1 = 29;
-pub const op_exch: C2RustUnnamed_1 = 3100;
-pub const op_dup: C2RustUnnamed_1 = 3099;
-pub const op_hhcurveto: C2RustUnnamed_1 = 27;
-pub const op_sqrt: C2RustUnnamed_1 = 3098;
-pub const op_vvcurveto: C2RustUnnamed_1 = 26;
-pub const op_rlinecurve: C2RustUnnamed_1 = 25;
-pub const op_mul: C2RustUnnamed_1 = 3096;
-pub const op_rcurveline: C2RustUnnamed_1 = 24;
-pub const op_random: C2RustUnnamed_1 = 3095;
-pub const op_vstemhm: C2RustUnnamed_1 = 23;
-pub const op_ifelse: C2RustUnnamed_1 = 3094;
-pub const op_hmoveto: C2RustUnnamed_1 = 22;
-pub const op_get: C2RustUnnamed_1 = 3093;
-pub const op_rmoveto: C2RustUnnamed_1 = 21;
-pub const op_put: C2RustUnnamed_1 = 3092;
-pub const op_cntrmask: C2RustUnnamed_1 = 20;
-pub const op_hintmask: C2RustUnnamed_1 = 19;
-pub const op_drop: C2RustUnnamed_1 = 3090;
-pub const op_hstemhm: C2RustUnnamed_1 = 18;
-pub const op_cff2blend: C2RustUnnamed_1 = 16;
-pub const op_eq: C2RustUnnamed_1 = 3087;
-pub const op_cff2vsidx: C2RustUnnamed_1 = 15;
-pub const op_neg: C2RustUnnamed_1 = 3086;
-pub const op_endchar: C2RustUnnamed_1 = 14;
-pub const op_div: C2RustUnnamed_1 = 3084;
-pub const op_sub: C2RustUnnamed_1 = 3083;
-pub const op_return: C2RustUnnamed_1 = 11;
-pub const op_add: C2RustUnnamed_1 = 3082;
-pub const op_callsubr: C2RustUnnamed_1 = 10;
-pub const op_abs: C2RustUnnamed_1 = 3081;
-pub const op_rrcurveto: C2RustUnnamed_1 = 8;
-pub const op_vlineto: C2RustUnnamed_1 = 7;
-pub const op_hlineto: C2RustUnnamed_1 = 6;
-pub const op_not: C2RustUnnamed_1 = 3077;
-pub const op_rlineto: C2RustUnnamed_1 = 5;
-pub const op_or: C2RustUnnamed_1 = 3076;
-pub const op_vmoveto: C2RustUnnamed_1 = 4;
-pub const op_and: C2RustUnnamed_1 = 3075;
-pub const op_vstem: C2RustUnnamed_1 = 3;
-pub const op_hstem: C2RustUnnamed_1 = 1;
+pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
+pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
+pub const log_vl_info: otfcc_LoggerVerbosity = 5;
+pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
+pub const log_vl_important: otfcc_LoggerVerbosity = 1;
+pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
+pub type cff_DictOperator = ::core::ffi::c_uint;
+pub const op_FontName: cff_DictOperator = 3110;
+pub const op_FDSelect: cff_DictOperator = 3109;
+pub const op_FDArray: cff_DictOperator = 3108;
+pub const op_UIDBase: cff_DictOperator = 3107;
+pub const op_CIDCount: cff_DictOperator = 3106;
+pub const op_CIDFontType: cff_DictOperator = 3105;
+pub const op_CIDFontRevision: cff_DictOperator = 3104;
+pub const op_CIDFontVersion: cff_DictOperator = 3103;
+pub const op_ROS: cff_DictOperator = 3102;
+pub const op_maxstack: cff_DictOperator = 25;
+pub const op_vstore: cff_DictOperator = 24;
+pub const op_BaseFontBlend: cff_DictOperator = 3095;
+pub const op_blend: cff_DictOperator = 23;
+pub const op_BaseFontName: cff_DictOperator = 3094;
+pub const op_vsindex: cff_DictOperator = 22;
+pub const op_PostScript: cff_DictOperator = 3093;
+pub const op_nominalWidthX: cff_DictOperator = 21;
+pub const op_SyntheicBase: cff_DictOperator = 3092;
+pub const op_defaultWidthX: cff_DictOperator = 20;
+pub const op_initialRandomSeed: cff_DictOperator = 3091;
+pub const op_Subrs: cff_DictOperator = 19;
+pub const op_ExpansionFactor: cff_DictOperator = 3090;
+pub const op_Private: cff_DictOperator = 18;
+pub const op_LanguageGroup: cff_DictOperator = 3089;
+pub const op_CharStrings: cff_DictOperator = 17;
+pub const op_Encoding: cff_DictOperator = 16;
+pub const op_charset: cff_DictOperator = 15;
+pub const op_ForceBold: cff_DictOperator = 3086;
+pub const op_XUID: cff_DictOperator = 14;
+pub const op_StemSnapV: cff_DictOperator = 3085;
+pub const op_UniqueID: cff_DictOperator = 13;
+pub const op_StemSnapH: cff_DictOperator = 3084;
+pub const op_BlueFuzz: cff_DictOperator = 3083;
+pub const op_StdVW: cff_DictOperator = 11;
+pub const op_BlueShift: cff_DictOperator = 3082;
+pub const op_StdHW: cff_DictOperator = 10;
+pub const op_BlueScale: cff_DictOperator = 3081;
+pub const op_FamilyOtherBlues: cff_DictOperator = 9;
+pub const op_StrokeWidth: cff_DictOperator = 3080;
+pub const op_FamilyBlues: cff_DictOperator = 8;
+pub const op_FontMatrix: cff_DictOperator = 3079;
+pub const op_OtherBlues: cff_DictOperator = 7;
+pub const op_CharstringType: cff_DictOperator = 3078;
+pub const op_BlueValues: cff_DictOperator = 6;
+pub const op_PaintType: cff_DictOperator = 3077;
+pub const op_FontBBox: cff_DictOperator = 5;
+pub const op_UnderlineThickness: cff_DictOperator = 3076;
+pub const op_Weight: cff_DictOperator = 4;
+pub const op_UnderlinePosition: cff_DictOperator = 3075;
+pub const op_FamilyName: cff_DictOperator = 3;
+pub const op_ItalicAngle: cff_DictOperator = 3074;
+pub const op_FullName: cff_DictOperator = 2;
+pub const op_isFixedPitch: cff_DictOperator = 3073;
+pub const op_Notice: cff_DictOperator = 1;
+pub const op_Copyright: cff_DictOperator = 3072;
+pub const op_version: cff_DictOperator = 0;
+pub type cff_CharstringOperator = ::core::ffi::c_uint;
+pub const op_flex1: cff_CharstringOperator = 3109;
+pub const op_hflex1: cff_CharstringOperator = 3108;
+pub const op_flex: cff_CharstringOperator = 3107;
+pub const op_hflex: cff_CharstringOperator = 3106;
+pub const op_hvcurveto: cff_CharstringOperator = 31;
+pub const op_roll: cff_CharstringOperator = 3102;
+pub const op_vhcurveto: cff_CharstringOperator = 30;
+pub const op_index: cff_CharstringOperator = 3101;
+pub const op_callgsubr: cff_CharstringOperator = 29;
+pub const op_exch: cff_CharstringOperator = 3100;
+pub const op_dup: cff_CharstringOperator = 3099;
+pub const op_hhcurveto: cff_CharstringOperator = 27;
+pub const op_sqrt: cff_CharstringOperator = 3098;
+pub const op_vvcurveto: cff_CharstringOperator = 26;
+pub const op_rlinecurve: cff_CharstringOperator = 25;
+pub const op_mul: cff_CharstringOperator = 3096;
+pub const op_rcurveline: cff_CharstringOperator = 24;
+pub const op_random: cff_CharstringOperator = 3095;
+pub const op_vstemhm: cff_CharstringOperator = 23;
+pub const op_ifelse: cff_CharstringOperator = 3094;
+pub const op_hmoveto: cff_CharstringOperator = 22;
+pub const op_get: cff_CharstringOperator = 3093;
+pub const op_rmoveto: cff_CharstringOperator = 21;
+pub const op_put: cff_CharstringOperator = 3092;
+pub const op_cntrmask: cff_CharstringOperator = 20;
+pub const op_hintmask: cff_CharstringOperator = 19;
+pub const op_drop: cff_CharstringOperator = 3090;
+pub const op_hstemhm: cff_CharstringOperator = 18;
+pub const op_cff2blend: cff_CharstringOperator = 16;
+pub const op_eq: cff_CharstringOperator = 3087;
+pub const op_cff2vsidx: cff_CharstringOperator = 15;
+pub const op_neg: cff_CharstringOperator = 3086;
+pub const op_endchar: cff_CharstringOperator = 14;
+pub const op_div: cff_CharstringOperator = 3084;
+pub const op_sub: cff_CharstringOperator = 3083;
+pub const op_return: cff_CharstringOperator = 11;
+pub const op_add: cff_CharstringOperator = 3082;
+pub const op_callsubr: cff_CharstringOperator = 10;
+pub const op_abs: cff_CharstringOperator = 3081;
+pub const op_rrcurveto: cff_CharstringOperator = 8;
+pub const op_vlineto: cff_CharstringOperator = 7;
+pub const op_hlineto: cff_CharstringOperator = 6;
+pub const op_not: cff_CharstringOperator = 3077;
+pub const op_rlineto: cff_CharstringOperator = 5;
+pub const op_or: cff_CharstringOperator = 3076;
+pub const op_vmoveto: cff_CharstringOperator = 4;
+pub const op_and: cff_CharstringOperator = 3075;
+pub const op_vstem: cff_CharstringOperator = 3;
+pub const op_hstem: cff_CharstringOperator = 1;
 pub type cff_Value_Type = ::core::ffi::c_uint;
 pub const CS2_FRACTION: cff_Value_Type = 3;
 pub const cff_DOUBLE: cff_Value_Type = 3;
@@ -154,11 +154,11 @@ pub const cff_OPERATOR: cff_Value_Type = 1;
 #[repr(C)]
 pub struct cff_Value {
     pub t: cff_Value_Type,
-    pub c2rust_unnamed: C2RustUnnamed_2,
+    pub c2rust_unnamed: cff_ValueBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_2 {
+pub union cff_ValueBody {
     pub i: i32,
     pub d: ::core::ffi::c_double,
 }
@@ -241,14 +241,14 @@ pub struct __caryll_elementinterface_cff_Dict {
         Option<unsafe extern "C" fn(*const u8, u32, u32, u32) -> cff_Value>,
     pub build: Option<unsafe extern "C" fn(*const cff_Dict) -> *mut caryll_Buffer>,
 }
-pub type C2RustUnnamed_3 = ::core::ffi::c_uint;
-pub const cff_CHARSET_FORMAT2: C2RustUnnamed_3 = 5;
-pub const cff_CHARSET_FORMAT1: C2RustUnnamed_3 = 4;
-pub const cff_CHARSET_FORMAT0: C2RustUnnamed_3 = 3;
-pub const cff_CHARSET_EXPERTSUBSET: C2RustUnnamed_3 = 2;
-pub const cff_CHARSET_EXPERT: C2RustUnnamed_3 = 1;
-pub const cff_CHARSET_UNSPECED: C2RustUnnamed_3 = 0;
-pub const cff_CHARSET_ISOADOBE: C2RustUnnamed_3 = 0;
+pub type cff_CharsetType = ::core::ffi::c_uint;
+pub const cff_CHARSET_FORMAT2: cff_CharsetType = 5;
+pub const cff_CHARSET_FORMAT1: cff_CharsetType = 4;
+pub const cff_CHARSET_FORMAT0: cff_CharsetType = 3;
+pub const cff_CHARSET_EXPERTSUBSET: cff_CharsetType = 2;
+pub const cff_CHARSET_EXPERT: cff_CharsetType = 1;
+pub const cff_CHARSET_UNSPECED: cff_CharsetType = 0;
+pub const cff_CHARSET_ISOADOBE: cff_CharsetType = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_CharsetFormat0 {
@@ -284,19 +284,19 @@ pub struct cff_CharsetFormat2 {
 pub struct cff_Charset {
     pub t: u32,
     pub s: u32,
-    pub c2rust_unnamed: C2RustUnnamed_4,
+    pub c2rust_unnamed: cff_CharsetBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_4 {
+pub union cff_CharsetBody {
     pub f0: cff_CharsetFormat0,
     pub f1: cff_CharsetFormat1,
     pub f2: cff_CharsetFormat2,
 }
-pub type C2RustUnnamed_5 = ::core::ffi::c_uint;
-pub const cff_FDSELECT_UNSPECED: C2RustUnnamed_5 = 2;
-pub const cff_FDSELECT_FORMAT3: C2RustUnnamed_5 = 1;
-pub const cff_FDSELECT_FORMAT0: C2RustUnnamed_5 = 0;
+pub type cff_FDSelectType = ::core::ffi::c_uint;
+pub const cff_FDSELECT_UNSPECED: cff_FDSelectType = 2;
+pub const cff_FDSELECT_FORMAT3: cff_FDSelectType = 1;
+pub const cff_FDSELECT_FORMAT0: cff_FDSelectType = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_FDSelectFormat0 {
@@ -322,21 +322,21 @@ pub struct cff_FDSelectFormat3 {
 pub struct cff_FDSelect {
     pub t: u32,
     pub s: u32,
-    pub c2rust_unnamed: C2RustUnnamed_6,
+    pub c2rust_unnamed: cff_FDSelectBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_6 {
+pub union cff_FDSelectBody {
     pub f0: cff_FDSelectFormat0,
     pub f3: cff_FDSelectFormat3,
 }
-pub type C2RustUnnamed_7 = ::core::ffi::c_uint;
-pub const type2_transient_array: C2RustUnnamed_7 = 32;
-pub const type2_max_subrs: C2RustUnnamed_7 = 65300;
-pub const type2_charstring_len: C2RustUnnamed_7 = 65535;
-pub const type2_subr_nesting: C2RustUnnamed_7 = 10;
-pub const type2_stem_hints: C2RustUnnamed_7 = 96;
-pub const type2_argument_stack: C2RustUnnamed_7 = 48;
+pub type cff_Type2Limits = ::core::ffi::c_uint;
+pub const type2_transient_array: cff_Type2Limits = 32;
+pub const type2_max_subrs: cff_Type2Limits = 65300;
+pub const type2_charstring_len: cff_Type2Limits = 65535;
+pub const type2_subr_nesting: cff_Type2Limits = 10;
+pub const type2_stem_hints: cff_Type2Limits = 96;
+pub const type2_argument_stack: cff_Type2Limits = 48;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_Header {
@@ -381,22 +381,22 @@ pub struct cff_EncodingNS {
 #[repr(C)]
 pub struct cff_Encoding {
     pub t: u32,
-    pub c2rust_unnamed: C2RustUnnamed_8,
+    pub c2rust_unnamed: cff_EncodingBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_8 {
+pub union cff_EncodingBody {
     pub f0: cff_EncodingFormat0,
     pub f1: cff_EncodingFormat1,
     pub ns: cff_EncodingNS,
 }
-pub type C2RustUnnamed_9 = ::core::ffi::c_uint;
-pub const cff_ENC_UNSPECED: C2RustUnnamed_9 = 5;
-pub const cff_ENC_FORMAT_SUPPLEMENT: C2RustUnnamed_9 = 4;
-pub const cff_ENC_FORMAT1: C2RustUnnamed_9 = 3;
-pub const cff_ENC_FORMAT0: C2RustUnnamed_9 = 2;
-pub const cff_ENC_EXPERT: C2RustUnnamed_9 = 1;
-pub const cff_ENC_STANDARD: C2RustUnnamed_9 = 0;
+pub type cff_EncodingType = ::core::ffi::c_uint;
+pub const cff_ENC_UNSPECED: cff_EncodingType = 5;
+pub const cff_ENC_FORMAT_SUPPLEMENT: cff_EncodingType = 4;
+pub const cff_ENC_FORMAT1: cff_EncodingType = 3;
+pub const cff_ENC_FORMAT0: cff_EncodingType = 2;
+pub const cff_ENC_EXPERT: cff_EncodingType = 1;
+pub const cff_ENC_STANDARD: cff_EncodingType = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_Stack {
@@ -1089,7 +1089,7 @@ pub unsafe extern "C" fn cff_parseOutline(
     let mut cnt_bezier: u32 = 0;
     let mut val: cff_Value = cff_Value {
         t: 0 as cff_Value_Type,
-        c2rust_unnamed: C2RustUnnamed_2 { i: 0 },
+        c2rust_unnamed: cff_ValueBody { i: 0 },
     };
     let mut setWidth: Option<
         unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> (),

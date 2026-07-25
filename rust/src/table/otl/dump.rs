@@ -208,17 +208,17 @@ pub struct subtable_gsub_reverse {
 #[repr(C)]
 pub struct subtable_chaining {
     pub type_0: otl_chaining_type,
-    pub c2rust_unnamed: C2RustUnnamed_4,
+    pub c2rust_unnamed: otl_ChainingBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_4 {
+pub union otl_ChainingBody {
     pub rule: otl_ChainingRule,
-    pub c2rust_unnamed: C2RustUnnamed_5,
+    pub c2rust_unnamed: otl_ChainingRuleSet,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_5 {
+pub struct otl_ChainingRuleSet {
     pub rulesCount: tableid_t,
     pub rules: *mut *mut otl_ChainingRule,
     pub bc: *mut otl_ClassDef,

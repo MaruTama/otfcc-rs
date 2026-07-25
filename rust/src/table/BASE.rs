@@ -41,12 +41,12 @@ pub type __compar_fn_t = Option<
         *const ::core::ffi::c_void,
     ) -> ::core::ffi::c_int,
 >;
-pub type C2RustUnnamed_4 = ::core::ffi::c_uint;
-pub const log_vl_progress: C2RustUnnamed_4 = 10;
-pub const log_vl_info: C2RustUnnamed_4 = 5;
-pub const log_vl_notice: C2RustUnnamed_4 = 2;
-pub const log_vl_important: C2RustUnnamed_4 = 1;
-pub const log_vl_critical: C2RustUnnamed_4 = 0;
+pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
+pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
+pub const log_vl_info: otfcc_LoggerVerbosity = 5;
+pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
+pub const log_vl_important: otfcc_LoggerVerbosity = 1;
+pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_PacketPiece {
@@ -120,11 +120,11 @@ pub struct __caryll_bkblock {
 #[repr(C)]
 pub struct bk_Cell {
     pub t: bk_CellType,
-    pub c2rust_unnamed: C2RustUnnamed_5,
+    pub c2rust_unnamed: bk_CellValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union C2RustUnnamed_5 {
+pub union bk_CellValue {
     pub z: u32,
     pub p: *mut __caryll_bkblock,
 }
@@ -145,7 +145,7 @@ pub const VISIT_GRAY: bk_cell_visit_state = 1;
 pub const VISIT_WHITE: bk_cell_visit_state = 0;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct C2RustUnnamed_6 {
+pub struct base_TagList {
     pub size: tableid_t,
     pub items: *mut u32,
 }
@@ -830,7 +830,7 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
     if axis.is_null() {
         return ::core::ptr::null_mut::<bk_Block>();
     }
-    let mut taglist: C2RustUnnamed_6 = C2RustUnnamed_6 {
+    let mut taglist: base_TagList = base_TagList {
         size: 0,
         items: ::core::ptr::null_mut::<u32>(),
     };
