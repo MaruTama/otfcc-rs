@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Builds the C toolchain natively (amd64; c/dep/bin-linux/{premake5,ninja} are
-# x86_64 binaries) and compares its output against the already-built Rust
-# crate (rust/target/release/), byte-for-byte, on the
-# same canonical input JSON for each payload.
+# Builds the C toolchain natively (Linux or macOS — the premake/ninja
+# toolchain binaries and the quick.make target are selected from `uname`) and
+# compares its output against the already-built Rust crate
+# (rust/target/release/), byte-for-byte, on the same canonical input JSON for
+# each payload.
 #
 # Must run AFTER the Rust crate has been built (cargo build --release) and
 # on the SAME architecture as that build, so both binaries' outputs are
@@ -18,14 +19,37 @@ if [ ! -x "${RUST_BIN}/otfccdump" ] || [ ! -x "${RUST_BIN}/otfccbuild" ]; then
 	exit 1
 fi
 
-echo "==> Building the C toolchain (native amd64)"
+echo "==> Building the C toolchain (native)"
 # Unlike gen-compile-commands.sh (which invokes ninja directly after its own
-# `cd`), this uses quick.make's own `linux-release-x64` target, which
+# `cd`), this uses quick.make's own `{linux,macosx}-release-x64` target, which
 # internally does `cd build/ninja && ../../$(BD_NINJA) ...` — BD_NINJA must
 # stay a repo-root-relative path for that "../../" prefix to resolve.
-export PREMAKE5="c/dep/bin-linux/premake5"
-export BD_NINJA="c/dep/bin-linux/ninja"
+#
+# The premake/ninja toolchain binaries and the quick.make target are both
+# per-OS. Getting this wrong is not a subtle failure but it *looks* like one:
+# `build/` and `bin/` are shared (the Linux verification container bind-mounts
+# the repo at its host path), so a stale cross-OS object tree makes the linker
+# report "file format not recognized", or — worse — leaves a working binary for
+# the *other* OS in place, and every payload then reports a byte mismatch that
+# has nothing to do with the Rust code. Hence: detect the OS, and if the
+# existing tree was built for the other one, wipe it first.
+if [ "$(uname -s)" = "Darwin" ]; then
+	export PREMAKE5="c/dep/bin-osx/premake5"
+	export BD_NINJA="c/dep/bin-osx/ninja"
+	MAKE_TARGET="macosx-release-x64"
+	EXPECT_FORMAT="Mach-O"
+else
+	export PREMAKE5="c/dep/bin-linux/premake5"
+	export BD_NINJA="c/dep/bin-linux/ninja"
+	MAKE_TARGET="linux-release-x64"
+	EXPECT_FORMAT="ELF"
+fi
 chmod +x "${PREMAKE5}" "${BD_NINJA}"
+if command -v file >/dev/null 2>&1 && [ -f bin/release-x64/otfccdump ] &&
+	! file -b bin/release-x64/otfccdump | grep -q "${EXPECT_FORMAT}"; then
+	echo "  (existing build/ and bin/ are from another OS — clearing)"
+	rm -rf build/ninja build/obj bin/release-x64 bin/x64
+fi
 # quick.make's mf-ninja-linux passes --cc=$(CC) to premake5; Make's built-in
 # default ($(CC) = "cc") isn't a valid compiler name for it. Default to
 # clang, not gcc: c2rust's transpile is based on parsing with clang's AST, and
@@ -36,7 +60,7 @@ chmod +x "${PREMAKE5}" "${BD_NINJA}"
 # gcc/clang difference as a false Rust-vs-C mismatch.
 export CC="${CC:-clang}"
 if [ "${CC}" = "cc" ]; then export CC=clang; fi
-make -f c/quick.make linux-release-x64
+make -f c/quick.make "${MAKE_TARGET}"
 C_BIN=bin/release-x64
 
 BUILD=build/compare-with-c
@@ -93,7 +117,17 @@ DLL_C="${C_BIN}/libotfccdll.so"
 RUST_SO_EXT="so"
 [ "$(uname)" = "Darwin" ] && RUST_SO_EXT="dylib"
 DLL_RUST="${RUST_BIN}/libotfcc_rust.${RUST_SO_EXT}"
-if [ -f "${DLL_C}" ] && [ -f "${DLL_RUST}" ]; then
+
+# Skip with an explicit reason (rather than dying on an unrelated ctypes
+# OSError) when python3 can't load the cdylib at all — see dll-arch-check.sh.
+# Any *other* test-dll.py failure stays fatal.
+. "$(dirname "$0")/dll-arch-check.sh"
+DLL_ARCH_SKIP="$(dll_arch_skip_reason "${DLL_RUST}")"
+
+if [ -n "${DLL_ARCH_SKIP}" ]; then
+	echo "  (SKIP otfccdll comparison: ${DLL_ARCH_SKIP};"
+	echo "   this check runs for real in the Linux container and in CI)"
+elif [ -f "${DLL_C}" ] && [ -f "${DLL_RUST}" ]; then
 	DLL_JSON="${BUILD}/Molengo-Regular.json"
 	python3 "$(dirname "$0")/test-dll.py" "${DLL_C}" "${DLL_JSON}" "${BUILD}/dll-c.otf"
 	python3 "$(dirname "$0")/test-dll.py" "${DLL_RUST}" "${DLL_JSON}" "${BUILD}/dll-rust.otf"
