@@ -4,10 +4,10 @@ name: Rust build & compatibility
 # it builds, its unit tests pass, and its output is byte-compatible with the
 # C toolchain built from the same tree. See rust/README.md.
 #
-# This does NOT re-run c2rust (the C -> Rust transpile). The transpiled
-# source is committed to the repo, not regenerated per CI run — re-transpile
-# locally with rust/scripts/transpile.sh after a C-side change and commit
-# the diff. See "Regenerating the Rust source" in rust/README.md.
+# This does NOT re-run c2rust (the C -> Rust transpile). The Rust source is
+# committed to the repo and hand-maintained; the transpile pipeline is retired
+# (rust/scripts/archive/), so a C-side change is ported to Rust by hand. See
+# "Regenerating the Rust source" in rust/README.md.
 on:
   push:
     branches: [master]
