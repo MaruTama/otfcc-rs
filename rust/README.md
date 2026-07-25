@@ -426,9 +426,11 @@ trait work had to erase its boundaries to `*mut c_void`.
 Landed so far, each commit verified against the full matrix on macOS and in
 the CI-matching Linux container:
 
-- **The public ABI is guarded** (`check-abi.sh`, see above). Every subsequent
-  commit reports the same 574 exported symbols, which is what makes "this
-  changed nothing observable" a checked claim rather than an assertion.
+- **The public ABI is guarded** (`check-abi.sh`, see above). Each commit reports
+  the same export list as the one before it, which is what makes "this changed
+  nothing observable" a checked claim rather than an assertion. The count only
+  moves when a symbol is deliberately internalized, and then the diff is small
+  enough to read: 574 at the start, 567 now.
 - **Standard cargo layout**: `src/lib.rs` + `src/bin/` + `src/ffi/` +
   `src/vendor/`, replacing c2rust's `src::lib::` / `src::dep::r#extern::` /
   `src::src::` scaffolding. See "Crate layout" above.
@@ -439,8 +441,9 @@ the CI-matching Linux container:
 - **The C library comes from `libc`**: 648 duplicated declarations delegated,
   and `FILE` is now `libc::FILE` (opaque) instead of a hand-copied glibc
   `_IO_FILE` struct that didn't describe macOS at all. That removed the
-  crate's last `extern type`, so **`#![feature(extern_types)]` is gone** — one
-  of the three nightly features between here and a stable toolchain.
+  crate's last `extern type`, so **`#![feature(extern_types)]` is gone** — the
+  first of the three nightly features between here and a stable toolchain (all
+  three are gone now; see below).
 - **The base types have one declaration each**: `sds` (was 95 copies),
   `caryll_Buffer` (80), `otfcc_ILogger`/`ILoggerTarget`/`LoggerType` (79),
   `otfcc_Options` (78), and otfcc's scalar vocabulary — `glyphid_t`, `pos_t`,
@@ -479,6 +482,35 @@ the CI-matching Linux container:
   only references were each other, and carrying the *AArch64* register-save
   layout because the transpile ran on arm64 while the crate builds x86_64.
 
+- **The C variadics are gone, and with them the nightly requirement.** All
+  eight were replaced: `bufninit`/`bufnwrite8` take a `&[u8]`,
+  `bk_new_Block`/`bk_push` take a `&[bk_Item]`, `cffdict_input` split into the
+  two functions its `t` argument was already selecting between, `zroll` takes
+  `&[bool]`, and `sdscatprintf`/`sdscatfmt` became the `sdsbuild!` macro over a
+  `SdsPart` trait. Each of these had passed a count *and* a list, or a type tag
+  *and* a value, with nothing checking that the two agreed — `arity` against the
+  number of operands, `n` against the number of bytes, `%d` against what was
+  actually pushed. All 252 `sdscatprintf`/`sdscatfmt` call sites turned out to
+  use a literal format string, so nothing needed a run-time `printf` at all.
+  `#![feature(c_variadic)]` is gone and `raw_ref_op` has been stable since
+  1.82, so **the crate builds on stable**.
+
+  Two things not to undo there. Text is appended as **bytes**: `%s` arguments
+  are C strings out of a font file, so `format!` would mean a `CStr` → `str`
+  conversion and a glyph name that isn't valid UTF-8 would come out changed
+  (U+FFFD) — passing every payload in the test set and failing on the first
+  Latin-1 glyph name. And `support/stopwatch.rs` still calls libc's `snprintf`
+  for its one `%g`, because Rust has no `%g` and this crate deliberately does not
+  format floats itself (JSON numbers go through the vendored `emyg_dtoa` so their
+  spelling matches the C build).
+
+  This pass also exposed a latent use-after-free in `name.c:188`:
+  `sdsgrowzero(copyright, COPYRIGHT_LEN)` discards the pointer it returns, and
+  had got away with it only because `sdscatprintf` over-allocated by 2× — a
+  two-byte margin. Building the same string in pieces allocates less, the growth
+  reallocates, and the stale pointer aborts in libmalloc. Intermittently, since
+  whether `realloc` moves a block depends on the heap.
+
 **Nothing in the crate is now declared twice**: 896 declarations, 0 duplicated,
 down from 8,090 declarations of 458 types.
 
@@ -512,10 +544,9 @@ on the other platform before a commit is trusted.
   crate-level `allow(non_camel_case_types)`/`non_snake_case`/
   `non_upper_case_globals` come out, which is what turns "this is idiomatic
   now" from an opinion into something the compiler checks.
-- **Stable toolchain + edition 2024**: `raw_ref_op` is stable since 1.82;
-  `c_variadic` goes away by replacing the variadic `bk_new_Block`/`bk_push`/
-  `sdscatprintf` with slice- and `format_args!`-taking APIs. A native stable
-  toolchain also fixes the Apple Silicon `otfccdll` ctypes mismatch.
+- **Edition 2024**: `unsafe_op_in_unsafe_fn` becomes active, which is wanted —
+  it makes the genuinely pointer-dependent operations visible instead of
+  letting a whole `unsafe fn` body inherit the permission.
 - **Then safe Rust, type by type**: `CVecRaw<T>` → `Vec<T>` first (one
   implementation backs ~37 container types), then `sds` → `String`,
   `caryll_Buffer` → `Vec<u8>`, `malloc`/`dispose` → `Box` + `Drop`, and the
