@@ -318,7 +318,7 @@ unsafe extern "C" fn buildDict(mut dict: *const cff_Dict) -> *mut caryll_Buffer 
     return blob;
 }
 #[no_mangle]
-pub static mut cff_iDict: __caryll_elementinterface_cff_Dict = {
+pub static cff_iDict: __caryll_elementinterface_cff_Dict = {
     __caryll_elementinterface_cff_Dict {
         init: Some(cff_Dict_init as unsafe extern "C" fn(*mut cff_Dict) -> ()),
         copy: Some(cff_Dict_copy as unsafe extern "C" fn(*mut cff_Dict, *const cff_Dict) -> ()),

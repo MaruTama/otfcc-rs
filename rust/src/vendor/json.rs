@@ -262,35 +262,35 @@ unsafe extern "C" fn new_value(
     *alloc = *top;
     return 1 as ::core::ffi::c_int;
 }
-static mut flag_line_comment: ::core::ffi::c_long =
+static flag_line_comment: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 13 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_seek_value: ::core::ffi::c_long =
+static flag_seek_value: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_string: ::core::ffi::c_long =
+static flag_string: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_done: ::core::ffi::c_long =
+static flag_done: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 7 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_need_comma: ::core::ffi::c_long =
+static flag_need_comma: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_need_colon: ::core::ffi::c_long =
+static flag_need_colon: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 6 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_block_comment: ::core::ffi::c_long =
+static flag_block_comment: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 14 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_next: ::core::ffi::c_long =
+static flag_next: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_reproc: ::core::ffi::c_long =
+static flag_reproc: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_escaped: ::core::ffi::c_long =
+static flag_escaped: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_num_negative: ::core::ffi::c_long =
+static flag_num_negative: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_num_e_negative: ::core::ffi::c_long =
+static flag_num_e_negative: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 12 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_num_e_got_sign: ::core::ffi::c_long =
+static flag_num_e_got_sign: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 11 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_num_zero: ::core::ffi::c_long =
+static flag_num_zero: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 9 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static mut flag_num_e: ::core::ffi::c_long =
+static flag_num_e: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 10 as ::core::ffi::c_int) as ::core::ffi::c_long;
 #[no_mangle]
 pub unsafe extern "C" fn json_parse_ex(

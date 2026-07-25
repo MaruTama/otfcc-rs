@@ -284,15 +284,15 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     return 0 as usize;
 }
 #[no_mangle]
-pub static mut DEFAULT_BLUE_SCALE: ::core::ffi::c_double = 0.039625f64;
+pub static DEFAULT_BLUE_SCALE: ::core::ffi::c_double = 0.039625f64;
 #[no_mangle]
-pub static mut DEFAULT_BLUE_SHIFT: ::core::ffi::c_double =
+pub static DEFAULT_BLUE_SHIFT: ::core::ffi::c_double =
     7 as ::core::ffi::c_int as ::core::ffi::c_double;
 #[no_mangle]
-pub static mut DEFAULT_BLUE_FUZZ: ::core::ffi::c_double =
+pub static DEFAULT_BLUE_FUZZ: ::core::ffi::c_double =
     1 as ::core::ffi::c_int as ::core::ffi::c_double;
 #[no_mangle]
-pub static mut DEFAULT_EXPANSION_FACTOR: ::core::ffi::c_double = 0.06f64;
+pub static DEFAULT_EXPANSION_FACTOR: ::core::ffi::c_double = 0.06f64;
 unsafe extern "C" fn otfcc_newCff_private() -> *mut cff_PrivateDict {
     let mut pd: *mut cff_PrivateDict = ::core::ptr::null_mut::<cff_PrivateDict>();
     pd = __caryll_allocate_clean(
@@ -385,7 +385,7 @@ unsafe extern "C" fn table_CFF_replace(mut dst: *mut table_CFF, src: table_CFF) 
     );
 }
 #[no_mangle]
-pub static mut table_iCFF: __caryll_elementinterface_table_CFF = {
+pub static table_iCFF: __caryll_elementinterface_table_CFF = {
     __caryll_elementinterface_table_CFF {
         init: Some(table_CFF_init as unsafe extern "C" fn(*mut table_CFF) -> ()),
         copy: Some(table_CFF_copy as unsafe extern "C" fn(*mut table_CFF, *const table_CFF) -> ()),
@@ -1123,7 +1123,7 @@ unsafe extern "C" fn callback_draw_getrand(
     };
     return a.d - q;
 }
-static mut drawPass: cff_IOutlineBuilder = {
+static drawPass: cff_IOutlineBuilder = {
     cff_IOutlineBuilder {
         setWidth: Some(
             callback_draw_setwidth

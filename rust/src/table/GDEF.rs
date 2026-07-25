@@ -193,7 +193,7 @@ pub struct __caryll_elementinterface_table_GDEF {
     pub free: Option<unsafe extern "C" fn(*mut table_GDEF) -> ()>,
 }
 #[no_mangle]
-pub static mut otl_iCaretValue: __caryll_elementinterface_otl_CaretValue =
+pub static otl_iCaretValue: __caryll_elementinterface_otl_CaretValue =
     __caryll_elementinterface_otl_CaretValue {
         init: None,
         copy: None,
@@ -373,7 +373,7 @@ unsafe extern "C" fn otl_CaretValueList_push(arr: *mut otl_CaretValueList, elem:
     cvec_push(otl_CaretValueList_as_cvec(arr), elem);
 }
 #[no_mangle]
-pub static mut otl_iCaretValueList: __caryll_vectorinterface_otl_CaretValueList = {
+pub static otl_iCaretValueList: __caryll_vectorinterface_otl_CaretValueList = {
     __caryll_vectorinterface_otl_CaretValueList {
         init: Some(otl_CaretValueList_init as unsafe extern "C" fn(*mut otl_CaretValueList) -> ()),
         copy: Some(
@@ -521,7 +521,7 @@ unsafe extern "C" fn deleteGdefLigCaretRec(mut v: *mut otl_CaretValueRecord) {
         .expect("non-null function pointer")(&raw mut (*v).carets);
 }
 #[no_mangle]
-pub static mut otl_iCaretValueRecord: __caryll_elementinterface_otl_CaretValueRecord = {
+pub static otl_iCaretValueRecord: __caryll_elementinterface_otl_CaretValueRecord = {
     __caryll_elementinterface_otl_CaretValueRecord {
         init: Some(initGdefLigCaretRec as unsafe extern "C" fn(*mut otl_CaretValueRecord) -> ()),
         copy: None,
@@ -542,7 +542,7 @@ unsafe extern "C" fn otl_LigCaretTable_init(arr: *mut otl_LigCaretTable) {
     cvec_init(otl_LigCaretTable_as_cvec(arr));
 }
 #[no_mangle]
-pub static mut otl_iLigCaretTable: __caryll_vectorinterface_otl_LigCaretTable = {
+pub static otl_iLigCaretTable: __caryll_vectorinterface_otl_LigCaretTable = {
     __caryll_vectorinterface_otl_LigCaretTable {
         init: Some(otl_LigCaretTable_init as unsafe extern "C" fn(*mut otl_LigCaretTable) -> ()),
         copy: Some(
@@ -890,7 +890,7 @@ unsafe extern "C" fn table_GDEF_dispose(mut x: *mut table_GDEF) {
     disposeGDEF(x);
 }
 #[no_mangle]
-pub static mut table_iGDEF: __caryll_elementinterface_table_GDEF = {
+pub static table_iGDEF: __caryll_elementinterface_table_GDEF = {
     __caryll_elementinterface_table_GDEF {
         init: Some(table_GDEF_init as unsafe extern "C" fn(*mut table_GDEF) -> ()),
         copy: Some(

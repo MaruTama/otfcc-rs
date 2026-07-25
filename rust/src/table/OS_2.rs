@@ -115,7 +115,7 @@ unsafe extern "C" fn table_OS_2_init(mut x: *mut table_OS_2) {
     initOS2(x);
 }
 #[no_mangle]
-pub static mut table_iOS_2: __caryll_elementinterface_table_OS_2 = {
+pub static table_iOS_2: __caryll_elementinterface_table_OS_2 = {
     __caryll_elementinterface_table_OS_2 {
         init: Some(table_OS_2_init as unsafe extern "C" fn(*mut table_OS_2) -> ()),
         copy: Some(

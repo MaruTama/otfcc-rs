@@ -276,7 +276,7 @@ unsafe extern "C" fn loggerDispose(mut _self: *mut otfcc_ILogger) {
     self_0 = ::core::ptr::null_mut::<Logger>();
 }
 #[no_mangle]
-pub static mut VTABLE_LOGGER: otfcc_ILogger = {
+pub static VTABLE_LOGGER: otfcc_ILogger = {
     otfcc_ILogger {
         dispose: Some(loggerDispose as unsafe extern "C" fn(*mut otfcc_ILogger) -> ()),
         indent: Some(
@@ -363,7 +363,7 @@ pub unsafe extern "C" fn stderrTargetPush(mut _self: *mut otfcc_ILoggerTarget, m
     <StderrLoggerTarget as LoggerTarget>::push(_self, data);
 }
 #[no_mangle]
-pub static mut VTABLE_STDERR_TARGET: otfcc_ILoggerTarget = {
+pub static VTABLE_STDERR_TARGET: otfcc_ILoggerTarget = {
     otfcc_ILoggerTarget {
         dispose: Some(stderrTargetDispose as unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()),
         push: Some(stderrTargetPush as unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()),
@@ -402,7 +402,7 @@ pub unsafe extern "C" fn emptyTargetPush(mut _self: *mut otfcc_ILoggerTarget, mu
     <EmptyLoggerTarget as LoggerTarget>::push(_self, data);
 }
 #[no_mangle]
-pub static mut VTABLE_EMPTY_TARGET: otfcc_ILoggerTarget = {
+pub static VTABLE_EMPTY_TARGET: otfcc_ILoggerTarget = {
     otfcc_ILoggerTarget {
         dispose: Some(emptyTargetDispose as unsafe extern "C" fn(*mut otfcc_ILoggerTarget) -> ()),
         push: Some(emptyTargetPush as unsafe extern "C" fn(*mut otfcc_ILoggerTarget, sds) -> ()),

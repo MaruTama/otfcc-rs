@@ -12,19 +12,19 @@ pub union dtoa_DoubleBits {
     pub d: ::core::ffi::c_double,
     pub u64_0: u64,
 }
-static mut kDiySignificandSize: ::core::ffi::c_int = 64 as ::core::ffi::c_int;
-static mut kDpSignificandSize: ::core::ffi::c_int = 52 as ::core::ffi::c_int;
-static mut kDpExponentBias: ::core::ffi::c_int =
+static kDiySignificandSize: ::core::ffi::c_int = 64 as ::core::ffi::c_int;
+static kDpSignificandSize: ::core::ffi::c_int = 52 as ::core::ffi::c_int;
+static kDpExponentBias: ::core::ffi::c_int =
     0x3ff as ::core::ffi::c_int + 52 as ::core::ffi::c_int;
-static mut kDpMinExponent: ::core::ffi::c_int =
+static kDpMinExponent: ::core::ffi::c_int =
     -(0x3ff as ::core::ffi::c_int) - 52 as ::core::ffi::c_int;
-static mut kDpExponentMask: u64 = (0x7ff00000 as ::core::ffi::c_int as u64)
+static kDpExponentMask: u64 = (0x7ff00000 as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0 as ::core::ffi::c_int as u64;
-static mut kDpSignificandMask: u64 = (0xfffff as ::core::ffi::c_int as u64)
+static kDpSignificandMask: u64 = (0xfffff as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0xffffffff as ::core::ffi::c_uint as u64;
-static mut kDpHiddenBit: u64 = (0x100000 as ::core::ffi::c_int as u64)
+static kDpHiddenBit: u64 = (0x100000 as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0 as ::core::ffi::c_int as u64;
 #[inline]

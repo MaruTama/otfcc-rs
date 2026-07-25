@@ -109,7 +109,7 @@ unsafe extern "C" fn table_cvt_dispose(mut x: *mut table_cvt) {
     disposeCvt(x);
 }
 #[no_mangle]
-pub static mut table_iCvt: __caryll_elementinterface_table_cvt = {
+pub static table_iCvt: __caryll_elementinterface_table_cvt = {
     __caryll_elementinterface_table_cvt {
         init: Some(table_cvt_init as unsafe extern "C" fn(*mut table_cvt) -> ()),
         copy: Some(table_cvt_copy as unsafe extern "C" fn(*mut table_cvt, *const table_cvt) -> ()),

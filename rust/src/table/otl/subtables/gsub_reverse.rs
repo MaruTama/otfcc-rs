@@ -131,7 +131,7 @@ unsafe extern "C" fn subtable_gsub_reverse_free(mut x: *mut subtable_gsub_revers
     free(x as *mut ::core::ffi::c_void);
 }
 #[no_mangle]
-pub static mut iSubtable_gsub_reverse: __caryll_elementinterface_subtable_gsub_reverse = {
+pub static iSubtable_gsub_reverse: __caryll_elementinterface_subtable_gsub_reverse = {
     __caryll_elementinterface_subtable_gsub_reverse {
         init: Some(
             subtable_gsub_reverse_init as unsafe extern "C" fn(*mut subtable_gsub_reverse) -> (),

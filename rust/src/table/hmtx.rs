@@ -103,7 +103,7 @@ unsafe extern "C" fn table_hmtx_replace(mut dst: *mut table_hmtx, src: table_hmt
     );
 }
 #[no_mangle]
-pub static mut table_iHmtx: __caryll_elementinterface_table_hmtx = {
+pub static table_iHmtx: __caryll_elementinterface_table_hmtx = {
     __caryll_elementinterface_table_hmtx {
         init: Some(table_hmtx_init as unsafe extern "C" fn(*mut table_hmtx) -> ()),
         copy: Some(

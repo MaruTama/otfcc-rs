@@ -54,7 +54,7 @@ pub struct __caryll_elementinterface_otl_GposSingleEntry {
 unsafe extern "C" fn deleteGposSingleEntry(mut entry: *mut otl_GposSingleEntry) {
     otfcc_Handle_dispose(&raw mut (*entry).target);
 }
-static mut gss_typeinfo: __caryll_elementinterface_otl_GposSingleEntry = {
+static gss_typeinfo: __caryll_elementinterface_otl_GposSingleEntry = {
     __caryll_elementinterface_otl_GposSingleEntry {
         init: None,
         copy: None,
@@ -306,7 +306,7 @@ unsafe extern "C" fn subtable_gpos_single_create() -> *mut subtable_gpos_single 
     return x;
 }
 #[no_mangle]
-pub static mut iSubtable_gpos_single: __caryll_vectorinterface_subtable_gpos_single = {
+pub static iSubtable_gpos_single: __caryll_vectorinterface_subtable_gpos_single = {
     __caryll_vectorinterface_subtable_gpos_single {
         init: Some(
             subtable_gpos_single_init as unsafe extern "C" fn(*mut subtable_gpos_single) -> (),

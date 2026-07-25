@@ -76,7 +76,7 @@ unsafe extern "C" fn table_maxp_replace(mut dst: *mut table_maxp, src: table_max
     );
 }
 #[no_mangle]
-pub static mut table_iMaxp: __caryll_elementinterface_table_maxp = {
+pub static table_iMaxp: __caryll_elementinterface_table_maxp = {
     __caryll_elementinterface_table_maxp {
         init: Some(table_maxp_init as unsafe extern "C" fn(*mut table_maxp) -> ()),
         copy: Some(

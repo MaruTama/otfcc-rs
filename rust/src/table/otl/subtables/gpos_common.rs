@@ -187,7 +187,7 @@ unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
 unsafe extern "C" fn deleteMarkArrayItem(mut entry: *mut otl_MarkRecord) {
     otfcc_Handle_dispose(&raw mut (*entry).glyph);
 }
-static mut gss_typeinfo: __caryll_elementinterface_otl_MarkRecord = {
+static gss_typeinfo: __caryll_elementinterface_otl_MarkRecord = {
     __caryll_elementinterface_otl_MarkRecord {
         init: None,
         copy: None,
@@ -355,7 +355,7 @@ unsafe extern "C" fn otl_MarkArray_filterEnv(
     (*arr).length = j;
 }
 #[no_mangle]
-pub static mut otl_iMarkArray: __caryll_vectorinterface_otl_MarkArray = {
+pub static otl_iMarkArray: __caryll_vectorinterface_otl_MarkArray = {
     __caryll_vectorinterface_otl_MarkArray {
         init: Some(otl_MarkArray_init as unsafe extern "C" fn(*mut otl_MarkArray) -> ()),
         copy: Some(
@@ -1994,15 +1994,15 @@ pub unsafe extern "C" fn bkFromAnchor(mut a: otl_Anchor) -> *mut bk_Block {
     return bk_new_Block(&[bk_int(b16, 1 as u32), bk_int(b16, (a.x as i16 as ::core::ffi::c_int) as u32), bk_int(b16, (a.y as i16 as ::core::ffi::c_int) as u32)]);
 }
 #[no_mangle]
-pub static mut FORMAT_DX: u8 = 1 as u8;
+pub static FORMAT_DX: u8 = 1 as u8;
 #[no_mangle]
-pub static mut FORMAT_DY: u8 = 2 as u8;
+pub static FORMAT_DY: u8 = 2 as u8;
 #[no_mangle]
-pub static mut FORMAT_DWIDTH: u8 = 4 as u8;
+pub static FORMAT_DWIDTH: u8 = 4 as u8;
 #[no_mangle]
-pub static mut FORMAT_DHEIGHT: u8 = 8 as u8;
+pub static FORMAT_DHEIGHT: u8 = 8 as u8;
 #[no_mangle]
-pub static mut bits_in: [u8; 256] = [
+pub static bits_in: [u8; 256] = [
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int

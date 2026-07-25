@@ -1102,7 +1102,7 @@ unsafe extern "C" fn disposeSubtableDependent(
         _ => {}
     };
 }
-static mut otl_iSubtablePtr: __caryll_elementinterface_otl_SubtablePtr =
+static otl_iSubtablePtr: __caryll_elementinterface_otl_SubtablePtr =
     __caryll_elementinterface_otl_SubtablePtr {
         init: None,
         copy: None,
@@ -1358,7 +1358,7 @@ unsafe extern "C" fn otl_SubtableList_initN(mut arr: *mut otl_SubtableList, mut 
     otl_SubtableList_fill(arr, n);
 }
 #[no_mangle]
-pub static mut otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList = {
+pub static otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList = {
     __caryll_vectorinterface_otl_SubtableList {
         init: Some(otl_SubtableList_init as unsafe extern "C" fn(*mut otl_SubtableList) -> ()),
         copy: Some(
@@ -1466,7 +1466,7 @@ unsafe extern "C" fn disposeLookupPtr(mut entry: *mut otl_LookupPtr) {
     otfcc_delete_lookup(*entry);
 }
 #[no_mangle]
-pub static mut otl_iLookupPtr: __caryll_elementinterface_otl_LookupPtr = {
+pub static otl_iLookupPtr: __caryll_elementinterface_otl_LookupPtr = {
     __caryll_elementinterface_otl_LookupPtr {
         init: Some(otl_LookupPtr_init as unsafe extern "C" fn(*mut otl_LookupPtr) -> ()),
         copy: Some(
@@ -1743,7 +1743,7 @@ unsafe extern "C" fn otl_LookupList_create() -> *mut otl_LookupList {
     return x;
 }
 #[no_mangle]
-pub static mut otl_iLookupList: __caryll_vectorinterface_otl_LookupList = {
+pub static otl_iLookupList: __caryll_vectorinterface_otl_LookupList = {
     __caryll_vectorinterface_otl_LookupList {
         init: Some(otl_LookupList_init as unsafe extern "C" fn(*mut otl_LookupList) -> ()),
         copy: Some(
@@ -1858,7 +1858,7 @@ unsafe extern "C" fn otl_LookupRef_replace(mut dst: *mut otl_LookupRef, src: otl
     );
 }
 #[no_mangle]
-pub static mut otl_iLookupRef: __caryll_elementinterface_otl_LookupRef = {
+pub static otl_iLookupRef: __caryll_elementinterface_otl_LookupRef = {
     __caryll_elementinterface_otl_LookupRef {
         init: Some(otl_LookupRef_init as unsafe extern "C" fn(*mut otl_LookupRef) -> ()),
         copy: Some(
@@ -1884,7 +1884,7 @@ unsafe extern "C" fn otl_LookupRefList_pop(arr: *mut otl_LookupRefList) -> otl_L
     cvec_pop(otl_LookupRefList_as_cvec(arr))
 }
 #[no_mangle]
-pub static mut otl_iLookupRefList: __caryll_vectorinterface_otl_LookupRefList = {
+pub static otl_iLookupRefList: __caryll_vectorinterface_otl_LookupRefList = {
     __caryll_vectorinterface_otl_LookupRefList {
         init: Some(otl_LookupRefList_init as unsafe extern "C" fn(*mut otl_LookupRefList) -> ()),
         copy: Some(
@@ -2243,7 +2243,7 @@ unsafe extern "C" fn otl_FeaturePtr_init(mut x: *mut otl_FeaturePtr) {
     initFeaturePtr(x);
 }
 #[no_mangle]
-pub static mut otl_iFeaturePtr: __caryll_elementinterface_otl_FeaturePtr = {
+pub static otl_iFeaturePtr: __caryll_elementinterface_otl_FeaturePtr = {
     __caryll_elementinterface_otl_FeaturePtr {
         init: Some(otl_FeaturePtr_init as unsafe extern "C" fn(*mut otl_FeaturePtr) -> ()),
         copy: Some(
@@ -2436,7 +2436,7 @@ unsafe extern "C" fn otl_FeatureList_initCapN(mut arr: *mut otl_FeatureList, mut
     otl_FeatureList_growToN(arr, n);
 }
 #[no_mangle]
-pub static mut otl_iFeatureList: __caryll_vectorinterface_otl_FeatureList = {
+pub static otl_iFeatureList: __caryll_vectorinterface_otl_FeatureList = {
     __caryll_vectorinterface_otl_FeatureList {
         init: Some(otl_FeatureList_init as unsafe extern "C" fn(*mut otl_FeatureList) -> ()),
         copy: Some(
@@ -2563,7 +2563,7 @@ unsafe extern "C" fn otl_FeatureList_disposeItem(mut arr: *mut otl_FeatureList, 
     };
 }
 #[no_mangle]
-pub static mut otl_iFeatureRef: __caryll_elementinterface_otl_FeatureRef = {
+pub static otl_iFeatureRef: __caryll_elementinterface_otl_FeatureRef = {
     __caryll_elementinterface_otl_FeatureRef {
         init: Some(otl_FeatureRef_init as unsafe extern "C" fn(*mut otl_FeatureRef) -> ()),
         copy: Some(
@@ -2763,7 +2763,7 @@ unsafe extern "C" fn otl_FeatureRefList_create() -> *mut otl_FeatureRefList {
     return x;
 }
 #[no_mangle]
-pub static mut otl_iFeatureRefList: __caryll_vectorinterface_otl_FeatureRefList = {
+pub static otl_iFeatureRefList: __caryll_vectorinterface_otl_FeatureRefList = {
     __caryll_vectorinterface_otl_FeatureRefList {
         init: Some(otl_FeatureRefList_init as unsafe extern "C" fn(*mut otl_FeatureRefList) -> ()),
         copy: Some(
@@ -2960,7 +2960,7 @@ unsafe extern "C" fn disposeLanguagePtr(mut language: *mut otl_LanguageSystemPtr
     *language = ::core::ptr::null_mut::<otl_LanguageSystem>();
 }
 #[no_mangle]
-pub static mut otl_iLanguageSystem: __caryll_elementinterface_otl_LanguageSystemPtr = {
+pub static otl_iLanguageSystem: __caryll_elementinterface_otl_LanguageSystemPtr = {
     __caryll_elementinterface_otl_LanguageSystemPtr {
         init: Some(initLanguagePtr as unsafe extern "C" fn(*mut otl_LanguageSystemPtr) -> ()),
         copy: None,
@@ -3013,7 +3013,7 @@ unsafe extern "C" fn otl_LangSystemList_init(arr: *mut otl_LangSystemList) {
     cvec_init(otl_LangSystemList_as_cvec(arr));
 }
 #[no_mangle]
-pub static mut otl_iLangSystemList: __caryll_vectorinterface_otl_LangSystemList = {
+pub static otl_iLangSystemList: __caryll_vectorinterface_otl_LangSystemList = {
     __caryll_vectorinterface_otl_LangSystemList {
         init: Some(otl_LangSystemList_init as unsafe extern "C" fn(*mut otl_LangSystemList) -> ()),
         copy: Some(
@@ -3330,7 +3330,7 @@ unsafe extern "C" fn table_OTL_init(mut x: *mut table_OTL) {
     initOTL(x);
 }
 #[no_mangle]
-pub static mut table_iOTL: __caryll_elementinterface_table_OTL = {
+pub static table_iOTL: __caryll_elementinterface_table_OTL = {
     __caryll_elementinterface_table_OTL {
         init: Some(table_OTL_init as unsafe extern "C" fn(*mut table_OTL) -> ()),
         copy: Some(table_OTL_copy as unsafe extern "C" fn(*mut table_OTL, *const table_OTL) -> ()),

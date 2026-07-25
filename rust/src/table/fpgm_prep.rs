@@ -136,7 +136,7 @@ unsafe extern "C" fn table_fpgm_prep_dispose(mut x: *mut table_fpgm_prep) {
     disposeFpgmPrep(x);
 }
 #[no_mangle]
-pub static mut table_iFpgm_prep: __caryll_elementinterface_table_fpgm_prep = {
+pub static table_iFpgm_prep: __caryll_elementinterface_table_fpgm_prep = {
     __caryll_elementinterface_table_fpgm_prep {
         init: Some(table_fpgm_prep_init as unsafe extern "C" fn(*mut table_fpgm_prep) -> ()),
         copy: Some(

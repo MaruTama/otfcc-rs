@@ -46,7 +46,7 @@ unsafe extern "C" fn disposeVORG(mut vorg: *mut table_VORG) {
     (*vorg).entries = ::core::ptr::null_mut::<VORG_entry>();
 }
 #[no_mangle]
-pub static mut table_iVORG: __caryll_elementinterface_table_VORG = {
+pub static table_iVORG: __caryll_elementinterface_table_VORG = {
     __caryll_elementinterface_table_VORG {
         init: Some(table_VORG_init as unsafe extern "C" fn(*mut table_VORG) -> ()),
         copy: Some(

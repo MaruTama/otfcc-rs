@@ -228,7 +228,7 @@ unsafe extern "C" fn disposeFvarInstance(mut inst: *mut fvar_Instance) {
     iVV.dispose.expect("non-null function pointer")(&raw mut (*inst).coordinates);
 }
 #[no_mangle]
-pub static mut fvar_iInstance: __caryll_elementinterface_fvar_Instance = {
+pub static fvar_iInstance: __caryll_elementinterface_fvar_Instance = {
     __caryll_elementinterface_fvar_Instance {
         init: Some(fvar_Instance_init as unsafe extern "C" fn(*mut fvar_Instance) -> ()),
         copy: Some(
@@ -508,7 +508,7 @@ unsafe extern "C" fn fvar_InstanceList_growToN(arr: *mut fvar_InstanceList, targ
     cvec_grow_to_n(fvar_InstanceList_as_cvec(arr), target);
 }
 #[no_mangle]
-pub static mut fvar_iInstanceList: __caryll_vectorinterface_fvar_InstanceList = {
+pub static fvar_iInstanceList: __caryll_vectorinterface_fvar_InstanceList = {
     __caryll_vectorinterface_fvar_InstanceList {
         init: Some(fvar_InstanceList_init as unsafe extern "C" fn(*mut fvar_InstanceList) -> ()),
         copy: Some(
@@ -1848,7 +1848,7 @@ unsafe extern "C" fn table_fvar_move(mut dst: *mut table_fvar, mut src: *mut tab
     table_fvar_init(src);
 }
 #[no_mangle]
-pub static mut table_iFvar: __caryll_elementinterface_table_fvar = {
+pub static table_iFvar: __caryll_elementinterface_table_fvar = {
     __caryll_elementinterface_table_fvar {
         init: Some(table_fvar_init as unsafe extern "C" fn(*mut table_fvar) -> ()),
         copy: Some(

@@ -170,7 +170,7 @@ pub(crate) unsafe extern "C" fn handle_consolidateTo(
     (*h).name = sdsdup(name);
 }
 #[no_mangle]
-pub static mut otfcc_iHandle: otfcc_HandlePackage = {
+pub static otfcc_iHandle: otfcc_HandlePackage = {
     otfcc_HandlePackage {
         init: Some(otfcc_Handle_init as unsafe extern "C" fn(*mut otfcc_Handle) -> ()),
         copy: Some(

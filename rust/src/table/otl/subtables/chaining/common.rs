@@ -61,7 +61,7 @@ pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut subtable_chaini
     };
 }
 #[no_mangle]
-pub static mut iSubtable_chaining: __caryll_elementinterface_subtable_chaining = {
+pub static iSubtable_chaining: __caryll_elementinterface_subtable_chaining = {
     __caryll_elementinterface_subtable_chaining {
         init: Some(subtable_chaining_init as unsafe extern "C" fn(*mut subtable_chaining) -> ()),
         copy: Some(

@@ -144,7 +144,7 @@ unsafe extern "C" fn table_BASE_replace(mut dst: *mut table_BASE, src: table_BAS
     );
 }
 #[no_mangle]
-pub static mut table_iBASE: __caryll_elementinterface_table_BASE = {
+pub static table_iBASE: __caryll_elementinterface_table_BASE = {
     __caryll_elementinterface_table_BASE {
         init: Some(table_BASE_init as unsafe extern "C" fn(*mut table_BASE) -> ()),
         copy: Some(

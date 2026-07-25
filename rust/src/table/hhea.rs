@@ -77,7 +77,7 @@ unsafe extern "C" fn table_hhea_free(mut x: *mut table_hhea) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[no_mangle]
-pub static mut table_iHhea: __caryll_elementinterface_table_hhea = {
+pub static table_iHhea: __caryll_elementinterface_table_hhea = {
     __caryll_elementinterface_table_hhea {
         init: Some(table_hhea_init as unsafe extern "C" fn(*mut table_hhea) -> ()),
         copy: Some(

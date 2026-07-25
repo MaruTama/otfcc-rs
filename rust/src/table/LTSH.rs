@@ -50,7 +50,7 @@ unsafe extern "C" fn table_LTSH_free(mut x: *mut table_LTSH) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[no_mangle]
-pub static mut table_iLTSH: __caryll_elementinterface_table_LTSH = {
+pub static table_iLTSH: __caryll_elementinterface_table_LTSH = {
     __caryll_elementinterface_table_LTSH {
         init: Some(table_LTSH_init as unsafe extern "C" fn(*mut table_LTSH) -> ()),
         copy: Some(

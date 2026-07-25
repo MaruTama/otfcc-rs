@@ -90,7 +90,7 @@ unsafe extern "C" fn disposeMetaEntry(mut e: *mut meta_Entry) {
     sdsfree((*e).data);
 }
 #[no_mangle]
-pub static mut meta_iEntry: __caryll_elementinterface_meta_Entry = {
+pub static meta_iEntry: __caryll_elementinterface_meta_Entry = {
     __caryll_elementinterface_meta_Entry {
         init: Some(meta_Entry_init as unsafe extern "C" fn(*mut meta_Entry) -> ()),
         copy: Some(
@@ -189,7 +189,7 @@ unsafe extern "C" fn meta_Entries_init(arr: *mut meta_Entries) {
     cvec_init(meta_Entries_as_cvec(arr));
 }
 #[no_mangle]
-pub static mut meta_iEntries: __caryll_vectorinterface_meta_Entries = {
+pub static meta_iEntries: __caryll_vectorinterface_meta_Entries = {
     __caryll_vectorinterface_meta_Entries {
         init: Some(meta_Entries_init as unsafe extern "C" fn(*mut meta_Entries) -> ()),
         copy: Some(
@@ -447,7 +447,7 @@ unsafe extern "C" fn table_meta_copy(mut dst: *mut table_meta, mut src: *const t
     );
 }
 #[no_mangle]
-pub static mut table_iMeta: __caryll_elementinterface_table_meta = {
+pub static table_iMeta: __caryll_elementinterface_table_meta = {
     __caryll_elementinterface_table_meta {
         init: Some(table_meta_init as unsafe extern "C" fn(*mut table_meta) -> ()),
         copy: Some(

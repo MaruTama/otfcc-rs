@@ -1,6 +1,6 @@
 use libc::{malloc, memset};
 
-static mut base64_table: [u8; 64] = unsafe {
+static base64_table: [u8; 64] = unsafe {
     ::core::mem::transmute::<[u8; 64], [u8; 64]>(
         *b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
     )

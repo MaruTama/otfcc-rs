@@ -174,7 +174,7 @@ unsafe extern "C" fn tsi_Entry_move(mut dst: *mut tsi_Entry, mut src: *mut tsi_E
     tsi_Entry_init(src);
 }
 #[no_mangle]
-pub static mut tsi_iEntry: __caryll_elementinterface_tsi_Entry = {
+pub static tsi_iEntry: __caryll_elementinterface_tsi_Entry = {
     __caryll_elementinterface_tsi_Entry {
         init: Some(tsi_Entry_init as unsafe extern "C" fn(*mut tsi_Entry) -> ()),
         copy: Some(tsi_Entry_copy as unsafe extern "C" fn(*mut tsi_Entry, *const tsi_Entry) -> ()),
@@ -291,7 +291,7 @@ unsafe extern "C" fn table_TSI_sort(
     );
 }
 #[no_mangle]
-pub static mut table_iTSI: __caryll_vectorinterface_table_TSI = {
+pub static table_iTSI: __caryll_vectorinterface_table_TSI = {
     __caryll_vectorinterface_table_TSI {
         init: Some(table_TSI_init as unsafe extern "C" fn(*mut table_TSI) -> ()),
         copy: Some(table_TSI_copy as unsafe extern "C" fn(*mut table_TSI, *const table_TSI) -> ()),

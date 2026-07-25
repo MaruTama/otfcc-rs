@@ -32,7 +32,7 @@ pub const json_serialize_opt_no_space_after_colon: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int;
 pub const json_serialize_opt_use_tabs: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int;
-static mut default_opts: json_serialize_opts = json_serialize_opts {
+static default_opts: json_serialize_opts = json_serialize_opts {
     mode: json_serialize_mode_single_line,
     opts: 0 as ::core::ffi::c_int,
     indent_size: 3 as ::core::ffi::c_int,
@@ -73,16 +73,16 @@ unsafe extern "C" fn builderize(mut value: *mut json_value) -> ::core::ffi::c_in
 #[no_mangle]
 pub static mut json_builder_extra: usize = 0;
 #[no_mangle]
-pub static mut f_spaces_around_brackets: ::core::ffi::c_int =
+pub static f_spaces_around_brackets: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int;
 #[no_mangle]
-pub static mut f_spaces_after_commas: ::core::ffi::c_int =
+pub static f_spaces_after_commas: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int;
 #[no_mangle]
-pub static mut f_spaces_after_colons: ::core::ffi::c_int =
+pub static f_spaces_after_colons: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int;
 #[no_mangle]
-pub static mut f_tabs: ::core::ffi::c_int = (1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int;
+pub static f_tabs: ::core::ffi::c_int = (1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int;
 #[no_mangle]
 pub unsafe extern "C" fn get_serialize_flags(mut opts: json_serialize_opts) -> ::core::ffi::c_int {
     let mut flags: ::core::ffi::c_int = 0 as ::core::ffi::c_int;

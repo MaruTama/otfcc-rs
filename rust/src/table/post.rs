@@ -421,7 +421,7 @@ unsafe extern "C" fn table_post_replace(mut dst: *mut table_post, src: table_pos
     );
 }
 #[no_mangle]
-pub static mut iTable_post: __caryll_elementinterface_table_post = {
+pub static iTable_post: __caryll_elementinterface_table_post = {
     __caryll_elementinterface_table_post {
         init: Some(table_post_init as unsafe extern "C" fn(*mut table_post) -> ()),
         copy: Some(

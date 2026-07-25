@@ -187,7 +187,7 @@ unsafe extern "C" fn deleteLigArrayItem(mut entry: *mut otl_LigatureBaseRecord) 
         (*entry).anchors = ::core::ptr::null_mut::<*mut otl_Anchor>();
     }
 }
-static mut la_typeinfo: __caryll_elementinterface_otl_LigatureBaseRecord = {
+static la_typeinfo: __caryll_elementinterface_otl_LigatureBaseRecord = {
     __caryll_elementinterface_otl_LigatureBaseRecord {
         init: None,
         copy: None,
@@ -361,7 +361,7 @@ unsafe extern "C" fn otl_LigatureArray_filterEnv(
     (*arr).length = j;
 }
 #[no_mangle]
-pub static mut otl_iLigatureArray: __caryll_vectorinterface_otl_LigatureArray = {
+pub static otl_iLigatureArray: __caryll_vectorinterface_otl_LigatureArray = {
     __caryll_vectorinterface_otl_LigatureArray {
         init: Some(otl_LigatureArray_init as unsafe extern "C" fn(*mut otl_LigatureArray) -> ()),
         copy: Some(
@@ -573,7 +573,7 @@ unsafe extern "C" fn subtable_gpos_markToLigature_move(
     subtable_gpos_markToLigature_init(src);
 }
 #[no_mangle]
-pub static mut iSubtable_gpos_markToLigature:
+pub static iSubtable_gpos_markToLigature:
     __caryll_elementinterface_subtable_gpos_markToLigature = {
     __caryll_elementinterface_subtable_gpos_markToLigature {
         init: Some(

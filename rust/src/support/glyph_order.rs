@@ -4541,7 +4541,7 @@ unsafe extern "C" fn gordLookupName(mut go: *mut otfcc_GlyphOrder, mut name: sds
     return false;
 }
 #[no_mangle]
-pub static mut otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage = {
+pub static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage = {
     otfcc_GlyphOrderPackage {
         init: Some(otfcc_GlyphOrder_init as unsafe extern "C" fn(*mut otfcc_GlyphOrder) -> ()),
         copy: Some(

@@ -63,7 +63,7 @@ unsafe extern "C" fn gss_entry_dtor(mut entry: *mut otl_GsubSingleEntry) {
     otfcc_Handle_dispose(&raw mut (*entry).from);
     otfcc_Handle_dispose(&raw mut (*entry).to);
 }
-static mut gss_typeinfo: __caryll_elementinterface_otl_GsubSingleEntry = {
+static gss_typeinfo: __caryll_elementinterface_otl_GsubSingleEntry = {
     __caryll_elementinterface_otl_GsubSingleEntry {
         init: Some(gss_entry_ctor as unsafe extern "C" fn(*mut otl_GsubSingleEntry) -> ()),
         copy: Some(
@@ -116,7 +116,7 @@ unsafe extern "C" fn subtable_gsub_single_filterEnv(
     (*arr).length = j;
 }
 #[no_mangle]
-pub static mut iSubtable_gsub_single: __caryll_vectorinterface_subtable_gsub_single = {
+pub static iSubtable_gsub_single: __caryll_vectorinterface_subtable_gsub_single = {
     __caryll_vectorinterface_subtable_gsub_single {
         init: Some(
             subtable_gsub_single_init as unsafe extern "C" fn(*mut subtable_gsub_single) -> (),

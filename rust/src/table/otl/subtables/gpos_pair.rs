@@ -229,7 +229,7 @@ unsafe extern "C" fn subtable_gpos_pair_init(mut x: *mut subtable_gpos_pair) {
     initGposPair(x);
 }
 #[no_mangle]
-pub static mut iSubtable_gpos_pair: __caryll_elementinterface_subtable_gpos_pair = {
+pub static iSubtable_gpos_pair: __caryll_elementinterface_subtable_gpos_pair = {
     __caryll_elementinterface_subtable_gpos_pair {
         init: Some(subtable_gpos_pair_init as unsafe extern "C" fn(*mut subtable_gpos_pair) -> ()),
         copy: Some(

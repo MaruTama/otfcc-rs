@@ -436,7 +436,7 @@ unsafe extern "C" fn buildIndex(mut index: *const cff_Index) -> *mut caryll_Buff
     return blob;
 }
 #[no_mangle]
-pub static mut cff_iIndex: __caryll_elementinterface_cff_Index = {
+pub static cff_iIndex: __caryll_elementinterface_cff_Index = {
     __caryll_elementinterface_cff_Index {
         init: Some(cff_Index_init as unsafe extern "C" fn(*mut cff_Index) -> ()),
         copy: Some(cff_Index_copy as unsafe extern "C" fn(*mut cff_Index, *const cff_Index) -> ()),

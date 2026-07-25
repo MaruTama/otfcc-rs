@@ -95,7 +95,7 @@ unsafe extern "C" fn table_vhea_init(mut x: *mut table_vhea) {
     initVhea(x);
 }
 #[no_mangle]
-pub static mut table_iVhea: __caryll_elementinterface_table_vhea = {
+pub static table_iVhea: __caryll_elementinterface_table_vhea = {
     __caryll_elementinterface_table_vhea {
         init: Some(table_vhea_init as unsafe extern "C" fn(*mut table_vhea) -> ()),
         copy: Some(

@@ -338,7 +338,7 @@ unsafe extern "C" fn cff_dec_i(mut start: *const u8, mut val: *mut cff_Value) ->
     (*val).t = cff_INTEGER;
     return len;
 }
-static mut nibble_attr: [::core::ffi::c_int; 15] = [
+static nibble_attr: [::core::ffi::c_int; 15] = [
     1 as ::core::ffi::c_int,
     1 as ::core::ffi::c_int,
     1 as ::core::ffi::c_int,
@@ -517,7 +517,7 @@ unsafe extern "C" fn cff_dec_e(mut start: *const u8, mut val: *mut cff_Value) ->
     (*val).t = cff_INTEGER;
     return 1 as u32;
 }
-static mut _de_t2: [Option<unsafe extern "C" fn(*const u8, *mut cff_Value) -> u32>; 256] = {
+static _de_t2: [Option<unsafe extern "C" fn(*const u8, *mut cff_Value) -> u32>; 256] = {
     [
         Some(cff_dec_o as unsafe extern "C" fn(*const u8, *mut cff_Value) -> u32),
         Some(cff_dec_o as unsafe extern "C" fn(*const u8, *mut cff_Value) -> u32),

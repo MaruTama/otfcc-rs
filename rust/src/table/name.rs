@@ -181,7 +181,7 @@ unsafe extern "C" fn otfcc_NameRecord_copyReplace(
     otfcc_NameRecord_copy(dst, &raw const src);
 }
 #[no_mangle]
-pub static mut otfcc_iNameRecord: __caryll_elementinterface_otfcc_NameRecord = {
+pub static otfcc_iNameRecord: __caryll_elementinterface_otfcc_NameRecord = {
     __caryll_elementinterface_otfcc_NameRecord {
         init: Some(otfcc_NameRecord_init as unsafe extern "C" fn(*mut otfcc_NameRecord) -> ()),
         copy: Some(
@@ -332,7 +332,7 @@ unsafe extern "C" fn table_name_grow(arr: *mut table_name) {
     cvec_grow(table_name_as_cvec(arr));
 }
 #[no_mangle]
-pub static mut table_iName: __caryll_vectorinterface_table_name = {
+pub static table_iName: __caryll_vectorinterface_table_name = {
     __caryll_vectorinterface_table_name {
         init: Some(table_name_init as unsafe extern "C" fn(*mut table_name) -> ()),
         copy: Some(

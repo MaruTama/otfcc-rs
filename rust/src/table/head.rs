@@ -118,7 +118,7 @@ unsafe extern "C" fn table_head_move(mut dst: *mut table_head, mut src: *mut tab
     table_head_init(src);
 }
 #[no_mangle]
-pub static mut table_iHead: __caryll_elementinterface_table_head = {
+pub static table_iHead: __caryll_elementinterface_table_head = {
     __caryll_elementinterface_table_head {
         init: Some(table_head_init as unsafe extern "C" fn(*mut table_head) -> ()),
         copy: Some(

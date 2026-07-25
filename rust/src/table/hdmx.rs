@@ -55,7 +55,7 @@ unsafe extern "C" fn disposeHdmx(mut table: *mut table_hdmx) {
     (*table).records = ::core::ptr::null_mut::<device_record>();
 }
 #[no_mangle]
-pub static mut table_iHdmx: __caryll_elementinterface_table_hdmx = {
+pub static table_iHdmx: __caryll_elementinterface_table_hdmx = {
     __caryll_elementinterface_table_hdmx {
         init: Some(table_hdmx_init as unsafe extern "C" fn(*mut table_hdmx) -> ()),
         copy: Some(

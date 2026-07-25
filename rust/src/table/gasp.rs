@@ -146,7 +146,7 @@ unsafe extern "C" fn gasp_Record_init(mut x: *mut gasp_Record) {
     );
 }
 #[no_mangle]
-pub static mut gasp_iRecord: __caryll_elementinterface_gasp_Record = {
+pub static gasp_iRecord: __caryll_elementinterface_gasp_Record = {
     __caryll_elementinterface_gasp_Record {
         init: Some(gasp_Record_init as unsafe extern "C" fn(*mut gasp_Record) -> ()),
         copy: Some(
@@ -333,7 +333,7 @@ unsafe extern "C" fn gasp_RecordList_filterEnv(
     (*arr).length = j;
 }
 #[no_mangle]
-pub static mut gasp_iRecordList: __caryll_vectorinterface_gasp_RecordList = {
+pub static gasp_iRecordList: __caryll_vectorinterface_gasp_RecordList = {
     __caryll_vectorinterface_gasp_RecordList {
         init: Some(gasp_RecordList_init as unsafe extern "C" fn(*mut gasp_RecordList) -> ()),
         copy: Some(
@@ -512,7 +512,7 @@ unsafe extern "C" fn table_gasp_copyReplace(mut dst: *mut table_gasp, src: table
     table_gasp_copy(dst, &raw const src);
 }
 #[no_mangle]
-pub static mut table_iGasp: __caryll_elementinterface_table_gasp = {
+pub static table_iGasp: __caryll_elementinterface_table_gasp = {
     __caryll_elementinterface_table_gasp {
         init: Some(table_gasp_init as unsafe extern "C" fn(*mut table_gasp) -> ()),
         copy: Some(

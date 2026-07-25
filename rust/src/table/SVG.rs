@@ -176,7 +176,7 @@ unsafe extern "C" fn svg_Assignment_replace(mut dst: *mut svg_Assignment, src: s
     );
 }
 #[no_mangle]
-pub static mut svg_iAssignment: __caryll_elementinterface_svg_Assignment = {
+pub static svg_iAssignment: __caryll_elementinterface_svg_Assignment = {
     __caryll_elementinterface_svg_Assignment {
         init: Some(svg_Assignment_init as unsafe extern "C" fn(*mut svg_Assignment) -> ()),
         copy: Some(
@@ -260,7 +260,7 @@ unsafe extern "C" fn table_SVG_init(arr: *mut table_SVG) {
     cvec_init(table_SVG_as_cvec(arr));
 }
 #[no_mangle]
-pub static mut table_iSVG: __caryll_vectorinterface_table_SVG = {
+pub static table_iSVG: __caryll_vectorinterface_table_SVG = {
     __caryll_vectorinterface_table_SVG {
         init: Some(table_SVG_init as unsafe extern "C" fn(*mut table_SVG) -> ()),
         copy: Some(table_SVG_copy as unsafe extern "C" fn(*mut table_SVG, *const table_SVG) -> ()),

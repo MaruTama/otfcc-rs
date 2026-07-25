@@ -4677,7 +4677,7 @@ pub unsafe extern "C" fn otfcc_cmapLookupUVS(
     };
 }
 #[no_mangle]
-pub static mut table_iCmap: __caryll_elementinterface_table_cmap = {
+pub static table_iCmap: __caryll_elementinterface_table_cmap = {
     __caryll_elementinterface_table_cmap {
         init: Some(table_cmap_init as unsafe extern "C" fn(*mut table_cmap) -> ()),
         copy: Some(
@@ -5032,7 +5032,7 @@ unsafe extern "C" fn isValidCmapEncoding(mut platform: u16, mut encoding: u16) -
             && encoding as ::core::ffi::c_int == 10 as ::core::ffi::c_int;
 }
 #[no_mangle]
-pub static mut formatPriorities: [tableid_t; 3] = [
+pub static formatPriorities: [tableid_t; 3] = [
     12 as ::core::ffi::c_int as tableid_t,
     4 as ::core::ffi::c_int as tableid_t,
     0 as ::core::ffi::c_int as tableid_t,

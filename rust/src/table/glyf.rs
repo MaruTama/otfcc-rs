@@ -623,7 +623,7 @@ unsafe extern "C" fn glyf_Point_init(mut x: *mut glyf_Point) {
     createPoint(x);
 }
 #[no_mangle]
-pub static mut glyf_iPoint: __caryll_elementinterface_glyf_Point = {
+pub static glyf_iPoint: __caryll_elementinterface_glyf_Point = {
     __caryll_elementinterface_glyf_Point {
         init: Some(glyf_Point_init as unsafe extern "C" fn(*mut glyf_Point) -> ()),
         copy: Some(
@@ -709,7 +709,7 @@ unsafe extern "C" fn glyf_Contour_create() -> *mut glyf_Contour {
     return x;
 }
 #[no_mangle]
-pub static mut glyf_iContour: __caryll_vectorinterface_glyf_Contour = {
+pub static glyf_iContour: __caryll_vectorinterface_glyf_Contour = {
     __caryll_vectorinterface_glyf_Contour {
         init: Some(glyf_Contour_init as unsafe extern "C" fn(*mut glyf_Contour) -> ()),
         copy: Some(
@@ -1122,7 +1122,7 @@ unsafe extern "C" fn glyf_ContourList_dispose(mut arr: *mut glyf_ContourList) {
     (*arr).capacity = 0 as usize;
 }
 #[no_mangle]
-pub static mut glyf_iContourList: __caryll_vectorinterface_glyf_ContourList = {
+pub static glyf_iContourList: __caryll_vectorinterface_glyf_ContourList = {
     __caryll_vectorinterface_glyf_ContourList {
         init: Some(glyf_ContourList_init as unsafe extern "C" fn(*mut glyf_ContourList) -> ()),
         copy: Some(
@@ -1417,7 +1417,7 @@ unsafe extern "C" fn glyf_ComponentReference_init(mut x: *mut glyf_ComponentRefe
     initGlyfReference(x);
 }
 #[no_mangle]
-pub static mut glyf_iComponentReference: __caryll_elementinterface_glyf_ComponentReference = {
+pub static glyf_iComponentReference: __caryll_elementinterface_glyf_ComponentReference = {
     __caryll_elementinterface_glyf_ComponentReference {
         init: Some(
             glyf_ComponentReference_init
@@ -1654,7 +1654,7 @@ unsafe extern "C" fn glyf_ReferenceList_shrinkToFit(mut arr: *mut glyf_Reference
     glyf_ReferenceList_resizeTo(arr, (*arr).length);
 }
 #[no_mangle]
-pub static mut glyf_iReferenceList: __caryll_vectorinterface_glyf_ReferenceList = {
+pub static glyf_iReferenceList: __caryll_vectorinterface_glyf_ReferenceList = {
     __caryll_vectorinterface_glyf_ReferenceList {
         init: Some(glyf_ReferenceList_init as unsafe extern "C" fn(*mut glyf_ReferenceList) -> ()),
         copy: Some(
@@ -1829,7 +1829,7 @@ unsafe extern "C" fn glyf_PostscriptStemDef_copyReplace(
     glyf_PostscriptStemDef_copy(dst, &raw const src);
 }
 #[no_mangle]
-pub static mut glyf_iPostscriptStemDef: __caryll_elementinterface_glyf_PostscriptStemDef = {
+pub static glyf_iPostscriptStemDef: __caryll_elementinterface_glyf_PostscriptStemDef = {
     __caryll_elementinterface_glyf_PostscriptStemDef {
         init: Some(
             glyf_PostscriptStemDef_init as unsafe extern "C" fn(*mut glyf_PostscriptStemDef) -> (),
@@ -2145,7 +2145,7 @@ unsafe extern "C" fn glyf_StemDefList_create() -> *mut glyf_StemDefList {
     return x;
 }
 #[no_mangle]
-pub static mut glyf_iStemDefList: __caryll_vectorinterface_glyf_StemDefList = {
+pub static glyf_iStemDefList: __caryll_vectorinterface_glyf_StemDefList = {
     __caryll_vectorinterface_glyf_StemDefList {
         init: Some(glyf_StemDefList_init as unsafe extern "C" fn(*mut glyf_StemDefList) -> ()),
         copy: Some(
@@ -2225,7 +2225,7 @@ pub static mut glyf_iStemDefList: __caryll_vectorinterface_glyf_StemDefList = {
     }
 };
 #[no_mangle]
-pub static mut glyf_iPostscriptHintMask: __caryll_elementinterface_glyf_PostscriptHintMask = {
+pub static glyf_iPostscriptHintMask: __caryll_elementinterface_glyf_PostscriptHintMask = {
     __caryll_elementinterface_glyf_PostscriptHintMask {
         init: Some(
             glyf_PostscriptHintMask_init
@@ -2347,7 +2347,7 @@ unsafe extern "C" fn glyf_MaskList_copy(
     };
 }
 #[no_mangle]
-pub static mut glyf_iMaskList: __caryll_vectorinterface_glyf_MaskList = {
+pub static glyf_iMaskList: __caryll_vectorinterface_glyf_MaskList = {
     __caryll_vectorinterface_glyf_MaskList {
         init: Some(glyf_MaskList_init as unsafe extern "C" fn(*mut glyf_MaskList) -> ()),
         copy: Some(
@@ -2697,7 +2697,7 @@ unsafe extern "C" fn disposeGlyfPtr(mut g: *mut glyf_GlyphPtr) {
     otfcc_deleteGlyf_glyph(*g);
 }
 #[no_mangle]
-pub static mut glyf_iGlyphPtr: __caryll_elementinterface_glyf_GlyphPtr = {
+pub static glyf_iGlyphPtr: __caryll_elementinterface_glyf_GlyphPtr = {
     __caryll_elementinterface_glyf_GlyphPtr {
         init: Some(initGlyfPtr as unsafe extern "C" fn(*mut glyf_GlyphPtr) -> ()),
         copy: Some(
@@ -2920,7 +2920,7 @@ unsafe extern "C" fn table_glyf_create() -> *mut table_glyf {
     return x;
 }
 #[no_mangle]
-pub static mut table_iGlyf: __caryll_vectorinterface_table_glyf = {
+pub static table_iGlyf: __caryll_vectorinterface_table_glyf = {
     __caryll_vectorinterface_table_glyf {
         init: Some(table_glyf_init as unsafe extern "C" fn(*mut table_glyf) -> ()),
         copy: Some(

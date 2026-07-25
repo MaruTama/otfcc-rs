@@ -1,6 +1,6 @@
 
 #[no_mangle]
-pub static mut SCRIPT_LANGUAGE_SEPARATOR: ::core::ffi::c_char = '_' as i32 as ::core::ffi::c_char;
+pub static SCRIPT_LANGUAGE_SEPARATOR: ::core::ffi::c_char = '_' as i32 as ::core::ffi::c_char;
 #[no_mangle]
 pub static mut lookupFlagsLabels: [*const ::core::ffi::c_char; 5] = [
     b"rightToLeft\0" as *const u8 as *const ::core::ffi::c_char,

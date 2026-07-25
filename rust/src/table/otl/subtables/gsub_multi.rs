@@ -48,7 +48,7 @@ unsafe extern "C" fn deleteGsubMultiEntry(mut entry: *mut otl_GsubMultiEntry) {
     otl_Coverage_free((*entry).to);
     (*entry).to = ::core::ptr::null_mut::<otl_Coverage>();
 }
-static mut gsm_typeinfo: __caryll_elementinterface_otl_GsubMultiEntry = {
+static gsm_typeinfo: __caryll_elementinterface_otl_GsubMultiEntry = {
     __caryll_elementinterface_otl_GsubMultiEntry {
         init: None,
         copy: None,
@@ -67,7 +67,7 @@ unsafe extern "C" fn subtable_gsub_multi_growTo(arr: *mut subtable_gsub_multi, t
     cvec_grow_to(as_cvec(arr), target);
 }
 #[no_mangle]
-pub static mut iSubtable_gsub_multi: __caryll_vectorinterface_subtable_gsub_multi = {
+pub static iSubtable_gsub_multi: __caryll_vectorinterface_subtable_gsub_multi = {
     __caryll_vectorinterface_subtable_gsub_multi {
         init: Some(
             subtable_gsub_multi_init as unsafe extern "C" fn(*mut subtable_gsub_multi) -> (),
