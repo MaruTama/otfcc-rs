@@ -651,15 +651,16 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
-- **Real `enum`s, the rest.** Thirteen are done — `handle_state`, the ten
-  whose values the crate generates itself, and `bk_CellType`/`tsi_EntryType`.
-  Twenty `pub type X = c_uint` aliases are left, and what remains is
-  everything a plain `enum` cannot express:
-  - values that come **out of a font file** (`otl_LookupType`, the CFF
-    operator and format-byte tables, `ttf_instructions`) need `TryFrom` and a
-    look at what C's `default` branch does with an unknown value. Never
-    `transmute` — an out-of-range discriminant is instant UB, and C's
-    behaviour there is usually "warn and skip", not "assume".
+- **Real `enum`s, the rest.** Fifteen are done — `handle_state`, the ten whose
+  values the crate generates itself, `bk_CellType`, `tsi_EntryType`,
+  `json_type`, `byte_types` — plus `otl_LookupType` as a newtype and
+  `ttf_instructions` deleted outright. Sixteen `pub type X = c_uint` aliases are
+  left, and what remains is everything a plain `enum` cannot express:
+  - values that come **out of a font file**: the CFF operator and format-byte
+    tables. Read what C does with an unrecognised value *before* choosing the
+    shape — if it keeps the value and that value can reach the output, the
+    answer is a newtype, as it was for `otl_LookupType` (see above). Never
+    `transmute` — an out-of-range discriminant is instant UB.
   - **bit sets** (`glyf_PointFlags`, `glyf_ComponentFlags`,
     `glyf_OnCurveMask`, `json_GlyphOrderPass`, `ctype_class_bits`) stay bit
     sets — a newtype or `bitflags`, not an enum.
@@ -668,9 +669,8 @@ on the other platform before a commit is trusted.
     `UNSPECED` == `ISOADOBE` == 0. Rust says that with a variant plus an
     associated constant.
   - not enumerations at all: `cff_Type2Limits` is a table of capacity
-    ceilings, `otfcc_LoggerVerbosity` an ordered threshold compared with
-    `<=`, and `WORD`/`json_uchar`/`byte_types` are plain typedefs (the last
-    has no constants left at all).
+    ceilings, `otfcc_LoggerVerbosity` an ordered threshold compared with `<=`,
+    and `WORD`/`json_uchar` are plain typedefs.
 - **The rest of `json-funcs.h`**: `json_obj_get` still has 32 identical
   copies, and `json_obj_getnum`/`json_obj_getint`/`…_fallback` nine each. Same
   consolidation as the flag helpers, just more of it.
