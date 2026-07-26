@@ -323,11 +323,10 @@ pub struct ChainLookupApplication {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum ChainingType {
-    otl_chaining_canonical = 0,
-    otl_chaining_poly = 1,
-    otl_chaining_classified = 2,
+    Canonical = 0,
+    Poly = 1,
+    Classified = 2,
 }
-pub use ChainingType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GsubLigatureSubtable {

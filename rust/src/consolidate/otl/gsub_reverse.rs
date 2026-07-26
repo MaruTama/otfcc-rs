@@ -5,7 +5,7 @@ use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, TableId};
@@ -393,7 +393,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
@@ -999,7 +999,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
                 b"[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n",

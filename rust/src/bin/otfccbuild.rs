@@ -24,7 +24,7 @@ unsafe extern "C" {
     ) -> ::core::ffi::c_int;
 }
 
-use otfcc_rust::logger::{log_type_error, log_type_progress, ILogger};
+use otfcc_rust::logger::{LoggerType, ILogger};
 use otfcc_rust::support::buffer::{Buffer};
 use otfcc_rust::support::options::{Options};
 
@@ -548,7 +548,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_critical,
-            log_type_error,
+            LoggerType::Error,
             otfcc_rust::sdsbuild!(
                 sdsempty(),
                 b"Unable to build OpenType font tile : output path not specified. Exit.\n",
@@ -612,7 +612,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v = false;
@@ -636,7 +636,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         if jsonRoot.is_null() {
@@ -645,7 +645,7 @@ unsafe fn main_0(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_critical,
-                log_type_error,
+                LoggerType::Error,
                 otfcc_rust::sdsbuild!(
                     sdsempty(),
                     b"Cannot parse JSON file \"",
@@ -681,7 +681,7 @@ unsafe fn main_0(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_critical,
-                log_type_error,
+                LoggerType::Error,
                 otfcc_rust::sdsbuild!(
                     sdsempty(),
                     b"Cannot parse JSON file \"",
@@ -698,7 +698,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_3 = false;
@@ -720,7 +720,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_4 = false;
@@ -758,7 +758,7 @@ unsafe fn main_0(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_critical,
-                    log_type_error,
+                    LoggerType::Error,
                     otfcc_rust::sdsbuild!(
                         sdsempty(),
                         b"Cannot write to file \"",
@@ -787,7 +787,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         buffree(otf);

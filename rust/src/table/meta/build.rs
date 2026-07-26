@@ -3,7 +3,7 @@
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::bk::bkblock::{b32, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::bk::bkblock::{bk_newBlockFromStringLen};
@@ -45,16 +45,16 @@ pub unsafe extern "C" fn otfcc_buildMeta(
     if meta.is_null() || (*meta).entries.length == 0 {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b32, ((*meta).version) as u32), bk_int(b32, ((*meta).flags) as u32), bk_int(b32, 0 as u32), bk_int(b32, ((*meta).entries.length as u32) as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B32, ((*meta).version) as u32), bk_int(BkCellType::B32, ((*meta).flags) as u32), bk_int(BkCellType::B32, 0 as u32), bk_int(BkCellType::B32, ((*meta).entries.length as u32) as u32)]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < (*meta).entries.length {
         let mut e: *mut MetaEntry = (*meta).entries.items.offset(__caryll_index as isize);
         while keep != 0 {
-            bk_push(root, &[bk_int(b32, ((*e).tag) as u32), bk_ptr(p32, bk_newBlockFromStringLen(
+            bk_push(root, &[bk_int(BkCellType::B32, ((*e).tag) as u32), bk_ptr(BkCellType::P32, bk_newBlockFromStringLen(
                     sdslen((*e).data),
                     (*e).data as *const ::core::ffi::c_char,
-                )), bk_int(b32, (sdslen((*e).data)) as u32)]);
+                )), bk_int(BkCellType::B32, (sdslen((*e).data)) as u32)]);
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;

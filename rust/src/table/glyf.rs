@@ -8,14 +8,14 @@ unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{HANDLE_STATE_EMPTY, handle_fromName, FdHandle, GlyphHandle, Handle, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_empty};
+use crate::support::handle::{HandleState, handle_fromName, FdHandle, GlyphHandle, Handle, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_empty};
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::vendor::json::{JsonValue, json_array, json_object, json_string};
+use crate::vendor::json::{JsonValue, JsonType};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::support::buffer::{Buffer};
 use crate::support::{ComparFn, true_0};
@@ -291,14 +291,13 @@ pub struct MaskListVectorInterface {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum RefAnchorStatus {
-    REF_XY = 0,
-    REF_ANCHOR_ANCHOR = 1,
-    REF_ANCHOR_XY = 2,
-    REF_ANCHOR_CONSOLIDATED = 3,
-    REF_ANCHOR_CONSOLIDATING_ANCHOR = 4,
-    REF_ANCHOR_CONSOLIDATING_XY = 5,
+    Xy = 0,
+    AnchorAnchor = 1,
+    AnchorXy = 2,
+    AnchorConsolidated = 3,
+    AnchorConsolidatingAnchor = 4,
+    AnchorConsolidatingXy = 5,
 }
-pub use RefAnchorStatus::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ComponentReference {
@@ -1229,7 +1228,7 @@ unsafe extern "C" fn initGlyfReference(mut ref_0: *mut ComponentReference) {
     (*ref_0).b = 0 as ::core::ffi::c_int as Scale;
     (*ref_0).c = 0 as ::core::ffi::c_int as Scale;
     (*ref_0).d = 1 as ::core::ffi::c_int as Scale;
-    (*ref_0).isAnchored = REF_XY;
+    (*ref_0).isAnchored = RefAnchorStatus::Xy;
     (*ref_0).outer = 0 as ShapeId;
     (*ref_0).inner = (*ref_0).outer;
     (*ref_0).roundToGrid = false;
@@ -1301,7 +1300,7 @@ unsafe extern "C" fn glyf_ComponentReference_dup(
         roundToGrid: false,
         useMyMetrics: false,
         glyph: Handle {
-            state: HANDLE_STATE_EMPTY,
+            state: HandleState::Empty,
             index: 0,
             name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
         },
@@ -1309,7 +1308,7 @@ unsafe extern "C" fn glyf_ComponentReference_dup(
         b: 0.,
         c: 0.,
         d: 0.,
-        isAnchored: REF_XY,
+        isAnchored: RefAnchorStatus::Xy,
         inner: 0,
         outer: 0,
     };
@@ -1357,7 +1356,7 @@ unsafe extern "C" fn glyf_ComponentReference_empty() -> ComponentReference {
         roundToGrid: false,
         useMyMetrics: false,
         glyph: Handle {
-            state: HANDLE_STATE_EMPTY,
+            state: HandleState::Empty,
             index: 0,
             name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
         },
@@ -1365,7 +1364,7 @@ unsafe extern "C" fn glyf_ComponentReference_empty() -> ComponentReference {
         b: 0.,
         c: 0.,
         d: 0.,
-        isAnchored: REF_XY,
+        isAnchored: RefAnchorStatus::Xy,
         inner: 0,
         outer: 0,
     };
@@ -1466,7 +1465,7 @@ unsafe extern "C" fn glyf_ReferenceList_fill(mut arr: *mut ReferenceList, mut n:
             roundToGrid: false,
             useMyMetrics: false,
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -1474,7 +1473,7 @@ unsafe extern "C" fn glyf_ReferenceList_fill(mut arr: *mut ReferenceList, mut n:
             b: 0.,
             c: 0.,
             d: 0.,
-            isAnchored: REF_XY,
+            isAnchored: RefAnchorStatus::Xy,
             inner: 0,
             outer: 0,
         };
@@ -3025,7 +3024,7 @@ unsafe extern "C" fn glyf_glyph_dump_references(
             b"d\0" as *const u8 as *const ::core::ffi::c_char,
             json_new_position((*r).d as Pos),
         );
-        if (*r).isAnchored != REF_XY
+        if (*r).isAnchored != RefAnchorStatus::Xy
         {
             json_object_push(
                 ref_0,
@@ -3339,7 +3338,7 @@ unsafe extern "C" fn glyf_parse_point(mut pointdump: *mut JsonValue) -> Point {
     };
     glyf_iPoint.init.expect("non-null function pointer")(&raw mut point);
     if pointdump.is_null()
-        || (*pointdump).type_0 != json_object
+        || (*pointdump).type_0 != JsonType::Object
     {
         return point;
     }
@@ -3388,7 +3387,7 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut JsonValue, mut g: *mut Gl
         glyf_iContour.initCapN.expect("non-null function pointer")(
             &raw mut contour,
             (if !contourdump.is_null()
-                && (*contourdump).type_0 == json_array
+                && (*contourdump).type_0 == JsonType::Array
             {
                 (*contourdump).u.array.length
             } else {
@@ -3396,7 +3395,7 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut JsonValue, mut g: *mut Gl
             }) as usize,
         );
         if !contourdump.is_null()
-            && (*contourdump).type_0 == json_array
+            && (*contourdump).type_0 == JsonType::Array
         {
             let mut k: ShapeId = 0 as ShapeId;
             while (k as ::core::ffi::c_uint) < (*contourdump).u.array.length {
@@ -3417,7 +3416,7 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *mut JsonValue) -> Compon
     let mut _gname: *mut JsonValue = json_obj_get_type(
         refdump,
         b"glyph\0" as *const u8 as *const ::core::ffi::c_char,
-        json_string,
+        JsonType::String,
     );
     let mut ref_0: ComponentReference =
         (
@@ -3475,7 +3474,7 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *mut JsonValue) -> Compon
             refdump,
             b"isAnchored\0" as *const u8 as *const ::core::ffi::c_char,
         ) {
-            ref_0.isAnchored = REF_ANCHOR_XY;
+            ref_0.isAnchored = RefAnchorStatus::AnchorXy;
             ref_0.inner = json_obj_getint(
                 refdump,
                 b"inner\0" as *const u8 as *const ::core::ffi::c_char,
@@ -3550,7 +3549,7 @@ unsafe extern "C" fn parse_stems(mut sd: *mut JsonValue, mut stems: *mut StemDef
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_uint) < (*sd).u.array.length {
         let mut s: *mut JsonValue = *(*sd).u.array.values.offset(j as isize) as *mut JsonValue;
-        if !((*s).type_0 != json_object)
+        if !((*s).type_0 != JsonType::Object)
         {
             let mut sdef: PostscriptStemDef = PostscriptStemDef {
                 position: 0.,
@@ -3607,7 +3606,7 @@ unsafe extern "C" fn parse_masks(mut md: *mut JsonValue, mut masks: *mut MaskLis
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_uint) < (*md).u.array.length {
         let mut m: *mut JsonValue = *(*md).u.array.values.offset(j as isize) as *mut JsonValue;
-        if !((*m).type_0 != json_object)
+        if !((*m).type_0 != JsonType::Object)
         {
             let mut mask: PostscriptHintMask = PostscriptHintMask {
                 pointsBefore: 0,
@@ -3629,7 +3628,7 @@ unsafe extern "C" fn parse_masks(mut md: *mut JsonValue, mut masks: *mut MaskLis
                 json_obj_get_type(
                     m,
                     b"maskH\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_array,
+                    JsonType::Array,
                 ),
             );
             parse_maskbits(
@@ -3638,7 +3637,7 @@ unsafe extern "C" fn parse_masks(mut md: *mut JsonValue, mut masks: *mut MaskLis
                 json_obj_get_type(
                     m,
                     b"maskV\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_array,
+                    JsonType::Array,
                 ),
             );
             glyf_iMaskList.push.expect("non-null function pointer")(masks, mask);
@@ -3697,7 +3696,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
         json_obj_get_type(
             glyphdump,
             b"contours\0" as *const u8 as *const ::core::ffi::c_char,
-            json_array,
+            JsonType::Array,
         ),
         g,
     );
@@ -3705,7 +3704,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
         json_obj_get_type(
             glyphdump,
             b"references\0" as *const u8 as *const ::core::ffi::c_char,
-            json_array,
+            JsonType::Array,
         ),
         g,
     );
@@ -3733,7 +3732,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
             json_obj_get_type(
                 glyphdump,
                 b"stemH\0" as *const u8 as *const ::core::ffi::c_char,
-                json_array,
+                JsonType::Array,
             ),
             &raw mut (*g).stemH,
         );
@@ -3741,7 +3740,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
             json_obj_get_type(
                 glyphdump,
                 b"stemV\0" as *const u8 as *const ::core::ffi::c_char,
-                json_array,
+                JsonType::Array,
             ),
             &raw mut (*g).stemV,
         );
@@ -3749,7 +3748,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
             json_obj_get_type(
                 glyphdump,
                 b"hintMasks\0" as *const u8 as *const ::core::ffi::c_char,
-                json_array,
+                JsonType::Array,
             ),
             &raw mut (*g).hintMasks,
         );
@@ -3757,7 +3756,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
             json_obj_get_type(
                 glyphdump,
                 b"contourMasks\0" as *const u8 as *const ::core::ffi::c_char,
-                json_array,
+                JsonType::Array,
             ),
             &raw mut (*g).contourMasks,
         );
@@ -3783,7 +3782,7 @@ pub unsafe extern "C" fn otfcc_parseGlyf(
     mut glyph_order: *mut GlyphOrder,
     mut options: *const Options,
 ) -> *mut GlyfTable {
-    if (*root).type_0 != json_object
+    if (*root).type_0 != JsonType::Object
         || glyph_order.is_null()
     {
         return ::core::ptr::null_mut::<GlyfTable>();
@@ -3793,7 +3792,7 @@ pub unsafe extern "C" fn otfcc_parseGlyf(
     table = json_obj_get_type(
         root,
         b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if !table.is_null() {
         (*(*options).logger)
@@ -4140,7 +4139,7 @@ pub unsafe extern "C" fn otfcc_parseGlyf(
                         }
                     }
                 }
-                if (*glyphdump).type_0 == json_object
+                if (*glyphdump).type_0 == JsonType::Object
                     && !order_entry.is_null()
                     && (*(*glyf).items.offset((*order_entry).gid as isize)).is_null()
                 {
@@ -4228,7 +4227,7 @@ mod tests {
     use super::*;
 
     // `glyf/build.rs` writes a component's flags based on
-    // `isAnchored == REF_ANCHOR_CONSOLIDATED`, so these values pick which branch
+    // `isAnchored == RefAnchorStatus::AnchorConsolidated`, so these values pick which branch
     // of the composite-glyph encoding runs. They come from otfcc's own
     // consolidation pass, never off the wire, but they are still load-bearing for
     // the bytes that come out.
@@ -4279,11 +4278,11 @@ mod tests {
 
     #[test]
     fn refanchorstatus_discriminants_match_the_c_enum() {
-        assert_eq!(REF_XY as u32, 0);
-        assert_eq!(REF_ANCHOR_ANCHOR as u32, 1);
-        assert_eq!(REF_ANCHOR_XY as u32, 2);
-        assert_eq!(REF_ANCHOR_CONSOLIDATED as u32, 3);
-        assert_eq!(REF_ANCHOR_CONSOLIDATING_ANCHOR as u32, 4);
-        assert_eq!(REF_ANCHOR_CONSOLIDATING_XY as u32, 5);
+        assert_eq!(RefAnchorStatus::Xy as u32, 0);
+        assert_eq!(RefAnchorStatus::AnchorAnchor as u32, 1);
+        assert_eq!(RefAnchorStatus::AnchorXy as u32, 2);
+        assert_eq!(RefAnchorStatus::AnchorConsolidated as u32, 3);
+        assert_eq!(RefAnchorStatus::AnchorConsolidatingAnchor as u32, 4);
+        assert_eq!(RefAnchorStatus::AnchorConsolidatingXy as u32, 5);
     }
 }

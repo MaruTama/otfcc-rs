@@ -9,9 +9,9 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, FontFilePointer, TableId};
-use crate::vendor::json::{json_array, json_object, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, b32, b8, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::support::{ComparFn};
@@ -1383,7 +1383,7 @@ pub unsafe extern "C" fn otfcc_dumpCPAL(
 unsafe extern "C" fn parseColor(mut _color: *const JsonValue) -> CpalColor {
     let mut color: CpalColor = white;
     if _color.is_null()
-        || (*_color).type_0 != json_object
+        || (*_color).type_0 != JsonType::Object
     {
         return color;
     }
@@ -1422,7 +1422,7 @@ pub unsafe extern "C" fn otfcc_parseCPAL(
     table = json_obj_get_type(
         root,
         b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if table.is_null() {
         return ::core::ptr::null_mut::<CpalTable>();
@@ -1439,7 +1439,7 @@ pub unsafe extern "C" fn otfcc_parseCPAL(
         let mut _palettes: *mut JsonValue = json_obj_get_type(
             table,
             b"palettes\0" as *const u8 as *const ::core::ffi::c_char,
-            json_array,
+            JsonType::Array,
         );
         if _palettes.is_null() || (*_palettes).u.array.length == 0 {
             return ::core::ptr::null_mut::<CpalTable>();
@@ -1455,12 +1455,12 @@ pub unsafe extern "C" fn otfcc_parseCPAL(
             let mut _palette: *mut JsonValue =
                 *(*_palettes).u.array.values.offset(j as isize) as *mut JsonValue;
             if !(_palette.is_null()
-                || (*_palette).type_0 != json_object)
+                || (*_palette).type_0 != JsonType::Object)
             {
                 let mut _colors: *mut JsonValue = json_obj_get_type(
                     _palette,
                     b"colors\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_array,
+                    JsonType::Array,
                 );
                 if !_colors.is_null() {
                     let mut palette: CpalPalette = CpalPalette {
@@ -1521,7 +1521,7 @@ unsafe extern "C" fn buildPaletteType(mut cpal: *const CpalTable) -> *mut BkBloc
     let mut block: *mut BkBlock = bk_new_Block(&[]);
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < (*cpal).palettes.length {
-        bk_push(block, &[bk_int(b32, ((*(*cpal).palettes.items.offset(j_0 as isize)).type_0) as u32)]);
+        bk_push(block, &[bk_int(BkCellType::B32, ((*(*cpal).palettes.items.offset(j_0 as isize)).type_0) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
     return block;
@@ -1542,7 +1542,7 @@ unsafe extern "C" fn buildPaletteLabel(mut cpal: *const CpalTable) -> *mut BkBlo
     let mut block: *mut BkBlock = bk_new_Block(&[]);
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < (*cpal).palettes.length {
-        bk_push(block, &[bk_int(b16, ((*(*cpal).palettes.items.offset(j_0 as isize)).label) as u32)]);
+        bk_push(block, &[bk_int(BkCellType::B16, ((*(*cpal).palettes.items.offset(j_0 as isize)).label) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
     return block;
@@ -1570,7 +1570,7 @@ unsafe extern "C" fn buildPaletteEntryLabel(mut cpal: *const CpalTable) -> *mut 
     let mut block: *mut BkBlock = bk_new_Block(&[]);
     let mut j_0: ColorId = 0 as ColorId;
     while (j_0 as usize) < (*palette).colorset.length {
-        bk_push(block, &[bk_int(b16, ((*(*palette).colorset.items.offset(j_0 as isize)).label as ::core::ffi::c_int) as u32)]);
+        bk_push(block, &[bk_int(BkCellType::B16, ((*(*palette).colorset.items.offset(j_0 as isize)).label as ::core::ffi::c_int) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
     return block;
@@ -1605,19 +1605,19 @@ pub unsafe extern "C" fn otfcc_buildCPAL(
             } else {
                 color = &raw const white;
             }
-            bk_push(colorRecords, &[bk_int(b8, ((*color).blue as ::core::ffi::c_int) as u32), bk_int(b8, ((*color).green as ::core::ffi::c_int) as u32), bk_int(b8, ((*color).red as ::core::ffi::c_int) as u32), bk_int(b8, ((*color).alpha as ::core::ffi::c_int) as u32)]);
+            bk_push(colorRecords, &[bk_int(BkCellType::B8, ((*color).blue as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, ((*color).green as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, ((*color).red as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, ((*color).alpha as ::core::ffi::c_int) as u32)]);
             k = k.wrapping_add(1);
         }
         j = j.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, ((*cpal).version as ::core::ffi::c_int) as u32), bk_int(b16, (numPalettesEntries as ::core::ffi::c_int) as u32), bk_int(b16, (numPalettes as ::core::ffi::c_int) as u32), bk_int(b16, (numColorRecords as ::core::ffi::c_int) as u32), bk_ptr(p32, colorRecords)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*cpal).version as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (numPalettesEntries as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (numPalettes as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (numColorRecords as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P32, colorRecords)]);
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as ::core::ffi::c_int) < numPalettes as ::core::ffi::c_int {
-        bk_push(root, &[bk_int(b16, (numPalettesEntries as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as u32)]);
+        bk_push(root, &[bk_int(BkCellType::B16, (numPalettesEntries as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
     if (*cpal).version as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(p32, buildPaletteType(cpal)), bk_ptr(p32, buildPaletteLabel(cpal)), bk_ptr(p32, buildPaletteEntryLabel(cpal))]);
+        bk_push(root, &[bk_ptr(BkCellType::P32, buildPaletteType(cpal)), bk_ptr(BkCellType::P32, buildPaletteLabel(cpal)), bk_ptr(BkCellType::P32, buildPaletteEntryLabel(cpal))]);
     }
     return bk_build_Block(root);
 }

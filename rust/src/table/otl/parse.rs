@@ -7,11 +7,11 @@ use libc::{exit, free, malloc, memcmp, memset, strcmp, strlen, strncmp};
 
 use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getint};
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_info, log_type_warning, log_vl_important, log_vl_notice, ILogger};
+use crate::logger::{LoggerType, log_vl_important, log_vl_notice, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{JsonValue, json_array, json_object, json_string};
+use crate::vendor::json::{JsonValue, JsonType};
 use crate::support::{NULL, true_0};
 use crate::table::otl::{Feature, FeaturePtr, FeatureRef, FeatureRefList, LanguageSystem, LanguageSystemPtr, Lookup, LookupPtr, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, OtlTable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
@@ -60,10 +60,9 @@ pub struct LookupHash {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum LookupOrderType {
-    LOOKUP_ORDER_FORCE = 0,
-    LOOKUP_ORDER_FILE = 1,
+    Force = 0,
+    File = 1,
 }
-pub use LookupOrderType::*;
 unsafe extern "C" fn _parse_lookup(
     mut lookup: *mut JsonValue,
     mut lookupName: *mut ::core::ffi::c_char,
@@ -294,7 +293,7 @@ unsafe extern "C" fn _declareLookupParser(
     let mut type_0: *mut JsonValue = json_obj_get_type(
         _lookup,
         b"type\0" as *const u8 as *const ::core::ffi::c_char,
-        json_string,
+        JsonType::String,
     );
     if type_0.is_null() || strcmp((*type_0).u.string.ptr, llt.name().as_ptr()) != 0 {
         if type_0.is_null() {
@@ -303,7 +302,7 @@ unsafe extern "C" fn _declareLookupParser(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"Lookup ",
@@ -618,7 +617,7 @@ unsafe extern "C" fn _declareLookupParser(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" already exists."),
         );
         return false;
@@ -626,7 +625,7 @@ unsafe extern "C" fn _declareLookupParser(
     let mut _subtables: *mut JsonValue = json_obj_get_type(
         _lookup,
         b"subtables\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     if _subtables.is_null() {
         (*(*options).logger)
@@ -634,7 +633,7 @@ unsafe extern "C" fn _declareLookupParser(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
                 b"Lookup ",
@@ -677,7 +676,7 @@ unsafe extern "C" fn _declareLookupParser(
             let mut _subtable: *mut JsonValue =
                 *(*_subtables).u.array.values.offset(j as isize) as *mut JsonValue;
             if !_subtable.is_null()
-                && (*_subtable).type_0 == json_object
+                && (*_subtable).type_0 == JsonType::Object
             {
                 let mut _st: *mut Subtable =
                     parser.expect("non-null function pointer")(_subtable, options);
@@ -699,7 +698,7 @@ unsafe extern "C" fn _declareLookupParser(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" does not have any subtables."),
         );
         otfcc_delete_lookup(lookup);
@@ -712,7 +711,7 @@ unsafe extern "C" fn _declareLookupParser(
     (*item).name = sdsnew(lookupName) as *mut ::core::ffi::c_char;
     (*lookup).name = sdsdup((*item).name as SdsRaw);
     (*item).lookup = lookup;
-    (*item).orderType = LOOKUP_ORDER_FILE;
+    (*item).orderType = LookupOrderType::File;
     (*item).orderVal = (if !(*lh).is_null() {
         (*(**lh).hh.tbl).num_items
     } else {
@@ -1142,7 +1141,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
     while j < (*lookups).u.object.length as u32 {
         let mut lookupName: *mut ::core::ffi::c_char =
             (*(*lookups).u.object.values.offset(j as isize)).name;
-        if (*(*(*lookups).u.object.values.offset(j as isize)).value).type_0 == json_object
+        if (*(*(*lookups).u.object.values.offset(j as isize)).value).type_0 == JsonType::Object
         {
             let mut parsed: bool = _parse_lookup(
                 (*(*lookups).u.object.values.offset(j as isize)).value as *mut JsonValue,
@@ -1156,7 +1155,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[OTFCC-fea] Ignoring invalid or unsupported lookup ",
@@ -1167,7 +1166,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
             }
         } else if (*(*(*lookups).u.object.values.offset(j as isize)).value).type_0
             as ::core::ffi::c_uint
-            == json_string as ::core::ffi::c_int as ::core::ffi::c_uint
+            == JsonType::String as ::core::ffi::c_int as ::core::ffi::c_uint
         {
             let mut thatname: *mut ::core::ffi::c_char =
                 (*(*(*lookups).u.object.values.offset(j as isize)).value)
@@ -1490,7 +1489,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                 ) as *mut LookupHash;
                 (*dup).name = sdsnew(lookupName) as *mut ::core::ffi::c_char;
                 (*dup).lookup = (*s).lookup;
-                (*dup).orderType = LOOKUP_ORDER_FILE;
+                (*dup).orderType = LookupOrderType::File;
                 (*dup).orderVal = (if !lh.is_null() {
                     (*(*lh).hh.tbl).num_items
                 } else {
@@ -1963,8 +1962,8 @@ unsafe extern "C" fn feature_merger_activate(
         let mut kthis: *mut ::core::ffi::c_char = (*(*d).u.object.values.offset(j as isize)).name;
         let mut nkthis: u32 =
             (*(*d).u.object.values.offset(j as isize)).name_length as u32;
-        if !((*jthis).type_0 != json_array
-            && (*jthis).type_0 != json_object)
+        if !((*jthis).type_0 != JsonType::Array
+            && (*jthis).type_0 != JsonType::Object)
         {
             let mut k: u32 = j.wrapping_add(1 as u32);
             while k < (*d).u.object.length as u32 {
@@ -1991,7 +1990,7 @@ unsafe extern "C" fn feature_merger_activate(
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         log_vl_notice,
-                        log_type_info,
+                        LoggerType::Info,
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[OTFCC-fea] Merged duplicate ",
@@ -2031,7 +2030,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
             (*(*features).u.object.values.offset(j as isize)).name;
         let mut _feature: *mut JsonValue =
             (*(*features).u.object.values.offset(j as isize)).value as *mut JsonValue;
-        if (*_feature).type_0 == json_array
+        if (*_feature).type_0 == JsonType::Array
         {
             let mut al: LookupRefList = LookupRefList {
                 length: 0,
@@ -2043,7 +2042,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
             while (k as ::core::ffi::c_uint) < (*_feature).u.array.length {
                 let mut term: *mut JsonValue =
                     *(*_feature).u.array.values.offset(k as isize) as *mut JsonValue;
-                if !((*term).type_0 != json_string)
+                if !((*term).type_0 != JsonType::String)
                 {
                     let mut item: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
                     let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -2381,7 +2380,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             log_vl_important,
-                            log_type_warning,
+                            LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
                                 b"Lookup assignment ",
@@ -3196,7 +3195,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         )(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[OTFCC-fea] Duplicate feature for [",
@@ -3218,7 +3217,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     )(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[OTFCC-fea] There is no valid lookup assignments for [",
@@ -3232,7 +3231,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     .dispose
                     .expect("non-null function pointer")(&raw mut al);
             }
-        } else if (*_feature).type_0 == json_string
+        } else if (*_feature).type_0 == JsonType::String
         {
             let mut s_0: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
             let mut target: *mut ::core::ffi::c_char = (*_feature).u.string.ptr;
@@ -4041,13 +4040,13 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
         let mut _language: *mut JsonValue =
             (*(*languages).u.object.values.offset(j as isize)).value as *mut JsonValue;
         if isValidLanguageName(languageName, languageNameLen) as ::core::ffi::c_int != 0
-            && (*_language).type_0 == json_object
+            && (*_language).type_0 == JsonType::Object
         {
             let mut requiredFeature: *mut Feature = ::core::ptr::null_mut::<Feature>();
             let mut _rf: *mut JsonValue = json_obj_get_type(
                 _language,
                 b"requiredFeature\0" as *const u8 as *const ::core::ffi::c_char,
-                json_string,
+                JsonType::String,
             );
             if !_rf.is_null() {
                 let mut rf: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
@@ -4384,14 +4383,14 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
             let mut _features: *mut JsonValue = json_obj_get_type(
                 _language,
                 b"features\0" as *const u8 as *const ::core::ffi::c_char,
-                json_array,
+                JsonType::Array,
             );
             if !_features.is_null() {
                 let mut k: TableId = 0 as TableId;
                 while (k as ::core::ffi::c_uint) < (*_features).u.array.length {
                     let mut term: *mut JsonValue =
                         *(*_features).u.array.values.offset(k as isize) as *mut JsonValue;
-                    if (*term).type_0 == json_string
+                    if (*term).type_0 == JsonType::String
                     {
                         let mut item: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
                         let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
@@ -5533,7 +5532,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         )(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[OTFCC-fea] Duplicate language item [",
@@ -5555,7 +5554,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                     )(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[OTFCC-fea] There is no valid feature assignments for [",
@@ -5608,24 +5607,24 @@ pub unsafe extern "C" fn otfcc_parseOtl(
     let mut lookups: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     let mut current_block: u64;
     let mut otl: *mut OtlTable = ::core::ptr::null_mut::<OtlTable>();
-    let mut table: *mut JsonValue = json_obj_get_type(root, tag, json_object);
+    let mut table: *mut JsonValue = json_obj_get_type(root, tag, JsonType::Object);
     if !table.is_null() {
         otl = (
             table_iOTL.create.expect("non-null function pointer"))();
         languages = json_obj_get_type(
             table,
             b"languages\0" as *const u8 as *const ::core::ffi::c_char,
-            json_object,
+            JsonType::Object,
         );
         features = json_obj_get_type(
             table,
             b"features\0" as *const u8 as *const ::core::ffi::c_char,
-            json_object,
+            JsonType::Object,
         );
         lookups = json_obj_get_type(
             table,
             b"lookups\0" as *const u8 as *const ::core::ffi::c_char,
-            json_object,
+            JsonType::Object,
         );
         if !(languages.is_null() || features.is_null() || lookups.is_null()) {
             (*(*options).logger)
@@ -5644,7 +5643,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                 let mut lookupOrder: *mut JsonValue = json_obj_get_type(
                     table,
                     b"lookupOrder\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_array,
+                    JsonType::Array,
                 );
                 if !lookupOrder.is_null() {
                     let mut j: TableId = 0 as TableId;
@@ -5652,7 +5651,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                         let mut _ln: *mut JsonValue =
                             *(*lookupOrder).u.array.values.offset(j as isize) as *mut JsonValue;
                         if !_ln.is_null()
-                            && (*_ln).type_0 == json_string
+                            && (*_ln).type_0 == JsonType::String
                         {
                             let mut item: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
                             let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -5984,7 +5983,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 }
                             }
                             if !item.is_null() {
-                                (*item).orderType = LOOKUP_ORDER_FORCE;
+                                (*item).orderType = LookupOrderType::Force;
                                 (*item).orderVal = j as u16;
                             }
                         }
@@ -6683,7 +6682,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
                 b"[OTFCC-fea] Ignoring invalid or incomplete OTL table ",

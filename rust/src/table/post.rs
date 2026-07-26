@@ -7,7 +7,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::vendor::json::{json_object, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{NULL};
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
@@ -636,7 +636,7 @@ pub unsafe extern "C" fn otfcc_parsePost(
     table = json_obj_get_type(
         root,
         b"post\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if !table.is_null() {
         (*(*options).logger)

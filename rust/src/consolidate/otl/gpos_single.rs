@@ -5,7 +5,7 @@ use libc::{exit, free, malloc, memcmp, memset};
 use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
@@ -414,7 +414,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Detected glyph double-mapping about /",

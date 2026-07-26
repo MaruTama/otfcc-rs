@@ -10,9 +10,9 @@ use crate::support::alloc::{__caryll_allocate_clean};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
-use crate::vendor::json::{json_array, json_object, json_string, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 
-use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, otl_chaining_canonical, ChainingSubtable};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable};
 use crate::table::otl::coverage::{otl_iCoverage};
 use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
 use crate::vendor::sds::{sdsnewlen};
@@ -23,12 +23,12 @@ pub unsafe extern "C" fn otl_parse_chaining(
     let mut _match: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"match\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     let mut _apply: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"apply\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     if _match.is_null() || _apply.is_null() {
         return ::core::ptr::null_mut::<Subtable>();
@@ -38,7 +38,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
             iSubtable_chaining
                 .create
                 .expect("non-null function pointer"))();
-    (*subtable).type_0 = otl_chaining_canonical;
+    (*subtable).type_0 = ChainingType::Canonical;
     let mut rule: *mut ChainingRule = &raw mut (*subtable).c2rust_unnamed.rule;
     (*rule).matchCount = (*_match).u.array.length as TableId;
     (*rule).match_0 = __caryll_allocate_clean(
@@ -77,12 +77,12 @@ pub unsafe extern "C" fn otl_parse_chaining(
             otfcc_Handle_empty() as LookupHandle;
         let mut _application: *mut JsonValue =
             *(*_apply).u.array.values.offset(j_0 as isize) as *mut JsonValue;
-        if (*_application).type_0 == json_object
+        if (*_application).type_0 == JsonType::Object
         {
             let mut _ln: *mut JsonValue = json_obj_get_type(
                 _application,
                 b"lookup\0" as *const u8 as *const ::core::ffi::c_char,
-                json_string,
+                JsonType::String,
             );
             if !_ln.is_null() {
                 (*(*rule).apply.offset(j_0 as isize)).lookup =

@@ -4,7 +4,7 @@ use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
 use crate::table::otl::coverage::{Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
-use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, Handle, GlyphHandle, HANDLE_STATE_EMPTY};
+use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
@@ -13,9 +13,9 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::vendor::json::{json_array, json_string, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 use crate::support::{NULL, ComparFn};
 use crate::table::otl::{GsubLigatureSubtableVectorInterface, GsubLigatureEntry, Subtable, GsubLigatureSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
@@ -410,7 +410,7 @@ unsafe extern "C" fn subtable_gsub_ligature_fill(
         let mut x: GsubLigatureEntry = GsubLigatureEntry {
             from: ::core::ptr::null_mut::<Coverage>(),
             to: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -674,14 +674,14 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
     if !json_obj_get_type(
         _subtable,
         b"substitutions\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     )
     .is_null()
     {
         _subtable = json_obj_get_type(
             _subtable,
             b"substitutions\0" as *const u8 as *const ::core::ffi::c_char,
-            json_array,
+            JsonType::Array,
         );
         let mut st: *mut GsubLigatureSubtable =
             (
@@ -696,12 +696,12 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             let mut _from: *mut JsonValue = json_obj_get_type(
                 entry,
                 b"from\0" as *const u8 as *const ::core::ffi::c_char,
-                json_array,
+                JsonType::Array,
             );
             let mut _to: *mut JsonValue = json_obj_get_type(
                 entry,
                 b"to\0" as *const u8 as *const ::core::ffi::c_char,
-                json_string,
+                JsonType::String,
             );
             if !(_from.is_null() || _to.is_null()) {
                 iSubtable_gsub_ligature
@@ -732,7 +732,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             let mut _from_0: *mut JsonValue =
                 (*(*_subtable).u.object.values.offset(k_0 as isize)).value as *mut JsonValue;
             if !(_from_0.is_null()
-                || (*_from_0).type_0 != json_array)
+                || (*_from_0).type_0 != JsonType::Array)
             {
                 iSubtable_gsub_ligature
                     .push
@@ -1666,9 +1666,9 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
         );
         s = (*s).hh.next as *mut LigatureAggregator;
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             startcov,
-        ))), bk_int(b16, ((*startcov).numGlyphs as ::core::ffi::c_int) as u32)]);
+        ))), bk_int(BkCellType::B16, ((*startcov).numGlyphs as ::core::ffi::c_int) as u32)]);
     s = h;
     while !s.is_null() {
         let mut nLigsHere: GlyphId = 0 as GlyphId;
@@ -1684,7 +1684,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
             }
             j_0 = j_0.wrapping_add(1);
         }
-        let mut ligset: *mut BkBlock = bk_new_Block(&[bk_int(b16, (nLigsHere as ::core::ffi::c_int) as u32)]);
+        let mut ligset: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (nLigsHere as ::core::ffi::c_int) as u32)]);
         let mut j_1: GlyphId = 0 as GlyphId;
         while (j_1 as ::core::ffi::c_int) < nLigatures as ::core::ffi::c_int {
             if (*(*(*(*subtable).items.offset(j_1 as isize)).from)
@@ -1693,24 +1693,24 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
             .index as ::core::ffi::c_int
                 == (*s).gid
             {
-                let mut ligdef: *mut BkBlock = bk_new_Block(&[bk_int(b16, ((*(*subtable).items.offset(j_1 as isize)).to.index as ::core::ffi::c_int) as u32), bk_int(b16, ((*(*(*subtable).items.offset(j_1 as isize)).from).numGlyphs
+                let mut ligdef: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*(*subtable).items.offset(j_1 as isize)).to.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*(*subtable).items.offset(j_1 as isize)).from).numGlyphs
                         as ::core::ffi::c_int) as u32)]);
                 let mut m: GlyphId = 1 as GlyphId;
                 while (m as ::core::ffi::c_int)
                     < (*(*(*subtable).items.offset(j_1 as isize)).from).numGlyphs
                         as ::core::ffi::c_int
                 {
-                    bk_push(ligdef, &[bk_int(b16, ((*(*(*(*subtable).items.offset(j_1 as isize)).from)
+                    bk_push(ligdef, &[bk_int(BkCellType::B16, ((*(*(*(*subtable).items.offset(j_1 as isize)).from)
                             .glyphs
                             .offset(m as isize))
                         .index as ::core::ffi::c_int) as u32)]);
                     m = m.wrapping_add(1);
                 }
-                bk_push(ligset, &[bk_ptr(p16, ligdef)]);
+                bk_push(ligset, &[bk_ptr(BkCellType::P16, ligdef)]);
             }
             j_1 = j_1.wrapping_add(1);
         }
-        bk_push(root, &[bk_ptr(p16, ligset)]);
+        bk_push(root, &[bk_ptr(BkCellType::P16, ligset)]);
         s = (*s).hh.next as *mut LigatureAggregator;
     }
     otl_Coverage_free(startcov);

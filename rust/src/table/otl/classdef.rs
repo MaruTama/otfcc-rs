@@ -9,7 +9,7 @@ use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphClass, GlyphId};
-use crate::vendor::json::{json_double, json_integer, json_object, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite_bufdel};
@@ -2865,7 +2865,7 @@ pub(crate) unsafe extern "C" fn dumpClassDef(mut cd: *const ClassDef) -> *mut Js
 }
 pub(crate) unsafe extern "C" fn parseClassDef(mut _cd: *const JsonValue) -> *mut ClassDef {
     if _cd.is_null()
-        || (*_cd).type_0 != json_object
+        || (*_cd).type_0 != JsonType::Object
     {
         return ::core::ptr::null_mut::<ClassDef>();
     }
@@ -2880,10 +2880,10 @@ pub(crate) unsafe extern "C" fn parseClassDef(mut _cd: *const JsonValue) -> *mut
         let mut _cid: *mut JsonValue =
             (*(*_cd).u.object.values.offset(j as isize)).value as *mut JsonValue;
         let mut cls: GlyphClass = 0 as GlyphClass;
-        if (*_cid).type_0 == json_integer
+        if (*_cid).type_0 == JsonType::Integer
         {
             cls = (*_cid).u.integer as GlyphClass;
-        } else if (*_cid).type_0 == json_double
+        } else if (*_cid).type_0 == JsonType::Double
         {
             cls = (*_cid).u.dbl as GlyphClass;
         }

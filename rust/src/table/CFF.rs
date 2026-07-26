@@ -12,14 +12,14 @@ use crate::support::buffer::{bufninit, Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{Arity, CffSid, FontFilePointer, GlyphId, Pos, Scale, ShapeId, TableId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::vendor::json::{json_array, json_object, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::libcff::{CffFile, CffIOutlineBuilder, CffStack, op_BlueFuzz, op_BlueScale, op_BlueShift, op_BlueValues, op_CIDCount, op_CIDFontRevision, op_CIDFontVersion, op_CharStrings, op_Copyright, op_ExpansionFactor, op_FDArray, op_FDSelect, op_FamilyBlues, op_FamilyName, op_FamilyOtherBlues, op_FontBBox, op_FontMatrix, op_FontName, op_ForceBold, op_FullName, op_ItalicAngle, op_LanguageGroup, op_Notice, op_OtherBlues, op_Private, op_ROS, op_StdHW, op_StdVW, op_StemSnapH, op_StemSnapV, op_StrokeWidth, op_Subrs, op_UIDBase, op_UnderlinePosition, op_UnderlineThickness, op_Weight, op_charset, op_defaultWidthX, op_initialRandomSeed, op_isFixedPitch, op_nominalWidthX, op_version};
-use crate::libcff::cff_charset::{cff_CHARSET_FORMAT0, cff_CHARSET_FORMAT1, cff_CHARSET_FORMAT2, cff_CHARSET_ISOADOBE, CffCharset, CffCharsetRangeFormat2};
+use crate::libcff::cff_charset::{CffCharsetType, CffCharset, CffCharsetRangeFormat2};
 use crate::libcff::cff_dict::{CffDict, CffDictEntry};
-use crate::libcff::cff_fdselect::{cff_FDSELECT_FORMAT3, cff_FDSELECT_UNSPECED, CffFdSelect, CffFdSelectRangeFormat3};
-use crate::libcff::cff_index::{CFF_INDEX_16, CffIndex};
-use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_UNSET, CffValue, CffValueBody, CffValueType};
+use crate::libcff::cff_fdselect::{CffFdSelectType, CffFdSelect, CffFdSelectRangeFormat3};
+use crate::libcff::cff_index::{CffIndexCountType, CffIndex};
+use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::charstring_il::{CffCharstringIl, CffCharstringInstruction};
 use crate::libcff::subr::{CffSubrDiagramIndex, CffSubrGraph, CffSubrRule};
 use crate::support::{NULL, false_0, true_0};
@@ -1112,7 +1112,7 @@ unsafe extern "C" fn buildOutline(
     *fresh8 = g as GlyphPtr;
     let mut seed: u64 = (*context).seed;
     let mut localSubrs: CffIndex = CffIndex {
-        countType: CFF_INDEX_16,
+        countType: CffIndexCountType::U16,
         count: 0,
         offSize: 0,
         offset: ::core::ptr::null_mut::<u32>(),
@@ -1122,7 +1122,7 @@ unsafe extern "C" fn buildOutline(
     let mut stack: CffStack = CffStack {
         stack: ::core::ptr::null_mut::<CffValue>(),
         transient: [CffValue {
-            t: cff_UNSET,
+            t: CffValueType::Unset,
             c2rust_unnamed: CffValueBody { i: 0 },
         }; 32],
         index: 0,
@@ -1149,7 +1149,7 @@ unsafe extern "C" fn buildOutline(
         randx: 0 as u64,
     };
     let mut fd: u8 = 0 as u8;
-    if (*f).fdselect.t != cff_FDSELECT_UNSPECED {
+    if (*f).fdselect.t != CffFdSelectType::Unspecified {
         fd = cff_parseSubr(
             i as u16,
             (*f).raw_data,
@@ -1280,7 +1280,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
     let mut charset: *mut CffCharset = &raw mut (*cffFile).charsets;
     if (*(*context).meta).isCID {
         match (*charset).t {
-            cff_CHARSET_FORMAT0 => {
+            CffCharsetType::Format0 => {
                 let mut j: GlyphId = 0 as GlyphId;
                 while (j as u32) < (*charset).s {
                     let mut sid: CffSid =
@@ -1300,7 +1300,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                     j = j.wrapping_add(1);
                 }
             }
-            cff_CHARSET_FORMAT1 => {
+            CffCharsetType::Format1 => {
                 let mut glyphsNamedSofar: u32 = 1 as u32;
                 let mut j_0: GlyphId = 0 as GlyphId;
                 while (j_0 as u32) < (*charset).s {
@@ -1329,7 +1329,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                     j_0 = j_0.wrapping_add(1);
                 }
             }
-            cff_CHARSET_FORMAT2 => {
+            CffCharsetType::Format2 => {
                 let mut glyphsNamedSofar_0: u32 = 1 as u32;
                 let mut j_1: GlyphId = 0 as GlyphId;
                 while (j_1 as u32) < (*charset).s {
@@ -1363,7 +1363,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
         }
     } else {
         match (*charset).t {
-            cff_CHARSET_FORMAT0 => {
+            CffCharsetType::Format0 => {
                 let mut j_2: GlyphId = 0 as GlyphId;
                 while (j_2 as u32) < (*charset).s {
                     let mut sid_2: CffSid =
@@ -1379,7 +1379,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                     j_2 = j_2.wrapping_add(1);
                 }
             }
-            cff_CHARSET_FORMAT1 => {
+            CffCharsetType::Format1 => {
                 let mut glyphsNamedSofar_1: u32 = 1 as u32;
                 let mut j_3: GlyphId = 0 as GlyphId;
                 while (j_3 as u32) < (*charset).s {
@@ -1408,7 +1408,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                     j_3 = j_3.wrapping_add(1);
                 }
             }
-            cff_CHARSET_FORMAT2 => {
+            CffCharsetType::Format2 => {
                 let mut glyphsNamedSofar_2: u32 = 1 as u32;
                 let mut j_4: GlyphId = 0 as GlyphId;
                 while (j_4 as u32) < (*charset).s {
@@ -2054,7 +2054,7 @@ unsafe extern "C" fn pdDeltaFromJson(
     mut array: *mut *mut ::core::ffi::c_double,
 ) {
     if dump.is_null()
-        || (*dump).type_0 != json_array
+        || (*dump).type_0 != JsonType::Array
     {
         return;
     }
@@ -2071,7 +2071,7 @@ unsafe extern "C" fn pdDeltaFromJson(
 }
 unsafe extern "C" fn pdFromJson(mut dump: *mut JsonValue) -> *mut CffPrivateDict {
     if dump.is_null()
-        || (*dump).type_0 != json_object
+        || (*dump).type_0 != JsonType::Object
     {
         return ::core::ptr::null_mut::<CffPrivateDict>();
     }
@@ -2168,7 +2168,7 @@ unsafe extern "C" fn fdFromJson(
     let mut table: *mut CffTable = (
         table_iCFF.create.expect("non-null function pointer"))();
     if dump.is_null()
-        || (*dump).type_0 != json_object
+        || (*dump).type_0 != JsonType::Object
     {
         return table;
     }
@@ -2235,7 +2235,7 @@ unsafe extern "C" fn fdFromJson(
     (*table).privateDict = pdFromJson(json_obj_get_type(
         dump,
         b"privates\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     ));
     (*table).cidRegistry = json_obj_getsds(
         dump,
@@ -2268,7 +2268,7 @@ unsafe extern "C" fn fdFromJson(
     let mut fdarraydump: *mut JsonValue = json_obj_get_type(
         dump,
         b"fdArray\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if !fdarraydump.is_null() {
         (*table).isCID = true;
@@ -2341,7 +2341,7 @@ pub unsafe extern "C" fn otfcc_parseCFF(
     let mut dump: *mut JsonValue = json_obj_get_type(
         root,
         b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if dump.is_null() {
         return ::core::ptr::null_mut::<CffTable>();
@@ -3153,8 +3153,8 @@ unsafe extern "C" fn cffdict_givemeablank(mut dict: *mut CffDict) -> *mut CffDic
 ///
 /// Was `cffdict_input(dict, op, t, arity, ...)`: a count, a value type, and that
 /// many varargs read as `c_double` or `c_int` depending on `t`. Every one of the
-/// 30 call sites passes either `cff_DOUBLE` with `Pos` operands or
-/// `cff_INTEGER` with integer ones, so the runtime branch on `t` is really two
+/// 30 call sites passes either `CffValueType::Double` with `Pos` operands or
+/// `CffValueType::Integer` with integer ones, so the runtime branch on `t` is really two
 /// functions -- this one and [`cffdict_input_ints`] -- and the count is the
 /// slice's length.
 unsafe fn cffdict_input_doubles(dict: *mut CffDict, op: u32, values: &[f64]) {
@@ -3170,10 +3170,10 @@ unsafe fn cffdict_input_doubles(dict: *mut CffDict, op: u32, values: &[f64]) {
         // A whole number is stored as an integer, which is what decides whether
         // the DICT is encoded with an integer or a real operand later.
         if x == round(x) {
-            (*slot).t = cff_INTEGER;
+            (*slot).t = CffValueType::Integer;
             (*slot).c2rust_unnamed.i = round(x) as i32;
         } else {
-            (*slot).t = cff_DOUBLE;
+            (*slot).t = CffValueType::Double;
             (*slot).c2rust_unnamed.d = x;
         }
     }
@@ -3190,7 +3190,7 @@ unsafe fn cffdict_input_ints(dict: *mut CffDict, op: u32, values: &[i32]) {
     ) as *mut CffValue;
     for (j, &x) in values.iter().enumerate() {
         let slot = (*last).vals.add(j);
-        (*slot).t = cff_INTEGER;
+        (*slot).t = CffValueType::Integer;
         (*slot).c2rust_unnamed.i = x;
     }
 }
@@ -3215,12 +3215,12 @@ unsafe extern "C" fn cffdict_input_array(
     let mut j: Arity = 0 as Arity;
     while j < arity {
         let mut x: ::core::ffi::c_double = *arr.offset(j as isize);
-        if t as ::core::ffi::c_uint == cff_DOUBLE as ::core::ffi::c_int as ::core::ffi::c_uint {
+        if t as ::core::ffi::c_uint == CffValueType::Double as ::core::ffi::c_int as ::core::ffi::c_uint {
             if x == round(x) {
-                (*(*last).vals.offset(j as isize)).t = cff_INTEGER;
+                (*(*last).vals.offset(j as isize)).t = CffValueType::Integer;
                 (*(*last).vals.offset(j as isize)).c2rust_unnamed.i = round(x) as i32;
             } else {
-                (*(*last).vals.offset(j as isize)).t = cff_DOUBLE;
+                (*(*last).vals.offset(j as isize)).t = CffValueType::Double;
                 (*(*last).vals.offset(j as isize)).c2rust_unnamed.d = x;
             }
         } else {
@@ -3295,42 +3295,42 @@ unsafe extern "C" fn cff_make_private_dict(mut pd: *mut CffPrivateDict) -> *mut 
     cffdict_input_array(
         dict,
         op_BlueValues as u32,
-        cff_DOUBLE,
+        CffValueType::Double,
         (*pd).blueValuesCount,
         (*pd).blueValues,
     );
     cffdict_input_array(
         dict,
         op_OtherBlues as u32,
-        cff_DOUBLE,
+        CffValueType::Double,
         (*pd).otherBluesCount,
         (*pd).otherBlues,
     );
     cffdict_input_array(
         dict,
         op_FamilyBlues as u32,
-        cff_DOUBLE,
+        CffValueType::Double,
         (*pd).familyBluesCount,
         (*pd).familyBlues,
     );
     cffdict_input_array(
         dict,
         op_FamilyOtherBlues as u32,
-        cff_DOUBLE,
+        CffValueType::Double,
         (*pd).familyOtherBluesCount,
         (*pd).familyOtherBlues,
     );
     cffdict_input_array(
         dict,
         op_StemSnapH as u32,
-        cff_DOUBLE,
+        CffValueType::Double,
         (*pd).stemSnapHCount,
         (*pd).stemSnapH,
     );
     cffdict_input_array(
         dict,
         op_StemSnapV as u32,
-        cff_DOUBLE,
+        CffValueType::Double,
         (*pd).stemSnapVCount,
         (*pd).stemSnapV,
     );
@@ -3630,7 +3630,7 @@ unsafe extern "C" fn cff_make_charset(
         1140 as ::core::ffi::c_ulong,
     ) as *mut CffCharset;
     if (*glyf).length > 1 as usize {
-        (*charset).t = cff_CHARSET_FORMAT2;
+        (*charset).t = CffCharsetType::Format2;
         (*charset).s = 1 as u32;
         (*charset).c2rust_unnamed.f2.format = 2 as u8;
         (*charset).c2rust_unnamed.f2.range2 = __caryll_allocate_clean(
@@ -3673,10 +3673,10 @@ unsafe extern "C" fn cff_make_charset(
             .nleft = (*glyf).length.wrapping_sub(2 as usize) as u16;
         }
     } else {
-        (*charset).t = cff_CHARSET_ISOADOBE;
+        (*charset).t = CffCharsetType::IsoAdobe;
     }
     let mut c: *mut Buffer = cff_build_Charset(*charset);
-    if (*charset).t == cff_CHARSET_FORMAT2 {
+    if (*charset).t == CffCharsetType::Format2 {
         free((*charset).c2rust_unnamed.f2.range2 as *mut ::core::ffi::c_void);
         (*charset).c2rust_unnamed.f2.range2 = ::core::ptr::null_mut::<CffCharsetRangeFormat2>();
     }
@@ -3699,7 +3699,7 @@ unsafe extern "C" fn cff_make_fdselect(
         ::core::mem::size_of::<CffFdSelect>() as usize,
         1171 as ::core::ffi::c_ulong,
     ) as *mut CffFdSelect;
-    (*fds).t = cff_FDSELECT_UNSPECED;
+    (*fds).t = CffFdSelectType::Unspecified;
     if !((*glyf).length == 0) {
         fdi0 = (**(*glyf).items.offset(0 as ::core::ffi::c_int as isize))
             .fdSelect
@@ -3756,7 +3756,7 @@ unsafe extern "C" fn cff_make_fdselect(
             }
             j_0 = j_0.wrapping_add(1);
         }
-        (*fds).t = cff_FDSELECT_FORMAT3;
+        (*fds).t = CffFdSelectType::Format3;
         (*fds).s = ranges;
         (*fds).c2rust_unnamed.f3.format = 3 as u8;
         (*fds).c2rust_unnamed.f3.nranges = ranges as u16;

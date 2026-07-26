@@ -7,10 +7,10 @@ unsafe extern "C" {
 }
 
 
-use crate::support::handle::{HANDLE_STATE_EMPTY, HANDLE_STATE_INDEX, handle_consolidateTo, handle_fromIndex, FdHandle, GlyphHandle, Handle, otfcc_Handle_copy, otfcc_Handle_dispose};
+use crate::support::handle::{HandleState, handle_consolidateTo, handle_fromIndex, FdHandle, GlyphHandle, Handle, otfcc_Handle_copy, otfcc_Handle_dispose};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
@@ -27,13 +27,13 @@ use crate::table::COLR::{ColrLayer, ColrLayerList, ColrMapping, ColrTable};
 
 
 
-use crate::table::_TSI::{TSI_GLYPH, TsiTable, TsiEntry};
+use crate::table::_TSI::{TsiEntryType, TsiTable, TsiEntry};
 use crate::table::cmap::{CmapEntry, CmapUvsEntry};
 
 
 
 
-use crate::table::glyf::{REF_ANCHOR_ANCHOR, REF_ANCHOR_CONSOLIDATED, REF_ANCHOR_CONSOLIDATING_ANCHOR, REF_ANCHOR_CONSOLIDATING_XY, REF_XY, ComponentReference, Glyph, GlyphPtr, Point, PostscriptHintMask, PostscriptStemDef, GlyfTable};
+use crate::table::glyf::{RefAnchorStatus, ComponentReference, Glyph, GlyphPtr, Point, PostscriptHintMask, PostscriptStemDef, GlyfTable};
 
 
 
@@ -139,7 +139,7 @@ unsafe extern "C" fn consolidateGlyphContours(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Removed empty contour #",
@@ -175,7 +175,7 @@ unsafe extern "C" fn consolidateGlyphReferences(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored absent glyph component reference /",
@@ -335,7 +335,7 @@ unsafe extern "C" fn consolidateFDSelect(
     if cff.is_null() || (*cff).fdArray.is_null() || (*cff).fdArrayCount == 0 {
         return;
     }
-    if (*h).state == HANDLE_STATE_INDEX
+    if (*h).state == HandleState::Index
     {
         if (*h).index as ::core::ffi::c_int >= (*cff).fdArrayCount as ::core::ffi::c_int {
             (*h).index = 0 as GlyphId;
@@ -371,7 +371,7 @@ unsafe extern "C" fn consolidateFDSelect(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] CID Subfont ",
@@ -499,33 +499,33 @@ pub unsafe extern "C" fn consolidateAnchorRef(
     mut rr: *mut ComponentReference,
     mut options: *const Options,
 ) -> bool {
-    if (*rr).isAnchored == REF_ANCHOR_CONSOLIDATED
-        || (*rr).isAnchored == REF_XY
+    if (*rr).isAnchored == RefAnchorStatus::AnchorConsolidated
+        || (*rr).isAnchored == RefAnchorStatus::Xy
     {
         return true;
     }
-    if (*rr).isAnchored == REF_ANCHOR_CONSOLIDATING_ANCHOR
-        || (*rr).isAnchored == REF_ANCHOR_CONSOLIDATING_XY
+    if (*rr).isAnchored == RefAnchorStatus::AnchorConsolidatingAnchor
+        || (*rr).isAnchored == RefAnchorStatus::AnchorConsolidatingXy
     {
         (*(*options).logger)
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
                 b"Found circular reference of out-of-range point reference in anchored reference.",
             ),
         );
-        (*rr).isAnchored = REF_XY;
+        (*rr).isAnchored = RefAnchorStatus::Xy;
         return false;
     }
-    if (*rr).isAnchored == REF_ANCHOR_ANCHOR
+    if (*rr).isAnchored == RefAnchorStatus::AnchorAnchor
     {
-        (*rr).isAnchored = REF_ANCHOR_CONSOLIDATING_ANCHOR;
+        (*rr).isAnchored = RefAnchorStatus::AnchorConsolidatingAnchor;
     } else {
-        (*rr).isAnchored = REF_ANCHOR_CONSOLIDATING_XY;
+        (*rr).isAnchored = RefAnchorStatus::AnchorConsolidatingXy;
     }
     let mut innerX: VQ =
         (iVQ.neutral.expect("non-null function pointer"))();
@@ -568,7 +568,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
                 b"Failed to access point ",
@@ -583,7 +583,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
                 b"Failed to access point ",
@@ -608,11 +608,11 @@ pub unsafe extern "C" fn consolidateAnchorRef(
         -((*rr).d as Pos),
         innerY,
     );
-    if (*rr).isAnchored == REF_ANCHOR_CONSOLIDATING_ANCHOR
+    if (*rr).isAnchored == RefAnchorStatus::AnchorConsolidatingAnchor
     {
         iVQ.replace.expect("non-null function pointer")(&raw mut (*rr).x, rrx);
         iVQ.replace.expect("non-null function pointer")(&raw mut (*rr).y, rry);
-        (*rr).isAnchored = REF_ANCHOR_CONSOLIDATED;
+        (*rr).isAnchored = RefAnchorStatus::AnchorConsolidated;
     } else {
         if fabs(
             iVQ.getStill.expect("non-null function pointer")((*rr).x) as ::core::ffi::c_double
@@ -629,7 +629,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"Anchored reference to ",
@@ -638,7 +638,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
                 ),
             );
         }
-        (*rr).isAnchored = REF_ANCHOR_CONSOLIDATED;
+        (*rr).isAnchored = RefAnchorStatus::AnchorConsolidated;
         iVQ.dispose.expect("non-null function pointer")(&raw mut rrx);
         iVQ.dispose.expect("non-null function pointer")(&raw mut rry);
     }
@@ -728,7 +728,7 @@ pub unsafe extern "C" fn consolidateCmap(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored mapping U+",
@@ -759,7 +759,7 @@ pub unsafe extern "C" fn consolidateCmap(
                     )(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored UVS mapping [U+",
@@ -808,7 +808,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored empty subtable ",
@@ -837,7 +837,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[Consolidate] Ignored empty subtable ",
@@ -869,7 +869,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Lookup ",
@@ -1331,7 +1331,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored missing glyph of /",
@@ -1341,7 +1341,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
             } else {
                 let mut m: ColrMapping = ColrMapping {
                     glyph: Handle {
-                        state: HANDLE_STATE_EMPTY,
+                        state: HandleState::Empty,
                         index: 0,
                         name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                     },
@@ -1373,7 +1373,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
                                 .expect("non-null function pointer")(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[Consolidate] Ignored missing glyph of /",
@@ -1383,7 +1383,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
                         } else {
                             let mut layer1: ColrLayer = ColrLayer {
                                 glyph: Handle {
-                                    state: HANDLE_STATE_EMPTY,
+                                    state: HandleState::Empty,
                                     index: 0,
                                     name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                                 },
@@ -1411,7 +1411,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[Consolidate] COLR decomposition for /",
@@ -1462,7 +1462,7 @@ unsafe extern "C" fn consolidateTSI(
         let mut entry: *mut TsiEntry = (*tsi).items.offset(__caryll_index as isize);
         while keep != 0 {
             if (*entry).type_0 as ::core::ffi::c_uint
-                == TSI_GLYPH as ::core::ffi::c_int as ::core::ffi::c_uint
+                == TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint
             {
                 if otfcc_pkgGlyphOrder
                     .consolidateHandle
@@ -1482,7 +1482,7 @@ unsafe extern "C" fn consolidateTSI(
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[Consolidate] Ignored missing glyph of /",
@@ -1492,9 +1492,9 @@ unsafe extern "C" fn consolidateTSI(
                 }
             } else {
                 let mut e: TsiEntry = TsiEntry {
-                    type_0: TSI_GLYPH,
+                    type_0: TsiEntryType::Glyph,
                     glyph: Handle {
-                        state: HANDLE_STATE_EMPTY,
+                        state: HandleState::Empty,
                         index: 0,
                         name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                     },
@@ -1511,15 +1511,15 @@ unsafe extern "C" fn consolidateTSI(
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*(*font).glyf).length {
         let mut e_0: TsiEntry = TsiEntry {
-            type_0: TSI_GLYPH,
+            type_0: TsiEntryType::Glyph,
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
             content: ::core::ptr::null_mut::<::core::ffi::c_char>(),
         };
-        e_0.type_0 = TSI_GLYPH;
+        e_0.type_0 = TsiEntryType::Glyph;
         e_0.glyph =
             handle_fromIndex(j) as GlyphHandle;
         otfcc_pkgGlyphOrder
@@ -1575,7 +1575,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Glyph name ",
@@ -1601,7 +1601,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             log_vl_important,
-                            log_type_warning,
+                            LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
                                 b"[Consolidate] Glyph ",

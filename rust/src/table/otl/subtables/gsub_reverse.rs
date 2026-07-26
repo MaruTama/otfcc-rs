@@ -12,8 +12,8 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
-use crate::vendor::json::{json_array, JsonValue};
-use crate::bk::bkblock::{b16, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
+use crate::vendor::json::{JsonType, JsonValue};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubReverseSubtableElementInterface, Subtable, GsubReverseSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
@@ -372,12 +372,12 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
     let mut _match: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"match\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     let mut _to: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"to\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     if _match.is_null() || _to.is_null() {
         return ::core::ptr::null_mut::<Subtable>();
@@ -415,32 +415,32 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
 ) -> *mut Buffer {
     let mut subtable: *const GsubReverseSubtable = &raw const (*_subtable).gsub_reverse;
     reverseBacktracks((*subtable).match_0, (*subtable).inputIndex);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             *(*subtable).match_0.offset((*subtable).inputIndex as isize),
         )))]);
-    bk_push(root, &[bk_int(b16, ((*subtable).inputIndex as ::core::ffi::c_int) as u32)]);
+    bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).inputIndex as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).inputIndex as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j as isize),
             )))]);
         j = j.wrapping_add(1);
     }
-    bk_push(root, &[bk_int(b16, ((*subtable).matchCount as ::core::ffi::c_int
+    bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).matchCount as ::core::ffi::c_int
             - (*subtable).inputIndex as ::core::ffi::c_int
             - 1 as ::core::ffi::c_int) as u32)]);
     let mut j_0: TableId =
         ((*subtable).inputIndex as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
     while (j_0 as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j_0 as isize),
             )))]);
         j_0 = j_0.wrapping_add(1);
     }
-    bk_push(root, &[bk_int(b16, ((*(*subtable).to).numGlyphs as ::core::ffi::c_int) as u32)]);
+    bk_push(root, &[bk_int(BkCellType::B16, ((*(*subtable).to).numGlyphs as ::core::ffi::c_int) as u32)]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as ::core::ffi::c_int) < (*(*subtable).to).numGlyphs as ::core::ffi::c_int {
-        bk_push(root, &[bk_int(b16, ((*(*(*subtable).to).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int) as u32)]);
+        bk_push(root, &[bk_int(BkCellType::B16, ((*(*(*subtable).to).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int) as u32)]);
         j_1 = j_1.wrapping_add(1);
     }
     return bk_build_Block(root);

@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset};
 
-use crate::support::handle::{handle_consolidateTo, Handle, GlyphHandle, HANDLE_STATE_CONSOLIDATED, HANDLE_STATE_NAME, HANDLE_STATE_INDEX};
+use crate::support::handle::{handle_consolidateTo, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{GlyphId};
@@ -17,7 +17,7 @@ use crate::vendor::sds::{sdsempty, sdsfree};
 /// declared in ascending discriminant order and
 /// `glyphorderpass_order_is_its_encoding` pins that the two agree.
 ///
-/// `ORD_UNSET` is a name this port adds; C had none. Its `enum` lives inside
+/// `GlyphOrderPass::Unset` is a name this port adds; C had none. Its `enum` lives inside
 /// `json-reader.c` while this struct's field is a plain `uint8_t` in the shared
 /// header, so the OTF path could leave the field at whatever `calloc` gave it --
 /// and it does: `otfcc_setGlyphOrderByGID` and `otfcc_setGlyphOrderByName`
@@ -31,13 +31,12 @@ use crate::vendor::sds::{sdsempty, sdsfree};
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[repr(u8)]
 pub enum GlyphOrderPass {
-    ORD_UNSET = 0,
-    ORD_GLYPHORDER = 1,
-    ORD_NOTDEF = 2,
-    ORD_CMAP = 3,
-    ORD_GLYF = 4,
+    Unset = 0,
+    GlyphOrder = 1,
+    Notdef = 2,
+    Cmap = 3,
+    Glyf = 4,
 }
-pub use GlyphOrderPass::*;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -3285,7 +3284,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
     mut go: *mut GlyphOrder,
     mut h: *mut GlyphHandle,
 ) -> bool {
-    if (*h).state == HANDLE_STATE_CONSOLIDATED
+    if (*h).state == HandleState::Consolidated
     {
         let mut t: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
         let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -3922,7 +3921,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
             );
             return true;
         }
-    } else if (*h).state == HANDLE_STATE_NAME
+    } else if (*h).state == HandleState::Name
     {
         let mut t_0: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
         let mut _hf_hashv_1: ::core::ffi::c_uint = 0;
@@ -4247,7 +4246,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
             );
             return true;
         }
-    } else if (*h).state == HANDLE_STATE_INDEX
+    } else if (*h).state == HandleState::Index
     {
         let mut name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
         otfcc_gordNameAFieldShared(go, (*h).index, &raw mut name);
@@ -4621,20 +4620,20 @@ mod tests {
     // derived `Ord` compares by declaration order, which is only the encoding
     // because the declarations happen to be in ascending order. Pin that, and
     // pin the zero: `otfcc_setGlyphOrderByGID` calloc's an entry and never
-    // assigns this field, so `ORD_UNSET` has to be the all-zero value for the
+    // assigns this field, so `GlyphOrderPass::Unset` has to be the all-zero value for the
     // field to be a valid `GlyphOrderPass` at all.
     #[test]
     fn glyphorderpass_order_is_its_encoding() {
-        let all = [ORD_UNSET, ORD_GLYPHORDER, ORD_NOTDEF, ORD_CMAP, ORD_GLYF];
+        let all = [GlyphOrderPass::Unset, GlyphOrderPass::GlyphOrder, GlyphOrderPass::Notdef, GlyphOrderPass::Cmap, GlyphOrderPass::Glyf];
         for w in all.windows(2) {
             assert!(w[0] < w[1], "{:?} should rank above {:?}", w[0], w[1]);
             assert!((w[0] as u8) < (w[1] as u8));
         }
-        assert_eq!(ORD_UNSET as u8, 0);
-        assert_eq!(ORD_GLYPHORDER as u8, 1);
-        assert_eq!(ORD_NOTDEF as u8, 2);
-        assert_eq!(ORD_CMAP as u8, 3);
-        assert_eq!(ORD_GLYF as u8, 4);
+        assert_eq!(GlyphOrderPass::Unset as u8, 0);
+        assert_eq!(GlyphOrderPass::GlyphOrder as u8, 1);
+        assert_eq!(GlyphOrderPass::Notdef as u8, 2);
+        assert_eq!(GlyphOrderPass::Cmap as u8, 3);
+        assert_eq!(GlyphOrderPass::Glyf as u8, 4);
         assert_eq!(::core::mem::size_of::<GlyphOrderPass>(), 1);
     }
 }

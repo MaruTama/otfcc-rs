@@ -2,16 +2,16 @@
 use libc::{free, malloc, memcpy, memset, qsort};
 
 use crate::table::otl::coverage::{Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
-use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HANDLE_STATE_EMPTY};
+use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{json_object, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, bkembed, p16};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 
 use crate::table::otl::{GposSingleSubtableVectorInterface, GposSingleEntry, PositionValue, Subtable, GposSingleSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
@@ -139,7 +139,7 @@ unsafe extern "C" fn subtable_gpos_single_fill(mut arr: *mut GposSingleSubtable,
     while (*arr).length < n {
         let mut x: GposSingleEntry = GposSingleEntry {
             target: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -543,7 +543,7 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
             .is_null()
             && (*(*(*_subtable).u.object.values.offset(j as isize)).value).type_0
                 as ::core::ffi::c_uint
-                == json_object as ::core::ffi::c_int as ::core::ffi::c_uint
+                == JsonType::Object as ::core::ffi::c_int as ::core::ffi::c_uint
         {
             let mut gname: SdsRaw = sdsnewlen(
                 (*(*_subtable).u.object.values.offset(j as isize)).name
@@ -614,17 +614,17 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
     let mut coverageBuf: *mut Buffer =
         otl_iCoverage.build.expect("non-null function pointer")(cov);
     if isConst {
-        let mut b: *mut BkBlock = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(coverageBuf)), bk_int(b16, (format as ::core::ffi::c_int) as u32), bk_ptr(bkembed, bk_gpos_value(
+        let mut b: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverageBuf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(
                 (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize)).value,
                 format,
             ))]);
         otl_Coverage_free(cov);
         return bk_build_Block(b);
     } else {
-        let mut b_0: *mut BkBlock = bk_new_Block(&[bk_int(b16, 2 as u32), bk_ptr(p16, bk_newBlockFromBuffer(coverageBuf)), bk_int(b16, (format as ::core::ffi::c_int) as u32), bk_int(b16, ((*subtable).length) as u32)]);
+        let mut b_0: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverageBuf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*subtable).length) as u32)]);
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < (*subtable).length {
-            bk_push(b_0, &[bk_ptr(bkembed, bk_gpos_value((*(*subtable).items.offset(k as isize)).value, format))]);
+            bk_push(b_0, &[bk_ptr(BkCellType::Embed, bk_gpos_value((*(*subtable).items.offset(k as isize)).value, format))]);
             k = k.wrapping_add(1);
         }
         otl_Coverage_free(cov);

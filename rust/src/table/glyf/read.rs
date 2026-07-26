@@ -5,17 +5,17 @@ use crate::support::handle::{handle_fromIndex, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_8s, read_16u, read_16s, read_32u};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, F2Dot14, FontFilePointer, GlyphId, Pos, Scale, ShapeId};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::fvar::FvarTable;
-use crate::table::glyf::{GlyfIOContext, REF_ANCHOR_ANCHOR, REF_XY, ComponentFlags, PointFlags, ComponentReference, Contour, ContourList, Glyph, GlyphPtr, Point, GlyfTable};
+use crate::table::glyf::{GlyfIOContext, RefAnchorStatus, ComponentFlags, PointFlags, ComponentReference, Contour, ContourList, Glyph, GlyphPtr, Point, GlyfTable};
 
 
 use crate::vf::region::{VqAxisSpan, VqRegion};
-use crate::vf::vq::{VQ, VQ_DELTA, VqSegment};
+use crate::vf::vq::{VQ, VQSegType, VqSegment};
 use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{table_iFvar};
 use crate::table::glyf::{glyf_iComponentReference, glyf_iContour, glyf_iContourList, glyf_iReferenceList, otfcc_newGlyf_glyph, table_iGlyf};
@@ -324,7 +324,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
             handle_fromIndex(index) as GlyphHandle;
         offset = offset.wrapping_add(4 as u32);
         if flags.contains(ComponentFlags::ARGS_ARE_XY_VALUES) {
-            ref_0.isAnchored = REF_XY;
+            ref_0.isAnchored = RefAnchorStatus::Xy;
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
                 ref_0.x = iVQ.createStill.expect("non-null function pointer")(read_16s(
                     start.offset(offset as isize) as *const u8,
@@ -353,7 +353,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                 offset = offset.wrapping_add(2 as u32);
             }
         } else {
-            ref_0.isAnchored = REF_ANCHOR_ANCHOR;
+            ref_0.isAnchored = RefAnchorStatus::AnchorAnchor;
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
                 ref_0.outer =
                     read_16u(start.offset(offset as isize) as *const u8) as ShapeId;
@@ -426,7 +426,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(sdsempty(), b"glyf: SCALED_COMPONENT_OFFSET is not supported."),
             );
         }
@@ -746,7 +746,7 @@ unsafe extern "C" fn applyCoords(
     ) as *mut VqSegment;
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_int) < totalPoints as ::core::ffi::c_int {
-        (*nudges.offset(j as isize)).type_0 = VQ_DELTA;
+        (*nudges.offset(j as isize)).type_0 = VQSegType::Delta;
         (*nudges.offset(j as isize)).val.delta.touched = false;
         (*nudges.offset(j as isize)).val.delta.quantity = 0 as ::core::ffi::c_int as Pos;
         let ref mut fresh4 = (*nudges.offset(j as isize)).val.delta.region;
@@ -1125,7 +1125,7 @@ unsafe extern "C" fn polymorphize(
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             log_vl_important,
-                            log_type_warning,
+                            LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
                                 b"Axes number in GVAR and FVAR are inequal",
@@ -1270,7 +1270,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             log_vl_important,
-                            log_type_warning,
+                            LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"table 'loca' corrupted.\n"),
                         );
                         if !offsets.is_null() {
@@ -1313,7 +1313,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                                     .expect("non-null function pointer")(
                                     (*options).logger as *mut ILogger,
                                     log_vl_important,
-                                    log_type_warning,
+                                    LoggerType::Warning,
                                     crate::sdsbuild!(sdsempty(), b"table 'glyf' corrupted.\n"),
                                 );
                                 if !glyf.is_null() {

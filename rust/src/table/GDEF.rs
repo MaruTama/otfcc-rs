@@ -3,16 +3,16 @@ use libc::{free, malloc, memcpy, memset, qsort};
 use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, preserialize};
 use crate::table::otl::classdef::{ClassDef, otl_ClassDef_free, readClassDef};
 use crate::table::otl::coverage::{Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
-use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle_empty, Handle, GlyphHandle, HANDLE_STATE_EMPTY};
+use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle_empty, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u};
 use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, Pos, ShapeId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{json_array, json_integer, json_object, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, b32, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::support::{ComparFn};
@@ -689,7 +689,7 @@ unsafe extern "C" fn otl_LigCaretTable_fill(mut arr: *mut LigCaretTable, mut n: 
     while (*arr).length < n {
         let mut x: CaretValueRecord = CaretValueRecord {
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -971,7 +971,7 @@ unsafe extern "C" fn readLigCaretRecord(
     let mut caretCount: ShapeId = 0;
     let mut g: CaretValueRecord = CaretValueRecord {
         glyph: Handle {
-            state: HANDLE_STATE_EMPTY,
+            state: HandleState::Empty,
             index: 0,
             name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
         },
@@ -1273,7 +1273,7 @@ unsafe extern "C" fn ligCaretFromJson(
     mut lc: *mut LigCaretTable,
 ) {
     if _carets.is_null()
-        || (*_carets).type_0 != json_object
+        || (*_carets).type_0 != JsonType::Object
     {
         return;
     }
@@ -1282,11 +1282,11 @@ unsafe extern "C" fn ligCaretFromJson(
         let mut a: *mut JsonValue =
             (*(*_carets).u.object.values.offset(j as isize)).value as *mut JsonValue;
         if !(a.is_null()
-            || (*a).type_0 != json_array)
+            || (*a).type_0 != JsonType::Array)
         {
             let mut v: CaretValueRecord = CaretValueRecord {
                 glyph: Handle {
-                    state: HANDLE_STATE_EMPTY,
+                    state: HandleState::Empty,
                     index: 0,
                     name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                 },
@@ -1317,12 +1317,12 @@ unsafe extern "C" fn ligCaretFromJson(
                 let mut _caret: *mut JsonValue =
                     *(*a).u.array.values.offset(k as isize) as *mut JsonValue;
                 if !_caret.is_null()
-                    && (*_caret).type_0 == json_object
+                    && (*_caret).type_0 == JsonType::Object
                 {
                     if !json_obj_get_type(
                         _caret,
                         b"atPoint\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_integer,
+                        JsonType::Integer,
                     )
                     .is_null()
                     {
@@ -1358,7 +1358,7 @@ pub unsafe extern "C" fn otfcc_parseGDEF(
     table = json_obj_get_type(
         root,
         b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if !table.is_null() {
         (*(*options).logger)
@@ -1399,10 +1399,10 @@ pub unsafe extern "C" fn otfcc_parseGDEF(
     return gdef;
 }
 unsafe extern "C" fn writeLigCaretRec(mut cr: *mut CaretValueRecord) -> *mut BkBlock {
-    let mut bcr: *mut BkBlock = bk_new_Block(&[bk_int(b16, ((*cr).carets.length) as u32)]);
+    let mut bcr: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*cr).carets.length) as u32)]);
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*cr).carets.length {
-        bk_push(bcr, &[bk_ptr(p16, bk_new_Block(&[bk_int(b16, ((*(*cr).carets.items.offset(j as isize)).format as ::core::ffi::c_int) as u32), bk_int(b16, (if (*(*cr).carets.items.offset(j as isize)).format as ::core::ffi::c_int
+        bk_push(bcr, &[bk_ptr(BkCellType::P16, bk_new_Block(&[bk_int(BkCellType::B16, ((*(*cr).carets.items.offset(j as isize)).format as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (if (*(*cr).carets.items.offset(j as isize)).format as ::core::ffi::c_int
                     == 2 as ::core::ffi::c_int
                 {
                     (*(*cr).carets.items.offset(j as isize)).pointIndex as ::core::ffi::c_int
@@ -1426,10 +1426,10 @@ unsafe extern "C" fn writeLigCarets(mut lc: *const LigCaretTable) -> *mut BkBloc
         );
         j = j.wrapping_add(1);
     }
-    let mut lct: *mut BkBlock = bk_new_Block(&[bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(b16, ((*lc).length) as u32)]);
+    let mut lct: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, ((*lc).length) as u32)]);
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*lc).length {
-        bk_push(lct, &[bk_ptr(p16, writeLigCaretRec((*lc).items.offset(j_0 as isize) as *mut CaretValueRecord))]);
+        bk_push(lct, &[bk_ptr(BkCellType::P16, writeLigCaretRec((*lc).items.offset(j_0 as isize) as *mut CaretValueRecord))]);
         j_0 = j_0.wrapping_add(1);
     }
     otl_Coverage_free(cov);
@@ -1461,6 +1461,6 @@ pub unsafe extern "C" fn otfcc_buildGDEF(
                 (*gdef).markAttachClassDef,
             ));
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b32, 0x10000 as u32), bk_ptr(p16, bGlyphClassDef), bk_ptr(p16, bAttachList), bk_ptr(p16, bLigCaretList), bk_ptr(p16, bMarkAttachClassDef)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, bGlyphClassDef), bk_ptr(BkCellType::P16, bAttachList), bk_ptr(BkCellType::P16, bLigCaretList), bk_ptr(BkCellType::P16, bMarkAttachClassDef)]);
     return bk_build_Block(root);
 }

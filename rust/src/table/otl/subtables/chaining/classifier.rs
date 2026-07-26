@@ -11,7 +11,7 @@ use crate::support::primitives::{GlyphClass, GlyphId, TableId};
 use crate::vendor::sds::{SdsRaw};
 
 use crate::support::{NULL};
-use crate::table::otl::{ChainLookupApplication, ChainingRule, Lookup, Subtable, otl_chaining_classified, ChainingSubtable};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, Lookup, Subtable, ChainingType, ChainingSubtable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::table::otl::subtables::chaining::build::{otfcc_build_chaining, otfcc_build_contextual, otfcc_chainingLookupIsContextualLookup};
 use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
@@ -3652,7 +3652,7 @@ pub unsafe extern "C" fn tryClassifyAround(
                     kk = kk.wrapping_add(1);
                     k_0 = k_0.wrapping_add(1);
                 }
-                (*subtable0).type_0 = otl_chaining_classified;
+                (*subtable0).type_0 = ChainingType::Classified;
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.bc = toClass(&raw mut hb);
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.ic = toClass(&raw mut hi);
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.fc = toClass(&raw mut hf);

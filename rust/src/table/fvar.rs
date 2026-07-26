@@ -7,7 +7,7 @@ unsafe extern "C" {
 
 use crate::support::json_funcs::{json_new_position, json_numof, json_object_push_tag, preserialize};
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
@@ -2071,7 +2071,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'fvar' corrupted.\n"),
                     );
                     table_iFvar.free.expect("non-null function pointer")(fvar);

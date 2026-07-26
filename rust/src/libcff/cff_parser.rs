@@ -7,16 +7,16 @@ unsafe extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{Arity};
 use crate::vendor::sds::Hex4;
 use crate::libcff::{CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, CffIOutlineBuilder, CffStack, op_CharStrings, op_Encoding, op_FDArray, op_FDSelect, op_Private, op_Subrs, op_abs, op_add, op_and, op_callgsubr, op_callsubr, op_charset, op_cntrmask, op_div, op_drop, op_dup, op_eq, op_exch, op_flex, op_flex1, op_get, op_hflex, op_hflex1, op_hmoveto, op_ifelse, op_index, op_mul, op_neg, op_not, op_or, op_put, op_rmoveto, op_roll, op_sqrt, op_sub, op_vmoveto, op_vstem, op_vstemhm, type2_transient_array};
 use crate::libcff::cff_charset::cff_CHARSET_UNSPECED;
-use crate::libcff::cff_fdselect::{cff_FDSELECT_FORMAT0, cff_FDSELECT_FORMAT3, cff_FDSELECT_UNSPECED, CffFdSelect};
+use crate::libcff::cff_fdselect::{CffFdSelectType, CffFdSelect};
 use crate::libcff::cff_index::CffIndex;
-use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_UNSET, CffValue, CffValueBody};
+use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::cff_charset::{cff_close_Charset, cff_extract_Charset};
 use crate::libcff::cff_codecs::{cff_decodeCS2Token};
 use crate::libcff::cff_dict::{cff_iDict};
@@ -28,18 +28,17 @@ use crate::vendor::sds::{sdsempty};
 /// format of an embedded encoding. Again the crate's own classification rather
 /// than anything read from the file -- though `cff_extract_Encoding` does lean
 /// on the numbering, comparing the *offset* from the Top DICT against
-/// `cff_ENC_STANDARD`/`cff_ENC_EXPERT`, which the spec assigns 0 and 1.
+/// `CffEncodingType::Standard`/`CffEncodingType::Expert`, which the spec assigns 0 and 1.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum CffEncodingType {
-    cff_ENC_STANDARD = 0,
-    cff_ENC_EXPERT = 1,
-    cff_ENC_FORMAT0 = 2,
-    cff_ENC_FORMAT1 = 3,
-    cff_ENC_FORMAT_SUPPLEMENT = 4,
-    cff_ENC_UNSPECED = 5,
+    Standard = 0,
+    Expert = 1,
+    Format0 = 2,
+    Format1 = 3,
+    FormatSupplement = 4,
+    Unspecified = 5,
 }
-pub use CffEncodingType::*;
 #[inline]
 unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;
@@ -60,14 +59,14 @@ unsafe extern "C" fn parse_encoding(
     mut enc: *mut CffEncoding,
 ) {
     let mut data: *mut u8 = (*cff).raw_data;
-    if offset == cff_ENC_STANDARD as ::core::ffi::c_int as i32 {
-        (*enc).t = cff_ENC_STANDARD;
-    } else if offset == cff_ENC_EXPERT as ::core::ffi::c_int as i32 {
-        (*enc).t = cff_ENC_EXPERT;
+    if offset == CffEncodingType::Standard as ::core::ffi::c_int as i32 {
+        (*enc).t = CffEncodingType::Standard;
+    } else if offset == CffEncodingType::Expert as ::core::ffi::c_int as i32 {
+        (*enc).t = CffEncodingType::Expert;
     } else {
         match *data.offset(offset as isize) as ::core::ffi::c_int {
             0 => {
-                (*enc).t = cff_ENC_FORMAT0;
+                (*enc).t = CffEncodingType::Format0;
                 (*enc).c2rust_unnamed.f0.format = 0 as u8;
                 (*enc).c2rust_unnamed.f0.ncodes = *data.offset((offset + 1 as i32) as isize);
                 (*enc).c2rust_unnamed.f0.code = __caryll_allocate_clean(
@@ -83,7 +82,7 @@ unsafe extern "C" fn parse_encoding(
                 }
             }
             1 => {
-                (*enc).t = cff_ENC_FORMAT1;
+                (*enc).t = CffEncodingType::Format1;
                 (*enc).c2rust_unnamed.f1.format = 1 as u8;
                 (*enc).c2rust_unnamed.f1.nranges = *data.offset((offset + 1 as i32) as isize);
                 (*enc).c2rust_unnamed.f1.range1 = __caryll_allocate_clean(
@@ -108,7 +107,7 @@ unsafe extern "C" fn parse_encoding(
                 }
             }
             _ => {
-                (*enc).t = cff_ENC_FORMAT_SUPPLEMENT;
+                (*enc).t = CffEncodingType::FormatSupplement;
                 (*enc).c2rust_unnamed.ns.nsup = *data.offset(offset as isize);
                 (*enc).c2rust_unnamed.ns.supplement = __caryll_allocate_clean(
                     (::core::mem::size_of::<CffEncodingSupplement>() as usize)
@@ -163,7 +162,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
                 b"[libcff] Bad CFF font: (",
@@ -234,7 +233,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(sdsempty(), b"[libcff] Bad CFF font: no any glyph data.\n"),
             );
         }
@@ -258,7 +257,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         if offset_0 != -(1 as i32) {
             parse_encoding(cff, offset_0, &raw mut (*cff).encodings);
         } else {
-            (*cff).encodings.t = cff_ENC_UNSPECED;
+            (*cff).encodings.t = CffEncodingType::Unspecified;
         }
         offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
@@ -312,7 +311,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                 &raw mut (*cff).fdselect,
             );
         } else {
-            (*cff).fdselect.t = cff_FDSELECT_UNSPECED;
+            (*cff).fdselect.t = CffFdSelectType::Unspecified;
         }
         offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
@@ -439,20 +438,20 @@ pub unsafe extern "C" fn cff_close(mut file: *mut CffFile) {
         cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).font_dict);
         cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).local_subr);
         match (*file).encodings.t {
-            cff_ENC_FORMAT0 => {
+            CffEncodingType::Format0 => {
                 if !(*file).encodings.c2rust_unnamed.f0.code.is_null() {
                     free((*file).encodings.c2rust_unnamed.f0.code as *mut ::core::ffi::c_void);
                     (*file).encodings.c2rust_unnamed.f0.code = ::core::ptr::null_mut::<u8>();
                 }
             }
-            cff_ENC_FORMAT1 => {
+            CffEncodingType::Format1 => {
                 if !(*file).encodings.c2rust_unnamed.f1.range1.is_null() {
                     free((*file).encodings.c2rust_unnamed.f1.range1 as *mut ::core::ffi::c_void);
                     (*file).encodings.c2rust_unnamed.f1.range1 =
                         ::core::ptr::null_mut::<CffEncodingRangeFormat1>();
                 }
             }
-            cff_ENC_FORMAT_SUPPLEMENT => {
+            CffEncodingType::FormatSupplement => {
                 if !(*file).encodings.c2rust_unnamed.ns.supplement.is_null() {
                     free(
                         (*file).encodings.c2rust_unnamed.ns.supplement as *mut ::core::ffi::c_void,
@@ -481,10 +480,10 @@ pub unsafe extern "C" fn cff_parseSubr(
     let mut len_private: i32 = 0;
     let mut off_subr: i32 = 0;
     match select.t {
-        cff_FDSELECT_FORMAT0 => {
+        CffFdSelectType::Format0 => {
             fd = *select.c2rust_unnamed.f0.fds.offset(idx as isize);
         }
-        cff_FDSELECT_FORMAT3 => {
+        CffFdSelectType::Format3 => {
             let mut i: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
             while i < select.c2rust_unnamed.f3.nranges as ::core::ffi::c_int
                 - 1 as ::core::ffi::c_int
@@ -520,7 +519,7 @@ pub unsafe extern "C" fn cff_parseSubr(
                 .fd;
             }
         }
-        cff_FDSELECT_UNSPECED => {
+        CffFdSelectType::Unspecified => {
             fd = 0 as u8;
         }
     }
@@ -659,7 +658,7 @@ pub unsafe extern "C" fn cff_parseOutline(
     let mut i: u32 = 0;
     let mut cnt_bezier: u32 = 0;
     let mut val: CffValue = CffValue {
-        t: cff_UNSET,
+        t: CffValueType::Unset,
         c2rust_unnamed: CffValueBody { i: 0 },
     };
     let mut setWidth: Option<
@@ -788,7 +787,7 @@ pub unsafe extern "C" fn cff_parseOutline(
     while start < data.offset(len as isize) {
         advance = cff_decodeCS2Token(start, &raw mut val);
         match val.t {
-            cff_OPERATOR => {
+            CffValueType::Operator => {
                 let mut hintBase: ::core::ffi::c_double = 0.;
                 match val.c2rust_unnamed.i {
                     1 | 3 | 18 | 23 => {
@@ -943,7 +942,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -989,7 +988,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -1039,7 +1038,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -1745,7 +1744,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -1802,7 +1801,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -1867,7 +1866,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -1934,7 +1933,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2038,7 +2037,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2080,7 +2079,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2122,7 +2121,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2154,7 +2153,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2186,7 +2185,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2224,7 +2223,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2262,7 +2261,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2300,7 +2299,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2332,7 +2331,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2370,7 +2369,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2393,7 +2392,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2431,7 +2430,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2467,7 +2466,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2507,7 +2506,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                         }
                     }
                     3095 => {
-                        (*(*stack).stack.offset((*stack).index as isize)).t = cff_DOUBLE;
+                        (*(*stack).stack.offset((*stack).index as isize)).t = CffValueType::Double;
                         (*(*stack).stack.offset((*stack).index as isize))
                             .c2rust_unnamed
                             .d = getrand.expect("non-null function pointer")(outline);
@@ -2522,7 +2521,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2560,7 +2559,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2592,7 +2591,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2618,7 +2617,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2660,7 +2659,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2692,7 +2691,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2721,7 +2720,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     )(
                                     (*options).logger as *mut ILogger,
                                     log_vl_important,
-                                    log_type_warning,
+                                    LoggerType::Warning,
                                     crate::sdsbuild!(
                                         sdsempty(),
                                         b"[libcff] Stack cannot provide enough parameters for ",
@@ -2766,7 +2765,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2822,7 +2821,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
@@ -2873,7 +2872,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                             )(
                             (*options).logger as *mut ILogger,
                             log_vl_important,
-                            log_type_warning,
+                            LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
                                 b"Warning: unknown operator ",
@@ -2885,7 +2884,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                     }
                 }
             }
-            cff_INTEGER | cff_DOUBLE => {
+            CffValueType::Integer | CffValueType::Double => {
                 let fresh0 = (*stack).index;
                 (*stack).index = (*stack).index.wrapping_add(1);
                 *(*stack).stack.offset(fresh0 as isize) = val;

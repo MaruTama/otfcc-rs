@@ -15,8 +15,8 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos, TableId};
-use crate::vendor::json::{json_array, json_double, json_integer, json_object, JsonValue};
-use crate::bk::bkblock::{b16, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, bkembed, p16};
+use crate::vendor::json::{JsonType, JsonValue};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 use crate::bk::bkgraph::{BkGraph};
 use crate::support::{NULL};
 use crate::table::otl::{GposPairSubtableElementInterface, PositionValue, Subtable, GposPairSubtable};
@@ -2075,18 +2075,18 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
     let mut _mat: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"matrix\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     (*subtable).first = otl_iClassDef.parse.expect("non-null function pointer")(json_obj_get_type(
         _subtable,
         b"first\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     ));
     (*subtable).second =
         otl_iClassDef.parse.expect("non-null function pointer")(json_obj_get_type(
             _subtable,
             b"second\0" as *const u8 as *const ::core::ffi::c_char,
-            json_object,
+            JsonType::Object,
         ));
     if _mat.is_null() || (*subtable).first.is_null() || (*subtable).second.is_null() {
         iSubtable_gpos_pair.free.expect("non-null function pointer")(subtable);
@@ -2136,7 +2136,7 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
             let mut _row: *mut JsonValue =
                 *(*_mat).u.array.values.offset(j_0 as isize) as *mut JsonValue;
             if !(_row.is_null()
-                || (*_row).type_0 != json_array)
+                || (*_row).type_0 != JsonType::Array)
             {
                 let mut k_0: GlyphClass = 0 as GlyphClass;
                 while (k_0 as ::core::ffi::c_int) < class2Count as ::core::ffi::c_int
@@ -2144,15 +2144,15 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
                 {
                     let mut _item: *mut JsonValue =
                         *(*_row).u.array.values.offset(k_0 as isize) as *mut JsonValue;
-                    if (*_item).type_0 == json_integer
+                    if (*_item).type_0 == JsonType::Integer
                     {
                         (*(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize))
                             .dWidth = (*_item).u.integer as Pos;
-                    } else if (*_item).type_0 == json_double
+                    } else if (*_item).type_0 == JsonType::Double
                     {
                         (*(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize))
                             .dWidth = (*_item).u.dbl as Pos;
-                    } else if (*_item).type_0 == json_object
+                    } else if (*_item).type_0 == JsonType::Object
                     {
                         *(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize) =
                             gpos_parse_value(json_obj_get(
@@ -2257,7 +2257,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     }
     let mut cov: *mut Coverage = covFromCD((*subtable).first);
     shrinkCoverage(cov, true);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(b16, (format1 as ::core::ffi::c_int) as u32), bk_int(b16, (format2 as ::core::ffi::c_int) as u32), bk_int(b16, ((*(*subtable).first).numGlyphs as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*subtable).first).numGlyphs as ::core::ffi::c_int) as u32)]);
     let mut j_1: GlyphId = 0 as GlyphId;
     while (j_1 as ::core::ffi::c_int) < (*cov).numGlyphs as ::core::ffi::c_int {
         let mut currentPairCount: TableId = 0 as TableId;
@@ -2272,7 +2272,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
             }
             k_1 = k_1.wrapping_add(1);
         }
-        let mut pairSet: *mut BkBlock = bk_new_Block(&[bk_int(b16, (currentPairCount as ::core::ffi::c_int) as u32)]);
+        let mut pairSet: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (currentPairCount as ::core::ffi::c_int) as u32)]);
         let mut pairs: *mut IndividualGposPair = ::core::ptr::null_mut::<IndividualGposPair>();
         pairs = __caryll_allocate_clean(
             (::core::mem::size_of::<IndividualGposPair>() as usize)
@@ -2317,12 +2317,12 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
         );
         let mut n_0: usize = 0 as usize;
         while n_0 < currentPairCount as usize {
-            bk_push(pairSet, &[bk_int(b16, ((*pairs.offset(n_0 as isize)).gid as ::core::ffi::c_int) as u32), bk_ptr(bkembed, bk_gpos_value(*(*pairs.offset(n_0 as isize)).fv, format1)), bk_ptr(bkembed, bk_gpos_value(*(*pairs.offset(n_0 as isize)).sv, format2))]);
+            bk_push(pairSet, &[bk_int(BkCellType::B16, ((*pairs.offset(n_0 as isize)).gid as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(*(*pairs.offset(n_0 as isize)).fv, format1)), bk_ptr(BkCellType::Embed, bk_gpos_value(*(*pairs.offset(n_0 as isize)).sv, format2))]);
             n_0 = n_0.wrapping_add(1);
         }
         free(pairs as *mut ::core::ffi::c_void);
         pairs = ::core::ptr::null_mut::<IndividualGposPair>();
-        bk_push(root, &[bk_ptr(p16, pairSet)]);
+        bk_push(root, &[bk_ptr(BkCellType::P16, pairSet)]);
         j_1 = j_1.wrapping_add(1);
     }
     otl_Coverage_free(cov);
@@ -2358,19 +2358,19 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
         j = j.wrapping_add(1);
     }
     let mut cov: *mut Coverage = covFromCD((*subtable).first);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, 2 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(b16, (format1 as ::core::ffi::c_int) as u32), bk_int(b16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
             (*subtable).first,
-        ))), bk_ptr(p16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
             (*subtable).second,
-        ))), bk_int(b16, (class1Count as ::core::ffi::c_int) as u32), bk_int(b16, (class2Count as ::core::ffi::c_int) as u32)]);
+        ))), bk_int(BkCellType::B16, (class1Count as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (class2Count as ::core::ffi::c_int) as u32)]);
     let mut j_0: GlyphClass = 0 as GlyphClass;
     while (j_0 as ::core::ffi::c_int) < class1Count as ::core::ffi::c_int {
         let mut k_0: GlyphClass = 0 as GlyphClass;
         while (k_0 as ::core::ffi::c_int) < class2Count as ::core::ffi::c_int {
-            bk_push(root, &[bk_ptr(bkembed, bk_gpos_value(
+            bk_push(root, &[bk_ptr(BkCellType::Embed, bk_gpos_value(
                     *(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize),
                     format1,
-                )), bk_ptr(bkembed, bk_gpos_value(
+                )), bk_ptr(BkCellType::Embed, bk_gpos_value(
                     *(*(*subtable).secondValues.offset(j_0 as isize)).offset(k_0 as isize),
                     format2,
                 ))]);

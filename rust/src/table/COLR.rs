@@ -2,17 +2,17 @@
 use libc::{free, malloc, memcpy, memset, qsort};
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint_fallback, preserialize};
-use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_init, otfcc_Handle_move, Handle, GlyphHandle, HANDLE_STATE_EMPTY};
+use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_init, otfcc_Handle_move, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, GlyphId};
-use crate::vendor::json::{json_array, json_object, json_string, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::support::{ComparFn};
@@ -235,7 +235,7 @@ unsafe extern "C" fn colr_LayerList_fill(mut arr: *mut ColrLayerList, mut n: usi
     while (*arr).length < n {
         let mut x: ColrLayer = ColrLayer {
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -714,7 +714,7 @@ unsafe extern "C" fn table_COLR_fill(mut arr: *mut ColrTable, mut n: usize) {
     while (*arr).length < n {
         let mut x: ColrMapping = ColrMapping {
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -920,7 +920,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                 {
                                     let mut mapping: ColrMapping = ColrMapping {
                                         glyph: Handle {
-                                            state: HANDLE_STATE_EMPTY,
+                                            state: HandleState::Empty,
                                             index: 0,
                                             name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                                         },
@@ -1010,7 +1010,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'COLR' corrupted.\n"),
                     );
                     table_iCOLR.free.expect("non-null function pointer")(colr);
@@ -1108,7 +1108,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
     _colr = json_obj_get_type(
         root,
         b"COLR\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     if _colr.is_null() {
         return ::core::ptr::null_mut::<ColrTable>();
@@ -1128,22 +1128,22 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
             let mut _mapping: *mut JsonValue =
                 *(*_colr).u.array.values.offset(j as isize) as *mut JsonValue;
             if !(_mapping.is_null()
-                || (*_mapping).type_0 != json_object)
+                || (*_mapping).type_0 != JsonType::Object)
             {
                 let mut _baseglyph: *mut JsonValue = json_obj_get_type(
                     _mapping,
                     b"from\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_string,
+                    JsonType::String,
                 );
                 let mut _layers: *mut JsonValue = json_obj_get_type(
                     _mapping,
                     b"to\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_array,
+                    JsonType::Array,
                 );
                 if !(_baseglyph.is_null() || _layers.is_null()) {
                     let mut m: ColrMapping = ColrMapping {
                         glyph: Handle {
-                            state: HANDLE_STATE_EMPTY,
+                            state: HandleState::Empty,
                             index: 0,
                             name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                         },
@@ -1163,12 +1163,12 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
                         let mut _layer: *mut JsonValue =
                             *(*_layers).u.array.values.offset(k as isize) as *mut JsonValue;
                         if !(_layer.is_null()
-                            || (*_layer).type_0 != json_object)
+                            || (*_layer).type_0 != JsonType::Object)
                         {
                             let mut _layerglyph: *mut JsonValue = json_obj_get_type(
                                 _layer,
                                 b"layer\0" as *const u8 as *const ::core::ffi::c_char,
-                                json_string,
+                                JsonType::String,
                             );
                             if !_layerglyph.is_null() {
                                 colr_iLayerList.push.expect("non-null function pointer")(
@@ -1244,14 +1244,14 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
     while keep != 0 && __caryll_index < colr.length {
         let mut mapping: *mut ColrMapping = colr.items.offset(__caryll_index as isize);
         while keep != 0 {
-            bk_push(baseRecords, &[bk_int(b16, ((*mapping).glyph.index as ::core::ffi::c_int) as u32), bk_int(b16, (currentLayerIndex as ::core::ffi::c_int) as u32), bk_int(b16, ((*mapping).layers.length) as u32)]);
+            bk_push(baseRecords, &[bk_int(BkCellType::B16, ((*mapping).glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (currentLayerIndex as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*mapping).layers.length) as u32)]);
             let mut __caryll_index_0: usize = 0 as usize;
             let mut keep_0: usize = 1 as usize;
             while keep_0 != 0 && __caryll_index_0 < (*mapping).layers.length {
                 let mut layer: *mut ColrLayer =
                     (*mapping).layers.items.offset(__caryll_index_0 as isize);
                 while keep_0 != 0 {
-                    bk_push(layerRecords, &[bk_int(b16, ((*layer).glyph.index as ::core::ffi::c_int) as u32), bk_int(b16, ((*layer).paletteIndex as ::core::ffi::c_int) as u32)]);
+                    bk_push(layerRecords, &[bk_int(BkCellType::B16, ((*layer).glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*layer).paletteIndex as ::core::ffi::c_int) as u32)]);
                     currentLayerIndex = (currentLayerIndex as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as GlyphId;
@@ -1265,7 +1265,7 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, 0 as u32), bk_int(b16, (colr.length) as u32), bk_ptr(p32, baseRecords), bk_ptr(p32, layerRecords), bk_int(b16, (currentLayerIndex as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (colr.length) as u32), bk_ptr(BkCellType::P32, baseRecords), bk_ptr(BkCellType::P32, layerRecords), bk_int(BkCellType::B16, (currentLayerIndex as ::core::ffi::c_int) as u32)]);
     table_iCOLR.dispose.expect("non-null function pointer")(&raw mut colr);
     return bk_build_Block(root);
 }

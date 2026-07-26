@@ -7,7 +7,7 @@ use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 
 use crate::support::options::{Options};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{json_array, json_integer, json_string, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 
 use crate::support::ctype_compat::{c_isdigit, c_tolower};
 use crate::support::base64::{base64_decode, base64_encode};
@@ -42,18 +42,17 @@ pub struct InstrData {
 /// one of the operand bytes that follow a push.
 ///
 /// `#[repr(u8)]` deliberately -- the array is `calloc`ed one byte per
-/// instruction byte, and `bt_instr` being 0 is what makes that zeroing valid.
+/// instruction byte, and `ByteType::Instr` being 0 is what makes that zeroing valid.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum ByteType {
-    bt_instr = 0,
-    bt_cnt = 1,
-    bt_byte = 2,
-    bt_wordhi = 3,
-    bt_wordlo = 4,
-    bt_impliedreturn = 5,
+    Instr = 0,
+    Cnt = 1,
+    Byte = 2,
+    WordHi = 3,
+    WordLo = 4,
+    ImpliedReturn = 5,
 }
-pub use ByteType::*;
 pub static ff_ttf_instrnames: [&::core::ffi::CStr; 256] = [
     c"SVTCA[y-axis]",
     c"SVTCA[x-axis]",
@@ -744,30 +743,30 @@ unsafe extern "C" fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int 
     lh = 0 as ::core::ffi::c_int;
     i = lh;
     while i < len {
-        *bts.offset(i as isize) = bt_instr;
+        *bts.offset(i as isize) = ByteType::Instr;
         lh += 1;
         if *instrs.offset(i as isize) == ttf_npushb {
             i += 1;
-            *bts.offset(i as isize) = bt_cnt;
+            *bts.offset(i as isize) = ByteType::Cnt;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_byte;
+                *bts.offset(i as isize) = ByteType::Byte;
                 j += 1;
             }
             lh += 1 as ::core::ffi::c_int + cnt;
         } else if *instrs.offset(i as isize) == ttf_npushw {
             i += 1;
-            *bts.offset(i as isize) = bt_cnt;
+            *bts.offset(i as isize) = ByteType::Cnt;
             lh += 1;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_wordhi;
+                *bts.offset(i as isize) = ByteType::WordHi;
                 i += 1;
-                *bts.offset(i as isize) = bt_wordlo;
+                *bts.offset(i as isize) = ByteType::WordLo;
                 j += 1;
             }
             lh += 1 as ::core::ffi::c_int + cnt;
@@ -779,7 +778,7 @@ unsafe extern "C" fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int 
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_byte;
+                *bts.offset(i as isize) = ByteType::Byte;
                 j += 1;
             }
             lh += cnt;
@@ -791,16 +790,16 @@ unsafe extern "C" fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int 
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_wordhi;
+                *bts.offset(i as isize) = ByteType::WordHi;
                 i += 1;
-                *bts.offset(i as isize) = bt_wordlo;
+                *bts.offset(i as isize) = ByteType::WordLo;
                 j += 1;
             }
             lh += cnt;
         }
         i += 1;
     }
-    *bts.offset(i as isize) = bt_impliedreturn;
+    *bts.offset(i as isize) = ByteType::ImpliedReturn;
     return lh;
 }
 pub unsafe extern "C" fn dump_ttinstr(
@@ -829,7 +828,7 @@ pub unsafe extern "C" fn dump_ttinstr(
         let mut ret: *mut JsonValue = json_array_new(id.instr_cnt as usize);
         let mut i: u32 = 0 as u32;
         while i < id.instr_cnt {
-            if *id.bts.offset(i as isize) == bt_wordhi {
+            if *id.bts.offset(i as isize) == ByteType::WordHi {
                 json_array_push(
                     ret,
                     json_integer_new(
@@ -841,8 +840,8 @@ pub unsafe extern "C" fn dump_ttinstr(
                     ),
                 );
                 i = i.wrapping_add(1);
-            } else if *id.bts.offset(i as isize) == bt_cnt
-                || *id.bts.offset(i as isize) == bt_byte
+            } else if *id.bts.offset(i as isize) == ByteType::Cnt
+                || *id.bts.offset(i as isize) == ByteType::Byte
             {
                 json_array_push(
                     ret,
@@ -879,7 +878,7 @@ pub unsafe extern "C" fn parse_ttinstr(
             ::core::ptr::null_mut::<u8>(),
             0 as u32,
         );
-    } else if (*col).type_0 == json_string
+    } else if (*col).type_0 == JsonType::String
     {
         let mut instrlen: usize = 0;
         let mut instructions: *mut u8 = base64_decode(
@@ -888,14 +887,14 @@ pub unsafe extern "C" fn parse_ttinstr(
             &raw mut instrlen,
         );
         Make.expect("non-null function pointer")(context, instructions, instrlen as u32);
-    } else if (*col).type_0 == json_array
+    } else if (*col).type_0 == JsonType::Array
     {
         let mut istrlen: usize = 0 as usize;
         let mut j: u32 = 0 as u32;
         while j < (*col).u.array.length as u32 {
             let mut record: *mut JsonValue =
                 *(*col).u.array.values.offset(j as isize) as *mut JsonValue;
-            if (*record).type_0 == json_string
+            if (*record).type_0 == JsonType::String
             {
                 istrlen = istrlen.wrapping_add(
                     (*record)
@@ -904,7 +903,7 @@ pub unsafe extern "C" fn parse_ttinstr(
                         .length
                         .wrapping_add(1 as ::core::ffi::c_uint) as usize,
                 );
-            } else if (*record).type_0 == json_integer
+            } else if (*record).type_0 == JsonType::Integer
             {
                 istrlen = istrlen
                     .wrapping_add((1 as ::core::ffi::c_int + 20 as ::core::ffi::c_int) as usize);
@@ -927,7 +926,7 @@ pub unsafe extern "C" fn parse_ttinstr(
         while j_0 < (*col).u.array.length as u32 {
             let mut record_0: *mut JsonValue =
                 *(*col).u.array.values.offset(j_0 as isize) as *mut JsonValue;
-            if (*record_0).type_0 == json_string
+            if (*record_0).type_0 == JsonType::String
             {
                 memcpy(
                     head as *mut ::core::ffi::c_void,
@@ -936,7 +935,7 @@ pub unsafe extern "C" fn parse_ttinstr(
                         .wrapping_mul((*record_0).u.string.length as usize),
                 );
                 head = head.offset((*record_0).u.string.length as isize);
-            } else if (*record_0).type_0 == json_integer
+            } else if (*record_0).type_0 == JsonType::Integer
             {
                 let mut n: ::core::ffi::c_int = snprintf(
                     head,
@@ -985,15 +984,15 @@ mod tests {
     use super::*;
 
     // `instr_typify` allocates the `bts` array with `__caryll_allocate_clean`,
-    // one byte per instruction byte, and then fills it in -- so `bt_instr` has
+    // one byte per instruction byte, and then fills it in -- so `ByteType::Instr` has
     // to be the zero variant (a calloc'ed enum with no zero variant is instantly
     // invalid) and the type has to stay one byte wide or the allocation is short.
     #[test]
     fn byte_types_is_a_calloc_safe_byte() {
         assert_eq!(::core::mem::size_of::<ByteType>(), 1);
-        assert_eq!(bt_instr as u8, 0);
+        assert_eq!(ByteType::Instr as u8, 0);
         assert_eq!(
-            [bt_cnt as u8, bt_byte as u8, bt_wordhi as u8, bt_wordlo as u8, bt_impliedreturn as u8],
+            [ByteType::Cnt as u8, ByteType::Byte as u8, ByteType::WordHi as u8, ByteType::WordLo as u8, ByteType::ImpliedReturn as u8],
             [1, 2, 3, 4, 5]
         );
     }

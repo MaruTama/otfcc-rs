@@ -38,7 +38,7 @@ use crate::table::hmtx::HmtxTable;
 
 
 
-use crate::table::otl::{ChainingRule, Lookup, Subtable, SubtableList, SubtablePtr, otl_chaining_canonical, otl_chaining_poly, otl_type_gpos_chaining, otl_type_gsub_chaining, OtlTable};
+use crate::table::otl::{ChainingRule, Lookup, Subtable, SubtableList, SubtablePtr, ChainingType, otl_type_gpos_chaining, otl_type_gsub_chaining, OtlTable};
 
 
 
@@ -47,7 +47,7 @@ use crate::table::vmtx::VmtxTable;
 
 
 use crate::vf::region::{VqAxisSpan};
-use crate::vf::vq::{VQ, VQ_DELTA, VQ_STILL, VqSegment};
+use crate::vf::vq::{VQ, VQSegType, VqSegment};
 use crate::support::aglfn::{aglfn_setupNames};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
 use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
@@ -68,13 +68,13 @@ pub struct GlyphHash {
 unsafe extern "C" fn hashVQS(buf: *mut Buffer, s: VqSegment) {
     bufwrite8(buf, s.type_0 as u8);
     match s.type_0 {
-        VQ_STILL => {
+        VQSegType::Still => {
             bufwrite32b(
                 buf,
                 otfcc_to_fixed(s.val.still as ::core::ffi::c_double) as u32,
             );
         }
-        VQ_DELTA => {
+        VQSegType::Delta => {
             bufwrite32b(
                 buf,
                 otfcc_to_fixed(s.val.delta.quantity as ::core::ffi::c_double) as u32,
@@ -472,7 +472,7 @@ unsafe extern "C" fn unconsolidate_chaining(
             continue;
         }
         let sub: SubtablePtr = *slot;
-        if (*sub).chaining.type_0 == otl_chaining_poly {
+        if (*sub).chaining.type_0 == ChainingType::Poly {
             let rules_count = (*sub).chaining.c2rust_unnamed.c2rust_unnamed.rulesCount;
             for k in 0..rules_count as ::core::ffi::c_int {
                 let rule_slot = (*sub)
@@ -485,7 +485,7 @@ unsafe extern "C" fn unconsolidate_chaining(
                     ::core::mem::size_of::<Subtable>() as usize,
                     278 as ::core::ffi::c_ulong,
                 ) as *mut Subtable;
-                (*st).chaining.type_0 = otl_chaining_canonical;
+                (*st).chaining.type_0 = ChainingType::Canonical;
                 // Transfer ownership of the rule out of *rule_slot.
                 (*st).chaining.c2rust_unnamed.rule = **rule_slot;
                 free(*rule_slot as *mut ::core::ffi::c_void);
@@ -500,12 +500,12 @@ unsafe extern "C" fn unconsolidate_chaining(
                 ::core::ptr::null_mut::<*mut ChainingRule>();
             free(sub as *mut ::core::ffi::c_void);
             *slot = ::core::ptr::null_mut::<Subtable>();
-        } else if (*sub).chaining.type_0 == otl_chaining_canonical {
+        } else if (*sub).chaining.type_0 == ChainingType::Canonical {
             let st_0: *mut Subtable = __caryll_allocate_clean(
                 ::core::mem::size_of::<Subtable>() as usize,
                 289 as ::core::ffi::c_ulong,
             ) as *mut Subtable;
-            (*st_0).chaining.type_0 = otl_chaining_canonical;
+            (*st_0).chaining.type_0 = ChainingType::Canonical;
             (*st_0).chaining.c2rust_unnamed.rule = (*sub).chaining.c2rust_unnamed.rule;
             otl_iSubtableList.push.expect("non-null function pointer")(
                 &raw mut newsts,

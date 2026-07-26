@@ -20,7 +20,7 @@ pub struct BkGraph {
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{Buffer};
-use crate::bk::bkblock::{VISIT_BLACK, VISIT_GRAY, VISIT_WHITE, BkBlock, b16, b32, b8, BkCell, bk_new_Block, bk_ptr, bkcopy, p16, p32, sp16, sp32};
+use crate::bk::bkblock::{BkCellVisitState, BkBlock, BkCellType, BkCell, bk_new_Block, bk_ptr};
 use crate::bk::bkblock::{bk_cellIsPointer};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8};
 
@@ -48,13 +48,13 @@ unsafe extern "C" fn dfs_insert_cells(
     f: *mut BkGraph,
     order: *mut u32,
 ) -> u32 {
-    if b.is_null() || (*b)._visitstate == VISIT_GRAY {
+    if b.is_null() || (*b)._visitstate == BkCellVisitState::Gray {
         return 0;
     }
-    if (*b)._visitstate == VISIT_BLACK {
+    if (*b)._visitstate == BkCellVisitState::Black {
         return (*b)._height;
     }
-    (*b)._visitstate = VISIT_GRAY;
+    (*b)._visitstate = BkCellVisitState::Gray;
     let mut height: u32 = 0;
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
@@ -72,7 +72,7 @@ unsafe extern "C" fn dfs_insert_cells(
     (*e).order = *order;
     (*b)._height = height;
     (*e).height = (*b)._height;
-    (*b)._visitstate = VISIT_BLACK;
+    (*b)._visitstate = BkCellVisitState::Black;
     return height;
 }
 unsafe extern "C" fn _by_height(
@@ -157,10 +157,10 @@ unsafe extern "C" fn gethash(b: *mut BkBlock) -> u32 {
         h = (h << 5).wrapping_add(h).wrapping_add((*cell).t as u32);
         h = (h << 5).wrapping_add(h);
         match (*cell).t {
-            b8 | b16 | b32 => {
+            BkCellType::B8 | BkCellType::B16 | BkCellType::B32 => {
                 h = h.wrapping_add((*cell).c2rust_unnamed.z);
             }
-            p16 | p32 | sp16 | sp32 => {
+            BkCellType::P16 | BkCellType::P32 | BkCellType::Sp16 | BkCellType::Sp32 => {
                 if !(*cell).c2rust_unnamed.p.is_null() {
                     h = h.wrapping_add((*(*cell).c2rust_unnamed.p)._index);
                 }
@@ -187,12 +187,12 @@ unsafe extern "C" fn compareblock(a: *mut BkBlock, b: *mut BkBlock) -> bool {
             return false;
         }
         match (*ca).t {
-            b8 | b16 | b32 => {
+            BkCellType::B8 | BkCellType::B16 | BkCellType::B32 => {
                 if (*ca).c2rust_unnamed.z != (*cb).c2rust_unnamed.z {
                     return false;
                 }
             }
-            p16 | p32 | sp16 | sp32 => {
+            BkCellType::P16 | BkCellType::P32 | BkCellType::Sp16 | BkCellType::Sp32 => {
                 if (*ca).c2rust_unnamed.p != (*cb).c2rust_unnamed.p {
                     return false;
                 }
@@ -212,7 +212,7 @@ unsafe extern "C" fn replaceptr(f: *mut BkGraph, b: *mut BkBlock) {
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
         match (*cell).t {
-            p16 | p32 | sp16 | sp32 => {
+            BkCellType::P16 | BkCellType::P32 | BkCellType::Sp16 | BkCellType::Sp32 => {
                 if !(*cell).c2rust_unnamed.p.is_null() {
                     let mut index: u32 = (*(*cell).c2rust_unnamed.p)._index;
                     while (*(*f).entries.offset(index as isize)).alias != index {
@@ -266,13 +266,13 @@ unsafe extern "C" fn otfcc_bkblock_size(b: *mut BkBlock) -> usize {
     let mut size: usize = 0;
     for j in 0..(*b).length {
         match (*(*b).cells.offset(j as isize)).t {
-            b8 => {
+            BkCellType::B8 => {
                 size = size.wrapping_add(1);
             }
-            b16 | p16 | sp16 => {
+            BkCellType::B16 | BkCellType::P16 | BkCellType::Sp16 => {
                 size = size.wrapping_add(2);
             }
-            b32 | p32 | sp32 => {
+            BkCellType::B32 | BkCellType::P32 | BkCellType::Sp32 => {
                 size = size.wrapping_add(4);
             }
             _ => {}
@@ -321,7 +321,7 @@ unsafe extern "C" fn escalate_sppointers(
     }
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
-        if bk_cellIsPointer(cell) && !(*cell).c2rust_unnamed.p.is_null() && (*cell).t >= sp16 {
+        if bk_cellIsPointer(cell) && !(*cell).c2rust_unnamed.p.is_null() && (*cell).t >= BkCellType::Sp16 {
             escalate_sppointers((*cell).c2rust_unnamed.p as *mut BkBlock, f, order, depth);
         }
     }
@@ -338,13 +338,13 @@ unsafe extern "C" fn dfs_attract_cells(
     if b.is_null() {
         return;
     }
-    if (*b)._visitstate != VISIT_WHITE {
+    if (*b)._visitstate != BkCellVisitState::White {
         if (*b)._depth < depth {
             (*b)._depth = depth;
         }
         return;
     }
-    (*b)._visitstate = VISIT_GRAY;
+    (*b)._visitstate = BkCellVisitState::Gray;
     // Visits cells in reverse index order (length-1 downto 0); equivalent to
     // c2rust's `j = length; loop { let fresh = j; j -= 1; if fresh == 0 {
     // break } ... use fresh-1 ... }` underflow-sentinel trick.
@@ -362,12 +362,12 @@ unsafe extern "C" fn dfs_attract_cells(
     *order = (*order).wrapping_add(1);
     (*(*f).entries.offset((*b)._index as isize)).order = *order;
     escalate_sppointers(b, f, order, depth);
-    (*b)._visitstate = VISIT_BLACK;
+    (*b)._visitstate = BkCellVisitState::Black;
 }
 unsafe extern "C" fn attract_bkgraph(f: *mut BkGraph) {
     for j in 0..(*f).length {
         let entry = (*f).entries.offset(j as isize);
-        (*(*entry).block)._visitstate = VISIT_WHITE;
+        (*(*entry).block)._visitstate = BkCellVisitState::White;
         (*entry).order = 0;
         (*(*entry).block)._index = j;
         (*(*entry).block)._depth = 0;
@@ -400,7 +400,7 @@ unsafe extern "C" fn try_untabgle_block(
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
         match (*cell).t {
-            p16 | sp16 => {
+            BkCellType::P16 | BkCellType::Sp16 => {
                 if !(*cell).c2rust_unnamed.p.is_null() {
                     let offset: i64 =
                         getoffset_untangle(offsets, b, (*cell).c2rust_unnamed.p as *mut BkBlock);
@@ -408,8 +408,8 @@ unsafe extern "C" fn try_untabgle_block(
                         let e: *mut BkGraphNode = _bkgraph_grow(f);
                         (*e).order = 0;
                         (*e).alias = 0;
-                        (*e).block = bk_new_Block(&[bk_ptr(bkcopy, (*cell).c2rust_unnamed.p)]);
-                        (*cell).t = sp16;
+                        (*e).block = bk_new_Block(&[bk_ptr(BkCellType::Copy, (*cell).c2rust_unnamed.p)]);
+                        (*cell).t = BkCellType::Sp16;
                         (*cell).c2rust_unnamed.p = (*e).block as *mut BkBlock;
                         did_copy = true;
                     }
@@ -422,7 +422,7 @@ unsafe extern "C" fn try_untabgle_block(
 }
 // Computes offsets[i+1] = offsets[i] + (serialized size of graph entry i, or
 // 0 if bk_minimizeGraph already merged it away and it's no longer
-// VISIT_BLACK) for every entry, i.e. the running byte offset each surviving
+// BkCellVisitState::Black) for every entry, i.e. the running byte offset each surviving
 // block will land at once serialized in order. Shared by try_untangle,
 // bk_build_Graph, and bk_estimateSizeOfGraph, which each need this table
 // before their own pass over the graph. `line` is forwarded to
@@ -437,7 +437,7 @@ unsafe fn compute_block_offsets(f: *mut BkGraph, line: ::core::ffi::c_ulong) -> 
     for j in 0..(*f).length {
         let block = (*(*f).entries.offset(j as isize)).block;
         let running = *offsets.offset(j as isize);
-        *offsets.offset(j as isize + 1) = if (*block)._visitstate == VISIT_BLACK {
+        *offsets.offset(j as isize + 1) = if (*block)._visitstate == BkCellVisitState::Black {
             running.wrapping_add(otfcc_bkblock_size(block))
         } else {
             running
@@ -450,7 +450,7 @@ unsafe extern "C" fn try_untangle(f: *mut BkGraph, passes: u16) -> bool {
     let mut did_untangle: bool = false;
     for j in 0..(*f).length {
         let block = (*(*f).entries.offset(j as isize)).block;
-        if (*block)._visitstate == VISIT_BLACK {
+        if (*block)._visitstate == BkCellVisitState::Black {
             did_untangle |= try_untabgle_block(f, block, offsets, passes);
         }
     }
@@ -461,16 +461,16 @@ unsafe extern "C" fn otfcc_build_bkblock(buf: *mut Buffer, b: *mut BkBlock, offs
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
         match (*cell).t {
-            b8 => {
+            BkCellType::B8 => {
                 bufwrite8(buf, (*cell).c2rust_unnamed.z as u8);
             }
-            b16 => {
+            BkCellType::B16 => {
                 bufwrite16b(buf, (*cell).c2rust_unnamed.z as u16);
             }
-            b32 => {
+            BkCellType::B32 => {
                 bufwrite32b(buf, (*cell).c2rust_unnamed.z);
             }
-            p16 | sp16 => {
+            BkCellType::P16 | BkCellType::Sp16 => {
                 if !(*cell).c2rust_unnamed.p.is_null() {
                     bufwrite16b(
                         buf,
@@ -480,7 +480,7 @@ unsafe extern "C" fn otfcc_build_bkblock(buf: *mut Buffer, b: *mut BkBlock, offs
                     bufwrite16b(buf, 0);
                 }
             }
-            p32 | sp32 => {
+            BkCellType::P32 | BkCellType::Sp32 => {
                 if !(*cell).c2rust_unnamed.p.is_null() {
                     bufwrite32b(
                         buf,
@@ -499,7 +499,7 @@ pub unsafe extern "C" fn bk_build_Graph(f: *mut BkGraph) -> *mut Buffer {
     let offsets: *mut usize = compute_block_offsets(f, 352);
     for j in 0..(*f).length {
         let block = (*(*f).entries.offset(j as isize)).block;
-        if (*block)._visitstate == VISIT_BLACK {
+        if (*block)._visitstate == BkCellVisitState::Black {
             otfcc_build_bkblock(buf, block, offsets);
         }
     }

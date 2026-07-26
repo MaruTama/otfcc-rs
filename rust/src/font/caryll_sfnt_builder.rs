@@ -3,7 +3,7 @@ use libc::{exit, free, malloc, memcmp, memset};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_progress, log_vl_progress, ILogger};
+use crate::logger::{LoggerType, log_vl_progress, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::vendor::sds::Byte;
@@ -938,7 +938,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             crate::sdsbuild!(
                 sdsempty(),
                 b"OpenType table ",

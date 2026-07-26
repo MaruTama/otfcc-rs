@@ -13,7 +13,7 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, ShapeId};
 
-use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, Font, IFontBuilder, FontSubtype};
+use crate::font::caryll_font::{FontSubtype, Font, IFontBuilder};
 use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
 
 
@@ -63,15 +63,15 @@ unsafe extern "C" fn decideFontSubtypeOTF(
     // __fortable_keep/__notfound/__fortable_k2 flags simulate a
     // single-iteration inner scope purely to give the original C a labeled
     // break/continue target. Traced by hand: the whole thing reduces to
-    // "return FONTTYPE_CFF at the first 'CFF ' tag, else FONTTYPE_TTF".
+    // "return FontSubtype::Cff at the first 'CFF ' tag, else FontSubtype::Ttf".
     let packet: Packet = *(*sfnt).packets.offset(index as isize);
     for i in 0..packet.numTables as ::core::ffi::c_int {
         let table: PacketPiece = *packet.pieces.offset(i as isize);
         if table.tag == 1128678944i32 as u32 {
-            return FONTTYPE_CFF;
+            return FontSubtype::Cff;
         }
     }
-    return FONTTYPE_TTF;
+    return FontSubtype::Ttf;
 }
 // Options and Font are duplicated per-file by c2rust (like every
 // other type in this crate); the trait boundary uses erased c_void pointers
@@ -111,7 +111,7 @@ impl FontBuilder for OtfReader {
         (*font).post = otfcc_readPost(packet, options);
         (*font).hhea = otfcc_readHhea(packet, options);
         (*font).cmap = otfcc_readCmap(packet, options);
-        if (*font).subtype == FONTTYPE_TTF {
+        if (*font).subtype == FontSubtype::Ttf {
             (*font).hmtx = otfcc_readHmtx(packet, options, (*font).hhea, (*font).maxp);
             (*font).vhea = otfcc_readVhea(packet, options);
             if !(*font).vhea.is_null() {

@@ -30,7 +30,7 @@ unsafe extern "C" {
     ) -> ::core::ffi::c_int;
 }
 
-use otfcc_rust::logger::{log_type_error, log_type_progress, ILogger};
+use otfcc_rust::logger::{LoggerType, ILogger};
 
 use otfcc_rust::support::options::{Options};
 
@@ -432,7 +432,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_critical,
-            log_type_error,
+            LoggerType::Error,
             otfcc_rust::sdsbuild!(sdsempty(), b"Expected argument for input file name.\n"),
         );
         printHelp();
@@ -460,7 +460,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             otfcc_rust::sdsbuild!(sdsempty(), b"From file ", inPath),
         );
         let mut file: *mut FILE = fopen(
@@ -474,7 +474,7 @@ unsafe fn main_0(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_critical,
-                log_type_error,
+                LoggerType::Error,
                 otfcc_rust::sdsbuild!(
                     sdsempty(),
                     b"Cannot read SFNT file \"",
@@ -490,7 +490,7 @@ unsafe fn main_0(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_critical,
-                log_type_error,
+                LoggerType::Error,
                 otfcc_rust::sdsbuild!(
                     sdsempty(),
                     b"Subfont index ",
@@ -509,7 +509,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v = false;
@@ -538,7 +538,7 @@ unsafe fn main_0(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_critical,
-                log_type_error,
+                LoggerType::Error,
                 otfcc_rust::sdsbuild!(
                     sdsempty(),
                     b"Font structure broken or corrupted \"",
@@ -557,7 +557,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_0 = false;
@@ -579,7 +579,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_1 = false;
@@ -605,7 +605,7 @@ unsafe fn main_0(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_critical,
-                log_type_error,
+                LoggerType::Error,
                 otfcc_rust::sdsbuild!(
                     sdsempty(),
                     b"Font structure broken or corrupted \"",
@@ -620,7 +620,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         (*dumper).free.expect("non-null function pointer")(dumper as *mut IFontSerializer);
@@ -663,7 +663,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_3 = false;
@@ -690,7 +690,7 @@ unsafe fn main_0(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_critical,
-                    log_type_error,
+                    LoggerType::Error,
                     otfcc_rust::sdsbuild!(
                         sdsempty(),
                         b"Cannot write to file \"",
@@ -729,7 +729,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_4 = false;
@@ -763,7 +763,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_5 = false;

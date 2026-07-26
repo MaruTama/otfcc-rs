@@ -6,13 +6,13 @@ use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dis
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_16u, read_24u, read_32u};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId, Unicode};
 use crate::vendor::sds::{Hex4Upper, SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::vendor::json::{json_object, json_string, JsonValue};
-use crate::bk::bkblock::{b16, b32, b8, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
+use crate::vendor::json::{JsonType, JsonValue};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
@@ -5449,7 +5449,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'cmap' corrupted.\n"),
                     );
                     if !cmap.is_null() {
@@ -5594,7 +5594,7 @@ unsafe extern "C" fn parseCmapUnicodes(
     mut options: *const Options,
 ) {
     if table.is_null()
-        || (*table).type_0 != json_object
+        || (*table).type_0 != JsonType::Object
     {
         return;
     }
@@ -5608,7 +5608,7 @@ unsafe extern "C" fn parseCmapUnicodes(
             (*(*table).u.object.values.offset(j as isize)).value as *mut JsonValue;
         let mut unicode: Unicode = parseUnicode(unicodeStr);
         sdsfree(unicodeStr);
-        if (*item).type_0 == json_string
+        if (*item).type_0 == JsonType::String
             && unicode > 0 as Unicode
             && unicode <= 0x10ffff as Unicode
         {
@@ -5624,7 +5624,7 @@ unsafe extern "C" fn parseCmapUnicodes(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"U+",
@@ -5665,7 +5665,7 @@ unsafe extern "C" fn parseCmapUVS(
     mut options: *const Options,
 ) {
     if table.is_null()
-        || (*table).type_0 != json_object
+        || (*table).type_0 != JsonType::Object
     {
         return;
     }
@@ -5678,7 +5678,7 @@ unsafe extern "C" fn parseCmapUVS(
         let mut k: CmapUvsKey = parseUVSKey(uvsStr);
         let mut item: *mut JsonValue =
             (*(*table).u.object.values.offset(j as isize)).value as *mut JsonValue;
-        if (*item).type_0 == json_string
+        if (*item).type_0 == JsonType::String
             && k.unicode > 0 as u32
             && k.unicode <= 0x10ffff as u32
             && k.selector > 0 as u32
@@ -5696,7 +5696,7 @@ unsafe extern "C" fn parseCmapUVS(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"UVS U+",
@@ -5719,7 +5719,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut CmapTable {
-    if (*root).type_0 != json_object
+    if (*root).type_0 != JsonType::Object
     {
         return ::core::ptr::null_mut::<CmapTable>();
     }
@@ -5738,7 +5738,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
             json_obj_get_type(
                 root,
                 b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-                json_object,
+                JsonType::Object,
             ),
             options,
         );
@@ -5760,7 +5760,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
             json_obj_get_type(
                 root,
                 b"cmap_uvs\0" as *const u8 as *const ::core::ffi::c_char,
-                json_object,
+                JsonType::Object,
             ),
             options,
         );
@@ -6393,7 +6393,7 @@ unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const CmapTable) -> *mu
         }
         selector = selector.wrapping_add(1);
     }
-    let mut st: *mut BkBlock = bk_new_Block(&[bk_int(b16, 14 as u32), bk_int(b32, 0 as u32), bk_int(b32, nSelectors as u32)]);
+    let mut st: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 14 as u32), bk_int(BkCellType::B32, 0 as u32), bk_int(BkCellType::B32, nSelectors as u32)]);
     let mut selector_0: Unicode = 0 as Unicode;
     while selector_0 < MAX_UNICODE as Unicode {
         if *validSelectors.offset(selector_0 as isize) {
@@ -6408,7 +6408,7 @@ unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const CmapTable) -> *mu
                 buffree(nondflt);
                 nondflt = ::core::ptr::null_mut::<Buffer>();
             }
-            bk_push(st, &[bk_int(b8, (selector_0 >> 16 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_int(b8, (selector_0 >> 8 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_int(b8, (selector_0 >> 0 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_ptr(p32, bk_newBlockFromBuffer(dflt)), bk_ptr(p32, bk_newBlockFromBuffer(nondflt))]);
+            bk_push(st, &[bk_int(BkCellType::B8, (selector_0 >> 16 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_int(BkCellType::B8, (selector_0 >> 8 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_int(BkCellType::B8, (selector_0 >> 0 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBuffer(dflt)), bk_ptr(BkCellType::P32, bk_newBlockFromBuffer(nondflt))]);
         }
         selector_0 = selector_0.wrapping_add(1);
     }
@@ -6474,18 +6474,18 @@ pub unsafe extern "C" fn otfcc_buildCmap(
         bufwrite16b(format4, 0 as u16);
     }
     let mut format12: *mut Buffer = otfcc_buildCmap_format12(cmap);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, 0 as u32), bk_int(b16, (nTables as ::core::ffi::c_int) as u32)]);
-    bk_push(root, &[bk_int(b16, 0 as u32), bk_int(b16, 3 as u32), bk_ptr(p32, bk_newBlockFromBufferCopy(format4))]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (nTables as ::core::ffi::c_int) as u32)]);
+    bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 3 as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBufferCopy(format4))]);
     if requiresFormat12 {
-        bk_push(root, &[bk_int(b16, 0 as u32), bk_int(b16, 4 as u32), bk_ptr(p32, bk_newBlockFromBufferCopy(format12))]);
+        bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 4 as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBufferCopy(format12))]);
     }
     if hasUVS {
         let mut format14: *mut Buffer = otfcc_buildCmap_format14(cmap);
-        bk_push(root, &[bk_int(b16, 0 as u32), bk_int(b16, 5 as u32), bk_ptr(p32, bk_newBlockFromBuffer(format14))]);
+        bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 5 as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBuffer(format14))]);
     }
-    bk_push(root, &[bk_int(b16, 3 as u32), bk_int(b16, 1 as u32), bk_ptr(p32, bk_newBlockFromBufferCopy(format4))]);
+    bk_push(root, &[bk_int(BkCellType::B16, 3 as u32), bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBufferCopy(format4))]);
     if requiresFormat12 {
-        bk_push(root, &[bk_int(b16, 3 as u32), bk_int(b16, 10 as u32), bk_ptr(p32, bk_newBlockFromBufferCopy(format12))]);
+        bk_push(root, &[bk_int(BkCellType::B16, 3 as u32), bk_int(BkCellType::B16, 10 as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBufferCopy(format12))]);
     }
     buffree(format4);
     buffree(format12);

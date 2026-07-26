@@ -8,15 +8,15 @@ use libc::{exit, free, malloc, memcmp, memset, strcmp, strtol};
 use crate::support::json_funcs::{json_obj_get_type};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::otf_reader::FontBuilder;
-use crate::logger::{log_type_info, log_vl_notice, ILogger};
+use crate::logger::{LoggerType, log_vl_notice, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::vendor::json::{json_array, json_object, json_string, JsonValue};
-use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, Font, IFontBuilder, FontSubtype};
+use crate::vendor::json::{JsonType, JsonValue};
+use crate::font::caryll_font::{FontSubtype, Font, IFontBuilder};
 use crate::support::{NULL};
-use crate::support::glyph_order::{ORD_CMAP, ORD_GLYF, ORD_GLYPHORDER, ORD_NOTDEF, GlyphOrderPass, GlyphOrder, GlyphOrderEntry};
+use crate::support::glyph_order::{GlyphOrderPass, GlyphOrder, GlyphOrderEntry};
 
 
 
@@ -98,13 +98,13 @@ unsafe extern "C" fn otfcc_decideFontSubtypeFromJson(
     if !json_obj_get_type(
         root,
         b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     )
     .is_null()
     {
-        return FONTTYPE_CFF;
+        return FontSubtype::Cff;
     } else {
-        return FONTTYPE_TTF;
+        return FontSubtype::Ttf;
     };
 }
 unsafe extern "C" fn setOrderByName(
@@ -1785,7 +1785,7 @@ unsafe extern "C" fn placeOrderEntriesFromGlyf(
             setOrderByName(
                 go,
                 gname,
-                ORD_NOTDEF,
+                GlyphOrderPass::Notdef,
                 0 as u32,
             );
         } else if strcmp(
@@ -1796,11 +1796,11 @@ unsafe extern "C" fn placeOrderEntriesFromGlyf(
             setOrderByName(
                 go,
                 gname,
-                ORD_NOTDEF,
+                GlyphOrderPass::Notdef,
                 1 as u32,
             );
         } else {
-            setOrderByName(go, gname, ORD_GLYF, j);
+            setOrderByName(go, gname, GlyphOrderPass::Glyf, j);
         }
         j = j.wrapping_add(1);
     }
@@ -1833,7 +1833,7 @@ unsafe extern "C" fn placeOrderEntriesFromCmap(
             unicode = atoi(unicodeStr as *const ::core::ffi::c_char) as i32;
         }
         sdsfree(unicodeStr);
-        if (*item).type_0 == json_string
+        if (*item).type_0 == JsonType::String
             && unicode > 0 as i32
             && unicode <= 0x10ffff as i32
         {
@@ -1844,7 +1844,7 @@ unsafe extern "C" fn placeOrderEntriesFromCmap(
             escalateGlyphOrderByName(
                 go,
                 gname,
-                ORD_CMAP,
+                GlyphOrderPass::Cmap,
                 unicode as u32,
             );
             sdsfree(gname);
@@ -1865,7 +1865,7 @@ unsafe extern "C" fn placeOrderEntriesFromSubtable(
     while j < uplimit {
         let mut item: *mut JsonValue =
             *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
-        if (*item).type_0 == json_string
+        if (*item).type_0 == JsonType::String
         {
             let mut gname: SdsRaw = sdsnewlen(
                 (*item).u.string.ptr as *const ::core::ffi::c_void,
@@ -1874,7 +1874,7 @@ unsafe extern "C" fn placeOrderEntriesFromSubtable(
             escalateGlyphOrderByName(
                 go,
                 gname,
-                ORD_GLYPHORDER,
+                GlyphOrderPass::GlyphOrder,
                 j,
             );
             sdsfree(gname);
@@ -1890,7 +1890,7 @@ unsafe extern "C" fn parseGlyphOrder(
         otfcc_pkgGlyphOrder
             .create
             .expect("non-null function pointer"))();
-    if (*root).type_0 != json_object
+    if (*root).type_0 != JsonType::Object
     {
         return go;
     }
@@ -1898,14 +1898,14 @@ unsafe extern "C" fn parseGlyphOrder(
     table = json_obj_get_type(
         root,
         b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if !table.is_null() {
         placeOrderEntriesFromGlyf(table, go);
         table = json_obj_get_type(
             root,
             b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-            json_object,
+            JsonType::Object,
         );
         if !table.is_null() {
             placeOrderEntriesFromCmap(table, go);
@@ -1913,7 +1913,7 @@ unsafe extern "C" fn parseGlyphOrder(
         table = json_obj_get_type(
             root,
             b"glyph_order\0" as *const u8 as *const ::core::ffi::c_char,
-            json_array,
+            JsonType::Array,
         );
         if !table.is_null() {
             let mut ignoreGlyphOrder: bool = (*options).ignore_glyph_order;
@@ -1921,7 +1921,7 @@ unsafe extern "C" fn parseGlyphOrder(
                 && !json_obj_get_type(
                     root,
                     b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_array,
+                    JsonType::Array,
                 )
                 .is_null()
             {
@@ -1930,7 +1930,7 @@ unsafe extern "C" fn parseGlyphOrder(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_notice,
-                    log_type_info,
+                    LoggerType::Info,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"OpenType SVG table detected. Glyph order is preserved.",

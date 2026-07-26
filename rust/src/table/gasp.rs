@@ -1,11 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
 use crate::support::binio::{read_16u};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphSize, TableId};
-use crate::vendor::json::{json_array, json_object, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{ComparFn};
@@ -604,7 +604,7 @@ pub unsafe extern "C" fn otfcc_readGasp(
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'gasp' corrupted.\n"),
                     );
                     table_iGasp.free.expect("non-null function pointer")(gasp);
@@ -700,7 +700,7 @@ pub unsafe extern "C" fn otfcc_parseGasp(
     table = json_obj_get_type(
         root,
         b"gasp\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     if !table.is_null() {
         (*(*options).logger)
@@ -718,7 +718,7 @@ pub unsafe extern "C" fn otfcc_parseGasp(
                 let mut r: *mut JsonValue =
                     *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
                 if !(r.is_null()
-                    || (*r).type_0 != json_object)
+                    || (*r).type_0 != JsonType::Object)
                 {
                     let mut record: GaspRecord = GaspRecord {
                         rangeMaxPPEM: 0,

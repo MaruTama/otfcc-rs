@@ -15,7 +15,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, ShapeId};
 
 
-use crate::table::glyf::{MASK_ON_CURVE, REF_ANCHOR_CONSOLIDATED, ComponentFlags, PointFlags, ComponentReference, Glyph, Point, GlyfAndLocaBuffers, GlyfTable};
+use crate::table::glyf::{MASK_ON_CURVE, RefAnchorStatus, ComponentFlags, PointFlags, ComponentReference, Glyph, Point, GlyfAndLocaBuffers, GlyfTable};
 use crate::table::head::{HeadTable};
 
 use crate::support::buffer::{bufclear, buffree, buflen, buflongalign, bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_buf, bufwrite_bytes};
@@ -181,7 +181,7 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
             } else {
                 ComponentFlags::empty()
             };
-        let mut outputAnchor: bool = (*r).isAnchored == REF_ANCHOR_CONSOLIDATED;
+        let mut outputAnchor: bool = (*r).isAnchored == RefAnchorStatus::AnchorConsolidated;
         let mut arg1: ComponentArg = ComponentArg { pointid: 0 };
         let mut arg2: ComponentArg = ComponentArg { pointid: 0 };
         if outputAnchor {

@@ -22,13 +22,12 @@ use crate::vf::vq::{iVQ};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum CffInstructionType {
-    IL_ITEM_OPERAND = 0,
-    IL_ITEM_OPERATOR = 1,
-    IL_ITEM_SPECIAL = 2,
-    IL_ITEM_PHANTOM_OPERATOR = 3,
-    IL_ITEM_PHANTOM_OPERAND = 4,
+    Operand = 0,
+    Operator = 1,
+    Special = 2,
+    PhantomOperator = 3,
+    PhantomOperand = 4,
 }
-pub use CffInstructionType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffCharstringInstruction {
@@ -66,7 +65,7 @@ pub unsafe extern "C" fn il_push_operand(
     mut x: ::core::ffi::c_double,
 ) {
     ensureThereIsSpace(il);
-    (*(*il).instr.offset((*il).length as isize)).type_0 = IL_ITEM_OPERAND;
+    (*(*il).instr.offset((*il).length as isize)).type_0 = CffInstructionType::Operand;
     (*(*il).instr.offset((*il).length as isize))
         .c2rust_unnamed
         .d = x;
@@ -82,7 +81,7 @@ pub unsafe extern "C" fn il_push_VQ(mut il: *mut CffCharstringIl, mut x: VQ) {
 }
 pub unsafe extern "C" fn il_push_special(mut il: *mut CffCharstringIl, mut s: i32) {
     ensureThereIsSpace(il);
-    (*(*il).instr.offset((*il).length as isize)).type_0 = IL_ITEM_SPECIAL;
+    (*(*il).instr.offset((*il).length as isize)).type_0 = CffInstructionType::Special;
     (*(*il).instr.offset((*il).length as isize))
         .c2rust_unnamed
         .i = s;
@@ -92,7 +91,7 @@ pub unsafe extern "C" fn il_push_special(mut il: *mut CffCharstringIl, mut s: i3
 }
 pub unsafe extern "C" fn il_push_op(mut il: *mut CffCharstringIl, mut op: i32) {
     ensureThereIsSpace(il);
-    (*(*il).instr.offset((*il).length as isize)).type_0 = IL_ITEM_OPERATOR;
+    (*(*il).instr.offset((*il).length as isize)).type_0 = CffInstructionType::Operator;
     (*(*il).instr.offset((*il).length as isize))
         .c2rust_unnamed
         .i = op;
@@ -533,7 +532,7 @@ unsafe extern "C" fn il_matchop(
     mut j: u32,
     mut op: i32,
 ) -> bool {
-    if (*(*il).instr.offset(j as isize)).type_0 != IL_ITEM_OPERATOR
+    if (*(*il).instr.offset(j as isize)).type_0 != CffInstructionType::Operator
     {
         return false;
     }
@@ -565,10 +564,10 @@ unsafe fn zroll(
             il,
             j.wrapping_sub(1 as u32),
             j,
-            IL_ITEM_PHANTOM_OPERATOR,
+            CffInstructionType::PhantomOperator,
         ))
         && il_matchop(il, j.wrapping_add(arity as u32), op) as ::core::ffi::c_int != 0
-        && il_matchtype(il, j, j.wrapping_add(arity as u32), IL_ITEM_OPERAND)
+        && il_matchtype(il, j, j.wrapping_add(arity as u32), CffInstructionType::Operand)
             as ::core::ffi::c_int
             != 0
     {
@@ -597,7 +596,7 @@ unsafe fn zroll(
             while m_0 < arity as u32 {
                 if mask[m_0 as usize] {
                     (*(*il).instr.offset(j.wrapping_add(m_0) as isize)).type_0 =
-                        IL_ITEM_PHANTOM_OPERAND;
+                        CffInstructionType::PhantomOperand;
                 }
                 m_0 = m_0.wrapping_add(1);
             }
@@ -644,7 +643,7 @@ unsafe extern "C" fn opop_roll(
             j.wrapping_add(1 as u32),
             j.wrapping_add(1 as u32)
                 .wrapping_add(arity as u32),
-            IL_ITEM_OPERAND,
+            CffInstructionType::Operand,
         ) as ::core::ffi::c_int
             != 0
         && il_matchop(
@@ -657,7 +656,7 @@ unsafe extern "C" fn opop_roll(
         && (*current).arity.wrapping_add((*nextop).arity)
             <= type2_argument_stack
     {
-        (*current).type_0 = IL_ITEM_PHANTOM_OPERATOR;
+        (*current).type_0 = CffInstructionType::PhantomOperator;
         (*nextop).c2rust_unnamed.i = resultop;
         (*nextop).arity = (*nextop).arity.wrapping_add((*current).arity);
         return (arity + 1 as i32) as u8;
@@ -693,7 +692,7 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> 
             il,
             j.wrapping_add(1 as u32),
             j.wrapping_add(3 as u32),
-            IL_ITEM_OPERAND,
+            CffInstructionType::Operand,
         ) as ::core::ffi::c_int
             != 0
         && (*(*il).instr.offset(j.wrapping_add(checkdelta) as isize))
@@ -703,8 +702,8 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> 
         && (*current).arity.wrapping_add(1 as Arity)
             <= type2_argument_stack
     {
-        (*(*il).instr.offset(j.wrapping_add(checkdelta) as isize)).type_0 = IL_ITEM_PHANTOM_OPERAND;
-        (*(*il).instr.offset(j as isize)).type_0 = IL_ITEM_PHANTOM_OPERATOR;
+        (*(*il).instr.offset(j.wrapping_add(checkdelta) as isize)).type_0 = CffInstructionType::PhantomOperand;
+        (*(*il).instr.offset(j as isize)).type_0 = CffInstructionType::PhantomOperator;
         (*(*il).instr.offset(j.wrapping_add(3 as u32) as isize))
             .c2rust_unnamed
             .i = (*current).c2rust_unnamed.i;
@@ -751,7 +750,7 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
             il,
             j.wrapping_add(1 as u32),
             j.wrapping_add(7 as u32),
-            IL_ITEM_OPERAND,
+            CffInstructionType::Operand,
         ) as ::core::ffi::c_int
             != 0
         && (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize))
@@ -767,10 +766,10 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
                 <= type2_argument_stack
         {
             (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).type_0 =
-                IL_ITEM_PHANTOM_OPERAND;
+                CffInstructionType::PhantomOperand;
             (*(*il).instr.offset(j.wrapping_add(checkdelta2) as isize)).type_0 =
-                IL_ITEM_PHANTOM_OPERAND;
-            (*(*il).instr.offset(j as isize)).type_0 = IL_ITEM_PHANTOM_OPERATOR;
+                CffInstructionType::PhantomOperand;
+            (*(*il).instr.offset(j as isize)).type_0 = CffInstructionType::PhantomOperator;
             (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize))
                 .c2rust_unnamed
                 .i = (*current).c2rust_unnamed.i;
@@ -781,8 +780,8 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
             <= type2_argument_stack
         {
             (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).type_0 =
-                IL_ITEM_PHANTOM_OPERAND;
-            (*(*il).instr.offset(j as isize)).type_0 = IL_ITEM_PHANTOM_OPERATOR;
+                CffInstructionType::PhantomOperand;
+            (*(*il).instr.offset(j as isize)).type_0 = CffInstructionType::PhantomOperator;
             (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize))
                 .c2rust_unnamed
                 .i = (*current).c2rust_unnamed.i;
@@ -842,7 +841,7 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
             il,
             j.wrapping_add(1 as u32),
             j.wrapping_add(7 as u32),
-            IL_ITEM_OPERAND,
+            CffInstructionType::Operand,
         ) as ::core::ffi::c_int
             != 0
         && (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize))
@@ -857,10 +856,10 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
             <= type2_argument_stack
     {
         (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).type_0 =
-            IL_ITEM_PHANTOM_OPERAND;
+            CffInstructionType::PhantomOperand;
         (*(*il).instr.offset(j.wrapping_add(checkdelta2) as isize)).type_0 =
-            IL_ITEM_PHANTOM_OPERAND;
-        (*(*il).instr.offset(j as isize)).type_0 = IL_ITEM_PHANTOM_OPERATOR;
+            CffInstructionType::PhantomOperand;
+        (*(*il).instr.offset(j as isize)).type_0 = CffInstructionType::PhantomOperator;
         (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize))
             .c2rust_unnamed
             .i = (*current).c2rust_unnamed.i;
@@ -874,7 +873,7 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
 unsafe extern "C" fn nextstop(mut il: *mut CffCharstringIl, mut j: u32) -> u32 {
     let mut delta: u32 = 0 as u32;
     while j.wrapping_add(delta) < (*il).length
-        && (*(*il).instr.offset(j.wrapping_add(delta) as isize)).type_0 == IL_ITEM_OPERAND
+        && (*(*il).instr.offset(j.wrapping_add(delta) as isize)).type_0 == CffInstructionType::Operand
     {
         delta = delta.wrapping_add(1);
     }
@@ -1111,8 +1110,8 @@ pub unsafe extern "C" fn instruction_eq(
     mut z2: *mut CffCharstringInstruction,
 ) -> bool {
     if (*z1).type_0 as ::core::ffi::c_uint == (*z2).type_0 as ::core::ffi::c_uint {
-        if (*z1).type_0 == IL_ITEM_OPERAND
-            || (*z1).type_0 == IL_ITEM_PHANTOM_OPERAND
+        if (*z1).type_0 == CffInstructionType::Operand
+            || (*z1).type_0 == CffInstructionType::PhantomOperand
         {
             return (*z1).c2rust_unnamed.d == (*z2).c2rust_unnamed.d;
         } else {

@@ -1,12 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
 use crate::support::binio::{read_16u, read_16s, read_32u};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_string, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getnum_fallback, otfcc_dump_flags, otfcc_parse_flags};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_bytes};
@@ -339,7 +339,7 @@ pub unsafe extern "C" fn otfcc_readOS_2(
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'OS/2' corrupted.\n"),
                     );
                     if !os_2.is_null() {
@@ -854,7 +854,7 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
     table = json_obj_get_type(
         root,
         b"OS_2\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if !table.is_null() {
         (*(*options).logger)
@@ -1070,17 +1070,17 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
             panose = json_obj_get_type(
                 table,
                 b"panose\0" as *const u8 as *const ::core::ffi::c_char,
-                json_array,
+                JsonType::Array,
             );
             if !panose.is_null() {
                 let mut j: u32 = 0 as u32;
                 while j < (*panose).u.array.length as u32 && j < 10 as u32 {
                     let mut term: *mut JsonValue =
                         *(*panose).u.array.values.offset(j as isize) as *mut JsonValue;
-                    if (*term).type_0 == json_integer
+                    if (*term).type_0 == JsonType::Integer
                     {
                         (*os_2).panose[j as usize] = (*term).u.integer as u8;
-                    } else if (*term).type_0 == json_double
+                    } else if (*term).type_0 == JsonType::Double
                     {
                         (*os_2).panose[j as usize] = (*term).u.dbl as u8;
                     }
@@ -1091,7 +1091,7 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
             vendorid = json_obj_get_type(
                 table,
                 b"achVendID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_string,
+                JsonType::String,
             );
             if !vendorid.is_null() {
                 (*os_2).achVendID[0 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;

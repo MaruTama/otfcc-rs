@@ -8,7 +8,7 @@ use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphId};
-use crate::vendor::json::{json_array, json_string, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite_bufdel};
@@ -2280,13 +2280,13 @@ pub(crate) unsafe extern "C" fn dumpCoverage(mut coverage: *const Coverage) -> *
 pub(crate) unsafe extern "C" fn parseCoverage(mut cov: *const JsonValue) -> *mut Coverage {
     let mut c: *mut Coverage = otl_Coverage_create();
     if cov.is_null()
-        || (*cov).type_0 != json_array
+        || (*cov).type_0 != JsonType::Array
     {
         return c;
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < (*cov).u.array.length {
-        if (**(*cov).u.array.values.offset(j as isize)).type_0 == json_string
+        if (**(*cov).u.array.values.offset(j as isize)).type_0 == JsonType::String
         {
             pushToCoverage(
                 c,

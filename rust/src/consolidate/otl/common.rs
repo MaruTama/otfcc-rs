@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{GlyphHandle, Handle, otfcc_Handle_dispose};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphClass, GlyphId};
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn fontop_consolidateCoverage(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
@@ -98,7 +98,7 @@ pub unsafe extern "C" fn fontop_consolidateClassDef(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",

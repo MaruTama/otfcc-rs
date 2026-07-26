@@ -1,14 +1,14 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
 use crate::support::json_funcs::{json_obj_get_type};
-use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_empty, otfcc_Handle_init, Handle, GlyphHandle, HANDLE_STATE_EMPTY};
+use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_empty, otfcc_Handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::vendor::json::{json_object, json_string, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{ComparFn};
@@ -19,13 +19,12 @@ use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnewlen};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum TsiEntryType {
-    TSI_GLYPH = 0,
-    TSI_FPGM = 1,
-    TSI_PREP = 2,
-    TSI_CVT = 3,
-    TSI_RESERVED_FFFC = 4,
+    Glyph = 0,
+    Fpgm = 1,
+    Prep = 2,
+    Cvt = 3,
+    ReservedFffc = 4,
 }
-pub use TsiEntryType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct TsiEntry {
@@ -123,7 +122,7 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
 #[inline]
 unsafe extern "C" fn initTSIEntry(mut entry: *mut TsiEntry) {
     otfcc_Handle_init(&raw mut (*entry).glyph);
-    (*entry).type_0 = TSI_GLYPH;
+    (*entry).type_0 = TsiEntryType::Glyph;
     (*entry).content = ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
 #[inline]
@@ -191,9 +190,9 @@ unsafe extern "C" fn tsi_Entry_copyReplace(mut dst: *mut TsiEntry, src: TsiEntry
 unsafe extern "C" fn table_TSI_fill(mut arr: *mut TsiTable, mut n: usize) {
     while (*arr).length < n {
         let mut x: TsiEntry = TsiEntry {
-            type_0: TSI_GLYPH,
+            type_0: TsiEntryType::Glyph,
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -573,9 +572,9 @@ pub unsafe extern "C" fn otfcc_readTSI(
                 textLength = predictedTextLength;
             }
             let mut entry: TsiEntry = TsiEntry {
-                type_0: TSI_GLYPH,
+                type_0: TsiEntryType::Glyph,
                 glyph: Handle {
-                    state: HANDLE_STATE_EMPTY,
+                    state: HandleState::Empty,
                     index: 0,
                     name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                 },
@@ -583,19 +582,19 @@ pub unsafe extern "C" fn otfcc_readTSI(
             };
             match gid as ::core::ffi::c_int {
                 65530 => {
-                    entry.type_0 = TSI_PREP;
+                    entry.type_0 = TsiEntryType::Prep;
                     otfcc_Handle_init(&raw mut entry.glyph);
                 }
                 65531 => {
-                    entry.type_0 = TSI_CVT;
+                    entry.type_0 = TsiEntryType::Cvt;
                     otfcc_Handle_init(&raw mut entry.glyph);
                 }
                 65533 => {
-                    entry.type_0 = TSI_FPGM;
+                    entry.type_0 = TsiEntryType::Fpgm;
                     otfcc_Handle_init(&raw mut entry.glyph);
                 }
                 _ => {
-                    entry.type_0 = TSI_GLYPH;
+                    entry.type_0 = TsiEntryType::Glyph;
                     entry.glyph = handle_fromIndex(
                         gid as GlyphId,
                     ) as GlyphHandle;
@@ -636,7 +635,7 @@ pub unsafe extern "C" fn otfcc_dumpTSI(
             let mut entry: *mut TsiEntry = (*tsi).items.offset(__caryll_index as isize);
             while keep != 0 {
                 if !((*entry).type_0 as ::core::ffi::c_uint
-                    != TSI_GLYPH as ::core::ffi::c_int as ::core::ffi::c_uint)
+                    != TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint)
                 {
                     json_object_push(
                         _glyphs,
@@ -659,7 +658,7 @@ pub unsafe extern "C" fn otfcc_dumpTSI(
             let mut entry_0: *mut TsiEntry = (*tsi).items.offset(__caryll_index_0 as isize);
             while keep_0 != 0 {
                 if !((*entry_0).type_0 as ::core::ffi::c_uint
-                    == TSI_GLYPH as ::core::ffi::c_int as ::core::ffi::c_uint)
+                    == TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint)
                 {
                     let mut extraKey: *mut ::core::ffi::c_char =
                         ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -718,7 +717,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
     mut tag: *const ::core::ffi::c_char,
 ) -> *mut TsiTable {
     let mut _tsi: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
-    _tsi = json_obj_get_type(root, tag, json_object);
+    _tsi = json_obj_get_type(root, tag, JsonType::Object);
     if _tsi.is_null() {
         return ::core::ptr::null_mut::<TsiTable>();
     }
@@ -735,7 +734,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
         let mut _glyphs: *mut JsonValue = json_obj_get_type(
             _tsi,
             b"glyphs\0" as *const u8 as *const ::core::ffi::c_char,
-            json_object,
+            JsonType::Object,
         );
         if !_glyphs.is_null() {
             let mut j: u32 = 0 as u32;
@@ -747,12 +746,12 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                 let mut _content: *mut JsonValue =
                     (*(*_glyphs).u.object.values.offset(j as isize)).value as *mut JsonValue;
                 if !(_content.is_null()
-                    || (*_content).type_0 != json_string)
+                    || (*_content).type_0 != JsonType::String)
                 {
                     table_iTSI.push.expect("non-null function pointer")(
                         tsi,
                         TsiEntry {
-                            type_0: TSI_GLYPH,
+                            type_0: TsiEntryType::Glyph,
                             glyph: handle_fromName(
                                 sdsnewlen(_gid as *const ::core::ffi::c_void, _gidlen),
                             ) as GlyphHandle,
@@ -769,7 +768,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
         let mut _extra: *mut JsonValue = json_obj_get_type(
             _tsi,
             b"extra\0" as *const u8 as *const ::core::ffi::c_char,
-            json_object,
+            JsonType::Object,
         );
         if !_extra.is_null() {
             let mut j_0: u32 = 0 as u32;
@@ -779,7 +778,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                 let mut _content_0: *mut JsonValue =
                     (*(*_extra).u.object.values.offset(j_0 as isize)).value as *mut JsonValue;
                 if !(_content_0.is_null()
-                    || (*_content_0).type_0 != json_string)
+                    || (*_content_0).type_0 != JsonType::String)
                 {
                     if strcmp(_key, b"cvt\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
@@ -787,7 +786,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                         table_iTSI.push.expect("non-null function pointer")(
                             tsi,
                             TsiEntry {
-                                type_0: TSI_CVT,
+                                type_0: TsiEntryType::Cvt,
                                 glyph: otfcc_Handle_empty() as GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
@@ -801,7 +800,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                         table_iTSI.push.expect("non-null function pointer")(
                             tsi,
                             TsiEntry {
-                                type_0: TSI_FPGM,
+                                type_0: TsiEntryType::Fpgm,
                                 glyph: otfcc_Handle_empty() as GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
@@ -815,7 +814,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                         table_iTSI.push.expect("non-null function pointer")(
                             tsi,
                             TsiEntry {
-                                type_0: TSI_PREP,
+                                type_0: TsiEntryType::Prep,
                                 glyph: otfcc_Handle_empty() as GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
@@ -907,14 +906,14 @@ pub unsafe extern "C" fn otfcc_buildTSI(
     } else {
         target.textPart = bufnew();
         target.indexPart = bufnew();
-        pushTSIEntries(&raw mut target, tsi, TSI_GLYPH, 0 as GlyphId);
+        pushTSIEntries(&raw mut target, tsi, TsiEntryType::Glyph, 0 as GlyphId);
         bufwrite16b(target.indexPart, 0xfffe as u16);
         bufwrite16b(target.indexPart, 0 as u16);
         bufwrite32b(target.indexPart, 0xabfc1f34 as u32);
-        pushTSIEntries(&raw mut target, tsi, TSI_PREP, 1 as GlyphId);
-        pushTSIEntries(&raw mut target, tsi, TSI_CVT, 1 as GlyphId);
-        pushTSIEntries(&raw mut target, tsi, TSI_RESERVED_FFFC, 1 as GlyphId);
-        pushTSIEntries(&raw mut target, tsi, TSI_FPGM, 1 as GlyphId);
+        pushTSIEntries(&raw mut target, tsi, TsiEntryType::Prep, 1 as GlyphId);
+        pushTSIEntries(&raw mut target, tsi, TsiEntryType::Cvt, 1 as GlyphId);
+        pushTSIEntries(&raw mut target, tsi, TsiEntryType::ReservedFffc, 1 as GlyphId);
+        pushTSIEntries(&raw mut target, tsi, TsiEntryType::Fpgm, 1 as GlyphId);
     }
     return target;
 }

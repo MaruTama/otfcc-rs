@@ -4,7 +4,7 @@ use libc::{free, printf, sprintf, strcat, strlen, strtod};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{bufninit, Buffer};
-use crate::libcff::cff_value::{CS2_FRACTION, CS2_OPERAND, CS2_OPERATOR, cff_DOUBLE, cff_INTEGER, cff_OPERATOR, CffValue};
+use crate::libcff::cff_value::{CS2_FRACTION, CS2_OPERAND, CS2_OPERATOR, CffValueType, CffValue};
 use crate::support::{NULL};
 use crate::support::buffer::{bufnew};
 #[inline]
@@ -330,7 +330,7 @@ unsafe extern "C" fn cff_dec_i(mut start: *const u8, mut val: *mut CffValue) -> 
             | b4 as ::core::ffi::c_int) as i32;
         len = 5 as u32;
     }
-    (*val).t = cff_INTEGER;
+    (*val).t = CffValueType::Integer;
     return len;
 }
 static nibble_attr: [::core::ffi::c_int; 15] = [
@@ -482,7 +482,7 @@ unsafe extern "C" fn cff_dec_r(mut start: *const u8, mut val: *mut CffValue) -> 
         nibst = nibst.offset(1);
     }
     (*val).c2rust_unnamed.d = atof(&raw mut restr as *mut u8 as *mut ::core::ffi::c_char);
-    (*val).t = cff_DOUBLE;
+    (*val).t = CffValueType::Double;
     return len;
 }
 unsafe extern "C" fn cff_dec_o(mut start: *const u8, mut val: *mut CffValue) -> u32 {
@@ -500,7 +500,7 @@ unsafe extern "C" fn cff_dec_o(mut start: *const u8, mut val: *mut CffValue) -> 
             len = 2 as u32;
         }
     }
-    (*val).t = cff_OPERATOR;
+    (*val).t = CffValueType::Operator;
     return len;
 }
 unsafe extern "C" fn cff_dec_e(mut start: *const u8, mut val: *mut CffValue) -> u32 {
@@ -509,7 +509,7 @@ unsafe extern "C" fn cff_dec_e(mut start: *const u8, mut val: *mut CffValue) -> 
         *start as ::core::ffi::c_int,
     );
     (*val).c2rust_unnamed.i = *start as i32;
-    (*val).t = cff_INTEGER;
+    (*val).t = CffValueType::Integer;
     return 1 as u32;
 }
 static _de_t2: [Option<unsafe extern "C" fn(*const u8, *mut CffValue) -> u32>; 256] = {

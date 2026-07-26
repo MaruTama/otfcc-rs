@@ -7,9 +7,9 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::vendor::json::{json_array, json_object, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, b32, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{ComparFn};
 use crate::bk::bkblock::{bk_newBlockFromBufferCopy};
@@ -695,7 +695,7 @@ pub unsafe extern "C" fn otfcc_parseSVG(
     _svg = json_obj_get_type(
         root,
         b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     if _svg.is_null() {
         return ::core::ptr::null_mut::<SvgTable>();
@@ -715,7 +715,7 @@ pub unsafe extern "C" fn otfcc_parseSVG(
             let mut _a: *mut JsonValue =
                 *(*_svg).u.array.values.offset(j as isize) as *mut JsonValue;
             if !(_a.is_null()
-                || (*_a).type_0 != json_object)
+                || (*_a).type_0 != JsonType::Object)
             {
                 let mut format: *const ::core::ffi::c_char = json_obj_getstr_share(
                     _a,
@@ -791,19 +791,19 @@ pub unsafe extern "C" fn otfcc_buildSVG(
                 ) -> ::core::ffi::c_int,
         ),
     );
-    let mut major: *mut BkBlock = bk_new_Block(&[bk_int(b16, (svg.length) as u32)]);
+    let mut major: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (svg.length) as u32)]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < svg.length {
         let mut a: *mut SvgAssignment = svg.items.offset(__caryll_index as isize);
         while keep != 0 {
-            bk_push(major, &[bk_int(b16, ((*a).start as ::core::ffi::c_int) as u32), bk_int(b16, ((*a).end as ::core::ffi::c_int) as u32), bk_ptr(p32, bk_newBlockFromBufferCopy((*a).document)), bk_int(b32, ((*(*a).document).size) as u32)]);
+            bk_push(major, &[bk_int(BkCellType::B16, ((*a).start as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*a).end as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBufferCopy((*a).document)), bk_int(BkCellType::B32, ((*(*a).document).size) as u32)]);
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, 0 as u32), bk_ptr(p32, major), bk_int(b32, 0 as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 0 as u32), bk_ptr(BkCellType::P32, major), bk_int(BkCellType::B32, 0 as u32)]);
     table_iSVG.dispose.expect("non-null function pointer")(&raw mut svg);
     return bk_build_Block(root);
 }

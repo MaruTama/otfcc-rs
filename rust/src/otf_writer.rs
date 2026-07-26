@@ -13,7 +13,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
 
-use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, Font, IFontSerializer};
+use crate::font::caryll_font::{FontSubtype, Font, IFontSerializer};
 use crate::font::caryll_sfnt_builder::{SfntBuilder};
 
 use crate::table::CFF::{CffAndGlyf};
@@ -76,14 +76,14 @@ impl FontSerializer for OtfSerializer {
     let options = options as *const Options;
     otfcc_statFont(font, options);
     let mut builder: *mut SfntBuilder = otfcc_newSFNTBuilder(
-        (if (*font).subtype == FONTTYPE_CFF {
+        (if (*font).subtype == FontSubtype::Cff {
             1330926671i32
         } else {
             0x10000 as ::core::ffi::c_int
         }) as u32,
         options,
     );
-    if (*font).subtype == FONTTYPE_TTF {
+    if (*font).subtype == FontSubtype::Ttf {
         let mut pair: GlyfAndLocaBuffers =
             otfcc_buildGlyf((*font).glyf, (*font).head, options);
         otfcc_SFNTBuilder_pushTable(builder, 1735162214i32 as u32, pair.glyf);
@@ -144,7 +144,7 @@ impl FontSerializer for OtfSerializer {
         1734439792i32 as u32,
         otfcc_buildGasp((*font).gasp, options),
     );
-    if (*font).subtype == FONTTYPE_TTF {
+    if (*font).subtype == FontSubtype::Ttf {
         otfcc_SFNTBuilder_pushTable(
             builder,
             1718642541i32 as u32,

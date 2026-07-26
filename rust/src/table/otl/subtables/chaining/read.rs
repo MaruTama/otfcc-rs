@@ -7,13 +7,13 @@ use crate::support::handle::{handle_fromIndex, otfcc_Handle_dispose, otfcc_Handl
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 
 use crate::support::{NULL};
-use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, otl_chaining_poly, ChainingSubtable};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable};
 use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
 use crate::vendor::sds::{sdsempty};
 pub type CoverageReaderHandler = Option<
@@ -618,7 +618,7 @@ pub unsafe extern "C" fn otl_read_contextual(
             iSubtable_chaining
                 .create
                 .expect("non-null function pointer"))();
-    (*subtable).type_0 = otl_chaining_poly;
+    (*subtable).type_0 = ChainingType::Poly;
     if !(tableLength < offset.wrapping_add(2 as u32)) {
         format = read_16u(data.offset(offset as isize) as *const u8);
         if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
@@ -669,7 +669,7 @@ pub unsafe extern "C" fn otl_read_contextual(
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         log_vl_important,
-        log_type_warning,
+        LoggerType::Warning,
         crate::sdsbuild!(sdsempty(), b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
     iSubtable_chaining.free.expect("non-null function pointer")(subtable);
@@ -1262,7 +1262,7 @@ pub unsafe extern "C" fn otl_read_chaining(
             iSubtable_chaining
                 .create
                 .expect("non-null function pointer"))();
-    (*subtable).type_0 = otl_chaining_poly;
+    (*subtable).type_0 = ChainingType::Poly;
     if !(tableLength < offset.wrapping_add(2 as u32)) {
         format = read_16u(data.offset(offset as isize) as *const u8);
         if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
@@ -1313,7 +1313,7 @@ pub unsafe extern "C" fn otl_read_chaining(
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         log_vl_important,
-        log_type_warning,
+        LoggerType::Warning,
         crate::sdsbuild!(sdsempty(), b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
     iSubtable_chaining.free.expect("non-null function pointer")(subtable);

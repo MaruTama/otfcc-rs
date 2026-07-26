@@ -6,12 +6,12 @@ use libc::{exit, free, malloc, memcmp, memset, strlen, strncmp};
 
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-use crate::logger::{log_type_info, log_type_progress, log_vl_notice, log_vl_progress, ILogger};
+use crate::logger::{LoggerType, log_vl_notice, log_vl_progress, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::bk::bkblock::{b16, b32, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p16, p32};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 use crate::support::{NULL};
 use crate::table::otl::{Feature, FeaturePtr, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_extend, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gpos_unknown, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_extend, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, otl_type_gsub_unknown, OtlTable};
 use crate::table::otl::subtables::BuildHeuristics;
@@ -467,7 +467,7 @@ unsafe extern "C" fn writeOTLLookups(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_progress,
-            log_type_progress,
+            LoggerType::Progress,
             crate::sdsbuild!(
                 sdsempty(),
                 b"Building lookup ",
@@ -503,7 +503,7 @@ unsafe extern "C" fn writeOTLLookups(
         j_0 = j_0.wrapping_add(1);
     }
     let mut useExtended: bool = lastOffset >= (0xff00 as usize).wrapping_sub(headerSize);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, ((*table).lookups.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*table).lookups.length) as u32)]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as usize) < (*table).lookups.length {
         if *subtableQuantity.offset(j_1 as isize) == 0 {
@@ -512,7 +512,7 @@ unsafe extern "C" fn writeOTLLookups(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_notice,
-                log_type_info,
+                LoggerType::Info,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"Lookup ",
@@ -532,7 +532,7 @@ unsafe extern "C" fn writeOTLLookups(
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 log_vl_notice,
-                log_type_info,
+                LoggerType::Info,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[OTFCC-fea] Using extended OpenType table layout for ",
@@ -560,7 +560,7 @@ unsafe extern "C" fn writeOTLLookups(
                 .file_format()
                 .wrapping_sub(canBeContextual as u32)
         }) as u16;
-        let mut blk: *mut BkBlock = bk_new_Block(&[bk_int(b16, (lookupType as ::core::ffi::c_int) as u32), bk_int(b16, ((*lookup_0).flags as ::core::ffi::c_int) as u32), bk_int(b16, (*subtableQuantity.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
+        let mut blk: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (lookupType as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lookup_0).flags as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (*subtableQuantity.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
         let mut k: TableId = 0 as TableId;
         while (k as ::core::ffi::c_int)
             < *subtableQuantity.offset(j_1 as isize) as ::core::ffi::c_int
@@ -570,15 +570,15 @@ unsafe extern "C" fn writeOTLLookups(
                     .type_0
                     .file_format()
                     .wrapping_sub(canBeContextual as u32) as u16;
-                let mut stub: *mut BkBlock = bk_new_Block(&[bk_int(b16, 1 as u32), bk_int(b16, (extensionLookupType as ::core::ffi::c_int) as u32), bk_ptr(p32, bk_newBlockFromBuffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
-                bk_push(blk, &[bk_ptr(p16, stub)]);
+                let mut stub: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, (extensionLookupType as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBuffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
+                bk_push(blk, &[bk_ptr(BkCellType::P16, stub)]);
             } else {
-                bk_push(blk, &[bk_ptr(p16, bk_newBlockFromBuffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
+                bk_push(blk, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
             }
             k = k.wrapping_add(1);
         }
-        bk_push(blk, &[bk_int(b16, 0 as u32)]);
-        bk_push(root, &[bk_ptr(p16, blk)]);
+        bk_push(blk, &[bk_int(BkCellType::B16, 0 as u32)]);
+        bk_push(root, &[bk_ptr(BkCellType::P16, blk)]);
         free(*subtables.offset(j_1 as isize) as *mut ::core::ffi::c_void);
         let ref mut fresh0 = *subtables.offset(j_1 as isize);
         *fresh0 = ::core::ptr::null_mut::<*mut Buffer>();
@@ -596,10 +596,10 @@ unsafe extern "C" fn writeOTLFeatures(
     mut table: *const OtlTable,
     mut _options: *const Options,
 ) -> *mut BkBlock {
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, ((*table).features.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*table).features.length) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).features.length {
-        let mut fea: *mut BkBlock = bk_new_Block(&[bk_ptr(p16, ::core::ptr::null_mut()), bk_int(b16, ((**(*table).features.items.offset(j as isize))
+        let mut fea: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, ((**(*table).features.items.offset(j as isize))
                 .lookups
                 .length) as u32)]);
         let mut k: TableId = 0 as TableId;
@@ -616,7 +616,7 @@ unsafe extern "C" fn writeOTLFeatures(
                     .offset(k as isize)
                     == *(*table).lookups.items.offset(l as isize) as LookupRef
                 {
-                    bk_push(fea, &[bk_int(b16, (l as ::core::ffi::c_int) as u32)]);
+                    bk_push(fea, &[bk_int(BkCellType::B16, (l as ::core::ffi::c_int) as u32)]);
                     break;
                 } else {
                     l = l.wrapping_add(1);
@@ -624,7 +624,7 @@ unsafe extern "C" fn writeOTLFeatures(
             }
             k = k.wrapping_add(1);
         }
-        bk_push(root, &[bk_int(b32, (featureNameToTag((**(*table).features.items.offset(j as isize)).name)) as u32), bk_ptr(p16, fea)]);
+        bk_push(root, &[bk_int(BkCellType::B32, (featureNameToTag((**(*table).features.items.offset(j as isize)).name)) as u32), bk_ptr(BkCellType::P16, fea)]);
         j = j.wrapping_add(1);
     }
     return root;
@@ -649,10 +649,10 @@ unsafe extern "C" fn writeLanguage(
     if lang.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_ptr(p16, ::core::ptr::null_mut()), bk_int(b16, (featureIndex((*lang).requiredFeature as *const Feature, table) as ::core::ffi::c_int) as u32), bk_int(b16, ((*lang).features.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, (featureIndex((*lang).requiredFeature as *const Feature, table) as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lang).features.length) as u32)]);
     let mut k: TableId = 0 as TableId;
     while (k as usize) < (*lang).features.length {
-        bk_push(root, &[bk_int(b16, (featureIndex(
+        bk_push(root, &[bk_int(BkCellType::B16, (featureIndex(
                 *(*lang).features.items.offset(k as isize) as *const Feature,
                 table,
             ) as ::core::ffi::c_int) as u32)]);
@@ -664,7 +664,7 @@ unsafe extern "C" fn writeScript(
     mut script: *mut ScriptStatHash,
     mut table: *const OtlTable,
 ) -> *mut BkBlock {
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_ptr(p16, writeLanguage((*script).dl, table)), bk_int(b16, ((*script).lc as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, writeLanguage((*script).dl, table)), bk_int(BkCellType::B16, ((*script).lc as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*script).lc as ::core::ffi::c_int {
         let mut tag: SdsRaw = sdsnewlen(
@@ -673,7 +673,7 @@ unsafe extern "C" fn writeScript(
                 .offset(5 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_void,
             4 as usize,
         );
-        bk_push(root, &[bk_int(b32, (featureNameToTag(tag)) as u32), bk_ptr(p16, writeLanguage(*(*script).ll.offset(j as isize), table))]);
+        bk_push(root, &[bk_int(BkCellType::B32, (featureNameToTag(tag)) as u32), bk_ptr(BkCellType::P16, writeLanguage(*(*script).ll.offset(j as isize), table))]);
         sdsfree(tag);
         j = j.wrapping_add(1);
     }
@@ -1482,7 +1482,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
         }
         j = j.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, (if !h.is_null() {
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (if !h.is_null() {
             (*(*h).hh.tbl).num_items
         } else {
             0 as ::core::ffi::c_uint
@@ -1493,7 +1493,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut ScriptStatHash
         as *mut ScriptStatHash;
     while !s_0.is_null() {
-        bk_push(root, &[bk_int(b32, (featureNameToTag((*s_0).tag)) as u32), bk_ptr(p16, writeScript(s_0, table))]);
+        bk_push(root, &[bk_int(BkCellType::B32, (featureNameToTag((*s_0).tag)) as u32), bk_ptr(BkCellType::P16, writeScript(s_0, table))]);
         let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s_0).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
             free((*(*h).hh.tbl).buckets as *mut ::core::ffi::c_void);
@@ -1572,7 +1572,7 @@ pub unsafe extern "C" fn otfcc_buildOtl(
         let mut lookups: *mut BkBlock = writeOTLLookups(table, options, tag);
         let mut features: *mut BkBlock = writeOTLFeatures(table, options);
         let mut languages: *mut BkBlock = writeOTLScriptAndLanguages(table, options);
-        let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b32, 0x10000 as u32), bk_ptr(p16, languages), bk_ptr(p16, features), bk_ptr(p16, lookups)]);
+        let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, languages), bk_ptr(BkCellType::P16, features), bk_ptr(BkCellType::P16, lookups)]);
         buf = bk_build_Block(root);
         ___loggedstep_v = false;
         (*(*options).logger)

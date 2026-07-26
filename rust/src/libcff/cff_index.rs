@@ -10,10 +10,9 @@ use crate::support::buffer::{buffree, bufnew, bufwrite8};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum CffIndexCountType {
-    CFF_INDEX_16 = 0,
-    CFF_INDEX_32 = 1,
+    U16 = 0,
+    U32 = 1,
 }
-pub use CffIndexCountType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffIndex {

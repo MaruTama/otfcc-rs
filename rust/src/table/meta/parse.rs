@@ -4,25 +4,25 @@ use crate::support::json_funcs::{json_obj_get_type};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{json_array, json_object, json_string, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_decode};
 use crate::table::meta::types::{meta_iEntries, table_iMeta};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 pub unsafe extern "C" fn parseMetaData(mut v: *const JsonValue) -> SdsRaw {
-    if (*v).type_0 == json_string
+    if (*v).type_0 == JsonType::String
     {
         return sdsnewlen(
             (*v).u.string.ptr as *const ::core::ffi::c_void,
             (*v).u.string.length as usize,
         );
-    } else if (*v).type_0 == json_object
+    } else if (*v).type_0 == JsonType::Object
     {
         let mut _string: *mut JsonValue = json_obj_get_type(
             v,
             b"string\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string,
+            JsonType::String,
         );
         if !_string.is_null() {
             return sdsnewlen(
@@ -33,7 +33,7 @@ pub unsafe extern "C" fn parseMetaData(mut v: *const JsonValue) -> SdsRaw {
         let mut _base64: *mut JsonValue = json_obj_get_type(
             v,
             b"base64\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string,
+            JsonType::String,
         );
         if !_base64.is_null() {
             let mut strLen: usize = 0 as usize;
@@ -58,7 +58,7 @@ pub unsafe extern "C" fn otfcc_parseMeta(
     _meta = json_obj_get_type(
         root,
         b"meta\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if _meta.is_null() {
         return ::core::ptr::null_mut::<MetaTable>();
@@ -67,7 +67,7 @@ pub unsafe extern "C" fn otfcc_parseMeta(
     _meta_entries = json_obj_get_type(
         _meta,
         b"entries\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     if _meta_entries.is_null() {
         return ::core::ptr::null_mut::<MetaTable>();
@@ -89,7 +89,7 @@ pub unsafe extern "C" fn otfcc_parseMeta(
             let mut _tag: *mut JsonValue = json_obj_get_type(
                 _e,
                 b"tag\0" as *const u8 as *const ::core::ffi::c_char,
-                json_string,
+                JsonType::String,
             );
             if !(_tag.is_null() || (*_tag).u.string.length != 4 as ::core::ffi::c_uint) {
                 let mut tag: u32 = str2tag((*_tag).u.string.ptr);

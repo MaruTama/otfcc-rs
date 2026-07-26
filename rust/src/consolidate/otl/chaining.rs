@@ -1,8 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strcmp};
 use crate::table::otl::coverage::shrinkCoverage;
-use crate::support::handle::{HANDLE_STATE_INDEX, handle_consolidateTo, Handle, otfcc_Handle_dispose, LookupHandle};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::support::handle::{HandleState, handle_consolidateTo, Handle, otfcc_Handle_dispose, LookupHandle};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, TableId};
@@ -60,7 +60,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(sdsempty(), b"[Consolidate] Ignoring non-canonical chaining subtable."),
         );
         return false;
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                     )(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Quoting an invalid lookup ",
@@ -135,7 +135,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                     &raw mut (*(*rule).apply.offset(j_0 as isize)).lookup,
                 );
             }
-        } else if (*h).state == HANDLE_STATE_INDEX
+        } else if (*h).state == HandleState::Index
         {
             if (*h).index as usize >= (*table).lookups.length {
                 (*(*options).logger)
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Quoting an invalid lookup #",

@@ -5,14 +5,14 @@ unsafe extern "C" {
 }
 
 
-use crate::support::handle::{HANDLE_STATE_EMPTY, handle_fromIndex, GlyphHandle, Handle, otfcc_Handle_replace};
+use crate::support::handle::{HandleState, handle_fromIndex, GlyphHandle, Handle, otfcc_Handle_replace};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, GlyphId, Length, Pos, Scale, ShapeId};
-use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, Font};
+use crate::font::caryll_font::{FontSubtype, Font};
 
 
 
@@ -31,7 +31,7 @@ use crate::table::cmap::{CmapEntry};
 
 
 
-use crate::table::glyf::{REF_XY, ComponentReference, Glyph, GlyphStat, Point, GlyfTable};
+use crate::table::glyf::{RefAnchorStatus, ComponentReference, Glyph, GlyphStat, Point, GlyfTable};
 
 
 
@@ -57,11 +57,10 @@ use crate::vf::vq::{iVQ};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum StatStatus {
-    stat_not_started = 0,
-    stat_doing = 1,
-    stat_completed = 2,
+    NotStarted = 0,
+    Doing = 1,
+    Completed = 2,
 }
-pub use StatStatus::*;
 pub const POS_MAX: ::core::ffi::c_float = FLT_MAX;
 pub unsafe extern "C" fn stat_single_glyph(
     mut table: *mut GlyfTable,
@@ -86,7 +85,7 @@ pub unsafe extern "C" fn stat_single_glyph(
     if depth as ::core::ffi::c_int >= 0xff as ::core::ffi::c_int {
         return stat;
     }
-    if *stated.offset(j as isize) == stat_doing {
+    if *stated.offset(j as isize) == StatStatus::Doing {
         (*(*options).logger)
             .logSDS
             .expect(
@@ -94,7 +93,7 @@ pub unsafe extern "C" fn stat_single_glyph(
             )(
             (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
                 b"[Stat] Circular glyph reference found in gid ",
@@ -104,11 +103,11 @@ pub unsafe extern "C" fn stat_single_glyph(
                 b". The reference will be dropped.\n",
             ),
         );
-        *stated.offset(j as isize) = stat_completed;
+        *stated.offset(j as isize) = StatStatus::Completed;
         return stat;
     }
     let g: *mut Glyph = *(*table).items.offset(j as isize) as *mut Glyph;
-    *stated.offset(j as isize) = stat_doing;
+    *stated.offset(j as isize) = StatStatus::Doing;
     let mut xmin: Pos = POS_MAX as Pos;
     let mut xmax: Pos = -POS_MAX as Pos;
     let mut ymin: Pos = POS_MAX as Pos;
@@ -177,7 +176,7 @@ pub unsafe extern "C" fn stat_single_glyph(
             roundToGrid: false,
             useMyMetrics: false,
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -185,7 +184,7 @@ pub unsafe extern "C" fn stat_single_glyph(
             b: 0.,
             c: 0.,
             d: 0.,
-            isAnchored: REF_XY,
+            isAnchored: RefAnchorStatus::Xy,
             inner: 0,
             outer: 0,
         };
@@ -269,7 +268,7 @@ pub unsafe extern "C" fn stat_single_glyph(
     stat.nContours = (*g).contours.length as u16;
     stat.nCompositePoints = nCompositePoints;
     stat.nCompositeContours = nCompositeContours;
-    *stated.offset(j as isize) = stat_completed;
+    *stated.offset(j as isize) = StatStatus::Completed;
     return stat;
 }
 pub unsafe extern "C" fn statGlyf(mut font: *mut Font, mut options: *const Options) {
@@ -303,7 +302,7 @@ pub unsafe extern "C" fn statGlyf(mut font: *mut Font, mut options: *const Optio
             roundToGrid: false,
             useMyMetrics: false,
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -311,7 +310,7 @@ pub unsafe extern "C" fn statGlyf(mut font: *mut Font, mut options: *const Optio
             b: 0.,
             c: 0.,
             d: 0.,
-            isAnchored: REF_XY,
+            isAnchored: RefAnchorStatus::Xy,
             inner: 0,
             outer: 0,
         };
@@ -407,7 +406,7 @@ unsafe extern "C" fn statHmtx(mut font: *mut Font, mut _options: *const Options)
     let mut count_a: GlyphId = (*(*font).glyf).length as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
     let mut lsbAtX_0: bool = true;
-    if (*font).subtype != FONTTYPE_CFF {
+    if (*font).subtype != FontSubtype::Cff {
         while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
             && iVQ.getStill.expect("non-null function pointer")(
                 (**(*(*font).glyf)
@@ -498,7 +497,7 @@ unsafe extern "C" fn statVmtx(mut font: *mut Font, mut options: *const Options) 
     ) as *mut VmtxTable;
     let mut count_a: GlyphId = (*(*font).glyf).length as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
-    if !((*font).subtype == FONTTYPE_CFF && !(*options).cff_short_vmtx) {
+    if !((*font).subtype == FontSubtype::Cff && !(*options).cff_short_vmtx) {
         while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
             && iVQ.getStill.expect("non-null function pointer")(
                 (**(*(*font).glyf)
@@ -1408,7 +1407,7 @@ pub unsafe extern "C" fn otfcc_statFont(
     if !(*font).OS_2.is_null() && !(*font).cmap.is_null() && !(*font).glyf.is_null() {
         statOS_2(font, options);
     }
-    if (*font).subtype == FONTTYPE_TTF {
+    if (*font).subtype == FontSubtype::Ttf {
         if !(*font).maxp.is_null() {
             (*(*font).maxp).version = 0x10000 as ::core::ffi::c_int as F16Dot16;
         }

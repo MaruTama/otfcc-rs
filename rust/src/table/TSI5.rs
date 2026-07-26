@@ -12,7 +12,7 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphClass, GlyphId};
-use crate::vendor::json::{json_object, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::table::otl::classdef::{otl_iClassDef};
@@ -84,7 +84,7 @@ pub unsafe extern "C" fn otfcc_parseTSI5(
     _tsi = json_obj_get_type(
         root,
         b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if _tsi.is_null() {
         return ::core::ptr::null_mut::<Tsi5Table>();

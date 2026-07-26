@@ -9,7 +9,7 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
-use crate::vendor::json::{json_array, json_double, json_integer, json_string, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::base64::{base64_decode};
 use crate::support::buffer::{bufnew, bufwrite16b};
@@ -201,7 +201,7 @@ pub unsafe extern "C" fn otfcc_parseCvt(
 ) -> *mut CvtTable {
     let mut t: *mut CvtTable = ::core::ptr::null_mut::<CvtTable>();
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
-    table = json_obj_get_type(root, tag, json_array);
+    table = json_obj_get_type(root, tag, JsonType::Array);
     if !table.is_null() {
         (*(*options).logger)
             .startSDS
@@ -225,10 +225,10 @@ pub unsafe extern "C" fn otfcc_parseCvt(
             while (j as u32) < (*t).length {
                 let mut record: *mut JsonValue =
                     *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
-                if (*record).type_0 == json_integer
+                if (*record).type_0 == JsonType::Integer
                 {
                     *(*t).words.offset(j as isize) = (*record).u.integer as u16;
-                } else if (*record).type_0 == json_double
+                } else if (*record).type_0 == JsonType::Double
                 {
                     *(*t).words.offset(j as isize) = (*record).u.dbl as u16;
                 } else {
@@ -244,7 +244,7 @@ pub unsafe extern "C" fn otfcc_parseCvt(
             );
         }
     } else {
-        table = json_obj_get_type(root, tag, json_string);
+        table = json_obj_get_type(root, tag, JsonType::String);
         if !table.is_null() {
             (*(*options).logger)
                 .startSDS

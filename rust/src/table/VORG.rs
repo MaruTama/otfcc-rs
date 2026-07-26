@@ -4,7 +4,7 @@ use libc::{free, malloc, memcpy, memset};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, Pos};
@@ -191,7 +191,7 @@ pub unsafe extern "C" fn otfcc_readVORG(
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'VORG' corrupted."),
                     );
                     __fortable_k2 = 0 as ::core::ffi::c_int;

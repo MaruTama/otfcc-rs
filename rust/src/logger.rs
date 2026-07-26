@@ -15,12 +15,11 @@ pub struct ILoggerTarget {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum LoggerType {
-    log_type_error = 0,
-    log_type_warning = 1,
-    log_type_info = 2,
-    log_type_progress = 3,
+    Error = 0,
+    Warning = 1,
+    Info = 2,
+    Progress = 3,
 }
-pub use LoggerType::*;
 // How noisy a message is: `loggerLogSDS` prints it when
 // `verbosity <= self->verbosityLimit`, so these are thresholds on a scale, not
 // members of a set -- and `loggerStart`/`loggerFinish` do arithmetic on one
@@ -157,7 +156,7 @@ unsafe extern "C" fn loggerFinish(mut self_0: *mut ILogger) {
         self_0 as *mut ILogger,
         (log_vl_progress as ::core::ffi::c_int
             + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
-        log_type_progress,
+        LoggerType::Progress,
         sdsnew(b"Finish\0" as *const u8 as *const ::core::ffi::c_char),
     );
     (*self_0).dedent.expect("non-null function pointer")(self_0 as *mut ILogger);
@@ -174,7 +173,7 @@ unsafe extern "C" fn loggerStart(
         self_0 as *mut ILogger,
         (log_vl_progress as ::core::ffi::c_int
             + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
-        log_type_progress,
+        LoggerType::Progress,
         sdsnew(b"Begin\0" as *const u8 as *const ::core::ffi::c_char),
     );
 }
@@ -184,7 +183,7 @@ unsafe extern "C" fn loggerStartSDS(mut self_0: *mut ILogger, mut segment: SdsRa
         self_0 as *mut ILogger,
         (log_vl_progress as ::core::ffi::c_int
             + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
-        log_type_progress,
+        LoggerType::Progress,
         sdsnew(b"Begin\0" as *const u8 as *const ::core::ffi::c_char),
     );
 }

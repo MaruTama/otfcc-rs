@@ -3,7 +3,7 @@ use libc::{free, malloc, memcpy, memset, qsort};
 
 
 use crate::table::otl::coverage::{Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
-use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HANDLE_STATE_EMPTY};
+use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::__caryll_reallocate;
 use crate::support::binio::{read_16u};
@@ -11,9 +11,9 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
-use crate::vendor::json::{json_array, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubMultiSubtableVectorInterface, GsubMultiEntry, Subtable, GsubMultiSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
@@ -204,7 +204,7 @@ unsafe extern "C" fn subtable_gsub_multi_fill(mut arr: *mut GsubMultiSubtable, m
     while (*arr).length < n {
         let mut x: GsubMultiEntry = GsubMultiEntry {
             from: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -489,7 +489,7 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
     for k in 0..(*_subtable).u.object.length as GlyphId {
         let entry = (*_subtable).u.object.values.offset(k as isize);
         let _to: *mut JsonValue = (*entry).value as *mut JsonValue;
-        if !_to.is_null() && (*_to).type_0 == json_array {
+        if !_to.is_null() && (*_to).type_0 == JsonType::Array {
             iSubtable_gsub_multi
                 .push
                 .expect("non-null function pointer")(
@@ -520,14 +520,14 @@ unsafe extern "C" fn buildGsubMultiSubtableRange(
             ) as GlyphHandle,
         );
     }
-    let root: *mut BkBlock = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(b16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
+    let root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
     for j_0 in start..end {
         let to = (*(*subtable).items.offset(j_0 as isize)).to;
-        let b: *mut BkBlock = bk_new_Block(&[bk_int(b16, ((*to).numGlyphs as ::core::ffi::c_int) as u32)]);
+        let b: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*to).numGlyphs as ::core::ffi::c_int) as u32)]);
         for k in 0..(*to).numGlyphs {
-            bk_push(b, &[bk_int(b16, ((*(*to).glyphs.offset(k as isize)).index as ::core::ffi::c_int) as u32)]);
+            bk_push(b, &[bk_int(BkCellType::B16, ((*(*to).glyphs.offset(k as isize)).index as ::core::ffi::c_int) as u32)]);
         }
-        bk_push(root, &[bk_ptr(p16, b)]);
+        bk_push(root, &[bk_ptr(BkCellType::P16, b)]);
     }
     otl_Coverage_free(cov);
     return bk_build_Block(root);

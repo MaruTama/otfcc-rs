@@ -27,10 +27,9 @@ pub struct PosElementInterface {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum VQSegType {
-    VQ_STILL = 0,
-    VQ_DELTA = 1,
+    Still = 0,
+    Delta = 1,
 }
-pub use VQSegType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VqSegment {
@@ -465,7 +464,7 @@ pub static iVV: VvVectorInterface = {
 };
 #[inline]
 unsafe extern "C" fn initVQSegment(mut vqs: *mut VqSegment) {
-    (*vqs).type_0 = VQ_STILL;
+    (*vqs).type_0 = VQSegType::Still;
     (*vqs).val.still = 0 as ::core::ffi::c_int as Pos;
 }
 #[inline]
@@ -506,7 +505,7 @@ unsafe extern "C" fn vq_Segment_copyReplace(mut dst: *mut VqSegment, src: VqSegm
 #[inline]
 unsafe extern "C" fn vq_Segment_empty() -> VqSegment {
     let mut x: VqSegment = VqSegment {
-        type_0: VQ_STILL,
+        type_0: VQSegType::Still,
         val: VqSegmentValue { still: 0. },
     };
     vq_Segment_init(&raw mut x);
@@ -519,7 +518,7 @@ unsafe extern "C" fn vq_Segment_copy(mut dst: *mut VqSegment, mut src: *const Vq
 #[inline]
 unsafe extern "C" fn vq_Segment_dup(src: VqSegment) -> VqSegment {
     let mut dst: VqSegment = VqSegment {
-        type_0: VQ_STILL,
+        type_0: VQSegType::Still,
         val: VqSegmentValue { still: 0. },
     };
     vq_Segment_copy(&raw mut dst, &raw const src);
@@ -544,7 +543,7 @@ unsafe extern "C" fn vq_Segment_move(mut dst: *mut VqSegment, mut src: *mut VqSe
 }
 unsafe extern "C" fn vqsCreateStill(mut x: Pos) -> VqSegment {
     let mut vqs: VqSegment = VqSegment {
-        type_0: VQ_STILL,
+        type_0: VQSegType::Still,
         val: VqSegmentValue { still: 0. },
     };
     vq_iSegment.init.expect("non-null function pointer")(&raw mut vqs);
@@ -553,11 +552,11 @@ unsafe extern "C" fn vqsCreateStill(mut x: Pos) -> VqSegment {
 }
 unsafe extern "C" fn vqsCreateDelta(mut delta: Pos, mut region: *mut VqRegion) -> VqSegment {
     let mut vqs: VqSegment = VqSegment {
-        type_0: VQ_STILL,
+        type_0: VQSegType::Still,
         val: VqSegmentValue { still: 0. },
     };
     vq_iSegment.init.expect("non-null function pointer")(&raw mut vqs);
-    vqs.type_0 = VQ_DELTA;
+    vqs.type_0 = VQSegType::Delta;
     vqs.val.delta.quantity = delta;
     vqs.val.delta.region = region;
     return vqs;
@@ -765,7 +764,7 @@ unsafe extern "C" fn vq_SegList_sort(
 unsafe extern "C" fn vq_SegList_fill(mut arr: *mut VqSegList, mut n: usize) {
     while (*arr).length < n {
         let mut x: VqSegment = VqSegment {
-            type_0: VQ_STILL,
+            type_0: VQSegType::Still,
             val: VqSegmentValue { still: 0. },
         };
         if vq_iSegment.init.is_some() {
@@ -1077,12 +1076,12 @@ unsafe extern "C" fn vqInplacePlus(mut a: *mut VQ, b: VQ) {
     let mut p: usize = 0 as usize;
     while p < b.shift.length {
         let mut k: *mut VqSegment = b.shift.items.offset(p as isize) as *mut VqSegment;
-        if (*k).type_0 == VQ_STILL
+        if (*k).type_0 == VQSegType::Still
         {
             (*a).kernel += (*k).val.still;
         } else {
             let mut s: VqSegment = VqSegment {
-                type_0: VQ_STILL,
+                type_0: VQSegType::Still,
                 val: VqSegmentValue { still: 0. },
             };
             vq_iSegment.copy.expect("non-null function pointer")(&raw mut s, k);
@@ -1286,10 +1285,10 @@ unsafe extern "C" fn vqAddDelta(
         return;
     }
     let mut nudge: VqSegment = VqSegment {
-        type_0: VQ_STILL,
+        type_0: VQSegType::Still,
         val: VqSegmentValue { still: 0. },
     };
-    nudge.type_0 = VQ_DELTA;
+    nudge.type_0 = VQSegType::Delta;
     nudge.val.delta.region = r;
     nudge.val.delta.touched = touched;
     nudge.val.delta.quantity = quantity;
@@ -1352,8 +1351,8 @@ mod tests {
     // Renumbering the variants would silently change which glyphs get merged.
     #[test]
     fn vqsegtype_discriminants_are_the_hashed_values() {
-        assert_eq!(VQ_STILL as u8, 0);
-        assert_eq!(VQ_DELTA as u8, 1);
+        assert_eq!(VQSegType::Still as u8, 0);
+        assert_eq!(VQSegType::Delta as u8, 1);
         assert_eq!(::core::mem::size_of::<VQSegType>(), 4);
     }
 }

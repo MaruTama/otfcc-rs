@@ -114,10 +114,9 @@ pub struct Font {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum FontSubtype {
-    FONTTYPE_TTF = 0,
-    FONTTYPE_CFF = 1,
+    Ttf = 0,
+    Cff = 1,
 }
-pub use FontSubtype::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct FontElementInterface {

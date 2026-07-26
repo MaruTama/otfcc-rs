@@ -6,7 +6,7 @@ unsafe extern "C" {
 
 use crate::support::json_funcs::{json_new_position, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback, preserialize};
 use crate::table::otl::coverage::{Coverage};
-use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HANDLE_STATE_EMPTY};
+use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
@@ -15,9 +15,9 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{json_object, json_string, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, BkBlock, bk_int, bk_new_Block, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_push};
 use crate::support::{NULL, ComparFn};
 use crate::table::otl::{MarkArrayVectorInterface, Anchor, MarkArray, MarkRecord, PositionValue};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
@@ -311,7 +311,7 @@ unsafe extern "C" fn otl_MarkArray_fill(mut arr: *mut MarkArray, mut n: usize) {
     while (*arr).length < n {
         let mut x: MarkRecord = MarkRecord {
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -416,7 +416,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
     while (j as ::core::ffi::c_uint) < (*_marks).u.object.length {
         let mut mark: MarkRecord = MarkRecord {
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -438,14 +438,14 @@ pub unsafe extern "C" fn otl_parseMarkArray(
         mark.markClass = 0 as GlyphClass;
         mark.anchor = otl_anchor_absent();
         if anchorRecord.is_null()
-            || (*anchorRecord).type_0 != json_object
+            || (*anchorRecord).type_0 != JsonType::Object
         {
             otl_iMarkArray.push.expect("non-null function pointer")(array, mark);
         } else {
             let mut _className: *mut JsonValue = json_obj_get_type(
                 anchorRecord,
                 b"class\0" as *const u8 as *const ::core::ffi::c_char,
-                json_string,
+                JsonType::String,
             );
             if _className.is_null() {
                 otl_iMarkArray.push.expect("non-null function pointer")(array, mark);
@@ -1415,7 +1415,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
             let mut _className_0: *mut JsonValue = json_obj_get_type(
                 anchorRecord_0,
                 b"class\0" as *const u8 as *const ::core::ffi::c_char,
-                json_string,
+                JsonType::String,
             );
             let mut className_0: SdsRaw = sdsnewlen(
                 (*_className_0).u.string.ptr as *const ::core::ffi::c_void,
@@ -1817,7 +1817,7 @@ pub unsafe extern "C" fn otl_parse_anchor(mut v: *mut JsonValue) -> Anchor {
         y: 0 as ::core::ffi::c_int as Pos,
     };
     if v.is_null()
-        || (*v).type_0 != json_object
+        || (*v).type_0 != JsonType::Object
     {
         return anchor;
     }
@@ -1838,7 +1838,7 @@ pub unsafe extern "C" fn bkFromAnchor(mut a: Anchor) -> *mut BkBlock {
     if !a.present {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    return bk_new_Block(&[bk_int(b16, 1 as u32), bk_int(b16, (a.x as i16 as ::core::ffi::c_int) as u32), bk_int(b16, (a.y as i16 as ::core::ffi::c_int) as u32)]);
+    return bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, (a.x as i16 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (a.y as i16 as ::core::ffi::c_int) as u32)]);
 }
 pub static FORMAT_DX: u8 = 1 as u8;
 pub static FORMAT_DY: u8 = 2 as u8;
@@ -3213,7 +3213,7 @@ pub unsafe extern "C" fn gpos_parse_value(mut pos: *mut JsonValue) -> PositionVa
         dHeight: 0.0f64,
     };
     if pos.is_null()
-        || (*pos).type_0 != json_object
+        || (*pos).type_0 != JsonType::Object
     {
         return v;
     }
@@ -3268,16 +3268,16 @@ pub unsafe extern "C" fn bk_gpos_value(
 ) -> *mut BkBlock {
     let mut b: *mut BkBlock = bk_new_Block(&[]);
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
-        bk_push(b, &[bk_int(b16, (v.dx as i16 as ::core::ffi::c_int) as u32)]);
+        bk_push(b, &[bk_int(BkCellType::B16, (v.dx as i16 as ::core::ffi::c_int) as u32)]);
     }
     if format as ::core::ffi::c_int & FORMAT_DY as ::core::ffi::c_int != 0 {
-        bk_push(b, &[bk_int(b16, (v.dy as i16 as ::core::ffi::c_int) as u32)]);
+        bk_push(b, &[bk_int(BkCellType::B16, (v.dy as i16 as ::core::ffi::c_int) as u32)]);
     }
     if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
-        bk_push(b, &[bk_int(b16, (v.dWidth as i16 as ::core::ffi::c_int) as u32)]);
+        bk_push(b, &[bk_int(BkCellType::B16, (v.dWidth as i16 as ::core::ffi::c_int) as u32)]);
     }
     if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
-        bk_push(b, &[bk_int(b16, (v.dHeight as i16 as ::core::ffi::c_int) as u32)]);
+        bk_push(b, &[bk_int(BkCellType::B16, (v.dHeight as i16 as ::core::ffi::c_int) as u32)]);
     }
     return b;
 }

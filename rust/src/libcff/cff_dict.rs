@@ -4,7 +4,7 @@ use libc::{free, malloc, memcpy, memset};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{Buffer};
-use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_UNSET, CffValue, CffValueBody};
+use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::cff_codecs::{cff_decodeCffToken, cff_encodeCffFloat, cff_encodeCffInteger, cff_encodeCffOperator};
 use crate::support::buffer::{bufnew, bufwrite_bufdel};
 
@@ -139,18 +139,18 @@ unsafe extern "C" fn parseDict(mut data: *const u8, len: u32) -> *mut CffDict {
     let mut index: u32 = 0 as u32;
     let mut advance: u32 = 0;
     let mut val: CffValue = CffValue {
-        t: cff_UNSET,
+        t: CffValueType::Unset,
         c2rust_unnamed: CffValueBody { i: 0 },
     };
     let mut stack: [CffValue; 48] = [CffValue {
-        t: cff_UNSET,
+        t: CffValueType::Unset,
         c2rust_unnamed: CffValueBody { i: 0 },
     }; 48];
     let mut temp: *const u8 = data;
     while temp < data.offset(len as isize) {
         advance = cff_decodeCffToken(temp, &raw mut val);
         match val.t {
-            cff_OPERATOR => {
+            CffValueType::Operator => {
                 (*dict).ents = __caryll_reallocate(
                     (*dict).ents as *mut ::core::ffi::c_void,
                     (::core::mem::size_of::<CffDictEntry>() as usize)
@@ -173,7 +173,7 @@ unsafe extern "C" fn parseDict(mut data: *const u8, len: u32) -> *mut CffDict {
                 (*dict).count = (*dict).count.wrapping_add(1);
                 index = 0 as u32;
             }
-            cff_INTEGER | cff_DOUBLE => {
+            CffValueType::Integer | CffValueType::Double => {
                 let fresh2 = index;
                 index = index.wrapping_add(1);
                 stack[fresh2 as usize] = val;
@@ -195,18 +195,18 @@ unsafe extern "C" fn parseToCallback(
     let mut index: u8 = 0 as u8;
     let mut advance: u32 = 0;
     let mut val: CffValue = CffValue {
-        t: cff_UNSET,
+        t: CffValueType::Unset,
         c2rust_unnamed: CffValueBody { i: 0 },
     };
     let mut stack: [CffValue; 256] = [CffValue {
-        t: cff_UNSET,
+        t: CffValueType::Unset,
         c2rust_unnamed: CffValueBody { i: 0 },
     }; 256];
     let mut temp: *const u8 = data;
     while temp < data.offset(len as isize) {
         advance = cff_decodeCffToken(temp, &raw mut val);
         match val.t {
-            cff_OPERATOR => {
+            CffValueType::Operator => {
                 callback.expect("non-null function pointer")(
                     val.c2rust_unnamed.i as u32,
                     index,
@@ -215,7 +215,7 @@ unsafe extern "C" fn parseToCallback(
                 );
                 index = 0 as u8;
             }
-            cff_INTEGER | cff_DOUBLE => {
+            CffValueType::Integer | CffValueType::Double => {
                 let fresh0 = index;
                 index = index.wrapping_add(1);
                 stack[fresh0 as usize] = val;
@@ -246,7 +246,7 @@ unsafe extern "C" fn parseDictKey(
     let mut context: CffGetKeyContext = CffGetKeyContext {
         found: false,
         res: CffValue {
-            t: cff_UNSET,
+            t: CffValueType::Unset,
             c2rust_unnamed: CffValueBody { i: 0 },
         },
         op: 0,
@@ -255,7 +255,7 @@ unsafe extern "C" fn parseDictKey(
     context.found = false;
     context.idx = idx;
     context.op = op;
-    context.res.t = cff_UNSET;
+    context.res.t = CffValueType::Unset;
     context.res.c2rust_unnamed.i = -(1 as ::core::ffi::c_int) as i32;
     parseToCallback(
         data,
@@ -282,7 +282,7 @@ unsafe extern "C" fn buildDict(mut dict: *const CffDict) -> *mut Buffer {
             let mut blob_val: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
             if (*(*(*dict).ents.offset(i as isize)).vals.offset(j as isize)).t
                 as ::core::ffi::c_uint
-                == cff_INTEGER as ::core::ffi::c_int as ::core::ffi::c_uint
+                == CffValueType::Integer as ::core::ffi::c_int as ::core::ffi::c_uint
             {
                 blob_val = cff_encodeCffInteger(
                     (*(*(*dict).ents.offset(i as isize)).vals.offset(j as isize))
@@ -291,7 +291,7 @@ unsafe extern "C" fn buildDict(mut dict: *const CffDict) -> *mut Buffer {
                 );
             } else if (*(*(*dict).ents.offset(i as isize)).vals.offset(j as isize)).t
                 as ::core::ffi::c_uint
-                == cff_DOUBLE as ::core::ffi::c_int as ::core::ffi::c_uint
+                == CffValueType::Double as ::core::ffi::c_int as ::core::ffi::c_uint
             {
                 blob_val = cff_encodeCffFloat(
                     (*(*(*dict).ents.offset(i as isize)).vals.offset(j as isize))

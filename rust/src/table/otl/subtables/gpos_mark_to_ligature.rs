@@ -4,18 +4,18 @@ use libc::{free, malloc, memcmp, memcpy, memset, qsort, strlen};
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
 use crate::table::otl::coverage::{Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
-use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HANDLE_STATE_EMPTY};
+use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::vendor::json::{json_array, json_object, JsonValue};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 use crate::support::{NULL, ComparFn};
 use crate::table::otl::{GposMarkToLigatureSubtableElementInterface, LigatureArrayVectorInterface, Anchor, LigatureArray, LigatureBaseRecord, Subtable, GposMarkToLigatureSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
@@ -393,7 +393,7 @@ unsafe extern "C" fn otl_LigatureArray_fill(mut arr: *mut LigatureArray, mut n: 
     while (*arr).length < n {
         let mut x: LigatureBaseRecord = LigatureBaseRecord {
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -615,7 +615,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
                         }
                         let mut lig: LigatureBaseRecord = LigatureBaseRecord {
                             glyph: Handle {
-                                state: HANDLE_STATE_EMPTY,
+                                state: HandleState::Empty,
                                 index: 0,
                                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                             },
@@ -846,7 +846,7 @@ unsafe extern "C" fn parseBases(
             (*(*_bases).u.object.values.offset(j as isize)).name;
         let mut lig: LigatureBaseRecord = LigatureBaseRecord {
             glyph: Handle {
-                state: HANDLE_STATE_EMPTY,
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
@@ -862,7 +862,7 @@ unsafe extern "C" fn parseBases(
         let mut baseRecord: *mut JsonValue =
             (*(*_bases).u.object.values.offset(j as isize)).value as *mut JsonValue;
         if baseRecord.is_null()
-            || (*baseRecord).type_0 != json_array
+            || (*baseRecord).type_0 != JsonType::Array
         {
             otl_iLigatureArray.push.expect("non-null function pointer")(
                 &raw mut (*subtable).ligArray,
@@ -891,7 +891,7 @@ unsafe extern "C" fn parseBases(
                     m = m.wrapping_add(1);
                 }
                 if !(_componentRecord.is_null()
-                    || (*_componentRecord).type_0 != json_object)
+                    || (*_componentRecord).type_0 != JsonType::Object)
                 {
                     let mut m_0: GlyphClass = 0 as GlyphClass;
                     while (m_0 as ::core::ffi::c_uint) < (*_componentRecord).u.object.length {
@@ -1241,7 +1241,7 @@ unsafe extern "C" fn parseBases(
                                 )(
                                 (*options).logger as *mut ILogger,
                                 log_vl_important,
-                                log_type_warning,
+                                LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[OTFCC-fea] Invalid anchor class name <",
@@ -1280,12 +1280,12 @@ pub unsafe extern "C" fn otl_gpos_parse_markToLigature(
     let mut _marks: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"marks\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     let mut _bases: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"bases\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if _marks.is_null() || _bases.is_null() {
         return ::core::ptr::null_mut::<Subtable>();
@@ -1393,21 +1393,21 @@ pub unsafe extern "C" fn otfcc_build_gpos_markToLigature(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             marks,
-        ))), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             bases,
-        ))), bk_int(b16, ((*subtable).classCount as ::core::ffi::c_int) as u32)]);
-    let mut markArray: *mut BkBlock = bk_new_Block(&[bk_int(b16, ((*subtable).markArray.length) as u32)]);
+        ))), bk_int(BkCellType::B16, ((*subtable).classCount as ::core::ffi::c_int) as u32)]);
+    let mut markArray: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*subtable).markArray.length) as u32)]);
     let mut j_1: GlyphId = 0 as GlyphId;
     while (j_1 as usize) < (*subtable).markArray.length {
-        bk_push(markArray, &[bk_int(b16, ((*(*subtable).markArray.items.offset(j_1 as isize)).markClass as ::core::ffi::c_int) as u32), bk_ptr(p16, bkFromAnchor((*(*subtable).markArray.items.offset(j_1 as isize)).anchor))]);
+        bk_push(markArray, &[bk_int(BkCellType::B16, ((*(*subtable).markArray.items.offset(j_1 as isize)).markClass as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bkFromAnchor((*(*subtable).markArray.items.offset(j_1 as isize)).anchor))]);
         j_1 = j_1.wrapping_add(1);
     }
-    let mut ligatureArray: *mut BkBlock = bk_new_Block(&[bk_int(b16, ((*subtable).ligArray.length) as u32)]);
+    let mut ligatureArray: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*subtable).ligArray.length) as u32)]);
     let mut j_2: GlyphId = 0 as GlyphId;
     while (j_2 as usize) < (*subtable).ligArray.length {
-        let mut attach: *mut BkBlock = bk_new_Block(&[bk_int(b16, ((*(*subtable).ligArray.items.offset(j_2 as isize)).componentCount as ::core::ffi::c_int) as u32)]);
+        let mut attach: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*(*subtable).ligArray.items.offset(j_2 as isize)).componentCount as ::core::ffi::c_int) as u32)]);
         let mut k: GlyphId = 0 as GlyphId;
         while (k as ::core::ffi::c_int)
             < (*(*subtable).ligArray.items.offset(j_2 as isize)).componentCount
@@ -1415,7 +1415,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_markToLigature(
         {
             let mut m: GlyphClass = 0 as GlyphClass;
             while (m as ::core::ffi::c_int) < (*subtable).classCount as ::core::ffi::c_int {
-                bk_push(attach, &[bk_ptr(p16, bkFromAnchor(
+                bk_push(attach, &[bk_ptr(BkCellType::P16, bkFromAnchor(
                         *(*(*(*subtable).ligArray.items.offset(j_2 as isize))
                             .anchors
                             .offset(k as isize))
@@ -1425,10 +1425,10 @@ pub unsafe extern "C" fn otfcc_build_gpos_markToLigature(
             }
             k = k.wrapping_add(1);
         }
-        bk_push(ligatureArray, &[bk_ptr(p16, attach)]);
+        bk_push(ligatureArray, &[bk_ptr(BkCellType::P16, attach)]);
         j_2 = j_2.wrapping_add(1);
     }
-    bk_push(root, &[bk_ptr(p16, markArray), bk_ptr(p16, ligatureArray)]);
+    bk_push(root, &[bk_ptr(BkCellType::P16, markArray), bk_ptr(BkCellType::P16, ligatureArray)]);
     otl_Coverage_free(marks);
     otl_Coverage_free(bases);
     return bk_build_Block(root);
