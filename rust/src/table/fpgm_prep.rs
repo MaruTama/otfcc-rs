@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, strcmp};
+use libc::{free, malloc, memcpy, memset};
 unsafe extern "C" {
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
     fn sdsempty() -> sds;
@@ -31,13 +31,14 @@ unsafe extern "C" {
 }
 
 
+use crate::support::json_funcs::{json_obj_get};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_object, json_value};
+use crate::vendor::json::json_value;
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 #[derive(Copy, Clone)]
@@ -321,24 +322,4 @@ pub unsafe extern "C" fn otfcc_buildFpgmPrep(
     let mut buf: *mut caryll_Buffer = bufnew();
     bufwrite_bytes(buf, (*table).length as usize, (*table).bytes);
     return buf;
-}
-#[inline]
-unsafe extern "C" fn json_obj_get(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> *mut json_value {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return ::core::ptr::null_mut::<json_value>();
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return ::core::ptr::null_mut::<json_value>();
 }

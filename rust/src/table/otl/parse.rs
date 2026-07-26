@@ -69,12 +69,13 @@ unsafe extern "C" {
 
 
 
+use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getint};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{log_type_info, log_type_warning, log_vl_important, log_vl_notice, otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{tableid_t};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{_json_value, json_array, json_double, json_integer, json_object, json_string, json_type, json_value};
+use crate::vendor::json::{_json_value, json_array, json_object, json_string, json_value};
 use crate::support::{NULL, true_0};
 use crate::table::otl::{__caryll_elementinterface_otl_FeaturePtr, __caryll_elementinterface_otl_LanguageSystemPtr, __caryll_elementinterface_otl_LookupPtr, __caryll_elementinterface_table_OTL, __caryll_vectorinterface_otl_FeatureList, __caryll_vectorinterface_otl_FeatureRefList, __caryll_vectorinterface_otl_LangSystemList, __caryll_vectorinterface_otl_LookupList, __caryll_vectorinterface_otl_LookupRefList, __caryll_vectorinterface_otl_SubtableList, otl_Feature, otl_FeaturePtr, otl_FeatureRef, otl_FeatureRefList, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupRefList, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, table_OTL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
@@ -111,69 +112,6 @@ pub enum lookup_order_type {
     LOOKUP_ORDER_FILE = 1,
 }
 pub use lookup_order_type::*;
-#[inline]
-unsafe extern "C" fn json_obj_get(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> *mut json_value {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return ::core::ptr::null_mut::<json_value>();
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_obj_get_type(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-    type_0: json_type,
-) -> *mut json_value {
-    let mut v: *mut json_value = json_obj_get(obj, key);
-    if !v.is_null() && (*v).type_0 as ::core::ffi::c_uint == type_0 as ::core::ffi::c_uint {
-        return v;
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_obj_getint(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> i32 {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return 0 as i32;
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        let mut cv: *mut json_value =
-            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            if !cv.is_null()
-                && (*cv).type_0 == json_integer
-            {
-                return (*cv).u.integer as i32;
-            }
-            if !cv.is_null()
-                && (*cv).type_0 == json_double
-            {
-                return (*cv).u.dbl as i32;
-            }
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return 0 as i32;
-}
 unsafe extern "C" fn _parse_lookup(
     mut lookup: *mut json_value,
     mut lookupName: *mut ::core::ffi::c_char,

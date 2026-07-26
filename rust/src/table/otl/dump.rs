@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{malloc};
 unsafe extern "C" {
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
@@ -38,29 +37,11 @@ use crate::logger::{otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{tableid_t};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_pre_serialized, json_value};
+use crate::vendor::json::json_value;
 use crate::table::otl::{otl_Feature, otl_LanguageSystem, otl_Lookup, otl_LookupType, otl_Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, table_OTL};
-use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
-use crate::support::json_funcs::{otfcc_dump_flags};
+use crate::vendor::json_builder::json_serialize_opts;
+use crate::support::json_funcs::{otfcc_dump_flags, preserialize};
 use crate::table::otl::constants::{lookupFlagsLabels};
-#[inline]
-unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
-    let mut opts: json_serialize_opts = json_serialize_opts {
-        mode: json_serialize_mode_packed,
-        opts: 0,
-        indent_size: 0,
-    };
-    let mut preserialize_len: usize = json_measure_ex(x, opts);
-    let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
-    json_serialize_ex(buf, x, opts);
-    json_builder_free(x);
-    let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
-        buf,
-    );
-    (*xx).type_0 = json_pre_serialized;
-    return xx;
-}
 unsafe extern "C" fn _declare_lookup_dumper(
     mut llt: otl_LookupType,
     mut dumper: Option<unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value>,

@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort, strcmp};
+use libc::{free, malloc, memcpy, memset, qsort};
 unsafe extern "C" {
     fn sdsempty() -> sds;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
@@ -25,6 +25,7 @@ unsafe extern "C" {
 }
 
 
+use crate::support::json_funcs::{json_new_position, json_numof, json_obj_get_type, json_obj_getstr_share, json_object_push_tag};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u, read_16s, read_32u};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
@@ -32,7 +33,7 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, pos_t, tableid_t};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_double, json_integer, json_object, json_string, json_type, json_value};
+use crate::vendor::json::{json_object, json_value};
 use crate::bk::bkblock::{b16, b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
@@ -891,91 +892,6 @@ pub unsafe extern "C" fn otfcc_buildBASE(
     }
     let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b32, 0x10000 as u32), bk_ptr(p16, axisToBk((*base).horizontal)), bk_ptr(p16, axisToBk((*base).vertical))]);
     return bk_build_Block(root);
-}
-#[inline]
-unsafe extern "C" fn json_obj_get(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> *mut json_value {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return ::core::ptr::null_mut::<json_value>();
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_obj_get_type(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-    type_0: json_type,
-) -> *mut json_value {
-    let mut v: *mut json_value = json_obj_get(obj, key);
-    if !v.is_null() && (*v).type_0 as ::core::ffi::c_uint == type_0 as ::core::ffi::c_uint {
-        return v;
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_obj_getstr_share(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> *mut ::core::ffi::c_char {
-    let mut v: *mut json_value = json_obj_get_type(obj, key, json_string);
-    if v.is_null() {
-        return ::core::ptr::null_mut::<::core::ffi::c_char>();
-    } else {
-        return (*v).u.string.ptr;
-    };
-}
-#[inline]
-unsafe extern "C" fn json_object_push_tag(
-    mut a: *mut json_value,
-    mut tag: u32,
-    mut b: *mut json_value,
-) -> *mut json_value {
-    let mut tags: [::core::ffi::c_char; 4] = [
-        ((tag & 0xff000000 as u32) >> 24 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        ((tag & 0xff0000 as u32) >> 16 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        ((tag & 0xff00 as u32) >> 8 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        (tag & 0xff as u32) as ::core::ffi::c_char,
-    ];
-    return json_object_push_length(
-        a,
-        4 as ::core::ffi::c_uint,
-        &raw mut tags as *mut ::core::ffi::c_char,
-        b,
-    );
-}
-#[inline]
-unsafe extern "C" fn json_numof(mut cv: *const json_value) -> ::core::ffi::c_double {
-    if !cv.is_null()
-        && (*cv).type_0 == json_integer
-    {
-        return (*cv).u.integer as ::core::ffi::c_double;
-    }
-    if !cv.is_null()
-        && (*cv).type_0 == json_double
-    {
-        return (*cv).u.dbl;
-    }
-    return 0 as ::core::ffi::c_int as ::core::ffi::c_double;
-}
-#[inline]
-unsafe extern "C" fn json_new_position(mut z: pos_t) -> *mut json_value {
-    if round(z as ::core::ffi::c_double) == z {
-        return json_integer_new(z as i64);
-    } else {
-        return json_double_new(z as ::core::ffi::c_double);
-    };
 }
 #[inline]
 unsafe extern "C" fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {

@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, strcmp};
+use libc::{free, malloc, memcpy, memset};
 unsafe extern "C" {
     fn sdsempty() -> sds;
     fn bufnew() -> *mut caryll_Buffer;
@@ -18,6 +18,7 @@ unsafe extern "C" {
 }
 
 
+use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum_fallback};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32s};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
@@ -25,7 +26,7 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{f16dot16, font_file_pointer};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_double, json_integer, json_object, json_type, json_value};
+use crate::vendor::json::{json_object, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 #[derive(Copy, Clone)]
@@ -454,68 +455,4 @@ pub unsafe extern "C" fn otfcc_buildHhea(
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, (*hhea).numberOfMetrics);
     return buf;
-}
-#[inline]
-unsafe extern "C" fn json_obj_get(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> *mut json_value {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return ::core::ptr::null_mut::<json_value>();
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_obj_get_type(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-    type_0: json_type,
-) -> *mut json_value {
-    let mut v: *mut json_value = json_obj_get(obj, key);
-    if !v.is_null() && (*v).type_0 as ::core::ffi::c_uint == type_0 as ::core::ffi::c_uint {
-        return v;
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_obj_getnum_fallback(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-    mut fallback: ::core::ffi::c_double,
-) -> ::core::ffi::c_double {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return fallback;
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        let mut cv: *mut json_value =
-            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            if !cv.is_null()
-                && (*cv).type_0 == json_integer
-            {
-                return (*cv).u.integer as ::core::ffi::c_double;
-            }
-            if !cv.is_null()
-                && (*cv).type_0 == json_double
-            {
-                return (*cv).u.dbl;
-            }
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return fallback;
 }

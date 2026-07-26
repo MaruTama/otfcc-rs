@@ -45,16 +45,17 @@ unsafe extern "C" {
 }
 
 
+use crate::support::json_funcs::{json_new_position, json_numof, json_object_push_tag, preserialize};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{f16dot16, font_file_pointer, pos_t};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
-use crate::vendor::json::{json_double, json_integer, json_pre_serialized, json_value};
+use crate::vendor::json::json_value;
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{NULL, __compar_fn_t};
-use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
+use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 use crate::vf::axis::{__caryll_vectorinterface_vf_Axes, vf_Axes, vf_Axis};
 use crate::vf::region::{vq_AxisSpan, vq_Region};
@@ -2494,63 +2495,4 @@ unsafe extern "C" fn be32(mut x: u32) -> u32 {
         | (x & 0xff00 as u32) << 8 as ::core::ffi::c_int
         | (x & 0xff0000 as u32) >> 8 as ::core::ffi::c_int
         | (x & 0xff000000 as u32) >> 24 as ::core::ffi::c_int;
-}
-#[inline]
-unsafe extern "C" fn json_object_push_tag(
-    mut a: *mut json_value,
-    mut tag: u32,
-    mut b: *mut json_value,
-) -> *mut json_value {
-    let mut tags: [::core::ffi::c_char; 4] = [
-        ((tag & 0xff000000 as u32) >> 24 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        ((tag & 0xff0000 as u32) >> 16 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        ((tag & 0xff00 as u32) >> 8 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        (tag & 0xff as u32) as ::core::ffi::c_char,
-    ];
-    return json_object_push_length(
-        a,
-        4 as ::core::ffi::c_uint,
-        &raw mut tags as *mut ::core::ffi::c_char,
-        b,
-    );
-}
-#[inline]
-unsafe extern "C" fn json_numof(mut cv: *const json_value) -> ::core::ffi::c_double {
-    if !cv.is_null()
-        && (*cv).type_0 == json_integer
-    {
-        return (*cv).u.integer as ::core::ffi::c_double;
-    }
-    if !cv.is_null()
-        && (*cv).type_0 == json_double
-    {
-        return (*cv).u.dbl;
-    }
-    return 0 as ::core::ffi::c_int as ::core::ffi::c_double;
-}
-#[inline]
-unsafe extern "C" fn json_new_position(mut z: pos_t) -> *mut json_value {
-    if round(z as ::core::ffi::c_double) == z {
-        return json_integer_new(z as i64);
-    } else {
-        return json_double_new(z as ::core::ffi::c_double);
-    };
-}
-#[inline]
-unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
-    let mut opts: json_serialize_opts = json_serialize_opts {
-        mode: json_serialize_mode_packed,
-        opts: 0,
-        indent_size: 0,
-    };
-    let mut preserialize_len: usize = json_measure_ex(x, opts);
-    let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
-    json_serialize_ex(buf, x, opts);
-    json_builder_free(x);
-    let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
-        buf,
-    );
-    (*xx).type_0 = json_pre_serialized;
-    return xx;
 }

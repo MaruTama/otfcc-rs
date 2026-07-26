@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort, strcmp};
+use libc::{free, malloc, memcpy, memset, qsort};
 unsafe extern "C" {
     fn json_object_new(length: usize) -> *mut json_value;
     fn json_object_push(
@@ -29,6 +29,7 @@ unsafe extern "C" {
     fn bkFromAnchor(a: otl_Anchor) -> *mut bk_Block;
 }
 
+use crate::support::json_funcs::{json_obj_get, preserialize};
 use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
 use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 use crate::support::binio::{read_16u};
@@ -37,13 +38,13 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_object, json_pre_serialized, json_value};
+use crate::vendor::json::{json_object, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 
 use crate::table::otl::{__caryll_vectorinterface_subtable_gpos_cursive, otl_Anchor, otl_GposCursiveEntry, otl_Subtable, subtable_gpos_cursive};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
-use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
+use crate::vendor::json_builder::json_serialize_opts;
 use crate::support::{__compar_fn_t};
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -58,44 +59,6 @@ pub struct __caryll_elementinterface_otl_GposCursiveEntry {
         Option<unsafe extern "C" fn(*mut otl_GposCursiveEntry, otl_GposCursiveEntry) -> ()>,
     pub copyReplace:
         Option<unsafe extern "C" fn(*mut otl_GposCursiveEntry, otl_GposCursiveEntry) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn json_obj_get(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> *mut json_value {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return ::core::ptr::null_mut::<json_value>();
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
-    let mut opts: json_serialize_opts = json_serialize_opts {
-        mode: json_serialize_mode_packed,
-        opts: 0,
-        indent_size: 0,
-    };
-    let mut preserialize_len: usize = json_measure_ex(x, opts);
-    let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
-    json_serialize_ex(buf, x, opts);
-    json_builder_free(x);
-    let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
-        buf,
-    );
-    (*xx).type_0 = json_pre_serialized;
-    return xx;
 }
 unsafe extern "C" fn deleteGposCursiveEntry(mut entry: *mut otl_GposCursiveEntry) {
     otfcc_Handle_dispose(&raw mut (*entry).target);

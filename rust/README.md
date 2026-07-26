@@ -592,6 +592,28 @@ the CI-matching Linux container:
   declaration typechecks against anything, and it went through the linker
   rather than the module system.
 
+  **The whole header followed.** All 17 of its helpers were `static inline`, and
+  c2rust had re-emitted each into every translation unit that used one — 32
+  copies of `json_obj_get`, 30 of `json_obj_get_type`, 16 of `preserialize`,
+  **139 definitions in total**. There is now one of each, in
+  `support/json_funcs.rs`, at −2,469/+357 lines across 39 files. Every name's
+  copies were checked textually identical before any was deleted, and none was
+  ever `#[no_mangle]`, so the ABI is untouched (still 553 exports).
+
+  One of the seventeen looks redundant and is not: `json_obj_getnum` walks the
+  object itself rather than calling `json_obj_get`, because on a name match whose
+  value has the wrong type it **keeps looking**, where
+  `json_numof(json_obj_get(obj, key))` would stop at the first match and return
+  0. The two differ whenever a key appears twice with different value types,
+  which the parser permits — it keeps duplicate members. `json_obj_getnum` and
+  `json_obj_getint`, which were the `_fallback` bodies with the fallback spelled
+  0, do now delegate; the loops themselves stay as C wrote them.
+
+  The one helper left where c2rust put it is `json_from_sds`, in `table/CFF.rs`:
+  it needs `sdslen`, itself a `static inline` from `sds.h` with 20 copies of its
+  own, and that family is a pass of its own. It only ever had one copy here, so
+  there is nothing to collapse.
+
   This is also where `compare-with-c.sh` grew a check it should always have
   had: the canonical JSON both builds consume is dumped by the *C* tool, so
   nothing compared `otfccdump`'s own output between implementations. A changed
@@ -715,9 +737,11 @@ on the other platform before a commit is trusted.
   newtypes means giving `cffdict_input_*` and `il_push_op` the specific type
   instead of a bare integer, which is a change to the CharString interpreter's
   plumbing and belongs in its own PR.
-- **The rest of `json-funcs.h`**: `json_obj_get` still has 32 identical
-  copies, and `json_obj_getnum`/`json_obj_getint`/`…_fallback` nine each. Same
-  consolidation as the flag helpers, just more of it.
+- **`sdslen`**, the last duplicated `static inline` now that `json-funcs.h` is
+  done: 20 copies, one per file that measures an `sds`. The rest of the `sds.h`
+  inlines (`sdsavail`, `sdssetlen`, `sdsalloc`, …) are already single, so this is
+  one name — but it needs a `pub sdslen` in `vendor/sds.rs`, which is also what
+  `json_from_sds` is waiting for.
 - **Rust naming**, once each type exists in one place: `otfcc_Options` →
   `Options`, functions → inherent methods, fields → snake_case. Then the
   crate-level `allow(non_camel_case_types)`/`non_snake_case`/
