@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort, strcmp};
+use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
 unsafe extern "C" {
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
@@ -27,6 +27,7 @@ unsafe extern "C" {
 }
 
 
+use crate::support::json_funcs::{json_obj_get_type, preserialize};
 use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 
@@ -37,13 +38,13 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
-use crate::vendor::json::{json_array, json_object, json_pre_serialized, json_string, json_type, json_value};
+use crate::vendor::json::{json_array, json_string, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 use crate::support::{NULL, __compar_fn_t};
 use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_ligature, otl_GsubLigatureEntry, otl_Subtable, subtable_gsub_ligature};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
-use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
+use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -95,56 +96,6 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
         _ => {}
     }
     return 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn json_obj_get(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> *mut json_value {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return ::core::ptr::null_mut::<json_value>();
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_obj_get_type(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-    type_0: json_type,
-) -> *mut json_value {
-    let mut v: *mut json_value = json_obj_get(obj, key);
-    if !v.is_null() && (*v).type_0 as ::core::ffi::c_uint == type_0 as ::core::ffi::c_uint {
-        return v;
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
-    let mut opts: json_serialize_opts = json_serialize_opts {
-        mode: json_serialize_mode_packed,
-        opts: 0,
-        indent_size: 0,
-    };
-    let mut preserialize_len: usize = json_measure_ex(x, opts);
-    let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
-    json_serialize_ex(buf, x, opts);
-    json_builder_free(x);
-    let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
-        buf,
-    );
-    (*xx).type_0 = json_pre_serialized;
-    return xx;
 }
 unsafe extern "C" fn deleteGsubLigatureEntry(mut entry: *mut otl_GsubLigatureEntry) {
     otfcc_Handle_dispose(&raw mut (*entry).to);

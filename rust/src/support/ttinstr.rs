@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, snprintf, strlen, strtol};
+use libc::{free, memcpy, memset, snprintf, strlen, strtol};
 unsafe extern "C" {
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
@@ -22,14 +22,16 @@ unsafe extern "C" {
     fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
 }
 
+use crate::support::json_funcs::{preserialize};
+
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 
 use crate::support::options::{otfcc_Options};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_array, json_integer, json_pre_serialized, json_string, json_value};
+use crate::vendor::json::{json_array, json_integer, json_string, json_value};
 
 use crate::support::ctype_compat::{c_isdigit, c_tolower};
-use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
+use crate::vendor::json_builder::json_serialize_opts;
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
 /// instructions. `u8`, since that is what `instrdata.instrs` holds.
@@ -71,24 +73,6 @@ pub enum byte_types {
     bt_impliedreturn = 5,
 }
 pub use byte_types::*;
-#[inline]
-unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
-    let mut opts: json_serialize_opts = json_serialize_opts {
-        mode: json_serialize_mode_packed,
-        opts: 0,
-        indent_size: 0,
-    };
-    let mut preserialize_len: usize = json_measure_ex(x, opts);
-    let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
-    json_serialize_ex(buf, x, opts);
-    json_builder_free(x);
-    let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
-        buf,
-    );
-    (*xx).type_0 = json_pre_serialized;
-    return xx;
-}
 pub static ff_ttf_instrnames: [&::core::ffi::CStr; 256] = [
     c"SVTCA[y-axis]",
     c"SVTCA[x-axis]",

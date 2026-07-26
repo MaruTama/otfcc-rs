@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort, strcmp};
+use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
 unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn json_array_new(length: usize) -> *mut json_value;
@@ -43,6 +43,7 @@ unsafe extern "C" {
     fn gpos_parse_value(pos: *mut json_value) -> otl_PositionValue;
 }
 
+use crate::support::json_funcs::{json_new_position, json_obj_get, json_obj_get_type, preserialize};
 use crate::table::otl::classdef::{__otfcc_IClassDef, expandClassDef, otl_ClassDef, otl_ClassDef_free, readClassDef};
 use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_free, readCoverage, shrinkCoverage};
 use crate::support::handle::{handle_fromIndex, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle};
@@ -53,13 +54,13 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphclass_t, glyphid_t, pos_t, tableid_t};
-use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_pre_serialized, json_type, json_value};
+use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_value};
 use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, bkembed, p16};
 use crate::bk::bkgraph::{bk_Graph};
 use crate::support::{NULL};
 use crate::table::otl::{__caryll_elementinterface_subtable_gpos_pair, otl_PositionValue, otl_Subtable, subtable_gpos_pair};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
-use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
+use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 
 #[derive(Copy, Clone)]
@@ -75,64 +76,6 @@ pub struct IndividualGposPair {
     pub gid: glyphid_t,
     pub fv: *mut otl_PositionValue,
     pub sv: *mut otl_PositionValue,
-}
-#[inline]
-unsafe extern "C" fn json_obj_get(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> *mut json_value {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return ::core::ptr::null_mut::<json_value>();
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_obj_get_type(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-    type_0: json_type,
-) -> *mut json_value {
-    let mut v: *mut json_value = json_obj_get(obj, key);
-    if !v.is_null() && (*v).type_0 as ::core::ffi::c_uint == type_0 as ::core::ffi::c_uint {
-        return v;
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_new_position(mut z: pos_t) -> *mut json_value {
-    if round(z as ::core::ffi::c_double) == z {
-        return json_integer_new(z as i64);
-    } else {
-        return json_double_new(z as ::core::ffi::c_double);
-    };
-}
-#[inline]
-unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
-    let mut opts: json_serialize_opts = json_serialize_opts {
-        mode: json_serialize_mode_packed,
-        opts: 0,
-        indent_size: 0,
-    };
-    let mut preserialize_len: usize = json_measure_ex(x, opts);
-    let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
-    json_serialize_ex(buf, x, opts);
-    json_builder_free(x);
-    let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
-        buf,
-    );
-    (*xx).type_0 = json_pre_serialized;
-    return xx;
 }
 #[inline]
 unsafe extern "C" fn initGposPair(mut subtable: *mut subtable_gpos_pair) {

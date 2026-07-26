@@ -1,19 +1,33 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-// The label-driven flag helpers from c/lib/support/json/json-funcs.h, plus the
-// one other helper from that header they depend on. They are `static inline` in
-// C, so c2rust re-emitted a private copy into every translation unit that read
-// or wrote a flag field: 3 copies each of otfcc_dump_flags/otfcc_parse_flags and
-// 7 of json_obj_getbool, all textually identical. Never externally linked (no
-// #[no_mangle]) in their per-file form, so consolidating them changes no ABI.
+// c/lib/support/json/json-funcs.h. Every helper in it is `static inline`, so
+// c2rust re-emitted a private copy into each translation unit that used one:
+// 32 copies of json_obj_get, 30 of json_obj_get_type, 16 of preserialize, and so
+// on down to 2. Across the header's 17 helpers that came to **139 definitions**;
+// now there is one of each. Every name's copies were verified textually
+// identical before any was deleted, and none was ever externally linked (no
+// #[no_mangle] on the per-file form), so consolidating them changes no ABI.
 //
-// The rest of json-funcs.h (json_obj_get with 32 copies, json_obj_getnum,
-// json_obj_getint, json_obj_getnum_fallback, ...) is still duplicated per file;
-// only the flag helpers are here, because the label tables they walk are what
-// this module exists to serve.
+// One helper is still where c2rust put it: `json_from_sds`, in table/CFF.rs. It
+// needs `sdslen`, itself a `static inline` from sds.h with 20 copies of its own,
+// and that family is a separate pass. It only ever had one copy, so there is
+// nothing to collapse -- moving it would just be moving it.
 
-use crate::vendor::json::{json_boolean, json_double, json_integer, json_object, json_value};
-use crate::vendor::json_builder::{json_boolean_new, json_object_new, json_object_push};
-use libc::strcmp;
+use crate::support::primitives::pos_t;
+use crate::vendor::json::{
+    json_boolean, json_double, json_integer, json_object, json_pre_serialized, json_string,
+    json_type, json_value,
+};
+use crate::vendor::json_builder::{
+    json_boolean_new, json_builder_free, json_double_new, json_integer_new, json_measure_ex,
+    json_object_new, json_object_push, json_object_push_length, json_serialize_ex,
+    json_serialize_mode_packed, json_serialize_opts, json_string_new_nocopy,
+};
+use crate::vendor::sds::{sds, sdsnewlen};
+use libc::{malloc, strcmp};
+
+unsafe extern "C" {
+    fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
+}
 
 /// Serialize a bitfield as a JSON object of `label: true` pairs, one per set bit.
 ///
@@ -80,4 +94,217 @@ pub unsafe fn json_obj_getbool(obj: *const json_value, key: *const ::core::ffi::
         _k = _k.wrapping_add(1);
     }
     false
+}
+
+/// Look up `key` in a JSON object, of whatever type; NULL when there is no such
+/// member (or `obj` is not an object).
+///
+/// The first member whose name matches wins, which matters because the parser
+/// keeps duplicate keys rather than collapsing them.
+pub unsafe fn json_obj_get(
+    obj: *const json_value,
+    key: *const ::core::ffi::c_char,
+) -> *mut json_value {
+    if obj.is_null() || (*obj).type_0 != json_object {
+        return ::core::ptr::null_mut::<json_value>();
+    }
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
+        let ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
+        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
+            return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
+        }
+        _k = _k.wrapping_add(1);
+    }
+    ::core::ptr::null_mut::<json_value>()
+}
+
+/// [`json_obj_get`], but NULL unless the member has the type asked for.
+pub unsafe fn json_obj_get_type(
+    obj: *const json_value,
+    key: *const ::core::ffi::c_char,
+    type_0: json_type,
+) -> *mut json_value {
+    let v: *mut json_value = json_obj_get(obj, key);
+    if !v.is_null() && (*v).type_0 == type_0 {
+        return v;
+    }
+    ::core::ptr::null_mut::<json_value>()
+}
+
+/// A member's string value, copied into a fresh [`sds`]; NULL if it is not a
+/// string. The caller owns the copy.
+pub unsafe fn json_obj_getsds(obj: *const json_value, key: *const ::core::ffi::c_char) -> sds {
+    let v: *mut json_value = json_obj_get_type(obj, key, json_string);
+    if v.is_null() {
+        ::core::ptr::null_mut::<::core::ffi::c_char>()
+    } else {
+        sdsnewlen(
+            (*v).u.string.ptr as *const ::core::ffi::c_void,
+            (*v).u.string.length as usize,
+        )
+    }
+}
+
+/// [`json_obj_getsds`] without the copy: the pointer belongs to the JSON tree
+/// and dies with it.
+pub unsafe fn json_obj_getstr_share(
+    obj: *const json_value,
+    key: *const ::core::ffi::c_char,
+) -> *mut ::core::ffi::c_char {
+    let v: *mut json_value = json_obj_get_type(obj, key, json_string);
+    if v.is_null() {
+        ::core::ptr::null_mut::<::core::ffi::c_char>()
+    } else {
+        (*v).u.string.ptr
+    }
+}
+
+/// Push `b` under a four-character OpenType tag, unpacked big-endian from `tag`.
+pub unsafe fn json_object_push_tag(
+    a: *mut json_value,
+    tag: u32,
+    b: *mut json_value,
+) -> *mut json_value {
+    let mut tags: [::core::ffi::c_char; 4] = [
+        ((tag & 0xff000000 as u32) >> 24 as ::core::ffi::c_int) as ::core::ffi::c_char,
+        ((tag & 0xff0000 as u32) >> 16 as ::core::ffi::c_int) as ::core::ffi::c_char,
+        ((tag & 0xff00 as u32) >> 8 as ::core::ffi::c_int) as ::core::ffi::c_char,
+        (tag & 0xff as u32) as ::core::ffi::c_char,
+    ];
+    json_object_push_length(
+        a,
+        4 as ::core::ffi::c_uint,
+        &raw mut tags as *mut ::core::ffi::c_char,
+        b,
+    )
+}
+
+/// A number, whether the JSON spelled it as an integer or a double; 0.0 for
+/// anything else, including null.
+pub unsafe fn json_numof(cv: *const json_value) -> ::core::ffi::c_double {
+    if !cv.is_null() && (*cv).type_0 == json_integer {
+        return (*cv).u.integer as ::core::ffi::c_double;
+    }
+    if !cv.is_null() && (*cv).type_0 == json_double {
+        return (*cv).u.dbl;
+    }
+    0.0f64
+}
+
+/// A boolean; false for anything else, including null.
+pub unsafe fn json_boolof(cv: *const json_value) -> bool {
+    if !cv.is_null() && (*cv).type_0 == json_boolean {
+        return (*cv).u.boolean != 0;
+    }
+    false
+}
+
+/// A coordinate, written as an integer when it is one so the JSON stays readable.
+pub unsafe fn json_new_position(z: pos_t) -> *mut json_value {
+    if round(z as ::core::ffi::c_double) == z {
+        json_integer_new(z as i64)
+    } else {
+        json_double_new(z as ::core::ffi::c_double)
+    }
+}
+
+// The numeric lookups below walk the object themselves instead of going through
+// `json_obj_get`, exactly as C wrote them, and that is not redundant: on a name
+// match whose value has the wrong type they *keep looking*.
+// `json_numof(json_obj_get(obj, key))` would stop at the first name match and
+// return 0 instead. The two differ whenever a key appears more than once with
+// different value types -- which the parser permits, since it keeps duplicate
+// members. What C did duplicate is the fallback-less pair, whose bodies are the
+// `_fallback` ones with the fallback spelled 0; those just delegate here.
+
+/// A member's numeric value; 0.0 when absent or non-numeric.
+pub unsafe fn json_obj_getnum(
+    obj: *const json_value,
+    key: *const ::core::ffi::c_char,
+) -> ::core::ffi::c_double {
+    json_obj_getnum_fallback(obj, key, 0.0f64)
+}
+
+/// A member's numeric value, truncated to an `i32`; 0 when absent or non-numeric.
+pub unsafe fn json_obj_getint(obj: *const json_value, key: *const ::core::ffi::c_char) -> i32 {
+    json_obj_getint_fallback(obj, key, 0 as i32)
+}
+
+/// A member's numeric value, or `fallback` when absent or non-numeric.
+pub unsafe fn json_obj_getnum_fallback(
+    obj: *const json_value,
+    key: *const ::core::ffi::c_char,
+    fallback: ::core::ffi::c_double,
+) -> ::core::ffi::c_double {
+    if obj.is_null() || (*obj).type_0 != json_object {
+        return fallback;
+    }
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
+        let ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
+        let cv: *mut json_value =
+            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
+        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
+            if !cv.is_null() && (*cv).type_0 == json_integer {
+                return (*cv).u.integer as ::core::ffi::c_double;
+            }
+            if !cv.is_null() && (*cv).type_0 == json_double {
+                return (*cv).u.dbl;
+            }
+        }
+        _k = _k.wrapping_add(1);
+    }
+    fallback
+}
+
+/// A member's numeric value truncated to an `i32`, or `fallback` when absent or
+/// non-numeric.
+pub unsafe fn json_obj_getint_fallback(
+    obj: *const json_value,
+    key: *const ::core::ffi::c_char,
+    fallback: i32,
+) -> i32 {
+    if obj.is_null() || (*obj).type_0 != json_object {
+        return fallback;
+    }
+    let mut _k: u32 = 0 as u32;
+    while _k < (*obj).u.object.length as u32 {
+        let ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
+        let cv: *mut json_value =
+            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
+        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
+            if !cv.is_null() && (*cv).type_0 == json_integer {
+                return (*cv).u.integer as i32;
+            }
+            if !cv.is_null() && (*cv).type_0 == json_double {
+                return (*cv).u.dbl as i32;
+            }
+        }
+        _k = _k.wrapping_add(1);
+    }
+    fallback
+}
+
+/// Serialize a subtree now and keep the text, so the writer can splice it in
+/// verbatim later. Consumes `x`.
+///
+/// The result is a `json_string` retagged as [`json_pre_serialized`], which the
+/// serializer copies out as-is rather than descending into.
+pub unsafe fn preserialize(x: *mut json_value) -> *mut json_value {
+    let opts: json_serialize_opts = json_serialize_opts {
+        mode: json_serialize_mode_packed,
+        opts: 0,
+        indent_size: 0,
+    };
+    let preserialize_len: usize = json_measure_ex(x, opts);
+    let buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
+    json_serialize_ex(buf, x, opts);
+    json_builder_free(x);
+    let xx: *mut json_value = json_string_new_nocopy(
+        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
+        buf,
+    );
+    (*xx).type_0 = json_pre_serialized;
+    xx
 }

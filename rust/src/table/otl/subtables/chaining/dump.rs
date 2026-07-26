@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{malloc};
 unsafe extern "C" {
     fn json_array_new(length: usize) -> *mut json_value;
     fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
@@ -22,32 +21,15 @@ unsafe extern "C" {
     static otl_iCoverage: __otfcc_ICoverage;
 }
 
+use crate::support::json_funcs::{preserialize};
 use crate::table::otl::coverage::{__otfcc_ICoverage};
 
 
 use crate::support::primitives::{tableid_t};
-use crate::vendor::json::{json_pre_serialized, json_value};
+use crate::vendor::json::json_value;
 use crate::table::otl::{otl_ChainingRule, otl_Subtable, subtable_chaining};
-use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
+use crate::vendor::json_builder::json_serialize_opts;
 
-#[inline]
-unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
-    let mut opts: json_serialize_opts = json_serialize_opts {
-        mode: json_serialize_mode_packed,
-        opts: 0,
-        indent_size: 0,
-    };
-    let mut preserialize_len: usize = json_measure_ex(x, opts);
-    let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
-    json_serialize_ex(buf, x, opts);
-    json_builder_free(x);
-    let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
-        buf,
-    );
-    (*xx).type_0 = json_pre_serialized;
-    return xx;
-}
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const otl_Subtable) -> *mut json_value {
     let mut subtable: *const subtable_chaining = &raw const (*_subtable).chaining;

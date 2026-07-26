@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{exit, free, malloc, memcmp, memcpy, memset, strcmp, strlen};
+use libc::{exit, free, malloc, memcmp, memcpy, memset, strlen};
 unsafe extern "C" {
     fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
     fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
@@ -96,7 +96,7 @@ use crate::support::buffer::{bufninit, caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{arity_t, cffsid_t, f16dot16, font_file_pointer, glyphid_t, pos_t, scale_t, shapeid_t, tableid_t};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
-use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_string, json_type, json_value};
+use crate::vendor::json::{json_array, json_object, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::libcff::{cff_File, cff_IOutlineBuilder, cff_Stack, op_BlueFuzz, op_BlueScale, op_BlueShift, op_BlueValues, op_CIDCount, op_CIDFontRevision, op_CIDFontVersion, op_CharStrings, op_Copyright, op_ExpansionFactor, op_FDArray, op_FDSelect, op_FamilyBlues, op_FamilyName, op_FamilyOtherBlues, op_FontBBox, op_FontMatrix, op_FontName, op_ForceBold, op_FullName, op_ItalicAngle, op_LanguageGroup, op_Notice, op_OtherBlues, op_Private, op_ROS, op_StdHW, op_StdVW, op_StemSnapH, op_StemSnapV, op_StrokeWidth, op_Subrs, op_UIDBase, op_UnderlinePosition, op_UnderlineThickness, op_Weight, op_charset, op_defaultWidthX, op_initialRandomSeed, op_isFixedPitch, op_nominalWidthX, op_version};
 use crate::libcff::cff_charset::{cff_CHARSET_FORMAT0, cff_CHARSET_FORMAT1, cff_CHARSET_FORMAT2, cff_CHARSET_ISOADOBE, cff_Charset, cff_CharsetRangeFormat2};
@@ -114,7 +114,7 @@ use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, 
 
 
 use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_SegList, vq_Segment};
-use crate::support::json_funcs::{json_obj_getbool};
+use crate::support::json_funcs::{json_numof, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -4166,161 +4166,6 @@ pub unsafe extern "C" fn otfcc_buildCFF(
     mut options: *const otfcc_Options,
 ) -> *mut caryll_Buffer {
     return writecff_CIDKeyed(cffAndGlyf.meta, cffAndGlyf.glyphs, options);
-}
-#[inline]
-unsafe extern "C" fn json_obj_get(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> *mut json_value {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return ::core::ptr::null_mut::<json_value>();
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            return (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_obj_get_type(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-    type_0: json_type,
-) -> *mut json_value {
-    let mut v: *mut json_value = json_obj_get(obj, key);
-    if !v.is_null() && (*v).type_0 as ::core::ffi::c_uint == type_0 as ::core::ffi::c_uint {
-        return v;
-    }
-    return ::core::ptr::null_mut::<json_value>();
-}
-#[inline]
-unsafe extern "C" fn json_obj_getsds(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> sds {
-    let mut v: *mut json_value = json_obj_get_type(obj, key, json_string);
-    if v.is_null() {
-        return ::core::ptr::null_mut::<::core::ffi::c_char>();
-    } else {
-        return sdsnewlen(
-            (*v).u.string.ptr as *const ::core::ffi::c_void,
-            (*v).u.string.length as usize,
-        );
-    };
-}
-#[inline]
-unsafe extern "C" fn json_numof(mut cv: *const json_value) -> ::core::ffi::c_double {
-    if !cv.is_null()
-        && (*cv).type_0 == json_integer
-    {
-        return (*cv).u.integer as ::core::ffi::c_double;
-    }
-    if !cv.is_null()
-        && (*cv).type_0 == json_double
-    {
-        return (*cv).u.dbl;
-    }
-    return 0 as ::core::ffi::c_int as ::core::ffi::c_double;
-}
-#[inline]
-unsafe extern "C" fn json_obj_getnum(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> ::core::ffi::c_double {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return 0.0f64;
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        let mut cv: *mut json_value =
-            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            if !cv.is_null()
-                && (*cv).type_0 == json_integer
-            {
-                return (*cv).u.integer as ::core::ffi::c_double;
-            }
-            if !cv.is_null()
-                && (*cv).type_0 == json_double
-            {
-                return (*cv).u.dbl;
-            }
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return 0.0f64;
-}
-#[inline]
-unsafe extern "C" fn json_obj_getint(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-) -> i32 {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return 0 as i32;
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        let mut cv: *mut json_value =
-            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            if !cv.is_null()
-                && (*cv).type_0 == json_integer
-            {
-                return (*cv).u.integer as i32;
-            }
-            if !cv.is_null()
-                && (*cv).type_0 == json_double
-            {
-                return (*cv).u.dbl as i32;
-            }
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return 0 as i32;
-}
-#[inline]
-unsafe extern "C" fn json_obj_getnum_fallback(
-    mut obj: *const json_value,
-    mut key: *const ::core::ffi::c_char,
-    mut fallback: ::core::ffi::c_double,
-) -> ::core::ffi::c_double {
-    if obj.is_null()
-        || (*obj).type_0 != json_object
-    {
-        return fallback;
-    }
-    let mut _k: u32 = 0 as u32;
-    while _k < (*obj).u.object.length as u32 {
-        let mut ck: *mut ::core::ffi::c_char = (*(*obj).u.object.values.offset(_k as isize)).name;
-        let mut cv: *mut json_value =
-            (*(*obj).u.object.values.offset(_k as isize)).value as *mut json_value;
-        if strcmp(ck, key) == 0 as ::core::ffi::c_int {
-            if !cv.is_null()
-                && (*cv).type_0 == json_integer
-            {
-                return (*cv).u.integer as ::core::ffi::c_double;
-            }
-            if !cv.is_null()
-                && (*cv).type_0 == json_double
-            {
-                return (*cv).u.dbl;
-            }
-        }
-        _k = _k.wrapping_add(1);
-    }
-    return fallback;
 }
 #[inline]
 unsafe extern "C" fn json_from_sds(str: sds) -> *mut json_value {

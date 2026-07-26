@@ -19,6 +19,7 @@ unsafe extern "C" {
     fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
 }
 
+use crate::support::json_funcs::{preserialize};
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_Handle, otfcc_GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
@@ -26,10 +27,10 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::primitives::{glyphid_t};
 use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_array, json_pre_serialized, json_string, json_value};
+use crate::vendor::json::{json_array, json_string, json_value};
 use crate::support::{NULL};
 use crate::support::glyph_order::{glyph_handle};
-use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
+use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -2545,21 +2546,3 @@ pub static otl_iCoverage: __otfcc_ICoverage = {
         ),
     }
 };
-#[inline]
-unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
-    let mut opts: json_serialize_opts = json_serialize_opts {
-        mode: json_serialize_mode_packed,
-        opts: 0,
-        indent_size: 0,
-    };
-    let mut preserialize_len: usize = json_measure_ex(x, opts);
-    let mut buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
-    json_serialize_ex(buf, x, opts);
-    json_builder_free(x);
-    let mut xx: *mut json_value = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
-        buf,
-    );
-    (*xx).type_0 = json_pre_serialized;
-    return xx;
-}
