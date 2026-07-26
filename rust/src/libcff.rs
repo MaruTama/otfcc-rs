@@ -1,5 +1,6 @@
 use crate::support::primitives::{arity_t};
 use crate::libcff::cff_charset::{cff_Charset};
+use crate::libcff::cff_parser::{cff_EncodingType};
 use crate::libcff::cff_fdselect::{cff_FDSelect};
 use crate::libcff::cff_index::{cff_Index};
 use crate::libcff::cff_value::{cff_Value};
@@ -293,7 +294,7 @@ pub struct cff_EncodingNS {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_Encoding {
-    pub t: u32,
+    pub t: cff_EncodingType,
     pub c2rust_unnamed: cff_EncodingBody,
 }
 

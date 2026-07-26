@@ -8,10 +8,20 @@ unsafe extern "C" {
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{caryll_Buffer};
 
-pub type cff_FDSelectType = ::core::ffi::c_uint;
-pub const cff_FDSELECT_UNSPECED: cff_FDSelectType = 2;
-pub const cff_FDSELECT_FORMAT3: cff_FDSelectType = 1;
-pub const cff_FDSELECT_FORMAT0: cff_FDSelectType = 0;
+/// Which FDSelect format a CID font uses, or `UNSPECED` for a font that has
+/// none and for a format byte otfcc does not recognise.
+///
+/// Not the format byte itself: `cff_extract_FDSelect` matches the byte from the
+/// file and stores one of these three, so the value is the crate's own and every
+/// unknown byte lands on `UNSPECED`.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum cff_FDSelectType {
+    cff_FDSELECT_FORMAT0 = 0,
+    cff_FDSELECT_FORMAT3 = 1,
+    cff_FDSELECT_UNSPECED = 2,
+}
+pub use cff_FDSelectType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_FDSelectFormat0 {
@@ -35,7 +45,7 @@ pub struct cff_FDSelectFormat3 {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cff_FDSelect {
-    pub t: u32,
+    pub t: cff_FDSelectType,
     pub s: u32,
     pub c2rust_unnamed: cff_FDSelectBody,
 }
@@ -62,26 +72,26 @@ unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_close_FDSelect(mut fds: cff_FDSelect) {
     match fds.t {
-        0 => {
+        cff_FDSELECT_FORMAT0 => {
             if !fds.c2rust_unnamed.f0.fds.is_null() {
                 free(fds.c2rust_unnamed.f0.fds as *mut ::core::ffi::c_void);
                 fds.c2rust_unnamed.f0.fds = ::core::ptr::null_mut::<u8>();
             }
         }
-        1 => {
+        cff_FDSELECT_FORMAT3 => {
             if !fds.c2rust_unnamed.f3.range3.is_null() {
                 free(fds.c2rust_unnamed.f3.range3 as *mut ::core::ffi::c_void);
                 fds.c2rust_unnamed.f3.range3 = ::core::ptr::null_mut::<cff_FDSelectRangeFormat3>();
             }
         }
-        2 | _ => {}
+        _ => {}
     };
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_build_FDSelect(mut fd: cff_FDSelect) -> *mut caryll_Buffer {
     match fd.t {
-        2 => return bufnew(),
-        0 => {
+        cff_FDSELECT_UNSPECED => return bufnew(),
+        cff_FDSELECT_FORMAT0 => {
             let mut blob: *mut caryll_Buffer = bufnew();
             (*blob).size = (1 as u32).wrapping_add(fd.s) as usize;
             (*blob).data = __caryll_allocate_clean(
@@ -95,7 +105,7 @@ pub unsafe extern "C" fn cff_build_FDSelect(mut fd: cff_FDSelect) -> *mut caryll
             }
             return blob;
         }
-        1 => {
+        cff_FDSELECT_FORMAT3 => {
             let mut blob_0: *mut caryll_Buffer = bufnew();
             (*blob_0).size = (5 as ::core::ffi::c_int
                 + fd.c2rust_unnamed.f3.nranges as ::core::ffi::c_int * 3 as ::core::ffi::c_int)
@@ -141,7 +151,6 @@ pub unsafe extern "C" fn cff_build_FDSelect(mut fd: cff_FDSelect) -> *mut caryll
                     as u8;
             return blob_0;
         }
-        _ => return ::core::ptr::null_mut::<caryll_Buffer>(),
     };
 }
 #[unsafe(no_mangle)]
@@ -153,7 +162,7 @@ pub unsafe extern "C" fn cff_extract_FDSelect(
 ) {
     match *data.offset(offset as isize) as ::core::ffi::c_int {
         0 => {
-            (*fdselect).t = cff_FDSELECT_FORMAT0 as ::core::ffi::c_int as u32;
+            (*fdselect).t = cff_FDSELECT_FORMAT0;
             (*fdselect).c2rust_unnamed.f0.format = 0 as u8;
             (*fdselect).s = nchars as u32;
             (*fdselect).c2rust_unnamed.f0.fds = __caryll_allocate_clean(
@@ -168,7 +177,7 @@ pub unsafe extern "C" fn cff_extract_FDSelect(
             }
         }
         3 => {
-            (*fdselect).t = cff_FDSELECT_FORMAT3 as ::core::ffi::c_int as u32;
+            (*fdselect).t = cff_FDSELECT_FORMAT3;
             (*fdselect).c2rust_unnamed.f3.format = 3 as u8;
             (*fdselect).c2rust_unnamed.f3.nranges =
                 gu2(data, (offset + 1 as i32) as u32) as u16;
@@ -201,7 +210,7 @@ pub unsafe extern "C" fn cff_extract_FDSelect(
             ) as u16;
         }
         _ => {
-            (*fdselect).t = cff_FDSELECT_UNSPECED as ::core::ffi::c_int as u32;
+            (*fdselect).t = cff_FDSELECT_UNSPECED;
         }
     };
 }
