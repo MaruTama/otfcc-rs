@@ -2,12 +2,12 @@
 use libc::{free, malloc, memcpy, memset};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum};
 use crate::support::binio::{read_16u, read_32s};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{f16dot16, font_file_pointer};
-use crate::vendor::json::{json_object, json_value};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::support::buffer::{Buffer};
+use crate::support::options::{Options};
+use crate::support::primitives::{F16Dot16, FontFilePointer};
+use crate::vendor::json::{json_object, JsonValue};
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json_builder::{json_double_new, json_integer_new, json_object_new, json_object_push};
@@ -15,8 +15,8 @@ use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct table_maxp {
-    pub version: f16dot16,
+pub struct MaxpTable {
+    pub version: F16Dot16,
     pub numGlyphs: u16,
     pub maxPoints: u16,
     pub maxContours: u16,
@@ -34,69 +34,69 @@ pub struct table_maxp {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_table_maxp {
-    pub init: Option<unsafe extern "C" fn(*mut table_maxp) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_maxp, *const table_maxp) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_maxp, *mut table_maxp) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_maxp) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_maxp, table_maxp) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_maxp, table_maxp) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_maxp>,
-    pub free: Option<unsafe extern "C" fn(*mut table_maxp) -> ()>,
+pub struct MaxpTableElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut MaxpTable) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut MaxpTable, *const MaxpTable) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut MaxpTable, *mut MaxpTable) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut MaxpTable) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut MaxpTable>,
+    pub free: Option<unsafe extern "C" fn(*mut MaxpTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn initMaxp(mut maxp: *mut table_maxp) {
+unsafe extern "C" fn initMaxp(mut maxp: *mut MaxpTable) {
     memset(
         maxp as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_maxp>() as usize,
+        ::core::mem::size_of::<MaxpTable>() as usize,
     );
-    (*maxp).version = 0x10000 as ::core::ffi::c_int as f16dot16;
+    (*maxp).version = 0x10000 as ::core::ffi::c_int as F16Dot16;
 }
 #[inline]
-unsafe extern "C" fn disposeMaxp(mut _maxp: *mut table_maxp) {}
+unsafe extern "C" fn disposeMaxp(mut _maxp: *mut MaxpTable) {}
 #[inline]
-unsafe extern "C" fn table_maxp_replace(mut dst: *mut table_maxp, src: table_maxp) {
+unsafe extern "C" fn table_maxp_replace(mut dst: *mut MaxpTable, src: MaxpTable) {
     table_maxp_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_maxp>() as usize,
+        ::core::mem::size_of::<MaxpTable>() as usize,
     );
 }
-pub static table_iMaxp: __caryll_elementinterface_table_maxp = {
-    __caryll_elementinterface_table_maxp {
-        init: Some(table_maxp_init as unsafe extern "C" fn(*mut table_maxp) -> ()),
+pub static table_iMaxp: MaxpTableElementInterface = {
+    MaxpTableElementInterface {
+        init: Some(table_maxp_init as unsafe extern "C" fn(*mut MaxpTable) -> ()),
         copy: Some(
-            table_maxp_copy as unsafe extern "C" fn(*mut table_maxp, *const table_maxp) -> (),
+            table_maxp_copy as unsafe extern "C" fn(*mut MaxpTable, *const MaxpTable) -> (),
         ),
         move_0: Some(
-            table_maxp_move as unsafe extern "C" fn(*mut table_maxp, *mut table_maxp) -> (),
+            table_maxp_move as unsafe extern "C" fn(*mut MaxpTable, *mut MaxpTable) -> (),
         ),
-        dispose: Some(table_maxp_dispose as unsafe extern "C" fn(*mut table_maxp) -> ()),
+        dispose: Some(table_maxp_dispose as unsafe extern "C" fn(*mut MaxpTable) -> ()),
         replace: Some(
-            table_maxp_replace as unsafe extern "C" fn(*mut table_maxp, table_maxp) -> (),
+            table_maxp_replace as unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> (),
         ),
         copyReplace: Some(
-            table_maxp_copyReplace as unsafe extern "C" fn(*mut table_maxp, table_maxp) -> (),
+            table_maxp_copyReplace as unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> (),
         ),
         create: Some(table_maxp_create),
-        free: Some(table_maxp_free as unsafe extern "C" fn(*mut table_maxp) -> ()),
+        free: Some(table_maxp_free as unsafe extern "C" fn(*mut MaxpTable) -> ()),
     }
 };
 #[inline]
-unsafe extern "C" fn table_maxp_create() -> *mut table_maxp {
-    let mut x: *mut table_maxp =
-        malloc(::core::mem::size_of::<table_maxp>() as usize) as *mut table_maxp;
+unsafe extern "C" fn table_maxp_create() -> *mut MaxpTable {
+    let mut x: *mut MaxpTable =
+        malloc(::core::mem::size_of::<MaxpTable>() as usize) as *mut MaxpTable;
     table_maxp_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_maxp_init(mut x: *mut table_maxp) {
+unsafe extern "C" fn table_maxp_init(mut x: *mut MaxpTable) {
     initMaxp(x);
 }
 #[inline]
-unsafe extern "C" fn table_maxp_free(mut x: *mut table_maxp) {
+unsafe extern "C" fn table_maxp_free(mut x: *mut MaxpTable) {
     if x.is_null() {
         return;
     }
@@ -104,35 +104,35 @@ unsafe extern "C" fn table_maxp_free(mut x: *mut table_maxp) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_maxp_copyReplace(mut dst: *mut table_maxp, src: table_maxp) {
+unsafe extern "C" fn table_maxp_copyReplace(mut dst: *mut MaxpTable, src: MaxpTable) {
     table_maxp_dispose(dst);
     table_maxp_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_maxp_copy(mut dst: *mut table_maxp, mut src: *const table_maxp) {
+unsafe extern "C" fn table_maxp_copy(mut dst: *mut MaxpTable, mut src: *const MaxpTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_maxp>() as usize,
+        ::core::mem::size_of::<MaxpTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_maxp_dispose(mut x: *mut table_maxp) {
+unsafe extern "C" fn table_maxp_dispose(mut x: *mut MaxpTable) {
     disposeMaxp(x);
 }
 #[inline]
-unsafe extern "C" fn table_maxp_move(mut dst: *mut table_maxp, mut src: *mut table_maxp) {
+unsafe extern "C" fn table_maxp_move(mut dst: *mut MaxpTable, mut src: *mut MaxpTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_maxp>() as usize,
+        ::core::mem::size_of::<MaxpTable>() as usize,
     );
     table_maxp_init(src);
 }
 pub unsafe extern "C" fn otfcc_readMaxp(
-    packet: otfcc_Packet,
-    mut options: *const otfcc_Options,
-) -> *mut table_maxp {
+    packet: Packet,
+    mut options: *const Options,
+) -> *mut MaxpTable {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -140,31 +140,31 @@ pub unsafe extern "C" fn otfcc_readMaxp(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == 1835104368i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: font_file_pointer = table.data as font_file_pointer;
+                    let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     if length != 32 as u32 && length != 6 as u32 {
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
-                            (*options).logger as *mut otfcc_ILogger,
+                            (*options).logger as *mut ILogger,
                             log_vl_important,
                             log_type_warning,
                             crate::sdsbuild!(sdsempty(), b"table 'maxp' corrupted.\n"),
                         );
                     } else {
-                        let mut maxp: *mut table_maxp =
+                        let mut maxp: *mut MaxpTable =
                             (
                                 table_iMaxp.create.expect("non-null function pointer"))();
-                        (*maxp).version = read_32s(data as *const u8) as f16dot16;
+                        (*maxp).version = read_32s(data as *const u8) as F16Dot16;
                         (*maxp).numGlyphs = read_16u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
-                        if (*maxp).version == 0x10000 as f16dot16 {
+                        if (*maxp).version == 0x10000 as F16Dot16 {
                             (*maxp).maxPoints = read_16u(
                                 data.offset(6 as ::core::ffi::c_int as isize) as *const u8,
                             );
@@ -230,12 +230,12 @@ pub unsafe extern "C" fn otfcc_readMaxp(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<table_maxp>();
+    return ::core::ptr::null_mut::<MaxpTable>();
 }
 pub unsafe extern "C" fn otfcc_dumpMaxp(
-    mut table: *const table_maxp,
-    mut root: *mut json_value,
-    mut options: *const otfcc_Options,
+    mut table: *const MaxpTable,
+    mut root: *mut JsonValue,
+    mut options: *const Options,
 ) {
     if table.is_null() {
         return;
@@ -243,12 +243,12 @@ pub unsafe extern "C" fn otfcc_dumpMaxp(
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"maxp"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut maxp: *mut json_value = json_object_new(15 as usize);
+        let mut maxp: *mut JsonValue = json_object_new(15 as usize);
         json_object_push(
             maxp,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -332,16 +332,16 @@ pub unsafe extern "C" fn otfcc_dumpMaxp(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
 pub unsafe extern "C" fn otfcc_parseMaxp(
-    mut root: *const json_value,
-    mut options: *const otfcc_Options,
-) -> *mut table_maxp {
-    let mut maxp: *mut table_maxp = (
+    mut root: *const JsonValue,
+    mut options: *const Options,
+) -> *mut MaxpTable {
+    let mut maxp: *mut MaxpTable = (
         table_iMaxp.create.expect("non-null function pointer"))();
-    let mut table: *mut json_value = ::core::ptr::null_mut::<json_value>();
+    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
         b"maxp\0" as *const u8 as *const ::core::ffi::c_char,
@@ -351,7 +351,7 @@ pub unsafe extern "C" fn otfcc_parseMaxp(
         (*(*options).logger)
             .startSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"maxp"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -392,23 +392,23 @@ pub unsafe extern "C" fn otfcc_parseMaxp(
             (*(*options).logger)
                 .finish
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger
+                (*options).logger as *mut ILogger
             );
         }
     }
     return maxp;
 }
 pub unsafe extern "C" fn otfcc_buildMaxp(
-    mut maxp: *const table_maxp,
-    mut _options: *const otfcc_Options,
-) -> *mut caryll_Buffer {
+    mut maxp: *const MaxpTable,
+    mut _options: *const Options,
+) -> *mut Buffer {
     if maxp.is_null() {
-        return ::core::ptr::null_mut::<caryll_Buffer>();
+        return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut buf: *mut caryll_Buffer = bufnew();
+    let mut buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*maxp).version as u32);
     bufwrite16b(buf, (*maxp).numGlyphs);
-    if (*maxp).version > 0x5000 as f16dot16 {
+    if (*maxp).version > 0x5000 as F16Dot16 {
         bufwrite16b(buf, (*maxp).maxPoints);
         bufwrite16b(buf, (*maxp).maxContours);
         bufwrite16b(buf, (*maxp).maxCompositePoints);

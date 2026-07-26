@@ -10,14 +10,14 @@ use libc::{free};
 use crate::support::alloc::{__caryll_allocate_clean};
 
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{glyphid_t, shapeid_t};
+use crate::support::options::{Options};
+use crate::support::primitives::{GlyphId, ShapeId};
 
-use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, otfcc_Font, otfcc_IFontBuilder, otfcc_font_subtype};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece, otfcc_SplineFontContainer};
+use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, Font, IFontBuilder, FontSubtype};
+use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
 
 
-use crate::table::CFF::{table_CFFAndGlyf};
+use crate::table::CFF::{CffAndGlyf};
 use crate::table::glyf::GlyfIOContext;
 
 use crate::font::caryll_font::{otfcc_iFont};
@@ -56,24 +56,24 @@ use crate::table::vmtx::{otfcc_readVmtx};
 
 
 unsafe extern "C" fn decideFontSubtypeOTF(
-    sfnt: *mut otfcc_SplineFontContainer,
+    sfnt: *mut SplineFontContainer,
     index: u32,
-) -> otfcc_font_subtype {
+) -> FontSubtype {
     // c2rust's translation of a FOREACH_TABLE-style macro: the
     // __fortable_keep/__notfound/__fortable_k2 flags simulate a
     // single-iteration inner scope purely to give the original C a labeled
     // break/continue target. Traced by hand: the whole thing reduces to
     // "return FONTTYPE_CFF at the first 'CFF ' tag, else FONTTYPE_TTF".
-    let packet: otfcc_Packet = *(*sfnt).packets.offset(index as isize);
+    let packet: Packet = *(*sfnt).packets.offset(index as isize);
     for i in 0..packet.numTables as ::core::ffi::c_int {
-        let table: otfcc_PacketPiece = *packet.pieces.offset(i as isize);
+        let table: PacketPiece = *packet.pieces.offset(i as isize);
         if table.tag == 1128678944i32 as u32 {
             return FONTTYPE_CFF;
         }
     }
     return FONTTYPE_TTF;
 }
-// otfcc_Options and otfcc_Font are duplicated per-file by c2rust (like every
+// Options and Font are duplicated per-file by c2rust (like every
 // other type in this crate); the trait boundary uses erased c_void pointers
 // so this trait can be shared with json_reader.rs without deduping those
 // pervasively-used types. Casts are confined to the boundary; the pointee
@@ -93,14 +93,14 @@ impl FontBuilder for OtfReader {
     mut index: u32,
     options: *const ::core::ffi::c_void,
 ) -> *mut ::core::ffi::c_void {
-    let options = options as *const otfcc_Options;
-    let mut sfnt: *mut otfcc_SplineFontContainer = _sfnt as *mut otfcc_SplineFontContainer;
+    let options = options as *const Options;
+    let mut sfnt: *mut SplineFontContainer = _sfnt as *mut SplineFontContainer;
     if (*sfnt).count.wrapping_sub(1 as u32) < index {
         return ::core::ptr::null_mut::<::core::ffi::c_void>();
     } else {
-        let font: *mut otfcc_Font = (
+        let font: *mut Font = (
             otfcc_iFont.create.expect("non-null function pointer"))();
-        let packet: otfcc_Packet = *(*sfnt).packets.offset(index as isize);
+        let packet: Packet = *(*sfnt).packets.offset(index as isize);
         (*font).subtype = decideFontSubtypeOTF(sfnt, index);
         (*font).fvar = otfcc_readFvar(packet, options);
         (*font).head = otfcc_readHead(packet, options);
@@ -125,15 +125,15 @@ impl FontBuilder for OtfReader {
             (*font).LTSH = otfcc_readLTSH(packet, options);
             let mut ctx: GlyfIOContext = GlyfIOContext {
                 locaIsLong: (*(*font).head).indexToLocFormat != 0,
-                numGlyphs: (*(*font).maxp).numGlyphs as glyphid_t,
-                nPhantomPoints: 4 as shapeid_t,
+                numGlyphs: (*(*font).maxp).numGlyphs as GlyphId,
+                nPhantomPoints: 4 as ShapeId,
                 fvar: (*font).fvar,
                 hasVerticalMetrics: false,
                 exportFDSelect: false,
             };
             (*font).glyf = otfcc_readGlyf(packet, options, &raw mut ctx);
         } else {
-            let mut cffpr: table_CFFAndGlyf =
+            let mut cffpr: CffAndGlyf =
                 otfcc_readCFFAndGlyfTables(packet, options, (*font).head);
             (*font).CFF_ = cffpr.meta;
             (*font).glyf = cffpr.glyphs;
@@ -148,13 +148,13 @@ impl FontBuilder for OtfReader {
                 packet,
                 options,
                 1196643650i32 as u32,
-                (*(*font).glyf).length as glyphid_t,
+                (*(*font).glyf).length as GlyphId,
             );
             (*font).GPOS = otfcc_readOtl(
                 packet,
                 options,
                 1196445523i32 as u32,
-                (*(*font).glyf).length as glyphid_t,
+                (*(*font).glyf).length as GlyphId,
             );
             (*font).GDEF = otfcc_readGDEF(packet, options);
         }
@@ -183,37 +183,37 @@ impl FontBuilder for OtfReader {
 unsafe extern "C" fn readOtf(
     mut _sfnt: *mut ::core::ffi::c_void,
     mut index: u32,
-    mut options: *const otfcc_Options,
-) -> *mut otfcc_Font {
+    mut options: *const Options,
+) -> *mut Font {
     <OtfReader as FontBuilder>::read(_sfnt, index, options as *const ::core::ffi::c_void)
-        as *mut otfcc_Font
+        as *mut Font
 }
 #[inline]
-unsafe extern "C" fn freeReader(mut self_0: *mut otfcc_IFontBuilder) {
+unsafe extern "C" fn freeReader(mut self_0: *mut IFontBuilder) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_newOTFReader() -> *mut otfcc_IFontBuilder {
-    let mut reader: *mut otfcc_IFontBuilder = ::core::ptr::null_mut::<otfcc_IFontBuilder>();
+pub unsafe extern "C" fn otfcc_newOTFReader() -> *mut IFontBuilder {
+    let mut reader: *mut IFontBuilder = ::core::ptr::null_mut::<IFontBuilder>();
     reader = __caryll_allocate_clean(
-        ::core::mem::size_of::<otfcc_IFontBuilder>() as usize,
+        ::core::mem::size_of::<IFontBuilder>() as usize,
         85 as ::core::ffi::c_ulong,
-    ) as *mut otfcc_IFontBuilder;
+    ) as *mut IFontBuilder;
     (*reader).read = Some(
         readOtf
             as unsafe extern "C" fn(
                 *mut ::core::ffi::c_void,
                 u32,
-                *const otfcc_Options,
-            ) -> *mut otfcc_Font,
+                *const Options,
+            ) -> *mut Font,
     )
         as Option<
             unsafe extern "C" fn(
                 *mut ::core::ffi::c_void,
                 u32,
-                *const otfcc_Options,
-            ) -> *mut otfcc_Font,
+                *const Options,
+            ) -> *mut Font,
         >;
-    (*reader).free = Some(freeReader as unsafe extern "C" fn(*mut otfcc_IFontBuilder) -> ())
-        as Option<unsafe extern "C" fn(*mut otfcc_IFontBuilder) -> ()>;
+    (*reader).free = Some(freeReader as unsafe extern "C" fn(*mut IFontBuilder) -> ())
+        as Option<unsafe extern "C" fn(*mut IFontBuilder) -> ()>;
     return reader;
 }

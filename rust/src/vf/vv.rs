@@ -1,17 +1,17 @@
 
-use crate::support::primitives::{pos_t, tableid_t};
+use crate::support::primitives::{Pos, TableId};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VV {
     pub length: usize,
     pub capacity: usize,
-    pub items: *mut pos_t,
+    pub items: *mut Pos,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_vectorinterface_VV {
+pub struct VvVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut VV) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut VV, *const VV) -> ()>,
     pub move_0: Option<unsafe extern "C" fn(*mut VV, *mut VV) -> ()>,
@@ -25,22 +25,22 @@ pub struct __caryll_vectorinterface_VV {
     pub createN: Option<unsafe extern "C" fn(usize) -> *mut VV>,
     pub fill: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut VV) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut VV, pos_t) -> ()>,
+    pub push: Option<unsafe extern "C" fn(*mut VV, Pos) -> ()>,
     pub shrinkToFit: Option<unsafe extern "C" fn(*mut VV) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut VV) -> pos_t>,
+    pub pop: Option<unsafe extern "C" fn(*mut VV) -> Pos>,
     pub disposeItem: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
             *mut VV,
-            Option<unsafe extern "C" fn(*const pos_t, *mut ::core::ffi::c_void) -> bool>,
+            Option<unsafe extern "C" fn(*const Pos, *mut ::core::ffi::c_void) -> bool>,
             *mut ::core::ffi::c_void,
         ) -> (),
     >,
     pub sort: Option<
         unsafe extern "C" fn(
             *mut VV,
-            Option<unsafe extern "C" fn(*const pos_t, *const pos_t) -> ::core::ffi::c_int>,
+            Option<unsafe extern "C" fn(*const Pos, *const Pos) -> ::core::ffi::c_int>,
         ) -> (),
     >,
-    pub neutral: Option<unsafe extern "C" fn(tableid_t) -> VV>,
+    pub neutral: Option<unsafe extern "C" fn(TableId) -> VV>,
 }

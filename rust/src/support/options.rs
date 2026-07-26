@@ -3,12 +3,12 @@ use libc::{free};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{otfcc_ILogger};
+use crate::logger::{ILogger};
 
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct otfcc_Options {
+pub struct Options {
     pub debug_wait_on_start: bool,
     pub ignore_glyph_order: bool,
     pub ignore_hints: bool,
@@ -33,17 +33,17 @@ pub struct otfcc_Options {
     pub name_glyphs_by_hash: bool,
     pub name_glyphs_by_gid: bool,
     pub glyph_name_prefix: *mut ::core::ffi::c_char,
-    pub logger: *mut otfcc_ILogger,
+    pub logger: *mut ILogger,
 }
-pub unsafe extern "C" fn otfcc_newOptions() -> *mut otfcc_Options {
-    let mut options: *mut otfcc_Options = ::core::ptr::null_mut::<otfcc_Options>();
+pub unsafe extern "C" fn otfcc_newOptions() -> *mut Options {
+    let mut options: *mut Options = ::core::ptr::null_mut::<Options>();
     options = __caryll_allocate_clean(
-        ::core::mem::size_of::<otfcc_Options>() as usize,
+        ::core::mem::size_of::<Options>() as usize,
         6 as ::core::ffi::c_ulong,
-    ) as *mut otfcc_Options;
+    ) as *mut Options;
     return options;
 }
-pub unsafe extern "C" fn otfcc_deleteOptions(mut options: *mut otfcc_Options) {
+pub unsafe extern "C" fn otfcc_deleteOptions(mut options: *mut Options) {
     if !options.is_null() {
         free((*options).glyph_name_prefix as *mut ::core::ffi::c_void);
         (*options).glyph_name_prefix = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -51,15 +51,15 @@ pub unsafe extern "C" fn otfcc_deleteOptions(mut options: *mut otfcc_Options) {
             (*(*options).logger)
                 .dispose
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger
+                (*options).logger as *mut ILogger
             );
         }
     }
     free(options as *mut ::core::ffi::c_void);
-    options = ::core::ptr::null_mut::<otfcc_Options>();
+    options = ::core::ptr::null_mut::<Options>();
 }
 pub unsafe extern "C" fn otfcc_Options_optimizeTo(
-    mut options: *mut otfcc_Options,
+    mut options: *mut Options,
     mut level: u8,
 ) {
     (*options).cff_rollCharString = false;

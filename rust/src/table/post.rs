@@ -2,15 +2,15 @@
 use libc::{free, malloc, memcpy, memset};
 
 use crate::support::binio::{read_16u, read_32u, read_32s};
-use crate::logger::{otfcc_ILogger};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{f16dot16, font_file_pointer, glyphid_t};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
-use crate::vendor::json::{json_object, json_value};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::logger::{ILogger};
+use crate::support::buffer::{Buffer};
+use crate::support::options::{Options};
+use crate::support::primitives::{F16Dot16, FontFilePointer, GlyphId};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::json::{json_object, JsonValue};
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{NULL};
-use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry};
+use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getbool, json_obj_getnum};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_sds};
 use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
@@ -20,9 +20,9 @@ use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct table_post {
-    pub version: f16dot16,
-    pub italicAngle: f16dot16,
+pub struct PostTable {
+    pub version: F16Dot16,
+    pub italicAngle: F16Dot16,
     pub underlinePosition: i16,
     pub underlineThickness: i16,
     pub isFixedPitch: u32,
@@ -30,44 +30,44 @@ pub struct table_post {
     pub maxMemType42: u32,
     pub minMemType1: u32,
     pub maxMemType1: u32,
-    pub post_name_map: *mut otfcc_GlyphOrder,
+    pub post_name_map: *mut GlyphOrder,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_table_post {
-    pub init: Option<unsafe extern "C" fn(*mut table_post) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_post, *const table_post) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_post, *mut table_post) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_post) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_post, table_post) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_post, table_post) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_post>,
-    pub free: Option<unsafe extern "C" fn(*mut table_post) -> ()>,
+pub struct PostTableElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut PostTable, *const PostTable) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut PostTable, *mut PostTable) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut PostTable, PostTable) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut PostTable, PostTable) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut PostTable>,
+    pub free: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> usize {
+unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut sdshdr8))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut SdsHdr8))
                 .len as usize;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .len as usize;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .len as usize;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .len as usize;
         }
         _ => {}
@@ -335,26 +335,26 @@ static standardMacNames: [&::core::ffi::CStr; 258] = [
     c"dcroat",
 ];
 #[inline]
-unsafe extern "C" fn initPost(mut post: *mut table_post) {
+unsafe extern "C" fn initPost(mut post: *mut PostTable) {
     memset(
         post as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_post>() as usize,
+        ::core::mem::size_of::<PostTable>() as usize,
     );
-    (*post).version = 0x30000 as ::core::ffi::c_int as f16dot16;
+    (*post).version = 0x30000 as ::core::ffi::c_int as F16Dot16;
 }
 #[inline]
-unsafe extern "C" fn disposePost(mut post: *mut table_post) {
+unsafe extern "C" fn disposePost(mut post: *mut PostTable) {
     if !(*post).post_name_map.is_null() {
         otfcc_pkgGlyphOrder.free.expect("non-null function pointer")((*post).post_name_map);
     }
 }
 #[inline]
-unsafe extern "C" fn table_post_dispose(mut x: *mut table_post) {
+unsafe extern "C" fn table_post_dispose(mut x: *mut PostTable) {
     disposePost(x);
 }
 #[inline]
-unsafe extern "C" fn table_post_free(mut x: *mut table_post) {
+unsafe extern "C" fn table_post_free(mut x: *mut PostTable) {
     if x.is_null() {
         return;
     }
@@ -362,71 +362,71 @@ unsafe extern "C" fn table_post_free(mut x: *mut table_post) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_post_create() -> *mut table_post {
-    let mut x: *mut table_post =
-        malloc(::core::mem::size_of::<table_post>() as usize) as *mut table_post;
+unsafe extern "C" fn table_post_create() -> *mut PostTable {
+    let mut x: *mut PostTable =
+        malloc(::core::mem::size_of::<PostTable>() as usize) as *mut PostTable;
     table_post_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_post_init(mut x: *mut table_post) {
+unsafe extern "C" fn table_post_init(mut x: *mut PostTable) {
     initPost(x);
 }
 #[inline]
-unsafe extern "C" fn table_post_copy(mut dst: *mut table_post, mut src: *const table_post) {
+unsafe extern "C" fn table_post_copy(mut dst: *mut PostTable, mut src: *const PostTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_post>() as usize,
+        ::core::mem::size_of::<PostTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_post_copyReplace(mut dst: *mut table_post, src: table_post) {
+unsafe extern "C" fn table_post_copyReplace(mut dst: *mut PostTable, src: PostTable) {
     table_post_dispose(dst);
     table_post_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_post_move(mut dst: *mut table_post, mut src: *mut table_post) {
+unsafe extern "C" fn table_post_move(mut dst: *mut PostTable, mut src: *mut PostTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_post>() as usize,
+        ::core::mem::size_of::<PostTable>() as usize,
     );
     table_post_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_post_replace(mut dst: *mut table_post, src: table_post) {
+unsafe extern "C" fn table_post_replace(mut dst: *mut PostTable, src: PostTable) {
     table_post_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_post>() as usize,
+        ::core::mem::size_of::<PostTable>() as usize,
     );
 }
-pub static iTable_post: __caryll_elementinterface_table_post = {
-    __caryll_elementinterface_table_post {
-        init: Some(table_post_init as unsafe extern "C" fn(*mut table_post) -> ()),
+pub static iTable_post: PostTableElementInterface = {
+    PostTableElementInterface {
+        init: Some(table_post_init as unsafe extern "C" fn(*mut PostTable) -> ()),
         copy: Some(
-            table_post_copy as unsafe extern "C" fn(*mut table_post, *const table_post) -> (),
+            table_post_copy as unsafe extern "C" fn(*mut PostTable, *const PostTable) -> (),
         ),
         move_0: Some(
-            table_post_move as unsafe extern "C" fn(*mut table_post, *mut table_post) -> (),
+            table_post_move as unsafe extern "C" fn(*mut PostTable, *mut PostTable) -> (),
         ),
-        dispose: Some(table_post_dispose as unsafe extern "C" fn(*mut table_post) -> ()),
+        dispose: Some(table_post_dispose as unsafe extern "C" fn(*mut PostTable) -> ()),
         replace: Some(
-            table_post_replace as unsafe extern "C" fn(*mut table_post, table_post) -> (),
+            table_post_replace as unsafe extern "C" fn(*mut PostTable, PostTable) -> (),
         ),
         copyReplace: Some(
-            table_post_copyReplace as unsafe extern "C" fn(*mut table_post, table_post) -> (),
+            table_post_copyReplace as unsafe extern "C" fn(*mut PostTable, PostTable) -> (),
         ),
         create: Some(table_post_create),
-        free: Some(table_post_free as unsafe extern "C" fn(*mut table_post) -> ()),
+        free: Some(table_post_free as unsafe extern "C" fn(*mut PostTable) -> ()),
     }
 };
 pub unsafe extern "C" fn otfcc_readPost(
-    packet: otfcc_Packet,
-    mut _options: *const otfcc_Options,
-) -> *mut table_post {
+    packet: Packet,
+    mut _options: *const Options,
+) -> *mut PostTable {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -434,19 +434,19 @@ pub unsafe extern "C" fn otfcc_readPost(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == 1886352244i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
-                    let mut data: font_file_pointer = table.data as font_file_pointer;
-                    let mut post: *mut table_post =
+                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut post: *mut PostTable =
                         (
                             iTable_post.create.expect("non-null function pointer"))();
-                    (*post).version = read_32s(data as *const u8) as f16dot16;
+                    (*post).version = read_32s(data as *const u8) as F16Dot16;
                     (*post).italicAngle =
                         read_32u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8)
-                            as f16dot16;
+                            as F16Dot16;
                     (*post).underlinePosition =
                         read_16u(data.offset(8 as ::core::ffi::c_int as isize) as *const u8)
                             as i16;
@@ -463,19 +463,19 @@ pub unsafe extern "C" fn otfcc_readPost(
                         read_32u(data.offset(24 as ::core::ffi::c_int as isize) as *const u8);
                     (*post).maxMemType1 =
                         read_32u(data.offset(28 as ::core::ffi::c_int as isize) as *const u8);
-                    (*post).post_name_map = ::core::ptr::null_mut::<otfcc_GlyphOrder>();
-                    if (*post).version == 0x20000 as f16dot16 {
-                        let mut map: *mut otfcc_GlyphOrder =
+                    (*post).post_name_map = ::core::ptr::null_mut::<GlyphOrder>();
+                    if (*post).version == 0x20000 as F16Dot16 {
+                        let mut map: *mut GlyphOrder =
                             (
                                 otfcc_pkgGlyphOrder
                                     .create
                                     .expect("non-null function pointer"))();
-                        let mut pendingNames: [sds; 65536] =
+                        let mut pendingNames: [SdsRaw; 65536] =
                             [::core::ptr::null_mut::<::core::ffi::c_char>(); 65536];
                         memset(
-                            &raw mut pendingNames as *mut sds as *mut ::core::ffi::c_void,
+                            &raw mut pendingNames as *mut SdsRaw as *mut ::core::ffi::c_void,
                             0 as ::core::ffi::c_int,
-                            ::core::mem::size_of::<[sds; 65536]>() as usize,
+                            ::core::mem::size_of::<[SdsRaw; 65536]>() as usize,
                         );
                         let mut numberGlyphs: u16 = read_16u(
                             data.offset(32 as ::core::ffi::c_int as isize) as *const u8,
@@ -488,7 +488,7 @@ pub unsafe extern "C" fn otfcc_readPost(
                             && offset < table.length
                         {
                             let mut len: u8 = *data.offset(offset as isize);
-                            let mut s: sds = ::core::ptr::null_mut::<::core::ffi::c_char>();
+                            let mut s: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
                             if len as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
                                 s = sdsnewlen(
                                     data.offset(offset as isize)
@@ -518,7 +518,7 @@ pub unsafe extern "C" fn otfcc_readPost(
                                     .setByGID
                                     .expect("non-null function pointer")(
                                     map,
-                                    j as glyphid_t,
+                                    j as GlyphId,
                                     sdsdup(
                                         pendingNames[(nameMap as ::core::ffi::c_int
                                             - 258 as ::core::ffi::c_int)
@@ -530,7 +530,7 @@ pub unsafe extern "C" fn otfcc_readPost(
                                     .setByGID
                                     .expect("non-null function pointer")(
                                     map,
-                                    j as glyphid_t,
+                                    j as GlyphId,
                                     sdsnew(standardMacNames[nameMap as usize].as_ptr()),
                                 );
                             }
@@ -551,12 +551,12 @@ pub unsafe extern "C" fn otfcc_readPost(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<table_post>();
+    return ::core::ptr::null_mut::<PostTable>();
 }
 pub unsafe extern "C" fn otfcc_dumpPost(
-    mut table: *const table_post,
-    mut root: *mut json_value,
-    mut options: *const otfcc_Options,
+    mut table: *const PostTable,
+    mut root: *mut JsonValue,
+    mut options: *const Options,
 ) {
     if table.is_null() {
         return;
@@ -564,12 +564,12 @@ pub unsafe extern "C" fn otfcc_dumpPost(
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"post"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut post: *mut json_value = json_object_new(10 as usize);
+        let mut post: *mut JsonValue = json_object_new(10 as usize);
         json_object_push(
             post,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -623,16 +623,16 @@ pub unsafe extern "C" fn otfcc_dumpPost(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
 pub unsafe extern "C" fn otfcc_parsePost(
-    mut root: *const json_value,
-    mut options: *const otfcc_Options,
-) -> *mut table_post {
-    let mut post: *mut table_post = (
+    mut root: *const JsonValue,
+    mut options: *const Options,
+) -> *mut PostTable {
+    let mut post: *mut PostTable = (
         iTable_post.create.expect("non-null function pointer"))();
-    let mut table: *mut json_value = ::core::ptr::null_mut::<json_value>();
+    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
         b"post\0" as *const u8 as *const ::core::ffi::c_char,
@@ -642,13 +642,13 @@ pub unsafe extern "C" fn otfcc_parsePost(
         (*(*options).logger)
             .startSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"post"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             if (*options).short_post {
-                (*post).version = 0x30000 as ::core::ffi::c_int as f16dot16;
+                (*post).version = 0x30000 as ::core::ffi::c_int as F16Dot16;
             } else {
                 (*post).version = otfcc_to_fixed(json_obj_getnum(
                     table,
@@ -691,21 +691,21 @@ pub unsafe extern "C" fn otfcc_parsePost(
             (*(*options).logger)
                 .finish
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger
+                (*options).logger as *mut ILogger
             );
         }
     }
     return post;
 }
 pub unsafe extern "C" fn otfcc_buildPost(
-    mut post: *const table_post,
-    mut glyphorder: *mut otfcc_GlyphOrder,
-    mut _options: *const otfcc_Options,
-) -> *mut caryll_Buffer {
+    mut post: *const PostTable,
+    mut glyphorder: *mut GlyphOrder,
+    mut _options: *const Options,
+) -> *mut Buffer {
     if post.is_null() {
-        return ::core::ptr::null_mut::<caryll_Buffer>();
+        return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut buf: *mut caryll_Buffer = bufnew();
+    let mut buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*post).version as u32);
     bufwrite32b(buf, (*post).italicAngle as u32);
     bufwrite16b(buf, (*post).underlinePosition as u16);
@@ -715,7 +715,7 @@ pub unsafe extern "C" fn otfcc_buildPost(
     bufwrite32b(buf, (*post).maxMemType42);
     bufwrite32b(buf, (*post).minMemType1);
     bufwrite32b(buf, (*post).maxMemType1);
-    if (*post).version == 0x20000 as f16dot16 {
+    if (*post).version == 0x20000 as F16Dot16 {
         bufwrite16b(
             buf,
             (if !(*glyphorder).byName.is_null() {
@@ -724,14 +724,14 @@ pub unsafe extern "C" fn otfcc_buildPost(
                 0 as ::core::ffi::c_uint
             }) as u16,
         );
-        let mut s: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
-        let mut tmp: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
+        let mut s: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
+        let mut tmp: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
         s = (*glyphorder).byName;
         tmp = (if !(*glyphorder).byName.is_null() {
             (*(*glyphorder).byName).hhName.next
         } else {
             NULL
-        }) as *mut otfcc_GlyphOrderEntry as *mut otfcc_GlyphOrderEntry;
+        }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
         while !s.is_null() {
             bufwrite16b(
                 buf,
@@ -742,14 +742,14 @@ pub unsafe extern "C" fn otfcc_buildPost(
                 (*tmp).hhName.next
             } else {
                 NULL
-            }) as *mut otfcc_GlyphOrderEntry as *mut otfcc_GlyphOrderEntry;
+            }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
         }
         s = (*glyphorder).byName;
         tmp = (if !(*glyphorder).byName.is_null() {
             (*(*glyphorder).byName).hhName.next
         } else {
             NULL
-        }) as *mut otfcc_GlyphOrderEntry as *mut otfcc_GlyphOrderEntry;
+        }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
         while !s.is_null() {
             bufwrite8(buf, sdslen((*s).name) as u8);
             bufwrite_sds(buf, (*s).name);
@@ -758,7 +758,7 @@ pub unsafe extern "C" fn otfcc_buildPost(
                 (*tmp).hhName.next
             } else {
                 NULL
-            }) as *mut otfcc_GlyphOrderEntry as *mut otfcc_GlyphOrderEntry;
+            }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
         }
     }
     return buf;

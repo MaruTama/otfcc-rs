@@ -4,66 +4,66 @@ use libc::{free, malloc, memcpy, memset};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{font_file_pointer, glyphid_t, pos_t};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::support::buffer::{Buffer};
+use crate::support::options::{Options};
+use crate::support::primitives::{FontFilePointer, GlyphId, Pos};
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct VORG_entry {
-    pub gid: glyphid_t,
+pub struct VorgEntry {
+    pub gid: GlyphId,
     pub verticalOrigin: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct table_VORG {
-    pub numVertOriginYMetrics: glyphid_t,
-    pub defaultVerticalOrigin: pos_t,
-    pub entries: *mut VORG_entry,
+pub struct VorgTable {
+    pub numVertOriginYMetrics: GlyphId,
+    pub defaultVerticalOrigin: Pos,
+    pub entries: *mut VorgEntry,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_table_VORG {
-    pub init: Option<unsafe extern "C" fn(*mut table_VORG) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_VORG, *const table_VORG) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_VORG, *mut table_VORG) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_VORG) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_VORG, table_VORG) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_VORG, table_VORG) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_VORG>,
-    pub free: Option<unsafe extern "C" fn(*mut table_VORG) -> ()>,
+pub struct VorgTableElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut VorgTable) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut VorgTable, *const VorgTable) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut VorgTable, *mut VorgTable) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut VorgTable) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut VorgTable, VorgTable) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut VorgTable, VorgTable) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut VorgTable>,
+    pub free: Option<unsafe extern "C" fn(*mut VorgTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn disposeVORG(mut vorg: *mut table_VORG) {
+unsafe extern "C" fn disposeVORG(mut vorg: *mut VorgTable) {
     free((*vorg).entries as *mut ::core::ffi::c_void);
-    (*vorg).entries = ::core::ptr::null_mut::<VORG_entry>();
+    (*vorg).entries = ::core::ptr::null_mut::<VorgEntry>();
 }
-pub static table_iVORG: __caryll_elementinterface_table_VORG = {
-    __caryll_elementinterface_table_VORG {
-        init: Some(table_VORG_init as unsafe extern "C" fn(*mut table_VORG) -> ()),
+pub static table_iVORG: VorgTableElementInterface = {
+    VorgTableElementInterface {
+        init: Some(table_VORG_init as unsafe extern "C" fn(*mut VorgTable) -> ()),
         copy: Some(
-            table_VORG_copy as unsafe extern "C" fn(*mut table_VORG, *const table_VORG) -> (),
+            table_VORG_copy as unsafe extern "C" fn(*mut VorgTable, *const VorgTable) -> (),
         ),
         move_0: Some(
-            table_VORG_move as unsafe extern "C" fn(*mut table_VORG, *mut table_VORG) -> (),
+            table_VORG_move as unsafe extern "C" fn(*mut VorgTable, *mut VorgTable) -> (),
         ),
-        dispose: Some(table_VORG_dispose as unsafe extern "C" fn(*mut table_VORG) -> ()),
+        dispose: Some(table_VORG_dispose as unsafe extern "C" fn(*mut VorgTable) -> ()),
         replace: Some(
-            table_VORG_replace as unsafe extern "C" fn(*mut table_VORG, table_VORG) -> (),
+            table_VORG_replace as unsafe extern "C" fn(*mut VorgTable, VorgTable) -> (),
         ),
         copyReplace: Some(
-            table_VORG_copyReplace as unsafe extern "C" fn(*mut table_VORG, table_VORG) -> (),
+            table_VORG_copyReplace as unsafe extern "C" fn(*mut VorgTable, VorgTable) -> (),
         ),
         create: Some(table_VORG_create),
-        free: Some(table_VORG_free as unsafe extern "C" fn(*mut table_VORG) -> ()),
+        free: Some(table_VORG_free as unsafe extern "C" fn(*mut VorgTable) -> ()),
     }
 };
 #[inline]
-unsafe extern "C" fn table_VORG_free(mut x: *mut table_VORG) {
+unsafe extern "C" fn table_VORG_free(mut x: *mut VorgTable) {
     if x.is_null() {
         return;
     }
@@ -71,61 +71,61 @@ unsafe extern "C" fn table_VORG_free(mut x: *mut table_VORG) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_VORG_dispose(mut x: *mut table_VORG) {
+unsafe extern "C" fn table_VORG_dispose(mut x: *mut VorgTable) {
     disposeVORG(x);
 }
 #[inline]
-unsafe extern "C" fn table_VORG_init(mut x: *mut table_VORG) {
+unsafe extern "C" fn table_VORG_init(mut x: *mut VorgTable) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_VORG>() as usize,
+        ::core::mem::size_of::<VorgTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_VORG_copyReplace(mut dst: *mut table_VORG, src: table_VORG) {
+unsafe extern "C" fn table_VORG_copyReplace(mut dst: *mut VorgTable, src: VorgTable) {
     table_VORG_dispose(dst);
     table_VORG_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_VORG_copy(mut dst: *mut table_VORG, mut src: *const table_VORG) {
+unsafe extern "C" fn table_VORG_copy(mut dst: *mut VorgTable, mut src: *const VorgTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_VORG>() as usize,
+        ::core::mem::size_of::<VorgTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_VORG_replace(mut dst: *mut table_VORG, src: table_VORG) {
+unsafe extern "C" fn table_VORG_replace(mut dst: *mut VorgTable, src: VorgTable) {
     table_VORG_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_VORG>() as usize,
+        ::core::mem::size_of::<VorgTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_VORG_move(mut dst: *mut table_VORG, mut src: *mut table_VORG) {
+unsafe extern "C" fn table_VORG_move(mut dst: *mut VorgTable, mut src: *mut VorgTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_VORG>() as usize,
+        ::core::mem::size_of::<VorgTable>() as usize,
     );
     table_VORG_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_VORG_create() -> *mut table_VORG {
-    let mut x: *mut table_VORG =
-        malloc(::core::mem::size_of::<table_VORG>() as usize) as *mut table_VORG;
+unsafe extern "C" fn table_VORG_create() -> *mut VorgTable {
+    let mut x: *mut VorgTable =
+        malloc(::core::mem::size_of::<VorgTable>() as usize) as *mut VorgTable;
     table_VORG_init(x);
     return x;
 }
 pub unsafe extern "C" fn otfcc_readVORG(
-    packet: otfcc_Packet,
-    mut options: *const otfcc_Options,
-) -> *mut table_VORG {
+    packet: Packet,
+    mut options: *const Options,
+) -> *mut VorgTable {
     let mut numVertOriginYMetrics: u16 = 0;
-    let mut vorg: *mut table_VORG = ::core::ptr::null_mut::<table_VORG>();
+    let mut vorg: *mut VorgTable = ::core::ptr::null_mut::<VorgTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -133,12 +133,12 @@ pub unsafe extern "C" fn otfcc_readVORG(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == 1448038983i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: font_file_pointer = table.data as font_file_pointer;
+                    let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 8 as u32) {
                         numVertOriginYMetrics = read_16u(
@@ -154,13 +154,13 @@ pub unsafe extern "C" fn otfcc_readVORG(
                                 table_iVORG.create.expect("non-null function pointer"))();
                             (*vorg).defaultVerticalOrigin = read_16s(
                                 data.offset(4 as ::core::ffi::c_int as isize) as *const u8,
-                            ) as pos_t;
-                            (*vorg).numVertOriginYMetrics = numVertOriginYMetrics as glyphid_t;
+                            ) as Pos;
+                            (*vorg).numVertOriginYMetrics = numVertOriginYMetrics as GlyphId;
                             (*vorg).entries = __caryll_allocate_clean(
-                                (::core::mem::size_of::<VORG_entry>() as usize)
+                                (::core::mem::size_of::<VorgEntry>() as usize)
                                     .wrapping_mul(numVertOriginYMetrics as usize),
                                 22 as ::core::ffi::c_ulong,
-                            ) as *mut VORG_entry;
+                            ) as *mut VorgEntry;
                             let mut j: u16 = 0 as u16;
                             while (j as ::core::ffi::c_int)
                                 < numVertOriginYMetrics as ::core::ffi::c_int
@@ -171,7 +171,7 @@ pub unsafe extern "C" fn otfcc_readVORG(
                                             as isize,
                                     ) as *const u8,
                                 )
-                                    as glyphid_t;
+                                    as GlyphId;
                                 (*(*vorg).entries.offset(j as isize)).verticalOrigin = read_16s(
                                     data.offset(8 as ::core::ffi::c_int as isize)
                                         .offset(
@@ -189,7 +189,7 @@ pub unsafe extern "C" fn otfcc_readVORG(
                     (*(*options).logger)
                         .logSDS
                         .expect("non-null function pointer")(
-                        (*options).logger as *mut otfcc_ILogger,
+                        (*options).logger as *mut ILogger,
                         log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'VORG' corrupted."),
@@ -203,16 +203,16 @@ pub unsafe extern "C" fn otfcc_readVORG(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<table_VORG>();
+    return ::core::ptr::null_mut::<VorgTable>();
 }
 pub unsafe extern "C" fn otfcc_buildVORG(
-    mut table: *const table_VORG,
-    mut _options: *const otfcc_Options,
-) -> *mut caryll_Buffer {
+    mut table: *const VorgTable,
+    mut _options: *const Options,
+) -> *mut Buffer {
     if table.is_null() {
-        return ::core::ptr::null_mut::<caryll_Buffer>();
+        return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut buf: *mut caryll_Buffer = bufnew();
+    let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 1 as u16);
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, pos_to_u16((*table).defaultVerticalOrigin));

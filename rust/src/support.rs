@@ -36,7 +36,7 @@ pub const false_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
 /// `libc::qsort` writes this signature out inline rather than naming it, but
 /// otfcc's sort call sites `transmute` a concretely-typed comparator into it,
 /// and they need something to name as the target.
-pub type __compar_fn_t = Option<
+pub type ComparFn = Option<
     unsafe extern "C" fn(
         *const ::core::ffi::c_void,
         *const ::core::ffi::c_void,

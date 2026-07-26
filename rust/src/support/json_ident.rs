@@ -3,20 +3,20 @@ use libc::{exit, free, malloc, memcmp, memset, strcmp, strdup, strlen};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::vendor::json::{json_value};
+use crate::vendor::json::{JsonValue};
 use crate::support::{NULL};
-use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct json_obj_entry {
+pub struct JsonObjEntry {
     pub key: *mut ::core::ffi::c_char,
-    pub val: *mut json_value,
+    pub val: *mut JsonValue,
     pub check: bool,
-    pub hh: UT_hash_handle,
+    pub hh: UtHashHandle,
 }
 unsafe extern "C" fn compare_json_arrays(
-    mut a: *const json_value,
-    mut b: *const json_value,
+    mut a: *const JsonValue,
+    mut b: *const JsonValue,
 ) -> bool {
     let mut j: u16 = 0 as u16;
     while (j as ::core::ffi::c_uint) < (*a).u.array.length {
@@ -31,14 +31,14 @@ unsafe extern "C" fn compare_json_arrays(
     return true;
 }
 unsafe extern "C" fn compare_json_objects(
-    mut a: *const json_value,
-    mut b: *const json_value,
+    mut a: *const JsonValue,
+    mut b: *const JsonValue,
 ) -> bool {
-    let mut h: *mut json_obj_entry = ::core::ptr::null_mut::<json_obj_entry>();
+    let mut h: *mut JsonObjEntry = ::core::ptr::null_mut::<JsonObjEntry>();
     let mut j: u32 = 0 as u32;
     while j < (*a).u.object.length as u32 {
         let mut k: *mut ::core::ffi::c_char = (*(*a).u.object.values.offset(j as isize)).name;
-        let mut e: *mut json_obj_entry = ::core::ptr::null_mut::<json_obj_entry>();
+        let mut e: *mut JsonObjEntry = ::core::ptr::null_mut::<JsonObjEntry>();
         let mut _hf_hashv: ::core::ffi::c_uint = 0;
         let mut _hj_i: ::core::ffi::c_uint = 0;
         let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -294,7 +294,7 @@ unsafe extern "C" fn compare_json_objects(
         _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
         _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
         _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-        e = ::core::ptr::null_mut::<json_obj_entry>();
+        e = ::core::ptr::null_mut::<JsonObjEntry>();
         if !h.is_null() {
             let mut _hf_bkt: ::core::ffi::c_uint = 0;
             _hf_bkt = _hf_hashv
@@ -309,10 +309,10 @@ unsafe extern "C" fn compare_json_objects(
                     e = ((*(*(*h).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                         as *mut ::core::ffi::c_char)
                         .offset(-(*(*h).hh.tbl).hho)
-                        as *mut ::core::ffi::c_void as *mut json_obj_entry
-                        as *mut json_obj_entry;
+                        as *mut ::core::ffi::c_void as *mut JsonObjEntry
+                        as *mut JsonObjEntry;
                 } else {
-                    e = ::core::ptr::null_mut::<json_obj_entry>();
+                    e = ::core::ptr::null_mut::<JsonObjEntry>();
                 }
                 while !e.is_null() {
                     if (*e).hh.hashv == _hf_hashv
@@ -331,21 +331,21 @@ unsafe extern "C" fn compare_json_objects(
                         e = ((*e).hh.hh_next as *mut ::core::ffi::c_char)
                             .offset(-(*(*h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut json_obj_entry
-                            as *mut json_obj_entry;
+                            as *mut JsonObjEntry
+                            as *mut JsonObjEntry;
                     } else {
-                        e = ::core::ptr::null_mut::<json_obj_entry>();
+                        e = ::core::ptr::null_mut::<JsonObjEntry>();
                     }
                 }
             }
         }
         if e.is_null() {
             e = __caryll_allocate_clean(
-                ::core::mem::size_of::<json_obj_entry>() as usize,
+                ::core::mem::size_of::<JsonObjEntry>() as usize,
                 28 as ::core::ffi::c_ulong,
-            ) as *mut json_obj_entry;
+            ) as *mut JsonObjEntry;
             (*e).key = strdup(k);
-            (*e).val = (*(*a).u.object.values.offset(j as isize)).value as *mut json_value;
+            (*e).val = (*(*a).u.object.values.offset(j as isize)).value as *mut JsonValue;
             (*e).check = false;
             let mut _ha_hashv: ::core::ffi::c_uint = 0;
             let mut _hj_i_0: ::core::ffi::c_uint = 0;
@@ -627,17 +627,17 @@ unsafe extern "C" fn compare_json_objects(
             if h.is_null() {
                 (*e).hh.next = NULL;
                 (*e).hh.prev = NULL;
-                (*e).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                    as *mut UT_hash_table as *mut UT_hash_table;
+                (*e).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                    as *mut UtHashTable as *mut UtHashTable;
                 if (*e).hh.tbl.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
                     memset(
                         (*e).hh.tbl as *mut ::core::ffi::c_void,
                         '\0' as i32,
-                        ::core::mem::size_of::<UT_hash_table>() as usize,
+                        ::core::mem::size_of::<UtHashTable>() as usize,
                     );
-                    (*(*e).hh.tbl).tail = &raw mut (*e).hh as *mut UT_hash_handle;
+                    (*(*e).hh.tbl).tail = &raw mut (*e).hh as *mut UtHashHandle;
                     (*(*e).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                     (*(*e).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                     (*(*e).hh.tbl).hho = (&raw mut (*e).hh as *mut ::core::ffi::c_char)
@@ -646,8 +646,8 @@ unsafe extern "C" fn compare_json_objects(
                         as isize;
                     (*(*e).hh.tbl).buckets = malloc(
                         (32 as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                    ) as *mut UT_hash_bucket;
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                    ) as *mut UtHashBucket;
                     (*(*e).hh.tbl).signature = HASH_SIGNATURE as u32;
                     if (*(*e).hh.tbl).buckets.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
@@ -656,7 +656,7 @@ unsafe extern "C" fn compare_json_objects(
                             (*(*e).hh.tbl).buckets as *mut ::core::ffi::c_void,
                             '\0' as i32,
                             (32 as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                         );
                     }
                 }
@@ -668,7 +668,7 @@ unsafe extern "C" fn compare_json_objects(
                     .offset(-(*(*h).hh.tbl).hho)
                     as *mut ::core::ffi::c_void;
                 (*(*(*h).hh.tbl).tail).next = e as *mut ::core::ffi::c_void;
-                (*(*h).hh.tbl).tail = &raw mut (*e).hh as *mut UT_hash_handle;
+                (*(*h).hh.tbl).tail = &raw mut (*e).hh as *mut UtHashHandle;
             }
             let mut _ha_bkt: ::core::ffi::c_uint = 0;
             (*(*h).hh.tbl).num_items = (*(*h).hh.tbl).num_items.wrapping_add(1);
@@ -676,15 +676,15 @@ unsafe extern "C" fn compare_json_objects(
                 & (*(*h).hh.tbl)
                     .num_buckets
                     .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _ha_head: *mut UT_hash_bucket =
-                (*(*h).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UT_hash_bucket;
+            let mut _ha_head: *mut UtHashBucket =
+                (*(*h).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
             (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-            (*e).hh.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-            (*e).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+            (*e).hh.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+            (*e).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
             if !(*_ha_head).hh_head.is_null() {
-                (*(*_ha_head).hh_head).hh_prev = &raw mut (*e).hh as *mut UT_hash_handle;
+                (*(*_ha_head).hh_head).hh_prev = &raw mut (*e).hh as *mut UtHashHandle;
             }
-            (*_ha_head).hh_head = &raw mut (*e).hh as *mut UT_hash_handle;
+            (*_ha_head).hh_head = &raw mut (*e).hh as *mut UtHashHandle;
             if (*_ha_head).count
                 >= (*_ha_head)
                     .expand_mult
@@ -694,16 +694,16 @@ unsafe extern "C" fn compare_json_objects(
             {
                 let mut _he_bkt: ::core::ffi::c_uint = 0;
                 let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-                let mut _he_thh: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _he_hh_nxt: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _he_new_buckets: *mut UT_hash_bucket =
-                    ::core::ptr::null_mut::<UT_hash_bucket>();
-                let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
+                let mut _he_thh: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _he_hh_nxt: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _he_new_buckets: *mut UtHashBucket =
+                    ::core::ptr::null_mut::<UtHashBucket>();
+                let mut _he_newbkt: *mut UtHashBucket = ::core::ptr::null_mut::<UtHashBucket>();
                 _he_new_buckets = malloc(
                     (2 as usize)
                         .wrapping_mul((*(*e).hh.tbl).num_buckets as usize)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                ) as *mut UT_hash_bucket;
+                        .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                ) as *mut UtHashBucket;
                 if _he_new_buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
                 } else {
@@ -712,7 +712,7 @@ unsafe extern "C" fn compare_json_objects(
                         '\0' as i32,
                         (2 as usize)
                             .wrapping_mul((*(*e).hh.tbl).num_buckets as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                     );
                     (*(*e).hh.tbl).ideal_chain_maxlen = ((*(*e).hh.tbl).num_items
                         >> (*(*e).hh.tbl)
@@ -735,7 +735,7 @@ unsafe extern "C" fn compare_json_objects(
                     _he_bkt_i = 0 as ::core::ffi::c_uint;
                     while _he_bkt_i < (*(*e).hh.tbl).num_buckets {
                         _he_thh = (*(*(*e).hh.tbl).buckets.offset(_he_bkt_i as isize)).hh_head
-                            as *mut UT_hash_handle;
+                            as *mut UtHashHandle;
                         while !_he_thh.is_null() {
                             _he_hh_nxt = (*_he_thh).hh_next;
                             _he_bkt = (*_he_thh).hashv
@@ -744,7 +744,7 @@ unsafe extern "C" fn compare_json_objects(
                                     .wrapping_mul(2 as ::core::ffi::c_uint)
                                     .wrapping_sub(1 as ::core::ffi::c_uint);
                             _he_newbkt =
-                                _he_new_buckets.offset(_he_bkt as isize) as *mut UT_hash_bucket;
+                                _he_new_buckets.offset(_he_bkt as isize) as *mut UtHashBucket;
                             (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                             if (*_he_newbkt).count > (*(*e).hh.tbl).ideal_chain_maxlen {
                                 (*(*e).hh.tbl).nonideal_items =
@@ -753,12 +753,12 @@ unsafe extern "C" fn compare_json_objects(
                                     .count
                                     .wrapping_div((*(*e).hh.tbl).ideal_chain_maxlen);
                             }
-                            (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
-                            (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                            (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
+                            (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UtHashHandle;
                             if !(*_he_newbkt).hh_head.is_null() {
                                 (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                             }
-                            (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                            (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                             _he_thh = _he_hh_nxt;
                         }
                         _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -791,7 +791,7 @@ unsafe extern "C" fn compare_json_objects(
     let mut j_0: u32 = 0 as u32;
     while j_0 < (*b).u.object.length as u32 {
         let mut k_0: *mut ::core::ffi::c_char = (*(*b).u.object.values.offset(j_0 as isize)).name;
-        let mut e_0: *mut json_obj_entry = ::core::ptr::null_mut::<json_obj_entry>();
+        let mut e_0: *mut JsonObjEntry = ::core::ptr::null_mut::<JsonObjEntry>();
         let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
         let mut _hj_i_1: ::core::ffi::c_uint = 0;
         let mut _hj_j_1: ::core::ffi::c_uint = 0;
@@ -1056,7 +1056,7 @@ unsafe extern "C" fn compare_json_objects(
         _hf_hashv_0 = _hf_hashv_0.wrapping_sub(_hj_i_1);
         _hf_hashv_0 = _hf_hashv_0.wrapping_sub(_hj_j_1);
         _hf_hashv_0 ^= _hj_j_1 >> 15 as ::core::ffi::c_int;
-        e_0 = ::core::ptr::null_mut::<json_obj_entry>();
+        e_0 = ::core::ptr::null_mut::<JsonObjEntry>();
         if !h.is_null() {
             let mut _hf_bkt_0: ::core::ffi::c_uint = 0;
             _hf_bkt_0 = _hf_hashv_0
@@ -1071,10 +1071,10 @@ unsafe extern "C" fn compare_json_objects(
                     e_0 = ((*(*(*h).hh.tbl).buckets.offset(_hf_bkt_0 as isize)).hh_head
                         as *mut ::core::ffi::c_char)
                         .offset(-(*(*h).hh.tbl).hho)
-                        as *mut ::core::ffi::c_void as *mut json_obj_entry
-                        as *mut json_obj_entry;
+                        as *mut ::core::ffi::c_void as *mut JsonObjEntry
+                        as *mut JsonObjEntry;
                 } else {
-                    e_0 = ::core::ptr::null_mut::<json_obj_entry>();
+                    e_0 = ::core::ptr::null_mut::<JsonObjEntry>();
                 }
                 while !e_0.is_null() {
                     if (*e_0).hh.hashv == _hf_hashv_0
@@ -1093,10 +1093,10 @@ unsafe extern "C" fn compare_json_objects(
                         e_0 = ((*e_0).hh.hh_next as *mut ::core::ffi::c_char)
                             .offset(-(*(*h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut json_obj_entry
-                            as *mut json_obj_entry;
+                            as *mut JsonObjEntry
+                            as *mut JsonObjEntry;
                     } else {
-                        e_0 = ::core::ptr::null_mut::<json_obj_entry>();
+                        e_0 = ::core::ptr::null_mut::<JsonObjEntry>();
                     }
                 }
             }
@@ -1118,39 +1118,39 @@ unsafe extern "C" fn compare_json_objects(
             }
         }
     }
-    let mut e_1: *mut json_obj_entry = ::core::ptr::null_mut::<json_obj_entry>();
-    let mut tmp: *mut json_obj_entry = ::core::ptr::null_mut::<json_obj_entry>();
+    let mut e_1: *mut JsonObjEntry = ::core::ptr::null_mut::<JsonObjEntry>();
+    let mut tmp: *mut JsonObjEntry = ::core::ptr::null_mut::<JsonObjEntry>();
     e_1 = h;
-    tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut json_obj_entry
-        as *mut json_obj_entry;
+    tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut JsonObjEntry
+        as *mut JsonObjEntry;
     while !e_1.is_null() {
         allcheck = allcheck as ::core::ffi::c_int != 0 && (*e_1).check as ::core::ffi::c_int != 0;
-        let mut _hd_hh_del: *mut UT_hash_handle = &raw mut (*e_1).hh;
+        let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*e_1).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
             free((*(*h).hh.tbl).buckets as *mut ::core::ffi::c_void);
             free((*h).hh.tbl as *mut ::core::ffi::c_void);
-            h = ::core::ptr::null_mut::<json_obj_entry>();
+            h = ::core::ptr::null_mut::<JsonObjEntry>();
         } else {
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*h).hh.tbl).tail {
                 (*(*h).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                     .offset((*(*h).hh.tbl).hho)
-                    as *mut UT_hash_handle
-                    as *mut UT_hash_handle;
+                    as *mut UtHashHandle
+                    as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh0 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                     .offset((*(*h).hh.tbl).hho)
-                    as *mut UT_hash_handle))
+                    as *mut UtHashHandle))
                     .next;
                 *fresh0 = (*_hd_hh_del).next;
             } else {
-                h = (*_hd_hh_del).next as *mut json_obj_entry as *mut json_obj_entry;
+                h = (*_hd_hh_del).next as *mut JsonObjEntry as *mut JsonObjEntry;
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh1 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
                     .offset((*(*h).hh.tbl).hho)
-                    as *mut UT_hash_handle))
+                    as *mut UtHashHandle))
                     .prev;
                 *fresh1 = (*_hd_hh_del).prev;
             }
@@ -1158,11 +1158,11 @@ unsafe extern "C" fn compare_json_objects(
                 & (*(*h).hh.tbl)
                     .num_buckets
                     .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _hd_head: *mut UT_hash_bucket =
-                (*(*h).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UT_hash_bucket;
+            let mut _hd_head: *mut UtHashBucket =
+                (*(*h).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UtHashBucket;
             (*_hd_head).count = (*_hd_head).count.wrapping_sub(1);
             if (*_hd_head).hh_head == _hd_hh_del {
-                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UT_hash_handle;
+                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).hh_prev.is_null() {
                 (*(*_hd_hh_del).hh_prev).hh_next = (*_hd_hh_del).hh_next;
@@ -1175,14 +1175,14 @@ unsafe extern "C" fn compare_json_objects(
         free((*e_1).key as *mut ::core::ffi::c_void);
         (*e_1).key = ::core::ptr::null_mut::<::core::ffi::c_char>();
         free(e_1 as *mut ::core::ffi::c_void);
-        e_1 = ::core::ptr::null_mut::<json_obj_entry>();
+        e_1 = ::core::ptr::null_mut::<JsonObjEntry>();
         e_1 = tmp;
-        tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut json_obj_entry
-            as *mut json_obj_entry;
+        tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut JsonObjEntry
+            as *mut JsonObjEntry;
     }
     return allcheck;
 }
-pub unsafe extern "C" fn json_ident(mut a: *const json_value, mut b: *const json_value) -> bool {
+pub unsafe extern "C" fn json_ident(mut a: *const JsonValue, mut b: *const JsonValue) -> bool {
     if a.is_null() && b.is_null() {
         return true;
     }

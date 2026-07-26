@@ -1,40 +1,40 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
 
-use crate::table::otl::classdef::{otl_ClassDef, otl_ClassDef_create, pushClassDef};
-use crate::table::otl::coverage::{otl_Coverage};
-use crate::support::handle::{handle_fromConsolidated, handle_fromIndex, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
+use crate::table::otl::classdef::{ClassDef, otl_ClassDef_create, pushClassDef};
+use crate::table::otl::coverage::{Coverage};
+use crate::support::handle::{handle_fromConsolidated, handle_fromIndex, otfcc_Handle_dup, Handle, GlyphHandle, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::primitives::{glyphclass_t, glyphid_t, tableid_t};
-use crate::vendor::sds::{sds};
+use crate::support::buffer::{Buffer};
+use crate::support::primitives::{GlyphClass, GlyphId, TableId};
+use crate::vendor::sds::{SdsRaw};
 
 use crate::support::{NULL};
-use crate::table::otl::{otl_ChainLookupApplication, otl_ChainingRule, otl_Lookup, otl_Subtable, otl_chaining_classified, subtable_chaining};
-use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, Lookup, Subtable, otl_chaining_classified, ChainingSubtable};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::table::otl::subtables::chaining::build::{otfcc_build_chaining, otfcc_build_contextual, otfcc_chainingLookupIsContextualLookup};
 use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct classifier_hash {
+pub struct ClassifierHash {
     pub gid: ::core::ffi::c_int,
-    pub gname: sds,
+    pub gname: SdsRaw,
     pub cls: ::core::ffi::c_int,
-    pub hh: UT_hash_handle,
+    pub hh: UtHashHandle,
 }
 unsafe extern "C" fn by_gid_clsh(
-    mut a: *mut classifier_hash,
-    mut b: *mut classifier_hash,
+    mut a: *mut ClassifierHash,
+    mut b: *mut ClassifierHash,
 ) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
 unsafe extern "C" fn classCompatible(
-    mut h: *mut *mut classifier_hash,
-    mut cov: *mut otl_Coverage,
+    mut h: *mut *mut ClassifierHash,
+    mut cov: *mut Coverage,
     mut past: *mut ::core::ffi::c_int,
 ) -> ::core::ffi::c_int {
-    let mut s: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
+    let mut s: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
     if (*cov).numGlyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
         return 1 as ::core::ffi::c_int;
     }
@@ -294,7 +294,7 @@ unsafe extern "C" fn classCompatible(
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
     _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-    s = ::core::ptr::null_mut::<classifier_hash>();
+    s = ::core::ptr::null_mut::<ClassifierHash>();
     if !(*h).is_null() {
         let mut _hf_bkt: ::core::ffi::c_uint = 0;
         _hf_bkt = _hf_hashv
@@ -309,10 +309,10 @@ unsafe extern "C" fn classCompatible(
                 s = ((*(*(**h).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                     as *mut ::core::ffi::c_char)
                     .offset(-(*(**h).hh.tbl).hho)
-                    as *mut ::core::ffi::c_void as *mut classifier_hash
-                    as *mut classifier_hash;
+                    as *mut ::core::ffi::c_void as *mut ClassifierHash
+                    as *mut ClassifierHash;
             } else {
-                s = ::core::ptr::null_mut::<classifier_hash>();
+                s = ::core::ptr::null_mut::<ClassifierHash>();
             }
             while !s.is_null() {
                 if (*s).hh.hashv == _hf_hashv
@@ -331,18 +331,18 @@ unsafe extern "C" fn classCompatible(
                 if !(*s).hh.hh_next.is_null() {
                     s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
                         .offset(-(*(**h).hh.tbl).hho)
-                        as *mut ::core::ffi::c_void as *mut classifier_hash
-                        as *mut classifier_hash;
+                        as *mut ::core::ffi::c_void as *mut ClassifierHash
+                        as *mut ClassifierHash;
                 } else {
-                    s = ::core::ptr::null_mut::<classifier_hash>();
+                    s = ::core::ptr::null_mut::<ClassifierHash>();
                 }
             }
         }
     }
     if !s.is_null() {
-        let mut ss: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
-        let mut tmp: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
-        let mut j: glyphid_t = 1 as glyphid_t;
+        let mut ss: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
+        let mut tmp: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
+        let mut j: GlyphId = 1 as GlyphId;
         while (j as ::core::ffi::c_int) < (*cov).numGlyphs as ::core::ffi::c_int {
             let mut gid_0: ::core::ffi::c_int =
                 (*(*cov).glyphs.offset(j as isize)).index as ::core::ffi::c_int;
@@ -619,7 +619,7 @@ unsafe extern "C" fn classCompatible(
             _hf_hashv_0 = _hf_hashv_0.wrapping_sub(_hj_i_0);
             _hf_hashv_0 = _hf_hashv_0.wrapping_sub(_hj_j_0);
             _hf_hashv_0 ^= _hj_j_0 >> 15 as ::core::ffi::c_int;
-            ss = ::core::ptr::null_mut::<classifier_hash>();
+            ss = ::core::ptr::null_mut::<ClassifierHash>();
             if !(*h).is_null() {
                 let mut _hf_bkt_0: ::core::ffi::c_uint = 0;
                 _hf_bkt_0 = _hf_hashv_0
@@ -635,10 +635,10 @@ unsafe extern "C" fn classCompatible(
                             as *mut ::core::ffi::c_char)
                             .offset(-(*(**h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut classifier_hash
-                            as *mut classifier_hash;
+                            as *mut ClassifierHash
+                            as *mut ClassifierHash;
                     } else {
-                        ss = ::core::ptr::null_mut::<classifier_hash>();
+                        ss = ::core::ptr::null_mut::<ClassifierHash>();
                     }
                     while !ss.is_null() {
                         if (*ss).hh.hashv == _hf_hashv_0
@@ -658,10 +658,10 @@ unsafe extern "C" fn classCompatible(
                             ss = ((*ss).hh.hh_next as *mut ::core::ffi::c_char)
                                 .offset(-(*(**h).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut classifier_hash
-                                as *mut classifier_hash;
+                                as *mut ClassifierHash
+                                as *mut ClassifierHash;
                         } else {
-                            ss = ::core::ptr::null_mut::<classifier_hash>();
+                            ss = ::core::ptr::null_mut::<ClassifierHash>();
                         }
                     }
                 }
@@ -671,12 +671,12 @@ unsafe extern "C" fn classCompatible(
             }
             j = j.wrapping_add(1);
         }
-        let mut revh: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
-        let mut j_0: glyphid_t = 0 as glyphid_t;
+        let mut revh: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
+        let mut j_0: GlyphId = 0 as GlyphId;
         while (j_0 as ::core::ffi::c_int) < (*cov).numGlyphs as ::core::ffi::c_int {
             let mut gid_1: ::core::ffi::c_int =
                 (*(*cov).glyphs.offset(j_0 as isize)).index as ::core::ffi::c_int;
-            let mut rss: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
+            let mut rss: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
             let mut _hf_hashv_1: ::core::ffi::c_uint = 0;
             let mut _hj_i_1: ::core::ffi::c_uint = 0;
             let mut _hj_j_1: ::core::ffi::c_uint = 0;
@@ -950,7 +950,7 @@ unsafe extern "C" fn classCompatible(
             _hf_hashv_1 = _hf_hashv_1.wrapping_sub(_hj_i_1);
             _hf_hashv_1 = _hf_hashv_1.wrapping_sub(_hj_j_1);
             _hf_hashv_1 ^= _hj_j_1 >> 15 as ::core::ffi::c_int;
-            rss = ::core::ptr::null_mut::<classifier_hash>();
+            rss = ::core::ptr::null_mut::<ClassifierHash>();
             if !revh.is_null() {
                 let mut _hf_bkt_1: ::core::ffi::c_uint = 0;
                 _hf_bkt_1 = _hf_hashv_1
@@ -966,10 +966,10 @@ unsafe extern "C" fn classCompatible(
                             as *mut ::core::ffi::c_char)
                             .offset(-(*(*revh).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut classifier_hash
-                            as *mut classifier_hash;
+                            as *mut ClassifierHash
+                            as *mut ClassifierHash;
                     } else {
-                        rss = ::core::ptr::null_mut::<classifier_hash>();
+                        rss = ::core::ptr::null_mut::<ClassifierHash>();
                     }
                     while !rss.is_null() {
                         if (*rss).hh.hashv == _hf_hashv_1
@@ -989,19 +989,19 @@ unsafe extern "C" fn classCompatible(
                             rss = ((*rss).hh.hh_next as *mut ::core::ffi::c_char)
                                 .offset(-(*(*revh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut classifier_hash
-                                as *mut classifier_hash;
+                                as *mut ClassifierHash
+                                as *mut ClassifierHash;
                         } else {
-                            rss = ::core::ptr::null_mut::<classifier_hash>();
+                            rss = ::core::ptr::null_mut::<ClassifierHash>();
                         }
                     }
                 }
             }
             if rss.is_null() {
                 rss = __caryll_allocate_clean(
-                    ::core::mem::size_of::<classifier_hash>() as usize,
+                    ::core::mem::size_of::<ClassifierHash>() as usize,
                     38 as ::core::ffi::c_ulong,
-                ) as *mut classifier_hash;
+                ) as *mut ClassifierHash;
                 (*rss).gid = gid_1;
                 (*rss).gname = (*(*cov).glyphs.offset(j_0 as isize)).name;
                 (*rss).cls = (*s).cls;
@@ -1290,18 +1290,18 @@ unsafe extern "C" fn classCompatible(
                 if revh.is_null() {
                     (*rss).hh.next = NULL;
                     (*rss).hh.prev = NULL;
-                    (*rss).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                        as *mut UT_hash_table
-                        as *mut UT_hash_table;
+                    (*rss).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                        as *mut UtHashTable
+                        as *mut UtHashTable;
                     if (*rss).hh.tbl.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
                         memset(
                             (*rss).hh.tbl as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            ::core::mem::size_of::<UT_hash_table>() as usize,
+                            ::core::mem::size_of::<UtHashTable>() as usize,
                         );
-                        (*(*rss).hh.tbl).tail = &raw mut (*rss).hh as *mut UT_hash_handle;
+                        (*(*rss).hh.tbl).tail = &raw mut (*rss).hh as *mut UtHashHandle;
                         (*(*rss).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                         (*(*rss).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                         (*(*rss).hh.tbl).hho = (&raw mut (*rss).hh as *mut ::core::ffi::c_char)
@@ -1310,8 +1310,8 @@ unsafe extern "C" fn classCompatible(
                             as isize;
                         (*(*rss).hh.tbl).buckets = malloc(
                             (32 as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                        ) as *mut UT_hash_bucket;
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                        ) as *mut UtHashBucket;
                         (*(*rss).hh.tbl).signature = HASH_SIGNATURE as u32;
                         if (*(*rss).hh.tbl).buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
@@ -1320,7 +1320,7 @@ unsafe extern "C" fn classCompatible(
                                 (*(*rss).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
                                 (32 as usize).wrapping_mul(
-                                    ::core::mem::size_of::<UT_hash_bucket>() as usize,
+                                    ::core::mem::size_of::<UtHashBucket>() as usize,
                                 ),
                             );
                         }
@@ -1333,7 +1333,7 @@ unsafe extern "C" fn classCompatible(
                         .offset(-(*(*revh).hh.tbl).hho)
                         as *mut ::core::ffi::c_void;
                     (*(*(*revh).hh.tbl).tail).next = rss as *mut ::core::ffi::c_void;
-                    (*(*revh).hh.tbl).tail = &raw mut (*rss).hh as *mut UT_hash_handle;
+                    (*(*revh).hh.tbl).tail = &raw mut (*rss).hh as *mut UtHashHandle;
                 }
                 let mut _ha_bkt: ::core::ffi::c_uint = 0;
                 (*(*revh).hh.tbl).num_items = (*(*revh).hh.tbl).num_items.wrapping_add(1);
@@ -1341,15 +1341,15 @@ unsafe extern "C" fn classCompatible(
                     & (*(*revh).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _ha_head: *mut UT_hash_bucket =
-                    (*(*revh).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UT_hash_bucket;
+                let mut _ha_head: *mut UtHashBucket =
+                    (*(*revh).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
                 (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-                (*rss).hh.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-                (*rss).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                (*rss).hh.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+                (*rss).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                 if !(*_ha_head).hh_head.is_null() {
-                    (*(*_ha_head).hh_head).hh_prev = &raw mut (*rss).hh as *mut UT_hash_handle;
+                    (*(*_ha_head).hh_head).hh_prev = &raw mut (*rss).hh as *mut UtHashHandle;
                 }
-                (*_ha_head).hh_head = &raw mut (*rss).hh as *mut UT_hash_handle;
+                (*_ha_head).hh_head = &raw mut (*rss).hh as *mut UtHashHandle;
                 if (*_ha_head).count
                     >= (*_ha_head)
                         .expand_mult
@@ -1359,19 +1359,19 @@ unsafe extern "C" fn classCompatible(
                 {
                     let mut _he_bkt: ::core::ffi::c_uint = 0;
                     let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-                    let mut _he_thh: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_hh_nxt: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_new_buckets: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
-                    let mut _he_newbkt: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
+                    let mut _he_thh: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_hh_nxt: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_new_buckets: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
+                    let mut _he_newbkt: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
                     _he_new_buckets = malloc(
                         (2 as usize)
                             .wrapping_mul((*(*rss).hh.tbl).num_buckets as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                    ) as *mut UT_hash_bucket;
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                    ) as *mut UtHashBucket;
                     if _he_new_buckets.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
@@ -1380,7 +1380,7 @@ unsafe extern "C" fn classCompatible(
                             '\0' as i32,
                             (2 as usize)
                                 .wrapping_mul((*(*rss).hh.tbl).num_buckets as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                         );
                         (*(*rss).hh.tbl).ideal_chain_maxlen = ((*(*rss).hh.tbl).num_items
                             >> (*(*rss).hh.tbl)
@@ -1403,7 +1403,7 @@ unsafe extern "C" fn classCompatible(
                         _he_bkt_i = 0 as ::core::ffi::c_uint;
                         while _he_bkt_i < (*(*rss).hh.tbl).num_buckets {
                             _he_thh = (*(*(*rss).hh.tbl).buckets.offset(_he_bkt_i as isize)).hh_head
-                                as *mut UT_hash_handle;
+                                as *mut UtHashHandle;
                             while !_he_thh.is_null() {
                                 _he_hh_nxt = (*_he_thh).hh_next;
                                 _he_bkt = (*_he_thh).hashv
@@ -1412,7 +1412,7 @@ unsafe extern "C" fn classCompatible(
                                         .wrapping_mul(2 as ::core::ffi::c_uint)
                                         .wrapping_sub(1 as ::core::ffi::c_uint);
                                 _he_newbkt =
-                                    _he_new_buckets.offset(_he_bkt as isize) as *mut UT_hash_bucket;
+                                    _he_new_buckets.offset(_he_bkt as isize) as *mut UtHashBucket;
                                 (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                                 if (*_he_newbkt).count > (*(*rss).hh.tbl).ideal_chain_maxlen {
                                     (*(*rss).hh.tbl).nonideal_items =
@@ -1421,12 +1421,12 @@ unsafe extern "C" fn classCompatible(
                                         .count
                                         .wrapping_div((*(*rss).hh.tbl).ideal_chain_maxlen);
                                 }
-                                (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
-                                (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                                (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
+                                (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UtHashHandle;
                                 if !(*_he_newbkt).hh_head.is_null() {
                                     (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                                 }
-                                (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                                (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                                 _he_thh = _he_hh_nxt;
                             }
                             _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -1460,7 +1460,7 @@ unsafe extern "C" fn classCompatible(
         while !ss.is_null() {
             if (*ss).cls == (*s).cls {
                 let mut gid_2: ::core::ffi::c_int = (*ss).gid;
-                let mut rss_0: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
+                let mut rss_0: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
                 let mut _hf_hashv_2: ::core::ffi::c_uint = 0;
                 let mut _hj_i_3: ::core::ffi::c_uint = 0;
                 let mut _hj_j_3: ::core::ffi::c_uint = 0;
@@ -1738,7 +1738,7 @@ unsafe extern "C" fn classCompatible(
                 _hf_hashv_2 = _hf_hashv_2.wrapping_sub(_hj_i_3);
                 _hf_hashv_2 = _hf_hashv_2.wrapping_sub(_hj_j_3);
                 _hf_hashv_2 ^= _hj_j_3 >> 15 as ::core::ffi::c_int;
-                rss_0 = ::core::ptr::null_mut::<classifier_hash>();
+                rss_0 = ::core::ptr::null_mut::<ClassifierHash>();
                 if !revh.is_null() {
                     let mut _hf_bkt_2: ::core::ffi::c_uint = 0;
                     _hf_bkt_2 = _hf_hashv_2
@@ -1754,10 +1754,10 @@ unsafe extern "C" fn classCompatible(
                                 as *mut ::core::ffi::c_char)
                                 .offset(-(*(*revh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut classifier_hash
-                                as *mut classifier_hash;
+                                as *mut ClassifierHash
+                                as *mut ClassifierHash;
                         } else {
-                            rss_0 = ::core::ptr::null_mut::<classifier_hash>();
+                            rss_0 = ::core::ptr::null_mut::<ClassifierHash>();
                         }
                         while !rss_0.is_null() {
                             if (*rss_0).hh.hashv == _hf_hashv_2
@@ -1777,10 +1777,10 @@ unsafe extern "C" fn classCompatible(
                                 rss_0 = ((*rss_0).hh.hh_next as *mut ::core::ffi::c_char)
                                     .offset(-(*(*revh).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
-                                    as *mut classifier_hash
-                                    as *mut classifier_hash;
+                                    as *mut ClassifierHash
+                                    as *mut ClassifierHash;
                             } else {
-                                rss_0 = ::core::ptr::null_mut::<classifier_hash>();
+                                rss_0 = ::core::ptr::null_mut::<ClassifierHash>();
                             }
                         }
                     }
@@ -1790,41 +1790,41 @@ unsafe extern "C" fn classCompatible(
                     break;
                 }
             }
-            ss = (*ss).hh.next as *mut classifier_hash;
+            ss = (*ss).hh.next as *mut ClassifierHash;
         }
         ss = revh;
         tmp = (if !revh.is_null() {
             (*revh).hh.next
         } else {
             NULL
-        }) as *mut classifier_hash as *mut classifier_hash;
+        }) as *mut ClassifierHash as *mut ClassifierHash;
         while !ss.is_null() {
-            let mut _hd_hh_del: *mut UT_hash_handle = &raw mut (*ss).hh;
+            let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*ss).hh;
             if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
                 free((*(*revh).hh.tbl).buckets as *mut ::core::ffi::c_void);
                 free((*revh).hh.tbl as *mut ::core::ffi::c_void);
-                revh = ::core::ptr::null_mut::<classifier_hash>();
+                revh = ::core::ptr::null_mut::<ClassifierHash>();
             } else {
                 let mut _hd_bkt: ::core::ffi::c_uint = 0;
                 if _hd_hh_del == (*(*revh).hh.tbl).tail {
                     (*(*revh).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                         .offset((*(*revh).hh.tbl).hho)
-                        as *mut UT_hash_handle
-                        as *mut UT_hash_handle;
+                        as *mut UtHashHandle
+                        as *mut UtHashHandle;
                 }
                 if !(*_hd_hh_del).prev.is_null() {
                     let ref mut fresh11 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                         .offset((*(*revh).hh.tbl).hho)
-                        as *mut UT_hash_handle))
+                        as *mut UtHashHandle))
                         .next;
                     *fresh11 = (*_hd_hh_del).next;
                 } else {
-                    revh = (*_hd_hh_del).next as *mut classifier_hash as *mut classifier_hash;
+                    revh = (*_hd_hh_del).next as *mut ClassifierHash as *mut ClassifierHash;
                 }
                 if !(*_hd_hh_del).next.is_null() {
                     let ref mut fresh12 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
                         .offset((*(*revh).hh.tbl).hho)
-                        as *mut UT_hash_handle))
+                        as *mut UtHashHandle))
                         .prev;
                     *fresh12 = (*_hd_hh_del).prev;
                 }
@@ -1832,11 +1832,11 @@ unsafe extern "C" fn classCompatible(
                     & (*(*revh).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _hd_head: *mut UT_hash_bucket =
-                    (*(*revh).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UT_hash_bucket;
+                let mut _hd_head: *mut UtHashBucket =
+                    (*(*revh).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UtHashBucket;
                 (*_hd_head).count = (*_hd_head).count.wrapping_sub(1);
                 if (*_hd_head).hh_head == _hd_hh_del {
-                    (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UT_hash_handle;
+                    (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UtHashHandle;
                 }
                 if !(*_hd_hh_del).hh_prev.is_null() {
                     (*(*_hd_hh_del).hh_prev).hh_next = (*_hd_hh_del).hh_next;
@@ -1847,10 +1847,10 @@ unsafe extern "C" fn classCompatible(
                 (*(*revh).hh.tbl).num_items = (*(*revh).hh.tbl).num_items.wrapping_sub(1);
             }
             free(ss as *mut ::core::ffi::c_void);
-            ss = ::core::ptr::null_mut::<classifier_hash>();
+            ss = ::core::ptr::null_mut::<ClassifierHash>();
             ss = tmp;
-            tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut classifier_hash
-                as *mut classifier_hash;
+            tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut ClassifierHash
+                as *mut ClassifierHash;
         }
         return if allcheck as ::core::ffi::c_int != 0 {
             (*s).cls
@@ -1858,8 +1858,8 @@ unsafe extern "C" fn classCompatible(
             0 as ::core::ffi::c_int
         };
     } else {
-        let mut ss_0: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
-        let mut j_1: glyphid_t = 1 as glyphid_t;
+        let mut ss_0: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
+        let mut j_1: GlyphId = 1 as GlyphId;
         while (j_1 as ::core::ffi::c_int) < (*cov).numGlyphs as ::core::ffi::c_int {
             let mut gid_3: ::core::ffi::c_int =
                 (*(*cov).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int;
@@ -2136,7 +2136,7 @@ unsafe extern "C" fn classCompatible(
             _hf_hashv_3 = _hf_hashv_3.wrapping_sub(_hj_i_4);
             _hf_hashv_3 = _hf_hashv_3.wrapping_sub(_hj_j_4);
             _hf_hashv_3 ^= _hj_j_4 >> 15 as ::core::ffi::c_int;
-            ss_0 = ::core::ptr::null_mut::<classifier_hash>();
+            ss_0 = ::core::ptr::null_mut::<ClassifierHash>();
             if !(*h).is_null() {
                 let mut _hf_bkt_3: ::core::ffi::c_uint = 0;
                 _hf_bkt_3 = _hf_hashv_3
@@ -2152,10 +2152,10 @@ unsafe extern "C" fn classCompatible(
                             as *mut ::core::ffi::c_char)
                             .offset(-(*(**h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut classifier_hash
-                            as *mut classifier_hash;
+                            as *mut ClassifierHash
+                            as *mut ClassifierHash;
                     } else {
-                        ss_0 = ::core::ptr::null_mut::<classifier_hash>();
+                        ss_0 = ::core::ptr::null_mut::<ClassifierHash>();
                     }
                     while !ss_0.is_null() {
                         if (*ss_0).hh.hashv == _hf_hashv_3
@@ -2175,10 +2175,10 @@ unsafe extern "C" fn classCompatible(
                             ss_0 = ((*ss_0).hh.hh_next as *mut ::core::ffi::c_char)
                                 .offset(-(*(**h).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut classifier_hash
-                                as *mut classifier_hash;
+                                as *mut ClassifierHash
+                                as *mut ClassifierHash;
                         } else {
-                            ss_0 = ::core::ptr::null_mut::<classifier_hash>();
+                            ss_0 = ::core::ptr::null_mut::<ClassifierHash>();
                         }
                     }
                 }
@@ -2188,11 +2188,11 @@ unsafe extern "C" fn classCompatible(
             }
             j_1 = j_1.wrapping_add(1);
         }
-        let mut j_2: glyphid_t = 0 as glyphid_t;
+        let mut j_2: GlyphId = 0 as GlyphId;
         while (j_2 as ::core::ffi::c_int) < (*cov).numGlyphs as ::core::ffi::c_int {
             let mut gid_4: ::core::ffi::c_int =
                 (*(*cov).glyphs.offset(j_2 as isize)).index as ::core::ffi::c_int;
-            let mut s_0: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
+            let mut s_0: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
             let mut _hf_hashv_4: ::core::ffi::c_uint = 0;
             let mut _hj_i_5: ::core::ffi::c_uint = 0;
             let mut _hj_j_5: ::core::ffi::c_uint = 0;
@@ -2466,7 +2466,7 @@ unsafe extern "C" fn classCompatible(
             _hf_hashv_4 = _hf_hashv_4.wrapping_sub(_hj_i_5);
             _hf_hashv_4 = _hf_hashv_4.wrapping_sub(_hj_j_5);
             _hf_hashv_4 ^= _hj_j_5 >> 15 as ::core::ffi::c_int;
-            s_0 = ::core::ptr::null_mut::<classifier_hash>();
+            s_0 = ::core::ptr::null_mut::<ClassifierHash>();
             if !(*h).is_null() {
                 let mut _hf_bkt_4: ::core::ffi::c_uint = 0;
                 _hf_bkt_4 = _hf_hashv_4
@@ -2482,10 +2482,10 @@ unsafe extern "C" fn classCompatible(
                             as *mut ::core::ffi::c_char)
                             .offset(-(*(**h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut classifier_hash
-                            as *mut classifier_hash;
+                            as *mut ClassifierHash
+                            as *mut ClassifierHash;
                     } else {
-                        s_0 = ::core::ptr::null_mut::<classifier_hash>();
+                        s_0 = ::core::ptr::null_mut::<ClassifierHash>();
                     }
                     while !s_0.is_null() {
                         if (*s_0).hh.hashv == _hf_hashv_4
@@ -2505,19 +2505,19 @@ unsafe extern "C" fn classCompatible(
                             s_0 = ((*s_0).hh.hh_next as *mut ::core::ffi::c_char)
                                 .offset(-(*(**h).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut classifier_hash
-                                as *mut classifier_hash;
+                                as *mut ClassifierHash
+                                as *mut ClassifierHash;
                         } else {
-                            s_0 = ::core::ptr::null_mut::<classifier_hash>();
+                            s_0 = ::core::ptr::null_mut::<ClassifierHash>();
                         }
                     }
                 }
             }
             if s_0.is_null() {
                 s_0 = __caryll_allocate_clean(
-                    ::core::mem::size_of::<classifier_hash>() as usize,
+                    ::core::mem::size_of::<ClassifierHash>() as usize,
                     74 as ::core::ffi::c_ulong,
-                ) as *mut classifier_hash;
+                ) as *mut ClassifierHash;
                 (*s_0).gid = (*(*cov).glyphs.offset(j_2 as isize)).index as ::core::ffi::c_int;
                 (*s_0).gname = (*(*cov).glyphs.offset(j_2 as isize)).name;
                 (*s_0).cls = *past + 1 as ::core::ffi::c_int;
@@ -2806,18 +2806,18 @@ unsafe extern "C" fn classCompatible(
                 if (*h).is_null() {
                     (*s_0).hh.next = NULL;
                     (*s_0).hh.prev = NULL;
-                    (*s_0).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                        as *mut UT_hash_table
-                        as *mut UT_hash_table;
+                    (*s_0).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                        as *mut UtHashTable
+                        as *mut UtHashTable;
                     if (*s_0).hh.tbl.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
                         memset(
                             (*s_0).hh.tbl as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            ::core::mem::size_of::<UT_hash_table>() as usize,
+                            ::core::mem::size_of::<UtHashTable>() as usize,
                         );
-                        (*(*s_0).hh.tbl).tail = &raw mut (*s_0).hh as *mut UT_hash_handle;
+                        (*(*s_0).hh.tbl).tail = &raw mut (*s_0).hh as *mut UtHashHandle;
                         (*(*s_0).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                         (*(*s_0).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                         (*(*s_0).hh.tbl).hho = (&raw mut (*s_0).hh as *mut ::core::ffi::c_char)
@@ -2826,8 +2826,8 @@ unsafe extern "C" fn classCompatible(
                             as isize;
                         (*(*s_0).hh.tbl).buckets = malloc(
                             (32 as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                        ) as *mut UT_hash_bucket;
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                        ) as *mut UtHashBucket;
                         (*(*s_0).hh.tbl).signature = HASH_SIGNATURE as u32;
                         if (*(*s_0).hh.tbl).buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
@@ -2836,7 +2836,7 @@ unsafe extern "C" fn classCompatible(
                                 (*(*s_0).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
                                 (32 as usize).wrapping_mul(
-                                    ::core::mem::size_of::<UT_hash_bucket>() as usize,
+                                    ::core::mem::size_of::<UtHashBucket>() as usize,
                                 ),
                             );
                         }
@@ -2849,7 +2849,7 @@ unsafe extern "C" fn classCompatible(
                         .offset(-(*(**h).hh.tbl).hho)
                         as *mut ::core::ffi::c_void;
                     (*(*(**h).hh.tbl).tail).next = s_0 as *mut ::core::ffi::c_void;
-                    (*(**h).hh.tbl).tail = &raw mut (*s_0).hh as *mut UT_hash_handle;
+                    (*(**h).hh.tbl).tail = &raw mut (*s_0).hh as *mut UtHashHandle;
                 }
                 let mut _ha_bkt_0: ::core::ffi::c_uint = 0;
                 (*(**h).hh.tbl).num_items = (*(**h).hh.tbl).num_items.wrapping_add(1);
@@ -2857,15 +2857,15 @@ unsafe extern "C" fn classCompatible(
                     & (*(**h).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _ha_head_0: *mut UT_hash_bucket =
-                    (*(**h).hh.tbl).buckets.offset(_ha_bkt_0 as isize) as *mut UT_hash_bucket;
+                let mut _ha_head_0: *mut UtHashBucket =
+                    (*(**h).hh.tbl).buckets.offset(_ha_bkt_0 as isize) as *mut UtHashBucket;
                 (*_ha_head_0).count = (*_ha_head_0).count.wrapping_add(1);
-                (*s_0).hh.hh_next = (*_ha_head_0).hh_head as *mut UT_hash_handle;
-                (*s_0).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                (*s_0).hh.hh_next = (*_ha_head_0).hh_head as *mut UtHashHandle;
+                (*s_0).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                 if !(*_ha_head_0).hh_head.is_null() {
-                    (*(*_ha_head_0).hh_head).hh_prev = &raw mut (*s_0).hh as *mut UT_hash_handle;
+                    (*(*_ha_head_0).hh_head).hh_prev = &raw mut (*s_0).hh as *mut UtHashHandle;
                 }
-                (*_ha_head_0).hh_head = &raw mut (*s_0).hh as *mut UT_hash_handle;
+                (*_ha_head_0).hh_head = &raw mut (*s_0).hh as *mut UtHashHandle;
                 if (*_ha_head_0).count
                     >= (*_ha_head_0)
                         .expand_mult
@@ -2875,19 +2875,19 @@ unsafe extern "C" fn classCompatible(
                 {
                     let mut _he_bkt_0: ::core::ffi::c_uint = 0;
                     let mut _he_bkt_i_0: ::core::ffi::c_uint = 0;
-                    let mut _he_thh_0: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_hh_nxt_0: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_new_buckets_0: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
-                    let mut _he_newbkt_0: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
+                    let mut _he_thh_0: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_hh_nxt_0: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_new_buckets_0: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
+                    let mut _he_newbkt_0: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
                     _he_new_buckets_0 = malloc(
                         (2 as usize)
                             .wrapping_mul((*(*s_0).hh.tbl).num_buckets as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                    ) as *mut UT_hash_bucket;
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                    ) as *mut UtHashBucket;
                     if _he_new_buckets_0.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
@@ -2896,7 +2896,7 @@ unsafe extern "C" fn classCompatible(
                             '\0' as i32,
                             (2 as usize)
                                 .wrapping_mul((*(*s_0).hh.tbl).num_buckets as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                         );
                         (*(*s_0).hh.tbl).ideal_chain_maxlen = ((*(*s_0).hh.tbl).num_items
                             >> (*(*s_0).hh.tbl)
@@ -2920,7 +2920,7 @@ unsafe extern "C" fn classCompatible(
                         while _he_bkt_i_0 < (*(*s_0).hh.tbl).num_buckets {
                             _he_thh_0 = (*(*(*s_0).hh.tbl).buckets.offset(_he_bkt_i_0 as isize))
                                 .hh_head
-                                as *mut UT_hash_handle;
+                                as *mut UtHashHandle;
                             while !_he_thh_0.is_null() {
                                 _he_hh_nxt_0 = (*_he_thh_0).hh_next;
                                 _he_bkt_0 = (*_he_thh_0).hashv
@@ -2929,7 +2929,7 @@ unsafe extern "C" fn classCompatible(
                                         .wrapping_mul(2 as ::core::ffi::c_uint)
                                         .wrapping_sub(1 as ::core::ffi::c_uint);
                                 _he_newbkt_0 = _he_new_buckets_0.offset(_he_bkt_0 as isize)
-                                    as *mut UT_hash_bucket;
+                                    as *mut UtHashBucket;
                                 (*_he_newbkt_0).count = (*_he_newbkt_0).count.wrapping_add(1);
                                 if (*_he_newbkt_0).count > (*(*s_0).hh.tbl).ideal_chain_maxlen {
                                     (*(*s_0).hh.tbl).nonideal_items =
@@ -2938,13 +2938,13 @@ unsafe extern "C" fn classCompatible(
                                         .count
                                         .wrapping_div((*(*s_0).hh.tbl).ideal_chain_maxlen);
                                 }
-                                (*_he_thh_0).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                                (*_he_thh_0).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                                 (*_he_thh_0).hh_next =
-                                    (*_he_newbkt_0).hh_head as *mut UT_hash_handle;
+                                    (*_he_newbkt_0).hh_head as *mut UtHashHandle;
                                 if !(*_he_newbkt_0).hh_head.is_null() {
                                     (*(*_he_newbkt_0).hh_head).hh_prev = _he_thh_0;
                                 }
-                                (*_he_newbkt_0).hh_head = _he_thh_0 as *mut UT_hash_handle;
+                                (*_he_newbkt_0).hh_head = _he_thh_0 as *mut UtHashHandle;
                                 _he_thh_0 = _he_hh_nxt_0;
                             }
                             _he_bkt_i_0 = _he_bkt_i_0.wrapping_add(1);
@@ -2978,41 +2978,41 @@ unsafe extern "C" fn classCompatible(
     };
 }
 unsafe extern "C" fn buildRule(
-    mut rule: *mut otl_ChainingRule,
-    mut hb: *mut classifier_hash,
-    mut hi: *mut classifier_hash,
-    mut hf: *mut classifier_hash,
-) -> *mut otl_ChainingRule {
-    let mut newRule: *mut otl_ChainingRule = ::core::ptr::null_mut::<otl_ChainingRule>();
+    mut rule: *mut ChainingRule,
+    mut hb: *mut ClassifierHash,
+    mut hi: *mut ClassifierHash,
+    mut hf: *mut ClassifierHash,
+) -> *mut ChainingRule {
+    let mut newRule: *mut ChainingRule = ::core::ptr::null_mut::<ChainingRule>();
     newRule = __caryll_allocate_clean(
-        ::core::mem::size_of::<otl_ChainingRule>() as usize,
+        ::core::mem::size_of::<ChainingRule>() as usize,
         88 as ::core::ffi::c_ulong,
-    ) as *mut otl_ChainingRule;
+    ) as *mut ChainingRule;
     (*newRule).matchCount = (*rule).matchCount;
     (*newRule).inputBegins = (*rule).inputBegins;
     (*newRule).inputEnds = (*rule).inputEnds;
     (*newRule).match_0 = __caryll_allocate_clean(
-        (::core::mem::size_of::<*mut otl_Coverage>() as usize)
+        (::core::mem::size_of::<*mut Coverage>() as usize)
             .wrapping_mul((*newRule).matchCount as usize),
         92 as ::core::ffi::c_ulong,
-    ) as *mut *mut otl_Coverage;
-    let mut m: tableid_t = 0 as tableid_t;
+    ) as *mut *mut Coverage;
+    let mut m: TableId = 0 as TableId;
     while (m as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
         let ref mut fresh9 = *(*newRule).match_0.offset(m as isize);
         *fresh9 = __caryll_allocate_clean(
-            ::core::mem::size_of::<otl_Coverage>() as usize,
+            ::core::mem::size_of::<Coverage>() as usize,
             94 as ::core::ffi::c_ulong,
-        ) as *mut otl_Coverage;
-        (**(*newRule).match_0.offset(m as isize)).numGlyphs = 1 as glyphid_t;
+        ) as *mut Coverage;
+        (**(*newRule).match_0.offset(m as isize)).numGlyphs = 1 as GlyphId;
         let ref mut fresh10 = (**(*newRule).match_0.offset(m as isize)).glyphs;
         *fresh10 = __caryll_allocate_clean(
-            ::core::mem::size_of::<otfcc_GlyphHandle>() as usize,
+            ::core::mem::size_of::<GlyphHandle>() as usize,
             96 as ::core::ffi::c_ulong,
-        ) as *mut otfcc_GlyphHandle;
+        ) as *mut GlyphHandle;
         if (**(*rule).match_0.offset(m as isize)).numGlyphs as ::core::ffi::c_int
             > 0 as ::core::ffi::c_int
         {
-            let mut h: *mut classifier_hash =
+            let mut h: *mut ClassifierHash =
                 if (m as ::core::ffi::c_int) < (*rule).inputBegins as ::core::ffi::c_int {
                     hb
                 } else if (m as ::core::ffi::c_int) < (*rule).inputEnds as ::core::ffi::c_int {
@@ -3020,7 +3020,7 @@ unsafe extern "C" fn buildRule(
                 } else {
                     hf
                 };
-            let mut s: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
+            let mut s: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
             let mut gid: ::core::ffi::c_int = (*(**(*rule).match_0.offset(m as isize))
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize))
@@ -3289,7 +3289,7 @@ unsafe extern "C" fn buildRule(
             _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
             _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
             _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-            s = ::core::ptr::null_mut::<classifier_hash>();
+            s = ::core::ptr::null_mut::<ClassifierHash>();
             if !h.is_null() {
                 let mut _hf_bkt: ::core::ffi::c_uint = 0;
                 _hf_bkt = _hf_hashv
@@ -3305,10 +3305,10 @@ unsafe extern "C" fn buildRule(
                             as *mut ::core::ffi::c_char)
                             .offset(-(*(*h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut classifier_hash
-                            as *mut classifier_hash;
+                            as *mut ClassifierHash
+                            as *mut ClassifierHash;
                     } else {
-                        s = ::core::ptr::null_mut::<classifier_hash>();
+                        s = ::core::ptr::null_mut::<ClassifierHash>();
                     }
                     while !s.is_null() {
                         if (*s).hh.hashv == _hf_hashv
@@ -3328,10 +3328,10 @@ unsafe extern "C" fn buildRule(
                             s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
                                 .offset(-(*(*h).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut classifier_hash
-                                as *mut classifier_hash;
+                                as *mut ClassifierHash
+                                as *mut ClassifierHash;
                         } else {
-                            s = ::core::ptr::null_mut::<classifier_hash>();
+                            s = ::core::ptr::null_mut::<ClassifierHash>();
                         }
                     }
                 }
@@ -3339,56 +3339,56 @@ unsafe extern "C" fn buildRule(
             *(**(*newRule).match_0.offset(m as isize))
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize) =
-                handle_fromIndex((*s).cls as glyphid_t)
-                    as otfcc_GlyphHandle;
+                handle_fromIndex((*s).cls as GlyphId)
+                    as GlyphHandle;
         } else {
             *(**(*newRule).match_0.offset(m as isize))
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize) =
-                handle_fromIndex(0 as glyphid_t)
-                    as otfcc_GlyphHandle;
+                handle_fromIndex(0 as GlyphId)
+                    as GlyphHandle;
         }
         m = m.wrapping_add(1);
     }
     (*newRule).applyCount = (*rule).applyCount;
     (*newRule).apply = __caryll_allocate_clean(
-        (::core::mem::size_of::<otl_ChainLookupApplication>() as usize)
+        (::core::mem::size_of::<ChainLookupApplication>() as usize)
             .wrapping_mul((*newRule).applyCount as usize),
         108 as ::core::ffi::c_ulong,
-    ) as *mut otl_ChainLookupApplication;
-    let mut j: tableid_t = 0 as tableid_t;
+    ) as *mut ChainLookupApplication;
+    let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
         (*(*newRule).apply.offset(j as isize)).index = (*(*rule).apply.offset(j as isize)).index;
         (*(*newRule).apply.offset(j as isize)).lookup =
             otfcc_Handle_dup(
-                (*(*rule).apply.offset(j as isize)).lookup as otfcc_Handle,
-            ) as otfcc_LookupHandle;
+                (*(*rule).apply.offset(j as isize)).lookup as Handle,
+            ) as LookupHandle;
         j = j.wrapping_add(1);
     }
     return newRule;
 }
-unsafe extern "C" fn toClass(mut h: *mut *mut classifier_hash) -> *mut otl_ClassDef {
-    let mut cd: *mut otl_ClassDef = otl_ClassDef_create();
-    let mut item: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
+unsafe extern "C" fn toClass(mut h: *mut *mut ClassifierHash) -> *mut ClassDef {
+    let mut cd: *mut ClassDef = otl_ClassDef_create();
+    let mut item: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
     let mut _hs_i: ::core::ffi::c_uint = 0;
     let mut _hs_looping: ::core::ffi::c_uint = 0;
     let mut _hs_nmerges: ::core::ffi::c_uint = 0;
     let mut _hs_insize: ::core::ffi::c_uint = 0;
     let mut _hs_psize: ::core::ffi::c_uint = 0;
     let mut _hs_qsize: ::core::ffi::c_uint = 0;
-    let mut _hs_p: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_q: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_e: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_list: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_tail: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
+    let mut _hs_p: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_q: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_e: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_list: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_tail: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
     if !(*h).is_null() {
         _hs_insize = 1 as ::core::ffi::c_uint;
         _hs_looping = 1 as ::core::ffi::c_uint;
-        _hs_list = &raw mut (**h).hh as *mut UT_hash_handle;
+        _hs_list = &raw mut (**h).hh as *mut UtHashHandle;
         while _hs_looping != 0 as ::core::ffi::c_uint {
             _hs_p = _hs_list;
-            _hs_list = ::core::ptr::null_mut::<UT_hash_handle>();
-            _hs_tail = ::core::ptr::null_mut::<UT_hash_handle>();
+            _hs_list = ::core::ptr::null_mut::<UtHashHandle>();
+            _hs_tail = ::core::ptr::null_mut::<UtHashHandle>();
             _hs_nmerges = 0 as ::core::ffi::c_uint;
             while !_hs_p.is_null() {
                 _hs_nmerges = _hs_nmerges.wrapping_add(1);
@@ -3400,10 +3400,10 @@ unsafe extern "C" fn toClass(mut h: *mut *mut classifier_hash) -> *mut otl_Class
                     _hs_q = (if !(*_hs_q).next.is_null() {
                         ((*_hs_q).next as *mut ::core::ffi::c_char)
                             .offset((*(**h).hh.tbl).hho)
-                            as *mut UT_hash_handle
+                            as *mut UtHashHandle
                     } else {
-                        ::core::ptr::null_mut::<UT_hash_handle>()
-                    }) as *mut UT_hash_handle;
+                        ::core::ptr::null_mut::<UtHashHandle>()
+                    }) as *mut UtHashHandle;
                     if _hs_q.is_null() {
                         break;
                     }
@@ -3418,10 +3418,10 @@ unsafe extern "C" fn toClass(mut h: *mut *mut classifier_hash) -> *mut otl_Class
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
                                 .offset((*(**h).hh.tbl).hho)
-                                as *mut UT_hash_handle
+                                as *mut UtHashHandle
                         } else {
-                            ::core::ptr::null_mut::<UT_hash_handle>()
-                        }) as *mut UT_hash_handle;
+                            ::core::ptr::null_mut::<UtHashHandle>()
+                        }) as *mut UtHashHandle;
                         _hs_qsize = _hs_qsize.wrapping_sub(1);
                     } else if _hs_qsize == 0 as ::core::ffi::c_uint || _hs_q.is_null() {
                         _hs_e = _hs_p;
@@ -3429,19 +3429,19 @@ unsafe extern "C" fn toClass(mut h: *mut *mut classifier_hash) -> *mut otl_Class
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
                                     .offset((*(**h).hh.tbl).hho)
-                                    as *mut UT_hash_handle
+                                    as *mut UtHashHandle
                             } else {
-                                ::core::ptr::null_mut::<UT_hash_handle>()
-                            }) as *mut UT_hash_handle;
+                                ::core::ptr::null_mut::<UtHashHandle>()
+                            }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else if by_gid_clsh(
                         (_hs_p as *mut ::core::ffi::c_char).offset(-(*(**h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut classifier_hash,
+                            as *mut ClassifierHash,
                         (_hs_q as *mut ::core::ffi::c_char).offset(-(*(**h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut classifier_hash,
+                            as *mut ClassifierHash,
                     ) <= 0 as ::core::ffi::c_int
                     {
                         _hs_e = _hs_p;
@@ -3449,10 +3449,10 @@ unsafe extern "C" fn toClass(mut h: *mut *mut classifier_hash) -> *mut otl_Class
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
                                     .offset((*(**h).hh.tbl).hho)
-                                    as *mut UT_hash_handle
+                                    as *mut UtHashHandle
                             } else {
-                                ::core::ptr::null_mut::<UT_hash_handle>()
-                            }) as *mut UT_hash_handle;
+                                ::core::ptr::null_mut::<UtHashHandle>()
+                            }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else {
@@ -3460,10 +3460,10 @@ unsafe extern "C" fn toClass(mut h: *mut *mut classifier_hash) -> *mut otl_Class
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
                                 .offset((*(**h).hh.tbl).hho)
-                                as *mut UT_hash_handle
+                                as *mut UtHashHandle
                         } else {
-                            ::core::ptr::null_mut::<UT_hash_handle>()
-                        }) as *mut UT_hash_handle;
+                            ::core::ptr::null_mut::<UtHashHandle>()
+                        }) as *mut UtHashHandle;
                         _hs_qsize = _hs_qsize.wrapping_sub(1);
                     }
                     if !_hs_tail.is_null() {
@@ -3497,8 +3497,8 @@ unsafe extern "C" fn toClass(mut h: *mut *mut classifier_hash) -> *mut otl_Class
                 _hs_looping = 0 as ::core::ffi::c_uint;
                 (*(**h).hh.tbl).tail = _hs_tail;
                 *h = (_hs_list as *mut ::core::ffi::c_char).offset(-(*(**h).hh.tbl).hho)
-                    as *mut ::core::ffi::c_void as *mut classifier_hash
-                    as *mut classifier_hash;
+                    as *mut ::core::ffi::c_void as *mut ClassifierHash
+                    as *mut ClassifierHash;
             }
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
@@ -3508,31 +3508,31 @@ unsafe extern "C" fn toClass(mut h: *mut *mut classifier_hash) -> *mut otl_Class
         pushClassDef(
             cd,
             handle_fromConsolidated(
-                (*item).gid as glyphid_t, (*item).gname
-            ) as otfcc_GlyphHandle,
-            (*item).cls as glyphclass_t,
+                (*item).gid as GlyphId, (*item).gname
+            ) as GlyphHandle,
+            (*item).cls as GlyphClass,
         );
-        item = (*item).hh.next as *mut classifier_hash;
+        item = (*item).hh.next as *mut ClassifierHash;
     }
     return cd;
 }
 pub unsafe extern "C" fn tryClassifyAround(
-    mut lookup: *const otl_Lookup,
-    mut j: tableid_t,
-    mut classifiedST: *mut *mut subtable_chaining,
-) -> tableid_t {
+    mut lookup: *const Lookup,
+    mut j: TableId,
+    mut classifiedST: *mut *mut ChainingSubtable,
+) -> TableId {
     let mut current_block: u64;
-    let mut compatibleCount: tableid_t = 0 as tableid_t;
-    let mut hb: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
-    let mut hi: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
-    let mut hf: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
-    let mut subtable0: *mut subtable_chaining =
+    let mut compatibleCount: TableId = 0 as TableId;
+    let mut hb: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
+    let mut hi: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
+    let mut hf: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
+    let mut subtable0: *mut ChainingSubtable =
         &raw mut (**(*lookup).subtables.items.offset(j as isize)).chaining;
     let mut classno_b: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut classno_i: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut classno_f: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut rule0: *mut otl_ChainingRule = &raw mut (*subtable0).c2rust_unnamed.rule;
-    let mut m: tableid_t = 0 as tableid_t;
+    let mut rule0: *mut ChainingRule = &raw mut (*subtable0).c2rust_unnamed.rule;
+    let mut m: TableId = 0 as TableId;
     loop {
         if !((m as ::core::ffi::c_int) < (*rule0).matchCount as ::core::ffi::c_int) {
             current_block = 12349973810996921269;
@@ -3566,15 +3566,15 @@ pub unsafe extern "C" fn tryClassifyAround(
     }
     match current_block {
         12349973810996921269 => {
-            let mut k: tableid_t = (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as tableid_t;
+            let mut k: TableId = (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
             's_74: while (k as usize) < (*lookup).subtables.length {
-                let mut rule: *mut otl_ChainingRule =
+                let mut rule: *mut ChainingRule =
                     &raw mut (**(*lookup).subtables.items.offset(k as isize))
                         .chaining
                         .c2rust_unnamed
                         .rule;
                 let mut allcheck: bool = true;
-                let mut m_0: tableid_t = 0 as tableid_t;
+                let mut m_0: TableId = 0 as TableId;
                 while (m_0 as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
                     let mut check_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
                     if (m_0 as ::core::ffi::c_int) < (*rule).inputBegins as ::core::ffi::c_int {
@@ -3607,38 +3607,38 @@ pub unsafe extern "C" fn tryClassifyAround(
                 if allcheck {
                     compatibleCount = (compatibleCount as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
-                        as tableid_t;
+                        as TableId;
                 }
                 k = k.wrapping_add(1);
             }
             if compatibleCount as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
                 subtable0 = __caryll_allocate_clean(
-                    ::core::mem::size_of::<subtable_chaining>() as usize,
+                    ::core::mem::size_of::<ChainingSubtable>() as usize,
                     170 as ::core::ffi::c_ulong,
-                ) as *mut subtable_chaining;
+                ) as *mut ChainingSubtable;
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.rulesCount =
-                    (compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as tableid_t;
+                    (compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
-                    (::core::mem::size_of::<*mut otl_ChainingRule>() as usize).wrapping_mul(
+                    (::core::mem::size_of::<*mut ChainingRule>() as usize).wrapping_mul(
                         (compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
                     ),
                     172 as ::core::ffi::c_ulong,
                 )
-                    as *mut *mut otl_ChainingRule;
+                    as *mut *mut ChainingRule;
                 let ref mut fresh1 = *(*subtable0)
                     .c2rust_unnamed
                     .c2rust_unnamed
                     .rules
                     .offset(0 as ::core::ffi::c_int as isize);
                 *fresh1 = buildRule(rule0, hb, hi, hf);
-                let mut kk: tableid_t = 1 as tableid_t;
-                let mut k_0: tableid_t =
-                    (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as tableid_t;
+                let mut kk: TableId = 1 as TableId;
+                let mut k_0: TableId =
+                    (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
                 while (k_0 as usize) < (*lookup).subtables.length
                     && (kk as ::core::ffi::c_int)
                         < compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int
                 {
-                    let mut rule_0: *mut otl_ChainingRule =
+                    let mut rule_0: *mut ChainingRule =
                         &raw mut (**(*lookup).subtables.items.offset(k_0 as isize))
                             .chaining
                             .c2rust_unnamed
@@ -3662,38 +3662,38 @@ pub unsafe extern "C" fn tryClassifyAround(
         _ => {}
     }
     if !hb.is_null() {
-        let mut s: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
-        let mut tmp: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
+        let mut s: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
+        let mut tmp: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
         s = hb;
-        tmp = (if !hb.is_null() { (*hb).hh.next } else { NULL }) as *mut classifier_hash
-            as *mut classifier_hash;
+        tmp = (if !hb.is_null() { (*hb).hh.next } else { NULL }) as *mut ClassifierHash
+            as *mut ClassifierHash;
         while !s.is_null() {
-            let mut _hd_hh_del: *mut UT_hash_handle = &raw mut (*s).hh;
+            let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s).hh;
             if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
                 free((*(*hb).hh.tbl).buckets as *mut ::core::ffi::c_void);
                 free((*hb).hh.tbl as *mut ::core::ffi::c_void);
-                hb = ::core::ptr::null_mut::<classifier_hash>();
+                hb = ::core::ptr::null_mut::<ClassifierHash>();
             } else {
                 let mut _hd_bkt: ::core::ffi::c_uint = 0;
                 if _hd_hh_del == (*(*hb).hh.tbl).tail {
                     (*(*hb).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                         .offset((*(*hb).hh.tbl).hho)
-                        as *mut UT_hash_handle
-                        as *mut UT_hash_handle;
+                        as *mut UtHashHandle
+                        as *mut UtHashHandle;
                 }
                 if !(*_hd_hh_del).prev.is_null() {
                     let ref mut fresh3 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                         .offset((*(*hb).hh.tbl).hho)
-                        as *mut UT_hash_handle))
+                        as *mut UtHashHandle))
                         .next;
                     *fresh3 = (*_hd_hh_del).next;
                 } else {
-                    hb = (*_hd_hh_del).next as *mut classifier_hash as *mut classifier_hash;
+                    hb = (*_hd_hh_del).next as *mut ClassifierHash as *mut ClassifierHash;
                 }
                 if !(*_hd_hh_del).next.is_null() {
                     let ref mut fresh4 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
                         .offset((*(*hb).hh.tbl).hho)
-                        as *mut UT_hash_handle))
+                        as *mut UtHashHandle))
                         .prev;
                     *fresh4 = (*_hd_hh_del).prev;
                 }
@@ -3701,11 +3701,11 @@ pub unsafe extern "C" fn tryClassifyAround(
                     & (*(*hb).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _hd_head: *mut UT_hash_bucket =
-                    (*(*hb).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UT_hash_bucket;
+                let mut _hd_head: *mut UtHashBucket =
+                    (*(*hb).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UtHashBucket;
                 (*_hd_head).count = (*_hd_head).count.wrapping_sub(1);
                 if (*_hd_head).hh_head == _hd_hh_del {
-                    (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UT_hash_handle;
+                    (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UtHashHandle;
                 }
                 if !(*_hd_hh_del).hh_prev.is_null() {
                     (*(*_hd_hh_del).hh_prev).hh_next = (*_hd_hh_del).hh_next;
@@ -3716,45 +3716,45 @@ pub unsafe extern "C" fn tryClassifyAround(
                 (*(*hb).hh.tbl).num_items = (*(*hb).hh.tbl).num_items.wrapping_sub(1);
             }
             free(s as *mut ::core::ffi::c_void);
-            s = ::core::ptr::null_mut::<classifier_hash>();
+            s = ::core::ptr::null_mut::<ClassifierHash>();
             s = tmp;
-            tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut classifier_hash
-                as *mut classifier_hash;
+            tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut ClassifierHash
+                as *mut ClassifierHash;
         }
     }
     if !hi.is_null() {
-        let mut s_0: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
-        let mut tmp_0: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
+        let mut s_0: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
+        let mut tmp_0: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
         s_0 = hi;
-        tmp_0 = (if !hi.is_null() { (*hi).hh.next } else { NULL }) as *mut classifier_hash
-            as *mut classifier_hash;
+        tmp_0 = (if !hi.is_null() { (*hi).hh.next } else { NULL }) as *mut ClassifierHash
+            as *mut ClassifierHash;
         while !s_0.is_null() {
-            let mut _hd_hh_del_0: *mut UT_hash_handle = &raw mut (*s_0).hh;
+            let mut _hd_hh_del_0: *mut UtHashHandle = &raw mut (*s_0).hh;
             if (*_hd_hh_del_0).prev.is_null() && (*_hd_hh_del_0).next.is_null() {
                 free((*(*hi).hh.tbl).buckets as *mut ::core::ffi::c_void);
                 free((*hi).hh.tbl as *mut ::core::ffi::c_void);
-                hi = ::core::ptr::null_mut::<classifier_hash>();
+                hi = ::core::ptr::null_mut::<ClassifierHash>();
             } else {
                 let mut _hd_bkt_0: ::core::ffi::c_uint = 0;
                 if _hd_hh_del_0 == (*(*hi).hh.tbl).tail {
                     (*(*hi).hh.tbl).tail = ((*_hd_hh_del_0).prev as *mut ::core::ffi::c_char)
                         .offset((*(*hi).hh.tbl).hho)
-                        as *mut UT_hash_handle
-                        as *mut UT_hash_handle;
+                        as *mut UtHashHandle
+                        as *mut UtHashHandle;
                 }
                 if !(*_hd_hh_del_0).prev.is_null() {
                     let ref mut fresh5 = (*(((*_hd_hh_del_0).prev as *mut ::core::ffi::c_char)
                         .offset((*(*hi).hh.tbl).hho)
-                        as *mut UT_hash_handle))
+                        as *mut UtHashHandle))
                         .next;
                     *fresh5 = (*_hd_hh_del_0).next;
                 } else {
-                    hi = (*_hd_hh_del_0).next as *mut classifier_hash as *mut classifier_hash;
+                    hi = (*_hd_hh_del_0).next as *mut ClassifierHash as *mut ClassifierHash;
                 }
                 if !(*_hd_hh_del_0).next.is_null() {
                     let ref mut fresh6 = (*(((*_hd_hh_del_0).next as *mut ::core::ffi::c_char)
                         .offset((*(*hi).hh.tbl).hho)
-                        as *mut UT_hash_handle))
+                        as *mut UtHashHandle))
                         .prev;
                     *fresh6 = (*_hd_hh_del_0).prev;
                 }
@@ -3762,11 +3762,11 @@ pub unsafe extern "C" fn tryClassifyAround(
                     & (*(*hi).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _hd_head_0: *mut UT_hash_bucket =
-                    (*(*hi).hh.tbl).buckets.offset(_hd_bkt_0 as isize) as *mut UT_hash_bucket;
+                let mut _hd_head_0: *mut UtHashBucket =
+                    (*(*hi).hh.tbl).buckets.offset(_hd_bkt_0 as isize) as *mut UtHashBucket;
                 (*_hd_head_0).count = (*_hd_head_0).count.wrapping_sub(1);
                 if (*_hd_head_0).hh_head == _hd_hh_del_0 {
-                    (*_hd_head_0).hh_head = (*_hd_hh_del_0).hh_next as *mut UT_hash_handle;
+                    (*_hd_head_0).hh_head = (*_hd_hh_del_0).hh_next as *mut UtHashHandle;
                 }
                 if !(*_hd_hh_del_0).hh_prev.is_null() {
                     (*(*_hd_hh_del_0).hh_prev).hh_next = (*_hd_hh_del_0).hh_next;
@@ -3777,48 +3777,48 @@ pub unsafe extern "C" fn tryClassifyAround(
                 (*(*hi).hh.tbl).num_items = (*(*hi).hh.tbl).num_items.wrapping_sub(1);
             }
             free(s_0 as *mut ::core::ffi::c_void);
-            s_0 = ::core::ptr::null_mut::<classifier_hash>();
+            s_0 = ::core::ptr::null_mut::<ClassifierHash>();
             s_0 = tmp_0;
             tmp_0 = (if !tmp_0.is_null() {
                 (*tmp_0).hh.next
             } else {
                 NULL
-            }) as *mut classifier_hash as *mut classifier_hash;
+            }) as *mut ClassifierHash as *mut ClassifierHash;
         }
     }
     if !hf.is_null() {
-        let mut s_1: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
-        let mut tmp_1: *mut classifier_hash = ::core::ptr::null_mut::<classifier_hash>();
+        let mut s_1: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
+        let mut tmp_1: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
         s_1 = hf;
-        tmp_1 = (if !hf.is_null() { (*hf).hh.next } else { NULL }) as *mut classifier_hash
-            as *mut classifier_hash;
+        tmp_1 = (if !hf.is_null() { (*hf).hh.next } else { NULL }) as *mut ClassifierHash
+            as *mut ClassifierHash;
         while !s_1.is_null() {
-            let mut _hd_hh_del_1: *mut UT_hash_handle = &raw mut (*s_1).hh;
+            let mut _hd_hh_del_1: *mut UtHashHandle = &raw mut (*s_1).hh;
             if (*_hd_hh_del_1).prev.is_null() && (*_hd_hh_del_1).next.is_null() {
                 free((*(*hf).hh.tbl).buckets as *mut ::core::ffi::c_void);
                 free((*hf).hh.tbl as *mut ::core::ffi::c_void);
-                hf = ::core::ptr::null_mut::<classifier_hash>();
+                hf = ::core::ptr::null_mut::<ClassifierHash>();
             } else {
                 let mut _hd_bkt_1: ::core::ffi::c_uint = 0;
                 if _hd_hh_del_1 == (*(*hf).hh.tbl).tail {
                     (*(*hf).hh.tbl).tail = ((*_hd_hh_del_1).prev as *mut ::core::ffi::c_char)
                         .offset((*(*hf).hh.tbl).hho)
-                        as *mut UT_hash_handle
-                        as *mut UT_hash_handle;
+                        as *mut UtHashHandle
+                        as *mut UtHashHandle;
                 }
                 if !(*_hd_hh_del_1).prev.is_null() {
                     let ref mut fresh7 = (*(((*_hd_hh_del_1).prev as *mut ::core::ffi::c_char)
                         .offset((*(*hf).hh.tbl).hho)
-                        as *mut UT_hash_handle))
+                        as *mut UtHashHandle))
                         .next;
                     *fresh7 = (*_hd_hh_del_1).next;
                 } else {
-                    hf = (*_hd_hh_del_1).next as *mut classifier_hash as *mut classifier_hash;
+                    hf = (*_hd_hh_del_1).next as *mut ClassifierHash as *mut ClassifierHash;
                 }
                 if !(*_hd_hh_del_1).next.is_null() {
                     let ref mut fresh8 = (*(((*_hd_hh_del_1).next as *mut ::core::ffi::c_char)
                         .offset((*(*hf).hh.tbl).hho)
-                        as *mut UT_hash_handle))
+                        as *mut UtHashHandle))
                         .prev;
                     *fresh8 = (*_hd_hh_del_1).prev;
                 }
@@ -3826,11 +3826,11 @@ pub unsafe extern "C" fn tryClassifyAround(
                     & (*(*hf).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _hd_head_1: *mut UT_hash_bucket =
-                    (*(*hf).hh.tbl).buckets.offset(_hd_bkt_1 as isize) as *mut UT_hash_bucket;
+                let mut _hd_head_1: *mut UtHashBucket =
+                    (*(*hf).hh.tbl).buckets.offset(_hd_bkt_1 as isize) as *mut UtHashBucket;
                 (*_hd_head_1).count = (*_hd_head_1).count.wrapping_sub(1);
                 if (*_hd_head_1).hh_head == _hd_hh_del_1 {
-                    (*_hd_head_1).hh_head = (*_hd_hh_del_1).hh_next as *mut UT_hash_handle;
+                    (*_hd_head_1).hh_head = (*_hd_hh_del_1).hh_next as *mut UtHashHandle;
                 }
                 if !(*_hd_hh_del_1).hh_prev.is_null() {
                     (*(*_hd_hh_del_1).hh_prev).hh_next = (*_hd_hh_del_1).hh_next;
@@ -3841,46 +3841,46 @@ pub unsafe extern "C" fn tryClassifyAround(
                 (*(*hf).hh.tbl).num_items = (*(*hf).hh.tbl).num_items.wrapping_sub(1);
             }
             free(s_1 as *mut ::core::ffi::c_void);
-            s_1 = ::core::ptr::null_mut::<classifier_hash>();
+            s_1 = ::core::ptr::null_mut::<ClassifierHash>();
             s_1 = tmp_1;
             tmp_1 = (if !tmp_1.is_null() {
                 (*tmp_1).hh.next
             } else {
                 NULL
-            }) as *mut classifier_hash as *mut classifier_hash;
+            }) as *mut ClassifierHash as *mut ClassifierHash;
         }
     }
     if compatibleCount as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
         return compatibleCount;
     } else {
-        return 0 as tableid_t;
+        return 0 as TableId;
     };
 }
 pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
-    mut lookup: *const otl_Lookup,
-    mut subtableBuffers: *mut *mut *mut caryll_Buffer,
+    mut lookup: *const Lookup,
+    mut subtableBuffers: *mut *mut *mut Buffer,
     mut lastOffset: *mut usize,
-) -> tableid_t {
+) -> TableId {
     let mut isContextual: bool = otfcc_chainingLookupIsContextualLookup(lookup);
-    let mut subtablesWritten: tableid_t = 0 as tableid_t;
+    let mut subtablesWritten: TableId = 0 as TableId;
     *subtableBuffers = __caryll_allocate_clean(
-        (::core::mem::size_of::<*mut caryll_Buffer>() as usize)
+        (::core::mem::size_of::<*mut Buffer>() as usize)
             .wrapping_mul((*lookup).subtables.length),
         223 as ::core::ffi::c_ulong,
-    ) as *mut *mut caryll_Buffer;
-    let mut j: tableid_t = 0 as tableid_t;
+    ) as *mut *mut Buffer;
+    let mut j: TableId = 0 as TableId;
     while (j as usize) < (*lookup).subtables.length {
-        let mut st0: *mut subtable_chaining =
+        let mut st0: *mut ChainingSubtable =
             &raw mut (**(*lookup).subtables.items.offset(j as isize)).chaining;
         if !((*st0).type_0 as u64 != 0) {
-            let mut st: *mut subtable_chaining = st0;
+            let mut st: *mut ChainingSubtable = st0;
             j = (j as ::core::ffi::c_int
                 + tryClassifyAround(lookup, j, &raw mut st) as ::core::ffi::c_int)
-                as tableid_t;
-            let mut buf: *mut caryll_Buffer = if isContextual as ::core::ffi::c_int != 0 {
-                otfcc_build_contextual(st as *mut otl_Subtable)
+                as TableId;
+            let mut buf: *mut Buffer = if isContextual as ::core::ffi::c_int != 0 {
+                otfcc_build_contextual(st as *mut Subtable)
             } else {
-                otfcc_build_chaining(st as *mut otl_Subtable)
+                otfcc_build_chaining(st as *mut Subtable)
             };
             if st != st0 {
                 iSubtable_chaining.free.expect("non-null function pointer")(st);
@@ -3889,7 +3889,7 @@ pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
             *fresh0 = buf;
             *lastOffset = (*lastOffset).wrapping_add((*buf).size);
             subtablesWritten =
-                (subtablesWritten as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as tableid_t;
+                (subtablesWritten as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
         }
         j = j.wrapping_add(1);
     }

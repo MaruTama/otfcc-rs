@@ -1,9 +1,9 @@
-use crate::support::primitives::{arity_t};
-use crate::libcff::cff_charset::{cff_Charset};
-use crate::libcff::cff_parser::{cff_EncodingType};
-use crate::libcff::cff_fdselect::{cff_FDSelect};
-use crate::libcff::cff_index::{cff_Index};
-use crate::libcff::cff_value::{cff_Value};
+use crate::support::primitives::{Arity};
+use crate::libcff::cff_charset::{CffCharset};
+use crate::libcff::cff_parser::{CffEncodingType};
+use crate::libcff::cff_fdselect::{CffFdSelect};
+use crate::libcff::cff_index::{CffIndex};
+use crate::libcff::cff_value::{CffValue};
 pub mod cff_charset;
 pub mod cff_codecs;
 pub mod cff_dict;
@@ -21,231 +21,231 @@ pub mod subr;
 /// `12 << 8 | b` for the two-byte operators the spec escapes with 12.
 ///
 /// `i32` because that is what these are compared against -- a decoded operator
-/// arrives as [`cff_Value`](crate::libcff::cff_value::cff_Value)'s integer arm
+/// arrives as [`CffValue`](crate::libcff::cff_value::CffValue)'s integer arm
 /// -- and because they are numbers, not a closed set: nothing enumerates them,
 /// and an operator otfcc does not know simply matches no arm.
 ///
-/// **Not interchangeable with [`cff_CharstringOperator`]**, even though both are
+/// **Not interchangeable with [`CffCharstringOperator`]**, even though both are
 /// `i32`: 38 of the numbers mean one thing in a DICT and something else in a
 /// CharString (`op_Notice` and `op_hstem` are both 1, `op_FDArray` and
 /// `op_hflex1` are both 3108). The names are all distinct and the two sets are
 /// used by disjoint code, but the compiler cannot tell them apart while they are
 /// aliases. Making them newtypes would -- see rust/README.md's next steps.
-pub type cff_DictOperator = i32;
+pub type CffDictOperator = i32;
 
-pub const op_FontName: cff_DictOperator = 3110;
+pub const op_FontName: CffDictOperator = 3110;
 
-pub const op_FDSelect: cff_DictOperator = 3109;
+pub const op_FDSelect: CffDictOperator = 3109;
 
-pub const op_FDArray: cff_DictOperator = 3108;
+pub const op_FDArray: CffDictOperator = 3108;
 
-pub const op_UIDBase: cff_DictOperator = 3107;
+pub const op_UIDBase: CffDictOperator = 3107;
 
-pub const op_CIDCount: cff_DictOperator = 3106;
+pub const op_CIDCount: CffDictOperator = 3106;
 
-pub const op_CIDFontType: cff_DictOperator = 3105;
+pub const op_CIDFontType: CffDictOperator = 3105;
 
-pub const op_CIDFontRevision: cff_DictOperator = 3104;
+pub const op_CIDFontRevision: CffDictOperator = 3104;
 
-pub const op_CIDFontVersion: cff_DictOperator = 3103;
+pub const op_CIDFontVersion: CffDictOperator = 3103;
 
-pub const op_ROS: cff_DictOperator = 3102;
+pub const op_ROS: CffDictOperator = 3102;
 
-pub const op_maxstack: cff_DictOperator = 25;
+pub const op_maxstack: CffDictOperator = 25;
 
-pub const op_vstore: cff_DictOperator = 24;
+pub const op_vstore: CffDictOperator = 24;
 
-pub const op_BaseFontBlend: cff_DictOperator = 3095;
+pub const op_BaseFontBlend: CffDictOperator = 3095;
 
-pub const op_blend: cff_DictOperator = 23;
+pub const op_blend: CffDictOperator = 23;
 
-pub const op_BaseFontName: cff_DictOperator = 3094;
+pub const op_BaseFontName: CffDictOperator = 3094;
 
-pub const op_vsindex: cff_DictOperator = 22;
+pub const op_vsindex: CffDictOperator = 22;
 
-pub const op_PostScript: cff_DictOperator = 3093;
+pub const op_PostScript: CffDictOperator = 3093;
 
-pub const op_nominalWidthX: cff_DictOperator = 21;
+pub const op_nominalWidthX: CffDictOperator = 21;
 
-pub const op_SyntheicBase: cff_DictOperator = 3092;
+pub const op_SyntheicBase: CffDictOperator = 3092;
 
-pub const op_defaultWidthX: cff_DictOperator = 20;
+pub const op_defaultWidthX: CffDictOperator = 20;
 
-pub const op_initialRandomSeed: cff_DictOperator = 3091;
+pub const op_initialRandomSeed: CffDictOperator = 3091;
 
-pub const op_Subrs: cff_DictOperator = 19;
+pub const op_Subrs: CffDictOperator = 19;
 
-pub const op_ExpansionFactor: cff_DictOperator = 3090;
+pub const op_ExpansionFactor: CffDictOperator = 3090;
 
-pub const op_Private: cff_DictOperator = 18;
+pub const op_Private: CffDictOperator = 18;
 
-pub const op_LanguageGroup: cff_DictOperator = 3089;
+pub const op_LanguageGroup: CffDictOperator = 3089;
 
-pub const op_CharStrings: cff_DictOperator = 17;
+pub const op_CharStrings: CffDictOperator = 17;
 
-pub const op_Encoding: cff_DictOperator = 16;
+pub const op_Encoding: CffDictOperator = 16;
 
-pub const op_charset: cff_DictOperator = 15;
+pub const op_charset: CffDictOperator = 15;
 
-pub const op_ForceBold: cff_DictOperator = 3086;
+pub const op_ForceBold: CffDictOperator = 3086;
 
-pub const op_XUID: cff_DictOperator = 14;
+pub const op_XUID: CffDictOperator = 14;
 
-pub const op_StemSnapV: cff_DictOperator = 3085;
+pub const op_StemSnapV: CffDictOperator = 3085;
 
-pub const op_UniqueID: cff_DictOperator = 13;
+pub const op_UniqueID: CffDictOperator = 13;
 
-pub const op_StemSnapH: cff_DictOperator = 3084;
+pub const op_StemSnapH: CffDictOperator = 3084;
 
-pub const op_BlueFuzz: cff_DictOperator = 3083;
+pub const op_BlueFuzz: CffDictOperator = 3083;
 
-pub const op_StdVW: cff_DictOperator = 11;
+pub const op_StdVW: CffDictOperator = 11;
 
-pub const op_BlueShift: cff_DictOperator = 3082;
+pub const op_BlueShift: CffDictOperator = 3082;
 
-pub const op_StdHW: cff_DictOperator = 10;
+pub const op_StdHW: CffDictOperator = 10;
 
-pub const op_BlueScale: cff_DictOperator = 3081;
+pub const op_BlueScale: CffDictOperator = 3081;
 
-pub const op_FamilyOtherBlues: cff_DictOperator = 9;
+pub const op_FamilyOtherBlues: CffDictOperator = 9;
 
-pub const op_StrokeWidth: cff_DictOperator = 3080;
+pub const op_StrokeWidth: CffDictOperator = 3080;
 
-pub const op_FamilyBlues: cff_DictOperator = 8;
+pub const op_FamilyBlues: CffDictOperator = 8;
 
-pub const op_FontMatrix: cff_DictOperator = 3079;
+pub const op_FontMatrix: CffDictOperator = 3079;
 
-pub const op_OtherBlues: cff_DictOperator = 7;
+pub const op_OtherBlues: CffDictOperator = 7;
 
-pub const op_CharstringType: cff_DictOperator = 3078;
+pub const op_CharstringType: CffDictOperator = 3078;
 
-pub const op_BlueValues: cff_DictOperator = 6;
+pub const op_BlueValues: CffDictOperator = 6;
 
-pub const op_PaintType: cff_DictOperator = 3077;
+pub const op_PaintType: CffDictOperator = 3077;
 
-pub const op_FontBBox: cff_DictOperator = 5;
+pub const op_FontBBox: CffDictOperator = 5;
 
-pub const op_UnderlineThickness: cff_DictOperator = 3076;
+pub const op_UnderlineThickness: CffDictOperator = 3076;
 
-pub const op_Weight: cff_DictOperator = 4;
+pub const op_Weight: CffDictOperator = 4;
 
-pub const op_UnderlinePosition: cff_DictOperator = 3075;
+pub const op_UnderlinePosition: CffDictOperator = 3075;
 
-pub const op_FamilyName: cff_DictOperator = 3;
+pub const op_FamilyName: CffDictOperator = 3;
 
-pub const op_ItalicAngle: cff_DictOperator = 3074;
+pub const op_ItalicAngle: CffDictOperator = 3074;
 
-pub const op_FullName: cff_DictOperator = 2;
+pub const op_FullName: CffDictOperator = 2;
 
-pub const op_isFixedPitch: cff_DictOperator = 3073;
+pub const op_isFixedPitch: CffDictOperator = 3073;
 
-pub const op_Notice: cff_DictOperator = 1;
+pub const op_Notice: CffDictOperator = 1;
 
-pub const op_Copyright: cff_DictOperator = 3072;
+pub const op_Copyright: CffDictOperator = 3072;
 
-pub const op_version: cff_DictOperator = 0;
+pub const op_version: CffDictOperator = 0;
 
-/// A Type 2 CharString operator, encoded like [`cff_DictOperator`] and, as noted
+/// A Type 2 CharString operator, encoded like [`CffDictOperator`] and, as noted
 /// there, sharing 38 of its numbers while meaning something else by them.
-pub type cff_CharstringOperator = i32;
+pub type CffCharstringOperator = i32;
 
-pub const op_flex1: cff_CharstringOperator = 3109;
+pub const op_flex1: CffCharstringOperator = 3109;
 
-pub const op_hflex1: cff_CharstringOperator = 3108;
+pub const op_hflex1: CffCharstringOperator = 3108;
 
-pub const op_flex: cff_CharstringOperator = 3107;
+pub const op_flex: CffCharstringOperator = 3107;
 
-pub const op_hflex: cff_CharstringOperator = 3106;
+pub const op_hflex: CffCharstringOperator = 3106;
 
-pub const op_hvcurveto: cff_CharstringOperator = 31;
+pub const op_hvcurveto: CffCharstringOperator = 31;
 
-pub const op_roll: cff_CharstringOperator = 3102;
+pub const op_roll: CffCharstringOperator = 3102;
 
-pub const op_vhcurveto: cff_CharstringOperator = 30;
+pub const op_vhcurveto: CffCharstringOperator = 30;
 
-pub const op_index: cff_CharstringOperator = 3101;
+pub const op_index: CffCharstringOperator = 3101;
 
-pub const op_callgsubr: cff_CharstringOperator = 29;
+pub const op_callgsubr: CffCharstringOperator = 29;
 
-pub const op_exch: cff_CharstringOperator = 3100;
+pub const op_exch: CffCharstringOperator = 3100;
 
-pub const op_dup: cff_CharstringOperator = 3099;
+pub const op_dup: CffCharstringOperator = 3099;
 
-pub const op_hhcurveto: cff_CharstringOperator = 27;
+pub const op_hhcurveto: CffCharstringOperator = 27;
 
-pub const op_sqrt: cff_CharstringOperator = 3098;
+pub const op_sqrt: CffCharstringOperator = 3098;
 
-pub const op_vvcurveto: cff_CharstringOperator = 26;
+pub const op_vvcurveto: CffCharstringOperator = 26;
 
-pub const op_rlinecurve: cff_CharstringOperator = 25;
+pub const op_rlinecurve: CffCharstringOperator = 25;
 
-pub const op_mul: cff_CharstringOperator = 3096;
+pub const op_mul: CffCharstringOperator = 3096;
 
-pub const op_rcurveline: cff_CharstringOperator = 24;
+pub const op_rcurveline: CffCharstringOperator = 24;
 
-pub const op_random: cff_CharstringOperator = 3095;
+pub const op_random: CffCharstringOperator = 3095;
 
-pub const op_vstemhm: cff_CharstringOperator = 23;
+pub const op_vstemhm: CffCharstringOperator = 23;
 
-pub const op_ifelse: cff_CharstringOperator = 3094;
+pub const op_ifelse: CffCharstringOperator = 3094;
 
-pub const op_hmoveto: cff_CharstringOperator = 22;
+pub const op_hmoveto: CffCharstringOperator = 22;
 
-pub const op_get: cff_CharstringOperator = 3093;
+pub const op_get: CffCharstringOperator = 3093;
 
-pub const op_rmoveto: cff_CharstringOperator = 21;
+pub const op_rmoveto: CffCharstringOperator = 21;
 
-pub const op_put: cff_CharstringOperator = 3092;
+pub const op_put: CffCharstringOperator = 3092;
 
-pub const op_cntrmask: cff_CharstringOperator = 20;
+pub const op_cntrmask: CffCharstringOperator = 20;
 
-pub const op_hintmask: cff_CharstringOperator = 19;
+pub const op_hintmask: CffCharstringOperator = 19;
 
-pub const op_drop: cff_CharstringOperator = 3090;
+pub const op_drop: CffCharstringOperator = 3090;
 
-pub const op_hstemhm: cff_CharstringOperator = 18;
+pub const op_hstemhm: CffCharstringOperator = 18;
 
-pub const op_cff2blend: cff_CharstringOperator = 16;
+pub const op_cff2blend: CffCharstringOperator = 16;
 
-pub const op_eq: cff_CharstringOperator = 3087;
+pub const op_eq: CffCharstringOperator = 3087;
 
-pub const op_cff2vsidx: cff_CharstringOperator = 15;
+pub const op_cff2vsidx: CffCharstringOperator = 15;
 
-pub const op_neg: cff_CharstringOperator = 3086;
+pub const op_neg: CffCharstringOperator = 3086;
 
-pub const op_endchar: cff_CharstringOperator = 14;
+pub const op_endchar: CffCharstringOperator = 14;
 
-pub const op_div: cff_CharstringOperator = 3084;
+pub const op_div: CffCharstringOperator = 3084;
 
-pub const op_sub: cff_CharstringOperator = 3083;
+pub const op_sub: CffCharstringOperator = 3083;
 
-pub const op_return: cff_CharstringOperator = 11;
+pub const op_return: CffCharstringOperator = 11;
 
-pub const op_add: cff_CharstringOperator = 3082;
+pub const op_add: CffCharstringOperator = 3082;
 
-pub const op_callsubr: cff_CharstringOperator = 10;
+pub const op_callsubr: CffCharstringOperator = 10;
 
-pub const op_abs: cff_CharstringOperator = 3081;
+pub const op_abs: CffCharstringOperator = 3081;
 
-pub const op_rrcurveto: cff_CharstringOperator = 8;
+pub const op_rrcurveto: CffCharstringOperator = 8;
 
-pub const op_vlineto: cff_CharstringOperator = 7;
+pub const op_vlineto: CffCharstringOperator = 7;
 
-pub const op_hlineto: cff_CharstringOperator = 6;
+pub const op_hlineto: CffCharstringOperator = 6;
 
-pub const op_not: cff_CharstringOperator = 3077;
+pub const op_not: CffCharstringOperator = 3077;
 
-pub const op_rlineto: cff_CharstringOperator = 5;
+pub const op_rlineto: CffCharstringOperator = 5;
 
-pub const op_or: cff_CharstringOperator = 3076;
+pub const op_or: CffCharstringOperator = 3076;
 
-pub const op_vmoveto: cff_CharstringOperator = 4;
+pub const op_vmoveto: CffCharstringOperator = 4;
 
-pub const op_and: cff_CharstringOperator = 3075;
+pub const op_and: CffCharstringOperator = 3075;
 
-pub const op_vstem: cff_CharstringOperator = 3;
+pub const op_vstem: CffCharstringOperator = 3;
 
-pub const op_hstem: cff_CharstringOperator = 1;
+pub const op_hstem: CffCharstringOperator = 1;
 
 // The Type 2 charstring spec's implementation limits. C gave them a
 // `cff_Type2Limits` type of their own, but they are not a set of anything --
@@ -254,7 +254,7 @@ pub const op_hstem: cff_CharstringOperator = 1;
 // the casts at the fifteen sites that use them. `type2_charstring_len` and
 // `type2_stem_hints` are the two otfcc never checks; they stay because the
 // spec's table is easier to verify whole than with holes in it.
-/// Size of [`cff_Stack::transient`], which it declares -- so the modulus that
+/// Size of [`CffStack::transient`], which it declares -- so the modulus that
 /// wraps an index into that array cannot drift from the array itself.
 pub const type2_transient_array: usize = 32;
 pub const type2_max_subrs: u32 = 65300;
@@ -265,7 +265,7 @@ pub const type2_argument_stack: u32 = 48;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_Header {
+pub struct CffHeader {
     pub major: u8,
     pub minor: u8,
     pub hdrSize: u8,
@@ -274,7 +274,7 @@ pub struct cff_Header {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_EncodingFormat0 {
+pub struct CffEncodingFormat0 {
     pub format: u8,
     pub ncodes: u8,
     pub code: *mut u8,
@@ -282,80 +282,80 @@ pub struct cff_EncodingFormat0 {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_EncodingRangeFormat1 {
+pub struct CffEncodingRangeFormat1 {
     pub first: u8,
     pub nleft: u8,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_EncodingFormat1 {
+pub struct CffEncodingFormat1 {
     pub format: u8,
     pub nranges: u8,
-    pub range1: *mut cff_EncodingRangeFormat1,
+    pub range1: *mut CffEncodingRangeFormat1,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_EncodingSupplement {
+pub struct CffEncodingSupplement {
     pub code: u8,
     pub glyph: u16,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_EncodingNS {
+pub struct CffEncodingNs {
     pub nsup: u8,
-    pub supplement: *mut cff_EncodingSupplement,
+    pub supplement: *mut CffEncodingSupplement,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_Encoding {
-    pub t: cff_EncodingType,
-    pub c2rust_unnamed: cff_EncodingBody,
+pub struct CffEncoding {
+    pub t: CffEncodingType,
+    pub c2rust_unnamed: CffEncodingBody,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union cff_EncodingBody {
-    pub f0: cff_EncodingFormat0,
-    pub f1: cff_EncodingFormat1,
-    pub ns: cff_EncodingNS,
+pub union CffEncodingBody {
+    pub f0: CffEncodingFormat0,
+    pub f1: CffEncodingFormat1,
+    pub ns: CffEncodingNs,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_Stack {
-    pub stack: *mut cff_Value,
-    pub transient: [cff_Value; type2_transient_array],
-    pub index: arity_t,
-    pub max: arity_t,
+pub struct CffStack {
+    pub stack: *mut CffValue,
+    pub transient: [CffValue; type2_transient_array],
+    pub index: Arity,
+    pub max: Arity,
     pub stem: u8,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_File {
+pub struct CffFile {
     pub raw_data: *mut u8,
     pub raw_length: u32,
     pub cnt_glyph: u16,
-    pub head: cff_Header,
-    pub name: cff_Index,
-    pub top_dict: cff_Index,
-    pub string: cff_Index,
-    pub global_subr: cff_Index,
-    pub encodings: cff_Encoding,
-    pub charsets: cff_Charset,
-    pub fdselect: cff_FDSelect,
-    pub char_strings: cff_Index,
-    pub font_dict: cff_Index,
-    pub local_subr: cff_Index,
+    pub head: CffHeader,
+    pub name: CffIndex,
+    pub top_dict: CffIndex,
+    pub string: CffIndex,
+    pub global_subr: CffIndex,
+    pub encodings: CffEncoding,
+    pub charsets: CffCharset,
+    pub fdselect: CffFdSelect,
+    pub char_strings: CffIndex,
+    pub font_dict: CffIndex,
+    pub local_subr: CffIndex,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_IOutlineBuilder {
+pub struct CffIOutlineBuilder {
     pub setWidth:
         Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> ()>,
     pub newContour: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ()>,

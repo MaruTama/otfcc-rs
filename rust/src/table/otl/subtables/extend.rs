@@ -8,32 +8,32 @@ use libc::{free};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{font_file_pointer, glyphid_t};
+use crate::support::options::{Options};
+use crate::support::primitives::{FontFilePointer, GlyphId};
 
-use crate::table::otl::{otl_LookupType, otl_Subtable, otl_type_gpos_unknown, otl_type_gsub_unknown, subtable_extend};
+use crate::table::otl::{LookupType, Subtable, otl_type_gpos_unknown, otl_type_gsub_unknown, ExtendSubtable};
 use crate::table::otl::read::{otfcc_readOtl_subtable};
 
 unsafe extern "C" fn _caryll_read_otl_extend(
-    mut data: font_file_pointer,
+    mut data: FontFilePointer,
     mut tableLength: u32,
     mut subtableOffset: u32,
-    mut BASIS: otl_LookupType,
-    maxGlyphs: glyphid_t,
-    mut options: *const otfcc_Options,
-) -> *mut otl_Subtable {
-    let mut subtable: *mut subtable_extend = ::core::ptr::null_mut::<subtable_extend>();
-    let mut _subtable: *mut otl_Subtable = ::core::ptr::null_mut::<otl_Subtable>();
+    mut BASIS: LookupType,
+    maxGlyphs: GlyphId,
+    mut options: *const Options,
+) -> *mut Subtable {
+    let mut subtable: *mut ExtendSubtable = ::core::ptr::null_mut::<ExtendSubtable>();
+    let mut _subtable: *mut Subtable = ::core::ptr::null_mut::<Subtable>();
     _subtable = __caryll_allocate_clean(
-        ::core::mem::size_of::<otl_Subtable>() as usize,
+        ::core::mem::size_of::<Subtable>() as usize,
         10 as ::core::ffi::c_ulong,
-    ) as *mut otl_Subtable;
+    ) as *mut Subtable;
     if tableLength < subtableOffset.wrapping_add(8 as u32) {
         free(_subtable as *mut ::core::ffi::c_void);
-        _subtable = ::core::ptr::null_mut::<otl_Subtable>();
+        _subtable = ::core::ptr::null_mut::<Subtable>();
     } else {
         subtable = &raw mut (*_subtable).extend;
-        (*subtable).type_0 = otl_LookupType::from_file(
+        (*subtable).type_0 = LookupType::from_file(
             BASIS,
             read_16u(
                 data.offset(subtableOffset as isize)
@@ -50,17 +50,17 @@ unsafe extern "C" fn _caryll_read_otl_extend(
             (*subtable).type_0,
             maxGlyphs,
             options,
-        ) as *mut otl_Subtable;
+        ) as *mut Subtable;
     }
     return _subtable;
 }
 pub unsafe extern "C" fn otfcc_readOtl_gsub_extend(
-    mut data: font_file_pointer,
+    mut data: FontFilePointer,
     mut tableLength: u32,
     mut subtableOffset: u32,
-    maxGlyphs: glyphid_t,
-    mut options: *const otfcc_Options,
-) -> *mut otl_Subtable {
+    maxGlyphs: GlyphId,
+    mut options: *const Options,
+) -> *mut Subtable {
     return _caryll_read_otl_extend(
         data,
         tableLength,
@@ -71,12 +71,12 @@ pub unsafe extern "C" fn otfcc_readOtl_gsub_extend(
     );
 }
 pub unsafe extern "C" fn otfcc_readOtl_gpos_extend(
-    mut data: font_file_pointer,
+    mut data: FontFilePointer,
     mut tableLength: u32,
     mut subtableOffset: u32,
-    maxGlyphs: glyphid_t,
-    mut options: *const otfcc_Options,
-) -> *mut otl_Subtable {
+    maxGlyphs: GlyphId,
+    mut options: *const Options,
+) -> *mut Subtable {
     return _caryll_read_otl_extend(
         data,
         tableLength,

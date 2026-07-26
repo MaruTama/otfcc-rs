@@ -2,16 +2,16 @@
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint, json_obj_getsds, json_obj_getstr_share};
 use crate::support::binio::{read_16u, read_32u};
-use crate::logger::{otfcc_ILogger};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{font_file_pointer, glyphid_t};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
-use crate::vendor::json::{json_array, json_object, json_value};
+use crate::logger::{ILogger};
+use crate::support::buffer::{Buffer};
+use crate::support::options::{Options};
+use crate::support::primitives::{FontFilePointer, GlyphId};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::json::{json_array, json_object, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
-use crate::support::{__compar_fn_t};
+use crate::bk::bkblock::{b16, b32, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::support::{ComparFn};
 use crate::bk::bkblock::{bk_newBlockFromBufferCopy};
 use crate::bk::bkgraph::{bk_build_Block};
 use crate::support::base64::{base64_encode};
@@ -21,93 +21,93 @@ use crate::vendor::sds::{sdsempty, sdsfree};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct svg_Assignment {
-    pub start: glyphid_t,
-    pub end: glyphid_t,
-    pub document: *mut caryll_Buffer,
+pub struct SvgAssignment {
+    pub start: GlyphId,
+    pub end: GlyphId,
+    pub document: *mut Buffer,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_svg_Assignment {
-    pub init: Option<unsafe extern "C" fn(*mut svg_Assignment) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut svg_Assignment, *const svg_Assignment) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut svg_Assignment, *mut svg_Assignment) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut svg_Assignment) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut svg_Assignment, svg_Assignment) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut svg_Assignment, svg_Assignment) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> svg_Assignment>,
-    pub dup: Option<unsafe extern "C" fn(svg_Assignment) -> svg_Assignment>,
+pub struct SvgAssignmentElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut SvgAssignment) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut SvgAssignment, *const SvgAssignment) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut SvgAssignment, *mut SvgAssignment) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut SvgAssignment) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> ()>,
+    pub empty: Option<unsafe extern "C" fn() -> SvgAssignment>,
+    pub dup: Option<unsafe extern "C" fn(SvgAssignment) -> SvgAssignment>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct table_SVG {
+pub struct SvgTable {
     pub length: usize,
     pub capacity: usize,
-    pub items: *mut svg_Assignment,
+    pub items: *mut SvgAssignment,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_vectorinterface_table_SVG {
-    pub init: Option<unsafe extern "C" fn(*mut table_SVG) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_SVG, *const table_SVG) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_SVG, *mut table_SVG) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_SVG) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_SVG, table_SVG) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_SVG, table_SVG) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_SVG>,
-    pub free: Option<unsafe extern "C" fn(*mut table_SVG) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut table_SVG, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut table_SVG, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut table_SVG>,
-    pub fill: Option<unsafe extern "C" fn(*mut table_SVG, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut table_SVG) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut table_SVG, svg_Assignment) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut table_SVG) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut table_SVG) -> svg_Assignment>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut table_SVG, usize) -> ()>,
+pub struct SvgTableVectorInterface {
+    pub init: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut SvgTable, *const SvgTable) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut SvgTable, *mut SvgTable) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut SvgTable, SvgTable) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut SvgTable, SvgTable) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut SvgTable>,
+    pub free: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut SvgTable>,
+    pub fill: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
+    pub clear: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
+    pub push: Option<unsafe extern "C" fn(*mut SvgTable, SvgAssignment) -> ()>,
+    pub shrinkToFit: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
+    pub pop: Option<unsafe extern "C" fn(*mut SvgTable) -> SvgAssignment>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
-            *mut table_SVG,
-            Option<unsafe extern "C" fn(*const svg_Assignment, *mut ::core::ffi::c_void) -> bool>,
+            *mut SvgTable,
+            Option<unsafe extern "C" fn(*const SvgAssignment, *mut ::core::ffi::c_void) -> bool>,
             *mut ::core::ffi::c_void,
         ) -> (),
     >,
     pub sort: Option<
         unsafe extern "C" fn(
-            *mut table_SVG,
+            *mut SvgTable,
             Option<
                 unsafe extern "C" fn(
-                    *const svg_Assignment,
-                    *const svg_Assignment,
+                    *const SvgAssignment,
+                    *const SvgAssignment,
                 ) -> ::core::ffi::c_int,
             >,
         ) -> (),
     >,
 }
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> usize {
+unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut sdshdr8))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut SdsHdr8))
                 .len as usize;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .len as usize;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .len as usize;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .len as usize;
         }
         _ => {}
@@ -115,17 +115,17 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     return 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn initSVGAssigment(mut a: *mut svg_Assignment) {
+unsafe extern "C" fn initSVGAssigment(mut a: *mut SvgAssignment) {
     memset(
         a as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<svg_Assignment>() as usize,
+        ::core::mem::size_of::<SvgAssignment>() as usize,
     );
 }
 #[inline]
 unsafe extern "C" fn copySVGAssigment(
-    mut dst: *mut svg_Assignment,
-    mut src: *const svg_Assignment,
+    mut dst: *mut SvgAssignment,
+    mut src: *const SvgAssignment,
 ) {
     (*dst).start = (*src).start;
     (*dst).end = (*src).end;
@@ -133,143 +133,143 @@ unsafe extern "C" fn copySVGAssigment(
     bufwrite_buf((*dst).document, (*src).document);
 }
 #[inline]
-unsafe extern "C" fn disposeSVGAssignment(mut a: *mut svg_Assignment) {
+unsafe extern "C" fn disposeSVGAssignment(mut a: *mut SvgAssignment) {
     buffree((*a).document);
 }
 #[inline]
 unsafe extern "C" fn svg_Assignment_move(
-    mut dst: *mut svg_Assignment,
-    mut src: *mut svg_Assignment,
+    mut dst: *mut SvgAssignment,
+    mut src: *mut SvgAssignment,
 ) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<svg_Assignment>() as usize,
+        ::core::mem::size_of::<SvgAssignment>() as usize,
     );
     svg_Assignment_init(src);
 }
 #[inline]
-unsafe extern "C" fn svg_Assignment_replace(mut dst: *mut svg_Assignment, src: svg_Assignment) {
+unsafe extern "C" fn svg_Assignment_replace(mut dst: *mut SvgAssignment, src: SvgAssignment) {
     svg_Assignment_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<svg_Assignment>() as usize,
+        ::core::mem::size_of::<SvgAssignment>() as usize,
     );
 }
-pub static svg_iAssignment: __caryll_elementinterface_svg_Assignment = {
-    __caryll_elementinterface_svg_Assignment {
-        init: Some(svg_Assignment_init as unsafe extern "C" fn(*mut svg_Assignment) -> ()),
+pub static svg_iAssignment: SvgAssignmentElementInterface = {
+    SvgAssignmentElementInterface {
+        init: Some(svg_Assignment_init as unsafe extern "C" fn(*mut SvgAssignment) -> ()),
         copy: Some(
             svg_Assignment_copy
-                as unsafe extern "C" fn(*mut svg_Assignment, *const svg_Assignment) -> (),
+                as unsafe extern "C" fn(*mut SvgAssignment, *const SvgAssignment) -> (),
         ),
         move_0: Some(
             svg_Assignment_move
-                as unsafe extern "C" fn(*mut svg_Assignment, *mut svg_Assignment) -> (),
+                as unsafe extern "C" fn(*mut SvgAssignment, *mut SvgAssignment) -> (),
         ),
-        dispose: Some(svg_Assignment_dispose as unsafe extern "C" fn(*mut svg_Assignment) -> ()),
+        dispose: Some(svg_Assignment_dispose as unsafe extern "C" fn(*mut SvgAssignment) -> ()),
         replace: Some(
             svg_Assignment_replace
-                as unsafe extern "C" fn(*mut svg_Assignment, svg_Assignment) -> (),
+                as unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> (),
         ),
         copyReplace: Some(
             svg_Assignment_copyReplace
-                as unsafe extern "C" fn(*mut svg_Assignment, svg_Assignment) -> (),
+                as unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> (),
         ),
         empty: Some(svg_Assignment_empty),
-        dup: Some(svg_Assignment_dup as unsafe extern "C" fn(svg_Assignment) -> svg_Assignment),
+        dup: Some(svg_Assignment_dup as unsafe extern "C" fn(SvgAssignment) -> SvgAssignment),
     }
 };
 #[inline]
-unsafe extern "C" fn svg_Assignment_empty() -> svg_Assignment {
-    let mut x: svg_Assignment = svg_Assignment {
+unsafe extern "C" fn svg_Assignment_empty() -> SvgAssignment {
+    let mut x: SvgAssignment = SvgAssignment {
         start: 0,
         end: 0,
-        document: ::core::ptr::null_mut::<caryll_Buffer>(),
+        document: ::core::ptr::null_mut::<Buffer>(),
     };
     svg_Assignment_init(&raw mut x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn svg_Assignment_init(mut x: *mut svg_Assignment) {
+unsafe extern "C" fn svg_Assignment_init(mut x: *mut SvgAssignment) {
     initSVGAssigment(x);
 }
 #[inline]
-unsafe extern "C" fn svg_Assignment_dup(src: svg_Assignment) -> svg_Assignment {
-    let mut dst: svg_Assignment = svg_Assignment {
+unsafe extern "C" fn svg_Assignment_dup(src: SvgAssignment) -> SvgAssignment {
+    let mut dst: SvgAssignment = SvgAssignment {
         start: 0,
         end: 0,
-        document: ::core::ptr::null_mut::<caryll_Buffer>(),
+        document: ::core::ptr::null_mut::<Buffer>(),
     };
     svg_Assignment_copy(&raw mut dst, &raw const src);
     return dst;
 }
 #[inline]
-unsafe extern "C" fn svg_Assignment_copyReplace(mut dst: *mut svg_Assignment, src: svg_Assignment) {
+unsafe extern "C" fn svg_Assignment_copyReplace(mut dst: *mut SvgAssignment, src: SvgAssignment) {
     svg_Assignment_dispose(dst);
     svg_Assignment_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn svg_Assignment_copy(
-    mut dst: *mut svg_Assignment,
-    mut src: *const svg_Assignment,
+    mut dst: *mut SvgAssignment,
+    mut src: *const SvgAssignment,
 ) {
     copySVGAssigment(dst, src);
 }
 #[inline]
-unsafe extern "C" fn svg_Assignment_dispose(mut x: *mut svg_Assignment) {
+unsafe extern "C" fn svg_Assignment_dispose(mut x: *mut SvgAssignment) {
     disposeSVGAssignment(x);
 }
 #[inline]
-unsafe extern "C" fn table_SVG_createN(mut n: usize) -> *mut table_SVG {
-    let mut t: *mut table_SVG =
-        malloc(::core::mem::size_of::<table_SVG>() as usize) as *mut table_SVG;
+unsafe extern "C" fn table_SVG_createN(mut n: usize) -> *mut SvgTable {
+    let mut t: *mut SvgTable =
+        malloc(::core::mem::size_of::<SvgTable>() as usize) as *mut SvgTable;
     table_SVG_initN(t, n);
     return t;
 }
 #[inline]
-unsafe extern "C" fn table_SVG_move(dst: *mut table_SVG, src: *mut table_SVG) {
+unsafe extern "C" fn table_SVG_move(dst: *mut SvgTable, src: *mut SvgTable) {
     cvec_move(table_SVG_as_cvec(dst), table_SVG_as_cvec(src));
 }
 #[inline]
-unsafe fn table_SVG_as_cvec(arr: *mut table_SVG) -> *mut CVecRaw<svg_Assignment> {
-    arr as *mut CVecRaw<svg_Assignment>
+unsafe fn table_SVG_as_cvec(arr: *mut SvgTable) -> *mut CVecRaw<SvgAssignment> {
+    arr as *mut CVecRaw<SvgAssignment>
 }
 #[inline]
-unsafe extern "C" fn table_SVG_init(arr: *mut table_SVG) {
+unsafe extern "C" fn table_SVG_init(arr: *mut SvgTable) {
     cvec_init(table_SVG_as_cvec(arr));
 }
-pub static table_iSVG: __caryll_vectorinterface_table_SVG = {
-    __caryll_vectorinterface_table_SVG {
-        init: Some(table_SVG_init as unsafe extern "C" fn(*mut table_SVG) -> ()),
-        copy: Some(table_SVG_copy as unsafe extern "C" fn(*mut table_SVG, *const table_SVG) -> ()),
-        move_0: Some(table_SVG_move as unsafe extern "C" fn(*mut table_SVG, *mut table_SVG) -> ()),
-        dispose: Some(table_SVG_dispose as unsafe extern "C" fn(*mut table_SVG) -> ()),
-        replace: Some(table_SVG_replace as unsafe extern "C" fn(*mut table_SVG, table_SVG) -> ()),
+pub static table_iSVG: SvgTableVectorInterface = {
+    SvgTableVectorInterface {
+        init: Some(table_SVG_init as unsafe extern "C" fn(*mut SvgTable) -> ()),
+        copy: Some(table_SVG_copy as unsafe extern "C" fn(*mut SvgTable, *const SvgTable) -> ()),
+        move_0: Some(table_SVG_move as unsafe extern "C" fn(*mut SvgTable, *mut SvgTable) -> ()),
+        dispose: Some(table_SVG_dispose as unsafe extern "C" fn(*mut SvgTable) -> ()),
+        replace: Some(table_SVG_replace as unsafe extern "C" fn(*mut SvgTable, SvgTable) -> ()),
         copyReplace: Some(
-            table_SVG_copyReplace as unsafe extern "C" fn(*mut table_SVG, table_SVG) -> (),
+            table_SVG_copyReplace as unsafe extern "C" fn(*mut SvgTable, SvgTable) -> (),
         ),
         create: Some(table_SVG_create),
-        free: Some(table_SVG_free as unsafe extern "C" fn(*mut table_SVG) -> ()),
-        initN: Some(table_SVG_initN as unsafe extern "C" fn(*mut table_SVG, usize) -> ()),
-        initCapN: Some(table_SVG_initCapN as unsafe extern "C" fn(*mut table_SVG, usize) -> ()),
-        createN: Some(table_SVG_createN as unsafe extern "C" fn(usize) -> *mut table_SVG),
-        fill: Some(table_SVG_fill as unsafe extern "C" fn(*mut table_SVG, usize) -> ()),
-        clear: Some(table_SVG_dispose as unsafe extern "C" fn(*mut table_SVG) -> ()),
-        push: Some(table_SVG_push as unsafe extern "C" fn(*mut table_SVG, svg_Assignment) -> ()),
-        shrinkToFit: Some(table_SVG_shrinkToFit as unsafe extern "C" fn(*mut table_SVG) -> ()),
-        pop: Some(table_SVG_pop as unsafe extern "C" fn(*mut table_SVG) -> svg_Assignment),
+        free: Some(table_SVG_free as unsafe extern "C" fn(*mut SvgTable) -> ()),
+        initN: Some(table_SVG_initN as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
+        initCapN: Some(table_SVG_initCapN as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
+        createN: Some(table_SVG_createN as unsafe extern "C" fn(usize) -> *mut SvgTable),
+        fill: Some(table_SVG_fill as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
+        clear: Some(table_SVG_dispose as unsafe extern "C" fn(*mut SvgTable) -> ()),
+        push: Some(table_SVG_push as unsafe extern "C" fn(*mut SvgTable, SvgAssignment) -> ()),
+        shrinkToFit: Some(table_SVG_shrinkToFit as unsafe extern "C" fn(*mut SvgTable) -> ()),
+        pop: Some(table_SVG_pop as unsafe extern "C" fn(*mut SvgTable) -> SvgAssignment),
         disposeItem: Some(
-            table_SVG_disposeItem as unsafe extern "C" fn(*mut table_SVG, usize) -> (),
+            table_SVG_disposeItem as unsafe extern "C" fn(*mut SvgTable, usize) -> (),
         ),
         filterEnv: Some(
             table_SVG_filterEnv
                 as unsafe extern "C" fn(
-                    *mut table_SVG,
+                    *mut SvgTable,
                     Option<
                         unsafe extern "C" fn(
-                            *const svg_Assignment,
+                            *const SvgAssignment,
                             *mut ::core::ffi::c_void,
                         ) -> bool,
                     >,
@@ -279,11 +279,11 @@ pub static table_iSVG: __caryll_vectorinterface_table_SVG = {
         sort: Some(
             table_SVG_sort
                 as unsafe extern "C" fn(
-                    *mut table_SVG,
+                    *mut SvgTable,
                     Option<
                         unsafe extern "C" fn(
-                            *const svg_Assignment,
-                            *const svg_Assignment,
+                            *const SvgAssignment,
+                            *const SvgAssignment,
                         ) -> ::core::ffi::c_int,
                     >,
                 ) -> (),
@@ -292,15 +292,15 @@ pub static table_iSVG: __caryll_vectorinterface_table_SVG = {
 };
 #[inline]
 unsafe extern "C" fn table_SVG_filterEnv(
-    mut arr: *mut table_SVG,
-    mut fn_0: Option<unsafe extern "C" fn(*const svg_Assignment, *mut ::core::ffi::c_void) -> bool>,
+    mut arr: *mut SvgTable,
+    mut fn_0: Option<unsafe extern "C" fn(*const SvgAssignment, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
     let mut j: usize = 0 as usize;
     let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut svg_Assignment,
+            (*arr).items.offset(k as isize) as *mut SvgAssignment,
             env,
         ) {
             if j != k {
@@ -310,7 +310,7 @@ unsafe extern "C" fn table_SVG_filterEnv(
         } else {
             if svg_iAssignment.dispose.is_some() {
                 svg_iAssignment.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut svg_Assignment,
+                    (*arr).items.offset(k as isize) as *mut SvgAssignment,
                 );
             } else {
             };
@@ -320,43 +320,43 @@ unsafe extern "C" fn table_SVG_filterEnv(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn table_SVG_disposeItem(mut arr: *mut table_SVG, mut n: usize) {
+unsafe extern "C" fn table_SVG_disposeItem(mut arr: *mut SvgTable, mut n: usize) {
     if svg_iAssignment.dispose.is_some() {
         svg_iAssignment.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut svg_Assignment,
+            (*arr).items.offset(n as isize) as *mut SvgAssignment,
         );
     } else {
     };
 }
 #[inline]
 unsafe extern "C" fn table_SVG_sort(
-    mut arr: *mut table_SVG,
+    mut arr: *mut SvgTable,
     mut fn_0: Option<
-        unsafe extern "C" fn(*const svg_Assignment, *const svg_Assignment) -> ::core::ffi::c_int,
+        unsafe extern "C" fn(*const SvgAssignment, *const SvgAssignment) -> ::core::ffi::c_int,
     >,
 ) {
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<svg_Assignment>() as usize,
+        ::core::mem::size_of::<SvgAssignment>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
-                    *const svg_Assignment,
-                    *const svg_Assignment,
+                    *const SvgAssignment,
+                    *const SvgAssignment,
                 ) -> ::core::ffi::c_int,
             >,
-            __compar_fn_t,
+            ComparFn,
         >(fn_0),
     );
 }
 #[inline]
-unsafe extern "C" fn table_SVG_fill(mut arr: *mut table_SVG, mut n: usize) {
+unsafe extern "C" fn table_SVG_fill(mut arr: *mut SvgTable, mut n: usize) {
     while (*arr).length < n {
-        let mut x: svg_Assignment = svg_Assignment {
+        let mut x: SvgAssignment = SvgAssignment {
             start: 0,
             end: 0,
-            document: ::core::ptr::null_mut::<caryll_Buffer>(),
+            document: ::core::ptr::null_mut::<Buffer>(),
         };
         if svg_iAssignment.init.is_some() {
             svg_iAssignment.init.expect("non-null function pointer")(&raw mut x);
@@ -364,35 +364,35 @@ unsafe extern "C" fn table_SVG_fill(mut arr: *mut table_SVG, mut n: usize) {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<svg_Assignment>() as usize,
+                ::core::mem::size_of::<SvgAssignment>() as usize,
             );
         }
         table_SVG_push(arr, x);
     }
 }
 #[inline]
-unsafe extern "C" fn table_SVG_push(arr: *mut table_SVG, elem: svg_Assignment) {
+unsafe extern "C" fn table_SVG_push(arr: *mut SvgTable, elem: SvgAssignment) {
     cvec_push(table_SVG_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn table_SVG_grow(arr: *mut table_SVG) {
+unsafe extern "C" fn table_SVG_grow(arr: *mut SvgTable) {
     cvec_grow(table_SVG_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn table_SVG_growTo(arr: *mut table_SVG, target: usize) {
+unsafe extern "C" fn table_SVG_growTo(arr: *mut SvgTable, target: usize) {
     cvec_grow_to(table_SVG_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn table_SVG_pop(arr: *mut table_SVG) -> svg_Assignment {
+unsafe extern "C" fn table_SVG_pop(arr: *mut SvgTable) -> SvgAssignment {
     cvec_pop(table_SVG_as_cvec(arr))
 }
 #[inline]
-unsafe extern "C" fn table_SVG_copyReplace(mut dst: *mut table_SVG, src: table_SVG) {
+unsafe extern "C" fn table_SVG_copyReplace(mut dst: *mut SvgTable, src: SvgTable) {
     table_SVG_dispose(dst);
     table_SVG_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_SVG_copy(mut dst: *mut table_SVG, mut src: *const table_SVG) {
+unsafe extern "C" fn table_SVG_copy(mut dst: *mut SvgTable, mut src: *const SvgTable) {
     table_SVG_init(dst);
     table_SVG_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
@@ -400,8 +400,8 @@ unsafe extern "C" fn table_SVG_copy(mut dst: *mut table_SVG, mut src: *const tab
         let mut j: usize = 0 as usize;
         while j < (*src).length {
             svg_iAssignment.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut svg_Assignment,
-                (*src).items.offset(j as isize) as *mut svg_Assignment as *const svg_Assignment,
+                (*dst).items.offset(j as isize) as *mut SvgAssignment,
+                (*src).items.offset(j as isize) as *mut SvgAssignment as *const SvgAssignment,
             );
             j = j.wrapping_add(1);
         }
@@ -414,7 +414,7 @@ unsafe extern "C" fn table_SVG_copy(mut dst: *mut table_SVG, mut src: *const tab
     };
 }
 #[inline]
-unsafe extern "C" fn table_SVG_dispose(mut arr: *mut table_SVG) {
+unsafe extern "C" fn table_SVG_dispose(mut arr: *mut SvgTable) {
     if arr.is_null() {
         return;
     }
@@ -427,41 +427,41 @@ unsafe extern "C" fn table_SVG_dispose(mut arr: *mut table_SVG) {
                 break;
             }
             svg_iAssignment.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut svg_Assignment,
+                (*arr).items.offset(j as isize) as *mut SvgAssignment,
             );
         }
     }
     free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<svg_Assignment>();
+    (*arr).items = ::core::ptr::null_mut::<SvgAssignment>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn table_SVG_replace(mut dst: *mut table_SVG, src: table_SVG) {
+unsafe extern "C" fn table_SVG_replace(mut dst: *mut SvgTable, src: SvgTable) {
     table_SVG_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_SVG>() as usize,
+        ::core::mem::size_of::<SvgTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_SVG_initCapN(mut arr: *mut table_SVG, mut n: usize) {
+unsafe extern "C" fn table_SVG_initCapN(mut arr: *mut SvgTable, mut n: usize) {
     table_SVG_init(arr);
     table_SVG_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn table_SVG_growToN(arr: *mut table_SVG, target: usize) {
+unsafe extern "C" fn table_SVG_growToN(arr: *mut SvgTable, target: usize) {
     cvec_grow_to_n(table_SVG_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn table_SVG_initN(mut arr: *mut table_SVG, mut n: usize) {
+unsafe extern "C" fn table_SVG_initN(mut arr: *mut SvgTable, mut n: usize) {
     table_SVG_init(arr);
     table_SVG_growToN(arr, n);
     table_SVG_fill(arr, n);
 }
 #[inline]
-unsafe extern "C" fn table_SVG_free(mut x: *mut table_SVG) {
+unsafe extern "C" fn table_SVG_free(mut x: *mut SvgTable) {
     if x.is_null() {
         return;
     }
@@ -469,27 +469,27 @@ unsafe extern "C" fn table_SVG_free(mut x: *mut table_SVG) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_SVG_shrinkToFit(mut arr: *mut table_SVG) {
+unsafe extern "C" fn table_SVG_shrinkToFit(mut arr: *mut SvgTable) {
     table_SVG_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn table_SVG_create() -> *mut table_SVG {
-    let mut x: *mut table_SVG =
-        malloc(::core::mem::size_of::<table_SVG>() as usize) as *mut table_SVG;
+unsafe extern "C" fn table_SVG_create() -> *mut SvgTable {
+    let mut x: *mut SvgTable =
+        malloc(::core::mem::size_of::<SvgTable>() as usize) as *mut SvgTable;
     table_SVG_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_SVG_resizeTo(arr: *mut table_SVG, target: usize) {
+unsafe extern "C" fn table_SVG_resizeTo(arr: *mut SvgTable, target: usize) {
     cvec_resize_to(table_SVG_as_cvec(arr), target);
 }
 pub unsafe extern "C" fn otfcc_readSVG(
-    packet: otfcc_Packet,
-    mut _options: *const otfcc_Options,
-) -> *mut table_SVG {
+    packet: Packet,
+    mut _options: *const Options,
+) -> *mut SvgTable {
     let mut offsetToSVGDocIndex: u32 = 0;
     let mut numEntries: u16 = 0;
-    let mut svg: *mut table_SVG = ::core::ptr::null_mut::<table_SVG>();
+    let mut svg: *mut SvgTable = ::core::ptr::null_mut::<SvgTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -497,7 +497,7 @@ pub unsafe extern "C" fn otfcc_readSVG(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == 1398163232i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -518,9 +518,9 @@ pub unsafe extern "C" fn otfcc_readSVG(
                             {
                                 svg = (
                                     table_iSVG.create.expect("non-null function pointer"))();
-                                let mut j: glyphid_t = 0 as glyphid_t;
+                                let mut j: GlyphId = 0 as GlyphId;
                                 while (j as ::core::ffi::c_int) < numEntries as ::core::ffi::c_int {
-                                    let mut record: font_file_pointer = table
+                                    let mut record: FontFilePointer = table
                                         .data
                                         .offset(offsetToSVGDocIndex as isize)
                                         .offset(2 as ::core::ffi::c_int as isize)
@@ -528,16 +528,16 @@ pub unsafe extern "C" fn otfcc_readSVG(
                                             (12 as ::core::ffi::c_int * j as ::core::ffi::c_int)
                                                 as isize,
                                         );
-                                    let mut asg: svg_Assignment =
+                                    let mut asg: SvgAssignment =
                                         (
                                             svg_iAssignment
                                                 .empty
                                                 .expect("non-null function pointer"))();
-                                    asg.start = read_16u(record as *const u8) as glyphid_t;
+                                    asg.start = read_16u(record as *const u8) as GlyphId;
                                     asg.end =
                                         read_16u(record.offset(2 as ::core::ffi::c_int as isize)
                                             as *const u8)
-                                            as glyphid_t;
+                                            as GlyphId;
                                     let mut docstart: u32 =
                                         read_32u(record.offset(4 as ::core::ffi::c_int as isize)
                                             as *const u8);
@@ -569,7 +569,7 @@ pub unsafe extern "C" fn otfcc_readSVG(
                         }
                     }
                     table_iSVG.dispose.expect("non-null function pointer")(svg);
-                    svg = ::core::ptr::null_mut::<table_SVG>();
+                    svg = ::core::ptr::null_mut::<SvgTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -581,7 +581,7 @@ pub unsafe extern "C" fn otfcc_readSVG(
     }
     return svg;
 }
-unsafe extern "C" fn canUsePlainFormat(mut buf: *const caryll_Buffer) -> bool {
+unsafe extern "C" fn canUsePlainFormat(mut buf: *const Buffer) -> bool {
     return (*buf).size > 4 as usize
         && *(*buf).data.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
             == '<' as i32
@@ -604,9 +604,9 @@ unsafe extern "C" fn canUsePlainFormat(mut buf: *const caryll_Buffer) -> bool {
                 == 'l' as i32;
 }
 pub unsafe extern "C" fn otfcc_dumpSVG(
-    mut svg: *const table_SVG,
-    mut root: *mut json_value,
-    mut options: *const otfcc_Options,
+    mut svg: *const SvgTable,
+    mut root: *mut JsonValue,
+    mut options: *const Options,
 ) {
     if svg.is_null() {
         return;
@@ -614,18 +614,18 @@ pub unsafe extern "C" fn otfcc_dumpSVG(
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"SVG "),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _svg: *mut json_value = json_array_new((*svg).length);
+        let mut _svg: *mut JsonValue = json_array_new((*svg).length);
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < (*svg).length {
-            let mut a: *mut svg_Assignment = (*svg).items.offset(__caryll_index as isize);
+            let mut a: *mut SvgAssignment = (*svg).items.offset(__caryll_index as isize);
             while keep != 0 {
-                let mut _a: *mut json_value = json_object_new(4 as usize);
+                let mut _a: *mut JsonValue = json_object_new(4 as usize);
                 json_object_push(
                     _a,
                     b"start\0" as *const u8 as *const ::core::ffi::c_char,
@@ -684,36 +684,36 @@ pub unsafe extern "C" fn otfcc_dumpSVG(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
 pub unsafe extern "C" fn otfcc_parseSVG(
-    mut root: *const json_value,
-    mut options: *const otfcc_Options,
-) -> *mut table_SVG {
-    let mut _svg: *mut json_value = ::core::ptr::null_mut::<json_value>();
+    mut root: *const JsonValue,
+    mut options: *const Options,
+) -> *mut SvgTable {
+    let mut _svg: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     _svg = json_obj_get_type(
         root,
         b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,
         json_array,
     );
     if _svg.is_null() {
-        return ::core::ptr::null_mut::<table_SVG>();
+        return ::core::ptr::null_mut::<SvgTable>();
     }
-    let mut svg: *mut table_SVG = (
+    let mut svg: *mut SvgTable = (
         table_iSVG.create.expect("non-null function pointer"))();
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"SVG "),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut j: glyphid_t = 0 as glyphid_t;
+        let mut j: GlyphId = 0 as GlyphId;
         while (j as ::core::ffi::c_uint) < (*_svg).u.array.length {
-            let mut _a: *mut json_value =
-                *(*_svg).u.array.values.offset(j as isize) as *mut json_value;
+            let mut _a: *mut JsonValue =
+                *(*_svg).u.array.values.offset(j as isize) as *mut JsonValue;
             if !(_a.is_null()
                 || (*_a).type_0 != json_object)
             {
@@ -721,17 +721,17 @@ pub unsafe extern "C" fn otfcc_parseSVG(
                     _a,
                     b"format\0" as *const u8 as *const ::core::ffi::c_char,
                 );
-                let mut doc: sds =
+                let mut doc: SdsRaw =
                     json_obj_getsds(_a, b"document\0" as *const u8 as *const ::core::ffi::c_char);
                 if !(format.is_null() || doc.is_null()) {
-                    let mut asg: svg_Assignment = (
+                    let mut asg: SvgAssignment = (
                         svg_iAssignment.empty.expect("non-null function pointer"))();
                     asg.start =
                         json_obj_getint(_a, b"start\0" as *const u8 as *const ::core::ffi::c_char)
-                            as glyphid_t;
+                            as GlyphId;
                     asg.end =
                         json_obj_getint(_a, b"end\0" as *const u8 as *const ::core::ffi::c_char)
-                            as glyphid_t;
+                            as GlyphId;
                     if strcmp(
                         format,
                         b"plain\0" as *const u8 as *const ::core::ffi::c_char,
@@ -758,27 +758,27 @@ pub unsafe extern "C" fn otfcc_parseSVG(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     return svg;
 }
 unsafe extern "C" fn byStartGID(
-    mut a: *const svg_Assignment,
-    mut b: *const svg_Assignment,
+    mut a: *const SvgAssignment,
+    mut b: *const SvgAssignment,
 ) -> ::core::ffi::c_int {
     return (*a).start as ::core::ffi::c_int - (*b).start as ::core::ffi::c_int;
 }
 pub unsafe extern "C" fn otfcc_buildSVG(
-    mut _svg: *const table_SVG,
-    mut _options: *const otfcc_Options,
-) -> *mut caryll_Buffer {
+    mut _svg: *const SvgTable,
+    mut _options: *const Options,
+) -> *mut Buffer {
     if _svg.is_null() || (*_svg).length == 0 {
-        return ::core::ptr::null_mut::<caryll_Buffer>();
+        return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut svg: table_SVG = table_SVG {
+    let mut svg: SvgTable = SvgTable {
         length: 0,
         capacity: 0,
-        items: ::core::ptr::null_mut::<svg_Assignment>(),
+        items: ::core::ptr::null_mut::<SvgAssignment>(),
     };
     table_iSVG.copy.expect("non-null function pointer")(&raw mut svg, _svg);
     table_iSVG.sort.expect("non-null function pointer")(
@@ -786,16 +786,16 @@ pub unsafe extern "C" fn otfcc_buildSVG(
         Some(
             byStartGID
                 as unsafe extern "C" fn(
-                    *const svg_Assignment,
-                    *const svg_Assignment,
+                    *const SvgAssignment,
+                    *const SvgAssignment,
                 ) -> ::core::ffi::c_int,
         ),
     );
-    let mut major: *mut bk_Block = bk_new_Block(&[bk_int(b16, (svg.length) as u32)]);
+    let mut major: *mut BkBlock = bk_new_Block(&[bk_int(b16, (svg.length) as u32)]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < svg.length {
-        let mut a: *mut svg_Assignment = svg.items.offset(__caryll_index as isize);
+        let mut a: *mut SvgAssignment = svg.items.offset(__caryll_index as isize);
         while keep != 0 {
             bk_push(major, &[bk_int(b16, ((*a).start as ::core::ffi::c_int) as u32), bk_int(b16, ((*a).end as ::core::ffi::c_int) as u32), bk_ptr(p32, bk_newBlockFromBufferCopy((*a).document)), bk_int(b32, ((*(*a).document).size) as u32)]);
             keep = (keep == 0) as ::core::ffi::c_int as usize;
@@ -803,7 +803,7 @@ pub unsafe extern "C" fn otfcc_buildSVG(
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 0 as u32), bk_ptr(p32, major), bk_int(b32, 0 as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(b16, 0 as u32), bk_ptr(p32, major), bk_int(b32, 0 as u32)]);
     table_iSVG.dispose.expect("non-null function pointer")(&raw mut svg);
     return bk_build_Block(root);
 }

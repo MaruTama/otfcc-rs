@@ -7,16 +7,16 @@ unsafe extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
+use crate::logger::{log_type_warning, log_vl_important, ILogger};
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{arity_t};
+use crate::support::options::{Options};
+use crate::support::primitives::{Arity};
 use crate::vendor::sds::Hex4;
-use crate::libcff::{cff_Encoding, cff_EncodingRangeFormat1, cff_EncodingSupplement, cff_File, cff_IOutlineBuilder, cff_Stack, op_CharStrings, op_Encoding, op_FDArray, op_FDSelect, op_Private, op_Subrs, op_abs, op_add, op_and, op_callgsubr, op_callsubr, op_charset, op_cntrmask, op_div, op_drop, op_dup, op_eq, op_exch, op_flex, op_flex1, op_get, op_hflex, op_hflex1, op_hmoveto, op_ifelse, op_index, op_mul, op_neg, op_not, op_or, op_put, op_rmoveto, op_roll, op_sqrt, op_sub, op_vmoveto, op_vstem, op_vstemhm, type2_transient_array};
+use crate::libcff::{CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, CffIOutlineBuilder, CffStack, op_CharStrings, op_Encoding, op_FDArray, op_FDSelect, op_Private, op_Subrs, op_abs, op_add, op_and, op_callgsubr, op_callsubr, op_charset, op_cntrmask, op_div, op_drop, op_dup, op_eq, op_exch, op_flex, op_flex1, op_get, op_hflex, op_hflex1, op_hmoveto, op_ifelse, op_index, op_mul, op_neg, op_not, op_or, op_put, op_rmoveto, op_roll, op_sqrt, op_sub, op_vmoveto, op_vstem, op_vstemhm, type2_transient_array};
 use crate::libcff::cff_charset::cff_CHARSET_UNSPECED;
-use crate::libcff::cff_fdselect::{cff_FDSELECT_FORMAT0, cff_FDSELECT_FORMAT3, cff_FDSELECT_UNSPECED, cff_FDSelect};
-use crate::libcff::cff_index::cff_Index;
-use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_UNSET, cff_Value, cff_ValueBody};
+use crate::libcff::cff_fdselect::{cff_FDSELECT_FORMAT0, cff_FDSELECT_FORMAT3, cff_FDSELECT_UNSPECED, CffFdSelect};
+use crate::libcff::cff_index::CffIndex;
+use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_UNSET, CffValue, CffValueBody};
 use crate::libcff::cff_charset::{cff_close_Charset, cff_extract_Charset};
 use crate::libcff::cff_codecs::{cff_decodeCS2Token};
 use crate::libcff::cff_dict::{cff_iDict};
@@ -31,7 +31,7 @@ use crate::vendor::sds::{sdsempty};
 /// `cff_ENC_STANDARD`/`cff_ENC_EXPERT`, which the spec assigns 0 and 1.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
-pub enum cff_EncodingType {
+pub enum CffEncodingType {
     cff_ENC_STANDARD = 0,
     cff_ENC_EXPERT = 1,
     cff_ENC_FORMAT0 = 2,
@@ -39,7 +39,7 @@ pub enum cff_EncodingType {
     cff_ENC_FORMAT_SUPPLEMENT = 4,
     cff_ENC_UNSPECED = 5,
 }
-pub use cff_EncodingType::*;
+pub use CffEncodingType::*;
 #[inline]
 unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;
@@ -55,9 +55,9 @@ unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
     return b0 | b1;
 }
 unsafe extern "C" fn parse_encoding(
-    mut cff: *mut cff_File,
+    mut cff: *mut CffFile,
     mut offset: i32,
-    mut enc: *mut cff_Encoding,
+    mut enc: *mut CffEncoding,
 ) {
     let mut data: *mut u8 = (*cff).raw_data;
     if offset == cff_ENC_STANDARD as ::core::ffi::c_int as i32 {
@@ -87,11 +87,11 @@ unsafe extern "C" fn parse_encoding(
                 (*enc).c2rust_unnamed.f1.format = 1 as u8;
                 (*enc).c2rust_unnamed.f1.nranges = *data.offset((offset + 1 as i32) as isize);
                 (*enc).c2rust_unnamed.f1.range1 = __caryll_allocate_clean(
-                    (::core::mem::size_of::<cff_EncodingRangeFormat1>() as usize)
+                    (::core::mem::size_of::<CffEncodingRangeFormat1>() as usize)
                         .wrapping_mul((*enc).c2rust_unnamed.f1.nranges as usize),
                     41 as ::core::ffi::c_ulong,
                 )
-                    as *mut cff_EncodingRangeFormat1;
+                    as *mut CffEncodingRangeFormat1;
                 let mut i_0: u32 = 0 as u32;
                 while i_0 < (*enc).c2rust_unnamed.f1.nranges as u32 {
                     (*(*enc).c2rust_unnamed.f1.range1.offset(i_0 as isize)).first = *data.offset(
@@ -111,11 +111,11 @@ unsafe extern "C" fn parse_encoding(
                 (*enc).t = cff_ENC_FORMAT_SUPPLEMENT;
                 (*enc).c2rust_unnamed.ns.nsup = *data.offset(offset as isize);
                 (*enc).c2rust_unnamed.ns.supplement = __caryll_allocate_clean(
-                    (::core::mem::size_of::<cff_EncodingSupplement>() as usize)
+                    (::core::mem::size_of::<CffEncodingSupplement>() as usize)
                         .wrapping_mul((*enc).c2rust_unnamed.ns.nsup as usize),
                     52 as ::core::ffi::c_ulong,
                 )
-                    as *mut cff_EncodingSupplement;
+                    as *mut CffEncodingSupplement;
                 let mut i_1: u32 = 0 as u32;
                 while i_1 < (*enc).c2rust_unnamed.ns.nsup as u32 {
                     (*(*enc).c2rust_unnamed.ns.supplement.offset(i_1 as isize)).code = *data
@@ -136,7 +136,7 @@ unsafe extern "C" fn parse_encoding(
         }
     };
 }
-unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *const otfcc_Options) {
+unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options) {
     let mut pos: u32 = 0;
     let mut offset: i32 = 0;
     (*cff).head.major = gu1((*cff).raw_data, 0 as u32) as u8;
@@ -161,7 +161,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
         (*(*options).logger)
             .logSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             log_vl_important,
             log_type_warning,
             crate::sdsbuild!(
@@ -232,7 +232,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger,
+                (*options).logger as *mut ILogger,
                 log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(sdsempty(), b"[libcff] Bad CFF font: no any glyph data.\n"),
@@ -404,13 +404,13 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
 pub unsafe extern "C" fn cff_openStream(
     mut data: *mut u8,
     mut len: u32,
-    mut options: *const otfcc_Options,
-) -> *mut cff_File {
-    let mut file: *mut cff_File = ::core::ptr::null_mut::<cff_File>();
+    mut options: *const Options,
+) -> *mut CffFile {
+    let mut file: *mut CffFile = ::core::ptr::null_mut::<CffFile>();
     file = __caryll_allocate_clean(
-        ::core::mem::size_of::<cff_File>() as usize,
+        ::core::mem::size_of::<CffFile>() as usize,
         203 as ::core::ffi::c_ulong,
-    ) as *mut cff_File;
+    ) as *mut CffFile;
     (*file).raw_data = __caryll_allocate_clean(
         (::core::mem::size_of::<u8>() as usize).wrapping_mul(len as usize),
         205 as ::core::ffi::c_ulong,
@@ -425,7 +425,7 @@ pub unsafe extern "C" fn cff_openStream(
     parse_cff_bytecode(file, options);
     return file;
 }
-pub unsafe extern "C" fn cff_close(mut file: *mut cff_File) {
+pub unsafe extern "C" fn cff_close(mut file: *mut CffFile) {
     if !file.is_null() {
         if !(*file).raw_data.is_null() {
             free((*file).raw_data as *mut ::core::ffi::c_void);
@@ -449,7 +449,7 @@ pub unsafe extern "C" fn cff_close(mut file: *mut cff_File) {
                 if !(*file).encodings.c2rust_unnamed.f1.range1.is_null() {
                     free((*file).encodings.c2rust_unnamed.f1.range1 as *mut ::core::ffi::c_void);
                     (*file).encodings.c2rust_unnamed.f1.range1 =
-                        ::core::ptr::null_mut::<cff_EncodingRangeFormat1>();
+                        ::core::ptr::null_mut::<CffEncodingRangeFormat1>();
                 }
             }
             cff_ENC_FORMAT_SUPPLEMENT => {
@@ -458,7 +458,7 @@ pub unsafe extern "C" fn cff_close(mut file: *mut cff_File) {
                         (*file).encodings.c2rust_unnamed.ns.supplement as *mut ::core::ffi::c_void,
                     );
                     (*file).encodings.c2rust_unnamed.ns.supplement =
-                        ::core::ptr::null_mut::<cff_EncodingSupplement>();
+                        ::core::ptr::null_mut::<CffEncodingSupplement>();
                 }
             }
             _ => {}
@@ -466,15 +466,15 @@ pub unsafe extern "C" fn cff_close(mut file: *mut cff_File) {
         cff_close_Charset((*file).charsets);
         cff_close_FDSelect((*file).fdselect);
         free(file as *mut ::core::ffi::c_void);
-        file = ::core::ptr::null_mut::<cff_File>();
+        file = ::core::ptr::null_mut::<CffFile>();
     }
 }
 pub unsafe extern "C" fn cff_parseSubr(
     mut idx: u16,
     mut raw: *mut u8,
-    mut fdarray: cff_Index,
-    mut select: cff_FDSelect,
-    mut subr: *mut cff_Index,
+    mut fdarray: CffIndex,
+    mut select: CffFdSelect,
+    mut subr: *mut CffIndex,
 ) -> u8 {
     let mut fd: u8 = 0 as u8;
     let mut off_private: i32 = 0;
@@ -586,14 +586,14 @@ unsafe extern "C" fn compute_subr_bias(mut cnt: u16) -> u16 {
     };
 }
 unsafe extern "C" fn reverseStack(
-    mut stack: *mut cff_Stack,
+    mut stack: *mut CffStack,
     mut left: u8,
     mut right: u8,
 ) {
-    let mut p1: *mut cff_Value = (*stack).stack.offset(left as ::core::ffi::c_int as isize);
-    let mut p2: *mut cff_Value = (*stack).stack.offset(right as ::core::ffi::c_int as isize);
+    let mut p1: *mut CffValue = (*stack).stack.offset(left as ::core::ffi::c_int as isize);
+    let mut p2: *mut CffValue = (*stack).stack.offset(right as ::core::ffi::c_int as isize);
     while p1 < p2 {
-        let mut temp: cff_Value = *p1;
+        let mut temp: CffValue = *p1;
         *p1 = *p2;
         *p2 = temp;
         p1 = p1.offset(1);
@@ -645,12 +645,12 @@ unsafe extern "C" fn callback_nopgetrand(
 pub unsafe extern "C" fn cff_parseOutline(
     mut data: *mut u8,
     mut len: u32,
-    mut gsubr: cff_Index,
-    mut lsubr: cff_Index,
-    mut stack: *mut cff_Stack,
+    mut gsubr: CffIndex,
+    mut lsubr: CffIndex,
+    mut stack: *mut CffStack,
     mut outline: *mut ::core::ffi::c_void,
-    mut methods: cff_IOutlineBuilder,
-    mut options: *const otfcc_Options,
+    mut methods: CffIOutlineBuilder,
+    mut options: *const Options,
 ) {
     let mut gsubr_bias: u16 = compute_subr_bias(gsubr.count as u16);
     let mut lsubr_bias: u16 = compute_subr_bias(lsubr.count as u16);
@@ -658,9 +658,9 @@ pub unsafe extern "C" fn cff_parseOutline(
     let mut advance: u32 = 0;
     let mut i: u32 = 0;
     let mut cnt_bezier: u32 = 0;
-    let mut val: cff_Value = cff_Value {
+    let mut val: CffValue = CffValue {
         t: cff_UNSET,
-        c2rust_unnamed: cff_ValueBody { i: 0 },
+        c2rust_unnamed: CffValueBody { i: 0 },
     };
     let mut setWidth: Option<
         unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> (),
@@ -792,7 +792,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                 let mut hintBase: ::core::ffi::c_double = 0.;
                 match val.c2rust_unnamed.i {
                     1 | 3 | 18 | 23 => {
-                        if (*stack).index.wrapping_rem(2 as arity_t) != 0 {
+                        if (*stack).index.wrapping_rem(2 as Arity) != 0 {
                             setWidth.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
@@ -800,12 +800,12 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     .d,
                             );
                         }
-                        (*stack).stem = ((*stack).stem as arity_t)
+                        (*stack).stem = ((*stack).stem as Arity)
                             .wrapping_add((*stack).index >> 1 as ::core::ffi::c_int)
                             as u8 as u8;
                         hintBase = 0 as ::core::ffi::c_int as ::core::ffi::c_double;
-                        let mut j: u16 = (*stack).index.wrapping_rem(2 as arity_t) as u16;
-                        while (j as arity_t) < (*stack).index {
+                        let mut j: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
+                        while (j as Arity) < (*stack).index {
                             let mut pos: ::core::ffi::c_double =
                                 (*(*stack).stack.offset(j as isize)).c2rust_unnamed.d;
                             let mut width: ::core::ffi::c_double = (*(*stack).stack.offset(
@@ -824,10 +824,10 @@ pub unsafe extern "C" fn cff_parseOutline(
                             hintBase += pos + width;
                             j = (j as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u16;
                         }
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     19 | 20 => {
-                        if (*stack).index.wrapping_rem(2 as arity_t) != 0 {
+                        if (*stack).index.wrapping_rem(2 as Arity) != 0 {
                             setWidth.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
@@ -837,14 +837,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                         }
                         let mut isVertical: bool =
                             (*stack).stem as ::core::ffi::c_int > 0 as ::core::ffi::c_int;
-                        (*stack).stem = ((*stack).stem as arity_t)
+                        (*stack).stem = ((*stack).stem as Arity)
                             .wrapping_add((*stack).index >> 1 as ::core::ffi::c_int)
                             as u8 as u8;
                         let mut hintBase_0: ::core::ffi::c_double =
                             0 as ::core::ffi::c_int as ::core::ffi::c_double;
                         let mut j_0: u16 =
-                            (*stack).index.wrapping_rem(2 as arity_t) as u16;
-                        while (j_0 as arity_t) < (*stack).index {
+                            (*stack).index.wrapping_rem(2 as Arity) as u16;
+                        while (j_0 as Arity) < (*stack).index {
                             let mut pos_0: ::core::ffi::c_double =
                                 (*(*stack).stack.offset(j_0 as isize)).c2rust_unnamed.d;
                             let mut width_0: ::core::ffi::c_double = (*(*stack).stack.offset(
@@ -932,16 +932,16 @@ pub unsafe extern "C" fn cff_parseOutline(
                             mask,
                         );
                         advance = advance.wrapping_add(maskLength);
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     4 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -954,7 +954,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 ),
                             );
                         } else {
-                            if (*stack).index > 1 as arity_t {
+                            if (*stack).index > 1 as Arity {
                                 setWidth
                                     .expect(
                                         "non-null function pointer",
@@ -962,7 +962,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     outline,
                                     (*(*stack)
                                         .stack
-                                        .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                        .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                         .c2rust_unnamed
                                         .d,
                                 );
@@ -973,21 +973,21 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 0.0f64,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                             );
-                            (*stack).index = 0 as arity_t;
+                            (*stack).index = 0 as Arity;
                         }
                     }
                     21 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -1000,7 +1000,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 ),
                             );
                         } else {
-                            if (*stack).index > 2 as arity_t {
+                            if (*stack).index > 2 as Arity {
                                 setWidth
                                     .expect(
                                         "non-null function pointer",
@@ -1008,7 +1008,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     outline,
                                     (*(*stack)
                                         .stack
-                                        .offset((*stack).index.wrapping_sub(3 as arity_t) as isize))
+                                        .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                         .c2rust_unnamed
                                         .d,
                                 );
@@ -1018,26 +1018,26 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 outline,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                             );
-                            (*stack).index = 0 as arity_t;
+                            (*stack).index = 0 as Arity;
                         }
                     }
                     22 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -1050,7 +1050,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 ),
                             );
                         } else {
-                            if (*stack).index > 1 as arity_t {
+                            if (*stack).index > 1 as Arity {
                                 setWidth
                                     .expect(
                                         "non-null function pointer",
@@ -1058,7 +1058,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     outline,
                                     (*(*stack)
                                         .stack
-                                        .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                        .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                         .c2rust_unnamed
                                         .d,
                                 );
@@ -1068,21 +1068,21 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 outline,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 0.0f64,
                             );
-                            (*stack).index = 0 as arity_t;
+                            (*stack).index = 0 as Arity;
                         }
                     }
                     14 => {
-                        if (*stack).index > 0 as arity_t {
+                        if (*stack).index > 0 as Arity {
                             setWidth.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                             );
@@ -1102,10 +1102,10 @@ pub unsafe extern "C" fn cff_parseOutline(
                             );
                             i = i.wrapping_add(2 as u32);
                         }
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     7 => {
-                        if (*stack).index.wrapping_rem(2 as arity_t) == 1 as arity_t {
+                        if (*stack).index.wrapping_rem(2 as Arity) == 1 as Arity {
                             lineTo.expect("non-null function pointer")(
                                 outline,
                                 0.0f64,
@@ -1151,10 +1151,10 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 i = i.wrapping_add(2 as u32);
                             }
                         }
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     6 => {
-                        if (*stack).index.wrapping_rem(2 as arity_t) == 1 as arity_t {
+                        if (*stack).index.wrapping_rem(2 as Arity) == 1 as Arity {
                             lineTo.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
@@ -1200,7 +1200,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 i = i.wrapping_add(2 as u32);
                             }
                         }
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     8 => {
                         i = 0 as u32;
@@ -1236,11 +1236,11 @@ pub unsafe extern "C" fn cff_parseOutline(
                             );
                             i = i.wrapping_add(6 as u32);
                         }
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     24 => {
                         i = 0 as u32;
-                        while i < (*stack).index.wrapping_sub(2 as arity_t) {
+                        while i < (*stack).index.wrapping_sub(2 as Arity) {
                             curveTo.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
@@ -1276,20 +1276,20 @@ pub unsafe extern "C" fn cff_parseOutline(
                             outline,
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                         );
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     25 => {
                         i = 0 as u32;
-                        while i < (*stack).index.wrapping_sub(6 as arity_t) {
+                        while i < (*stack).index.wrapping_sub(6 as Arity) {
                             lineTo.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
@@ -1305,39 +1305,39 @@ pub unsafe extern "C" fn cff_parseOutline(
                             outline,
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(6 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(6 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(5 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(4 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(3 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                         );
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     26 => {
-                        if (*stack).index.wrapping_rem(4 as arity_t) == 1 as arity_t {
+                        if (*stack).index.wrapping_rem(4 as Arity) == 1 as Arity {
                             curveTo.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
@@ -1409,10 +1409,10 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 i = i.wrapping_add(4 as u32);
                             }
                         }
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     27 => {
-                        if (*stack).index.wrapping_rem(4 as arity_t) == 1 as arity_t {
+                        if (*stack).index.wrapping_rem(4 as Arity) == 1 as Arity {
                             curveTo.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(1 as ::core::ffi::c_int as isize))
@@ -1484,17 +1484,17 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 i = i.wrapping_add(4 as u32);
                             }
                         }
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     30 => {
-                        if (*stack).index.wrapping_rem(4 as arity_t) == 1 as arity_t {
+                        if (*stack).index.wrapping_rem(4 as Arity) == 1 as Arity {
                             cnt_bezier = (*stack)
                                 .index
-                                .wrapping_sub(5 as arity_t)
-                                .wrapping_div(4 as arity_t)
+                                .wrapping_sub(5 as Arity)
+                                .wrapping_div(4 as Arity)
                                 as u32;
                         } else {
-                            cnt_bezier = (*stack).index.wrapping_div(4 as arity_t) as u32;
+                            cnt_bezier = (*stack).index.wrapping_div(4 as Arity) as u32;
                         }
                         i = 0 as u32;
                         while i < (4 as u32).wrapping_mul(cnt_bezier) {
@@ -1547,79 +1547,79 @@ pub unsafe extern "C" fn cff_parseOutline(
                             }
                             i = i.wrapping_add(4 as u32);
                         }
-                        if (*stack).index.wrapping_rem(8 as arity_t) == 5 as arity_t {
+                        if (*stack).index.wrapping_rem(8 as Arity) == 5 as Arity {
                             curveTo.expect("non-null function pointer")(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(5 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(4 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(3 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                             );
                         }
-                        if (*stack).index.wrapping_rem(8 as arity_t) == 1 as arity_t {
+                        if (*stack).index.wrapping_rem(8 as Arity) == 1 as Arity {
                             curveTo.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(5 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 0.0f64,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(4 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(3 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                             );
                         }
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     31 => {
-                        if (*stack).index.wrapping_rem(4 as arity_t) == 1 as arity_t {
+                        if (*stack).index.wrapping_rem(4 as Arity) == 1 as Arity {
                             cnt_bezier = (*stack)
                                 .index
-                                .wrapping_sub(5 as arity_t)
-                                .wrapping_div(4 as arity_t)
+                                .wrapping_sub(5 as Arity)
+                                .wrapping_div(4 as Arity)
                                 as u32;
                         } else {
-                            cnt_bezier = (*stack).index.wrapping_div(4 as arity_t) as u32;
+                            cnt_bezier = (*stack).index.wrapping_div(4 as Arity) as u32;
                         }
                         i = 0 as u32;
                         while i < (4 as u32).wrapping_mul(cnt_bezier) {
@@ -1672,78 +1672,78 @@ pub unsafe extern "C" fn cff_parseOutline(
                             }
                             i = i.wrapping_add(4 as u32);
                         }
-                        if (*stack).index.wrapping_rem(8 as arity_t) == 5 as arity_t {
+                        if (*stack).index.wrapping_rem(8 as Arity) == 5 as Arity {
                             curveTo.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(5 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 0.0f64,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(4 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(3 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                             );
                         }
-                        if (*stack).index.wrapping_rem(8 as arity_t) == 1 as arity_t {
+                        if (*stack).index.wrapping_rem(8 as Arity) == 1 as Arity {
                             curveTo.expect("non-null function pointer")(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(5 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(4 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(3 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
                                     .stack
-                                    .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                             );
                         }
-                        (*stack).index = 0 as arity_t;
+                        (*stack).index = 0 as Arity;
                     }
                     3106 => {
-                        if (*stack).index < 7 as arity_t {
+                        if (*stack).index < 7 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -1790,17 +1790,17 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     .d,
                                 0.0f64,
                             );
-                            (*stack).index = 0 as arity_t;
+                            (*stack).index = 0 as Arity;
                         }
                     }
                     3107 => {
-                        if (*stack).index < 12 as arity_t {
+                        if (*stack).index < 12 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -1855,17 +1855,17 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     .c2rust_unnamed
                                     .d,
                             );
-                            (*stack).index = 0 as arity_t;
+                            (*stack).index = 0 as Arity;
                         }
                     }
                     3108 => {
-                        if (*stack).index < 9 as arity_t {
+                        if (*stack).index < 9 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -1922,17 +1922,17 @@ pub unsafe extern "C" fn cff_parseOutline(
                                         .c2rust_unnamed
                                         .d),
                             );
-                            (*stack).index = 0 as arity_t;
+                            (*stack).index = 0 as Arity;
                         }
                     }
                     3109 => {
-                        if (*stack).index < 11 as arity_t {
+                        if (*stack).index < 11 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2026,17 +2026,17 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 dx,
                                 dy,
                             );
-                            (*stack).index = 0 as arity_t;
+                            (*stack).index = 0 as Arity;
                         }
                     }
                     3075 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2051,34 +2051,34 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num1: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num1 != 0. && num2 != 0. {
                                 1.0f64
                             } else {
                                 0.0f64
                             };
-                            (*stack).index = (*stack).index.wrapping_sub(1 as arity_t);
+                            (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
                     }
                     3076 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2093,34 +2093,34 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num1_0: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_0: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num1_0 != 0. || num2_0 != 0. {
                                 1.0f64
                             } else {
                                 0.0f64
                             };
-                            (*stack).index = (*stack).index.wrapping_sub(1 as arity_t);
+                            (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
                     }
                     3077 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2135,24 +2135,24 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num != 0. { 0.0f64 } else { 1.0f64 };
                         }
                     }
                     3081 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2167,24 +2167,24 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num_0: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num_0 < 0.0f64 { -num_0 } else { num_0 };
                         }
                     }
                     3082 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2199,30 +2199,30 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num1_1: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_1: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_1 + num2_1;
-                            (*stack).index = (*stack).index.wrapping_sub(1 as arity_t);
+                            (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
                     }
                     3083 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2237,30 +2237,30 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num1_2: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_2: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_2 - num2_2;
-                            (*stack).index = (*stack).index.wrapping_sub(1 as arity_t);
+                            (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
                     }
                     3084 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2275,30 +2275,30 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num1_3: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_3: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_3 / num2_3;
-                            (*stack).index = (*stack).index.wrapping_sub(1 as arity_t);
+                            (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
                     }
                     3086 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2313,24 +2313,24 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num_1: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = -num_1;
                         }
                     }
                     3087 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2345,30 +2345,30 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num1_4: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_4: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num1_4 == num2_4 { 1.0f64 } else { 0.0f64 };
-                            (*stack).index = (*stack).index.wrapping_sub(1 as arity_t);
+                            (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
                     }
                     3090 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2381,17 +2381,17 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 ),
                             );
                         } else {
-                            (*stack).index = (*stack).index.wrapping_sub(1 as arity_t);
+                            (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
                     }
                     3092 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2406,12 +2406,12 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut val_0: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut i_0: i32 = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d as i32;
                             (*stack).transient[(i_0
@@ -2419,17 +2419,17 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 as usize]
                                 .c2rust_unnamed
                                 .d = val_0;
-                            (*stack).index = (*stack).index.wrapping_sub(2 as arity_t);
+                            (*stack).index = (*stack).index.wrapping_sub(2 as Arity);
                         }
                     }
                     3093 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2444,12 +2444,12 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut i_1: i32 = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d as i32;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = (*stack).transient[(i_1
                                 % type2_transient_array as i32)
@@ -2459,13 +2459,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                         }
                     }
                     3094 => {
-                        if (*stack).index < 4 as arity_t {
+                        if (*stack).index < 4 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2480,30 +2480,30 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut v2: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut v1: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut s2: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(3 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut s1: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(4 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(4 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if v1 <= v2 { s1 } else { s2 };
-                            (*stack).index = (*stack).index.wrapping_sub(3 as arity_t);
+                            (*stack).index = (*stack).index.wrapping_sub(3 as Arity);
                         }
                     }
                     3095 => {
@@ -2511,16 +2511,16 @@ pub unsafe extern "C" fn cff_parseOutline(
                         (*(*stack).stack.offset((*stack).index as isize))
                             .c2rust_unnamed
                             .d = getrand.expect("non-null function pointer")(outline);
-                        (*stack).index = (*stack).index.wrapping_add(1 as arity_t);
+                        (*stack).index = (*stack).index.wrapping_add(1 as Arity);
                     }
                     3096 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2535,30 +2535,30 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num1_5: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_5: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_5 * num2_5;
-                            (*stack).index = (*stack).index.wrapping_sub(1 as arity_t);
+                            (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
                     }
                     3098 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2573,24 +2573,24 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num_2: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = sqrt(num_2);
                         }
                     }
                     3099 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2605,18 +2605,18 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             *(*stack).stack.offset((*stack).index as isize) = *(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize);
-                            (*stack).index = (*stack).index.wrapping_add(1 as arity_t);
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize);
+                            (*stack).index = (*stack).index.wrapping_add(1 as Arity);
                         }
                     }
                     3100 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2631,34 +2631,34 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut num1_6: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_6: ::core::ffi::c_double = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num2_6;
                             (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_6;
                         }
                     }
                     3101 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2672,7 +2672,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                             );
                         } else {
                             let mut n: u8 =
-                                (*stack).index.wrapping_sub(1 as arity_t) as u8;
+                                (*stack).index.wrapping_sub(1 as Arity) as u8;
                             let mut j_1: u8 = (n as ::core::ffi::c_int
                                 - 1 as ::core::ffi::c_int
                                 - (*(*stack).stack.offset(n as isize)).c2rust_unnamed.d as u8
@@ -2684,13 +2684,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                         }
                     }
                     3102 => {
-                        if (*stack).index < 2 as arity_t {
+                        if (*stack).index < 2 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2705,12 +2705,12 @@ pub unsafe extern "C" fn cff_parseOutline(
                         } else {
                             let mut j_2: i32 = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d as i32;
                             let mut n_0: u32 = (*(*stack)
                                 .stack
-                                .offset((*stack).index.wrapping_sub(2 as arity_t) as isize))
+                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d as u32;
                             if (*stack).index < (2 as u32).wrapping_add(n_0) {
@@ -2719,7 +2719,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     .expect(
                                         "non-null function pointer",
                                     )(
-                                    (*options).logger as *mut otfcc_ILogger,
+                                    (*options).logger as *mut ILogger,
                                     log_vl_important,
                                     log_type_warning,
                                     crate::sdsbuild!(
@@ -2738,11 +2738,11 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 }
                                 if !(j_2 == 0) {
                                     let mut last: u8 =
-                                        (*stack).index.wrapping_sub(3 as arity_t) as u8;
+                                        (*stack).index.wrapping_sub(3 as Arity) as u8;
                                     let mut first: u8 = (*stack)
                                         .index
-                                        .wrapping_sub(2 as arity_t)
-                                        .wrapping_sub(n_0 as arity_t)
+                                        .wrapping_sub(2 as Arity)
+                                        .wrapping_sub(n_0 as Arity)
                                         as u8;
                                     reverseStack(stack, first, last);
                                     reverseStack(
@@ -2751,20 +2751,20 @@ pub unsafe extern "C" fn cff_parseOutline(
                                         last,
                                     );
                                     reverseStack(stack, first, (last as i32 - j_2) as u8);
-                                    (*stack).index = (*stack).index.wrapping_sub(2 as arity_t);
+                                    (*stack).index = (*stack).index.wrapping_sub(2 as Arity);
                                 }
                             }
                         }
                     }
                     11 => return,
                     10 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2814,13 +2814,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                         }
                     }
                     29 => {
-                        if (*stack).index < 1 as arity_t {
+                        if (*stack).index < 1 as Arity {
                             (*(*options).logger)
                                 .logSDS
                                 .expect(
                                     "non-null function pointer",
                                 )(
-                                (*options).logger as *mut otfcc_ILogger,
+                                (*options).logger as *mut ILogger,
                                 log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
@@ -2871,7 +2871,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                             .expect(
                                 "non-null function pointer",
                             )(
-                            (*options).logger as *mut otfcc_ILogger,
+                            (*options).logger as *mut ILogger,
                             log_vl_important,
                             log_type_warning,
                             crate::sdsbuild!(

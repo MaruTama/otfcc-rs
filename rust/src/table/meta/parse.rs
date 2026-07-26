@@ -1,16 +1,16 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::free;
 use crate::support::json_funcs::{json_obj_get_type};
-use crate::logger::{otfcc_ILogger};
-use crate::support::options::{otfcc_Options};
-use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_array, json_object, json_string, json_value};
+use crate::logger::{ILogger};
+use crate::support::options::{Options};
+use crate::vendor::sds::{SdsRaw};
+use crate::vendor::json::{json_array, json_object, json_string, JsonValue};
 
-use crate::table::meta::types::{meta_Entry, table_meta};
+use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_decode};
 use crate::table::meta::types::{meta_iEntries, table_iMeta};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
-pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
+pub unsafe extern "C" fn parseMetaData(mut v: *const JsonValue) -> SdsRaw {
     if (*v).type_0 == json_string
     {
         return sdsnewlen(
@@ -19,7 +19,7 @@ pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
         );
     } else if (*v).type_0 == json_object
     {
-        let mut _string: *mut json_value = json_obj_get_type(
+        let mut _string: *mut JsonValue = json_obj_get_type(
             v,
             b"string\0" as *const u8 as *const ::core::ffi::c_char,
             json_string,
@@ -30,7 +30,7 @@ pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
                 (*_string).u.string.length as usize,
             );
         }
-        let mut _base64: *mut json_value = json_obj_get_type(
+        let mut _base64: *mut JsonValue = json_obj_get_type(
             v,
             b"base64\0" as *const u8 as *const ::core::ffi::c_char,
             json_string,
@@ -42,7 +42,7 @@ pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
                 (*_base64).u.string.length as usize,
                 &raw mut strLen,
             ) as *mut ::core::ffi::c_char;
-            let mut s: sds = sdsnewlen(str as *const ::core::ffi::c_void, strLen);
+            let mut s: SdsRaw = sdsnewlen(str as *const ::core::ffi::c_void, strLen);
             free(str as *mut ::core::ffi::c_void);
             str = ::core::ptr::null_mut::<::core::ffi::c_char>();
             return s;
@@ -51,53 +51,53 @@ pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
     return ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
 pub unsafe extern "C" fn otfcc_parseMeta(
-    mut root: *const json_value,
-    mut options: *const otfcc_Options,
-) -> *mut table_meta {
-    let mut _meta: *mut json_value = ::core::ptr::null_mut::<json_value>();
+    mut root: *const JsonValue,
+    mut options: *const Options,
+) -> *mut MetaTable {
+    let mut _meta: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     _meta = json_obj_get_type(
         root,
         b"meta\0" as *const u8 as *const ::core::ffi::c_char,
         json_object,
     );
     if _meta.is_null() {
-        return ::core::ptr::null_mut::<table_meta>();
+        return ::core::ptr::null_mut::<MetaTable>();
     }
-    let mut _meta_entries: *mut json_value = ::core::ptr::null_mut::<json_value>();
+    let mut _meta_entries: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     _meta_entries = json_obj_get_type(
         _meta,
         b"entries\0" as *const u8 as *const ::core::ffi::c_char,
         json_array,
     );
     if _meta_entries.is_null() {
-        return ::core::ptr::null_mut::<table_meta>();
+        return ::core::ptr::null_mut::<MetaTable>();
     }
-    let mut meta: *mut table_meta = (
+    let mut meta: *mut MetaTable = (
         table_iMeta.create.expect("non-null function pointer"))();
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut j: usize = 0 as usize;
         while j < (*_meta_entries).u.array.length as usize {
-            let mut _e: *mut json_value =
-                *(*_meta_entries).u.array.values.offset(j as isize) as *mut json_value;
-            let mut _tag: *mut json_value = json_obj_get_type(
+            let mut _e: *mut JsonValue =
+                *(*_meta_entries).u.array.values.offset(j as isize) as *mut JsonValue;
+            let mut _tag: *mut JsonValue = json_obj_get_type(
                 _e,
                 b"tag\0" as *const u8 as *const ::core::ffi::c_char,
                 json_string,
             );
             if !(_tag.is_null() || (*_tag).u.string.length != 4 as ::core::ffi::c_uint) {
                 let mut tag: u32 = str2tag((*_tag).u.string.ptr);
-                let mut str: sds = parseMetaData(_e);
+                let mut str: SdsRaw = parseMetaData(_e);
                 if !str.is_null() {
                     meta_iEntries.push.expect("non-null function pointer")(
                         &raw mut (*meta).entries,
-                        meta_Entry {
+                        MetaEntry {
                             tag: tag,
                             data: str,
                         },
@@ -109,7 +109,7 @@ pub unsafe extern "C" fn otfcc_parseMeta(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     return meta;
 }

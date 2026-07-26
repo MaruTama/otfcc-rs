@@ -7,14 +7,14 @@ use libc::{exit, free, malloc, memcmp, memset, strcmp, strlen, strncmp};
 
 use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getint};
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_info, log_type_warning, log_vl_important, log_vl_notice, otfcc_ILogger};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{tableid_t};
-use crate::vendor::sds::{sds};
-use crate::vendor::json::{_json_value, json_array, json_object, json_string, json_value};
+use crate::logger::{log_type_info, log_type_warning, log_vl_important, log_vl_notice, ILogger};
+use crate::support::options::{Options};
+use crate::support::primitives::{TableId};
+use crate::vendor::sds::{SdsRaw};
+use crate::vendor::json::{JsonValue, json_array, json_object, json_string};
 use crate::support::{NULL, true_0};
-use crate::table::otl::{otl_Feature, otl_FeaturePtr, otl_FeatureRef, otl_FeatureRefList, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupRefList, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, table_OTL};
-use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::table::otl::{Feature, FeaturePtr, FeatureRef, FeatureRefList, LanguageSystem, LanguageSystemPtr, Lookup, LookupPtr, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, OtlTable};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::json_funcs::otfcc_parse_flags;
 use crate::table::otl::constants::{lookupFlagsLabels};
 use crate::support::json_ident::{json_ident};
@@ -35,40 +35,40 @@ use crate::vendor::json_builder::{json_string_new_length};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew};
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct language_hash {
+pub struct LanguageHash {
     pub name: *mut ::core::ffi::c_char,
-    pub language: *mut otl_LanguageSystem,
-    pub hh: UT_hash_handle,
+    pub language: *mut LanguageSystem,
+    pub hh: UtHashHandle,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct feature_hash {
+pub struct FeatureHash {
     pub name: *mut ::core::ffi::c_char,
     pub alias: bool,
-    pub feature: *mut otl_Feature,
-    pub hh: UT_hash_handle,
+    pub feature: *mut Feature,
+    pub hh: UtHashHandle,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct lookup_hash {
+pub struct LookupHash {
     pub name: *mut ::core::ffi::c_char,
-    pub lookup: *mut otl_Lookup,
-    pub hh: UT_hash_handle,
-    pub orderType: lookup_order_type,
+    pub lookup: *mut Lookup,
+    pub hh: UtHashHandle,
+    pub orderType: LookupOrderType,
     pub orderVal: u16,
 }
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
-pub enum lookup_order_type {
+pub enum LookupOrderType {
     LOOKUP_ORDER_FORCE = 0,
     LOOKUP_ORDER_FILE = 1,
 }
-pub use lookup_order_type::*;
+pub use LookupOrderType::*;
 unsafe extern "C" fn _parse_lookup(
-    mut lookup: *mut json_value,
+    mut lookup: *mut JsonValue,
     mut lookupName: *mut ::core::ffi::c_char,
-    mut options: *const otfcc_Options,
-    mut lh: *mut *mut lookup_hash,
+    mut options: *const Options,
+    mut lh: *mut *mut LookupHash,
 ) -> bool {
     let mut parsed: bool = false;
     if !parsed {
@@ -77,9 +77,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gsub_parse_single
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -93,9 +93,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gsub_parse_multi
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -109,9 +109,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gsub_parse_multi
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -125,9 +125,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gsub_parse_ligature
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -141,9 +141,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_parse_chaining
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -157,9 +157,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gsub_parse_reverse
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -173,9 +173,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_single
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -189,9 +189,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_pair
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -205,9 +205,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_cursive
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -221,9 +221,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_parse_chaining
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -237,9 +237,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_markToSingle
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -253,9 +253,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_markToSingle
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -269,9 +269,9 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_markToLigature
                     as unsafe extern "C" fn(
-                        *const json_value,
-                        *const otfcc_Options,
-                    ) -> *mut otl_Subtable,
+                        *const JsonValue,
+                        *const Options,
+                    ) -> *mut Subtable,
             ),
             lookup,
             lookupName,
@@ -282,16 +282,16 @@ unsafe extern "C" fn _parse_lookup(
     return parsed;
 }
 unsafe extern "C" fn _declareLookupParser(
-    mut llt: otl_LookupType,
+    mut llt: LookupType,
     mut parser: Option<
-        unsafe extern "C" fn(*const json_value, *const otfcc_Options) -> *mut otl_Subtable,
+        unsafe extern "C" fn(*const JsonValue, *const Options) -> *mut Subtable,
     >,
-    mut _lookup: *mut json_value,
+    mut _lookup: *mut JsonValue,
     mut lookupName: *mut ::core::ffi::c_char,
-    mut options: *const otfcc_Options,
-    mut lh: *mut *mut lookup_hash,
+    mut options: *const Options,
+    mut lh: *mut *mut LookupHash,
 ) -> bool {
-    let mut type_0: *mut json_value = json_obj_get_type(
+    let mut type_0: *mut JsonValue = json_obj_get_type(
         _lookup,
         b"type\0" as *const u8 as *const ::core::ffi::c_char,
         json_string,
@@ -301,7 +301,7 @@ unsafe extern "C" fn _declareLookupParser(
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger,
+                (*options).logger as *mut ILogger,
                 log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
@@ -314,7 +314,7 @@ unsafe extern "C" fn _declareLookupParser(
         }
         return false;
     }
-    let mut item: *mut lookup_hash = ::core::ptr::null_mut::<lookup_hash>();
+    let mut item: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
     let mut _hj_i: ::core::ffi::c_uint = 0;
     let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -568,7 +568,7 @@ unsafe extern "C" fn _declareLookupParser(
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
     _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-    item = ::core::ptr::null_mut::<lookup_hash>();
+    item = ::core::ptr::null_mut::<LookupHash>();
     if !(*lh).is_null() {
         let mut _hf_bkt: ::core::ffi::c_uint = 0;
         _hf_bkt = _hf_hashv
@@ -583,10 +583,10 @@ unsafe extern "C" fn _declareLookupParser(
                 item = ((*(*(**lh).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                     as *mut ::core::ffi::c_char)
                     .offset(-(*(**lh).hh.tbl).hho)
-                    as *mut ::core::ffi::c_void as *mut lookup_hash
-                    as *mut lookup_hash;
+                    as *mut ::core::ffi::c_void as *mut LookupHash
+                    as *mut LookupHash;
             } else {
-                item = ::core::ptr::null_mut::<lookup_hash>();
+                item = ::core::ptr::null_mut::<LookupHash>();
             }
             while !item.is_null() {
                 if (*item).hh.hashv == _hf_hashv
@@ -604,10 +604,10 @@ unsafe extern "C" fn _declareLookupParser(
                 if !(*item).hh.hh_next.is_null() {
                     item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
                         .offset(-(*(**lh).hh.tbl).hho)
-                        as *mut ::core::ffi::c_void as *mut lookup_hash
-                        as *mut lookup_hash;
+                        as *mut ::core::ffi::c_void as *mut LookupHash
+                        as *mut LookupHash;
                 } else {
-                    item = ::core::ptr::null_mut::<lookup_hash>();
+                    item = ::core::ptr::null_mut::<LookupHash>();
                 }
             }
         }
@@ -616,14 +616,14 @@ unsafe extern "C" fn _declareLookupParser(
         (*(*options).logger)
             .logSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             log_vl_important,
             log_type_warning,
             crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" already exists."),
         );
         return false;
     }
-    let mut _subtables: *mut json_value = json_obj_get_type(
+    let mut _subtables: *mut JsonValue = json_obj_get_type(
         _lookup,
         b"subtables\0" as *const u8 as *const ::core::ffi::c_char,
         json_array,
@@ -632,7 +632,7 @@ unsafe extern "C" fn _declareLookupParser(
         (*(*options).logger)
             .logSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             log_vl_important,
             log_type_warning,
             crate::sdsbuild!(
@@ -644,7 +644,7 @@ unsafe extern "C" fn _declareLookupParser(
         );
         return false;
     }
-    let mut lookup: *mut otl_Lookup = ::core::ptr::null_mut::<otl_Lookup>();
+    let mut lookup: *mut Lookup = ::core::ptr::null_mut::<Lookup>();
     otl_iLookupPtr.init.expect("non-null function pointer")(&raw mut lookup);
     (*lookup).type_0 = llt;
     (*lookup).flags = otfcc_parse_flags(
@@ -663,27 +663,27 @@ unsafe extern "C" fn _declareLookupParser(
             | (markAttachmentType as ::core::ffi::c_int) << 8 as ::core::ffi::c_int)
             as u16;
     }
-    let mut subtableCount: tableid_t = (*_subtables).u.array.length as tableid_t;
+    let mut subtableCount: TableId = (*_subtables).u.array.length as TableId;
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), lookupName),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut j: tableid_t = 0 as tableid_t;
+        let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < subtableCount as ::core::ffi::c_int {
-            let mut _subtable: *mut json_value =
-                *(*_subtables).u.array.values.offset(j as isize) as *mut json_value;
+            let mut _subtable: *mut JsonValue =
+                *(*_subtables).u.array.values.offset(j as isize) as *mut JsonValue;
             if !_subtable.is_null()
                 && (*_subtable).type_0 == json_object
             {
-                let mut _st: *mut otl_Subtable =
+                let mut _st: *mut Subtable =
                     parser.expect("non-null function pointer")(_subtable, options);
                 otl_iSubtableList.push.expect("non-null function pointer")(
                     &raw mut (*lookup).subtables,
-                    _st as otl_SubtablePtr,
+                    _st as SubtablePtr,
                 );
             }
             j = j.wrapping_add(1);
@@ -691,13 +691,13 @@ unsafe extern "C" fn _declareLookupParser(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     if (*lookup).subtables.length == 0 {
         (*(*options).logger)
             .logSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             log_vl_important,
             log_type_warning,
             crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" does not have any subtables."),
@@ -706,11 +706,11 @@ unsafe extern "C" fn _declareLookupParser(
         return false;
     }
     item = __caryll_allocate_clean(
-        ::core::mem::size_of::<lookup_hash>() as usize,
+        ::core::mem::size_of::<LookupHash>() as usize,
         105 as ::core::ffi::c_ulong,
-    ) as *mut lookup_hash;
+    ) as *mut LookupHash;
     (*item).name = sdsnew(lookupName) as *mut ::core::ffi::c_char;
-    (*lookup).name = sdsdup((*item).name as sds);
+    (*lookup).name = sdsdup((*item).name as SdsRaw);
     (*item).lookup = lookup;
     (*item).orderType = LOOKUP_ORDER_FILE;
     (*item).orderVal = (if !(*lh).is_null() {
@@ -980,25 +980,25 @@ unsafe extern "C" fn _declareLookupParser(
     if (*lh).is_null() {
         (*item).hh.next = NULL;
         (*item).hh.prev = NULL;
-        (*item).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-            as *mut UT_hash_table as *mut UT_hash_table;
+        (*item).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+            as *mut UtHashTable as *mut UtHashTable;
         if (*item).hh.tbl.is_null() {
             exit(-(1 as ::core::ffi::c_int));
         } else {
             memset(
                 (*item).hh.tbl as *mut ::core::ffi::c_void,
                 '\0' as i32,
-                ::core::mem::size_of::<UT_hash_table>() as usize,
+                ::core::mem::size_of::<UtHashTable>() as usize,
             );
-            (*(*item).hh.tbl).tail = &raw mut (*item).hh as *mut UT_hash_handle;
+            (*(*item).hh.tbl).tail = &raw mut (*item).hh as *mut UtHashHandle;
             (*(*item).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
             (*(*item).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
             (*(*item).hh.tbl).hho = (&raw mut (*item).hh as *mut ::core::ffi::c_char)
                 .offset_from(item as *mut ::core::ffi::c_char)
                 as ::core::ffi::c_long as isize;
             (*(*item).hh.tbl).buckets = malloc(
-                (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-            ) as *mut UT_hash_bucket;
+                (32 as usize).wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+            ) as *mut UtHashBucket;
             (*(*item).hh.tbl).signature = HASH_SIGNATURE as u32;
             if (*(*item).hh.tbl).buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
@@ -1006,7 +1006,7 @@ unsafe extern "C" fn _declareLookupParser(
                 memset(
                     (*(*item).hh.tbl).buckets as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                 );
             }
         }
@@ -1018,7 +1018,7 @@ unsafe extern "C" fn _declareLookupParser(
             .offset(-(*(**lh).hh.tbl).hho)
             as *mut ::core::ffi::c_void;
         (*(*(**lh).hh.tbl).tail).next = item as *mut ::core::ffi::c_void;
-        (*(**lh).hh.tbl).tail = &raw mut (*item).hh as *mut UT_hash_handle;
+        (*(**lh).hh.tbl).tail = &raw mut (*item).hh as *mut UtHashHandle;
     }
     let mut _ha_bkt: ::core::ffi::c_uint = 0;
     (*(**lh).hh.tbl).num_items = (*(**lh).hh.tbl).num_items.wrapping_add(1);
@@ -1026,15 +1026,15 @@ unsafe extern "C" fn _declareLookupParser(
         & (*(**lh).hh.tbl)
             .num_buckets
             .wrapping_sub(1 as ::core::ffi::c_uint);
-    let mut _ha_head: *mut UT_hash_bucket =
-        (*(**lh).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UT_hash_bucket;
+    let mut _ha_head: *mut UtHashBucket =
+        (*(**lh).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
     (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-    (*item).hh.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-    (*item).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+    (*item).hh.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+    (*item).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
     if !(*_ha_head).hh_head.is_null() {
-        (*(*_ha_head).hh_head).hh_prev = &raw mut (*item).hh as *mut UT_hash_handle;
+        (*(*_ha_head).hh_head).hh_prev = &raw mut (*item).hh as *mut UtHashHandle;
     }
-    (*_ha_head).hh_head = &raw mut (*item).hh as *mut UT_hash_handle;
+    (*_ha_head).hh_head = &raw mut (*item).hh as *mut UtHashHandle;
     if (*_ha_head).count
         >= (*_ha_head)
             .expand_mult
@@ -1044,15 +1044,15 @@ unsafe extern "C" fn _declareLookupParser(
     {
         let mut _he_bkt: ::core::ffi::c_uint = 0;
         let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-        let mut _he_thh: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-        let mut _he_hh_nxt: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-        let mut _he_new_buckets: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
-        let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
+        let mut _he_thh: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+        let mut _he_hh_nxt: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+        let mut _he_new_buckets: *mut UtHashBucket = ::core::ptr::null_mut::<UtHashBucket>();
+        let mut _he_newbkt: *mut UtHashBucket = ::core::ptr::null_mut::<UtHashBucket>();
         _he_new_buckets = malloc(
             (2 as usize)
                 .wrapping_mul((*(*item).hh.tbl).num_buckets as usize)
-                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-        ) as *mut UT_hash_bucket;
+                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+        ) as *mut UtHashBucket;
         if _he_new_buckets.is_null() {
             exit(-(1 as ::core::ffi::c_int));
         } else {
@@ -1061,7 +1061,7 @@ unsafe extern "C" fn _declareLookupParser(
                 '\0' as i32,
                 (2 as usize)
                     .wrapping_mul((*(*item).hh.tbl).num_buckets as usize)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                    .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
             );
             (*(*item).hh.tbl).ideal_chain_maxlen = ((*(*item).hh.tbl).num_items
                 >> (*(*item).hh.tbl)
@@ -1084,7 +1084,7 @@ unsafe extern "C" fn _declareLookupParser(
             _he_bkt_i = 0 as ::core::ffi::c_uint;
             while _he_bkt_i < (*(*item).hh.tbl).num_buckets {
                 _he_thh = (*(*(*item).hh.tbl).buckets.offset(_he_bkt_i as isize)).hh_head
-                    as *mut UT_hash_handle;
+                    as *mut UtHashHandle;
                 while !_he_thh.is_null() {
                     _he_hh_nxt = (*_he_thh).hh_next;
                     _he_bkt = (*_he_thh).hashv
@@ -1092,7 +1092,7 @@ unsafe extern "C" fn _declareLookupParser(
                             .num_buckets
                             .wrapping_mul(2 as ::core::ffi::c_uint)
                             .wrapping_sub(1 as ::core::ffi::c_uint);
-                    _he_newbkt = _he_new_buckets.offset(_he_bkt as isize) as *mut UT_hash_bucket;
+                    _he_newbkt = _he_new_buckets.offset(_he_bkt as isize) as *mut UtHashBucket;
                     (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                     if (*_he_newbkt).count > (*(*item).hh.tbl).ideal_chain_maxlen {
                         (*(*item).hh.tbl).nonideal_items =
@@ -1101,12 +1101,12 @@ unsafe extern "C" fn _declareLookupParser(
                             .count
                             .wrapping_div((*(*item).hh.tbl).ideal_chain_maxlen);
                     }
-                    (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
-                    (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                    (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
+                    (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UtHashHandle;
                     if !(*_he_newbkt).hh_head.is_null() {
                         (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                     }
-                    (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                    (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                     _he_thh = _he_hh_nxt;
                 }
                 _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -1134,10 +1134,10 @@ unsafe extern "C" fn _declareLookupParser(
     return true;
 }
 unsafe extern "C" fn figureOutLookupsFromJSON(
-    mut lookups: *mut json_value,
-    mut options: *const otfcc_Options,
-) -> *mut lookup_hash {
-    let mut lh: *mut lookup_hash = ::core::ptr::null_mut::<lookup_hash>();
+    mut lookups: *mut JsonValue,
+    mut options: *const Options,
+) -> *mut LookupHash {
+    let mut lh: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
     let mut j: u32 = 0 as u32;
     while j < (*lookups).u.object.length as u32 {
         let mut lookupName: *mut ::core::ffi::c_char =
@@ -1145,7 +1145,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
         if (*(*(*lookups).u.object.values.offset(j as isize)).value).type_0 == json_object
         {
             let mut parsed: bool = _parse_lookup(
-                (*(*lookups).u.object.values.offset(j as isize)).value as *mut json_value,
+                (*(*lookups).u.object.values.offset(j as isize)).value as *mut JsonValue,
                 lookupName,
                 options,
                 &raw mut lh,
@@ -1154,7 +1154,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                 (*(*options).logger)
                     .logSDS
                     .expect("non-null function pointer")(
-                    (*options).logger as *mut otfcc_ILogger,
+                    (*options).logger as *mut ILogger,
                     log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
@@ -1174,7 +1174,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                     .u
                     .string
                     .ptr;
-            let mut s: *mut lookup_hash = ::core::ptr::null_mut::<lookup_hash>();
+            let mut s: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
             let mut _hj_i: ::core::ffi::c_uint = 0;
             let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -1437,7 +1437,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
             _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
             _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
             _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-            s = ::core::ptr::null_mut::<lookup_hash>();
+            s = ::core::ptr::null_mut::<LookupHash>();
             if !lh.is_null() {
                 let mut _hf_bkt: ::core::ffi::c_uint = 0;
                 _hf_bkt = _hf_hashv
@@ -1453,9 +1453,9 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                             as *mut ::core::ffi::c_char)
                             .offset(-(*(*lh).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut lookup_hash as *mut lookup_hash;
+                            as *mut LookupHash as *mut LookupHash;
                     } else {
-                        s = ::core::ptr::null_mut::<lookup_hash>();
+                        s = ::core::ptr::null_mut::<LookupHash>();
                     }
                     while !s.is_null() {
                         if (*s).hh.hashv == _hf_hashv
@@ -1474,20 +1474,20 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                             s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
                                 .offset(-(*(*lh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut lookup_hash
-                                as *mut lookup_hash;
+                                as *mut LookupHash
+                                as *mut LookupHash;
                         } else {
-                            s = ::core::ptr::null_mut::<lookup_hash>();
+                            s = ::core::ptr::null_mut::<LookupHash>();
                         }
                     }
                 }
             }
             if !s.is_null() {
-                let mut dup: *mut lookup_hash = ::core::ptr::null_mut::<lookup_hash>();
+                let mut dup: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
                 dup = __caryll_allocate_clean(
-                    ::core::mem::size_of::<lookup_hash>() as usize,
+                    ::core::mem::size_of::<LookupHash>() as usize,
                     132 as ::core::ffi::c_ulong,
-                ) as *mut lookup_hash;
+                ) as *mut LookupHash;
                 (*dup).name = sdsnew(lookupName) as *mut ::core::ffi::c_char;
                 (*dup).lookup = (*s).lookup;
                 (*dup).orderType = LOOKUP_ORDER_FILE;
@@ -1782,18 +1782,18 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                 if lh.is_null() {
                     (*dup).hh.next = NULL;
                     (*dup).hh.prev = NULL;
-                    (*dup).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                        as *mut UT_hash_table
-                        as *mut UT_hash_table;
+                    (*dup).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                        as *mut UtHashTable
+                        as *mut UtHashTable;
                     if (*dup).hh.tbl.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
                         memset(
                             (*dup).hh.tbl as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            ::core::mem::size_of::<UT_hash_table>() as usize,
+                            ::core::mem::size_of::<UtHashTable>() as usize,
                         );
-                        (*(*dup).hh.tbl).tail = &raw mut (*dup).hh as *mut UT_hash_handle;
+                        (*(*dup).hh.tbl).tail = &raw mut (*dup).hh as *mut UtHashHandle;
                         (*(*dup).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                         (*(*dup).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                         (*(*dup).hh.tbl).hho = (&raw mut (*dup).hh as *mut ::core::ffi::c_char)
@@ -1802,8 +1802,8 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                             as isize;
                         (*(*dup).hh.tbl).buckets = malloc(
                             (32 as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                        ) as *mut UT_hash_bucket;
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                        ) as *mut UtHashBucket;
                         (*(*dup).hh.tbl).signature = HASH_SIGNATURE as u32;
                         if (*(*dup).hh.tbl).buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
@@ -1812,7 +1812,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                                 (*(*dup).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
                                 (32 as usize).wrapping_mul(
-                                    ::core::mem::size_of::<UT_hash_bucket>() as usize,
+                                    ::core::mem::size_of::<UtHashBucket>() as usize,
                                 ),
                             );
                         }
@@ -1825,7 +1825,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                         .offset(-(*(*lh).hh.tbl).hho)
                         as *mut ::core::ffi::c_void;
                     (*(*(*lh).hh.tbl).tail).next = dup as *mut ::core::ffi::c_void;
-                    (*(*lh).hh.tbl).tail = &raw mut (*dup).hh as *mut UT_hash_handle;
+                    (*(*lh).hh.tbl).tail = &raw mut (*dup).hh as *mut UtHashHandle;
                 }
                 let mut _ha_bkt: ::core::ffi::c_uint = 0;
                 (*(*lh).hh.tbl).num_items = (*(*lh).hh.tbl).num_items.wrapping_add(1);
@@ -1833,15 +1833,15 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                     & (*(*lh).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _ha_head: *mut UT_hash_bucket =
-                    (*(*lh).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UT_hash_bucket;
+                let mut _ha_head: *mut UtHashBucket =
+                    (*(*lh).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
                 (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-                (*dup).hh.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-                (*dup).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                (*dup).hh.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+                (*dup).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                 if !(*_ha_head).hh_head.is_null() {
-                    (*(*_ha_head).hh_head).hh_prev = &raw mut (*dup).hh as *mut UT_hash_handle;
+                    (*(*_ha_head).hh_head).hh_prev = &raw mut (*dup).hh as *mut UtHashHandle;
                 }
-                (*_ha_head).hh_head = &raw mut (*dup).hh as *mut UT_hash_handle;
+                (*_ha_head).hh_head = &raw mut (*dup).hh as *mut UtHashHandle;
                 if (*_ha_head).count
                     >= (*_ha_head)
                         .expand_mult
@@ -1851,19 +1851,19 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                 {
                     let mut _he_bkt: ::core::ffi::c_uint = 0;
                     let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-                    let mut _he_thh: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_hh_nxt: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_new_buckets: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
-                    let mut _he_newbkt: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
+                    let mut _he_thh: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_hh_nxt: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_new_buckets: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
+                    let mut _he_newbkt: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
                     _he_new_buckets = malloc(
                         (2 as usize)
                             .wrapping_mul((*(*dup).hh.tbl).num_buckets as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                    ) as *mut UT_hash_bucket;
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                    ) as *mut UtHashBucket;
                     if _he_new_buckets.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
@@ -1872,7 +1872,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                             '\0' as i32,
                             (2 as usize)
                                 .wrapping_mul((*(*dup).hh.tbl).num_buckets as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                         );
                         (*(*dup).hh.tbl).ideal_chain_maxlen = ((*(*dup).hh.tbl).num_items
                             >> (*(*dup).hh.tbl)
@@ -1895,7 +1895,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                         _he_bkt_i = 0 as ::core::ffi::c_uint;
                         while _he_bkt_i < (*(*dup).hh.tbl).num_buckets {
                             _he_thh = (*(*(*dup).hh.tbl).buckets.offset(_he_bkt_i as isize)).hh_head
-                                as *mut UT_hash_handle;
+                                as *mut UtHashHandle;
                             while !_he_thh.is_null() {
                                 _he_hh_nxt = (*_he_thh).hh_next;
                                 _he_bkt = (*_he_thh).hashv
@@ -1904,7 +1904,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                                         .wrapping_mul(2 as ::core::ffi::c_uint)
                                         .wrapping_sub(1 as ::core::ffi::c_uint);
                                 _he_newbkt =
-                                    _he_new_buckets.offset(_he_bkt as isize) as *mut UT_hash_bucket;
+                                    _he_new_buckets.offset(_he_bkt as isize) as *mut UtHashBucket;
                                 (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                                 if (*_he_newbkt).count > (*(*dup).hh.tbl).ideal_chain_maxlen {
                                     (*(*dup).hh.tbl).nonideal_items =
@@ -1913,12 +1913,12 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                                         .count
                                         .wrapping_div((*(*dup).hh.tbl).ideal_chain_maxlen);
                                 }
-                                (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
-                                (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                                (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
+                                (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UtHashHandle;
                                 if !(*_he_newbkt).hh_head.is_null() {
                                     (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                                 }
-                                (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                                (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                                 _he_thh = _he_hh_nxt;
                             }
                             _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -1951,15 +1951,15 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
     return lh;
 }
 unsafe extern "C" fn feature_merger_activate(
-    mut d: *mut json_value,
+    mut d: *mut JsonValue,
     sametag: bool,
     mut objtype: *const ::core::ffi::c_char,
-    mut options: *const otfcc_Options,
+    mut options: *const Options,
 ) {
     let mut j: u32 = 0 as u32;
     while j < (*d).u.object.length as u32 {
-        let mut jthis: *mut json_value =
-            (*(*d).u.object.values.offset(j as isize)).value as *mut json_value;
+        let mut jthis: *mut JsonValue =
+            (*(*d).u.object.values.offset(j as isize)).value as *mut JsonValue;
         let mut kthis: *mut ::core::ffi::c_char = (*(*d).u.object.values.offset(j as isize)).name;
         let mut nkthis: u32 =
             (*(*d).u.object.values.offset(j as isize)).name_length as u32;
@@ -1968,8 +1968,8 @@ unsafe extern "C" fn feature_merger_activate(
         {
             let mut k: u32 = j.wrapping_add(1 as u32);
             while k < (*d).u.object.length as u32 {
-                let mut jthat: *mut json_value =
-                    (*(*d).u.object.values.offset(k as isize)).value as *mut json_value;
+                let mut jthat: *mut JsonValue =
+                    (*(*d).u.object.values.offset(k as isize)).value as *mut JsonValue;
                 let mut kthat: *mut ::core::ffi::c_char =
                     (*(*d).u.object.values.offset(k as isize)).name;
                 if json_ident(jthis, jthat) as ::core::ffi::c_int != 0
@@ -1981,15 +1981,15 @@ unsafe extern "C" fn feature_merger_activate(
                     }) != 0
                 {
                     json_value_free(jthat);
-                    let mut v: *mut json_value =
+                    let mut v: *mut JsonValue =
                         json_string_new_length(nkthis as ::core::ffi::c_uint, kthis);
-                    (*v).parent = d as *mut _json_value;
+                    (*v).parent = d as *mut JsonValue;
                     let ref mut fresh6 = (*(*d).u.object.values.offset(k as isize)).value;
-                    *fresh6 = v as *mut _json_value;
+                    *fresh6 = v as *mut JsonValue;
                     (*(*options).logger)
                         .logSDS
                         .expect("non-null function pointer")(
-                        (*options).logger as *mut otfcc_ILogger,
+                        (*options).logger as *mut ILogger,
                         log_vl_notice,
                         log_type_info,
                         crate::sdsbuild!(
@@ -2011,12 +2011,12 @@ unsafe extern "C" fn feature_merger_activate(
     }
 }
 unsafe extern "C" fn figureOutFeaturesFromJSON(
-    mut features: *mut json_value,
-    mut lh: *mut lookup_hash,
+    mut features: *mut JsonValue,
+    mut lh: *mut LookupHash,
     mut tag: *const ::core::ffi::c_char,
-    mut options: *const otfcc_Options,
-) -> *mut feature_hash {
-    let mut fh: *mut feature_hash = ::core::ptr::null_mut::<feature_hash>();
+    mut options: *const Options,
+) -> *mut FeatureHash {
+    let mut fh: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
     if (*options).merge_features {
         feature_merger_activate(
             features,
@@ -2029,23 +2029,23 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
     while j < (*features).u.object.length as u32 {
         let mut featureName: *mut ::core::ffi::c_char =
             (*(*features).u.object.values.offset(j as isize)).name;
-        let mut _feature: *mut json_value =
-            (*(*features).u.object.values.offset(j as isize)).value as *mut json_value;
+        let mut _feature: *mut JsonValue =
+            (*(*features).u.object.values.offset(j as isize)).value as *mut JsonValue;
         if (*_feature).type_0 == json_array
         {
-            let mut al: otl_LookupRefList = otl_LookupRefList {
+            let mut al: LookupRefList = LookupRefList {
                 length: 0,
                 capacity: 0,
-                items: ::core::ptr::null_mut::<otl_LookupRef>(),
+                items: ::core::ptr::null_mut::<LookupRef>(),
             };
             otl_iLookupRefList.init.expect("non-null function pointer")(&raw mut al);
-            let mut k: tableid_t = 0 as tableid_t;
+            let mut k: TableId = 0 as TableId;
             while (k as ::core::ffi::c_uint) < (*_feature).u.array.length {
-                let mut term: *mut json_value =
-                    *(*_feature).u.array.values.offset(k as isize) as *mut json_value;
+                let mut term: *mut JsonValue =
+                    *(*_feature).u.array.values.offset(k as isize) as *mut JsonValue;
                 if !((*term).type_0 != json_string)
                 {
-                    let mut item: *mut lookup_hash = ::core::ptr::null_mut::<lookup_hash>();
+                    let mut item: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
                     let mut _hf_hashv: ::core::ffi::c_uint = 0;
                     let mut _hj_i: ::core::ffi::c_uint = 0;
                     let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -2322,7 +2322,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
                     _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
                     _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-                    item = ::core::ptr::null_mut::<lookup_hash>();
+                    item = ::core::ptr::null_mut::<LookupHash>();
                     if !lh.is_null() {
                         let mut _hf_bkt: ::core::ffi::c_uint = 0;
                         _hf_bkt = _hf_hashv
@@ -2338,10 +2338,10 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                     as *mut ::core::ffi::c_char)
                                     .offset(-(*(*lh).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
-                                    as *mut lookup_hash
-                                    as *mut lookup_hash;
+                                    as *mut LookupHash
+                                    as *mut LookupHash;
                             } else {
-                                item = ::core::ptr::null_mut::<lookup_hash>();
+                                item = ::core::ptr::null_mut::<LookupHash>();
                             }
                             while !item.is_null() {
                                 if (*item).hh.hashv == _hf_hashv
@@ -2362,10 +2362,10 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                     item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
                                         .offset(-(*(*lh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
-                                        as *mut lookup_hash
-                                        as *mut lookup_hash;
+                                        as *mut LookupHash
+                                        as *mut LookupHash;
                                 } else {
-                                    item = ::core::ptr::null_mut::<lookup_hash>();
+                                    item = ::core::ptr::null_mut::<LookupHash>();
                                 }
                             }
                         }
@@ -2373,13 +2373,13 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     if !item.is_null() {
                         otl_iLookupRefList.push.expect("non-null function pointer")(
                             &raw mut al,
-                            (*item).lookup as otl_LookupRef,
+                            (*item).lookup as LookupRef,
                         );
                     } else {
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
-                            (*options).logger as *mut otfcc_ILogger,
+                            (*options).logger as *mut ILogger,
                             log_vl_important,
                             log_type_warning,
                             crate::sdsbuild!(
@@ -2398,7 +2398,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                 k = k.wrapping_add(1);
             }
             if al.length > 0 as usize {
-                let mut s: *mut feature_hash = ::core::ptr::null_mut::<feature_hash>();
+                let mut s: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
                 let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
                 let mut _hj_i_0: ::core::ffi::c_uint = 0;
                 let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -2674,7 +2674,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                 _hf_hashv_0 = _hf_hashv_0.wrapping_sub(_hj_i_0);
                 _hf_hashv_0 = _hf_hashv_0.wrapping_sub(_hj_j_0);
                 _hf_hashv_0 ^= _hj_j_0 >> 15 as ::core::ffi::c_int;
-                s = ::core::ptr::null_mut::<feature_hash>();
+                s = ::core::ptr::null_mut::<FeatureHash>();
                 if !fh.is_null() {
                     let mut _hf_bkt_0: ::core::ffi::c_uint = 0;
                     _hf_bkt_0 = _hf_hashv_0
@@ -2690,10 +2690,10 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                 as *mut ::core::ffi::c_char)
                                 .offset(-(*(*fh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut feature_hash
-                                as *mut feature_hash;
+                                as *mut FeatureHash
+                                as *mut FeatureHash;
                         } else {
-                            s = ::core::ptr::null_mut::<feature_hash>();
+                            s = ::core::ptr::null_mut::<FeatureHash>();
                         }
                         while !s.is_null() {
                             if (*s).hh.hashv == _hf_hashv_0
@@ -2712,23 +2712,23 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                 s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
                                     .offset(-(*(*fh).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
-                                    as *mut feature_hash
-                                    as *mut feature_hash;
+                                    as *mut FeatureHash
+                                    as *mut FeatureHash;
                             } else {
-                                s = ::core::ptr::null_mut::<feature_hash>();
+                                s = ::core::ptr::null_mut::<FeatureHash>();
                             }
                         }
                     }
                 }
                 if s.is_null() {
                     s = __caryll_allocate_clean(
-                        ::core::mem::size_of::<feature_hash>() as usize,
+                        ::core::mem::size_of::<FeatureHash>() as usize,
                         194 as ::core::ffi::c_ulong,
-                    ) as *mut feature_hash;
+                    ) as *mut FeatureHash;
                     (*s).name = sdsnew(featureName) as *mut ::core::ffi::c_char;
                     (*s).alias = false;
                     otl_iFeaturePtr.init.expect("non-null function pointer")(&raw mut (*s).feature);
-                    (*(*s).feature).name = sdsdup((*s).name as sds);
+                    (*(*s).feature).name = sdsdup((*s).name as SdsRaw);
                     otl_iLookupRefList
                         .replace
                         .expect("non-null function pointer")(
@@ -3019,18 +3019,18 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     if fh.is_null() {
                         (*s).hh.next = NULL;
                         (*s).hh.prev = NULL;
-                        (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                            as *mut UT_hash_table
-                            as *mut UT_hash_table;
+                        (*s).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                            as *mut UtHashTable
+                            as *mut UtHashTable;
                         if (*s).hh.tbl.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
                         } else {
                             memset(
                                 (*s).hh.tbl as *mut ::core::ffi::c_void,
                                 '\0' as i32,
-                                ::core::mem::size_of::<UT_hash_table>() as usize,
+                                ::core::mem::size_of::<UtHashTable>() as usize,
                             );
-                            (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
+                            (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
                             (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                             (*(*s).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                             (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
@@ -3039,11 +3039,11 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                 as isize;
                             (*(*s).hh.tbl).buckets =
                                 malloc((32 as usize).wrapping_mul(::core::mem::size_of::<
-                                    UT_hash_bucket,
+                                    UtHashBucket,
                                 >(
                                 )
                                     as usize))
-                                    as *mut UT_hash_bucket;
+                                    as *mut UtHashBucket;
                             (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
                             if (*(*s).hh.tbl).buckets.is_null() {
                                 exit(-(1 as ::core::ffi::c_int));
@@ -3052,7 +3052,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                     (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                     '\0' as i32,
                                     (32 as usize).wrapping_mul(
-                                        ::core::mem::size_of::<UT_hash_bucket>() as usize,
+                                        ::core::mem::size_of::<UtHashBucket>() as usize,
                                     ),
                                 );
                             }
@@ -3065,7 +3065,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             .offset(-(*(*fh).hh.tbl).hho)
                             as *mut ::core::ffi::c_void;
                         (*(*(*fh).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
-                        (*(*fh).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
+                        (*(*fh).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
                     }
                     let mut _ha_bkt: ::core::ffi::c_uint = 0;
                     (*(*fh).hh.tbl).num_items = (*(*fh).hh.tbl).num_items.wrapping_add(1);
@@ -3073,15 +3073,15 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         & (*(*fh).hh.tbl)
                             .num_buckets
                             .wrapping_sub(1 as ::core::ffi::c_uint);
-                    let mut _ha_head: *mut UT_hash_bucket =
-                        (*(*fh).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UT_hash_bucket;
+                    let mut _ha_head: *mut UtHashBucket =
+                        (*(*fh).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
                     (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-                    (*s).hh.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-                    (*s).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                    (*s).hh.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+                    (*s).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                     if !(*_ha_head).hh_head.is_null() {
-                        (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UT_hash_handle;
+                        (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UtHashHandle;
                     }
-                    (*_ha_head).hh_head = &raw mut (*s).hh as *mut UT_hash_handle;
+                    (*_ha_head).hh_head = &raw mut (*s).hh as *mut UtHashHandle;
                     if (*_ha_head).count
                         >= (*_ha_head)
                             .expand_mult
@@ -3091,19 +3091,19 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     {
                         let mut _he_bkt: ::core::ffi::c_uint = 0;
                         let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-                        let mut _he_thh: *mut UT_hash_handle =
-                            ::core::ptr::null_mut::<UT_hash_handle>();
-                        let mut _he_hh_nxt: *mut UT_hash_handle =
-                            ::core::ptr::null_mut::<UT_hash_handle>();
-                        let mut _he_new_buckets: *mut UT_hash_bucket =
-                            ::core::ptr::null_mut::<UT_hash_bucket>();
-                        let mut _he_newbkt: *mut UT_hash_bucket =
-                            ::core::ptr::null_mut::<UT_hash_bucket>();
+                        let mut _he_thh: *mut UtHashHandle =
+                            ::core::ptr::null_mut::<UtHashHandle>();
+                        let mut _he_hh_nxt: *mut UtHashHandle =
+                            ::core::ptr::null_mut::<UtHashHandle>();
+                        let mut _he_new_buckets: *mut UtHashBucket =
+                            ::core::ptr::null_mut::<UtHashBucket>();
+                        let mut _he_newbkt: *mut UtHashBucket =
+                            ::core::ptr::null_mut::<UtHashBucket>();
                         _he_new_buckets = malloc(
                             (2 as usize)
                                 .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                        ) as *mut UT_hash_bucket;
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                        ) as *mut UtHashBucket;
                         if _he_new_buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
                         } else {
@@ -3113,7 +3113,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                 (2 as usize)
                                     .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
                                     .wrapping_mul(
-                                        ::core::mem::size_of::<UT_hash_bucket>() as usize
+                                        ::core::mem::size_of::<UtHashBucket>() as usize
                                     ),
                             );
                             (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
@@ -3138,7 +3138,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             while _he_bkt_i < (*(*s).hh.tbl).num_buckets {
                                 _he_thh = (*(*(*s).hh.tbl).buckets.offset(_he_bkt_i as isize))
                                     .hh_head
-                                    as *mut UT_hash_handle;
+                                    as *mut UtHashHandle;
                                 while !_he_thh.is_null() {
                                     _he_hh_nxt = (*_he_thh).hh_next;
                                     _he_bkt = (*_he_thh).hashv
@@ -3147,7 +3147,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                             .wrapping_mul(2 as ::core::ffi::c_uint)
                                             .wrapping_sub(1 as ::core::ffi::c_uint);
                                     _he_newbkt = _he_new_buckets.offset(_he_bkt as isize)
-                                        as *mut UT_hash_bucket;
+                                        as *mut UtHashBucket;
                                     (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                                     if (*_he_newbkt).count > (*(*s).hh.tbl).ideal_chain_maxlen {
                                         (*(*s).hh.tbl).nonideal_items =
@@ -3156,13 +3156,13 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                             .count
                                             .wrapping_div((*(*s).hh.tbl).ideal_chain_maxlen);
                                     }
-                                    (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                                    (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                                     (*_he_thh).hh_next =
-                                        (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                                        (*_he_newbkt).hh_head as *mut UtHashHandle;
                                     if !(*_he_newbkt).hh_head.is_null() {
                                         (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                                     }
-                                    (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                                    (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                                     _he_thh = _he_hh_nxt;
                                 }
                                 _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -3194,7 +3194,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         .expect(
                             "non-null function pointer",
                         )(
-                        (*options).logger as *mut otfcc_ILogger,
+                        (*options).logger as *mut ILogger,
                         log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(
@@ -3216,7 +3216,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     .expect(
                         "non-null function pointer",
                     )(
-                    (*options).logger as *mut otfcc_ILogger,
+                    (*options).logger as *mut ILogger,
                     log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
@@ -3234,7 +3234,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
             }
         } else if (*_feature).type_0 == json_string
         {
-            let mut s_0: *mut feature_hash = ::core::ptr::null_mut::<feature_hash>();
+            let mut s_0: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
             let mut target: *mut ::core::ffi::c_char = (*_feature).u.string.ptr;
             let mut _hf_hashv_1: ::core::ffi::c_uint = 0;
             let mut _hj_i_2: ::core::ffi::c_uint = 0;
@@ -3507,7 +3507,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
             _hf_hashv_1 = _hf_hashv_1.wrapping_sub(_hj_i_2);
             _hf_hashv_1 = _hf_hashv_1.wrapping_sub(_hj_j_2);
             _hf_hashv_1 ^= _hj_j_2 >> 15 as ::core::ffi::c_int;
-            s_0 = ::core::ptr::null_mut::<feature_hash>();
+            s_0 = ::core::ptr::null_mut::<FeatureHash>();
             if !fh.is_null() {
                 let mut _hf_bkt_1: ::core::ffi::c_uint = 0;
                 _hf_bkt_1 = _hf_hashv_1
@@ -3523,9 +3523,9 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             as *mut ::core::ffi::c_char)
                             .offset(-(*(*fh).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut feature_hash as *mut feature_hash;
+                            as *mut FeatureHash as *mut FeatureHash;
                     } else {
-                        s_0 = ::core::ptr::null_mut::<feature_hash>();
+                        s_0 = ::core::ptr::null_mut::<FeatureHash>();
                     }
                     while !s_0.is_null() {
                         if (*s_0).hh.hashv == _hf_hashv_1
@@ -3544,20 +3544,20 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             s_0 = ((*s_0).hh.hh_next as *mut ::core::ffi::c_char)
                                 .offset(-(*(*fh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut feature_hash
-                                as *mut feature_hash;
+                                as *mut FeatureHash
+                                as *mut FeatureHash;
                         } else {
-                            s_0 = ::core::ptr::null_mut::<feature_hash>();
+                            s_0 = ::core::ptr::null_mut::<FeatureHash>();
                         }
                     }
                 }
             }
             if !s_0.is_null() {
-                let mut dup: *mut feature_hash = ::core::ptr::null_mut::<feature_hash>();
+                let mut dup: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
                 dup = __caryll_allocate_clean(
-                    ::core::mem::size_of::<feature_hash>() as usize,
+                    ::core::mem::size_of::<FeatureHash>() as usize,
                     220 as ::core::ffi::c_ulong,
-                ) as *mut feature_hash;
+                ) as *mut FeatureHash;
                 (*dup).alias = true;
                 (*dup).name = sdsnew(featureName) as *mut ::core::ffi::c_char;
                 (*dup).feature = (*s_0).feature;
@@ -3847,18 +3847,18 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                 if fh.is_null() {
                     (*dup).hh.next = NULL;
                     (*dup).hh.prev = NULL;
-                    (*dup).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                        as *mut UT_hash_table
-                        as *mut UT_hash_table;
+                    (*dup).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                        as *mut UtHashTable
+                        as *mut UtHashTable;
                     if (*dup).hh.tbl.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
                         memset(
                             (*dup).hh.tbl as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            ::core::mem::size_of::<UT_hash_table>() as usize,
+                            ::core::mem::size_of::<UtHashTable>() as usize,
                         );
-                        (*(*dup).hh.tbl).tail = &raw mut (*dup).hh as *mut UT_hash_handle;
+                        (*(*dup).hh.tbl).tail = &raw mut (*dup).hh as *mut UtHashHandle;
                         (*(*dup).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                         (*(*dup).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                         (*(*dup).hh.tbl).hho = (&raw mut (*dup).hh as *mut ::core::ffi::c_char)
@@ -3867,8 +3867,8 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             as isize;
                         (*(*dup).hh.tbl).buckets = malloc(
                             (32 as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                        ) as *mut UT_hash_bucket;
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                        ) as *mut UtHashBucket;
                         (*(*dup).hh.tbl).signature = HASH_SIGNATURE as u32;
                         if (*(*dup).hh.tbl).buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
@@ -3877,7 +3877,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                 (*(*dup).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
                                 (32 as usize).wrapping_mul(
-                                    ::core::mem::size_of::<UT_hash_bucket>() as usize,
+                                    ::core::mem::size_of::<UtHashBucket>() as usize,
                                 ),
                             );
                         }
@@ -3890,7 +3890,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         .offset(-(*(*fh).hh.tbl).hho)
                         as *mut ::core::ffi::c_void;
                     (*(*(*fh).hh.tbl).tail).next = dup as *mut ::core::ffi::c_void;
-                    (*(*fh).hh.tbl).tail = &raw mut (*dup).hh as *mut UT_hash_handle;
+                    (*(*fh).hh.tbl).tail = &raw mut (*dup).hh as *mut UtHashHandle;
                 }
                 let mut _ha_bkt_0: ::core::ffi::c_uint = 0;
                 (*(*fh).hh.tbl).num_items = (*(*fh).hh.tbl).num_items.wrapping_add(1);
@@ -3898,15 +3898,15 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     & (*(*fh).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _ha_head_0: *mut UT_hash_bucket =
-                    (*(*fh).hh.tbl).buckets.offset(_ha_bkt_0 as isize) as *mut UT_hash_bucket;
+                let mut _ha_head_0: *mut UtHashBucket =
+                    (*(*fh).hh.tbl).buckets.offset(_ha_bkt_0 as isize) as *mut UtHashBucket;
                 (*_ha_head_0).count = (*_ha_head_0).count.wrapping_add(1);
-                (*dup).hh.hh_next = (*_ha_head_0).hh_head as *mut UT_hash_handle;
-                (*dup).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                (*dup).hh.hh_next = (*_ha_head_0).hh_head as *mut UtHashHandle;
+                (*dup).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                 if !(*_ha_head_0).hh_head.is_null() {
-                    (*(*_ha_head_0).hh_head).hh_prev = &raw mut (*dup).hh as *mut UT_hash_handle;
+                    (*(*_ha_head_0).hh_head).hh_prev = &raw mut (*dup).hh as *mut UtHashHandle;
                 }
-                (*_ha_head_0).hh_head = &raw mut (*dup).hh as *mut UT_hash_handle;
+                (*_ha_head_0).hh_head = &raw mut (*dup).hh as *mut UtHashHandle;
                 if (*_ha_head_0).count
                     >= (*_ha_head_0)
                         .expand_mult
@@ -3916,19 +3916,19 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                 {
                     let mut _he_bkt_0: ::core::ffi::c_uint = 0;
                     let mut _he_bkt_i_0: ::core::ffi::c_uint = 0;
-                    let mut _he_thh_0: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_hh_nxt_0: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_new_buckets_0: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
-                    let mut _he_newbkt_0: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
+                    let mut _he_thh_0: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_hh_nxt_0: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_new_buckets_0: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
+                    let mut _he_newbkt_0: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
                     _he_new_buckets_0 = malloc(
                         (2 as usize)
                             .wrapping_mul((*(*dup).hh.tbl).num_buckets as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                    ) as *mut UT_hash_bucket;
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                    ) as *mut UtHashBucket;
                     if _he_new_buckets_0.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
@@ -3937,7 +3937,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             '\0' as i32,
                             (2 as usize)
                                 .wrapping_mul((*(*dup).hh.tbl).num_buckets as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                         );
                         (*(*dup).hh.tbl).ideal_chain_maxlen = ((*(*dup).hh.tbl).num_items
                             >> (*(*dup).hh.tbl)
@@ -3961,7 +3961,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         while _he_bkt_i_0 < (*(*dup).hh.tbl).num_buckets {
                             _he_thh_0 = (*(*(*dup).hh.tbl).buckets.offset(_he_bkt_i_0 as isize))
                                 .hh_head
-                                as *mut UT_hash_handle;
+                                as *mut UtHashHandle;
                             while !_he_thh_0.is_null() {
                                 _he_hh_nxt_0 = (*_he_thh_0).hh_next;
                                 _he_bkt_0 = (*_he_thh_0).hashv
@@ -3970,7 +3970,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                         .wrapping_mul(2 as ::core::ffi::c_uint)
                                         .wrapping_sub(1 as ::core::ffi::c_uint);
                                 _he_newbkt_0 = _he_new_buckets_0.offset(_he_bkt_0 as isize)
-                                    as *mut UT_hash_bucket;
+                                    as *mut UtHashBucket;
                                 (*_he_newbkt_0).count = (*_he_newbkt_0).count.wrapping_add(1);
                                 if (*_he_newbkt_0).count > (*(*dup).hh.tbl).ideal_chain_maxlen {
                                     (*(*dup).hh.tbl).nonideal_items =
@@ -3979,13 +3979,13 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                         .count
                                         .wrapping_div((*(*dup).hh.tbl).ideal_chain_maxlen);
                                 }
-                                (*_he_thh_0).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                                (*_he_thh_0).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                                 (*_he_thh_0).hh_next =
-                                    (*_he_newbkt_0).hh_head as *mut UT_hash_handle;
+                                    (*_he_newbkt_0).hh_head as *mut UtHashHandle;
                                 if !(*_he_newbkt_0).hh_head.is_null() {
                                     (*(*_he_newbkt_0).hh_head).hh_prev = _he_thh_0;
                                 }
-                                (*_he_newbkt_0).hh_head = _he_thh_0 as *mut UT_hash_handle;
+                                (*_he_newbkt_0).hh_head = _he_thh_0 as *mut UtHashHandle;
                                 _he_thh_0 = _he_hh_nxt_0;
                             }
                             _he_bkt_i_0 = _he_bkt_i_0.wrapping_add(1);
@@ -4026,31 +4026,31 @@ pub unsafe extern "C" fn isValidLanguageName(
             == SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int;
 }
 unsafe extern "C" fn figureOutLanguagesFromJson(
-    mut languages: *mut json_value,
-    mut fh: *mut feature_hash,
+    mut languages: *mut JsonValue,
+    mut fh: *mut FeatureHash,
     mut tag: *const ::core::ffi::c_char,
-    mut options: *const otfcc_Options,
-) -> *mut language_hash {
-    let mut sh: *mut language_hash = ::core::ptr::null_mut::<language_hash>();
+    mut options: *const Options,
+) -> *mut LanguageHash {
+    let mut sh: *mut LanguageHash = ::core::ptr::null_mut::<LanguageHash>();
     let mut j: u32 = 0 as u32;
     while j < (*languages).u.object.length as u32 {
         let mut languageName: *mut ::core::ffi::c_char =
             (*(*languages).u.object.values.offset(j as isize)).name;
         let mut languageNameLen: usize =
             (*(*languages).u.object.values.offset(j as isize)).name_length as usize;
-        let mut _language: *mut json_value =
-            (*(*languages).u.object.values.offset(j as isize)).value as *mut json_value;
+        let mut _language: *mut JsonValue =
+            (*(*languages).u.object.values.offset(j as isize)).value as *mut JsonValue;
         if isValidLanguageName(languageName, languageNameLen) as ::core::ffi::c_int != 0
             && (*_language).type_0 == json_object
         {
-            let mut requiredFeature: *mut otl_Feature = ::core::ptr::null_mut::<otl_Feature>();
-            let mut _rf: *mut json_value = json_obj_get_type(
+            let mut requiredFeature: *mut Feature = ::core::ptr::null_mut::<Feature>();
+            let mut _rf: *mut JsonValue = json_obj_get_type(
                 _language,
                 b"requiredFeature\0" as *const u8 as *const ::core::ffi::c_char,
                 json_string,
             );
             if !_rf.is_null() {
-                let mut rf: *mut feature_hash = ::core::ptr::null_mut::<feature_hash>();
+                let mut rf: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
                 let mut _hf_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i: ::core::ffi::c_uint = 0;
                 let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -4324,7 +4324,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                 _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
                 _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
                 _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-                rf = ::core::ptr::null_mut::<feature_hash>();
+                rf = ::core::ptr::null_mut::<FeatureHash>();
                 if !fh.is_null() {
                     let mut _hf_bkt: ::core::ffi::c_uint = 0;
                     _hf_bkt = _hf_hashv
@@ -4340,10 +4340,10 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                 as *mut ::core::ffi::c_char)
                                 .offset(-(*(*fh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut feature_hash
-                                as *mut feature_hash;
+                                as *mut FeatureHash
+                                as *mut FeatureHash;
                         } else {
-                            rf = ::core::ptr::null_mut::<feature_hash>();
+                            rf = ::core::ptr::null_mut::<FeatureHash>();
                         }
                         while !rf.is_null() {
                             if (*rf).hh.hashv == _hf_hashv
@@ -4363,10 +4363,10 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                 rf = ((*rf).hh.hh_next as *mut ::core::ffi::c_char)
                                     .offset(-(*(*fh).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
-                                    as *mut feature_hash
-                                    as *mut feature_hash;
+                                    as *mut FeatureHash
+                                    as *mut FeatureHash;
                             } else {
-                                rf = ::core::ptr::null_mut::<feature_hash>();
+                                rf = ::core::ptr::null_mut::<FeatureHash>();
                             }
                         }
                     }
@@ -4375,25 +4375,25 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                     requiredFeature = (*rf).feature;
                 }
             }
-            let mut af: otl_FeatureRefList = otl_FeatureRefList {
+            let mut af: FeatureRefList = FeatureRefList {
                 length: 0,
                 capacity: 0,
-                items: ::core::ptr::null_mut::<otl_FeatureRef>(),
+                items: ::core::ptr::null_mut::<FeatureRef>(),
             };
             otl_iFeatureRefList.init.expect("non-null function pointer")(&raw mut af);
-            let mut _features: *mut json_value = json_obj_get_type(
+            let mut _features: *mut JsonValue = json_obj_get_type(
                 _language,
                 b"features\0" as *const u8 as *const ::core::ffi::c_char,
                 json_array,
             );
             if !_features.is_null() {
-                let mut k: tableid_t = 0 as tableid_t;
+                let mut k: TableId = 0 as TableId;
                 while (k as ::core::ffi::c_uint) < (*_features).u.array.length {
-                    let mut term: *mut json_value =
-                        *(*_features).u.array.values.offset(k as isize) as *mut json_value;
+                    let mut term: *mut JsonValue =
+                        *(*_features).u.array.values.offset(k as isize) as *mut JsonValue;
                     if (*term).type_0 == json_string
                     {
-                        let mut item: *mut feature_hash = ::core::ptr::null_mut::<feature_hash>();
+                        let mut item: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
                         let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
                         let mut _hj_i_0: ::core::ffi::c_uint = 0;
                         let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -4672,7 +4672,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         _hf_hashv_0 = _hf_hashv_0.wrapping_sub(_hj_i_0);
                         _hf_hashv_0 = _hf_hashv_0.wrapping_sub(_hj_j_0);
                         _hf_hashv_0 ^= _hj_j_0 >> 15 as ::core::ffi::c_int;
-                        item = ::core::ptr::null_mut::<feature_hash>();
+                        item = ::core::ptr::null_mut::<FeatureHash>();
                         if !fh.is_null() {
                             let mut _hf_bkt_0: ::core::ffi::c_uint = 0;
                             _hf_bkt_0 = _hf_hashv_0
@@ -4689,10 +4689,10 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                         as *mut ::core::ffi::c_char)
                                         .offset(-(*(*fh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
-                                        as *mut feature_hash
-                                        as *mut feature_hash;
+                                        as *mut FeatureHash
+                                        as *mut FeatureHash;
                                 } else {
-                                    item = ::core::ptr::null_mut::<feature_hash>();
+                                    item = ::core::ptr::null_mut::<FeatureHash>();
                                 }
                                 while !item.is_null() {
                                     if (*item).hh.hashv == _hf_hashv_0
@@ -4713,10 +4713,10 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                         item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
                                             .offset(-(*(*fh).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
-                                            as *mut feature_hash
-                                            as *mut feature_hash;
+                                            as *mut FeatureHash
+                                            as *mut FeatureHash;
                                     } else {
-                                        item = ::core::ptr::null_mut::<feature_hash>();
+                                        item = ::core::ptr::null_mut::<FeatureHash>();
                                     }
                                 }
                             }
@@ -4724,7 +4724,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         if !item.is_null() {
                             otl_iFeatureRefList.push.expect("non-null function pointer")(
                                 &raw mut af,
-                                (*item).feature as otl_FeatureRef,
+                                (*item).feature as FeatureRef,
                             );
                         }
                     }
@@ -4732,7 +4732,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                 }
             }
             if !requiredFeature.is_null() || af.length > 0 as usize {
-                let mut s: *mut language_hash = ::core::ptr::null_mut::<language_hash>();
+                let mut s: *mut LanguageHash = ::core::ptr::null_mut::<LanguageHash>();
                 let mut _hf_hashv_1: ::core::ffi::c_uint = 0;
                 let mut _hj_i_1: ::core::ffi::c_uint = 0;
                 let mut _hj_j_1: ::core::ffi::c_uint = 0;
@@ -5008,7 +5008,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                 _hf_hashv_1 = _hf_hashv_1.wrapping_sub(_hj_i_1);
                 _hf_hashv_1 = _hf_hashv_1.wrapping_sub(_hj_j_1);
                 _hf_hashv_1 ^= _hj_j_1 >> 15 as ::core::ffi::c_int;
-                s = ::core::ptr::null_mut::<language_hash>();
+                s = ::core::ptr::null_mut::<LanguageHash>();
                 if !sh.is_null() {
                     let mut _hf_bkt_1: ::core::ffi::c_uint = 0;
                     _hf_bkt_1 = _hf_hashv_1
@@ -5024,10 +5024,10 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                 as *mut ::core::ffi::c_char)
                                 .offset(-(*(*sh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut language_hash
-                                as *mut language_hash;
+                                as *mut LanguageHash
+                                as *mut LanguageHash;
                         } else {
-                            s = ::core::ptr::null_mut::<language_hash>();
+                            s = ::core::ptr::null_mut::<LanguageHash>();
                         }
                         while !s.is_null() {
                             if (*s).hh.hashv == _hf_hashv_1
@@ -5046,25 +5046,25 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                 s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
                                     .offset(-(*(*sh).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
-                                    as *mut language_hash
-                                    as *mut language_hash;
+                                    as *mut LanguageHash
+                                    as *mut LanguageHash;
                             } else {
-                                s = ::core::ptr::null_mut::<language_hash>();
+                                s = ::core::ptr::null_mut::<LanguageHash>();
                             }
                         }
                     }
                 }
                 if s.is_null() {
                     s = __caryll_allocate_clean(
-                        ::core::mem::size_of::<language_hash>() as usize,
+                        ::core::mem::size_of::<LanguageHash>() as usize,
                         267 as ::core::ffi::c_ulong,
-                    ) as *mut language_hash;
+                    ) as *mut LanguageHash;
                     (*s).name = sdsnew(languageName) as *mut ::core::ffi::c_char;
                     otl_iLanguageSystem.init.expect("non-null function pointer")(
                         &raw mut (*s).language,
                     );
-                    (*(*s).language).name = sdsdup((*s).name as sds);
-                    (*(*s).language).requiredFeature = requiredFeature as otl_FeatureRef;
+                    (*(*s).language).name = sdsdup((*s).name as SdsRaw);
+                    (*(*s).language).requiredFeature = requiredFeature as FeatureRef;
                     otl_iFeatureRefList
                         .replace
                         .expect("non-null function pointer")(
@@ -5356,18 +5356,18 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                     if sh.is_null() {
                         (*s).hh.next = NULL;
                         (*s).hh.prev = NULL;
-                        (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                            as *mut UT_hash_table
-                            as *mut UT_hash_table;
+                        (*s).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                            as *mut UtHashTable
+                            as *mut UtHashTable;
                         if (*s).hh.tbl.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
                         } else {
                             memset(
                                 (*s).hh.tbl as *mut ::core::ffi::c_void,
                                 '\0' as i32,
-                                ::core::mem::size_of::<UT_hash_table>() as usize,
+                                ::core::mem::size_of::<UtHashTable>() as usize,
                             );
-                            (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
+                            (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
                             (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                             (*(*s).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                             (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
@@ -5376,11 +5376,11 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                 as isize;
                             (*(*s).hh.tbl).buckets =
                                 malloc((32 as usize).wrapping_mul(::core::mem::size_of::<
-                                    UT_hash_bucket,
+                                    UtHashBucket,
                                 >(
                                 )
                                     as usize))
-                                    as *mut UT_hash_bucket;
+                                    as *mut UtHashBucket;
                             (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
                             if (*(*s).hh.tbl).buckets.is_null() {
                                 exit(-(1 as ::core::ffi::c_int));
@@ -5389,7 +5389,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                     (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                     '\0' as i32,
                                     (32 as usize).wrapping_mul(
-                                        ::core::mem::size_of::<UT_hash_bucket>() as usize,
+                                        ::core::mem::size_of::<UtHashBucket>() as usize,
                                     ),
                                 );
                             }
@@ -5402,7 +5402,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                             .offset(-(*(*sh).hh.tbl).hho)
                             as *mut ::core::ffi::c_void;
                         (*(*(*sh).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
-                        (*(*sh).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
+                        (*(*sh).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
                     }
                     let mut _ha_bkt: ::core::ffi::c_uint = 0;
                     (*(*sh).hh.tbl).num_items = (*(*sh).hh.tbl).num_items.wrapping_add(1);
@@ -5410,15 +5410,15 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         & (*(*sh).hh.tbl)
                             .num_buckets
                             .wrapping_sub(1 as ::core::ffi::c_uint);
-                    let mut _ha_head: *mut UT_hash_bucket =
-                        (*(*sh).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UT_hash_bucket;
+                    let mut _ha_head: *mut UtHashBucket =
+                        (*(*sh).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
                     (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-                    (*s).hh.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-                    (*s).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                    (*s).hh.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+                    (*s).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                     if !(*_ha_head).hh_head.is_null() {
-                        (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UT_hash_handle;
+                        (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UtHashHandle;
                     }
-                    (*_ha_head).hh_head = &raw mut (*s).hh as *mut UT_hash_handle;
+                    (*_ha_head).hh_head = &raw mut (*s).hh as *mut UtHashHandle;
                     if (*_ha_head).count
                         >= (*_ha_head)
                             .expand_mult
@@ -5428,19 +5428,19 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                     {
                         let mut _he_bkt: ::core::ffi::c_uint = 0;
                         let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-                        let mut _he_thh: *mut UT_hash_handle =
-                            ::core::ptr::null_mut::<UT_hash_handle>();
-                        let mut _he_hh_nxt: *mut UT_hash_handle =
-                            ::core::ptr::null_mut::<UT_hash_handle>();
-                        let mut _he_new_buckets: *mut UT_hash_bucket =
-                            ::core::ptr::null_mut::<UT_hash_bucket>();
-                        let mut _he_newbkt: *mut UT_hash_bucket =
-                            ::core::ptr::null_mut::<UT_hash_bucket>();
+                        let mut _he_thh: *mut UtHashHandle =
+                            ::core::ptr::null_mut::<UtHashHandle>();
+                        let mut _he_hh_nxt: *mut UtHashHandle =
+                            ::core::ptr::null_mut::<UtHashHandle>();
+                        let mut _he_new_buckets: *mut UtHashBucket =
+                            ::core::ptr::null_mut::<UtHashBucket>();
+                        let mut _he_newbkt: *mut UtHashBucket =
+                            ::core::ptr::null_mut::<UtHashBucket>();
                         _he_new_buckets = malloc(
                             (2 as usize)
                                 .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                        ) as *mut UT_hash_bucket;
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                        ) as *mut UtHashBucket;
                         if _he_new_buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
                         } else {
@@ -5450,7 +5450,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                 (2 as usize)
                                     .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
                                     .wrapping_mul(
-                                        ::core::mem::size_of::<UT_hash_bucket>() as usize
+                                        ::core::mem::size_of::<UtHashBucket>() as usize
                                     ),
                             );
                             (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
@@ -5475,7 +5475,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                             while _he_bkt_i < (*(*s).hh.tbl).num_buckets {
                                 _he_thh = (*(*(*s).hh.tbl).buckets.offset(_he_bkt_i as isize))
                                     .hh_head
-                                    as *mut UT_hash_handle;
+                                    as *mut UtHashHandle;
                                 while !_he_thh.is_null() {
                                     _he_hh_nxt = (*_he_thh).hh_next;
                                     _he_bkt = (*_he_thh).hashv
@@ -5484,7 +5484,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                             .wrapping_mul(2 as ::core::ffi::c_uint)
                                             .wrapping_sub(1 as ::core::ffi::c_uint);
                                     _he_newbkt = _he_new_buckets.offset(_he_bkt as isize)
-                                        as *mut UT_hash_bucket;
+                                        as *mut UtHashBucket;
                                     (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                                     if (*_he_newbkt).count > (*(*s).hh.tbl).ideal_chain_maxlen {
                                         (*(*s).hh.tbl).nonideal_items =
@@ -5493,13 +5493,13 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                                             .count
                                             .wrapping_div((*(*s).hh.tbl).ideal_chain_maxlen);
                                     }
-                                    (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                                    (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                                     (*_he_thh).hh_next =
-                                        (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                                        (*_he_newbkt).hh_head as *mut UtHashHandle;
                                     if !(*_he_newbkt).hh_head.is_null() {
                                         (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                                     }
-                                    (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                                    (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                                     _he_thh = _he_hh_nxt;
                                 }
                                 _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -5531,7 +5531,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         .expect(
                             "non-null function pointer",
                         )(
-                        (*options).logger as *mut otfcc_ILogger,
+                        (*options).logger as *mut ILogger,
                         log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(
@@ -5553,7 +5553,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                     .expect(
                         "non-null function pointer",
                     )(
-                    (*options).logger as *mut otfcc_ILogger,
+                    (*options).logger as *mut ILogger,
                     log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
@@ -5575,8 +5575,8 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
     return sh;
 }
 unsafe extern "C" fn by_lookup_order(
-    mut a: *mut lookup_hash,
-    mut b: *mut lookup_hash,
+    mut a: *mut LookupHash,
+    mut b: *mut LookupHash,
 ) -> ::core::ffi::c_int {
     if (*a).orderType as ::core::ffi::c_uint == (*b).orderType as ::core::ffi::c_uint {
         return (*a).orderVal as ::core::ffi::c_int - (*b).orderVal as ::core::ffi::c_int;
@@ -5587,28 +5587,28 @@ unsafe extern "C" fn by_lookup_order(
     };
 }
 unsafe extern "C" fn by_feature_name(
-    mut a: *mut feature_hash,
-    mut b: *mut feature_hash,
+    mut a: *mut FeatureHash,
+    mut b: *mut FeatureHash,
 ) -> ::core::ffi::c_int {
     return strcmp((*a).name, (*b).name);
 }
 unsafe extern "C" fn by_language_name(
-    mut a: *mut language_hash,
-    mut b: *mut language_hash,
+    mut a: *mut LanguageHash,
+    mut b: *mut LanguageHash,
 ) -> ::core::ffi::c_int {
     return strcmp((*a).name, (*b).name);
 }
 pub unsafe extern "C" fn otfcc_parseOtl(
-    mut root: *const json_value,
-    mut options: *const otfcc_Options,
+    mut root: *const JsonValue,
+    mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
-) -> *mut table_OTL {
-    let mut languages: *mut json_value = ::core::ptr::null_mut::<json_value>();
-    let mut features: *mut json_value = ::core::ptr::null_mut::<json_value>();
-    let mut lookups: *mut json_value = ::core::ptr::null_mut::<json_value>();
+) -> *mut OtlTable {
+    let mut languages: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut features: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut lookups: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     let mut current_block: u64;
-    let mut otl: *mut table_OTL = ::core::ptr::null_mut::<table_OTL>();
-    let mut table: *mut json_value = json_obj_get_type(root, tag, json_object);
+    let mut otl: *mut OtlTable = ::core::ptr::null_mut::<OtlTable>();
+    let mut table: *mut JsonValue = json_obj_get_type(root, tag, json_object);
     if !table.is_null() {
         otl = (
             table_iOTL.create.expect("non-null function pointer"))();
@@ -5631,7 +5631,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
             (*(*options).logger)
                 .startSDS
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger,
+                (*options).logger as *mut ILogger,
                 crate::sdsbuild!(sdsempty(), tag),
             );
             let mut ___loggedstep_v: bool = true;
@@ -5640,21 +5640,21 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                     current_block = 5279571973604048562;
                     break;
                 }
-                let mut lh: *mut lookup_hash = figureOutLookupsFromJSON(lookups, options);
-                let mut lookupOrder: *mut json_value = json_obj_get_type(
+                let mut lh: *mut LookupHash = figureOutLookupsFromJSON(lookups, options);
+                let mut lookupOrder: *mut JsonValue = json_obj_get_type(
                     table,
                     b"lookupOrder\0" as *const u8 as *const ::core::ffi::c_char,
                     json_array,
                 );
                 if !lookupOrder.is_null() {
-                    let mut j: tableid_t = 0 as tableid_t;
+                    let mut j: TableId = 0 as TableId;
                     while (j as ::core::ffi::c_uint) < (*lookupOrder).u.array.length {
-                        let mut _ln: *mut json_value =
-                            *(*lookupOrder).u.array.values.offset(j as isize) as *mut json_value;
+                        let mut _ln: *mut JsonValue =
+                            *(*lookupOrder).u.array.values.offset(j as isize) as *mut JsonValue;
                         if !_ln.is_null()
                             && (*_ln).type_0 == json_string
                         {
-                            let mut item: *mut lookup_hash = ::core::ptr::null_mut::<lookup_hash>();
+                            let mut item: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
                             let mut _hf_hashv: ::core::ffi::c_uint = 0;
                             let mut _hj_i: ::core::ffi::c_uint = 0;
                             let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -5933,7 +5933,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
                             _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
                             _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-                            item = ::core::ptr::null_mut::<lookup_hash>();
+                            item = ::core::ptr::null_mut::<LookupHash>();
                             if !lh.is_null() {
                                 let mut _hf_bkt: ::core::ffi::c_uint = 0;
                                 _hf_bkt = _hf_hashv
@@ -5950,10 +5950,10 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                             as *mut ::core::ffi::c_char)
                                             .offset(-(*(*lh).hh.tbl).hho)
                                             as *mut ::core::ffi::c_void
-                                            as *mut lookup_hash
-                                            as *mut lookup_hash;
+                                            as *mut LookupHash
+                                            as *mut LookupHash;
                                     } else {
-                                        item = ::core::ptr::null_mut::<lookup_hash>();
+                                        item = ::core::ptr::null_mut::<LookupHash>();
                                     }
                                     while !item.is_null() {
                                         if (*item).hh.hashv == _hf_hashv
@@ -5975,10 +5975,10 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                             item = ((*item).hh.hh_next as *mut ::core::ffi::c_char)
                                                 .offset(-(*(*lh).hh.tbl).hho)
                                                 as *mut ::core::ffi::c_void
-                                                as *mut lookup_hash
-                                                as *mut lookup_hash;
+                                                as *mut LookupHash
+                                                as *mut LookupHash;
                                         } else {
-                                            item = ::core::ptr::null_mut::<lookup_hash>();
+                                            item = ::core::ptr::null_mut::<LookupHash>();
                                         }
                                     }
                                 }
@@ -5997,19 +5997,19 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                 let mut _hs_insize: ::core::ffi::c_uint = 0;
                 let mut _hs_psize: ::core::ffi::c_uint = 0;
                 let mut _hs_qsize: ::core::ffi::c_uint = 0;
-                let mut _hs_p: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_q: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_e: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_list: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_tail: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
+                let mut _hs_p: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_q: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_e: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_list: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_tail: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
                 if !lh.is_null() {
                     _hs_insize = 1 as ::core::ffi::c_uint;
                     _hs_looping = 1 as ::core::ffi::c_uint;
-                    _hs_list = &raw mut (*lh).hh as *mut UT_hash_handle;
+                    _hs_list = &raw mut (*lh).hh as *mut UtHashHandle;
                     while _hs_looping != 0 as ::core::ffi::c_uint {
                         _hs_p = _hs_list;
-                        _hs_list = ::core::ptr::null_mut::<UT_hash_handle>();
-                        _hs_tail = ::core::ptr::null_mut::<UT_hash_handle>();
+                        _hs_list = ::core::ptr::null_mut::<UtHashHandle>();
+                        _hs_tail = ::core::ptr::null_mut::<UtHashHandle>();
                         _hs_nmerges = 0 as ::core::ffi::c_uint;
                         while !_hs_p.is_null() {
                             _hs_nmerges = _hs_nmerges.wrapping_add(1);
@@ -6021,10 +6021,10 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 _hs_q = (if !(*_hs_q).next.is_null() {
                                     ((*_hs_q).next as *mut ::core::ffi::c_char)
                                         .offset((*(*lh).hh.tbl).hho)
-                                        as *mut UT_hash_handle
+                                        as *mut UtHashHandle
                                 } else {
-                                    ::core::ptr::null_mut::<UT_hash_handle>()
-                                }) as *mut UT_hash_handle;
+                                    ::core::ptr::null_mut::<UtHashHandle>()
+                                }) as *mut UtHashHandle;
                                 if _hs_q.is_null() {
                                     break;
                                 }
@@ -6039,11 +6039,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_q = (if !(*_hs_q).next.is_null() {
                                         ((*_hs_q).next as *mut ::core::ffi::c_char)
                                             .offset((*(*lh).hh.tbl).hho)
-                                            as *mut UT_hash_handle
+                                            as *mut UtHashHandle
                                     } else {
-                                        ::core::ptr::null_mut::<UT_hash_handle>()
+                                        ::core::ptr::null_mut::<UtHashHandle>()
                                     })
-                                        as *mut UT_hash_handle;
+                                        as *mut UtHashHandle;
                                     _hs_qsize = _hs_qsize.wrapping_sub(1);
                                 } else if _hs_qsize == 0 as ::core::ffi::c_uint || _hs_q.is_null() {
                                     _hs_e = _hs_p;
@@ -6051,22 +6051,22 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                         _hs_p = (if !(*_hs_p).next.is_null() {
                                             ((*_hs_p).next as *mut ::core::ffi::c_char)
                                                 .offset((*(*lh).hh.tbl).hho)
-                                                as *mut UT_hash_handle
+                                                as *mut UtHashHandle
                                         } else {
-                                            ::core::ptr::null_mut::<UT_hash_handle>()
+                                            ::core::ptr::null_mut::<UtHashHandle>()
                                         })
-                                            as *mut UT_hash_handle;
+                                            as *mut UtHashHandle;
                                     }
                                     _hs_psize = _hs_psize.wrapping_sub(1);
                                 } else if by_lookup_order(
                                     (_hs_p as *mut ::core::ffi::c_char)
                                         .offset(-(*(*lh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
-                                        as *mut lookup_hash,
+                                        as *mut LookupHash,
                                     (_hs_q as *mut ::core::ffi::c_char)
                                         .offset(-(*(*lh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
-                                        as *mut lookup_hash,
+                                        as *mut LookupHash,
                                 ) <= 0 as ::core::ffi::c_int
                                 {
                                     _hs_e = _hs_p;
@@ -6074,11 +6074,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                         _hs_p = (if !(*_hs_p).next.is_null() {
                                             ((*_hs_p).next as *mut ::core::ffi::c_char)
                                                 .offset((*(*lh).hh.tbl).hho)
-                                                as *mut UT_hash_handle
+                                                as *mut UtHashHandle
                                         } else {
-                                            ::core::ptr::null_mut::<UT_hash_handle>()
+                                            ::core::ptr::null_mut::<UtHashHandle>()
                                         })
-                                            as *mut UT_hash_handle;
+                                            as *mut UtHashHandle;
                                     }
                                     _hs_psize = _hs_psize.wrapping_sub(1);
                                 } else {
@@ -6086,11 +6086,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_q = (if !(*_hs_q).next.is_null() {
                                         ((*_hs_q).next as *mut ::core::ffi::c_char)
                                             .offset((*(*lh).hh.tbl).hho)
-                                            as *mut UT_hash_handle
+                                            as *mut UtHashHandle
                                     } else {
-                                        ::core::ptr::null_mut::<UT_hash_handle>()
+                                        ::core::ptr::null_mut::<UtHashHandle>()
                                     })
-                                        as *mut UT_hash_handle;
+                                        as *mut UtHashHandle;
                                     _hs_qsize = _hs_qsize.wrapping_sub(1);
                                 }
                                 if !_hs_tail.is_null() {
@@ -6126,13 +6126,13 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             lh = (_hs_list as *mut ::core::ffi::c_char)
                                 .offset(-(*(*lh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut lookup_hash
-                                as *mut lookup_hash;
+                                as *mut LookupHash
+                                as *mut LookupHash;
                         }
                         _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
                     }
                 }
-                let mut fh: *mut feature_hash =
+                let mut fh: *mut FeatureHash =
                     figureOutFeaturesFromJSON(features, lh, tag, options);
                 let mut _hs_i_0: ::core::ffi::c_uint = 0;
                 let mut _hs_looping_0: ::core::ffi::c_uint = 0;
@@ -6140,19 +6140,19 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                 let mut _hs_insize_0: ::core::ffi::c_uint = 0;
                 let mut _hs_psize_0: ::core::ffi::c_uint = 0;
                 let mut _hs_qsize_0: ::core::ffi::c_uint = 0;
-                let mut _hs_p_0: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_q_0: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_e_0: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_list_0: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_tail_0: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
+                let mut _hs_p_0: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_q_0: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_e_0: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_list_0: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_tail_0: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
                 if !fh.is_null() {
                     _hs_insize_0 = 1 as ::core::ffi::c_uint;
                     _hs_looping_0 = 1 as ::core::ffi::c_uint;
-                    _hs_list_0 = &raw mut (*fh).hh as *mut UT_hash_handle;
+                    _hs_list_0 = &raw mut (*fh).hh as *mut UtHashHandle;
                     while _hs_looping_0 != 0 as ::core::ffi::c_uint {
                         _hs_p_0 = _hs_list_0;
-                        _hs_list_0 = ::core::ptr::null_mut::<UT_hash_handle>();
-                        _hs_tail_0 = ::core::ptr::null_mut::<UT_hash_handle>();
+                        _hs_list_0 = ::core::ptr::null_mut::<UtHashHandle>();
+                        _hs_tail_0 = ::core::ptr::null_mut::<UtHashHandle>();
                         _hs_nmerges_0 = 0 as ::core::ffi::c_uint;
                         while !_hs_p_0.is_null() {
                             _hs_nmerges_0 = _hs_nmerges_0.wrapping_add(1);
@@ -6164,10 +6164,10 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                     ((*_hs_q_0).next as *mut ::core::ffi::c_char)
                                         .offset((*(*fh).hh.tbl).hho)
-                                        as *mut UT_hash_handle
+                                        as *mut UtHashHandle
                                 } else {
-                                    ::core::ptr::null_mut::<UT_hash_handle>()
-                                }) as *mut UT_hash_handle;
+                                    ::core::ptr::null_mut::<UtHashHandle>()
+                                }) as *mut UtHashHandle;
                                 if _hs_q_0.is_null() {
                                     break;
                                 }
@@ -6182,11 +6182,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                         ((*_hs_q_0).next as *mut ::core::ffi::c_char)
                                             .offset((*(*fh).hh.tbl).hho)
-                                            as *mut UT_hash_handle
+                                            as *mut UtHashHandle
                                     } else {
-                                        ::core::ptr::null_mut::<UT_hash_handle>()
+                                        ::core::ptr::null_mut::<UtHashHandle>()
                                     })
-                                        as *mut UT_hash_handle;
+                                        as *mut UtHashHandle;
                                     _hs_qsize_0 = _hs_qsize_0.wrapping_sub(1);
                                 } else if _hs_qsize_0 == 0 as ::core::ffi::c_uint
                                     || _hs_q_0.is_null()
@@ -6196,22 +6196,22 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                         _hs_p_0 = (if !(*_hs_p_0).next.is_null() {
                                             ((*_hs_p_0).next as *mut ::core::ffi::c_char)
                                                 .offset((*(*fh).hh.tbl).hho)
-                                                as *mut UT_hash_handle
+                                                as *mut UtHashHandle
                                         } else {
-                                            ::core::ptr::null_mut::<UT_hash_handle>()
+                                            ::core::ptr::null_mut::<UtHashHandle>()
                                         })
-                                            as *mut UT_hash_handle;
+                                            as *mut UtHashHandle;
                                     }
                                     _hs_psize_0 = _hs_psize_0.wrapping_sub(1);
                                 } else if by_feature_name(
                                     (_hs_p_0 as *mut ::core::ffi::c_char)
                                         .offset(-(*(*fh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
-                                        as *mut feature_hash,
+                                        as *mut FeatureHash,
                                     (_hs_q_0 as *mut ::core::ffi::c_char)
                                         .offset(-(*(*fh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
-                                        as *mut feature_hash,
+                                        as *mut FeatureHash,
                                 ) <= 0 as ::core::ffi::c_int
                                 {
                                     _hs_e_0 = _hs_p_0;
@@ -6219,11 +6219,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                         _hs_p_0 = (if !(*_hs_p_0).next.is_null() {
                                             ((*_hs_p_0).next as *mut ::core::ffi::c_char)
                                                 .offset((*(*fh).hh.tbl).hho)
-                                                as *mut UT_hash_handle
+                                                as *mut UtHashHandle
                                         } else {
-                                            ::core::ptr::null_mut::<UT_hash_handle>()
+                                            ::core::ptr::null_mut::<UtHashHandle>()
                                         })
-                                            as *mut UT_hash_handle;
+                                            as *mut UtHashHandle;
                                     }
                                     _hs_psize_0 = _hs_psize_0.wrapping_sub(1);
                                 } else {
@@ -6231,11 +6231,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_q_0 = (if !(*_hs_q_0).next.is_null() {
                                         ((*_hs_q_0).next as *mut ::core::ffi::c_char)
                                             .offset((*(*fh).hh.tbl).hho)
-                                            as *mut UT_hash_handle
+                                            as *mut UtHashHandle
                                     } else {
-                                        ::core::ptr::null_mut::<UT_hash_handle>()
+                                        ::core::ptr::null_mut::<UtHashHandle>()
                                     })
-                                        as *mut UT_hash_handle;
+                                        as *mut UtHashHandle;
                                     _hs_qsize_0 = _hs_qsize_0.wrapping_sub(1);
                                 }
                                 if !_hs_tail_0.is_null() {
@@ -6271,13 +6271,13 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             fh = (_hs_list_0 as *mut ::core::ffi::c_char)
                                 .offset(-(*(*fh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut feature_hash
-                                as *mut feature_hash;
+                                as *mut FeatureHash
+                                as *mut FeatureHash;
                         }
                         _hs_insize_0 = _hs_insize_0.wrapping_mul(2 as ::core::ffi::c_uint);
                     }
                 }
-                let mut sh: *mut language_hash =
+                let mut sh: *mut LanguageHash =
                     figureOutLanguagesFromJson(languages, fh, tag, options);
                 let mut _hs_i_1: ::core::ffi::c_uint = 0;
                 let mut _hs_looping_1: ::core::ffi::c_uint = 0;
@@ -6285,19 +6285,19 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                 let mut _hs_insize_1: ::core::ffi::c_uint = 0;
                 let mut _hs_psize_1: ::core::ffi::c_uint = 0;
                 let mut _hs_qsize_1: ::core::ffi::c_uint = 0;
-                let mut _hs_p_1: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_q_1: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_e_1: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_list_1: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-                let mut _hs_tail_1: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
+                let mut _hs_p_1: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_q_1: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_e_1: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_list_1: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+                let mut _hs_tail_1: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
                 if !sh.is_null() {
                     _hs_insize_1 = 1 as ::core::ffi::c_uint;
                     _hs_looping_1 = 1 as ::core::ffi::c_uint;
-                    _hs_list_1 = &raw mut (*sh).hh as *mut UT_hash_handle;
+                    _hs_list_1 = &raw mut (*sh).hh as *mut UtHashHandle;
                     while _hs_looping_1 != 0 as ::core::ffi::c_uint {
                         _hs_p_1 = _hs_list_1;
-                        _hs_list_1 = ::core::ptr::null_mut::<UT_hash_handle>();
-                        _hs_tail_1 = ::core::ptr::null_mut::<UT_hash_handle>();
+                        _hs_list_1 = ::core::ptr::null_mut::<UtHashHandle>();
+                        _hs_tail_1 = ::core::ptr::null_mut::<UtHashHandle>();
                         _hs_nmerges_1 = 0 as ::core::ffi::c_uint;
                         while !_hs_p_1.is_null() {
                             _hs_nmerges_1 = _hs_nmerges_1.wrapping_add(1);
@@ -6309,10 +6309,10 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 _hs_q_1 = (if !(*_hs_q_1).next.is_null() {
                                     ((*_hs_q_1).next as *mut ::core::ffi::c_char)
                                         .offset((*(*sh).hh.tbl).hho)
-                                        as *mut UT_hash_handle
+                                        as *mut UtHashHandle
                                 } else {
-                                    ::core::ptr::null_mut::<UT_hash_handle>()
-                                }) as *mut UT_hash_handle;
+                                    ::core::ptr::null_mut::<UtHashHandle>()
+                                }) as *mut UtHashHandle;
                                 if _hs_q_1.is_null() {
                                     break;
                                 }
@@ -6327,11 +6327,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_q_1 = (if !(*_hs_q_1).next.is_null() {
                                         ((*_hs_q_1).next as *mut ::core::ffi::c_char)
                                             .offset((*(*sh).hh.tbl).hho)
-                                            as *mut UT_hash_handle
+                                            as *mut UtHashHandle
                                     } else {
-                                        ::core::ptr::null_mut::<UT_hash_handle>()
+                                        ::core::ptr::null_mut::<UtHashHandle>()
                                     })
-                                        as *mut UT_hash_handle;
+                                        as *mut UtHashHandle;
                                     _hs_qsize_1 = _hs_qsize_1.wrapping_sub(1);
                                 } else if _hs_qsize_1 == 0 as ::core::ffi::c_uint
                                     || _hs_q_1.is_null()
@@ -6341,22 +6341,22 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                         _hs_p_1 = (if !(*_hs_p_1).next.is_null() {
                                             ((*_hs_p_1).next as *mut ::core::ffi::c_char)
                                                 .offset((*(*sh).hh.tbl).hho)
-                                                as *mut UT_hash_handle
+                                                as *mut UtHashHandle
                                         } else {
-                                            ::core::ptr::null_mut::<UT_hash_handle>()
+                                            ::core::ptr::null_mut::<UtHashHandle>()
                                         })
-                                            as *mut UT_hash_handle;
+                                            as *mut UtHashHandle;
                                     }
                                     _hs_psize_1 = _hs_psize_1.wrapping_sub(1);
                                 } else if by_language_name(
                                     (_hs_p_1 as *mut ::core::ffi::c_char)
                                         .offset(-(*(*sh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
-                                        as *mut language_hash,
+                                        as *mut LanguageHash,
                                     (_hs_q_1 as *mut ::core::ffi::c_char)
                                         .offset(-(*(*sh).hh.tbl).hho)
                                         as *mut ::core::ffi::c_void
-                                        as *mut language_hash,
+                                        as *mut LanguageHash,
                                 ) <= 0 as ::core::ffi::c_int
                                 {
                                     _hs_e_1 = _hs_p_1;
@@ -6364,11 +6364,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                         _hs_p_1 = (if !(*_hs_p_1).next.is_null() {
                                             ((*_hs_p_1).next as *mut ::core::ffi::c_char)
                                                 .offset((*(*sh).hh.tbl).hho)
-                                                as *mut UT_hash_handle
+                                                as *mut UtHashHandle
                                         } else {
-                                            ::core::ptr::null_mut::<UT_hash_handle>()
+                                            ::core::ptr::null_mut::<UtHashHandle>()
                                         })
-                                            as *mut UT_hash_handle;
+                                            as *mut UtHashHandle;
                                     }
                                     _hs_psize_1 = _hs_psize_1.wrapping_sub(1);
                                 } else {
@@ -6376,11 +6376,11 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                     _hs_q_1 = (if !(*_hs_q_1).next.is_null() {
                                         ((*_hs_q_1).next as *mut ::core::ffi::c_char)
                                             .offset((*(*sh).hh.tbl).hho)
-                                            as *mut UT_hash_handle
+                                            as *mut UtHashHandle
                                     } else {
-                                        ::core::ptr::null_mut::<UT_hash_handle>()
+                                        ::core::ptr::null_mut::<UtHashHandle>()
                                     })
-                                        as *mut UT_hash_handle;
+                                        as *mut UtHashHandle;
                                     _hs_qsize_1 = _hs_qsize_1.wrapping_sub(1);
                                 }
                                 if !_hs_tail_1.is_null() {
@@ -6416,8 +6416,8 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             sh = (_hs_list_1 as *mut ::core::ffi::c_char)
                                 .offset(-(*(*sh).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut language_hash
-                                as *mut language_hash;
+                                as *mut LanguageHash
+                                as *mut LanguageHash;
                         }
                         _hs_insize_1 = _hs_insize_1.wrapping_mul(2 as ::core::ffi::c_uint);
                     }
@@ -6441,50 +6441,50 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                     (*(*options).logger)
                         .dedent
                         .expect("non-null function pointer")(
-                        (*options).logger as *mut otfcc_ILogger,
+                        (*options).logger as *mut ILogger,
                     );
                     current_block = 12498981253432484999;
                     break;
                 } else {
-                    let mut s: *mut lookup_hash = ::core::ptr::null_mut::<lookup_hash>();
-                    let mut tmp: *mut lookup_hash = ::core::ptr::null_mut::<lookup_hash>();
+                    let mut s: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
+                    let mut tmp: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
                     s = lh;
-                    tmp = (if !lh.is_null() { (*lh).hh.next } else { NULL }) as *mut lookup_hash
-                        as *mut lookup_hash;
+                    tmp = (if !lh.is_null() { (*lh).hh.next } else { NULL }) as *mut LookupHash
+                        as *mut LookupHash;
                     while !s.is_null() {
                         otl_iLookupList.push.expect("non-null function pointer")(
                             &raw mut (*otl).lookups,
-                            (*s).lookup as otl_LookupPtr,
+                            (*s).lookup as LookupPtr,
                         );
-                        let mut _hd_hh_del: *mut UT_hash_handle = &raw mut (*s).hh;
+                        let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s).hh;
                         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
                             free((*(*lh).hh.tbl).buckets as *mut ::core::ffi::c_void);
                             free((*lh).hh.tbl as *mut ::core::ffi::c_void);
-                            lh = ::core::ptr::null_mut::<lookup_hash>();
+                            lh = ::core::ptr::null_mut::<LookupHash>();
                         } else {
                             let mut _hd_bkt: ::core::ffi::c_uint = 0;
                             if _hd_hh_del == (*(*lh).hh.tbl).tail {
                                 (*(*lh).hh.tbl).tail = ((*_hd_hh_del).prev
                                     as *mut ::core::ffi::c_char)
                                     .offset((*(*lh).hh.tbl).hho)
-                                    as *mut UT_hash_handle
-                                    as *mut UT_hash_handle;
+                                    as *mut UtHashHandle
+                                    as *mut UtHashHandle;
                             }
                             if !(*_hd_hh_del).prev.is_null() {
                                 let ref mut fresh0 = (*(((*_hd_hh_del).prev
                                     as *mut ::core::ffi::c_char)
                                     .offset((*(*lh).hh.tbl).hho)
-                                    as *mut UT_hash_handle))
+                                    as *mut UtHashHandle))
                                     .next;
                                 *fresh0 = (*_hd_hh_del).next;
                             } else {
-                                lh = (*_hd_hh_del).next as *mut lookup_hash as *mut lookup_hash;
+                                lh = (*_hd_hh_del).next as *mut LookupHash as *mut LookupHash;
                             }
                             if !(*_hd_hh_del).next.is_null() {
                                 let ref mut fresh1 = (*(((*_hd_hh_del).next
                                     as *mut ::core::ffi::c_char)
                                     .offset((*(*lh).hh.tbl).hho)
-                                    as *mut UT_hash_handle))
+                                    as *mut UtHashHandle))
                                     .prev;
                                 *fresh1 = (*_hd_hh_del).prev;
                             }
@@ -6492,12 +6492,12 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 & (*(*lh).hh.tbl)
                                     .num_buckets
                                     .wrapping_sub(1 as ::core::ffi::c_uint);
-                            let mut _hd_head: *mut UT_hash_bucket =
+                            let mut _hd_head: *mut UtHashBucket =
                                 (*(*lh).hh.tbl).buckets.offset(_hd_bkt as isize)
-                                    as *mut UT_hash_bucket;
+                                    as *mut UtHashBucket;
                             (*_hd_head).count = (*_hd_head).count.wrapping_sub(1);
                             if (*_hd_head).hh_head == _hd_hh_del {
-                                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UT_hash_handle;
+                                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UtHashHandle;
                             }
                             if !(*_hd_hh_del).hh_prev.is_null() {
                                 (*(*_hd_hh_del).hh_prev).hh_next = (*_hd_hh_del).hh_next;
@@ -6507,54 +6507,54 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             }
                             (*(*lh).hh.tbl).num_items = (*(*lh).hh.tbl).num_items.wrapping_sub(1);
                         }
-                        sdsfree((*s).name as sds);
+                        sdsfree((*s).name as SdsRaw);
                         free(s as *mut ::core::ffi::c_void);
-                        s = ::core::ptr::null_mut::<lookup_hash>();
+                        s = ::core::ptr::null_mut::<LookupHash>();
                         s = tmp;
                         tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL })
-                            as *mut lookup_hash as *mut lookup_hash;
+                            as *mut LookupHash as *mut LookupHash;
                     }
-                    let mut s_0: *mut feature_hash = ::core::ptr::null_mut::<feature_hash>();
-                    let mut tmp_0: *mut feature_hash = ::core::ptr::null_mut::<feature_hash>();
+                    let mut s_0: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
+                    let mut tmp_0: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
                     s_0 = fh;
-                    tmp_0 = (if !fh.is_null() { (*fh).hh.next } else { NULL }) as *mut feature_hash
-                        as *mut feature_hash;
+                    tmp_0 = (if !fh.is_null() { (*fh).hh.next } else { NULL }) as *mut FeatureHash
+                        as *mut FeatureHash;
                     while !s_0.is_null() {
                         if !(*s_0).alias {
                             otl_iFeatureList.push.expect("non-null function pointer")(
                                 &raw mut (*otl).features,
-                                (*s_0).feature as otl_FeaturePtr,
+                                (*s_0).feature as FeaturePtr,
                             );
                         }
-                        let mut _hd_hh_del_0: *mut UT_hash_handle = &raw mut (*s_0).hh;
+                        let mut _hd_hh_del_0: *mut UtHashHandle = &raw mut (*s_0).hh;
                         if (*_hd_hh_del_0).prev.is_null() && (*_hd_hh_del_0).next.is_null() {
                             free((*(*fh).hh.tbl).buckets as *mut ::core::ffi::c_void);
                             free((*fh).hh.tbl as *mut ::core::ffi::c_void);
-                            fh = ::core::ptr::null_mut::<feature_hash>();
+                            fh = ::core::ptr::null_mut::<FeatureHash>();
                         } else {
                             let mut _hd_bkt_0: ::core::ffi::c_uint = 0;
                             if _hd_hh_del_0 == (*(*fh).hh.tbl).tail {
                                 (*(*fh).hh.tbl).tail = ((*_hd_hh_del_0).prev
                                     as *mut ::core::ffi::c_char)
                                     .offset((*(*fh).hh.tbl).hho)
-                                    as *mut UT_hash_handle
-                                    as *mut UT_hash_handle;
+                                    as *mut UtHashHandle
+                                    as *mut UtHashHandle;
                             }
                             if !(*_hd_hh_del_0).prev.is_null() {
                                 let ref mut fresh2 = (*(((*_hd_hh_del_0).prev
                                     as *mut ::core::ffi::c_char)
                                     .offset((*(*fh).hh.tbl).hho)
-                                    as *mut UT_hash_handle))
+                                    as *mut UtHashHandle))
                                     .next;
                                 *fresh2 = (*_hd_hh_del_0).next;
                             } else {
-                                fh = (*_hd_hh_del_0).next as *mut feature_hash as *mut feature_hash;
+                                fh = (*_hd_hh_del_0).next as *mut FeatureHash as *mut FeatureHash;
                             }
                             if !(*_hd_hh_del_0).next.is_null() {
                                 let ref mut fresh3 = (*(((*_hd_hh_del_0).next
                                     as *mut ::core::ffi::c_char)
                                     .offset((*(*fh).hh.tbl).hho)
-                                    as *mut UT_hash_handle))
+                                    as *mut UtHashHandle))
                                     .prev;
                                 *fresh3 = (*_hd_hh_del_0).prev;
                             }
@@ -6562,13 +6562,13 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 & (*(*fh).hh.tbl)
                                     .num_buckets
                                     .wrapping_sub(1 as ::core::ffi::c_uint);
-                            let mut _hd_head_0: *mut UT_hash_bucket =
+                            let mut _hd_head_0: *mut UtHashBucket =
                                 (*(*fh).hh.tbl).buckets.offset(_hd_bkt_0 as isize)
-                                    as *mut UT_hash_bucket;
+                                    as *mut UtHashBucket;
                             (*_hd_head_0).count = (*_hd_head_0).count.wrapping_sub(1);
                             if (*_hd_head_0).hh_head == _hd_hh_del_0 {
                                 (*_hd_head_0).hh_head =
-                                    (*_hd_hh_del_0).hh_next as *mut UT_hash_handle;
+                                    (*_hd_hh_del_0).hh_next as *mut UtHashHandle;
                             }
                             if !(*_hd_hh_del_0).hh_prev.is_null() {
                                 (*(*_hd_hh_del_0).hh_prev).hh_next = (*_hd_hh_del_0).hh_next;
@@ -6578,57 +6578,57 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             }
                             (*(*fh).hh.tbl).num_items = (*(*fh).hh.tbl).num_items.wrapping_sub(1);
                         }
-                        sdsfree((*s_0).name as sds);
+                        sdsfree((*s_0).name as SdsRaw);
                         free(s_0 as *mut ::core::ffi::c_void);
-                        s_0 = ::core::ptr::null_mut::<feature_hash>();
+                        s_0 = ::core::ptr::null_mut::<FeatureHash>();
                         s_0 = tmp_0;
                         tmp_0 = (if !tmp_0.is_null() {
                             (*tmp_0).hh.next
                         } else {
                             NULL
-                        }) as *mut feature_hash
-                            as *mut feature_hash;
+                        }) as *mut FeatureHash
+                            as *mut FeatureHash;
                     }
-                    let mut s_1: *mut language_hash = ::core::ptr::null_mut::<language_hash>();
-                    let mut tmp_1: *mut language_hash = ::core::ptr::null_mut::<language_hash>();
+                    let mut s_1: *mut LanguageHash = ::core::ptr::null_mut::<LanguageHash>();
+                    let mut tmp_1: *mut LanguageHash = ::core::ptr::null_mut::<LanguageHash>();
                     s_1 = sh;
-                    tmp_1 = (if !sh.is_null() { (*sh).hh.next } else { NULL }) as *mut language_hash
-                        as *mut language_hash;
+                    tmp_1 = (if !sh.is_null() { (*sh).hh.next } else { NULL }) as *mut LanguageHash
+                        as *mut LanguageHash;
                     while !s_1.is_null() {
                         otl_iLangSystemList.push.expect("non-null function pointer")(
                             &raw mut (*otl).languages,
-                            (*s_1).language as otl_LanguageSystemPtr,
+                            (*s_1).language as LanguageSystemPtr,
                         );
-                        let mut _hd_hh_del_1: *mut UT_hash_handle = &raw mut (*s_1).hh;
+                        let mut _hd_hh_del_1: *mut UtHashHandle = &raw mut (*s_1).hh;
                         if (*_hd_hh_del_1).prev.is_null() && (*_hd_hh_del_1).next.is_null() {
                             free((*(*sh).hh.tbl).buckets as *mut ::core::ffi::c_void);
                             free((*sh).hh.tbl as *mut ::core::ffi::c_void);
-                            sh = ::core::ptr::null_mut::<language_hash>();
+                            sh = ::core::ptr::null_mut::<LanguageHash>();
                         } else {
                             let mut _hd_bkt_1: ::core::ffi::c_uint = 0;
                             if _hd_hh_del_1 == (*(*sh).hh.tbl).tail {
                                 (*(*sh).hh.tbl).tail = ((*_hd_hh_del_1).prev
                                     as *mut ::core::ffi::c_char)
                                     .offset((*(*sh).hh.tbl).hho)
-                                    as *mut UT_hash_handle
-                                    as *mut UT_hash_handle;
+                                    as *mut UtHashHandle
+                                    as *mut UtHashHandle;
                             }
                             if !(*_hd_hh_del_1).prev.is_null() {
                                 let ref mut fresh4 = (*(((*_hd_hh_del_1).prev
                                     as *mut ::core::ffi::c_char)
                                     .offset((*(*sh).hh.tbl).hho)
-                                    as *mut UT_hash_handle))
+                                    as *mut UtHashHandle))
                                     .next;
                                 *fresh4 = (*_hd_hh_del_1).next;
                             } else {
-                                sh = (*_hd_hh_del_1).next as *mut language_hash
-                                    as *mut language_hash;
+                                sh = (*_hd_hh_del_1).next as *mut LanguageHash
+                                    as *mut LanguageHash;
                             }
                             if !(*_hd_hh_del_1).next.is_null() {
                                 let ref mut fresh5 = (*(((*_hd_hh_del_1).next
                                     as *mut ::core::ffi::c_char)
                                     .offset((*(*sh).hh.tbl).hho)
-                                    as *mut UT_hash_handle))
+                                    as *mut UtHashHandle))
                                     .prev;
                                 *fresh5 = (*_hd_hh_del_1).prev;
                             }
@@ -6636,13 +6636,13 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                                 & (*(*sh).hh.tbl)
                                     .num_buckets
                                     .wrapping_sub(1 as ::core::ffi::c_uint);
-                            let mut _hd_head_1: *mut UT_hash_bucket =
+                            let mut _hd_head_1: *mut UtHashBucket =
                                 (*(*sh).hh.tbl).buckets.offset(_hd_bkt_1 as isize)
-                                    as *mut UT_hash_bucket;
+                                    as *mut UtHashBucket;
                             (*_hd_head_1).count = (*_hd_head_1).count.wrapping_sub(1);
                             if (*_hd_head_1).hh_head == _hd_hh_del_1 {
                                 (*_hd_head_1).hh_head =
-                                    (*_hd_hh_del_1).hh_next as *mut UT_hash_handle;
+                                    (*_hd_hh_del_1).hh_next as *mut UtHashHandle;
                             }
                             if !(*_hd_hh_del_1).hh_prev.is_null() {
                                 (*(*_hd_hh_del_1).hh_prev).hh_next = (*_hd_hh_del_1).hh_next;
@@ -6652,22 +6652,22 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                             }
                             (*(*sh).hh.tbl).num_items = (*(*sh).hh.tbl).num_items.wrapping_sub(1);
                         }
-                        sdsfree((*s_1).name as sds);
+                        sdsfree((*s_1).name as SdsRaw);
                         free(s_1 as *mut ::core::ffi::c_void);
-                        s_1 = ::core::ptr::null_mut::<language_hash>();
+                        s_1 = ::core::ptr::null_mut::<LanguageHash>();
                         s_1 = tmp_1;
                         tmp_1 = (if !tmp_1.is_null() {
                             (*tmp_1).hh.next
                         } else {
                             NULL
-                        }) as *mut language_hash
-                            as *mut language_hash;
+                        }) as *mut LanguageHash
+                            as *mut LanguageHash;
                     }
                     ___loggedstep_v = false;
                     (*(*options).logger)
                         .finish
                         .expect("non-null function pointer")(
-                        (*options).logger as *mut otfcc_ILogger,
+                        (*options).logger as *mut ILogger,
                     );
                 }
             }
@@ -6681,7 +6681,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
         (*(*options).logger)
             .logSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             log_vl_important,
             log_type_warning,
             crate::sdsbuild!(
@@ -6693,5 +6693,5 @@ pub unsafe extern "C" fn otfcc_parseOtl(
         );
         table_iOTL.free.expect("non-null function pointer")(otl);
     }
-    return ::core::ptr::null_mut::<table_OTL>();
+    return ::core::ptr::null_mut::<OtlTable>();
 }

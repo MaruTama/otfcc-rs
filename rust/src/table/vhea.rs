@@ -5,12 +5,12 @@ use libc::{free, malloc, memcpy, memset};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_16s, read_32s};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{f16dot16, font_file_pointer};
-use crate::vendor::json::{json_object, json_value};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::support::buffer::{Buffer};
+use crate::support::options::{Options};
+use crate::support::primitives::{F16Dot16, FontFilePointer};
+use crate::vendor::json::{json_object, JsonValue};
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json_builder::{json_double_new, json_integer_new, json_object_new, json_object_push};
@@ -18,8 +18,8 @@ use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct table_vhea {
-    pub version: f16dot16,
+pub struct VheaTable {
+    pub version: F16Dot16,
     pub ascent: i16,
     pub descent: i16,
     pub lineGap: i16,
@@ -39,33 +39,33 @@ pub struct table_vhea {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_table_vhea {
-    pub init: Option<unsafe extern "C" fn(*mut table_vhea) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_vhea, *const table_vhea) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_vhea, *mut table_vhea) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_vhea) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_vhea, table_vhea) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_vhea, table_vhea) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_vhea>,
-    pub free: Option<unsafe extern "C" fn(*mut table_vhea) -> ()>,
+pub struct VheaTableElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut VheaTable, *const VheaTable) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut VheaTable, *mut VheaTable) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut VheaTable, VheaTable) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut VheaTable, VheaTable) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut VheaTable>,
+    pub free: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn initVhea(mut vhea: *mut table_vhea) {
+unsafe extern "C" fn initVhea(mut vhea: *mut VheaTable) {
     memset(
         vhea as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_vhea>() as usize,
+        ::core::mem::size_of::<VheaTable>() as usize,
     );
-    (*vhea).version = 0x10000 as ::core::ffi::c_int as f16dot16;
+    (*vhea).version = 0x10000 as ::core::ffi::c_int as F16Dot16;
 }
 #[inline]
-unsafe extern "C" fn disposeVhea(mut _vhea: *mut table_vhea) {}
+unsafe extern "C" fn disposeVhea(mut _vhea: *mut VheaTable) {}
 #[inline]
-unsafe extern "C" fn table_vhea_dispose(mut x: *mut table_vhea) {
+unsafe extern "C" fn table_vhea_dispose(mut x: *mut VheaTable) {
     disposeVhea(x);
 }
 #[inline]
-unsafe extern "C" fn table_vhea_free(mut x: *mut table_vhea) {
+unsafe extern "C" fn table_vhea_free(mut x: *mut VheaTable) {
     if x.is_null() {
         return;
     }
@@ -73,72 +73,72 @@ unsafe extern "C" fn table_vhea_free(mut x: *mut table_vhea) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_vhea_create() -> *mut table_vhea {
-    let mut x: *mut table_vhea =
-        malloc(::core::mem::size_of::<table_vhea>() as usize) as *mut table_vhea;
+unsafe extern "C" fn table_vhea_create() -> *mut VheaTable {
+    let mut x: *mut VheaTable =
+        malloc(::core::mem::size_of::<VheaTable>() as usize) as *mut VheaTable;
     table_vhea_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_vhea_init(mut x: *mut table_vhea) {
+unsafe extern "C" fn table_vhea_init(mut x: *mut VheaTable) {
     initVhea(x);
 }
-pub static table_iVhea: __caryll_elementinterface_table_vhea = {
-    __caryll_elementinterface_table_vhea {
-        init: Some(table_vhea_init as unsafe extern "C" fn(*mut table_vhea) -> ()),
+pub static table_iVhea: VheaTableElementInterface = {
+    VheaTableElementInterface {
+        init: Some(table_vhea_init as unsafe extern "C" fn(*mut VheaTable) -> ()),
         copy: Some(
-            table_vhea_copy as unsafe extern "C" fn(*mut table_vhea, *const table_vhea) -> (),
+            table_vhea_copy as unsafe extern "C" fn(*mut VheaTable, *const VheaTable) -> (),
         ),
         move_0: Some(
-            table_vhea_move as unsafe extern "C" fn(*mut table_vhea, *mut table_vhea) -> (),
+            table_vhea_move as unsafe extern "C" fn(*mut VheaTable, *mut VheaTable) -> (),
         ),
-        dispose: Some(table_vhea_dispose as unsafe extern "C" fn(*mut table_vhea) -> ()),
+        dispose: Some(table_vhea_dispose as unsafe extern "C" fn(*mut VheaTable) -> ()),
         replace: Some(
-            table_vhea_replace as unsafe extern "C" fn(*mut table_vhea, table_vhea) -> (),
+            table_vhea_replace as unsafe extern "C" fn(*mut VheaTable, VheaTable) -> (),
         ),
         copyReplace: Some(
-            table_vhea_copyReplace as unsafe extern "C" fn(*mut table_vhea, table_vhea) -> (),
+            table_vhea_copyReplace as unsafe extern "C" fn(*mut VheaTable, VheaTable) -> (),
         ),
         create: Some(table_vhea_create),
-        free: Some(table_vhea_free as unsafe extern "C" fn(*mut table_vhea) -> ()),
+        free: Some(table_vhea_free as unsafe extern "C" fn(*mut VheaTable) -> ()),
     }
 };
 #[inline]
-unsafe extern "C" fn table_vhea_copyReplace(mut dst: *mut table_vhea, src: table_vhea) {
+unsafe extern "C" fn table_vhea_copyReplace(mut dst: *mut VheaTable, src: VheaTable) {
     table_vhea_dispose(dst);
     table_vhea_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_vhea_copy(mut dst: *mut table_vhea, mut src: *const table_vhea) {
+unsafe extern "C" fn table_vhea_copy(mut dst: *mut VheaTable, mut src: *const VheaTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_vhea>() as usize,
+        ::core::mem::size_of::<VheaTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_vhea_move(mut dst: *mut table_vhea, mut src: *mut table_vhea) {
+unsafe extern "C" fn table_vhea_move(mut dst: *mut VheaTable, mut src: *mut VheaTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_vhea>() as usize,
+        ::core::mem::size_of::<VheaTable>() as usize,
     );
     table_vhea_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_vhea_replace(mut dst: *mut table_vhea, src: table_vhea) {
+unsafe extern "C" fn table_vhea_replace(mut dst: *mut VheaTable, src: VheaTable) {
     table_vhea_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_vhea>() as usize,
+        ::core::mem::size_of::<VheaTable>() as usize,
     );
 }
 pub unsafe extern "C" fn otfcc_readVhea(
-    packet: otfcc_Packet,
-    mut options: *const otfcc_Options,
-) -> *mut table_vhea {
-    let mut vhea: *mut table_vhea = ::core::ptr::null_mut::<table_vhea>();
+    packet: Packet,
+    mut options: *const Options,
+) -> *mut VheaTable {
+    let mut vhea: *mut VheaTable = ::core::ptr::null_mut::<VheaTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -146,19 +146,19 @@ pub unsafe extern "C" fn otfcc_readVhea(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == 1986553185i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: font_file_pointer = table.data as font_file_pointer;
+                    let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: usize = table.length as usize;
                     if length >= 36 as usize {
                         vhea = __caryll_allocate_clean(
-                            ::core::mem::size_of::<table_vhea>() as usize,
+                            ::core::mem::size_of::<VheaTable>() as usize,
                             20 as ::core::ffi::c_ulong,
-                        ) as *mut table_vhea;
-                        (*vhea).version = read_32s(data as *const u8) as f16dot16;
+                        ) as *mut VheaTable;
+                        (*vhea).version = read_32s(data as *const u8) as F16Dot16;
                         (*vhea).ascent = read_16s(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
@@ -202,7 +202,7 @@ pub unsafe extern "C" fn otfcc_readVhea(
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
-                            (*options).logger as *mut otfcc_ILogger,
+                            (*options).logger as *mut ILogger,
                             log_vl_important,
                             log_type_warning,
                             crate::sdsbuild!(sdsempty(), b"Table 'vhea' corrupted."),
@@ -217,21 +217,21 @@ pub unsafe extern "C" fn otfcc_readVhea(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<table_vhea>();
+    return ::core::ptr::null_mut::<VheaTable>();
 }
 pub unsafe extern "C" fn otfcc_dumpVhea(
-    mut table: *const table_vhea,
-    mut root: *mut json_value,
-    mut options: *const otfcc_Options,
+    mut table: *const VheaTable,
+    mut root: *mut JsonValue,
+    mut options: *const Options,
 ) {
     if table.is_null() {
         return;
     }
-    let mut vhea: *mut json_value = json_object_new(11 as usize);
+    let mut vhea: *mut JsonValue = json_object_new(11 as usize);
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"vhea"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -299,15 +299,15 @@ pub unsafe extern "C" fn otfcc_dumpVhea(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
 pub unsafe extern "C" fn otfcc_parseVhea(
-    mut root: *const json_value,
-    mut options: *const otfcc_Options,
-) -> *mut table_vhea {
-    let mut vhea: *mut table_vhea = ::core::ptr::null_mut::<table_vhea>();
-    let mut table: *mut json_value = ::core::ptr::null_mut::<json_value>();
+    mut root: *const JsonValue,
+    mut options: *const Options,
+) -> *mut VheaTable {
+    let mut vhea: *mut VheaTable = ::core::ptr::null_mut::<VheaTable>();
+    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
         b"vhea\0" as *const u8 as *const ::core::ffi::c_char,
@@ -317,12 +317,12 @@ pub unsafe extern "C" fn otfcc_parseVhea(
         vhea = (
             table_iVhea.create.expect("non-null function pointer"))();
         if vhea.is_null() {
-            return ::core::ptr::null_mut::<table_vhea>();
+            return ::core::ptr::null_mut::<VheaTable>();
         }
         (*(*options).logger)
             .startSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"vhea"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -385,20 +385,20 @@ pub unsafe extern "C" fn otfcc_parseVhea(
             (*(*options).logger)
                 .finish
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger
+                (*options).logger as *mut ILogger
             );
         }
     }
     return vhea;
 }
 pub unsafe extern "C" fn otfcc_buildVhea(
-    mut vhea: *const table_vhea,
-    mut _options: *const otfcc_Options,
-) -> *mut caryll_Buffer {
+    mut vhea: *const VheaTable,
+    mut _options: *const Options,
+) -> *mut Buffer {
     if vhea.is_null() {
-        return ::core::ptr::null_mut::<caryll_Buffer>();
+        return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut buf: *mut caryll_Buffer = bufnew();
+    let mut buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*vhea).version as u32);
     bufwrite16b(buf, (*vhea).ascent as u16);
     bufwrite16b(buf, (*vhea).descent as u16);

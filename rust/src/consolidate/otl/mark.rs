@@ -2,15 +2,15 @@
 use libc::{exit, free, malloc, memcmp, memset};
 
 
-use crate::support::handle::{handle_fromConsolidated, otfcc_GlyphHandle};
+use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
+use crate::logger::{log_type_warning, log_vl_important, ILogger};
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{glyphclass_t, glyphid_t};
-use crate::vendor::sds::{sds};
-use crate::font::caryll_font::{otfcc_Font};
+use crate::support::options::{Options};
+use crate::support::primitives::{GlyphClass, GlyphId};
+use crate::vendor::sds::{SdsRaw};
+use crate::font::caryll_font::{Font};
 use crate::support::{NULL};
 
 
@@ -36,13 +36,13 @@ use crate::support::{NULL};
 
 
 
-use crate::table::otl::{otl_Anchor, otl_BaseArray, otl_BaseRecord, otl_LigatureArray, otl_LigatureBaseRecord, otl_MarkArray, otl_MarkRecord, otl_Subtable, subtable_gpos_markToLigature, subtable_gpos_markToSingle, table_OTL};
+use crate::table::otl::{Anchor, BaseArray, BaseRecord, LigatureArray, LigatureBaseRecord, MarkArray, MarkRecord, Subtable, GposMarkToLigatureSubtable, GposMarkToSingleSubtable, OtlTable};
 
 
 
 
 
-use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
 use crate::table::otl::subtables::gpos_common::{otl_iMarkArray};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_iLigatureArray};
@@ -54,54 +54,54 @@ use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct base_hash {
+pub struct BaseHash {
     pub gid: ::core::ffi::c_int,
-    pub name: sds,
-    pub anchors: *mut otl_Anchor,
-    pub hh: UT_hash_handle,
+    pub name: SdsRaw,
+    pub anchors: *mut Anchor,
+    pub hh: UtHashHandle,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct mark_hash {
+pub struct MarkHash {
     pub gid: ::core::ffi::c_int,
-    pub name: sds,
-    pub markClass: glyphclass_t,
-    pub anchor: otl_Anchor,
-    pub hh: UT_hash_handle,
+    pub name: SdsRaw,
+    pub markClass: GlyphClass,
+    pub anchor: Anchor,
+    pub hh: UtHashHandle,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct lig_hash {
+pub struct LigHash {
     pub gid: ::core::ffi::c_int,
-    pub name: sds,
-    pub componentCount: glyphid_t,
-    pub anchors: *mut *mut otl_Anchor,
-    pub hh: UT_hash_handle,
+    pub name: SdsRaw,
+    pub componentCount: GlyphId,
+    pub anchors: *mut *mut Anchor,
+    pub hh: UtHashHandle,
 }
 unsafe extern "C" fn mark_by_gid(
-    mut a: *mut mark_hash,
-    mut b: *mut mark_hash,
+    mut a: *mut MarkHash,
+    mut b: *mut MarkHash,
 ) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
 unsafe extern "C" fn base_by_gid(
-    mut a: *mut base_hash,
-    mut b: *mut base_hash,
+    mut a: *mut BaseHash,
+    mut b: *mut BaseHash,
 ) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
-unsafe extern "C" fn lig_by_gid(mut a: *mut lig_hash, mut b: *mut lig_hash) -> ::core::ffi::c_int {
+unsafe extern "C" fn lig_by_gid(mut a: *mut LigHash, mut b: *mut LigHash) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
 unsafe extern "C" fn consolidateMarkArray(
-    mut font: *mut otfcc_Font,
-    mut _table: *mut table_OTL,
-    mut options: *const otfcc_Options,
-    mut markArray: *mut otl_MarkArray,
-    mut classCount: glyphclass_t,
+    mut font: *mut Font,
+    mut _table: *mut OtlTable,
+    mut options: *const Options,
+    mut markArray: *mut MarkArray,
+    mut classCount: GlyphClass,
 ) {
-    let mut hm: *mut mark_hash = ::core::ptr::null_mut::<mark_hash>();
-    let mut k: glyphid_t = 0 as glyphid_t;
+    let mut hm: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
+    let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*markArray).length {
         if !otfcc_pkgGlyphOrder
             .consolidateHandle
@@ -112,7 +112,7 @@ unsafe extern "C" fn consolidateMarkArray(
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger,
+                (*options).logger as *mut ILogger,
                 log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
@@ -123,7 +123,7 @@ unsafe extern "C" fn consolidateMarkArray(
                 ),
             );
         } else {
-            let mut s: *mut mark_hash = ::core::ptr::null_mut::<mark_hash>();
+            let mut s: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
             let mut gid: ::core::ffi::c_int =
                 (*(*markArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -390,7 +390,7 @@ unsafe extern "C" fn consolidateMarkArray(
             _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
             _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
             _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-            s = ::core::ptr::null_mut::<mark_hash>();
+            s = ::core::ptr::null_mut::<MarkHash>();
             if !hm.is_null() {
                 let mut _hf_bkt: ::core::ffi::c_uint = 0;
                 _hf_bkt = _hf_hashv
@@ -406,9 +406,9 @@ unsafe extern "C" fn consolidateMarkArray(
                             as *mut ::core::ffi::c_char)
                             .offset(-(*(*hm).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut mark_hash as *mut mark_hash;
+                            as *mut MarkHash as *mut MarkHash;
                     } else {
-                        s = ::core::ptr::null_mut::<mark_hash>();
+                        s = ::core::ptr::null_mut::<MarkHash>();
                     }
                     while !s.is_null() {
                         if (*s).hh.hashv == _hf_hashv
@@ -428,9 +428,9 @@ unsafe extern "C" fn consolidateMarkArray(
                             s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
                                 .offset(-(*(*hm).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut mark_hash as *mut mark_hash;
+                                as *mut MarkHash as *mut MarkHash;
                         } else {
-                            s = ::core::ptr::null_mut::<mark_hash>();
+                            s = ::core::ptr::null_mut::<MarkHash>();
                         }
                     }
                 }
@@ -442,9 +442,9 @@ unsafe extern "C" fn consolidateMarkArray(
                     < classCount as ::core::ffi::c_int
             {
                 s = __caryll_allocate_clean(
-                    ::core::mem::size_of::<mark_hash>() as usize,
+                    ::core::mem::size_of::<MarkHash>() as usize,
                     47 as ::core::ffi::c_ulong,
-                ) as *mut mark_hash;
+                ) as *mut MarkHash;
                 (*s).gid =
                     (*(*markArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
                 (*s).name = sdsdup((*(*markArray).items.offset(k as isize)).glyph.name);
@@ -735,18 +735,18 @@ unsafe extern "C" fn consolidateMarkArray(
                 if hm.is_null() {
                     (*s).hh.next = NULL;
                     (*s).hh.prev = NULL;
-                    (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                        as *mut UT_hash_table
-                        as *mut UT_hash_table;
+                    (*s).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                        as *mut UtHashTable
+                        as *mut UtHashTable;
                     if (*s).hh.tbl.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
                         memset(
                             (*s).hh.tbl as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            ::core::mem::size_of::<UT_hash_table>() as usize,
+                            ::core::mem::size_of::<UtHashTable>() as usize,
                         );
-                        (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
+                        (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
                         (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                         (*(*s).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                         (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
@@ -755,8 +755,8 @@ unsafe extern "C" fn consolidateMarkArray(
                             as isize;
                         (*(*s).hh.tbl).buckets = malloc(
                             (32 as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                        ) as *mut UT_hash_bucket;
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                        ) as *mut UtHashBucket;
                         (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
                         if (*(*s).hh.tbl).buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
@@ -765,7 +765,7 @@ unsafe extern "C" fn consolidateMarkArray(
                                 (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
                                 (32 as usize).wrapping_mul(
-                                    ::core::mem::size_of::<UT_hash_bucket>() as usize,
+                                    ::core::mem::size_of::<UtHashBucket>() as usize,
                                 ),
                             );
                         }
@@ -778,7 +778,7 @@ unsafe extern "C" fn consolidateMarkArray(
                         .offset(-(*(*hm).hh.tbl).hho)
                         as *mut ::core::ffi::c_void;
                     (*(*(*hm).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
-                    (*(*hm).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
+                    (*(*hm).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
                 }
                 let mut _ha_bkt: ::core::ffi::c_uint = 0;
                 (*(*hm).hh.tbl).num_items = (*(*hm).hh.tbl).num_items.wrapping_add(1);
@@ -786,15 +786,15 @@ unsafe extern "C" fn consolidateMarkArray(
                     & (*(*hm).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _ha_head: *mut UT_hash_bucket =
-                    (*(*hm).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UT_hash_bucket;
+                let mut _ha_head: *mut UtHashBucket =
+                    (*(*hm).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
                 (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-                (*s).hh.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-                (*s).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                (*s).hh.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+                (*s).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                 if !(*_ha_head).hh_head.is_null() {
-                    (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UT_hash_handle;
+                    (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UtHashHandle;
                 }
-                (*_ha_head).hh_head = &raw mut (*s).hh as *mut UT_hash_handle;
+                (*_ha_head).hh_head = &raw mut (*s).hh as *mut UtHashHandle;
                 if (*_ha_head).count
                     >= (*_ha_head)
                         .expand_mult
@@ -804,19 +804,19 @@ unsafe extern "C" fn consolidateMarkArray(
                 {
                     let mut _he_bkt: ::core::ffi::c_uint = 0;
                     let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-                    let mut _he_thh: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_hh_nxt: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_new_buckets: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
-                    let mut _he_newbkt: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
+                    let mut _he_thh: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_hh_nxt: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_new_buckets: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
+                    let mut _he_newbkt: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
                     _he_new_buckets = malloc(
                         (2 as usize)
                             .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                    ) as *mut UT_hash_bucket;
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                    ) as *mut UtHashBucket;
                     if _he_new_buckets.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
@@ -825,7 +825,7 @@ unsafe extern "C" fn consolidateMarkArray(
                             '\0' as i32,
                             (2 as usize)
                                 .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                         );
                         (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
                             >> (*(*s).hh.tbl)
@@ -848,7 +848,7 @@ unsafe extern "C" fn consolidateMarkArray(
                         _he_bkt_i = 0 as ::core::ffi::c_uint;
                         while _he_bkt_i < (*(*s).hh.tbl).num_buckets {
                             _he_thh = (*(*(*s).hh.tbl).buckets.offset(_he_bkt_i as isize)).hh_head
-                                as *mut UT_hash_handle;
+                                as *mut UtHashHandle;
                             while !_he_thh.is_null() {
                                 _he_hh_nxt = (*_he_thh).hh_next;
                                 _he_bkt = (*_he_thh).hashv
@@ -857,7 +857,7 @@ unsafe extern "C" fn consolidateMarkArray(
                                         .wrapping_mul(2 as ::core::ffi::c_uint)
                                         .wrapping_sub(1 as ::core::ffi::c_uint);
                                 _he_newbkt =
-                                    _he_new_buckets.offset(_he_bkt as isize) as *mut UT_hash_bucket;
+                                    _he_new_buckets.offset(_he_bkt as isize) as *mut UtHashBucket;
                                 (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                                 if (*_he_newbkt).count > (*(*s).hh.tbl).ideal_chain_maxlen {
                                     (*(*s).hh.tbl).nonideal_items =
@@ -866,12 +866,12 @@ unsafe extern "C" fn consolidateMarkArray(
                                         .count
                                         .wrapping_div((*(*s).hh.tbl).ideal_chain_maxlen);
                                 }
-                                (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
-                                (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                                (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
+                                (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UtHashHandle;
                                 if !(*_he_newbkt).hh_head.is_null() {
                                     (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                                 }
-                                (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                                (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                                 _he_thh = _he_hh_nxt;
                             }
                             _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -903,7 +903,7 @@ unsafe extern "C" fn consolidateMarkArray(
                     .expect(
                         "non-null function pointer",
                     )(
-                    (*options).logger as *mut otfcc_ILogger,
+                    (*options).logger as *mut ILogger,
                     log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
@@ -923,19 +923,19 @@ unsafe extern "C" fn consolidateMarkArray(
     let mut _hs_insize: ::core::ffi::c_uint = 0;
     let mut _hs_psize: ::core::ffi::c_uint = 0;
     let mut _hs_qsize: ::core::ffi::c_uint = 0;
-    let mut _hs_p: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_q: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_e: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_list: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_tail: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
+    let mut _hs_p: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_q: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_e: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_list: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_tail: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
     if !hm.is_null() {
         _hs_insize = 1 as ::core::ffi::c_uint;
         _hs_looping = 1 as ::core::ffi::c_uint;
-        _hs_list = &raw mut (*hm).hh as *mut UT_hash_handle;
+        _hs_list = &raw mut (*hm).hh as *mut UtHashHandle;
         while _hs_looping != 0 as ::core::ffi::c_uint {
             _hs_p = _hs_list;
-            _hs_list = ::core::ptr::null_mut::<UT_hash_handle>();
-            _hs_tail = ::core::ptr::null_mut::<UT_hash_handle>();
+            _hs_list = ::core::ptr::null_mut::<UtHashHandle>();
+            _hs_tail = ::core::ptr::null_mut::<UtHashHandle>();
             _hs_nmerges = 0 as ::core::ffi::c_uint;
             while !_hs_p.is_null() {
                 _hs_nmerges = _hs_nmerges.wrapping_add(1);
@@ -947,10 +947,10 @@ unsafe extern "C" fn consolidateMarkArray(
                     _hs_q = (if !(*_hs_q).next.is_null() {
                         ((*_hs_q).next as *mut ::core::ffi::c_char)
                             .offset((*(*hm).hh.tbl).hho)
-                            as *mut UT_hash_handle
+                            as *mut UtHashHandle
                     } else {
-                        ::core::ptr::null_mut::<UT_hash_handle>()
-                    }) as *mut UT_hash_handle;
+                        ::core::ptr::null_mut::<UtHashHandle>()
+                    }) as *mut UtHashHandle;
                     if _hs_q.is_null() {
                         break;
                     }
@@ -965,10 +965,10 @@ unsafe extern "C" fn consolidateMarkArray(
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
                                 .offset((*(*hm).hh.tbl).hho)
-                                as *mut UT_hash_handle
+                                as *mut UtHashHandle
                         } else {
-                            ::core::ptr::null_mut::<UT_hash_handle>()
-                        }) as *mut UT_hash_handle;
+                            ::core::ptr::null_mut::<UtHashHandle>()
+                        }) as *mut UtHashHandle;
                         _hs_qsize = _hs_qsize.wrapping_sub(1);
                     } else if _hs_qsize == 0 as ::core::ffi::c_uint || _hs_q.is_null() {
                         _hs_e = _hs_p;
@@ -976,17 +976,17 @@ unsafe extern "C" fn consolidateMarkArray(
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
                                     .offset((*(*hm).hh.tbl).hho)
-                                    as *mut UT_hash_handle
+                                    as *mut UtHashHandle
                             } else {
-                                ::core::ptr::null_mut::<UT_hash_handle>()
-                            }) as *mut UT_hash_handle;
+                                ::core::ptr::null_mut::<UtHashHandle>()
+                            }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else if mark_by_gid(
                         (_hs_p as *mut ::core::ffi::c_char).offset(-(*(*hm).hh.tbl).hho)
-                            as *mut ::core::ffi::c_void as *mut mark_hash,
+                            as *mut ::core::ffi::c_void as *mut MarkHash,
                         (_hs_q as *mut ::core::ffi::c_char).offset(-(*(*hm).hh.tbl).hho)
-                            as *mut ::core::ffi::c_void as *mut mark_hash,
+                            as *mut ::core::ffi::c_void as *mut MarkHash,
                     ) <= 0 as ::core::ffi::c_int
                     {
                         _hs_e = _hs_p;
@@ -994,10 +994,10 @@ unsafe extern "C" fn consolidateMarkArray(
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
                                     .offset((*(*hm).hh.tbl).hho)
-                                    as *mut UT_hash_handle
+                                    as *mut UtHashHandle
                             } else {
-                                ::core::ptr::null_mut::<UT_hash_handle>()
-                            }) as *mut UT_hash_handle;
+                                ::core::ptr::null_mut::<UtHashHandle>()
+                            }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else {
@@ -1005,10 +1005,10 @@ unsafe extern "C" fn consolidateMarkArray(
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
                                 .offset((*(*hm).hh.tbl).hho)
-                                as *mut UT_hash_handle
+                                as *mut UtHashHandle
                         } else {
-                            ::core::ptr::null_mut::<UT_hash_handle>()
-                        }) as *mut UT_hash_handle;
+                            ::core::ptr::null_mut::<UtHashHandle>()
+                        }) as *mut UtHashHandle;
                         _hs_qsize = _hs_qsize.wrapping_sub(1);
                     }
                     if !_hs_tail.is_null() {
@@ -1042,55 +1042,55 @@ unsafe extern "C" fn consolidateMarkArray(
                 _hs_looping = 0 as ::core::ffi::c_uint;
                 (*(*hm).hh.tbl).tail = _hs_tail;
                 hm = (_hs_list as *mut ::core::ffi::c_char).offset(-(*(*hm).hh.tbl).hho)
-                    as *mut ::core::ffi::c_void as *mut mark_hash
-                    as *mut mark_hash;
+                    as *mut ::core::ffi::c_void as *mut MarkHash
+                    as *mut MarkHash;
             }
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
     otl_iMarkArray.clear.expect("non-null function pointer")(markArray);
-    let mut s_0: *mut mark_hash = ::core::ptr::null_mut::<mark_hash>();
-    let mut tmp: *mut mark_hash = ::core::ptr::null_mut::<mark_hash>();
+    let mut s_0: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
+    let mut tmp: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
     s_0 = hm;
-    tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut mark_hash as *mut mark_hash;
+    tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut MarkHash as *mut MarkHash;
     while !s_0.is_null() {
         otl_iMarkArray.push.expect("non-null function pointer")(
             markArray,
-            otl_MarkRecord {
+            MarkRecord {
                 glyph: handle_fromConsolidated(
-                    (*s_0).gid as glyphid_t, (*s_0).name
-                ) as otfcc_GlyphHandle,
+                    (*s_0).gid as GlyphId, (*s_0).name
+                ) as GlyphHandle,
                 markClass: (*s_0).markClass,
                 anchor: (*s_0).anchor,
             },
         );
         sdsfree((*s_0).name);
-        let mut _hd_hh_del: *mut UT_hash_handle = &raw mut (*s_0).hh;
+        let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s_0).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
             free((*(*hm).hh.tbl).buckets as *mut ::core::ffi::c_void);
             free((*hm).hh.tbl as *mut ::core::ffi::c_void);
-            hm = ::core::ptr::null_mut::<mark_hash>();
+            hm = ::core::ptr::null_mut::<MarkHash>();
         } else {
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*hm).hh.tbl).tail {
                 (*(*hm).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                     .offset((*(*hm).hh.tbl).hho)
-                    as *mut UT_hash_handle
-                    as *mut UT_hash_handle;
+                    as *mut UtHashHandle
+                    as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh3 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                     .offset((*(*hm).hh.tbl).hho)
-                    as *mut UT_hash_handle))
+                    as *mut UtHashHandle))
                     .next;
                 *fresh3 = (*_hd_hh_del).next;
             } else {
-                hm = (*_hd_hh_del).next as *mut mark_hash as *mut mark_hash;
+                hm = (*_hd_hh_del).next as *mut MarkHash as *mut MarkHash;
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh4 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
                     .offset((*(*hm).hh.tbl).hho)
-                    as *mut UT_hash_handle))
+                    as *mut UtHashHandle))
                     .prev;
                 *fresh4 = (*_hd_hh_del).prev;
             }
@@ -1098,11 +1098,11 @@ unsafe extern "C" fn consolidateMarkArray(
                 & (*(*hm).hh.tbl)
                     .num_buckets
                     .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _hd_head: *mut UT_hash_bucket =
-                (*(*hm).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UT_hash_bucket;
+            let mut _hd_head: *mut UtHashBucket =
+                (*(*hm).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UtHashBucket;
             (*_hd_head).count = (*_hd_head).count.wrapping_sub(1);
             if (*_hd_head).hh_head == _hd_hh_del {
-                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UT_hash_handle;
+                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).hh_prev.is_null() {
                 (*(*_hd_hh_del).hh_prev).hh_next = (*_hd_hh_del).hh_next;
@@ -1113,20 +1113,20 @@ unsafe extern "C" fn consolidateMarkArray(
             (*(*hm).hh.tbl).num_items = (*(*hm).hh.tbl).num_items.wrapping_sub(1);
         }
         free(s_0 as *mut ::core::ffi::c_void);
-        s_0 = ::core::ptr::null_mut::<mark_hash>();
+        s_0 = ::core::ptr::null_mut::<MarkHash>();
         s_0 = tmp;
-        tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut mark_hash
-            as *mut mark_hash;
+        tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut MarkHash
+            as *mut MarkHash;
     }
 }
 unsafe extern "C" fn consolidateBaseArray(
-    mut font: *mut otfcc_Font,
-    mut _table: *mut table_OTL,
-    mut options: *const otfcc_Options,
-    mut baseArray: *mut otl_BaseArray,
+    mut font: *mut Font,
+    mut _table: *mut OtlTable,
+    mut options: *const Options,
+    mut baseArray: *mut BaseArray,
 ) {
-    let mut hm: *mut base_hash = ::core::ptr::null_mut::<base_hash>();
-    let mut k: glyphid_t = 0 as glyphid_t;
+    let mut hm: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
+    let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*baseArray).length {
         if !otfcc_pkgGlyphOrder
             .consolidateHandle
@@ -1137,7 +1137,7 @@ unsafe extern "C" fn consolidateBaseArray(
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger,
+                (*options).logger as *mut ILogger,
                 log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
@@ -1148,7 +1148,7 @@ unsafe extern "C" fn consolidateBaseArray(
                 ),
             );
         } else {
-            let mut s: *mut base_hash = ::core::ptr::null_mut::<base_hash>();
+            let mut s: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
             let mut gid: ::core::ffi::c_int =
                 (*(*baseArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -1415,7 +1415,7 @@ unsafe extern "C" fn consolidateBaseArray(
             _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
             _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
             _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-            s = ::core::ptr::null_mut::<base_hash>();
+            s = ::core::ptr::null_mut::<BaseHash>();
             if !hm.is_null() {
                 let mut _hf_bkt: ::core::ffi::c_uint = 0;
                 _hf_bkt = _hf_hashv
@@ -1431,9 +1431,9 @@ unsafe extern "C" fn consolidateBaseArray(
                             as *mut ::core::ffi::c_char)
                             .offset(-(*(*hm).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut base_hash as *mut base_hash;
+                            as *mut BaseHash as *mut BaseHash;
                     } else {
-                        s = ::core::ptr::null_mut::<base_hash>();
+                        s = ::core::ptr::null_mut::<BaseHash>();
                     }
                     while !s.is_null() {
                         if (*s).hh.hashv == _hf_hashv
@@ -1453,24 +1453,24 @@ unsafe extern "C" fn consolidateBaseArray(
                             s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
                                 .offset(-(*(*hm).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut base_hash as *mut base_hash;
+                                as *mut BaseHash as *mut BaseHash;
                         } else {
-                            s = ::core::ptr::null_mut::<base_hash>();
+                            s = ::core::ptr::null_mut::<BaseHash>();
                         }
                     }
                 }
             }
             if s.is_null() {
                 s = __caryll_allocate_clean(
-                    ::core::mem::size_of::<base_hash>() as usize,
+                    ::core::mem::size_of::<BaseHash>() as usize,
                     87 as ::core::ffi::c_ulong,
-                ) as *mut base_hash;
+                ) as *mut BaseHash;
                 (*s).gid =
                     (*(*baseArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
                 (*s).name = sdsdup((*(*baseArray).items.offset(k as isize)).glyph.name);
                 (*s).anchors = (*(*baseArray).items.offset(k as isize)).anchors;
                 let ref mut fresh0 = (*(*baseArray).items.offset(k as isize)).anchors;
-                *fresh0 = ::core::ptr::null_mut::<otl_Anchor>();
+                *fresh0 = ::core::ptr::null_mut::<Anchor>();
                 let mut _ha_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i_0: ::core::ffi::c_uint = 0;
                 let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -1756,18 +1756,18 @@ unsafe extern "C" fn consolidateBaseArray(
                 if hm.is_null() {
                     (*s).hh.next = NULL;
                     (*s).hh.prev = NULL;
-                    (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                        as *mut UT_hash_table
-                        as *mut UT_hash_table;
+                    (*s).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                        as *mut UtHashTable
+                        as *mut UtHashTable;
                     if (*s).hh.tbl.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
                         memset(
                             (*s).hh.tbl as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            ::core::mem::size_of::<UT_hash_table>() as usize,
+                            ::core::mem::size_of::<UtHashTable>() as usize,
                         );
-                        (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
+                        (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
                         (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                         (*(*s).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                         (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
@@ -1776,8 +1776,8 @@ unsafe extern "C" fn consolidateBaseArray(
                             as isize;
                         (*(*s).hh.tbl).buckets = malloc(
                             (32 as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                        ) as *mut UT_hash_bucket;
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                        ) as *mut UtHashBucket;
                         (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
                         if (*(*s).hh.tbl).buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
@@ -1786,7 +1786,7 @@ unsafe extern "C" fn consolidateBaseArray(
                                 (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
                                 (32 as usize).wrapping_mul(
-                                    ::core::mem::size_of::<UT_hash_bucket>() as usize,
+                                    ::core::mem::size_of::<UtHashBucket>() as usize,
                                 ),
                             );
                         }
@@ -1799,7 +1799,7 @@ unsafe extern "C" fn consolidateBaseArray(
                         .offset(-(*(*hm).hh.tbl).hho)
                         as *mut ::core::ffi::c_void;
                     (*(*(*hm).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
-                    (*(*hm).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
+                    (*(*hm).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
                 }
                 let mut _ha_bkt: ::core::ffi::c_uint = 0;
                 (*(*hm).hh.tbl).num_items = (*(*hm).hh.tbl).num_items.wrapping_add(1);
@@ -1807,15 +1807,15 @@ unsafe extern "C" fn consolidateBaseArray(
                     & (*(*hm).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _ha_head: *mut UT_hash_bucket =
-                    (*(*hm).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UT_hash_bucket;
+                let mut _ha_head: *mut UtHashBucket =
+                    (*(*hm).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
                 (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-                (*s).hh.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-                (*s).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                (*s).hh.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+                (*s).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                 if !(*_ha_head).hh_head.is_null() {
-                    (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UT_hash_handle;
+                    (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UtHashHandle;
                 }
-                (*_ha_head).hh_head = &raw mut (*s).hh as *mut UT_hash_handle;
+                (*_ha_head).hh_head = &raw mut (*s).hh as *mut UtHashHandle;
                 if (*_ha_head).count
                     >= (*_ha_head)
                         .expand_mult
@@ -1825,19 +1825,19 @@ unsafe extern "C" fn consolidateBaseArray(
                 {
                     let mut _he_bkt: ::core::ffi::c_uint = 0;
                     let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-                    let mut _he_thh: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_hh_nxt: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_new_buckets: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
-                    let mut _he_newbkt: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
+                    let mut _he_thh: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_hh_nxt: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_new_buckets: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
+                    let mut _he_newbkt: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
                     _he_new_buckets = malloc(
                         (2 as usize)
                             .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                    ) as *mut UT_hash_bucket;
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                    ) as *mut UtHashBucket;
                     if _he_new_buckets.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
@@ -1846,7 +1846,7 @@ unsafe extern "C" fn consolidateBaseArray(
                             '\0' as i32,
                             (2 as usize)
                                 .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                         );
                         (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
                             >> (*(*s).hh.tbl)
@@ -1869,7 +1869,7 @@ unsafe extern "C" fn consolidateBaseArray(
                         _he_bkt_i = 0 as ::core::ffi::c_uint;
                         while _he_bkt_i < (*(*s).hh.tbl).num_buckets {
                             _he_thh = (*(*(*s).hh.tbl).buckets.offset(_he_bkt_i as isize)).hh_head
-                                as *mut UT_hash_handle;
+                                as *mut UtHashHandle;
                             while !_he_thh.is_null() {
                                 _he_hh_nxt = (*_he_thh).hh_next;
                                 _he_bkt = (*_he_thh).hashv
@@ -1878,7 +1878,7 @@ unsafe extern "C" fn consolidateBaseArray(
                                         .wrapping_mul(2 as ::core::ffi::c_uint)
                                         .wrapping_sub(1 as ::core::ffi::c_uint);
                                 _he_newbkt =
-                                    _he_new_buckets.offset(_he_bkt as isize) as *mut UT_hash_bucket;
+                                    _he_new_buckets.offset(_he_bkt as isize) as *mut UtHashBucket;
                                 (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                                 if (*_he_newbkt).count > (*(*s).hh.tbl).ideal_chain_maxlen {
                                     (*(*s).hh.tbl).nonideal_items =
@@ -1887,12 +1887,12 @@ unsafe extern "C" fn consolidateBaseArray(
                                         .count
                                         .wrapping_div((*(*s).hh.tbl).ideal_chain_maxlen);
                                 }
-                                (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
-                                (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                                (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
+                                (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UtHashHandle;
                                 if !(*_he_newbkt).hh_head.is_null() {
                                     (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                                 }
-                                (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                                (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                                 _he_thh = _he_hh_nxt;
                             }
                             _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -1922,7 +1922,7 @@ unsafe extern "C" fn consolidateBaseArray(
                 (*(*options).logger)
                     .logSDS
                     .expect("non-null function pointer")(
-                    (*options).logger as *mut otfcc_ILogger,
+                    (*options).logger as *mut ILogger,
                     log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
@@ -1942,19 +1942,19 @@ unsafe extern "C" fn consolidateBaseArray(
     let mut _hs_insize: ::core::ffi::c_uint = 0;
     let mut _hs_psize: ::core::ffi::c_uint = 0;
     let mut _hs_qsize: ::core::ffi::c_uint = 0;
-    let mut _hs_p: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_q: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_e: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_list: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_tail: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
+    let mut _hs_p: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_q: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_e: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_list: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_tail: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
     if !hm.is_null() {
         _hs_insize = 1 as ::core::ffi::c_uint;
         _hs_looping = 1 as ::core::ffi::c_uint;
-        _hs_list = &raw mut (*hm).hh as *mut UT_hash_handle;
+        _hs_list = &raw mut (*hm).hh as *mut UtHashHandle;
         while _hs_looping != 0 as ::core::ffi::c_uint {
             _hs_p = _hs_list;
-            _hs_list = ::core::ptr::null_mut::<UT_hash_handle>();
-            _hs_tail = ::core::ptr::null_mut::<UT_hash_handle>();
+            _hs_list = ::core::ptr::null_mut::<UtHashHandle>();
+            _hs_tail = ::core::ptr::null_mut::<UtHashHandle>();
             _hs_nmerges = 0 as ::core::ffi::c_uint;
             while !_hs_p.is_null() {
                 _hs_nmerges = _hs_nmerges.wrapping_add(1);
@@ -1966,10 +1966,10 @@ unsafe extern "C" fn consolidateBaseArray(
                     _hs_q = (if !(*_hs_q).next.is_null() {
                         ((*_hs_q).next as *mut ::core::ffi::c_char)
                             .offset((*(*hm).hh.tbl).hho)
-                            as *mut UT_hash_handle
+                            as *mut UtHashHandle
                     } else {
-                        ::core::ptr::null_mut::<UT_hash_handle>()
-                    }) as *mut UT_hash_handle;
+                        ::core::ptr::null_mut::<UtHashHandle>()
+                    }) as *mut UtHashHandle;
                     if _hs_q.is_null() {
                         break;
                     }
@@ -1984,10 +1984,10 @@ unsafe extern "C" fn consolidateBaseArray(
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
                                 .offset((*(*hm).hh.tbl).hho)
-                                as *mut UT_hash_handle
+                                as *mut UtHashHandle
                         } else {
-                            ::core::ptr::null_mut::<UT_hash_handle>()
-                        }) as *mut UT_hash_handle;
+                            ::core::ptr::null_mut::<UtHashHandle>()
+                        }) as *mut UtHashHandle;
                         _hs_qsize = _hs_qsize.wrapping_sub(1);
                     } else if _hs_qsize == 0 as ::core::ffi::c_uint || _hs_q.is_null() {
                         _hs_e = _hs_p;
@@ -1995,17 +1995,17 @@ unsafe extern "C" fn consolidateBaseArray(
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
                                     .offset((*(*hm).hh.tbl).hho)
-                                    as *mut UT_hash_handle
+                                    as *mut UtHashHandle
                             } else {
-                                ::core::ptr::null_mut::<UT_hash_handle>()
-                            }) as *mut UT_hash_handle;
+                                ::core::ptr::null_mut::<UtHashHandle>()
+                            }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else if base_by_gid(
                         (_hs_p as *mut ::core::ffi::c_char).offset(-(*(*hm).hh.tbl).hho)
-                            as *mut ::core::ffi::c_void as *mut base_hash,
+                            as *mut ::core::ffi::c_void as *mut BaseHash,
                         (_hs_q as *mut ::core::ffi::c_char).offset(-(*(*hm).hh.tbl).hho)
-                            as *mut ::core::ffi::c_void as *mut base_hash,
+                            as *mut ::core::ffi::c_void as *mut BaseHash,
                     ) <= 0 as ::core::ffi::c_int
                     {
                         _hs_e = _hs_p;
@@ -2013,10 +2013,10 @@ unsafe extern "C" fn consolidateBaseArray(
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
                                     .offset((*(*hm).hh.tbl).hho)
-                                    as *mut UT_hash_handle
+                                    as *mut UtHashHandle
                             } else {
-                                ::core::ptr::null_mut::<UT_hash_handle>()
-                            }) as *mut UT_hash_handle;
+                                ::core::ptr::null_mut::<UtHashHandle>()
+                            }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else {
@@ -2024,10 +2024,10 @@ unsafe extern "C" fn consolidateBaseArray(
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
                                 .offset((*(*hm).hh.tbl).hho)
-                                as *mut UT_hash_handle
+                                as *mut UtHashHandle
                         } else {
-                            ::core::ptr::null_mut::<UT_hash_handle>()
-                        }) as *mut UT_hash_handle;
+                            ::core::ptr::null_mut::<UtHashHandle>()
+                        }) as *mut UtHashHandle;
                         _hs_qsize = _hs_qsize.wrapping_sub(1);
                     }
                     if !_hs_tail.is_null() {
@@ -2061,54 +2061,54 @@ unsafe extern "C" fn consolidateBaseArray(
                 _hs_looping = 0 as ::core::ffi::c_uint;
                 (*(*hm).hh.tbl).tail = _hs_tail;
                 hm = (_hs_list as *mut ::core::ffi::c_char).offset(-(*(*hm).hh.tbl).hho)
-                    as *mut ::core::ffi::c_void as *mut base_hash
-                    as *mut base_hash;
+                    as *mut ::core::ffi::c_void as *mut BaseHash
+                    as *mut BaseHash;
             }
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
     otl_iBaseArray.clear.expect("non-null function pointer")(baseArray);
-    let mut s_0: *mut base_hash = ::core::ptr::null_mut::<base_hash>();
-    let mut tmp: *mut base_hash = ::core::ptr::null_mut::<base_hash>();
+    let mut s_0: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
+    let mut tmp: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
     s_0 = hm;
-    tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut base_hash as *mut base_hash;
+    tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut BaseHash as *mut BaseHash;
     while !s_0.is_null() {
         otl_iBaseArray.push.expect("non-null function pointer")(
             baseArray,
-            otl_BaseRecord {
+            BaseRecord {
                 glyph: handle_fromConsolidated(
-                    (*s_0).gid as glyphid_t, (*s_0).name
-                ) as otfcc_GlyphHandle,
+                    (*s_0).gid as GlyphId, (*s_0).name
+                ) as GlyphHandle,
                 anchors: (*s_0).anchors,
             },
         );
         sdsfree((*s_0).name);
-        let mut _hd_hh_del: *mut UT_hash_handle = &raw mut (*s_0).hh;
+        let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s_0).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
             free((*(*hm).hh.tbl).buckets as *mut ::core::ffi::c_void);
             free((*hm).hh.tbl as *mut ::core::ffi::c_void);
-            hm = ::core::ptr::null_mut::<base_hash>();
+            hm = ::core::ptr::null_mut::<BaseHash>();
         } else {
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*hm).hh.tbl).tail {
                 (*(*hm).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                     .offset((*(*hm).hh.tbl).hho)
-                    as *mut UT_hash_handle
-                    as *mut UT_hash_handle;
+                    as *mut UtHashHandle
+                    as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh1 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                     .offset((*(*hm).hh.tbl).hho)
-                    as *mut UT_hash_handle))
+                    as *mut UtHashHandle))
                     .next;
                 *fresh1 = (*_hd_hh_del).next;
             } else {
-                hm = (*_hd_hh_del).next as *mut base_hash as *mut base_hash;
+                hm = (*_hd_hh_del).next as *mut BaseHash as *mut BaseHash;
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh2 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
                     .offset((*(*hm).hh.tbl).hho)
-                    as *mut UT_hash_handle))
+                    as *mut UtHashHandle))
                     .prev;
                 *fresh2 = (*_hd_hh_del).prev;
             }
@@ -2116,11 +2116,11 @@ unsafe extern "C" fn consolidateBaseArray(
                 & (*(*hm).hh.tbl)
                     .num_buckets
                     .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _hd_head: *mut UT_hash_bucket =
-                (*(*hm).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UT_hash_bucket;
+            let mut _hd_head: *mut UtHashBucket =
+                (*(*hm).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UtHashBucket;
             (*_hd_head).count = (*_hd_head).count.wrapping_sub(1);
             if (*_hd_head).hh_head == _hd_hh_del {
-                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UT_hash_handle;
+                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).hh_prev.is_null() {
                 (*(*_hd_hh_del).hh_prev).hh_next = (*_hd_hh_del).hh_next;
@@ -2131,20 +2131,20 @@ unsafe extern "C" fn consolidateBaseArray(
             (*(*hm).hh.tbl).num_items = (*(*hm).hh.tbl).num_items.wrapping_sub(1);
         }
         free(s_0 as *mut ::core::ffi::c_void);
-        s_0 = ::core::ptr::null_mut::<base_hash>();
+        s_0 = ::core::ptr::null_mut::<BaseHash>();
         s_0 = tmp;
-        tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut base_hash
-            as *mut base_hash;
+        tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut BaseHash
+            as *mut BaseHash;
     }
 }
 unsafe extern "C" fn consolidateLigArray(
-    mut font: *mut otfcc_Font,
-    mut _table: *mut table_OTL,
-    mut options: *const otfcc_Options,
-    mut ligArray: *mut otl_LigatureArray,
+    mut font: *mut Font,
+    mut _table: *mut OtlTable,
+    mut options: *const Options,
+    mut ligArray: *mut LigatureArray,
 ) {
-    let mut hm: *mut lig_hash = ::core::ptr::null_mut::<lig_hash>();
-    let mut k: glyphid_t = 0 as glyphid_t;
+    let mut hm: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
+    let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*ligArray).length {
         if !otfcc_pkgGlyphOrder
             .consolidateHandle
@@ -2155,7 +2155,7 @@ unsafe extern "C" fn consolidateLigArray(
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger,
+                (*options).logger as *mut ILogger,
                 log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
@@ -2166,7 +2166,7 @@ unsafe extern "C" fn consolidateLigArray(
                 ),
             );
         } else {
-            let mut s: *mut lig_hash = ::core::ptr::null_mut::<lig_hash>();
+            let mut s: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
             let mut gid: ::core::ffi::c_int =
                 (*(*ligArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -2433,7 +2433,7 @@ unsafe extern "C" fn consolidateLigArray(
             _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
             _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
             _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-            s = ::core::ptr::null_mut::<lig_hash>();
+            s = ::core::ptr::null_mut::<LigHash>();
             if !hm.is_null() {
                 let mut _hf_bkt: ::core::ffi::c_uint = 0;
                 _hf_bkt = _hf_hashv
@@ -2448,10 +2448,10 @@ unsafe extern "C" fn consolidateLigArray(
                         s = ((*(*(*hm).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
                             as *mut ::core::ffi::c_char)
                             .offset(-(*(*hm).hh.tbl).hho)
-                            as *mut ::core::ffi::c_void as *mut lig_hash
-                            as *mut lig_hash;
+                            as *mut ::core::ffi::c_void as *mut LigHash
+                            as *mut LigHash;
                     } else {
-                        s = ::core::ptr::null_mut::<lig_hash>();
+                        s = ::core::ptr::null_mut::<LigHash>();
                     }
                     while !s.is_null() {
                         if (*s).hh.hashv == _hf_hashv
@@ -2471,25 +2471,25 @@ unsafe extern "C" fn consolidateLigArray(
                             s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
                                 .offset(-(*(*hm).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut lig_hash as *mut lig_hash;
+                                as *mut LigHash as *mut LigHash;
                         } else {
-                            s = ::core::ptr::null_mut::<lig_hash>();
+                            s = ::core::ptr::null_mut::<LigHash>();
                         }
                     }
                 }
             }
             if s.is_null() {
                 s = __caryll_allocate_clean(
-                    ::core::mem::size_of::<lig_hash>() as usize,
+                    ::core::mem::size_of::<LigHash>() as usize,
                     125 as ::core::ffi::c_ulong,
-                ) as *mut lig_hash;
+                ) as *mut LigHash;
                 (*s).gid =
                     (*(*ligArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
                 (*s).name = sdsdup((*(*ligArray).items.offset(k as isize)).glyph.name);
                 (*s).componentCount = (*(*ligArray).items.offset(k as isize)).componentCount;
                 (*s).anchors = (*(*ligArray).items.offset(k as isize)).anchors;
                 let ref mut fresh5 = (*(*ligArray).items.offset(k as isize)).anchors;
-                *fresh5 = ::core::ptr::null_mut::<*mut otl_Anchor>();
+                *fresh5 = ::core::ptr::null_mut::<*mut Anchor>();
                 let mut _ha_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i_0: ::core::ffi::c_uint = 0;
                 let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -2775,18 +2775,18 @@ unsafe extern "C" fn consolidateLigArray(
                 if hm.is_null() {
                     (*s).hh.next = NULL;
                     (*s).hh.prev = NULL;
-                    (*s).hh.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                        as *mut UT_hash_table
-                        as *mut UT_hash_table;
+                    (*s).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                        as *mut UtHashTable
+                        as *mut UtHashTable;
                     if (*s).hh.tbl.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
                         memset(
                             (*s).hh.tbl as *mut ::core::ffi::c_void,
                             '\0' as i32,
-                            ::core::mem::size_of::<UT_hash_table>() as usize,
+                            ::core::mem::size_of::<UtHashTable>() as usize,
                         );
-                        (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
+                        (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
                         (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                         (*(*s).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                         (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
@@ -2795,8 +2795,8 @@ unsafe extern "C" fn consolidateLigArray(
                             as isize;
                         (*(*s).hh.tbl).buckets = malloc(
                             (32 as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                        ) as *mut UT_hash_bucket;
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                        ) as *mut UtHashBucket;
                         (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
                         if (*(*s).hh.tbl).buckets.is_null() {
                             exit(-(1 as ::core::ffi::c_int));
@@ -2805,7 +2805,7 @@ unsafe extern "C" fn consolidateLigArray(
                                 (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
                                 '\0' as i32,
                                 (32 as usize).wrapping_mul(
-                                    ::core::mem::size_of::<UT_hash_bucket>() as usize,
+                                    ::core::mem::size_of::<UtHashBucket>() as usize,
                                 ),
                             );
                         }
@@ -2818,7 +2818,7 @@ unsafe extern "C" fn consolidateLigArray(
                         .offset(-(*(*hm).hh.tbl).hho)
                         as *mut ::core::ffi::c_void;
                     (*(*(*hm).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
-                    (*(*hm).hh.tbl).tail = &raw mut (*s).hh as *mut UT_hash_handle;
+                    (*(*hm).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
                 }
                 let mut _ha_bkt: ::core::ffi::c_uint = 0;
                 (*(*hm).hh.tbl).num_items = (*(*hm).hh.tbl).num_items.wrapping_add(1);
@@ -2826,15 +2826,15 @@ unsafe extern "C" fn consolidateLigArray(
                     & (*(*hm).hh.tbl)
                         .num_buckets
                         .wrapping_sub(1 as ::core::ffi::c_uint);
-                let mut _ha_head: *mut UT_hash_bucket =
-                    (*(*hm).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UT_hash_bucket;
+                let mut _ha_head: *mut UtHashBucket =
+                    (*(*hm).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
                 (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-                (*s).hh.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-                (*s).hh.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+                (*s).hh.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+                (*s).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
                 if !(*_ha_head).hh_head.is_null() {
-                    (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UT_hash_handle;
+                    (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UtHashHandle;
                 }
-                (*_ha_head).hh_head = &raw mut (*s).hh as *mut UT_hash_handle;
+                (*_ha_head).hh_head = &raw mut (*s).hh as *mut UtHashHandle;
                 if (*_ha_head).count
                     >= (*_ha_head)
                         .expand_mult
@@ -2844,19 +2844,19 @@ unsafe extern "C" fn consolidateLigArray(
                 {
                     let mut _he_bkt: ::core::ffi::c_uint = 0;
                     let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-                    let mut _he_thh: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_hh_nxt: *mut UT_hash_handle =
-                        ::core::ptr::null_mut::<UT_hash_handle>();
-                    let mut _he_new_buckets: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
-                    let mut _he_newbkt: *mut UT_hash_bucket =
-                        ::core::ptr::null_mut::<UT_hash_bucket>();
+                    let mut _he_thh: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_hh_nxt: *mut UtHashHandle =
+                        ::core::ptr::null_mut::<UtHashHandle>();
+                    let mut _he_new_buckets: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
+                    let mut _he_newbkt: *mut UtHashBucket =
+                        ::core::ptr::null_mut::<UtHashBucket>();
                     _he_new_buckets = malloc(
                         (2 as usize)
                             .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                    ) as *mut UT_hash_bucket;
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                    ) as *mut UtHashBucket;
                     if _he_new_buckets.is_null() {
                         exit(-(1 as ::core::ffi::c_int));
                     } else {
@@ -2865,7 +2865,7 @@ unsafe extern "C" fn consolidateLigArray(
                             '\0' as i32,
                             (2 as usize)
                                 .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
-                                .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                         );
                         (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
                             >> (*(*s).hh.tbl)
@@ -2888,7 +2888,7 @@ unsafe extern "C" fn consolidateLigArray(
                         _he_bkt_i = 0 as ::core::ffi::c_uint;
                         while _he_bkt_i < (*(*s).hh.tbl).num_buckets {
                             _he_thh = (*(*(*s).hh.tbl).buckets.offset(_he_bkt_i as isize)).hh_head
-                                as *mut UT_hash_handle;
+                                as *mut UtHashHandle;
                             while !_he_thh.is_null() {
                                 _he_hh_nxt = (*_he_thh).hh_next;
                                 _he_bkt = (*_he_thh).hashv
@@ -2897,7 +2897,7 @@ unsafe extern "C" fn consolidateLigArray(
                                         .wrapping_mul(2 as ::core::ffi::c_uint)
                                         .wrapping_sub(1 as ::core::ffi::c_uint);
                                 _he_newbkt =
-                                    _he_new_buckets.offset(_he_bkt as isize) as *mut UT_hash_bucket;
+                                    _he_new_buckets.offset(_he_bkt as isize) as *mut UtHashBucket;
                                 (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                                 if (*_he_newbkt).count > (*(*s).hh.tbl).ideal_chain_maxlen {
                                     (*(*s).hh.tbl).nonideal_items =
@@ -2906,12 +2906,12 @@ unsafe extern "C" fn consolidateLigArray(
                                         .count
                                         .wrapping_div((*(*s).hh.tbl).ideal_chain_maxlen);
                                 }
-                                (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
-                                (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                                (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
+                                (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UtHashHandle;
                                 if !(*_he_newbkt).hh_head.is_null() {
                                     (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                                 }
-                                (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                                (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                                 _he_thh = _he_hh_nxt;
                             }
                             _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -2941,7 +2941,7 @@ unsafe extern "C" fn consolidateLigArray(
                 (*(*options).logger)
                     .logSDS
                     .expect("non-null function pointer")(
-                    (*options).logger as *mut otfcc_ILogger,
+                    (*options).logger as *mut ILogger,
                     log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
@@ -2961,19 +2961,19 @@ unsafe extern "C" fn consolidateLigArray(
     let mut _hs_insize: ::core::ffi::c_uint = 0;
     let mut _hs_psize: ::core::ffi::c_uint = 0;
     let mut _hs_qsize: ::core::ffi::c_uint = 0;
-    let mut _hs_p: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_q: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_e: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_list: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_tail: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
+    let mut _hs_p: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_q: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_e: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_list: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_tail: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
     if !hm.is_null() {
         _hs_insize = 1 as ::core::ffi::c_uint;
         _hs_looping = 1 as ::core::ffi::c_uint;
-        _hs_list = &raw mut (*hm).hh as *mut UT_hash_handle;
+        _hs_list = &raw mut (*hm).hh as *mut UtHashHandle;
         while _hs_looping != 0 as ::core::ffi::c_uint {
             _hs_p = _hs_list;
-            _hs_list = ::core::ptr::null_mut::<UT_hash_handle>();
-            _hs_tail = ::core::ptr::null_mut::<UT_hash_handle>();
+            _hs_list = ::core::ptr::null_mut::<UtHashHandle>();
+            _hs_tail = ::core::ptr::null_mut::<UtHashHandle>();
             _hs_nmerges = 0 as ::core::ffi::c_uint;
             while !_hs_p.is_null() {
                 _hs_nmerges = _hs_nmerges.wrapping_add(1);
@@ -2985,10 +2985,10 @@ unsafe extern "C" fn consolidateLigArray(
                     _hs_q = (if !(*_hs_q).next.is_null() {
                         ((*_hs_q).next as *mut ::core::ffi::c_char)
                             .offset((*(*hm).hh.tbl).hho)
-                            as *mut UT_hash_handle
+                            as *mut UtHashHandle
                     } else {
-                        ::core::ptr::null_mut::<UT_hash_handle>()
-                    }) as *mut UT_hash_handle;
+                        ::core::ptr::null_mut::<UtHashHandle>()
+                    }) as *mut UtHashHandle;
                     if _hs_q.is_null() {
                         break;
                     }
@@ -3003,10 +3003,10 @@ unsafe extern "C" fn consolidateLigArray(
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
                                 .offset((*(*hm).hh.tbl).hho)
-                                as *mut UT_hash_handle
+                                as *mut UtHashHandle
                         } else {
-                            ::core::ptr::null_mut::<UT_hash_handle>()
-                        }) as *mut UT_hash_handle;
+                            ::core::ptr::null_mut::<UtHashHandle>()
+                        }) as *mut UtHashHandle;
                         _hs_qsize = _hs_qsize.wrapping_sub(1);
                     } else if _hs_qsize == 0 as ::core::ffi::c_uint || _hs_q.is_null() {
                         _hs_e = _hs_p;
@@ -3014,17 +3014,17 @@ unsafe extern "C" fn consolidateLigArray(
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
                                     .offset((*(*hm).hh.tbl).hho)
-                                    as *mut UT_hash_handle
+                                    as *mut UtHashHandle
                             } else {
-                                ::core::ptr::null_mut::<UT_hash_handle>()
-                            }) as *mut UT_hash_handle;
+                                ::core::ptr::null_mut::<UtHashHandle>()
+                            }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else if lig_by_gid(
                         (_hs_p as *mut ::core::ffi::c_char).offset(-(*(*hm).hh.tbl).hho)
-                            as *mut ::core::ffi::c_void as *mut lig_hash,
+                            as *mut ::core::ffi::c_void as *mut LigHash,
                         (_hs_q as *mut ::core::ffi::c_char).offset(-(*(*hm).hh.tbl).hho)
-                            as *mut ::core::ffi::c_void as *mut lig_hash,
+                            as *mut ::core::ffi::c_void as *mut LigHash,
                     ) <= 0 as ::core::ffi::c_int
                     {
                         _hs_e = _hs_p;
@@ -3032,10 +3032,10 @@ unsafe extern "C" fn consolidateLigArray(
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
                                     .offset((*(*hm).hh.tbl).hho)
-                                    as *mut UT_hash_handle
+                                    as *mut UtHashHandle
                             } else {
-                                ::core::ptr::null_mut::<UT_hash_handle>()
-                            }) as *mut UT_hash_handle;
+                                ::core::ptr::null_mut::<UtHashHandle>()
+                            }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else {
@@ -3043,10 +3043,10 @@ unsafe extern "C" fn consolidateLigArray(
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
                                 .offset((*(*hm).hh.tbl).hho)
-                                as *mut UT_hash_handle
+                                as *mut UtHashHandle
                         } else {
-                            ::core::ptr::null_mut::<UT_hash_handle>()
-                        }) as *mut UT_hash_handle;
+                            ::core::ptr::null_mut::<UtHashHandle>()
+                        }) as *mut UtHashHandle;
                         _hs_qsize = _hs_qsize.wrapping_sub(1);
                     }
                     if !_hs_tail.is_null() {
@@ -3080,55 +3080,55 @@ unsafe extern "C" fn consolidateLigArray(
                 _hs_looping = 0 as ::core::ffi::c_uint;
                 (*(*hm).hh.tbl).tail = _hs_tail;
                 hm = (_hs_list as *mut ::core::ffi::c_char).offset(-(*(*hm).hh.tbl).hho)
-                    as *mut ::core::ffi::c_void as *mut lig_hash
-                    as *mut lig_hash;
+                    as *mut ::core::ffi::c_void as *mut LigHash
+                    as *mut LigHash;
             }
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
     otl_iLigatureArray.clear.expect("non-null function pointer")(ligArray);
-    let mut s_0: *mut lig_hash = ::core::ptr::null_mut::<lig_hash>();
-    let mut tmp: *mut lig_hash = ::core::ptr::null_mut::<lig_hash>();
+    let mut s_0: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
+    let mut tmp: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
     s_0 = hm;
-    tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut lig_hash as *mut lig_hash;
+    tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut LigHash as *mut LigHash;
     while !s_0.is_null() {
         otl_iLigatureArray.push.expect("non-null function pointer")(
             ligArray,
-            otl_LigatureBaseRecord {
+            LigatureBaseRecord {
                 glyph: handle_fromConsolidated(
-                    (*s_0).gid as glyphid_t, (*s_0).name
-                ) as otfcc_GlyphHandle,
+                    (*s_0).gid as GlyphId, (*s_0).name
+                ) as GlyphHandle,
                 componentCount: (*s_0).componentCount,
                 anchors: (*s_0).anchors,
             },
         );
         sdsfree((*s_0).name);
-        let mut _hd_hh_del: *mut UT_hash_handle = &raw mut (*s_0).hh;
+        let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s_0).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
             free((*(*hm).hh.tbl).buckets as *mut ::core::ffi::c_void);
             free((*hm).hh.tbl as *mut ::core::ffi::c_void);
-            hm = ::core::ptr::null_mut::<lig_hash>();
+            hm = ::core::ptr::null_mut::<LigHash>();
         } else {
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*hm).hh.tbl).tail {
                 (*(*hm).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                     .offset((*(*hm).hh.tbl).hho)
-                    as *mut UT_hash_handle
-                    as *mut UT_hash_handle;
+                    as *mut UtHashHandle
+                    as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh6 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                     .offset((*(*hm).hh.tbl).hho)
-                    as *mut UT_hash_handle))
+                    as *mut UtHashHandle))
                     .next;
                 *fresh6 = (*_hd_hh_del).next;
             } else {
-                hm = (*_hd_hh_del).next as *mut lig_hash as *mut lig_hash;
+                hm = (*_hd_hh_del).next as *mut LigHash as *mut LigHash;
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh7 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
                     .offset((*(*hm).hh.tbl).hho)
-                    as *mut UT_hash_handle))
+                    as *mut UtHashHandle))
                     .prev;
                 *fresh7 = (*_hd_hh_del).prev;
             }
@@ -3136,11 +3136,11 @@ unsafe extern "C" fn consolidateLigArray(
                 & (*(*hm).hh.tbl)
                     .num_buckets
                     .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _hd_head: *mut UT_hash_bucket =
-                (*(*hm).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UT_hash_bucket;
+            let mut _hd_head: *mut UtHashBucket =
+                (*(*hm).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UtHashBucket;
             (*_hd_head).count = (*_hd_head).count.wrapping_sub(1);
             if (*_hd_head).hh_head == _hd_hh_del {
-                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UT_hash_handle;
+                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).hh_prev.is_null() {
                 (*(*_hd_hh_del).hh_prev).hh_next = (*_hd_hh_del).hh_next;
@@ -3151,19 +3151,19 @@ unsafe extern "C" fn consolidateLigArray(
             (*(*hm).hh.tbl).num_items = (*(*hm).hh.tbl).num_items.wrapping_sub(1);
         }
         free(s_0 as *mut ::core::ffi::c_void);
-        s_0 = ::core::ptr::null_mut::<lig_hash>();
+        s_0 = ::core::ptr::null_mut::<LigHash>();
         s_0 = tmp;
         tmp =
-            (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut lig_hash as *mut lig_hash;
+            (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut LigHash as *mut LigHash;
     }
 }
 pub unsafe extern "C" fn consolidate_mark_to_single(
-    mut font: *mut otfcc_Font,
-    mut table: *mut table_OTL,
-    mut _subtable: *mut otl_Subtable,
-    mut options: *const otfcc_Options,
+    mut font: *mut Font,
+    mut table: *mut OtlTable,
+    mut _subtable: *mut Subtable,
+    mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut subtable_gpos_markToSingle = &raw mut (*_subtable).gpos_markToSingle;
+    let mut subtable: *mut GposMarkToSingleSubtable = &raw mut (*_subtable).gpos_markToSingle;
     consolidateMarkArray(
         font,
         table,
@@ -3176,12 +3176,12 @@ pub unsafe extern "C" fn consolidate_mark_to_single(
         || (*subtable).baseArray.length == 0 as usize;
 }
 pub unsafe extern "C" fn consolidate_mark_to_ligature(
-    mut font: *mut otfcc_Font,
-    mut table: *mut table_OTL,
-    mut _subtable: *mut otl_Subtable,
-    mut options: *const otfcc_Options,
+    mut font: *mut Font,
+    mut table: *mut OtlTable,
+    mut _subtable: *mut Subtable,
+    mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut subtable_gpos_markToLigature = &raw mut (*_subtable).gpos_markToLigature;
+    let mut subtable: *mut GposMarkToLigatureSubtable = &raw mut (*_subtable).gpos_markToLigature;
     consolidateMarkArray(
         font,
         table,

@@ -3,7 +3,7 @@ use libc::{free};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::buffer::{caryll_Buffer};
+use crate::support::buffer::{Buffer};
 use crate::support::buffer::{bufnew};
 
 /// Which FDSelect format a CID font uses, or `UNSPECED` for a font that has
@@ -14,44 +14,44 @@ use crate::support::buffer::{bufnew};
 /// unknown byte lands on `UNSPECED`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
-pub enum cff_FDSelectType {
+pub enum CffFdSelectType {
     cff_FDSELECT_FORMAT0 = 0,
     cff_FDSELECT_FORMAT3 = 1,
     cff_FDSELECT_UNSPECED = 2,
 }
-pub use cff_FDSelectType::*;
+pub use CffFdSelectType::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_FDSelectFormat0 {
+pub struct CffFdSelectFormat0 {
     pub format: u8,
     pub fds: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_FDSelectRangeFormat3 {
+pub struct CffFdSelectRangeFormat3 {
     pub first: u16,
     pub fd: u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_FDSelectFormat3 {
+pub struct CffFdSelectFormat3 {
     pub format: u8,
     pub nranges: u16,
-    pub range3: *mut cff_FDSelectRangeFormat3,
+    pub range3: *mut CffFdSelectRangeFormat3,
     pub sentinel: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_FDSelect {
-    pub t: cff_FDSelectType,
+pub struct CffFdSelect {
+    pub t: CffFdSelectType,
     pub s: u32,
-    pub c2rust_unnamed: cff_FDSelectBody,
+    pub c2rust_unnamed: CffFdSelectBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union cff_FDSelectBody {
-    pub f0: cff_FDSelectFormat0,
-    pub f3: cff_FDSelectFormat3,
+pub union CffFdSelectBody {
+    pub f0: CffFdSelectFormat0,
+    pub f3: CffFdSelectFormat3,
 }
 #[inline]
 unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
@@ -67,7 +67,7 @@ unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
         .offset(1 as ::core::ffi::c_int as isize) as u32;
     return b0 | b1;
 }
-pub unsafe extern "C" fn cff_close_FDSelect(mut fds: cff_FDSelect) {
+pub unsafe extern "C" fn cff_close_FDSelect(mut fds: CffFdSelect) {
     match fds.t {
         cff_FDSELECT_FORMAT0 => {
             if !fds.c2rust_unnamed.f0.fds.is_null() {
@@ -78,17 +78,17 @@ pub unsafe extern "C" fn cff_close_FDSelect(mut fds: cff_FDSelect) {
         cff_FDSELECT_FORMAT3 => {
             if !fds.c2rust_unnamed.f3.range3.is_null() {
                 free(fds.c2rust_unnamed.f3.range3 as *mut ::core::ffi::c_void);
-                fds.c2rust_unnamed.f3.range3 = ::core::ptr::null_mut::<cff_FDSelectRangeFormat3>();
+                fds.c2rust_unnamed.f3.range3 = ::core::ptr::null_mut::<CffFdSelectRangeFormat3>();
             }
         }
         _ => {}
     };
 }
-pub unsafe extern "C" fn cff_build_FDSelect(mut fd: cff_FDSelect) -> *mut caryll_Buffer {
+pub unsafe extern "C" fn cff_build_FDSelect(mut fd: CffFdSelect) -> *mut Buffer {
     match fd.t {
         cff_FDSELECT_UNSPECED => return bufnew(),
         cff_FDSELECT_FORMAT0 => {
-            let mut blob: *mut caryll_Buffer = bufnew();
+            let mut blob: *mut Buffer = bufnew();
             (*blob).size = (1 as u32).wrapping_add(fd.s) as usize;
             (*blob).data = __caryll_allocate_clean(
                 (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob).size),
@@ -102,7 +102,7 @@ pub unsafe extern "C" fn cff_build_FDSelect(mut fd: cff_FDSelect) -> *mut caryll
             return blob;
         }
         cff_FDSELECT_FORMAT3 => {
-            let mut blob_0: *mut caryll_Buffer = bufnew();
+            let mut blob_0: *mut Buffer = bufnew();
             (*blob_0).size = (5 as ::core::ffi::c_int
                 + fd.c2rust_unnamed.f3.nranges as ::core::ffi::c_int * 3 as ::core::ffi::c_int)
                 as usize;
@@ -153,7 +153,7 @@ pub unsafe extern "C" fn cff_extract_FDSelect(
     mut data: *mut u8,
     mut offset: i32,
     mut nchars: u16,
-    mut fdselect: *mut cff_FDSelect,
+    mut fdselect: *mut CffFdSelect,
 ) {
     match *data.offset(offset as isize) as ::core::ffi::c_int {
         0 => {
@@ -177,10 +177,10 @@ pub unsafe extern "C" fn cff_extract_FDSelect(
             (*fdselect).c2rust_unnamed.f3.nranges =
                 gu2(data, (offset + 1 as i32) as u32) as u16;
             (*fdselect).c2rust_unnamed.f3.range3 = __caryll_allocate_clean(
-                (::core::mem::size_of::<cff_FDSelectRangeFormat3>() as usize)
+                (::core::mem::size_of::<CffFdSelectRangeFormat3>() as usize)
                     .wrapping_mul((*fdselect).c2rust_unnamed.f3.nranges as usize),
                 66 as ::core::ffi::c_ulong,
-            ) as *mut cff_FDSelectRangeFormat3;
+            ) as *mut CffFdSelectRangeFormat3;
             let mut i_0: u32 = 0 as u32;
             while i_0 < (*fdselect).c2rust_unnamed.f3.nranges as u32 {
                 (*(*fdselect).c2rust_unnamed.f3.range3.offset(i_0 as isize)).first = gu2(

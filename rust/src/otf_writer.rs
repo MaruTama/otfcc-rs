@@ -9,17 +9,17 @@ use libc::{free};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{glyphid_t};
+use crate::support::buffer::{Buffer};
+use crate::support::options::{Options};
+use crate::support::primitives::{GlyphId};
 
-use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, otfcc_Font, otfcc_IFontSerializer};
-use crate::font::caryll_sfnt_builder::{otfcc_SFNTBuilder};
+use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, Font, IFontSerializer};
+use crate::font::caryll_sfnt_builder::{SfntBuilder};
 
-use crate::table::CFF::{table_CFFAndGlyf};
-use crate::table::_TSI::tsi_BuildTarget;
+use crate::table::CFF::{CffAndGlyf};
+use crate::table::_TSI::TsiBuildTarget;
 
-use crate::table::glyf::table_GlyfAndLocaBuffers;
+use crate::table::glyf::GlyfAndLocaBuffers;
 
 use crate::font::caryll_sfnt_builder::{otfcc_SFNTBuilder_pushTable, otfcc_SFNTBuilder_serialize, otfcc_deleteSFNTBuilder, otfcc_newSFNTBuilder};
 use crate::otf_writer::stat::{otfcc_statFont, otfcc_unstatFont};
@@ -56,7 +56,7 @@ use crate::table::vmtx::{otfcc_buildVmtx};
 
 
 
-// otfcc_Font/otfcc_Options are duplicated per-file by c2rust; the trait
+// Font/Options are duplicated per-file by c2rust; the trait
 // boundary uses erased c_void pointers so this trait can be shared with
 // json_writer.rs without deduping those pervasively-used types (same
 // reasoning as FontBuilder in otf_reader.rs).
@@ -72,10 +72,10 @@ impl FontSerializer for OtfSerializer {
         font: *mut ::core::ffi::c_void,
         options: *const ::core::ffi::c_void,
     ) -> *mut ::core::ffi::c_void {
-    let font = font as *mut otfcc_Font;
-    let options = options as *const otfcc_Options;
+    let font = font as *mut Font;
+    let options = options as *const Options;
     otfcc_statFont(font, options);
-    let mut builder: *mut otfcc_SFNTBuilder = otfcc_newSFNTBuilder(
+    let mut builder: *mut SfntBuilder = otfcc_newSFNTBuilder(
         (if (*font).subtype == FONTTYPE_CFF {
             1330926671i32
         } else {
@@ -84,12 +84,12 @@ impl FontSerializer for OtfSerializer {
         options,
     );
     if (*font).subtype == FONTTYPE_TTF {
-        let mut pair: table_GlyfAndLocaBuffers =
+        let mut pair: GlyfAndLocaBuffers =
             otfcc_buildGlyf((*font).glyf, (*font).head, options);
         otfcc_SFNTBuilder_pushTable(builder, 1735162214i32 as u32, pair.glyf);
         otfcc_SFNTBuilder_pushTable(builder, 1819239265i32 as u32, pair.loca);
     } else {
-        let mut r: table_CFFAndGlyf = table_CFFAndGlyf {
+        let mut r: CffAndGlyf = CffAndGlyf {
             meta: (*font).CFF_,
             glyphs: (*font).glyf,
         };
@@ -181,8 +181,8 @@ impl FontSerializer for OtfSerializer {
             1752003704i32 as u32,
             otfcc_buildHmtx(
                 (*font).hmtx,
-                hmtx_counta as glyphid_t,
-                hmtx_countk as glyphid_t,
+                hmtx_counta as GlyphId,
+                hmtx_countk as GlyphId,
                 options,
             ),
         );
@@ -202,8 +202,8 @@ impl FontSerializer for OtfSerializer {
             1986884728i32 as u32,
             otfcc_buildVmtx(
                 (*font).vmtx,
-                vmtx_counta as glyphid_t,
-                vmtx_countk as glyphid_t,
+                vmtx_counta as GlyphId,
+                vmtx_countk as GlyphId,
                 options,
             ),
         );
@@ -256,61 +256,61 @@ impl FontSerializer for OtfSerializer {
         1398163232i32 as u32,
         otfcc_buildSVG((*font).SVG_, options),
     );
-    let mut target: tsi_BuildTarget = otfcc_buildTSI((*font).TSI_01, options);
+    let mut target: TsiBuildTarget = otfcc_buildTSI((*font).TSI_01, options);
     otfcc_SFNTBuilder_pushTable(builder, 1414744368i32 as u32, target.indexPart);
     otfcc_SFNTBuilder_pushTable(builder, 1414744369i32 as u32, target.textPart);
-    let mut target_0: tsi_BuildTarget = otfcc_buildTSI((*font).TSI_23, options);
+    let mut target_0: TsiBuildTarget = otfcc_buildTSI((*font).TSI_23, options);
     otfcc_SFNTBuilder_pushTable(builder, 1414744370i32 as u32, target_0.indexPart);
     otfcc_SFNTBuilder_pushTable(builder, 1414744371i32 as u32, target_0.textPart);
     if !(*font).glyf.is_null() {
         otfcc_SFNTBuilder_pushTable(
             builder,
             1414744373i32 as u32,
-            otfcc_buildTSI5((*font).TSI5, options, (*(*font).glyf).length as glyphid_t),
+            otfcc_buildTSI5((*font).TSI5, options, (*(*font).glyf).length as GlyphId),
         );
     }
     if (*options).dummy_DSIG {
-        let mut dsig: *mut caryll_Buffer = bufnew();
+        let mut dsig: *mut Buffer = bufnew();
         bufwrite32b(dsig, 0x1 as u32);
         bufwrite16b(dsig, 0 as u16);
         bufwrite16b(dsig, 0 as u16);
         otfcc_SFNTBuilder_pushTable(builder, 1146308935i32 as u32, dsig);
     }
-    let mut otf: *mut caryll_Buffer = otfcc_SFNTBuilder_serialize(builder);
+    let mut otf: *mut Buffer = otfcc_SFNTBuilder_serialize(builder);
     otfcc_deleteSFNTBuilder(builder);
     otfcc_unstatFont(font, options);
     return otf as *mut ::core::ffi::c_void;
     }
 }
 unsafe extern "C" fn serializeToOTF(
-    mut font: *mut otfcc_Font,
-    mut options: *const otfcc_Options,
+    mut font: *mut Font,
+    mut options: *const Options,
 ) -> *mut ::core::ffi::c_void {
     <OtfSerializer as FontSerializer>::serialize(
         font as *mut ::core::ffi::c_void,
         options as *const ::core::ffi::c_void,
     )
 }
-unsafe extern "C" fn freeFontWriter(mut self_0: *mut otfcc_IFontSerializer) {
+unsafe extern "C" fn freeFontWriter(mut self_0: *mut IFontSerializer) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_newOTFWriter() -> *mut otfcc_IFontSerializer {
-    let mut writer: *mut otfcc_IFontSerializer = ::core::ptr::null_mut::<otfcc_IFontSerializer>();
+pub unsafe extern "C" fn otfcc_newOTFWriter() -> *mut IFontSerializer {
+    let mut writer: *mut IFontSerializer = ::core::ptr::null_mut::<IFontSerializer>();
     writer = __caryll_allocate_clean(
-        ::core::mem::size_of::<otfcc_IFontSerializer>() as usize,
+        ::core::mem::size_of::<IFontSerializer>() as usize,
         100 as ::core::ffi::c_ulong,
-    ) as *mut otfcc_IFontSerializer;
+    ) as *mut IFontSerializer;
     (*writer).serialize = Some(
         serializeToOTF
             as unsafe extern "C" fn(
-                *mut otfcc_Font,
-                *const otfcc_Options,
+                *mut Font,
+                *const Options,
             ) -> *mut ::core::ffi::c_void,
     )
         as Option<
-            unsafe extern "C" fn(*mut otfcc_Font, *const otfcc_Options) -> *mut ::core::ffi::c_void,
+            unsafe extern "C" fn(*mut Font, *const Options) -> *mut ::core::ffi::c_void,
         >;
-    (*writer).free = Some(freeFontWriter as unsafe extern "C" fn(*mut otfcc_IFontSerializer) -> ())
-        as Option<unsafe extern "C" fn(*mut otfcc_IFontSerializer) -> ()>;
+    (*writer).free = Some(freeFontWriter as unsafe extern "C" fn(*mut IFontSerializer) -> ())
+        as Option<unsafe extern "C" fn(*mut IFontSerializer) -> ()>;
     return writer;
 }

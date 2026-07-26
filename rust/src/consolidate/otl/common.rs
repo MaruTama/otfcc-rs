@@ -1,13 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::table::otl::coverage::{otl_Coverage};
-use crate::support::handle::{otfcc_GlyphHandle, otfcc_Handle, otfcc_Handle_dispose};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
+use crate::table::otl::coverage::{Coverage};
+use crate::support::handle::{GlyphHandle, Handle, otfcc_Handle_dispose};
+use crate::logger::{log_type_warning, log_vl_important, ILogger};
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{glyphclass_t, glyphid_t};
-use crate::font::caryll_font::{otfcc_Font};
-use crate::support::glyph_order::glyph_handle;
-
+use crate::support::options::{Options};
+use crate::support::primitives::{GlyphClass, GlyphId};
+use crate::font::caryll_font::{Font};
 
 
 
@@ -32,7 +30,8 @@ use crate::support::glyph_order::glyph_handle;
 
 
 
-use crate::table::otl::classdef::{otl_ClassDef};
+
+use crate::table::otl::classdef::{ClassDef};
 use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
 use crate::vendor::sds::{sdsempty};
 
@@ -45,25 +44,25 @@ use crate::vendor::sds::{sdsempty};
 
 
 pub unsafe extern "C" fn fontop_consolidateCoverage(
-    mut font: *mut otfcc_Font,
-    mut coverage: *mut otl_Coverage,
-    mut options: *const otfcc_Options,
+    mut font: *mut Font,
+    mut coverage: *mut Coverage,
+    mut options: *const Options,
 ) {
     if coverage.is_null() {
         return;
     }
-    let mut j: glyphid_t = 0 as glyphid_t;
+    let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < (*coverage).numGlyphs as ::core::ffi::c_int {
-        let mut h: *mut glyph_handle = (*coverage).glyphs.offset(j as isize) as *mut glyph_handle;
+        let mut h: *mut GlyphHandle = (*coverage).glyphs.offset(j as isize) as *mut GlyphHandle;
         if !otfcc_pkgGlyphOrder
             .consolidateHandle
             .expect("non-null function pointer")(
-            (*font).glyph_order, h as *mut otfcc_GlyphHandle
+            (*font).glyph_order, h as *mut GlyphHandle
         ) {
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger,
+                (*options).logger as *mut ILogger,
                 log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
@@ -73,31 +72,31 @@ pub unsafe extern "C" fn fontop_consolidateCoverage(
                     b".\n",
                 ),
             );
-            otfcc_Handle_dispose(h as *mut otfcc_Handle);
+            otfcc_Handle_dispose(h as *mut Handle);
         }
         j = j.wrapping_add(1);
     }
 }
 pub unsafe extern "C" fn fontop_consolidateClassDef(
-    mut font: *mut otfcc_Font,
-    mut cd: *mut otl_ClassDef,
-    mut options: *const otfcc_Options,
+    mut font: *mut Font,
+    mut cd: *mut ClassDef,
+    mut options: *const Options,
 ) {
     if cd.is_null() {
         return;
     }
-    let mut j: glyphid_t = 0 as glyphid_t;
+    let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
-        let mut h: *mut glyph_handle = (*cd).glyphs.offset(j as isize) as *mut glyph_handle;
+        let mut h: *mut GlyphHandle = (*cd).glyphs.offset(j as isize) as *mut GlyphHandle;
         if !otfcc_pkgGlyphOrder
             .consolidateHandle
             .expect("non-null function pointer")(
-            (*font).glyph_order, h as *mut otfcc_GlyphHandle
+            (*font).glyph_order, h as *mut GlyphHandle
         ) {
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger,
+                (*options).logger as *mut ILogger,
                 log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
@@ -107,8 +106,8 @@ pub unsafe extern "C" fn fontop_consolidateClassDef(
                     b".\n",
                 ),
             );
-            otfcc_Handle_dispose(h as *mut otfcc_Handle);
-            *(*cd).classes.offset(j as isize) = 0 as glyphclass_t;
+            otfcc_Handle_dispose(h as *mut Handle);
+            *(*cd).classes.offset(j as isize) = 0 as GlyphClass;
         }
         j = j.wrapping_add(1);
     }

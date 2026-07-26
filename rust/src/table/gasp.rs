@@ -1,14 +1,14 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
 use crate::support::binio::{read_16u};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{font_file_pointer, glyphsize_t, tableid_t};
-use crate::vendor::json::{json_array, json_object, json_value};
+use crate::logger::{log_type_warning, log_vl_important, ILogger};
+use crate::support::buffer::{Buffer};
+use crate::support::options::{Options};
+use crate::support::primitives::{FontFilePointer, GlyphSize, TableId};
+use crate::vendor::json::{json_array, json_object, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
-use crate::support::{__compar_fn_t};
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::support::{ComparFn};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getbool, json_obj_getint_fallback};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push};
@@ -16,8 +16,8 @@ use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct gasp_Record {
-    pub rangeMaxPPEM: glyphsize_t,
+pub struct GaspRecord {
+    pub rangeMaxPPEM: GlyphSize,
     pub dogray: bool,
     pub gridfit: bool,
     pub symmetric_smoothing: bool,
@@ -25,170 +25,170 @@ pub struct gasp_Record {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_gasp_Record {
-    pub init: Option<unsafe extern "C" fn(*mut gasp_Record) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut gasp_Record, *const gasp_Record) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut gasp_Record, *mut gasp_Record) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut gasp_Record) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut gasp_Record, gasp_Record) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut gasp_Record, gasp_Record) -> ()>,
+pub struct GaspRecordElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut GaspRecord) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut GaspRecord, *const GaspRecord) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut GaspRecord, *mut GaspRecord) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut GaspRecord) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut GaspRecord, GaspRecord) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut GaspRecord, GaspRecord) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct gasp_RecordList {
+pub struct GaspRecordList {
     pub length: usize,
     pub capacity: usize,
-    pub items: *mut gasp_Record,
+    pub items: *mut GaspRecord,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_vectorinterface_gasp_RecordList {
-    pub init: Option<unsafe extern "C" fn(*mut gasp_RecordList) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut gasp_RecordList, *const gasp_RecordList) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut gasp_RecordList, *mut gasp_RecordList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut gasp_RecordList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut gasp_RecordList, gasp_RecordList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut gasp_RecordList, gasp_RecordList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut gasp_RecordList>,
-    pub free: Option<unsafe extern "C" fn(*mut gasp_RecordList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut gasp_RecordList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut gasp_RecordList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut gasp_RecordList>,
-    pub fill: Option<unsafe extern "C" fn(*mut gasp_RecordList, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut gasp_RecordList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut gasp_RecordList, gasp_Record) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut gasp_RecordList) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut gasp_RecordList) -> gasp_Record>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut gasp_RecordList, usize) -> ()>,
+pub struct GaspRecordListVectorInterface {
+    pub init: Option<unsafe extern "C" fn(*mut GaspRecordList) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut GaspRecordList, *const GaspRecordList) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut GaspRecordList, *mut GaspRecordList) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut GaspRecordList) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut GaspRecordList, GaspRecordList) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut GaspRecordList, GaspRecordList) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut GaspRecordList>,
+    pub free: Option<unsafe extern "C" fn(*mut GaspRecordList) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut GaspRecordList>,
+    pub fill: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
+    pub clear: Option<unsafe extern "C" fn(*mut GaspRecordList) -> ()>,
+    pub push: Option<unsafe extern "C" fn(*mut GaspRecordList, GaspRecord) -> ()>,
+    pub shrinkToFit: Option<unsafe extern "C" fn(*mut GaspRecordList) -> ()>,
+    pub pop: Option<unsafe extern "C" fn(*mut GaspRecordList) -> GaspRecord>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
-            *mut gasp_RecordList,
-            Option<unsafe extern "C" fn(*const gasp_Record, *mut ::core::ffi::c_void) -> bool>,
+            *mut GaspRecordList,
+            Option<unsafe extern "C" fn(*const GaspRecord, *mut ::core::ffi::c_void) -> bool>,
             *mut ::core::ffi::c_void,
         ) -> (),
     >,
     pub sort: Option<
         unsafe extern "C" fn(
-            *mut gasp_RecordList,
+            *mut GaspRecordList,
             Option<
-                unsafe extern "C" fn(*const gasp_Record, *const gasp_Record) -> ::core::ffi::c_int,
+                unsafe extern "C" fn(*const GaspRecord, *const GaspRecord) -> ::core::ffi::c_int,
             >,
         ) -> (),
     >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct table_gasp {
+pub struct GaspTable {
     pub version: u16,
-    pub records: gasp_RecordList,
+    pub records: GaspRecordList,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_table_gasp {
-    pub init: Option<unsafe extern "C" fn(*mut table_gasp) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_gasp, *const table_gasp) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_gasp, *mut table_gasp) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_gasp) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_gasp, table_gasp) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_gasp, table_gasp) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_gasp>,
-    pub free: Option<unsafe extern "C" fn(*mut table_gasp) -> ()>,
+pub struct GaspTableElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut GaspTable) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut GaspTable, *const GaspTable) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut GaspTable, *mut GaspTable) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut GaspTable) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut GaspTable, GaspTable) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut GaspTable, GaspTable) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut GaspTable>,
+    pub free: Option<unsafe extern "C" fn(*mut GaspTable) -> ()>,
 }
 pub const GASP_DOGRAY: ::core::ffi::c_int = 0x2 as ::core::ffi::c_int;
 pub const GASP_GRIDFIT: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_GRIDFIT: ::core::ffi::c_int = 0x4 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_SMOOTHING: ::core::ffi::c_int = 0x8 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn gasp_Record_copy(mut dst: *mut gasp_Record, mut src: *const gasp_Record) {
+unsafe extern "C" fn gasp_Record_copy(mut dst: *mut GaspRecord, mut src: *const GaspRecord) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<gasp_Record>() as usize,
+        ::core::mem::size_of::<GaspRecord>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn gasp_Record_dispose(mut _x: *mut gasp_Record) {}
+unsafe extern "C" fn gasp_Record_dispose(mut _x: *mut GaspRecord) {}
 #[inline]
-unsafe extern "C" fn gasp_Record_replace(mut dst: *mut gasp_Record, src: gasp_Record) {
+unsafe extern "C" fn gasp_Record_replace(mut dst: *mut GaspRecord, src: GaspRecord) {
     gasp_Record_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<gasp_Record>() as usize,
+        ::core::mem::size_of::<GaspRecord>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn gasp_Record_move(mut dst: *mut gasp_Record, mut src: *mut gasp_Record) {
+unsafe extern "C" fn gasp_Record_move(mut dst: *mut GaspRecord, mut src: *mut GaspRecord) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<gasp_Record>() as usize,
+        ::core::mem::size_of::<GaspRecord>() as usize,
     );
     gasp_Record_init(src);
 }
 #[inline]
-unsafe extern "C" fn gasp_Record_init(mut x: *mut gasp_Record) {
+unsafe extern "C" fn gasp_Record_init(mut x: *mut GaspRecord) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<gasp_Record>() as usize,
+        ::core::mem::size_of::<GaspRecord>() as usize,
     );
 }
-pub static gasp_iRecord: __caryll_elementinterface_gasp_Record = {
-    __caryll_elementinterface_gasp_Record {
-        init: Some(gasp_Record_init as unsafe extern "C" fn(*mut gasp_Record) -> ()),
+pub static gasp_iRecord: GaspRecordElementInterface = {
+    GaspRecordElementInterface {
+        init: Some(gasp_Record_init as unsafe extern "C" fn(*mut GaspRecord) -> ()),
         copy: Some(
-            gasp_Record_copy as unsafe extern "C" fn(*mut gasp_Record, *const gasp_Record) -> (),
+            gasp_Record_copy as unsafe extern "C" fn(*mut GaspRecord, *const GaspRecord) -> (),
         ),
         move_0: Some(
-            gasp_Record_move as unsafe extern "C" fn(*mut gasp_Record, *mut gasp_Record) -> (),
+            gasp_Record_move as unsafe extern "C" fn(*mut GaspRecord, *mut GaspRecord) -> (),
         ),
-        dispose: Some(gasp_Record_dispose as unsafe extern "C" fn(*mut gasp_Record) -> ()),
+        dispose: Some(gasp_Record_dispose as unsafe extern "C" fn(*mut GaspRecord) -> ()),
         replace: Some(
-            gasp_Record_replace as unsafe extern "C" fn(*mut gasp_Record, gasp_Record) -> (),
+            gasp_Record_replace as unsafe extern "C" fn(*mut GaspRecord, GaspRecord) -> (),
         ),
         copyReplace: Some(
-            gasp_Record_copyReplace as unsafe extern "C" fn(*mut gasp_Record, gasp_Record) -> (),
+            gasp_Record_copyReplace as unsafe extern "C" fn(*mut GaspRecord, GaspRecord) -> (),
         ),
     }
 };
 #[inline]
-unsafe extern "C" fn gasp_Record_copyReplace(mut dst: *mut gasp_Record, src: gasp_Record) {
+unsafe extern "C" fn gasp_Record_copyReplace(mut dst: *mut GaspRecord, src: GaspRecord) {
     gasp_Record_dispose(dst);
     gasp_Record_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_shrinkToFit(mut arr: *mut gasp_RecordList) {
+unsafe extern "C" fn gasp_RecordList_shrinkToFit(mut arr: *mut GaspRecordList) {
     gasp_RecordList_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_resizeTo(arr: *mut gasp_RecordList, target: usize) {
+unsafe extern "C" fn gasp_RecordList_resizeTo(arr: *mut GaspRecordList, target: usize) {
     cvec_resize_to(gasp_RecordList_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_grow(arr: *mut gasp_RecordList) {
+unsafe extern "C" fn gasp_RecordList_grow(arr: *mut GaspRecordList) {
     cvec_grow(gasp_RecordList_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_growTo(arr: *mut gasp_RecordList, target: usize) {
+unsafe extern "C" fn gasp_RecordList_growTo(arr: *mut GaspRecordList, target: usize) {
     cvec_grow_to(gasp_RecordList_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_pop(arr: *mut gasp_RecordList) -> gasp_Record {
+unsafe extern "C" fn gasp_RecordList_pop(arr: *mut GaspRecordList) -> GaspRecord {
     cvec_pop(gasp_RecordList_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn gasp_RecordList_copyReplace(
-    mut dst: *mut gasp_RecordList,
-    src: gasp_RecordList,
+    mut dst: *mut GaspRecordList,
+    src: GaspRecordList,
 ) {
     gasp_RecordList_dispose(dst);
     gasp_RecordList_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn gasp_RecordList_copy(
-    mut dst: *mut gasp_RecordList,
-    mut src: *const gasp_RecordList,
+    mut dst: *mut GaspRecordList,
+    mut src: *const GaspRecordList,
 ) {
     gasp_RecordList_init(dst);
     gasp_RecordList_growTo(dst, (*src).length);
@@ -197,8 +197,8 @@ unsafe extern "C" fn gasp_RecordList_copy(
         let mut j: usize = 0 as usize;
         while j < (*src).length {
             gasp_iRecord.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut gasp_Record,
-                (*src).items.offset(j as isize) as *mut gasp_Record as *const gasp_Record,
+                (*dst).items.offset(j as isize) as *mut GaspRecord,
+                (*src).items.offset(j as isize) as *mut GaspRecord as *const GaspRecord,
             );
             j = j.wrapping_add(1);
         }
@@ -211,7 +211,7 @@ unsafe extern "C" fn gasp_RecordList_copy(
     };
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_dispose(mut arr: *mut gasp_RecordList) {
+unsafe extern "C" fn gasp_RecordList_dispose(mut arr: *mut GaspRecordList) {
     if arr.is_null() {
         return;
     }
@@ -224,41 +224,41 @@ unsafe extern "C" fn gasp_RecordList_dispose(mut arr: *mut gasp_RecordList) {
                 break;
             }
             gasp_iRecord.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut gasp_Record,
+                (*arr).items.offset(j as isize) as *mut GaspRecord,
             );
         }
     }
     free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<gasp_Record>();
+    (*arr).items = ::core::ptr::null_mut::<GaspRecord>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_replace(mut dst: *mut gasp_RecordList, src: gasp_RecordList) {
+unsafe extern "C" fn gasp_RecordList_replace(mut dst: *mut GaspRecordList, src: GaspRecordList) {
     gasp_RecordList_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<gasp_RecordList>() as usize,
+        ::core::mem::size_of::<GaspRecordList>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_initCapN(mut arr: *mut gasp_RecordList, mut n: usize) {
+unsafe extern "C" fn gasp_RecordList_initCapN(mut arr: *mut GaspRecordList, mut n: usize) {
     gasp_RecordList_init(arr);
     gasp_RecordList_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_growToN(arr: *mut gasp_RecordList, target: usize) {
+unsafe extern "C" fn gasp_RecordList_growToN(arr: *mut GaspRecordList, target: usize) {
     cvec_grow_to_n(gasp_RecordList_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_initN(mut arr: *mut gasp_RecordList, mut n: usize) {
+unsafe extern "C" fn gasp_RecordList_initN(mut arr: *mut GaspRecordList, mut n: usize) {
     gasp_RecordList_init(arr);
     gasp_RecordList_growToN(arr, n);
     gasp_RecordList_fill(arr, n);
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_free(mut x: *mut gasp_RecordList) {
+unsafe extern "C" fn gasp_RecordList_free(mut x: *mut GaspRecordList) {
     if x.is_null() {
         return;
     }
@@ -266,42 +266,42 @@ unsafe extern "C" fn gasp_RecordList_free(mut x: *mut gasp_RecordList) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_createN(mut n: usize) -> *mut gasp_RecordList {
-    let mut t: *mut gasp_RecordList =
-        malloc(::core::mem::size_of::<gasp_RecordList>() as usize) as *mut gasp_RecordList;
+unsafe extern "C" fn gasp_RecordList_createN(mut n: usize) -> *mut GaspRecordList {
+    let mut t: *mut GaspRecordList =
+        malloc(::core::mem::size_of::<GaspRecordList>() as usize) as *mut GaspRecordList;
     gasp_RecordList_initN(t, n);
     return t;
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_create() -> *mut gasp_RecordList {
-    let mut x: *mut gasp_RecordList =
-        malloc(::core::mem::size_of::<gasp_RecordList>() as usize) as *mut gasp_RecordList;
+unsafe extern "C" fn gasp_RecordList_create() -> *mut GaspRecordList {
+    let mut x: *mut GaspRecordList =
+        malloc(::core::mem::size_of::<GaspRecordList>() as usize) as *mut GaspRecordList;
     gasp_RecordList_init(x);
     return x;
 }
 #[inline]
-unsafe fn gasp_RecordList_as_cvec(arr: *mut gasp_RecordList) -> *mut CVecRaw<gasp_Record> {
-    arr as *mut CVecRaw<gasp_Record>
+unsafe fn gasp_RecordList_as_cvec(arr: *mut GaspRecordList) -> *mut CVecRaw<GaspRecord> {
+    arr as *mut CVecRaw<GaspRecord>
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_init(arr: *mut gasp_RecordList) {
+unsafe extern "C" fn gasp_RecordList_init(arr: *mut GaspRecordList) {
     cvec_init(gasp_RecordList_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_move(dst: *mut gasp_RecordList, src: *mut gasp_RecordList) {
+unsafe extern "C" fn gasp_RecordList_move(dst: *mut GaspRecordList, src: *mut GaspRecordList) {
     cvec_move(gasp_RecordList_as_cvec(dst), gasp_RecordList_as_cvec(src));
 }
 #[inline]
 unsafe extern "C" fn gasp_RecordList_filterEnv(
-    mut arr: *mut gasp_RecordList,
-    mut fn_0: Option<unsafe extern "C" fn(*const gasp_Record, *mut ::core::ffi::c_void) -> bool>,
+    mut arr: *mut GaspRecordList,
+    mut fn_0: Option<unsafe extern "C" fn(*const GaspRecord, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
     let mut j: usize = 0 as usize;
     let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut gasp_Record,
+            (*arr).items.offset(k as isize) as *mut GaspRecord,
             env,
         ) {
             if j != k {
@@ -311,7 +311,7 @@ unsafe extern "C" fn gasp_RecordList_filterEnv(
         } else {
             if gasp_iRecord.dispose.is_some() {
                 gasp_iRecord.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut gasp_Record,
+                    (*arr).items.offset(k as isize) as *mut GaspRecord,
                 );
             } else {
             };
@@ -320,57 +320,57 @@ unsafe extern "C" fn gasp_RecordList_filterEnv(
     }
     (*arr).length = j;
 }
-pub static gasp_iRecordList: __caryll_vectorinterface_gasp_RecordList = {
-    __caryll_vectorinterface_gasp_RecordList {
-        init: Some(gasp_RecordList_init as unsafe extern "C" fn(*mut gasp_RecordList) -> ()),
+pub static gasp_iRecordList: GaspRecordListVectorInterface = {
+    GaspRecordListVectorInterface {
+        init: Some(gasp_RecordList_init as unsafe extern "C" fn(*mut GaspRecordList) -> ()),
         copy: Some(
             gasp_RecordList_copy
-                as unsafe extern "C" fn(*mut gasp_RecordList, *const gasp_RecordList) -> (),
+                as unsafe extern "C" fn(*mut GaspRecordList, *const GaspRecordList) -> (),
         ),
         move_0: Some(
             gasp_RecordList_move
-                as unsafe extern "C" fn(*mut gasp_RecordList, *mut gasp_RecordList) -> (),
+                as unsafe extern "C" fn(*mut GaspRecordList, *mut GaspRecordList) -> (),
         ),
-        dispose: Some(gasp_RecordList_dispose as unsafe extern "C" fn(*mut gasp_RecordList) -> ()),
+        dispose: Some(gasp_RecordList_dispose as unsafe extern "C" fn(*mut GaspRecordList) -> ()),
         replace: Some(
             gasp_RecordList_replace
-                as unsafe extern "C" fn(*mut gasp_RecordList, gasp_RecordList) -> (),
+                as unsafe extern "C" fn(*mut GaspRecordList, GaspRecordList) -> (),
         ),
         copyReplace: Some(
             gasp_RecordList_copyReplace
-                as unsafe extern "C" fn(*mut gasp_RecordList, gasp_RecordList) -> (),
+                as unsafe extern "C" fn(*mut GaspRecordList, GaspRecordList) -> (),
         ),
         create: Some(gasp_RecordList_create),
-        free: Some(gasp_RecordList_free as unsafe extern "C" fn(*mut gasp_RecordList) -> ()),
+        free: Some(gasp_RecordList_free as unsafe extern "C" fn(*mut GaspRecordList) -> ()),
         initN: Some(
-            gasp_RecordList_initN as unsafe extern "C" fn(*mut gasp_RecordList, usize) -> (),
+            gasp_RecordList_initN as unsafe extern "C" fn(*mut GaspRecordList, usize) -> (),
         ),
         initCapN: Some(
-            gasp_RecordList_initCapN as unsafe extern "C" fn(*mut gasp_RecordList, usize) -> (),
+            gasp_RecordList_initCapN as unsafe extern "C" fn(*mut GaspRecordList, usize) -> (),
         ),
         createN: Some(
-            gasp_RecordList_createN as unsafe extern "C" fn(usize) -> *mut gasp_RecordList,
+            gasp_RecordList_createN as unsafe extern "C" fn(usize) -> *mut GaspRecordList,
         ),
         fill: Some(
-            gasp_RecordList_fill as unsafe extern "C" fn(*mut gasp_RecordList, usize) -> (),
+            gasp_RecordList_fill as unsafe extern "C" fn(*mut GaspRecordList, usize) -> (),
         ),
-        clear: Some(gasp_RecordList_dispose as unsafe extern "C" fn(*mut gasp_RecordList) -> ()),
+        clear: Some(gasp_RecordList_dispose as unsafe extern "C" fn(*mut GaspRecordList) -> ()),
         push: Some(
-            gasp_RecordList_push as unsafe extern "C" fn(*mut gasp_RecordList, gasp_Record) -> (),
+            gasp_RecordList_push as unsafe extern "C" fn(*mut GaspRecordList, GaspRecord) -> (),
         ),
         shrinkToFit: Some(
-            gasp_RecordList_shrinkToFit as unsafe extern "C" fn(*mut gasp_RecordList) -> (),
+            gasp_RecordList_shrinkToFit as unsafe extern "C" fn(*mut GaspRecordList) -> (),
         ),
-        pop: Some(gasp_RecordList_pop as unsafe extern "C" fn(*mut gasp_RecordList) -> gasp_Record),
+        pop: Some(gasp_RecordList_pop as unsafe extern "C" fn(*mut GaspRecordList) -> GaspRecord),
         disposeItem: Some(
-            gasp_RecordList_disposeItem as unsafe extern "C" fn(*mut gasp_RecordList, usize) -> (),
+            gasp_RecordList_disposeItem as unsafe extern "C" fn(*mut GaspRecordList, usize) -> (),
         ),
         filterEnv: Some(
             gasp_RecordList_filterEnv
                 as unsafe extern "C" fn(
-                    *mut gasp_RecordList,
+                    *mut GaspRecordList,
                     Option<
-                        unsafe extern "C" fn(*const gasp_Record, *mut ::core::ffi::c_void) -> bool,
+                        unsafe extern "C" fn(*const GaspRecord, *mut ::core::ffi::c_void) -> bool,
                     >,
                     *mut ::core::ffi::c_void,
                 ) -> (),
@@ -378,11 +378,11 @@ pub static gasp_iRecordList: __caryll_vectorinterface_gasp_RecordList = {
         sort: Some(
             gasp_RecordList_sort
                 as unsafe extern "C" fn(
-                    *mut gasp_RecordList,
+                    *mut GaspRecordList,
                     Option<
                         unsafe extern "C" fn(
-                            *const gasp_Record,
-                            *const gasp_Record,
+                            *const GaspRecord,
+                            *const GaspRecord,
                         ) -> ::core::ffi::c_int,
                     >,
                 ) -> (),
@@ -390,37 +390,37 @@ pub static gasp_iRecordList: __caryll_vectorinterface_gasp_RecordList = {
     }
 };
 #[inline]
-unsafe extern "C" fn gasp_RecordList_disposeItem(mut arr: *mut gasp_RecordList, mut n: usize) {
+unsafe extern "C" fn gasp_RecordList_disposeItem(mut arr: *mut GaspRecordList, mut n: usize) {
     if gasp_iRecord.dispose.is_some() {
         gasp_iRecord.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut gasp_Record
+            (*arr).items.offset(n as isize) as *mut GaspRecord
         );
     } else {
     };
 }
 #[inline]
 unsafe extern "C" fn gasp_RecordList_sort(
-    mut arr: *mut gasp_RecordList,
+    mut arr: *mut GaspRecordList,
     mut fn_0: Option<
-        unsafe extern "C" fn(*const gasp_Record, *const gasp_Record) -> ::core::ffi::c_int,
+        unsafe extern "C" fn(*const GaspRecord, *const GaspRecord) -> ::core::ffi::c_int,
     >,
 ) {
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<gasp_Record>() as usize,
+        ::core::mem::size_of::<GaspRecord>() as usize,
         ::core::mem::transmute::<
             Option<
-                unsafe extern "C" fn(*const gasp_Record, *const gasp_Record) -> ::core::ffi::c_int,
+                unsafe extern "C" fn(*const GaspRecord, *const GaspRecord) -> ::core::ffi::c_int,
             >,
-            __compar_fn_t,
+            ComparFn,
         >(fn_0),
     );
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_fill(mut arr: *mut gasp_RecordList, mut n: usize) {
+unsafe extern "C" fn gasp_RecordList_fill(mut arr: *mut GaspRecordList, mut n: usize) {
     while (*arr).length < n {
-        let mut x: gasp_Record = gasp_Record {
+        let mut x: GaspRecord = GaspRecord {
             rangeMaxPPEM: 0,
             dogray: false,
             gridfit: false,
@@ -433,93 +433,93 @@ unsafe extern "C" fn gasp_RecordList_fill(mut arr: *mut gasp_RecordList, mut n: 
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<gasp_Record>() as usize,
+                ::core::mem::size_of::<GaspRecord>() as usize,
             );
         }
         gasp_RecordList_push(arr, x);
     }
 }
 #[inline]
-unsafe extern "C" fn gasp_RecordList_push(arr: *mut gasp_RecordList, elem: gasp_Record) {
+unsafe extern "C" fn gasp_RecordList_push(arr: *mut GaspRecordList, elem: GaspRecord) {
     cvec_push(gasp_RecordList_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn initGasp(mut gasp: *mut table_gasp) {
+unsafe extern "C" fn initGasp(mut gasp: *mut GaspTable) {
     (*gasp).version = 1 as u16;
     gasp_iRecordList.init.expect("non-null function pointer")(&raw mut (*gasp).records);
 }
 #[inline]
-unsafe extern "C" fn disposeGasp(mut gasp: *mut table_gasp) {
+unsafe extern "C" fn disposeGasp(mut gasp: *mut GaspTable) {
     gasp_iRecordList.dispose.expect("non-null function pointer")(&raw mut (*gasp).records);
 }
 #[inline]
-unsafe extern "C" fn table_gasp_create() -> *mut table_gasp {
-    let mut x: *mut table_gasp =
-        malloc(::core::mem::size_of::<table_gasp>() as usize) as *mut table_gasp;
+unsafe extern "C" fn table_gasp_create() -> *mut GaspTable {
+    let mut x: *mut GaspTable =
+        malloc(::core::mem::size_of::<GaspTable>() as usize) as *mut GaspTable;
     table_gasp_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_gasp_dispose(mut x: *mut table_gasp) {
+unsafe extern "C" fn table_gasp_dispose(mut x: *mut GaspTable) {
     disposeGasp(x);
 }
 #[inline]
-unsafe extern "C" fn table_gasp_copy(mut dst: *mut table_gasp, mut src: *const table_gasp) {
+unsafe extern "C" fn table_gasp_copy(mut dst: *mut GaspTable, mut src: *const GaspTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_gasp>() as usize,
+        ::core::mem::size_of::<GaspTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_gasp_init(mut x: *mut table_gasp) {
+unsafe extern "C" fn table_gasp_init(mut x: *mut GaspTable) {
     initGasp(x);
 }
 #[inline]
-unsafe extern "C" fn table_gasp_move(mut dst: *mut table_gasp, mut src: *mut table_gasp) {
+unsafe extern "C" fn table_gasp_move(mut dst: *mut GaspTable, mut src: *mut GaspTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_gasp>() as usize,
+        ::core::mem::size_of::<GaspTable>() as usize,
     );
     table_gasp_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_gasp_replace(mut dst: *mut table_gasp, src: table_gasp) {
+unsafe extern "C" fn table_gasp_replace(mut dst: *mut GaspTable, src: GaspTable) {
     table_gasp_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_gasp>() as usize,
+        ::core::mem::size_of::<GaspTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_gasp_copyReplace(mut dst: *mut table_gasp, src: table_gasp) {
+unsafe extern "C" fn table_gasp_copyReplace(mut dst: *mut GaspTable, src: GaspTable) {
     table_gasp_dispose(dst);
     table_gasp_copy(dst, &raw const src);
 }
-pub static table_iGasp: __caryll_elementinterface_table_gasp = {
-    __caryll_elementinterface_table_gasp {
-        init: Some(table_gasp_init as unsafe extern "C" fn(*mut table_gasp) -> ()),
+pub static table_iGasp: GaspTableElementInterface = {
+    GaspTableElementInterface {
+        init: Some(table_gasp_init as unsafe extern "C" fn(*mut GaspTable) -> ()),
         copy: Some(
-            table_gasp_copy as unsafe extern "C" fn(*mut table_gasp, *const table_gasp) -> (),
+            table_gasp_copy as unsafe extern "C" fn(*mut GaspTable, *const GaspTable) -> (),
         ),
         move_0: Some(
-            table_gasp_move as unsafe extern "C" fn(*mut table_gasp, *mut table_gasp) -> (),
+            table_gasp_move as unsafe extern "C" fn(*mut GaspTable, *mut GaspTable) -> (),
         ),
-        dispose: Some(table_gasp_dispose as unsafe extern "C" fn(*mut table_gasp) -> ()),
+        dispose: Some(table_gasp_dispose as unsafe extern "C" fn(*mut GaspTable) -> ()),
         replace: Some(
-            table_gasp_replace as unsafe extern "C" fn(*mut table_gasp, table_gasp) -> (),
+            table_gasp_replace as unsafe extern "C" fn(*mut GaspTable, GaspTable) -> (),
         ),
         copyReplace: Some(
-            table_gasp_copyReplace as unsafe extern "C" fn(*mut table_gasp, table_gasp) -> (),
+            table_gasp_copyReplace as unsafe extern "C" fn(*mut GaspTable, GaspTable) -> (),
         ),
         create: Some(table_gasp_create),
-        free: Some(table_gasp_free as unsafe extern "C" fn(*mut table_gasp) -> ()),
+        free: Some(table_gasp_free as unsafe extern "C" fn(*mut GaspTable) -> ()),
     }
 };
 #[inline]
-unsafe extern "C" fn table_gasp_free(mut x: *mut table_gasp) {
+unsafe extern "C" fn table_gasp_free(mut x: *mut GaspTable) {
     if x.is_null() {
         return;
     }
@@ -527,11 +527,11 @@ unsafe extern "C" fn table_gasp_free(mut x: *mut table_gasp) {
     free(x as *mut ::core::ffi::c_void);
 }
 pub unsafe extern "C" fn otfcc_readGasp(
-    packet: otfcc_Packet,
-    mut options: *const otfcc_Options,
-) -> *mut table_gasp {
-    let mut numRanges: tableid_t = 0;
-    let mut gasp: *mut table_gasp = ::core::ptr::null_mut::<table_gasp>();
+    packet: Packet,
+    mut options: *const Options,
+) -> *mut GaspTable {
+    let mut numRanges: TableId = 0;
+    let mut gasp: *mut GaspTable = ::core::ptr::null_mut::<GaspTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -539,12 +539,12 @@ pub unsafe extern "C" fn otfcc_readGasp(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == 1734439792i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: font_file_pointer = table.data as font_file_pointer;
+                    let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 4 as u32) {
                         gasp = (
@@ -552,7 +552,7 @@ pub unsafe extern "C" fn otfcc_readGasp(
                         (*gasp).version = read_16u(data as *const u8);
                         numRanges = read_16u(
                             data.offset(2 as ::core::ffi::c_int as isize) as *const u8
-                        ) as tableid_t;
+                        ) as TableId;
                         if !(length
                             < (4 as ::core::ffi::c_int
                                 + numRanges as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
@@ -560,7 +560,7 @@ pub unsafe extern "C" fn otfcc_readGasp(
                         {
                             let mut j: u32 = 0 as u32;
                             while j < numRanges as u32 {
-                                let mut record: gasp_Record = gasp_Record {
+                                let mut record: GaspRecord = GaspRecord {
                                     rangeMaxPPEM: 0,
                                     dogray: false,
                                     gridfit: false,
@@ -572,7 +572,7 @@ pub unsafe extern "C" fn otfcc_readGasp(
                                         .offset(j.wrapping_mul(4 as u32) as isize)
                                         as *const u8,
                                 )
-                                    as glyphsize_t;
+                                    as GlyphSize;
                                 let mut rangeGaspBehavior: u16 = read_16u(
                                     data.offset(4 as ::core::ffi::c_int as isize)
                                         .offset(j.wrapping_mul(4 as u32) as isize)
@@ -602,13 +602,13 @@ pub unsafe extern "C" fn otfcc_readGasp(
                     (*(*options).logger)
                         .logSDS
                         .expect("non-null function pointer")(
-                        (*options).logger as *mut otfcc_ILogger,
+                        (*options).logger as *mut ILogger,
                         log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(sdsempty(), b"table 'gasp' corrupted.\n"),
                     );
                     table_iGasp.free.expect("non-null function pointer")(gasp);
-                    gasp = ::core::ptr::null_mut::<table_gasp>();
+                    gasp = ::core::ptr::null_mut::<GaspTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -618,12 +618,12 @@ pub unsafe extern "C" fn otfcc_readGasp(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<table_gasp>();
+    return ::core::ptr::null_mut::<GaspTable>();
 }
 pub unsafe extern "C" fn otfcc_dumpGasp(
-    mut table: *const table_gasp,
-    mut root: *mut json_value,
-    mut options: *const otfcc_Options,
+    mut table: *const GaspTable,
+    mut root: *mut JsonValue,
+    mut options: *const Options,
 ) {
     if table.is_null() {
         return;
@@ -631,15 +631,15 @@ pub unsafe extern "C" fn otfcc_dumpGasp(
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"gasp"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut t: *mut json_value = json_array_new((*table).records.length);
+        let mut t: *mut JsonValue = json_array_new((*table).records.length);
         let mut j: u16 = 0 as u16;
         while (j as usize) < (*table).records.length {
-            let mut rec: *mut json_value = json_object_new(5 as usize);
+            let mut rec: *mut JsonValue = json_object_new(5 as usize);
             json_object_push(
                 rec,
                 b"rangeMaxPPEM\0" as *const u8 as *const ::core::ffi::c_char,
@@ -688,15 +688,15 @@ pub unsafe extern "C" fn otfcc_dumpGasp(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
 pub unsafe extern "C" fn otfcc_parseGasp(
-    mut root: *const json_value,
-    mut options: *const otfcc_Options,
-) -> *mut table_gasp {
-    let mut gasp: *mut table_gasp = ::core::ptr::null_mut::<table_gasp>();
-    let mut table: *mut json_value = ::core::ptr::null_mut::<json_value>();
+    mut root: *const JsonValue,
+    mut options: *const Options,
+) -> *mut GaspTable {
+    let mut gasp: *mut GaspTable = ::core::ptr::null_mut::<GaspTable>();
+    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
         b"gasp\0" as *const u8 as *const ::core::ffi::c_char,
@@ -706,7 +706,7 @@ pub unsafe extern "C" fn otfcc_parseGasp(
         (*(*options).logger)
             .startSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"gasp"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -715,12 +715,12 @@ pub unsafe extern "C" fn otfcc_parseGasp(
                 table_iGasp.create.expect("non-null function pointer"))();
             let mut j: u16 = 0 as u16;
             while (j as ::core::ffi::c_uint) < (*table).u.array.length {
-                let mut r: *mut json_value =
-                    *(*table).u.array.values.offset(j as isize) as *mut json_value;
+                let mut r: *mut JsonValue =
+                    *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
                 if !(r.is_null()
                     || (*r).type_0 != json_object)
                 {
-                    let mut record: gasp_Record = gasp_Record {
+                    let mut record: GaspRecord = GaspRecord {
                         rangeMaxPPEM: 0,
                         dogray: false,
                         gridfit: false,
@@ -731,7 +731,7 @@ pub unsafe extern "C" fn otfcc_parseGasp(
                         r,
                         b"rangeMaxPPEM\0" as *const u8 as *const ::core::ffi::c_char,
                         0xffff as i32,
-                    ) as glyphsize_t;
+                    ) as GlyphSize;
                     record.dogray =
                         json_obj_getbool(r, b"dogray\0" as *const u8 as *const ::core::ffi::c_char);
                     record.gridfit = json_obj_getbool(
@@ -757,25 +757,25 @@ pub unsafe extern "C" fn otfcc_parseGasp(
             (*(*options).logger)
                 .finish
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger
+                (*options).logger as *mut ILogger
             );
         }
     }
     return gasp;
 }
 pub unsafe extern "C" fn otfcc_buildGasp(
-    mut gasp: *const table_gasp,
-    mut _options: *const otfcc_Options,
-) -> *mut caryll_Buffer {
+    mut gasp: *const GaspTable,
+    mut _options: *const Options,
+) -> *mut Buffer {
     if gasp.is_null() {
-        return ::core::ptr::null_mut::<caryll_Buffer>();
+        return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut buf: *mut caryll_Buffer = bufnew();
+    let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 1 as u16);
     bufwrite16b(buf, (*gasp).records.length as u16);
     let mut j: u16 = 0 as u16;
     while (j as usize) < (*gasp).records.length {
-        let mut r: *mut gasp_Record = (*gasp).records.items.offset(j as isize) as *mut gasp_Record;
+        let mut r: *mut GaspRecord = (*gasp).records.items.offset(j as isize) as *mut GaspRecord;
         bufwrite16b(buf, (*r).rangeMaxPPEM as u16);
         bufwrite16b(
             buf,
