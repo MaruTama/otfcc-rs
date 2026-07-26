@@ -17,7 +17,21 @@ pub mod cff_writer;
 pub mod charstring_il;
 pub mod subr;
 
-pub type cff_DictOperator = ::core::ffi::c_uint;
+/// A CFF DICT operator, in otfcc's own encoding: the operator byte, or
+/// `12 << 8 | b` for the two-byte operators the spec escapes with 12.
+///
+/// `i32` because that is what these are compared against -- a decoded operator
+/// arrives as [`cff_Value`](crate::libcff::cff_value::cff_Value)'s integer arm
+/// -- and because they are numbers, not a closed set: nothing enumerates them,
+/// and an operator otfcc does not know simply matches no arm.
+///
+/// **Not interchangeable with [`cff_CharstringOperator`]**, even though both are
+/// `i32`: 38 of the numbers mean one thing in a DICT and something else in a
+/// CharString (`op_Notice` and `op_hstem` are both 1, `op_FDArray` and
+/// `op_hflex1` are both 3108). The names are all distinct and the two sets are
+/// used by disjoint code, but the compiler cannot tell them apart while they are
+/// aliases. Making them newtypes would -- see rust/README.md's next steps.
+pub type cff_DictOperator = i32;
 
 pub const op_FontName: cff_DictOperator = 3110;
 
@@ -131,7 +145,9 @@ pub const op_Copyright: cff_DictOperator = 3072;
 
 pub const op_version: cff_DictOperator = 0;
 
-pub type cff_CharstringOperator = ::core::ffi::c_uint;
+/// A Type 2 CharString operator, encoded like [`cff_DictOperator`] and, as noted
+/// there, sharing 38 of its numbers while meaning something else by them.
+pub type cff_CharstringOperator = i32;
 
 pub const op_flex1: cff_CharstringOperator = 3109;
 
@@ -369,4 +385,26 @@ pub struct cff_IOutlineBuilder {
     >,
     pub setMask: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, bool, *mut bool) -> ()>,
     pub getrand: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ::core::ffi::c_double>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The two operator tables are both `i32` aliases, and 38 of their numbers
+    // mean one thing in a DICT and something else entirely in a CharString. The
+    // names never collide, and the two sets are read by disjoint code, so nothing
+    // is wrong today -- but the compiler cannot see the distinction while they
+    // are aliases, and this is the record of how much it would be covering if
+    // they became newtypes.
+    #[test]
+    fn the_two_operator_tables_share_numbers() {
+        assert_eq!(op_Notice, op_hstem);
+        assert_eq!(op_FDArray, op_hflex1);
+        assert_eq!(op_FamilyName, op_vstem);
+        // Both encode a two-byte operator as `12 << 8 | b`.
+        assert_eq!(op_FDArray, 12 << 8 | 36);
+        assert_eq!(op_hflex1, 12 << 8 | 36);
+        assert_eq!(op_version, 0);
+    }
 }

@@ -35,7 +35,7 @@ use crate::libcff::cff_charset::{cff_CHARSET_UNSPECED, cff_Charset};
 use crate::libcff::cff_dict::{__caryll_elementinterface_cff_Dict};
 use crate::libcff::cff_fdselect::{cff_FDSELECT_FORMAT0, cff_FDSELECT_FORMAT3, cff_FDSELECT_UNSPECED, cff_FDSelect};
 use crate::libcff::cff_index::{__caryll_elementinterface_cff_Index, cff_Index};
-use crate::libcff::cff_value::{cff_DOUBLE, cff_Value, cff_ValueBody, cff_Value_Type};
+use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_UNSET, cff_Value, cff_ValueBody};
 
 /// Which encoding a CFF font carries: one of the two predefined ones, or the
 /// format of an embedded encoding. Again the crate's own classification rather
@@ -228,7 +228,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_CharStrings as ::core::ffi::c_int as u32,
+            op_CharStrings as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -263,7 +263,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_Encoding as ::core::ffi::c_int as u32,
+            op_Encoding as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -285,7 +285,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_charset as ::core::ffi::c_int as u32,
+            op_charset as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -312,7 +312,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_FDSelect as ::core::ffi::c_int as u32,
+            op_FDSelect as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -339,7 +339,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_FDArray as ::core::ffi::c_int as u32,
+            op_FDArray as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -369,7 +369,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_Private as ::core::ffi::c_int as u32,
+            op_Private as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -386,7 +386,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_Private as ::core::ffi::c_int as u32,
+            op_Private as u32,
             1 as u32,
         )
         .c2rust_unnamed
@@ -396,7 +396,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
         offset = cff_iDict.parseDictKey.expect("non-null function pointer")(
             (*cff).raw_data.offset(private_off as isize),
             private_len as u32,
-            op_Subrs as ::core::ffi::c_int as u32,
+            op_Subrs as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -549,7 +549,7 @@ pub unsafe extern "C" fn cff_parseSubr(
             .offset
             .offset((fd as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
         .wrapping_sub(*fdarray.offset.offset(fd as isize)),
-        op_Private as ::core::ffi::c_int as u32,
+        op_Private as u32,
         1 as u32,
     )
     .c2rust_unnamed
@@ -563,7 +563,7 @@ pub unsafe extern "C" fn cff_parseSubr(
             .offset
             .offset((fd as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
         .wrapping_sub(*fdarray.offset.offset(fd as isize)),
-        op_Private as ::core::ffi::c_int as u32,
+        op_Private as u32,
         0 as u32,
     )
     .c2rust_unnamed
@@ -572,7 +572,7 @@ pub unsafe extern "C" fn cff_parseSubr(
         off_subr = cff_iDict.parseDictKey.expect("non-null function pointer")(
             raw.offset(off_private as isize),
             len_private as u32,
-            op_Subrs as ::core::ffi::c_int as u32,
+            op_Subrs as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -676,7 +676,7 @@ pub unsafe extern "C" fn cff_parseOutline(
     let mut i: u32 = 0;
     let mut cnt_bezier: u32 = 0;
     let mut val: cff_Value = cff_Value {
-        t: 0 as cff_Value_Type,
+        t: cff_UNSET,
         c2rust_unnamed: cff_ValueBody { i: 0 },
     };
     let mut setWidth: Option<
@@ -804,8 +804,8 @@ pub unsafe extern "C" fn cff_parseOutline(
     }
     while start < data.offset(len as isize) {
         advance = cff_decodeCS2Token(start, &raw mut val);
-        match val.t as ::core::ffi::c_uint {
-            1 => {
+        match val.t {
+            cff_OPERATOR => {
                 let mut hintBase: ::core::ffi::c_double = 0.;
                 match val.c2rust_unnamed.i {
                     1 | 3 | 18 | 23 => {
@@ -832,9 +832,9 @@ pub unsafe extern "C" fn cff_parseOutline(
                             .d;
                             setHint.expect("non-null function pointer")(
                                 outline,
-                                val.c2rust_unnamed.i == op_vstem as ::core::ffi::c_int as i32
+                                val.c2rust_unnamed.i == op_vstem
                                     || val.c2rust_unnamed.i
-                                        == op_vstemhm as ::core::ffi::c_int as i32,
+                                        == op_vstemhm,
                                 pos + hintBase,
                                 width,
                             );
@@ -945,7 +945,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                         }
                         setMask.expect("non-null function pointer")(
                             outline,
-                            val.c2rust_unnamed.i == op_cntrmask as ::core::ffi::c_int as i32,
+                            val.c2rust_unnamed.i == op_cntrmask,
                             mask,
                         );
                         advance = advance.wrapping_add(maskLength);
@@ -966,7 +966,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_vmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_vmoveto as ::core::ffi::c_int) as u32),
+                                    Hex4((op_vmoveto) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1012,7 +1012,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_rmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_rmoveto as ::core::ffi::c_int) as u32),
+                                    Hex4((op_rmoveto) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1062,7 +1062,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_hmoveto as ::core::ffi::c_int) as u32),
+                                    Hex4((op_hmoveto) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1768,7 +1768,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hflex\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_hflex as ::core::ffi::c_int) as u32),
+                                    Hex4((op_hflex) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1825,7 +1825,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_flex\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_flex as ::core::ffi::c_int) as u32),
+                                    Hex4((op_flex) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1890,7 +1890,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hflex1\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_hflex1 as ::core::ffi::c_int) as u32),
+                                    Hex4((op_hflex1) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1957,7 +1957,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_flex1\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_flex1 as ::core::ffi::c_int) as u32),
+                                    Hex4((op_flex1) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2061,7 +2061,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_and\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_and as ::core::ffi::c_int) as u32),
+                                    Hex4((op_and) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2103,7 +2103,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_or\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_or as ::core::ffi::c_int) as u32),
+                                    Hex4((op_or) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2145,7 +2145,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_not\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_not as ::core::ffi::c_int) as u32),
+                                    Hex4((op_not) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2177,7 +2177,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_abs\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_abs as ::core::ffi::c_int) as u32),
+                                    Hex4((op_abs) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2209,7 +2209,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_add\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_add as ::core::ffi::c_int) as u32),
+                                    Hex4((op_add) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2247,7 +2247,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_sub\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_sub as ::core::ffi::c_int) as u32),
+                                    Hex4((op_sub) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2285,7 +2285,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_div\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_div as ::core::ffi::c_int) as u32),
+                                    Hex4((op_div) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2323,7 +2323,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_neg\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_neg as ::core::ffi::c_int) as u32),
+                                    Hex4((op_neg) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2355,7 +2355,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_eq\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_eq as ::core::ffi::c_int) as u32),
+                                    Hex4((op_eq) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2393,7 +2393,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_drop\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_drop as ::core::ffi::c_int) as u32),
+                                    Hex4((op_drop) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2416,7 +2416,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_put\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_put as ::core::ffi::c_int) as u32),
+                                    Hex4((op_put) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2454,7 +2454,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_get\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_get as ::core::ffi::c_int) as u32),
+                                    Hex4((op_get) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2490,7 +2490,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_ifelse\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_ifelse as ::core::ffi::c_int) as u32),
+                                    Hex4((op_ifelse) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2545,7 +2545,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_mul\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_mul as ::core::ffi::c_int) as u32),
+                                    Hex4((op_mul) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2583,7 +2583,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_sqrt\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_sqrt as ::core::ffi::c_int) as u32),
+                                    Hex4((op_sqrt) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2615,7 +2615,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_dup\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_dup as ::core::ffi::c_int) as u32),
+                                    Hex4((op_dup) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2641,7 +2641,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_exch\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_exch as ::core::ffi::c_int) as u32),
+                                    Hex4((op_exch) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2683,7 +2683,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_index\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_index as ::core::ffi::c_int) as u32),
+                                    Hex4((op_index) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2715,7 +2715,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_roll\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_roll as ::core::ffi::c_int) as u32),
+                                    Hex4((op_roll) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2744,7 +2744,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                         b"[libcff] Stack cannot provide enough parameters for ",
                                         b"op_roll\0" as *const u8 as *const ::core::ffi::c_char,
                                         b" (",
-                                        Hex4((op_roll as ::core::ffi::c_int) as u32),
+                                        Hex4((op_roll) as u32),
                                         b"). This operation is ignored.\n",
                                     ),
                                 );
@@ -2789,7 +2789,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_callsubr\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_callsubr as ::core::ffi::c_int) as u32),
+                                    Hex4((op_callsubr) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2845,7 +2845,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_callgsubr\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_callgsubr as ::core::ffi::c_int) as u32),
+                                    Hex4((op_callgsubr) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2902,7 +2902,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                     }
                 }
             }
-            2 | 3 => {
+            cff_INTEGER | cff_DOUBLE => {
                 let fresh0 = (*stack).index;
                 (*stack).index = (*stack).index.wrapping_add(1);
                 *(*stack).stack.offset(fresh0 as isize) = val;

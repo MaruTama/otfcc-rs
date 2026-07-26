@@ -103,7 +103,7 @@ use crate::libcff::cff_charset::{cff_CHARSET_FORMAT0, cff_CHARSET_FORMAT1, cff_C
 use crate::libcff::cff_dict::{__caryll_elementinterface_cff_Dict, cff_Dict, cff_DictEntry};
 use crate::libcff::cff_fdselect::{cff_FDSELECT_FORMAT3, cff_FDSELECT_UNSPECED, cff_FDSelect, cff_FDSelectRangeFormat3};
 use crate::libcff::cff_index::{CFF_INDEX_16, __caryll_elementinterface_cff_Index, cff_Index};
-use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_Value, cff_ValueBody, cff_Value_Type};
+use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_UNSET, cff_Value, cff_ValueBody, cff_Value_Type};
 use crate::libcff::charstring_il::{cff_CharstringIL, cff_CharstringInstruction};
 use crate::libcff::subr::{__caryll_elementinterface_cff_SubrGraph, cff_SubrDiagramIndex, cff_SubrGraph, cff_SubrRule};
 use crate::support::{NULL, false_0, true_0};
@@ -1194,7 +1194,7 @@ unsafe extern "C" fn buildOutline(
     let mut stack: cff_Stack = cff_Stack {
         stack: ::core::ptr::null_mut::<cff_Value>(),
         transient: [cff_Value {
-            t: 0 as cff_Value_Type,
+            t: cff_UNSET,
             c2rust_unnamed: cff_ValueBody { i: 0 },
         }; 32],
         index: 0,
@@ -3312,49 +3312,49 @@ unsafe extern "C" fn cff_make_fd_dict(
     let mut dict: *mut cff_Dict = (
         cff_iDict.create.expect("non-null function pointer"))();
     if !(*fd).cidRegistry.is_null() && !(*fd).cidOrdering.is_null() {
-        cffdict_input_ints(dict, op_ROS as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).cidRegistry)) as i32, (sidof(h, (*fd).cidOrdering)) as i32, ((*fd).cidSupplement) as i32]);
+        cffdict_input_ints(dict, op_ROS as u32, &[(sidof(h, (*fd).cidRegistry)) as i32, (sidof(h, (*fd).cidOrdering)) as i32, ((*fd).cidSupplement) as i32]);
     }
     if !(*fd).version.is_null() {
-        cffdict_input_ints(dict, op_version as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).version)) as i32]);
+        cffdict_input_ints(dict, op_version as u32, &[(sidof(h, (*fd).version)) as i32]);
     }
     if !(*fd).notice.is_null() {
-        cffdict_input_ints(dict, op_Notice as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).notice)) as i32]);
+        cffdict_input_ints(dict, op_Notice as u32, &[(sidof(h, (*fd).notice)) as i32]);
     }
     if !(*fd).copyright.is_null() {
-        cffdict_input_ints(dict, op_Copyright as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).copyright)) as i32]);
+        cffdict_input_ints(dict, op_Copyright as u32, &[(sidof(h, (*fd).copyright)) as i32]);
     }
     if !(*fd).fullName.is_null() {
-        cffdict_input_ints(dict, op_FullName as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).fullName)) as i32]);
+        cffdict_input_ints(dict, op_FullName as u32, &[(sidof(h, (*fd).fullName)) as i32]);
     }
     if !(*fd).familyName.is_null() {
-        cffdict_input_ints(dict, op_FamilyName as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).familyName)) as i32]);
+        cffdict_input_ints(dict, op_FamilyName as u32, &[(sidof(h, (*fd).familyName)) as i32]);
     }
     if !(*fd).weight.is_null() {
-        cffdict_input_ints(dict, op_Weight as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).weight)) as i32]);
+        cffdict_input_ints(dict, op_Weight as u32, &[(sidof(h, (*fd).weight)) as i32]);
     }
-    cffdict_input_doubles(dict, op_FontBBox as ::core::ffi::c_int as u32, &[((*fd).fontBBoxLeft) as f64, ((*fd).fontBBoxBottom) as f64, ((*fd).fontBBoxRight) as f64, ((*fd).fontBBoxTop) as f64]);
-    cffdict_input_ints(dict, op_isFixedPitch as ::core::ffi::c_int as u32, &[((*fd).isFixedPitch as ::core::ffi::c_int) as i32]);
-    cffdict_input_doubles(dict, op_ItalicAngle as ::core::ffi::c_int as u32, &[((*fd).italicAngle) as f64]);
-    cffdict_input_doubles(dict, op_UnderlinePosition as ::core::ffi::c_int as u32, &[((*fd).underlinePosition) as f64]);
-    cffdict_input_doubles(dict, op_UnderlineThickness as ::core::ffi::c_int as u32, &[((*fd).underlineThickness) as f64]);
-    cffdict_input_doubles(dict, op_StrokeWidth as ::core::ffi::c_int as u32, &[((*fd).strokeWidth) as f64]);
+    cffdict_input_doubles(dict, op_FontBBox as u32, &[((*fd).fontBBoxLeft) as f64, ((*fd).fontBBoxBottom) as f64, ((*fd).fontBBoxRight) as f64, ((*fd).fontBBoxTop) as f64]);
+    cffdict_input_ints(dict, op_isFixedPitch as u32, &[((*fd).isFixedPitch as ::core::ffi::c_int) as i32]);
+    cffdict_input_doubles(dict, op_ItalicAngle as u32, &[((*fd).italicAngle) as f64]);
+    cffdict_input_doubles(dict, op_UnderlinePosition as u32, &[((*fd).underlinePosition) as f64]);
+    cffdict_input_doubles(dict, op_UnderlineThickness as u32, &[((*fd).underlineThickness) as f64]);
+    cffdict_input_doubles(dict, op_StrokeWidth as u32, &[((*fd).strokeWidth) as f64]);
     if !(*fd).fontMatrix.is_null() {
-        cffdict_input_doubles(dict, op_FontMatrix as ::core::ffi::c_int as u32, &[((*(*fd).fontMatrix).a) as f64, ((*(*fd).fontMatrix).b) as f64, ((*(*fd).fontMatrix).c) as f64, ((*(*fd).fontMatrix).d) as f64, (iVQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).x)) as f64, (iVQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).y)) as f64]);
+        cffdict_input_doubles(dict, op_FontMatrix as u32, &[((*(*fd).fontMatrix).a) as f64, ((*(*fd).fontMatrix).b) as f64, ((*(*fd).fontMatrix).c) as f64, ((*(*fd).fontMatrix).d) as f64, (iVQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).x)) as f64, (iVQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).y)) as f64]);
     }
     if !(*fd).fontName.is_null() {
-        cffdict_input_ints(dict, op_FontName as ::core::ffi::c_int as u32, &[(sidof(h, (*fd).fontName)) as i32]);
+        cffdict_input_ints(dict, op_FontName as u32, &[(sidof(h, (*fd).fontName)) as i32]);
     }
     if (*fd).cidFontVersion != 0. {
-        cffdict_input_doubles(dict, op_CIDFontVersion as ::core::ffi::c_int as u32, &[((*fd).cidFontVersion) as f64]);
+        cffdict_input_doubles(dict, op_CIDFontVersion as u32, &[((*fd).cidFontVersion) as f64]);
     }
     if (*fd).cidFontRevision != 0. {
-        cffdict_input_doubles(dict, op_CIDFontRevision as ::core::ffi::c_int as u32, &[((*fd).cidFontRevision) as f64]);
+        cffdict_input_doubles(dict, op_CIDFontRevision as u32, &[((*fd).cidFontRevision) as f64]);
     }
     if (*fd).cidCount != 0 {
-        cffdict_input_ints(dict, op_CIDCount as ::core::ffi::c_int as u32, &[((*fd).cidCount) as i32]);
+        cffdict_input_ints(dict, op_CIDCount as u32, &[((*fd).cidCount) as i32]);
     }
     if (*fd).UIDBase != 0 {
-        cffdict_input_ints(dict, op_UIDBase as ::core::ffi::c_int as u32, &[((*fd).UIDBase) as i32]);
+        cffdict_input_ints(dict, op_UIDBase as u32, &[((*fd).UIDBase) as i32]);
     }
     return dict;
 }
@@ -3369,57 +3369,57 @@ unsafe extern "C" fn cff_make_private_dict(mut pd: *mut cff_PrivateDict) -> *mut
     }
     cffdict_input_array(
         dict,
-        op_BlueValues as ::core::ffi::c_int as u32,
+        op_BlueValues as u32,
         cff_DOUBLE,
         (*pd).blueValuesCount,
         (*pd).blueValues,
     );
     cffdict_input_array(
         dict,
-        op_OtherBlues as ::core::ffi::c_int as u32,
+        op_OtherBlues as u32,
         cff_DOUBLE,
         (*pd).otherBluesCount,
         (*pd).otherBlues,
     );
     cffdict_input_array(
         dict,
-        op_FamilyBlues as ::core::ffi::c_int as u32,
+        op_FamilyBlues as u32,
         cff_DOUBLE,
         (*pd).familyBluesCount,
         (*pd).familyBlues,
     );
     cffdict_input_array(
         dict,
-        op_FamilyOtherBlues as ::core::ffi::c_int as u32,
+        op_FamilyOtherBlues as u32,
         cff_DOUBLE,
         (*pd).familyOtherBluesCount,
         (*pd).familyOtherBlues,
     );
     cffdict_input_array(
         dict,
-        op_StemSnapH as ::core::ffi::c_int as u32,
+        op_StemSnapH as u32,
         cff_DOUBLE,
         (*pd).stemSnapHCount,
         (*pd).stemSnapH,
     );
     cffdict_input_array(
         dict,
-        op_StemSnapV as ::core::ffi::c_int as u32,
+        op_StemSnapV as u32,
         cff_DOUBLE,
         (*pd).stemSnapVCount,
         (*pd).stemSnapV,
     );
-    cffdict_input_doubles(dict, op_BlueScale as ::core::ffi::c_int as u32, &[((*pd).blueScale) as f64]);
-    cffdict_input_doubles(dict, op_BlueShift as ::core::ffi::c_int as u32, &[((*pd).blueShift) as f64]);
-    cffdict_input_doubles(dict, op_BlueFuzz as ::core::ffi::c_int as u32, &[((*pd).blueFuzz) as f64]);
-    cffdict_input_doubles(dict, op_StdHW as ::core::ffi::c_int as u32, &[((*pd).stdHW) as f64]);
-    cffdict_input_doubles(dict, op_StdVW as ::core::ffi::c_int as u32, &[((*pd).stdVW) as f64]);
-    cffdict_input_ints(dict, op_ForceBold as ::core::ffi::c_int as u32, &[((*pd).forceBold as ::core::ffi::c_int) as i32]);
-    cffdict_input_ints(dict, op_LanguageGroup as ::core::ffi::c_int as u32, &[((*pd).languageGroup) as i32]);
-    cffdict_input_doubles(dict, op_ExpansionFactor as ::core::ffi::c_int as u32, &[((*pd).expansionFactor) as f64]);
-    cffdict_input_doubles(dict, op_initialRandomSeed as ::core::ffi::c_int as u32, &[((*pd).initialRandomSeed) as f64]);
-    cffdict_input_doubles(dict, op_defaultWidthX as ::core::ffi::c_int as u32, &[((*pd).defaultWidthX) as f64]);
-    cffdict_input_doubles(dict, op_nominalWidthX as ::core::ffi::c_int as u32, &[((*pd).nominalWidthX) as f64]);
+    cffdict_input_doubles(dict, op_BlueScale as u32, &[((*pd).blueScale) as f64]);
+    cffdict_input_doubles(dict, op_BlueShift as u32, &[((*pd).blueShift) as f64]);
+    cffdict_input_doubles(dict, op_BlueFuzz as u32, &[((*pd).blueFuzz) as f64]);
+    cffdict_input_doubles(dict, op_StdHW as u32, &[((*pd).stdHW) as f64]);
+    cffdict_input_doubles(dict, op_StdVW as u32, &[((*pd).stdVW) as f64]);
+    cffdict_input_ints(dict, op_ForceBold as u32, &[((*pd).forceBold as ::core::ffi::c_int) as i32]);
+    cffdict_input_ints(dict, op_LanguageGroup as u32, &[((*pd).languageGroup) as i32]);
+    cffdict_input_doubles(dict, op_ExpansionFactor as u32, &[((*pd).expansionFactor) as f64]);
+    cffdict_input_doubles(dict, op_initialRandomSeed as u32, &[((*pd).initialRandomSeed) as f64]);
+    cffdict_input_doubles(dict, op_defaultWidthX as u32, &[((*pd).defaultWidthX) as f64]);
+    cffdict_input_doubles(dict, op_nominalWidthX as u32, &[((*pd).nominalWidthX) as f64]);
     return dict;
 }
 unsafe extern "C" fn by_sid(
@@ -3863,7 +3863,7 @@ unsafe extern "C" fn callback_makefd(
     );
     bufwrite_bufdel(
         blob,
-        cff_encodeCffOperator(op_Private as ::core::ffi::c_int as i32),
+        cff_encodeCffOperator(op_Private),
     );
     cff_iDict.build.expect("non-null function pointer")(fd);
     return blob;
@@ -3908,7 +3908,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
     );
     bufwrite_bufdel(
         p,
-        cff_encodeCffOperator(op_Subrs as ::core::ffi::c_int as i32),
+        cff_encodeCffOperator(op_Subrs),
     );
     cff_iDict.free.expect("non-null function pointer")(top_pd);
     let mut e: *mut caryll_Buffer = cff_make_fdselect(cff, glyf);
@@ -3991,7 +3991,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, cff_buildOffset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(op_charset as ::core::ffi::c_int as i32),
+            cff_encodeCffOperator(op_charset),
         );
         off = (off as usize).wrapping_add((*c).size) as u32 as u32;
     }
@@ -3999,7 +3999,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, cff_buildOffset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(op_FDSelect as ::core::ffi::c_int as i32),
+            cff_encodeCffOperator(op_FDSelect),
         );
         off = (off as usize).wrapping_add((*e).size) as u32 as u32;
     }
@@ -4007,7 +4007,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, cff_buildOffset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(op_CharStrings as ::core::ffi::c_int as i32),
+            cff_encodeCffOperator(op_CharStrings),
         );
         off = (off as usize).wrapping_add((*s).size) as u32 as u32;
     }
@@ -4016,7 +4016,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, cff_buildOffset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(op_Private as ::core::ffi::c_int as i32),
+            cff_encodeCffOperator(op_Private),
         );
         off = (off as usize).wrapping_add((*p).size) as u32 as u32;
     }
@@ -4024,7 +4024,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, cff_buildOffset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(op_FDArray as ::core::ffi::c_int as i32),
+            cff_encodeCffOperator(op_FDArray),
         );
         off = (off as usize).wrapping_add((*r).size) as u32 as u32;
     }
@@ -4071,7 +4071,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
             );
             bufwrite_bufdel(
                 p_0,
-                cff_encodeCffOperator(op_Subrs as ::core::ffi::c_int as i32),
+                cff_encodeCffOperator(op_Subrs),
             );
             cff_iDict.free.expect("non-null function pointer")(pd);
             let ref mut fresh14 = *fdArrayPrivates.offset(j as isize);

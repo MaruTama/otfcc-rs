@@ -4365,7 +4365,7 @@ pub unsafe extern "C" fn cff_insertILToGraph(
             1 => {
                 cff_mergeCS2Operator(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.i);
                 if (*(*il).instr.offset(j as isize)).c2rust_unnamed.i
-                    == op_endchar as ::core::ffi::c_int as i32
+                    == op_endchar
                 {
                     last = true;
                 }
@@ -4492,7 +4492,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
                     as i32;
                 target = lsubrs.offset((*(*node).rule).number as isize);
                 cff_mergeCS2Int(buf, stacknum);
-                cff_mergeCS2Operator(buf, op_callsubr as ::core::ffi::c_int as i32);
+                cff_mergeCS2Operator(buf, op_callsubr);
             } else {
                 let mut stacknum_0: i32 = (*(*node).rule)
                     .number
@@ -4501,7 +4501,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
                     as i32;
                 target = gsubrs.offset((*(*node).rule).number.wrapping_sub(maxLSubrs) as isize);
                 cff_mergeCS2Int(buf, stacknum_0);
-                cff_mergeCS2Operator(buf, op_callgsubr as ::core::ffi::c_int as i32);
+                cff_mergeCS2Operator(buf, op_callgsubr);
             }
             let mut r: *mut cff_SubrRule = (*node).rule;
             if !(*r).printed {
@@ -4512,7 +4512,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
                     e = (*e).next;
                 }
                 if !endsWithEndChar(r) {
-                    cff_mergeCS2Operator(target, op_return as ::core::ffi::c_int as i32);
+                    cff_mergeCS2Operator(target, op_return);
                 }
             }
         } else {

@@ -671,6 +671,18 @@ on the other platform before a commit is trusted.
   - not enumerations at all: `cff_Type2Limits` is a table of capacity
     ceilings, `otfcc_LoggerVerbosity` an ordered threshold compared with `<=`,
     and `WORD`/`json_uchar` are plain typedefs.
+- **The two CFF operator tables want to be newtypes.** `cff_DictOperator` and
+  `cff_CharstringOperator` are `i32` aliases now, which is honest about what
+  they are — numbers, not a closed set — and cost 155 casts to say so. What it
+  does not buy is the one check worth having: **38 of the numbers mean one thing
+  in a DICT and something else in a CharString** (`op_Notice` and `op_hstem` are
+  both 1; `op_FDArray` and `op_hflex1` are both 3108). Nothing is wrong today —
+  the 105 names never collide and the two sets are read by disjoint code — but
+  the compiler cannot see the distinction through an alias.
+  `the_two_operator_tables_share_numbers` records the overlap. Making them
+  newtypes means giving `cffdict_input_*` and `il_push_op` the specific type
+  instead of a bare integer, which is a change to the CharString interpreter's
+  plumbing and belongs in its own PR.
 - **The rest of `json-funcs.h`**: `json_obj_get` still has 32 identical
   copies, and `json_obj_getnum`/`json_obj_getint`/`…_fallback` nine each. Same
   consolidation as the flag helpers, just more of it.
