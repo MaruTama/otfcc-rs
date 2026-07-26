@@ -13,12 +13,42 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 pub type glyph_handle = otfcc_GlyphHandle;
+/// Which pass of a JSON font's glyph naming placed a glyph, and therefore how
+/// strongly it is placed: the *lowest* pass wins, because `setOrderByName`
+/// escalates an entry only when the new pass ranks below the one on record and
+/// `_byOrder` sorts ascending. That makes the ordering the meaning, so `Ord` is
+/// derived -- and since it compares by *declaration* order, the variants are
+/// declared in ascending discriminant order and
+/// `glyphorderpass_order_is_its_encoding` pins that the two agree.
+///
+/// `ORD_UNSET` is a name this port adds; C had none. Its `enum` lives inside
+/// `json-reader.c` while this struct's field is a plain `uint8_t` in the shared
+/// header, so the OTF path could leave the field at whatever `calloc` gave it --
+/// and it does: `otfcc_setGlyphOrderByGID` and `otfcc_setGlyphOrderByName`
+/// allocate an entry and set only `gid` and `name`. An enum without a zero
+/// variant would make both of them UB. The state is meaningful, not padding:
+/// zero outranks every named pass, so an entry placed by GID can never be
+/// escalated by one.
+///
+/// The type lives here rather than in `json_reader` -- where C keeps it, and
+/// where the values are still produced -- because this is the field it types.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[repr(u8)]
+pub enum json_GlyphOrderPass {
+    ORD_UNSET = 0,
+    ORD_GLYPHORDER = 1,
+    ORD_NOTDEF = 2,
+    ORD_CMAP = 3,
+    ORD_GLYF = 4,
+}
+pub use json_GlyphOrderPass::*;
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_GlyphOrderEntry {
     pub gid: glyphid_t,
     pub name: sds,
-    pub orderType: u8,
+    pub orderType: json_GlyphOrderPass,
     pub orderEntry: u32,
     pub hhID: UT_hash_handle,
     pub hhName: UT_hash_handle,
@@ -4587,3 +4617,29 @@ pub static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage = {
         ),
     }
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The passes are a priority, so `Ord` is the whole point of the type -- but
+    // derived `Ord` compares by declaration order, which is only the encoding
+    // because the declarations happen to be in ascending order. Pin that, and
+    // pin the zero: `otfcc_setGlyphOrderByGID` calloc's an entry and never
+    // assigns this field, so `ORD_UNSET` has to be the all-zero value for the
+    // field to be a valid `json_GlyphOrderPass` at all.
+    #[test]
+    fn glyphorderpass_order_is_its_encoding() {
+        let all = [ORD_UNSET, ORD_GLYPHORDER, ORD_NOTDEF, ORD_CMAP, ORD_GLYF];
+        for w in all.windows(2) {
+            assert!(w[0] < w[1], "{:?} should rank above {:?}", w[0], w[1]);
+            assert!((w[0] as u8) < (w[1] as u8));
+        }
+        assert_eq!(ORD_UNSET as u8, 0);
+        assert_eq!(ORD_GLYPHORDER as u8, 1);
+        assert_eq!(ORD_NOTDEF as u8, 2);
+        assert_eq!(ORD_CMAP as u8, 3);
+        assert_eq!(ORD_GLYF as u8, 4);
+        assert_eq!(::core::mem::size_of::<json_GlyphOrderPass>(), 1);
+    }
+}

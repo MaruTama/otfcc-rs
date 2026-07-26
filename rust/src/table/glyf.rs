@@ -532,8 +532,13 @@ pub struct GlyfIOContext {
     pub hasVerticalMetrics: bool,
     pub exportFDSelect: bool,
 }
-pub const MASK_ON_CURVE: glyf_OnCurveMask = 1;
-pub type glyf_OnCurveMask = ::core::ffi::c_uint;
+/// The only bit of [`glyf_Point::onCurve`] that means anything.
+///
+/// Not a flag *set*, despite C giving it a `glyf_OnCurveMask` type of its own:
+/// `onCurve` is an `i8` holding 0 or 1, and both readers of the field mask it
+/// down to bit 0 rather than trusting it -- so this is typed as the `i8` it is
+/// applied to, which is what lets the two sites drop their casts.
+pub const MASK_ON_CURVE: i8 = 1;
 #[inline]
 unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
@@ -3008,8 +3013,8 @@ unsafe extern "C" fn glyf_glyph_dump_contours(
                 point,
                 b"on\0" as *const u8 as *const ::core::ffi::c_char,
                 json_boolean_new(
-                    (*(*c).items.offset(m as isize)).onCurve as ::core::ffi::c_int
-                        & MASK_ON_CURVE as ::core::ffi::c_int,
+                    ((*(*c).items.offset(m as isize)).onCurve & MASK_ON_CURVE)
+                        as ::core::ffi::c_int,
                 ),
             );
             json_array_push(contour, point);
@@ -4405,49 +4410,53 @@ pub struct table_GlyfAndLocaBuffers {
     pub loca: *mut caryll_Buffer,
 }
 
-pub const WE_HAVE_A_TWO_BY_TWO: glyf_ComponentFlags = 128;
+bitflags::bitflags! {
+    /// The flag byte that introduces each point of a simple glyph's outline, as
+    /// `glyf` stores it: one byte per point, run-length encoded through
+    /// [`REPEAT`](Self::REPEAT).
+    ///
+    /// `SAME_X`/`POSITIVE_X` are deliberately one bit, not two. The spec calls
+    /// bit 4 `X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR`, and which of the two things
+    /// it means depends on `X_SHORT`: with it, the delta is positive; without it,
+    /// the delta is zero. Both readings are load-bearing, so both names stay --
+    /// `bitflags` allows the alias, and
+    /// `point_flag_aliases_are_the_same_bit` pins that they agree.
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+    pub struct glyf_PointFlags: u8 {
+        const ON_CURVE = 1;
+        const X_SHORT = 2;
+        const Y_SHORT = 4;
+        const REPEAT = 8;
+        const SAME_X = 16;
+        const POSITIVE_X = 16;
+        const SAME_Y = 32;
+        const POSITIVE_Y = 32;
+    }
+}
 
-pub const WE_HAVE_INSTRUCTIONS: glyf_ComponentFlags = 256;
-
-pub const MORE_COMPONENTS: glyf_ComponentFlags = 32;
-
-pub const WE_HAVE_AN_X_AND_Y_SCALE: glyf_ComponentFlags = 64;
-
-pub const WE_HAVE_A_SCALE: glyf_ComponentFlags = 8;
-
-pub const ARG_1_AND_2_ARE_WORDS: glyf_ComponentFlags = 1;
-
-pub const UNSCALED_COMPONENT_OFFSET: glyf_ComponentFlags = 4096;
-
-pub const USE_MY_METRICS: glyf_ComponentFlags = 512;
-
-pub const ROUND_XY_TO_GRID: glyf_ComponentFlags = 4;
-
-pub const ARGS_ARE_XY_VALUES: glyf_ComponentFlags = 2;
-
-pub const GLYF_FLAG_REPEAT: glyf_PointFlags = 8;
-
-pub const GLYF_FLAG_ON_CURVE: glyf_PointFlags = 1;
-
-pub const GLYF_FLAG_POSITIVE_Y: glyf_PointFlags = 32;
-
-pub const GLYF_FLAG_Y_SHORT: glyf_PointFlags = 4;
-
-pub const GLYF_FLAG_SAME_Y: glyf_PointFlags = 32;
-
-pub const GLYF_FLAG_POSITIVE_X: glyf_PointFlags = 16;
-
-pub const GLYF_FLAG_X_SHORT: glyf_PointFlags = 2;
-
-pub const GLYF_FLAG_SAME_X: glyf_PointFlags = 16;
-
-pub type glyf_PointFlags = ::core::ffi::c_uint;
-
-pub type glyf_ComponentFlags = ::core::ffi::c_uint;
-
-pub const SCALED_COMPONENT_OFFSET: glyf_ComponentFlags = 2048;
-
-pub const OVERLAP_COMPOUND: glyf_ComponentFlags = 1024;
+bitflags::bitflags! {
+    /// The flag word that introduces each component of a composite glyph. Names
+    /// are the OpenType spec's own, verbatim, so they can be grepped against it.
+    ///
+    /// [`OVERLAP_COMPOUND`](Self::OVERLAP_COMPOUND) is the one flag otfcc never
+    /// reads or writes; it stays declared because a bit set with a hole in it is
+    /// harder to check against the spec than one carrying an unused name.
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+    pub struct glyf_ComponentFlags: u16 {
+        const ARG_1_AND_2_ARE_WORDS = 1;
+        const ARGS_ARE_XY_VALUES = 2;
+        const ROUND_XY_TO_GRID = 4;
+        const WE_HAVE_A_SCALE = 8;
+        const MORE_COMPONENTS = 32;
+        const WE_HAVE_AN_X_AND_Y_SCALE = 64;
+        const WE_HAVE_A_TWO_BY_TWO = 128;
+        const WE_HAVE_INSTRUCTIONS = 256;
+        const USE_MY_METRICS = 512;
+        const OVERLAP_COMPOUND = 1024;
+        const SCALED_COMPONENT_OFFSET = 2048;
+        const UNSCALED_COMPONENT_OFFSET = 4096;
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -4458,6 +4467,51 @@ mod tests {
     // of the composite-glyph encoding runs. They come from otfcc's own
     // consolidation pass, never off the wire, but they are still load-bearing for
     // the bytes that come out.
+    // Bit 4 of a point flag means "same x" or "positive x" depending on
+    // `X_SHORT`, and bit 5 the same for y. C spelled that as two constants with
+    // one value each; `bitflags` keeps both names, so pin that they still are
+    // one bit -- if a future edit split them, the outline coordinates would be
+    // decoded against the wrong bit and every simple glyph would move.
+    #[test]
+    fn point_flag_aliases_are_the_same_bit() {
+        assert_eq!(glyf_PointFlags::SAME_X, glyf_PointFlags::POSITIVE_X);
+        assert_eq!(glyf_PointFlags::SAME_Y, glyf_PointFlags::POSITIVE_Y);
+        assert_eq!(glyf_PointFlags::SAME_X.bits(), 16);
+        assert_eq!(glyf_PointFlags::SAME_Y.bits(), 32);
+    }
+
+    // The flag byte/word goes to the wire exactly as built, so the encoding is
+    // the output. `from_bits_retain` is what keeps a bit otfcc does not know
+    // about from being dropped on the way in -- the same reason `otl_LookupType`
+    // is a newtype (see rust/README.md).
+    #[test]
+    fn glyf_flag_bits_are_the_wire_encoding() {
+        assert_eq!(glyf_PointFlags::ON_CURVE.bits(), 1);
+        assert_eq!(glyf_PointFlags::X_SHORT.bits(), 2);
+        assert_eq!(glyf_PointFlags::Y_SHORT.bits(), 4);
+        assert_eq!(glyf_PointFlags::REPEAT.bits(), 8);
+
+        assert_eq!(glyf_ComponentFlags::ARG_1_AND_2_ARE_WORDS.bits(), 1);
+        assert_eq!(glyf_ComponentFlags::ARGS_ARE_XY_VALUES.bits(), 2);
+        assert_eq!(glyf_ComponentFlags::ROUND_XY_TO_GRID.bits(), 4);
+        assert_eq!(glyf_ComponentFlags::WE_HAVE_A_SCALE.bits(), 8);
+        assert_eq!(glyf_ComponentFlags::MORE_COMPONENTS.bits(), 32);
+        assert_eq!(glyf_ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE.bits(), 64);
+        assert_eq!(glyf_ComponentFlags::WE_HAVE_A_TWO_BY_TWO.bits(), 128);
+        assert_eq!(glyf_ComponentFlags::WE_HAVE_INSTRUCTIONS.bits(), 256);
+        assert_eq!(glyf_ComponentFlags::USE_MY_METRICS.bits(), 512);
+        assert_eq!(glyf_ComponentFlags::OVERLAP_COMPOUND.bits(), 1024);
+        assert_eq!(glyf_ComponentFlags::SCALED_COMPONENT_OFFSET.bits(), 2048);
+        assert_eq!(glyf_ComponentFlags::UNSCALED_COMPONENT_OFFSET.bits(), 4096);
+
+        // Bit 3 of a component word (8 in the point set, `WE_HAVE_A_SCALE` here)
+        // is the one number that means different things in the two sets, and
+        // both types being distinct is what stops them being mixed up.
+        let unknown = glyf_ComponentFlags::from_bits_retain(0x8000);
+        assert_eq!(unknown.bits(), 0x8000);
+        assert!(!unknown.contains(glyf_ComponentFlags::MORE_COMPONENTS));
+    }
+
     #[test]
     fn refanchorstatus_discriminants_match_the_c_enum() {
         assert_eq!(REF_XY as u32, 0);

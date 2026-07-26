@@ -255,7 +255,7 @@ unsafe extern "C" fn _il_push_stemgroup(
         ref_0 = (*(*stems).items.offset(j as isize)).position
             + (*(*stems).items.offset(j as isize)).width;
         nn = nn.wrapping_add(1);
-        if nn as ::core::ffi::c_int >= type2_argument_stack as ::core::ffi::c_int {
+        if nn as u32 >= type2_argument_stack {
             if hasmask {
                 il_push_op(il, op_hstemhm);
             } else {
@@ -665,7 +665,7 @@ unsafe extern "C" fn opop_roll(
         ) as ::core::ffi::c_int
             != 0
         && (*current).arity.wrapping_add((*nextop).arity)
-            <= type2_argument_stack as ::core::ffi::c_int as arity_t
+            <= type2_argument_stack
     {
         (*current).type_0 = IL_ITEM_PHANTOM_OPERATOR;
         (*nextop).c2rust_unnamed.i = resultop;
@@ -711,7 +711,7 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut cff_CharstringIL, mut j: u32) ->
             .d
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
         && (*current).arity.wrapping_add(1 as arity_t)
-            <= type2_argument_stack as ::core::ffi::c_int as arity_t
+            <= type2_argument_stack
     {
         (*(*il).instr.offset(j.wrapping_add(checkdelta) as isize)).type_0 = IL_ITEM_PHANTOM_OPERAND;
         (*(*il).instr.offset(j as isize)).type_0 = IL_ITEM_PHANTOM_OPERATOR;
@@ -774,7 +774,7 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut cff_CharstringIL, mut j: u32) -
             .d
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
             && (*current).arity.wrapping_add(4 as arity_t)
-                <= type2_argument_stack as ::core::ffi::c_int as arity_t
+                <= type2_argument_stack
         {
             (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).type_0 =
                 IL_ITEM_PHANTOM_OPERAND;
@@ -788,7 +788,7 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut cff_CharstringIL, mut j: u32) -
                 (*current).arity.wrapping_add(4 as arity_t);
             return 7 as u8;
         } else if (*current).arity.wrapping_add(5 as arity_t)
-            <= type2_argument_stack as ::core::ffi::c_int as arity_t
+            <= type2_argument_stack
         {
             (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).type_0 =
                 IL_ITEM_PHANTOM_OPERAND;
@@ -864,7 +864,7 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut cff_CharstringIL, mut j: u32) -
             .d
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
         && (*current).arity.wrapping_add(4 as arity_t)
-            <= type2_argument_stack as ::core::ffi::c_int as arity_t
+            <= type2_argument_stack
     {
         (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).type_0 =
             IL_ITEM_PHANTOM_OPERAND;

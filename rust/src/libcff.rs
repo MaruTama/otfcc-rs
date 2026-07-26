@@ -247,19 +247,21 @@ pub const op_vstem: cff_CharstringOperator = 3;
 
 pub const op_hstem: cff_CharstringOperator = 1;
 
-pub type cff_Type2Limits = ::core::ffi::c_uint;
-
-pub const type2_transient_array: cff_Type2Limits = 32;
-
-pub const type2_max_subrs: cff_Type2Limits = 65300;
-
-pub const type2_charstring_len: cff_Type2Limits = 65535;
-
-pub const type2_subr_nesting: cff_Type2Limits = 10;
-
-pub const type2_stem_hints: cff_Type2Limits = 96;
-
-pub const type2_argument_stack: cff_Type2Limits = 48;
+// The Type 2 charstring spec's implementation limits. C gave them a
+// `cff_Type2Limits` type of their own, but they are not a set of anything --
+// they are six unrelated capacities, only ever compared against a count -- so
+// each is typed as whatever it is compared with instead, which is what removes
+// the casts at the fifteen sites that use them. `type2_charstring_len` and
+// `type2_stem_hints` are the two otfcc never checks; they stay because the
+// spec's table is easier to verify whole than with holes in it.
+/// Size of [`cff_Stack::transient`], which it declares -- so the modulus that
+/// wraps an index into that array cannot drift from the array itself.
+pub const type2_transient_array: usize = 32;
+pub const type2_max_subrs: u32 = 65300;
+pub const type2_charstring_len: u32 = 65535;
+pub const type2_subr_nesting: u32 = 10;
+pub const type2_stem_hints: u32 = 96;
+pub const type2_argument_stack: u32 = 48;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -326,7 +328,7 @@ pub union cff_EncodingBody {
 #[repr(C)]
 pub struct cff_Stack {
     pub stack: *mut cff_Value,
-    pub transient: [cff_Value; 32],
+    pub transient: [cff_Value; type2_transient_array],
     pub index: arity_t,
     pub max: arity_t,
     pub stem: u8,

@@ -26,12 +26,18 @@ pub enum otfcc_LoggerType {
     log_type_progress = 3,
 }
 pub use otfcc_LoggerType::*;
-pub type otfcc_LoggerVerbosity = ::core::ffi::c_uint;
-pub const log_vl_progress: otfcc_LoggerVerbosity = 10;
-pub const log_vl_info: otfcc_LoggerVerbosity = 5;
-pub const log_vl_notice: otfcc_LoggerVerbosity = 2;
-pub const log_vl_important: otfcc_LoggerVerbosity = 1;
-pub const log_vl_critical: otfcc_LoggerVerbosity = 0;
+// How noisy a message is: `loggerLogSDS` prints it when
+// `verbosity <= self->verbosityLimit`, so these are thresholds on a scale, not
+// members of a set -- and `loggerStart`/`loggerFinish` do arithmetic on one
+// (`log_vl_progress + level`, deeper nesting being more verbose), which an enum
+// could not express. So they stay plain integers, typed as the `u8` every
+// logging entry point takes; that is what drops the `as c_int as u8` pair from
+// the 149 call sites.
+pub const log_vl_critical: u8 = 0;
+pub const log_vl_important: u8 = 1;
+pub const log_vl_notice: u8 = 2;
+pub const log_vl_info: u8 = 5;
+pub const log_vl_progress: u8 = 10;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_ILogger {

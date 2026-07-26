@@ -31,7 +31,7 @@ use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p
 
 use crate::support::glyph_order::{glyph_handle};
 use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_single, otl_GsubSingleEntry, otl_Subtable, subtable_gsub_single};
-use crate::table::otl::subtables::{OTL_BH_GSUB_VERT, otl_BuildHeuristics};
+use crate::table::otl::subtables::otl_BuildHeuristics;
 use crate::vendor::uthash::{UT_hash_handle};
 use crate::support::{__compar_fn_t};
 #[derive(Copy, Clone)]
@@ -664,19 +664,10 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
         .buildFormat
         .expect("non-null function pointer")(
         cov,
-        (if heuristics as ::core::ffi::c_uint
-            & OTL_BH_GSUB_VERT as ::core::ffi::c_int as ::core::ffi::c_uint
-            != 0
-        {
-            1 as ::core::ffi::c_int
-        } else {
-            0 as ::core::ffi::c_int
-        }) as u16,
+        heuristics.contains(otl_BuildHeuristics::GSUB_VERT) as u16,
     );
     if isConstantDifference as ::core::ffi::c_int != 0
-        && heuristics as ::core::ffi::c_uint
-            & OTL_BH_GSUB_VERT as ::core::ffi::c_int as ::core::ffi::c_uint
-            == 0
+        && !heuristics.contains(otl_BuildHeuristics::GSUB_VERT)
     {
         let mut b: *mut bk_Block = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(coverageBuf)), bk_int(b16, ((*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
                 .to

@@ -175,7 +175,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_important as ::core::ffi::c_int as u8,
+            log_vl_important,
             log_type_warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -246,7 +246,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(sdsempty(), b"[libcff] Bad CFF font: no any glyph data.\n"),
             );
@@ -959,7 +959,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -1005,7 +1005,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -1055,7 +1055,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -1761,7 +1761,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -1818,7 +1818,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -1883,7 +1883,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -1950,7 +1950,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2054,7 +2054,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2096,7 +2096,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2138,7 +2138,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2170,7 +2170,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2202,7 +2202,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2240,7 +2240,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2278,7 +2278,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2316,7 +2316,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2348,7 +2348,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2386,7 +2386,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2409,7 +2409,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2432,7 +2432,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                             .c2rust_unnamed
                             .d as i32;
                             (*stack).transient[(i_0
-                                % type2_transient_array as ::core::ffi::c_int as i32)
+                                % type2_transient_array as i32)
                                 as usize]
                                 .c2rust_unnamed
                                 .d = val_0;
@@ -2447,7 +2447,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2469,7 +2469,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 .offset((*stack).index.wrapping_sub(1 as arity_t) as isize))
                             .c2rust_unnamed
                             .d = (*stack).transient[(i_1
-                                % type2_transient_array as ::core::ffi::c_int as i32)
+                                % type2_transient_array as i32)
                                 as usize]
                                 .c2rust_unnamed
                                 .d;
@@ -2483,7 +2483,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2538,7 +2538,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2576,7 +2576,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2608,7 +2608,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2634,7 +2634,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2676,7 +2676,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2708,7 +2708,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2737,7 +2737,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                         "non-null function pointer",
                                     )(
                                     (*options).logger as *mut otfcc_ILogger,
-                                    log_vl_important as ::core::ffi::c_int as u8,
+                                    log_vl_important,
                                     log_type_warning,
                                     crate::sdsbuild!(
                                         sdsempty(),
@@ -2782,7 +2782,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2838,7 +2838,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -2889,7 +2889,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 "non-null function pointer",
                             )(
                             (*options).logger as *mut otfcc_ILogger,
-                            log_vl_important as ::core::ffi::c_int as u8,
+                            log_vl_important,
                             log_type_warning,
                             crate::sdsbuild!(
                                 sdsempty(),

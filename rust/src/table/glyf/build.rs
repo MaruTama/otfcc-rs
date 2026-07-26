@@ -27,7 +27,7 @@ use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{glyphid_t, shapeid_t};
 
 
-use crate::table::glyf::{ARGS_ARE_XY_VALUES, ARG_1_AND_2_ARE_WORDS, GLYF_FLAG_ON_CURVE, GLYF_FLAG_POSITIVE_X, GLYF_FLAG_POSITIVE_Y, GLYF_FLAG_REPEAT, GLYF_FLAG_SAME_X, GLYF_FLAG_SAME_Y, GLYF_FLAG_X_SHORT, GLYF_FLAG_Y_SHORT, MASK_ON_CURVE, MORE_COMPONENTS, REF_ANCHOR_CONSOLIDATED, ROUND_XY_TO_GRID, UNSCALED_COMPONENT_OFFSET, USE_MY_METRICS, WE_HAVE_AN_X_AND_Y_SCALE, WE_HAVE_A_SCALE, WE_HAVE_A_TWO_BY_TWO, WE_HAVE_INSTRUCTIONS, glyf_ComponentReference, glyf_Glyph, glyf_Point, table_GlyfAndLocaBuffers, table_glyf};
+use crate::table::glyf::{MASK_ON_CURVE, REF_ANCHOR_CONSOLIDATED, glyf_ComponentFlags, glyf_PointFlags, glyf_ComponentReference, glyf_Glyph, glyf_Point, table_GlyfAndLocaBuffers, table_glyf};
 use crate::table::head::{table_head};
 
 use crate::vf::vq::{__caryll_vectorinterface_VQ};
@@ -63,8 +63,7 @@ pub unsafe extern "C" fn shrinkFlags(mut flags: *mut caryll_Buffer) -> *mut cary
                 let ref mut fresh1 = *(*shrunk)
                     .data
                     .offset((*shrunk).cursor.wrapping_sub(1 as usize) as isize);
-                *fresh1 = (*fresh1 as ::core::ffi::c_int | GLYF_FLAG_REPEAT as ::core::ffi::c_int)
-                    as u8;
+                *fresh1 |= glyf_PointFlags::REPEAT.bits();
                 bufwrite8(shrunk, 1 as u8);
                 repeating += 1 as ::core::ffi::c_int;
             } else {
@@ -117,12 +116,11 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const glyf_Glyph, mut gbuf: *mut 
             let mut p: *mut glyf_Point = (*(*g).contours.items.offset(cj as isize))
                 .items
                 .offset(k as isize) as *mut glyf_Point;
-            let mut flag: u8 =
-                (if (*p).onCurve as ::core::ffi::c_int & MASK_ON_CURVE as ::core::ffi::c_int != 0 {
-                    GLYF_FLAG_ON_CURVE as ::core::ffi::c_int
-                } else {
-                    0 as ::core::ffi::c_int
-                }) as u8;
+            let mut flag: glyf_PointFlags = if (*p).onCurve & MASK_ON_CURVE != 0 {
+                glyf_PointFlags::ON_CURVE
+            } else {
+                glyf_PointFlags::empty()
+            };
             let mut px: i32 =
                 round(iVQ.getStill.expect("non-null function pointer")((*p).x)
                     as ::core::ffi::c_double) as i32;
@@ -132,16 +130,13 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const glyf_Glyph, mut gbuf: *mut 
             let mut dx: i16 = (px - cx) as i16;
             let mut dy: i16 = (py - cy) as i16;
             if dx as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
-                flag = (flag as ::core::ffi::c_int | GLYF_FLAG_SAME_X as ::core::ffi::c_int)
-                    as u8;
+                flag.insert(glyf_PointFlags::SAME_X);
             } else if dx as ::core::ffi::c_int >= -(0xff as ::core::ffi::c_int)
                 && dx as ::core::ffi::c_int <= 0xff as ::core::ffi::c_int
             {
-                flag = (flag as ::core::ffi::c_int | GLYF_FLAG_X_SHORT as ::core::ffi::c_int)
-                    as u8;
+                flag.insert(glyf_PointFlags::X_SHORT);
                 if dx as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-                    flag = (flag as ::core::ffi::c_int | GLYF_FLAG_POSITIVE_X as ::core::ffi::c_int)
-                        as u8;
+                    flag.insert(glyf_PointFlags::POSITIVE_X);
                     bufwrite8(xs, dx as u8);
                 } else {
                     bufwrite8(xs, -(dx as ::core::ffi::c_int) as u8);
@@ -150,16 +145,13 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const glyf_Glyph, mut gbuf: *mut 
                 bufwrite16b(xs, dx as u16);
             }
             if dy as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
-                flag = (flag as ::core::ffi::c_int | GLYF_FLAG_SAME_Y as ::core::ffi::c_int)
-                    as u8;
+                flag.insert(glyf_PointFlags::SAME_Y);
             } else if dy as ::core::ffi::c_int >= -(0xff as ::core::ffi::c_int)
                 && dy as ::core::ffi::c_int <= 0xff as ::core::ffi::c_int
             {
-                flag = (flag as ::core::ffi::c_int | GLYF_FLAG_Y_SHORT as ::core::ffi::c_int)
-                    as u8;
+                flag.insert(glyf_PointFlags::Y_SHORT);
                 if dy as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-                    flag = (flag as ::core::ffi::c_int | GLYF_FLAG_POSITIVE_Y as ::core::ffi::c_int)
-                        as u8;
+                    flag.insert(glyf_PointFlags::POSITIVE_Y);
                     bufwrite8(ys, dy as u8);
                 } else {
                     bufwrite8(ys, -(dy as ::core::ffi::c_int) as u8);
@@ -167,7 +159,7 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const glyf_Glyph, mut gbuf: *mut 
             } else {
                 bufwrite16b(ys, dy as u16);
             }
-            bufwrite8(flags, flag);
+            bufwrite8(flags, flag.bits());
             cx = px;
             cy = py;
             k = k.wrapping_add(1);
@@ -192,14 +184,14 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const glyf_Glyph, mut gbuf: *m
     while (rj as usize) < (*g).references.length {
         let mut r: *mut glyf_ComponentReference =
             (*g).references.items.offset(rj as isize) as *mut glyf_ComponentReference;
-        let mut flags: u16 =
-            (if (rj as usize) < (*g).references.length.wrapping_sub(1 as usize) {
-                MORE_COMPONENTS as ::core::ffi::c_int
+        let mut flags: glyf_ComponentFlags =
+            if (rj as usize) < (*g).references.length.wrapping_sub(1 as usize) {
+                glyf_ComponentFlags::MORE_COMPONENTS
             } else if (*g).instructionsLength as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-                WE_HAVE_INSTRUCTIONS as ::core::ffi::c_int
+                glyf_ComponentFlags::WE_HAVE_INSTRUCTIONS
             } else {
-                0 as ::core::ffi::c_int
-            }) as u16;
+                glyf_ComponentFlags::empty()
+            };
         let mut outputAnchor: bool = (*r).isAnchored == REF_ANCHOR_CONSOLIDATED;
         let mut arg1: glyf_ComponentArg = glyf_ComponentArg { pointid: 0 };
         let mut arg2: glyf_ComponentArg = glyf_ComponentArg { pointid: 0 };
@@ -209,12 +201,10 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const glyf_Glyph, mut gbuf: *m
             if !((arg1.pointid as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int
                 && (arg2.pointid as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int)
             {
-                flags = (flags as ::core::ffi::c_int | ARG_1_AND_2_ARE_WORDS as ::core::ffi::c_int)
-                    as u16;
+                flags.insert(glyf_ComponentFlags::ARG_1_AND_2_ARE_WORDS);
             }
         } else {
-            flags = (flags as ::core::ffi::c_int | ARGS_ARE_XY_VALUES as ::core::ffi::c_int)
-                as u16;
+            flags.insert(glyf_ComponentFlags::ARGS_ARE_XY_VALUES);
             arg1.coord = iVQ.getStill.expect("non-null function pointer")((*r).x) as i16;
             arg2.coord = iVQ.getStill.expect("non-null function pointer")((*r).y) as i16;
             if !((arg1.coord as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
@@ -222,15 +212,13 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const glyf_Glyph, mut gbuf: *m
                 && (arg2.coord as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
                 && arg2.coord as ::core::ffi::c_int >= -(128 as ::core::ffi::c_int))
             {
-                flags = (flags as ::core::ffi::c_int | ARG_1_AND_2_ARE_WORDS as ::core::ffi::c_int)
-                    as u16;
+                flags.insert(glyf_ComponentFlags::ARG_1_AND_2_ARE_WORDS);
             }
         }
         if fabs((*r).b as ::core::ffi::c_double) > EPSILON
             || fabs((*r).c as ::core::ffi::c_double) > EPSILON
         {
-            flags = (flags as ::core::ffi::c_int | WE_HAVE_A_TWO_BY_TWO as ::core::ffi::c_int)
-                as u16;
+            flags.insert(glyf_ComponentFlags::WE_HAVE_A_TWO_BY_TWO);
         } else if fabs(
             (*r).a as ::core::ffi::c_double - 1 as ::core::ffi::c_int as ::core::ffi::c_double,
         ) > EPSILON
@@ -239,39 +227,33 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const glyf_Glyph, mut gbuf: *m
             ) > EPSILON
         {
             if fabs((*r).a as ::core::ffi::c_double - (*r).d as ::core::ffi::c_double) > EPSILON {
-                flags = (flags as ::core::ffi::c_int
-                    | WE_HAVE_AN_X_AND_Y_SCALE as ::core::ffi::c_int)
-                    as u16;
+                flags.insert(glyf_ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE);
             } else {
-                flags = (flags as ::core::ffi::c_int | WE_HAVE_A_SCALE as ::core::ffi::c_int)
-                    as u16;
+                flags.insert(glyf_ComponentFlags::WE_HAVE_A_SCALE);
             }
         }
         if (*r).roundToGrid {
-            flags =
-                (flags as ::core::ffi::c_int | ROUND_XY_TO_GRID as ::core::ffi::c_int) as u16;
+            flags.insert(glyf_ComponentFlags::ROUND_XY_TO_GRID);
         }
         if (*r).useMyMetrics {
-            flags =
-                (flags as ::core::ffi::c_int | USE_MY_METRICS as ::core::ffi::c_int) as u16;
+            flags.insert(glyf_ComponentFlags::USE_MY_METRICS);
         }
-        flags = (flags as ::core::ffi::c_int | UNSCALED_COMPONENT_OFFSET as ::core::ffi::c_int)
-            as u16;
-        bufwrite16b(gbuf, flags);
+        flags.insert(glyf_ComponentFlags::UNSCALED_COMPONENT_OFFSET);
+        bufwrite16b(gbuf, flags.bits());
         bufwrite16b(gbuf, (*r).glyph.index as u16);
-        if flags as ::core::ffi::c_int & ARG_1_AND_2_ARE_WORDS as ::core::ffi::c_int != 0 {
+        if flags.contains(glyf_ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
             bufwrite16b(gbuf, arg1.pointid);
             bufwrite16b(gbuf, arg2.pointid);
         } else {
             bufwrite8(gbuf, arg1.pointid as u8);
             bufwrite8(gbuf, arg2.pointid as u8);
         }
-        if flags as ::core::ffi::c_int & WE_HAVE_A_SCALE as ::core::ffi::c_int != 0 {
+        if flags.contains(glyf_ComponentFlags::WE_HAVE_A_SCALE) {
             bufwrite16b(
                 gbuf,
                 otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u16,
             );
-        } else if flags as ::core::ffi::c_int & WE_HAVE_AN_X_AND_Y_SCALE as ::core::ffi::c_int != 0
+        } else if flags.contains(glyf_ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
         {
             bufwrite16b(
                 gbuf,
@@ -281,7 +263,7 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const glyf_Glyph, mut gbuf: *m
                 gbuf,
                 otfcc_to_f2dot14((*r).d as ::core::ffi::c_double) as u16,
             );
-        } else if flags as ::core::ffi::c_int & WE_HAVE_A_TWO_BY_TWO as ::core::ffi::c_int != 0 {
+        } else if flags.contains(glyf_ComponentFlags::WE_HAVE_A_TWO_BY_TWO) {
             bufwrite16b(
                 gbuf,
                 otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u16,

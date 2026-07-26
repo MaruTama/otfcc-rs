@@ -400,7 +400,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -1006,7 +1006,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_important as ::core::ffi::c_int as u8,
+            log_vl_important,
             log_type_warning,
             crate::sdsbuild!(
                 sdsempty(),

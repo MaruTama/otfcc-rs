@@ -550,6 +550,23 @@ the CI-matching Linux container:
   `unsafe extern "C" { … }` (107 blocks), because writing down a foreign
   signature is the unsafe act and getting it wrong is UB at every call site.
 
+  The third, `unsafe_op_in_unsafe_fn`, fires **48,000 times**, and it is the one
+  worth having: it separates "this function is unsafe to call" from "this line is
+  the unsafe part". But the only mechanical fix is wrapping 2,300 function bodies
+  in `unsafe {}` — a 190,000-line reindentation that would bury every real change
+  for the rest of the migration. So it is allowed per *file*, in the 120 files
+  that need one. Not once at the crate root: lint levels inherit into child
+  modules, so one line in `lib.rs` would silently cover the 21 files that are
+  already clean. This way
+  `grep -rc "allow(unsafe_op_in_unsafe_fn)" rust/src` is the remaining-work
+  count, each Stage 6 PR deletes the line from the file it finishes, and the
+  compiler keeps that file honest from then on.
+
+  A side effect worth as much as the toolchain change: this Mac can build the
+  crate natively, so the `otfccdll` ctypes comparison — SKIPped on Apple Silicon
+  since PR #17 and checked only in the Linux container and in CI — now runs on
+  macOS too, and matches the C dylib to the byte.
+
 - **The label tables are `&CStr` slices.** Sixteen `static mut
   [*const c_char; N]` tables — eleven naming the bits of a flag field, five
   indexed by a code (CFF standard strings, Macintosh glyph names, TrueType
@@ -602,22 +619,34 @@ the CI-matching Linux container:
   the dump of it. Byte-identical — 55 lookups, all `{}`, all named after the
   forged number.
 
-  The third, `unsafe_op_in_unsafe_fn`, fires **48,000 times**, and it is the one
-  worth having: it separates "this function is unsafe to call" from "this line is
-  the unsafe part". But the only mechanical fix is wrapping 2,300 function bodies
-  in `unsafe {}` — a 190,000-line reindentation that would bury every real change
-  for the rest of the migration. So it is allowed per *file*, in the 120 files
-  that need one. Not once at the crate root: lint levels inherit into child
-  modules, so one line in `lib.rs` would silently cover the 21 files that are
-  already clean. This way
-  `grep -rc "allow(unsafe_op_in_unsafe_fn)" rust/src` is the remaining-work
-  count, each Stage 6 PR deletes the line from the file it finishes, and the
-  compiler keeps that file honest from then on.
+- **Bit sets use `bitflags`, and one of them needs `#[repr(transparent)]`.**
+  `glyf_PointFlags` (the flag byte before each outline point),
+  `glyf_ComponentFlags` (the flag word before each composite component) and
+  `otl_BuildHeuristics` are genuine bit algebra — `|=` to build, `&` to test —
+  so they are `bitflags` structs over the width the wire uses (`u8`, `u16`,
+  `u32`), read with `from_bits_retain` so a bit otfcc does not know about is
+  carried rather than dropped, and written with `.bits()`.
 
-  A side effect worth as much as the toolchain change: this Mac can build the
-  crate natively, so the `otfccdll` ctypes comparison — SKIPped on Apple Silicon
-  since PR #17 and checked only in the Linux container and in CI — now runs on
-  macOS too, and matches the C dylib to the byte.
+  `otl_BuildHeuristics` is a parameter of the `extern "C"` subtable builders,
+  and `bitflags`' generated struct is **not FFI-safe by default**: without
+  `#[repr(transparent)]` inside the macro, `improper_ctypes` fires at nine
+  declarations, which `warnings = "deny"` turns into a failed build. The
+  attribute is load-bearing, not decoration — verified by removing it.
+
+  Two of the five things the plan called bit sets were not:
+  - `MASK_ON_CURVE` is one bit, on a field (`glyf_Point::onCurve`) that is not a
+    flag set. It is a plain `i8` const now, typed as the field it masks.
+  - `json_GlyphOrderPass` is an ordered *priority*, not a set: the lowest pass
+    wins, because `setOrderByName` escalates only downwards and `_byOrder`
+    sorts ascending. So it is an `enum` with derived `Ord`, like `bk_CellType` —
+    and, like `cff_Value_Type`, it needed a zero variant this port had to name.
+    C keeps the `enum` inside `json-reader.c` while `glyph-order.h` declares the
+    field as a bare `uint8_t`, which lets the OTF path leave it at whatever
+    `calloc` gave it: `otfcc_setGlyphOrderByGID` allocates an entry and sets only
+    `gid` and `name`. `ORD_UNSET = 0` is that state, and it is meaningful —
+    zero outranks every named pass, so an entry placed by GID can never be
+    escalated by one. The type therefore lives in `support/glyph_order.rs` next
+    to the field it types, not in `json_reader.rs` where C has it.
 
 **Nothing in the crate is now declared twice**: 896 declarations, 0 duplicated,
 down from 8,090 declarations of 458 types.
@@ -651,26 +680,21 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
-- **Real `enum`s, the rest.** Fifteen are done — `handle_state`, the ten whose
-  values the crate generates itself, `bk_CellType`, `tsi_EntryType`,
-  `json_type`, `byte_types` — plus `otl_LookupType` as a newtype and
-  `ttf_instructions` deleted outright. Sixteen `pub type X = c_uint` aliases are
-  left, and what remains is everything a plain `enum` cannot express:
-  - values that come **out of a font file**: the CFF operator and format-byte
-    tables. Read what C does with an unrecognised value *before* choosing the
-    shape — if it keeps the value and that value can reach the output, the
-    answer is a newtype, as it was for `otl_LookupType` (see above). Never
-    `transmute` — an out-of-range discriminant is instant UB.
-  - **bit sets** (`glyf_PointFlags`, `glyf_ComponentFlags`,
-    `glyf_OnCurveMask`, `json_GlyphOrderPass`, `ctype_class_bits`) stay bit
-    sets — a newtype or `bitflags`, not an enum.
-  - **one number, two names**: `cff_Value_Type` spells the same value as both
-    a DICT and a CharString operator, `cff_CharsetType` has
-    `UNSPECED` == `ISOADOBE` == 0. Rust says that with a variant plus an
-    associated constant.
-  - not enumerations at all: `cff_Type2Limits` is a table of capacity
-    ceilings, `otfcc_LoggerVerbosity` an ordered threshold compared with `<=`,
-    and `WORD`/`json_uchar` are plain typedefs.
+- **Types out of `pub type X = c_uint`: done, except `ctype_class_bits`.** All
+  31 of the classifications c2rust left as integer aliases now have the shape
+  they earned, and the shapes are not uniform — which was the point. Twenty are
+  real `enum`s (`handle_state`, the ten the crate generates itself,
+  `bk_CellType`, `tsi_EntryType`, `json_type`, `byte_types`, the three CFF
+  format bytes, `cff_Value_Type`, `json_GlyphOrderPass`); one is a newtype
+  (`otl_LookupType`); three are `bitflags` (`glyf_PointFlags`,
+  `glyf_ComponentFlags`, `otl_BuildHeuristics`); `ttf_instructions` was deleted
+  outright; and the rest turned out not to be classifications at all
+  (`MASK_ON_CURVE`, `cff_Type2Limits`, the two operator tables,
+  `otfcc_LoggerVerbosity`, `WORD`, `json_uchar` — plain integers of the right
+  width). Three aliases are left: `WORD` and `json_uchar`, which are honest
+  typedefs, and `ctype_class_bits`, whose twelve constants are the bitmasks
+  c2rust's expansion of `<ctype.h>` tests against — nine of them tested by
+  nothing at all — so it wants deleting rather than typing.
 - **The two CFF operator tables want to be newtypes.** `cff_DictOperator` and
   `cff_CharstringOperator` are `i32` aliases now, which is honest about what
   they are — numbers, not a closed set — and cost 155 casts to say so. What it

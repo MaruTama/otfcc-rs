@@ -65,7 +65,7 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{json_array, json_object, json_string, json_type, json_value};
 use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, __caryll_elementinterface_otfcc_Font, otfcc_Font, otfcc_IFontBuilder, otfcc_font_subtype};
 use crate::support::{NULL};
-use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry, otfcc_GlyphOrderPackage};
+use crate::support::glyph_order::{ORD_CMAP, ORD_GLYF, ORD_GLYPHORDER, ORD_NOTDEF, json_GlyphOrderPass, otfcc_GlyphOrder, otfcc_GlyphOrderEntry, otfcc_GlyphOrderPackage};
 use crate::table::BASE::{table_BASE};
 use crate::table::CFF::{table_CFF};
 use crate::table::COLR::{table_COLR};
@@ -100,11 +100,6 @@ use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, 
 
 
 
-pub const ORD_GLYPHORDER: json_GlyphOrderPass = 1;
-pub const ORD_CMAP: json_GlyphOrderPass = 3;
-pub const ORD_GLYF: json_GlyphOrderPass = 4;
-pub const ORD_NOTDEF: json_GlyphOrderPass = 2;
-pub type json_GlyphOrderPass = ::core::ffi::c_uint;
 #[inline]
 unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
     return strtol(
@@ -193,7 +188,7 @@ unsafe extern "C" fn otfcc_decideFontSubtypeFromJson(
 unsafe extern "C" fn setOrderByName(
     mut go: *mut otfcc_GlyphOrder,
     mut name: sds,
-    mut orderType: u8,
+    mut orderType: json_GlyphOrderPass,
     mut orderEntry: u32,
 ) {
     let mut s: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
@@ -937,7 +932,7 @@ unsafe extern "C" fn setOrderByName(
                 }
             }
         }
-    } else if (*s).orderType as ::core::ffi::c_int > orderType as ::core::ffi::c_int {
+    } else if (*s).orderType > orderType {
         (*s).orderType = orderType;
         (*s).orderEntry = orderEntry;
     }
@@ -946,10 +941,10 @@ unsafe extern "C" fn _byOrder(
     mut a: *mut otfcc_GlyphOrderEntry,
     mut b: *mut otfcc_GlyphOrderEntry,
 ) -> ::core::ffi::c_int {
-    if ((*a).orderType as ::core::ffi::c_int) < (*b).orderType as ::core::ffi::c_int {
+    if (*a).orderType < (*b).orderType {
         return -(1 as ::core::ffi::c_int);
     }
-    if (*a).orderType as ::core::ffi::c_int > (*b).orderType as ::core::ffi::c_int {
+    if (*a).orderType > (*b).orderType {
         return 1 as ::core::ffi::c_int;
     }
     if (*a).orderEntry < (*b).orderEntry {
@@ -1541,7 +1536,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
 unsafe extern "C" fn escalateGlyphOrderByName(
     mut go: *mut otfcc_GlyphOrder,
     mut name: sds,
-    mut orderType: u8,
+    mut orderType: json_GlyphOrderPass,
     mut orderEntry: u32,
 ) {
     let mut s: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
@@ -1845,7 +1840,7 @@ unsafe extern "C" fn escalateGlyphOrderByName(
             }
         }
     }
-    if !s.is_null() && (*s).orderType as ::core::ffi::c_int > orderType as ::core::ffi::c_int {
+    if !s.is_null() && (*s).orderType > orderType {
         (*s).orderType = orderType;
         (*s).orderEntry = orderEntry;
     }
@@ -1868,7 +1863,7 @@ unsafe extern "C" fn placeOrderEntriesFromGlyf(
             setOrderByName(
                 go,
                 gname,
-                ORD_NOTDEF as ::core::ffi::c_int as u8,
+                ORD_NOTDEF,
                 0 as u32,
             );
         } else if strcmp(
@@ -1879,11 +1874,11 @@ unsafe extern "C" fn placeOrderEntriesFromGlyf(
             setOrderByName(
                 go,
                 gname,
-                ORD_NOTDEF as ::core::ffi::c_int as u8,
+                ORD_NOTDEF,
                 1 as u32,
             );
         } else {
-            setOrderByName(go, gname, ORD_GLYF as ::core::ffi::c_int as u8, j);
+            setOrderByName(go, gname, ORD_GLYF, j);
         }
         j = j.wrapping_add(1);
     }
@@ -1927,7 +1922,7 @@ unsafe extern "C" fn placeOrderEntriesFromCmap(
             escalateGlyphOrderByName(
                 go,
                 gname,
-                ORD_CMAP as ::core::ffi::c_int as u8,
+                ORD_CMAP,
                 unicode as u32,
             );
             sdsfree(gname);
@@ -1957,7 +1952,7 @@ unsafe extern "C" fn placeOrderEntriesFromSubtable(
             escalateGlyphOrderByName(
                 go,
                 gname,
-                ORD_GLYPHORDER as ::core::ffi::c_int as u8,
+                ORD_GLYPHORDER,
                 j,
             );
             sdsfree(gname);
@@ -2012,7 +2007,7 @@ unsafe extern "C" fn parseGlyphOrder(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_notice as ::core::ffi::c_int as u8,
+                    log_vl_notice,
                     log_type_info,
                     crate::sdsbuild!(
                         sdsempty(),

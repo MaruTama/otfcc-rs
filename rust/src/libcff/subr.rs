@@ -4419,7 +4419,7 @@ unsafe extern "C" fn numberASubroutine(mut r: *mut cff_SubrRule, mut current: *m
     if (*r).numbered {
         return;
     }
-    if (*r).height >= type2_subr_nesting as ::core::ffi::c_int as u32 {
+    if (*r).height >= type2_subr_nesting {
         return;
     }
     if (*r)
@@ -4482,7 +4482,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
     if !(*node).rule.is_null() {
         if (*(*node).rule).numbered as ::core::ffi::c_int != 0
             && (*(*node).rule).number < maxLSubrs.wrapping_add(maxGSubrs)
-            && (*(*node).rule).height < type2_subr_nesting as ::core::ffi::c_int as u32
+            && (*(*node).rule).height < type2_subr_nesting
         {
             let mut target: *mut caryll_Buffer = ::core::ptr::null_mut::<caryll_Buffer>();
             if (*(*node).rule).number < maxLSubrs {
@@ -4550,18 +4550,18 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
         .logSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        log_vl_progress as ::core::ffi::c_int as u8,
+        log_vl_progress,
         log_type_progress,
         crate::sdsbuild!(sdsempty(), b"[libcff] Total ", maxSubroutines, b" subroutines extracted."),
     );
     let mut maxLSubrs: u32 = maxSubroutines;
     let mut maxGSubrs: u32 = 0 as u32;
-    if maxLSubrs > type2_max_subrs as ::core::ffi::c_int as u32 {
-        maxLSubrs = type2_max_subrs as ::core::ffi::c_int as u32;
+    if maxLSubrs > type2_max_subrs {
+        maxLSubrs = type2_max_subrs;
         maxGSubrs = maxSubroutines.wrapping_sub(maxLSubrs);
     }
-    if maxGSubrs > type2_max_subrs as ::core::ffi::c_int as u32 {
-        maxGSubrs = type2_max_subrs as ::core::ffi::c_int as u32;
+    if maxGSubrs > type2_max_subrs {
+        maxGSubrs = type2_max_subrs;
     }
     let mut total: u32 = maxLSubrs.wrapping_add(maxGSubrs);
     maxLSubrs = total.wrapping_div(2 as u32);

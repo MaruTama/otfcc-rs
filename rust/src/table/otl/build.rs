@@ -64,7 +64,7 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::bk::bkblock::{b16, b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16, p32};
 use crate::support::{NULL};
 use crate::table::otl::{otl_Feature, otl_FeaturePtr, otl_LanguageSystem, otl_Lookup, otl_LookupRef, otl_LookupType, otl_Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_extend, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gpos_unknown, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_extend, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, otl_type_gsub_unknown, table_OTL};
-use crate::table::otl::subtables::{OTL_BH_GSUB_VERT, OTL_BH_NORMAL, otl_BuildHeuristics};
+use crate::table::otl::subtables::otl_BuildHeuristics;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 pub type _otl_Builder =
     Option<unsafe extern "C" fn(*const otl_Subtable, otl_BuildHeuristics) -> *mut caryll_Buffer>;
@@ -449,7 +449,7 @@ unsafe extern "C" fn getLookupHeuristics(
     mut table: *const table_OTL,
     mut lut: *const otl_Lookup,
 ) -> otl_BuildHeuristics {
-    let mut heu: otl_BuildHeuristics = OTL_BH_NORMAL;
+    let mut heu: otl_BuildHeuristics = otl_BuildHeuristics::empty();
     if (*lut).type_0 == otl_type_gsub_single
     {
         let mut j: tableid_t = 0 as tableid_t;
@@ -460,10 +460,7 @@ unsafe extern "C" fn getLookupHeuristics(
                 let mut k: tableid_t = 0 as tableid_t;
                 while (k as usize) < (*fea).lookups.length {
                     if *(*fea).lookups.items.offset(k as isize) == lut {
-                        heu = ::core::mem::transmute::<::core::ffi::c_uint, otl_BuildHeuristics>(
-                            heu as ::core::ffi::c_uint
-                                | OTL_BH_GSUB_VERT as ::core::ffi::c_int as ::core::ffi::c_uint,
-                        );
+                        heu.insert(otl_BuildHeuristics::GSUB_VERT);
                     }
                     k = k.wrapping_add(1);
                 }
@@ -505,7 +502,7 @@ unsafe extern "C" fn writeOTLLookups(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_progress as ::core::ffi::c_int as u8,
+            log_vl_progress,
             log_type_progress,
             crate::sdsbuild!(
                 sdsempty(),
@@ -550,7 +547,7 @@ unsafe extern "C" fn writeOTLLookups(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_notice as ::core::ffi::c_int as u8,
+                log_vl_notice,
                 log_type_info,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -570,7 +567,7 @@ unsafe extern "C" fn writeOTLLookups(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_notice as ::core::ffi::c_int as u8,
+                log_vl_notice,
                 log_type_info,
                 crate::sdsbuild!(
                     sdsempty(),

@@ -1035,7 +1035,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as u8,
+                        log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'COLR' corrupted.\n"),
                     );
