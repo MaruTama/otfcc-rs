@@ -9,19 +9,6 @@ pub mod read;
 pub mod subtables;
 
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn sdsfree(s: sds);
-    static iSubtable_gsub_single: __caryll_vectorinterface_subtable_gsub_single;
-    static iSubtable_gsub_multi: __caryll_vectorinterface_subtable_gsub_multi;
-    static iSubtable_gsub_ligature: __caryll_vectorinterface_subtable_gsub_ligature;
-    static iSubtable_chaining: __caryll_elementinterface_subtable_chaining;
-    static iSubtable_gsub_reverse: __caryll_elementinterface_subtable_gsub_reverse;
-    static iSubtable_gpos_single: __caryll_vectorinterface_subtable_gpos_single;
-    static iSubtable_gpos_pair: __caryll_elementinterface_subtable_gpos_pair;
-    static iSubtable_gpos_cursive: __caryll_vectorinterface_subtable_gpos_cursive;
-    static iSubtable_gpos_markToSingle: __caryll_elementinterface_subtable_gpos_markToSingle;
-    static iSubtable_gpos_markToLigature: __caryll_elementinterface_subtable_gpos_markToLigature;
-}
 
 use crate::table::otl::classdef::{otl_ClassDef};
 use crate::table::otl::coverage::{otl_Coverage};
@@ -32,6 +19,17 @@ use crate::support::primitives::{glyphclass_t, glyphid_t, pos_t, tableid_t};
 use crate::vendor::sds::{sds};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::support::{__compar_fn_t};
+use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
+use crate::table::otl::subtables::gpos_cursive::{iSubtable_gpos_cursive};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{iSubtable_gpos_markToLigature};
+use crate::table::otl::subtables::gpos_mark_to_single::{iSubtable_gpos_markToSingle};
+use crate::table::otl::subtables::gpos_pair::{iSubtable_gpos_pair};
+use crate::table::otl::subtables::gpos_single::{iSubtable_gpos_single};
+use crate::table::otl::subtables::gsub_ligature::{iSubtable_gsub_ligature};
+use crate::table::otl::subtables::gsub_multi::{iSubtable_gsub_multi};
+use crate::table::otl::subtables::gsub_reverse::{iSubtable_gsub_reverse};
+use crate::table::otl::subtables::gsub_single::{iSubtable_gsub_single};
+use crate::vendor::sds::{sdsfree};
 
 
 /// Which GSUB/GPOS subtable format a lookup is, in otfcc's own numbering: the
@@ -1454,7 +1452,6 @@ unsafe extern "C" fn otl_SubtableList_initN(mut arr: *mut otl_SubtableList, mut 
     otl_SubtableList_growToN(arr, n);
     otl_SubtableList_fill(arr, n);
 }
-#[unsafe(no_mangle)]
 pub static otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList = {
     __caryll_vectorinterface_otl_SubtableList {
         init: Some(otl_SubtableList_init as unsafe extern "C" fn(*mut otl_SubtableList) -> ()),
@@ -1537,7 +1534,6 @@ pub static otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList = {
         ),
     }
 };
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_delete_lookup(mut lookup: *mut otl_Lookup) {
     if lookup.is_null() {
         return;
@@ -1562,7 +1558,6 @@ unsafe extern "C" fn initLookupPtr(mut entry: *mut otl_LookupPtr) {
 unsafe extern "C" fn disposeLookupPtr(mut entry: *mut otl_LookupPtr) {
     otfcc_delete_lookup(*entry);
 }
-#[unsafe(no_mangle)]
 pub static otl_iLookupPtr: __caryll_elementinterface_otl_LookupPtr = {
     __caryll_elementinterface_otl_LookupPtr {
         init: Some(otl_LookupPtr_init as unsafe extern "C" fn(*mut otl_LookupPtr) -> ()),
@@ -1839,7 +1834,6 @@ unsafe extern "C" fn otl_LookupList_create() -> *mut otl_LookupList {
     otl_LookupList_init(x);
     return x;
 }
-#[unsafe(no_mangle)]
 pub static otl_iLookupList: __caryll_vectorinterface_otl_LookupList = {
     __caryll_vectorinterface_otl_LookupList {
         init: Some(otl_LookupList_init as unsafe extern "C" fn(*mut otl_LookupList) -> ()),
@@ -1954,7 +1948,6 @@ unsafe extern "C" fn otl_LookupRef_replace(mut dst: *mut otl_LookupRef, src: otl
         ::core::mem::size_of::<otl_LookupRef>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static otl_iLookupRef: __caryll_elementinterface_otl_LookupRef = {
     __caryll_elementinterface_otl_LookupRef {
         init: Some(otl_LookupRef_init as unsafe extern "C" fn(*mut otl_LookupRef) -> ()),
@@ -1980,7 +1973,6 @@ pub static otl_iLookupRef: __caryll_elementinterface_otl_LookupRef = {
 unsafe extern "C" fn otl_LookupRefList_pop(arr: *mut otl_LookupRefList) -> otl_LookupRef {
     cvec_pop(otl_LookupRefList_as_cvec(arr))
 }
-#[unsafe(no_mangle)]
 pub static otl_iLookupRefList: __caryll_vectorinterface_otl_LookupRefList = {
     __caryll_vectorinterface_otl_LookupRefList {
         init: Some(otl_LookupRefList_init as unsafe extern "C" fn(*mut otl_LookupRefList) -> ()),
@@ -2339,7 +2331,6 @@ unsafe extern "C" fn otl_FeaturePtr_move(
 unsafe extern "C" fn otl_FeaturePtr_init(mut x: *mut otl_FeaturePtr) {
     initFeaturePtr(x);
 }
-#[unsafe(no_mangle)]
 pub static otl_iFeaturePtr: __caryll_elementinterface_otl_FeaturePtr = {
     __caryll_elementinterface_otl_FeaturePtr {
         init: Some(otl_FeaturePtr_init as unsafe extern "C" fn(*mut otl_FeaturePtr) -> ()),
@@ -2532,7 +2523,6 @@ unsafe extern "C" fn otl_FeatureList_initCapN(mut arr: *mut otl_FeatureList, mut
     otl_FeatureList_init(arr);
     otl_FeatureList_growToN(arr, n);
 }
-#[unsafe(no_mangle)]
 pub static otl_iFeatureList: __caryll_vectorinterface_otl_FeatureList = {
     __caryll_vectorinterface_otl_FeatureList {
         init: Some(otl_FeatureList_init as unsafe extern "C" fn(*mut otl_FeatureList) -> ()),
@@ -2659,7 +2649,6 @@ unsafe extern "C" fn otl_FeatureList_disposeItem(mut arr: *mut otl_FeatureList, 
     } else {
     };
 }
-#[unsafe(no_mangle)]
 pub static otl_iFeatureRef: __caryll_elementinterface_otl_FeatureRef = {
     __caryll_elementinterface_otl_FeatureRef {
         init: Some(otl_FeatureRef_init as unsafe extern "C" fn(*mut otl_FeatureRef) -> ()),
@@ -2859,7 +2848,6 @@ unsafe extern "C" fn otl_FeatureRefList_create() -> *mut otl_FeatureRefList {
     otl_FeatureRefList_init(x);
     return x;
 }
-#[unsafe(no_mangle)]
 pub static otl_iFeatureRefList: __caryll_vectorinterface_otl_FeatureRefList = {
     __caryll_vectorinterface_otl_FeatureRefList {
         init: Some(otl_FeatureRefList_init as unsafe extern "C" fn(*mut otl_FeatureRefList) -> ()),
@@ -3056,7 +3044,6 @@ unsafe extern "C" fn disposeLanguagePtr(mut language: *mut otl_LanguageSystemPtr
     free(*language as *mut ::core::ffi::c_void);
     *language = ::core::ptr::null_mut::<otl_LanguageSystem>();
 }
-#[unsafe(no_mangle)]
 pub static otl_iLanguageSystem: __caryll_elementinterface_otl_LanguageSystemPtr = {
     __caryll_elementinterface_otl_LanguageSystemPtr {
         init: Some(initLanguagePtr as unsafe extern "C" fn(*mut otl_LanguageSystemPtr) -> ()),
@@ -3109,7 +3096,6 @@ unsafe fn otl_LangSystemList_as_cvec(arr: *mut otl_LangSystemList) -> *mut CVecR
 unsafe extern "C" fn otl_LangSystemList_init(arr: *mut otl_LangSystemList) {
     cvec_init(otl_LangSystemList_as_cvec(arr));
 }
-#[unsafe(no_mangle)]
 pub static otl_iLangSystemList: __caryll_vectorinterface_otl_LangSystemList = {
     __caryll_vectorinterface_otl_LangSystemList {
         init: Some(otl_LangSystemList_init as unsafe extern "C" fn(*mut otl_LangSystemList) -> ()),
@@ -3426,7 +3412,6 @@ unsafe extern "C" fn table_OTL_create() -> *mut table_OTL {
 unsafe extern "C" fn table_OTL_init(mut x: *mut table_OTL) {
     initOTL(x);
 }
-#[unsafe(no_mangle)]
 pub static table_iOTL: __caryll_elementinterface_table_OTL = {
     __caryll_elementinterface_table_OTL {
         init: Some(table_OTL_init as unsafe extern "C" fn(*mut table_OTL) -> ()),

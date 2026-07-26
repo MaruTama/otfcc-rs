@@ -1,10 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-}
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -13,11 +8,12 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t, length_t, pos_t};
-use crate::vendor::sds::{sds};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::table::maxp::{table_maxp};
 use crate::table::vhea::{table_vhea};
+use crate::support::buffer::{bufnew, bufwrite16b};
+use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct vertical_metric {
@@ -103,7 +99,6 @@ unsafe extern "C" fn table_vmtx_replace(mut dst: *mut table_vmtx, src: table_vmt
         ::core::mem::size_of::<table_vmtx>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static table_iVmtx: __caryll_elementinterface_table_vmtx = {
     __caryll_elementinterface_table_vmtx {
         init: Some(table_vmtx_init as unsafe extern "C" fn(*mut table_vmtx) -> ()),
@@ -132,7 +127,6 @@ unsafe extern "C" fn table_vmtx_free(mut x: *mut table_vmtx) {
     table_vmtx_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readVmtx(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -241,7 +235,6 @@ pub unsafe extern "C" fn otfcc_readVmtx(
     }
     return ::core::ptr::null_mut::<table_vmtx>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildVmtx(
     mut vmtx: *const table_vmtx,
     mut count_a: glyphid_t,

@@ -1,47 +1,26 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-unsafe extern "C" {
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_boolean_new(_: ::core::ffi::c_int) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn sdsempty() -> sds;
-    fn otl_gsub_dump_single(_subtable: *const otl_Subtable) -> *mut json_value;
-    fn otl_gsub_dump_multi(_subtable: *const otl_Subtable) -> *mut json_value;
-    fn otl_gsub_dump_ligature(_subtable: *const otl_Subtable) -> *mut json_value;
-    fn otl_gsub_dump_reverse(_subtable: *const otl_Subtable) -> *mut json_value;
-    fn otl_gpos_dump_single(_subtable: *const otl_Subtable) -> *mut json_value;
-    fn otl_gpos_dump_cursive(_subtable: *const otl_Subtable) -> *mut json_value;
-    fn otl_gpos_dump_markToSingle(st: *const otl_Subtable) -> *mut json_value;
-    fn otl_gpos_dump_markToLigature(st: *const otl_Subtable) -> *mut json_value;
-    fn otl_dump_chaining(_subtable: *const otl_Subtable) -> *mut json_value;
-    fn otl_gpos_dump_pair(_subtable: *const otl_Subtable) -> *mut json_value;
-}
 
 
 
 use crate::logger::{otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{tableid_t};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::json_value;
 use crate::table::otl::{otl_Feature, otl_LanguageSystem, otl_Lookup, otl_LookupType, otl_Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, table_OTL};
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::support::json_funcs::{otfcc_dump_flags, preserialize};
 use crate::table::otl::constants::{lookupFlagsLabels};
+use crate::table::otl::subtables::chaining::dump::{otl_dump_chaining};
+use crate::table::otl::subtables::gpos_cursive::{otl_gpos_dump_cursive};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_gpos_dump_markToLigature};
+use crate::table::otl::subtables::gpos_mark_to_single::{otl_gpos_dump_markToSingle};
+use crate::table::otl::subtables::gpos_pair::{otl_gpos_dump_pair};
+use crate::table::otl::subtables::gpos_single::{otl_gpos_dump_single};
+use crate::table::otl::subtables::gsub_ligature::{otl_gsub_dump_ligature};
+use crate::table::otl::subtables::gsub_multi::{otl_gsub_dump_multi};
+use crate::table::otl::subtables::gsub_reverse::{otl_gsub_dump_reverse};
+use crate::table::otl::subtables::gsub_single::{otl_gsub_dump_single};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new};
+use crate::vendor::sds::{sdsempty};
 unsafe extern "C" fn _declare_lookup_dumper(
     mut llt: otl_LookupType,
     mut dumper: Option<unsafe extern "C" fn(*const otl_Subtable) -> *mut json_value>,
@@ -182,7 +161,6 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut otl_Lookup, mut dump: *mut js
         dump,
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpOtl(
     mut table: *const table_OTL,
     mut root: *mut json_value,

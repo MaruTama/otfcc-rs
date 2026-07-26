@@ -121,7 +121,6 @@ unsafe extern "C" fn vf_Axis_move(mut dst: *mut vf_Axis, mut src: *mut vf_Axis) 
     );
     vf_Axis_init(src);
 }
-#[unsafe(no_mangle)]
 pub static vf_iAxis: __caryll_elementinterface_vf_Axis = {
     __caryll_elementinterface_vf_Axis {
         init: Some(vf_Axis_init as unsafe extern "C" fn(*mut vf_Axis) -> ()),
@@ -167,7 +166,6 @@ unsafe fn vf_Axes_as_cvec(arr: *mut vf_Axes) -> *mut CVecRaw<vf_Axis> {
 unsafe extern "C" fn vf_Axes_init(arr: *mut vf_Axes) {
     cvec_init(vf_Axes_as_cvec(arr));
 }
-#[unsafe(no_mangle)]
 pub static vf_iAxes: __caryll_vectorinterface_vf_Axes = {
     __caryll_vectorinterface_vf_Axes {
         init: Some(vf_Axes_init as unsafe extern "C" fn(*mut vf_Axes) -> ()),

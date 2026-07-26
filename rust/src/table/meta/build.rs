@@ -6,10 +6,8 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::bk::bkblock::{b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
 
 use crate::table::meta::types::{meta_Entry, table_meta};
-unsafe extern "C" {
-    fn bk_newBlockFromStringLen(len: usize, str: *const ::core::ffi::c_char) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
+use crate::bk::bkblock::{bk_newBlockFromStringLen};
+use crate::bk::bkgraph::{bk_build_Block};
 #[inline]
 unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
@@ -40,7 +38,6 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     }
     return 0 as usize;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildMeta(
     mut meta: *const table_meta,
     mut _options: *const otfcc_Options,

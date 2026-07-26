@@ -6,15 +6,10 @@ use crate::support::options::{otfcc_Options};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_object, json_string, json_value};
 
-use crate::table::meta::types::{__caryll_elementinterface_table_meta, __caryll_vectorinterface_meta_Entries, meta_Entry, table_meta};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    static meta_iEntries: __caryll_vectorinterface_meta_Entries;
-    static table_iMeta: __caryll_elementinterface_table_meta;
-    fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
-}
-#[unsafe(no_mangle)]
+use crate::table::meta::types::{meta_Entry, table_meta};
+use crate::support::base64::{base64_decode};
+use crate::table::meta::types::{meta_iEntries, table_iMeta};
+use crate::vendor::sds::{sdsempty, sdsnewlen};
 pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
     if (*v).type_0 == json_string
     {
@@ -55,7 +50,6 @@ pub unsafe extern "C" fn parseMetaData(mut v: *const json_value) -> sds {
     }
     return ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseMeta(
     mut root: *const json_value,
     mut options: *const otfcc_Options,

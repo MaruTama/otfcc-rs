@@ -1,34 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite_bytes(buf: *mut caryll_Buffer, size: usize, str: *const u8);
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn parse_ttinstr(
-        col: *mut json_value,
-        context: *mut ::core::ffi::c_void,
-        Make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> ()>,
-        Wrong: Option<
-            unsafe extern "C" fn(
-                *mut ::core::ffi::c_void,
-                *mut ::core::ffi::c_char,
-                ::core::ffi::c_int,
-            ) -> (),
-        >,
-    );
-    fn dump_ttinstr(
-        instructions: *mut u8,
-        length: u32,
-        options: *const otfcc_Options,
-    ) -> *mut json_value;
-}
 
 
 use crate::support::json_funcs::{json_obj_get};
@@ -40,6 +11,10 @@ use crate::support::primitives::{font_file_pointer};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::json_value;
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::buffer::{bufnew, bufwrite_bytes};
+use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
+use crate::vendor::json_builder::{json_object_push};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsnew};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -137,7 +112,6 @@ unsafe extern "C" fn table_fpgm_prep_move(
 unsafe extern "C" fn table_fpgm_prep_dispose(mut x: *mut table_fpgm_prep) {
     disposeFpgmPrep(x);
 }
-#[unsafe(no_mangle)]
 pub static table_iFpgm_prep: __caryll_elementinterface_table_fpgm_prep = {
     __caryll_elementinterface_table_fpgm_prep {
         init: Some(table_fpgm_prep_init as unsafe extern "C" fn(*mut table_fpgm_prep) -> ()),
@@ -162,7 +136,6 @@ pub static table_iFpgm_prep: __caryll_elementinterface_table_fpgm_prep = {
         free: Some(table_fpgm_prep_free as unsafe extern "C" fn(*mut table_fpgm_prep) -> ()),
     }
 };
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readFpgmPrep(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -214,7 +187,6 @@ pub unsafe extern "C" fn otfcc_readFpgmPrep(
     }
     return ::core::ptr::null_mut::<table_fpgm_prep>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn table_dumpTableFpgmPrep(
     mut table: *const table_fpgm_prep,
     mut root: *mut json_value,
@@ -243,7 +215,6 @@ pub unsafe extern "C" fn table_dumpTableFpgmPrep(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn makeFpgmPrepInstr(
     mut _t: *mut ::core::ffi::c_void,
     mut instrs: *mut u8,
@@ -253,14 +224,12 @@ pub unsafe extern "C" fn makeFpgmPrepInstr(
     (*t).length = length;
     (*t).bytes = instrs;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn wrongFpgmPrepInstr(
     mut _t: *mut ::core::ffi::c_void,
     mut _reason: *mut ::core::ffi::c_char,
     mut _pos: ::core::ffi::c_int,
 ) {
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseFpgmPrep(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -311,7 +280,6 @@ pub unsafe extern "C" fn otfcc_parseFpgmPrep(
     }
     return t;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildFpgmPrep(
     mut table: *const table_fpgm_prep,
     mut _options: *const otfcc_Options,

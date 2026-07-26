@@ -1,15 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    fn bufnew() -> *mut caryll_Buffer;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
-}
 
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::primitives::{arity_t};
+use crate::support::buffer::{buffree, bufnew, bufwrite8};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -436,7 +432,6 @@ unsafe extern "C" fn buildIndex(mut index: *const cff_Index) -> *mut caryll_Buff
     (*blob).cursor = (*blob).size;
     return blob;
 }
-#[unsafe(no_mangle)]
 pub static cff_iIndex: __caryll_elementinterface_cff_Index = {
     __caryll_elementinterface_cff_Index {
         init: Some(cff_Index_init as unsafe extern "C" fn(*mut cff_Index) -> ()),

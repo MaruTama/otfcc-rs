@@ -1,36 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
-    static otl_iClassDef: __otfcc_IClassDef;
-    static table_iHead: __caryll_elementinterface_table_head;
-    static table_iHhea: __caryll_elementinterface_table_hhea;
-    static table_iMaxp: __caryll_elementinterface_table_maxp;
-    static table_iOS_2: __caryll_elementinterface_table_OS_2;
-    static table_iHmtx: __caryll_elementinterface_table_hmtx;
-    static iTable_post: __caryll_elementinterface_table_post;
-    static table_iVhea: __caryll_elementinterface_table_vhea;
-    static table_iVORG: __caryll_elementinterface_table_VORG;
-    static table_iGasp: __caryll_elementinterface_table_gasp;
-    static table_iVmtx: __caryll_elementinterface_table_vmtx;
-    static table_iGlyf: __caryll_vectorinterface_table_glyf;
-    static table_iName: __caryll_vectorinterface_table_name;
-    static table_iMeta: __caryll_elementinterface_table_meta;
-    static table_iFpgm_prep: __caryll_elementinterface_table_fpgm_prep;
-    static table_iCFF: __caryll_elementinterface_table_CFF;
-    static table_iCmap: __caryll_elementinterface_table_cmap;
-    static table_iOTL: __caryll_elementinterface_table_OTL;
-    static table_iGDEF: __caryll_elementinterface_table_GDEF;
-    static table_iLTSH: __caryll_elementinterface_table_LTSH;
-    static table_iCPAL: __caryll_elementinterface_table_CPAL;
-    static table_iBASE: __caryll_elementinterface_table_BASE;
-    static table_iCOLR: __caryll_vectorinterface_table_COLR;
-    static table_iSVG: __caryll_vectorinterface_table_SVG;
-    static table_iTSI: __caryll_vectorinterface_table_TSI;
-    static table_iCvt: __caryll_elementinterface_table_cvt;
-    fn otfcc_consolidateFont(font: *mut otfcc_Font, options: *const otfcc_Options);
-}
-use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef, otl_ClassDef_free};
+use crate::table::otl::classdef::{otl_ClassDef, otl_ClassDef_free};
 
 
 
@@ -41,36 +11,63 @@ use crate::support::options::{otfcc_Options};
 
 
 use crate::support::{NULL};
-use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderPackage};
-use crate::table::BASE::{__caryll_elementinterface_table_BASE, table_BASE};
-use crate::table::CFF::{__caryll_elementinterface_table_CFF, table_CFF};
-use crate::table::COLR::{__caryll_vectorinterface_table_COLR, table_COLR};
-use crate::table::CPAL::{__caryll_elementinterface_table_CPAL, table_CPAL};
-use crate::table::GDEF::{__caryll_elementinterface_table_GDEF, table_GDEF};
-use crate::table::LTSH::{__caryll_elementinterface_table_LTSH, table_LTSH};
-use crate::table::OS_2::{__caryll_elementinterface_table_OS_2, table_OS_2};
-use crate::table::SVG::{__caryll_vectorinterface_table_SVG, table_SVG};
+use crate::support::glyph_order::otfcc_GlyphOrder;
+use crate::table::BASE::table_BASE;
+use crate::table::CFF::table_CFF;
+use crate::table::COLR::table_COLR;
+use crate::table::CPAL::table_CPAL;
+use crate::table::GDEF::table_GDEF;
+use crate::table::LTSH::table_LTSH;
+use crate::table::OS_2::table_OS_2;
+use crate::table::SVG::table_SVG;
 use crate::table::TSI5::{table_TSI5};
-use crate::table::VORG::{__caryll_elementinterface_table_VORG, table_VORG};
-use crate::table::_TSI::{__caryll_vectorinterface_table_TSI, table_TSI};
-use crate::table::cmap::{__caryll_elementinterface_table_cmap, table_cmap};
-use crate::table::cvt::{__caryll_elementinterface_table_cvt, table_cvt};
-use crate::table::fpgm_prep::{__caryll_elementinterface_table_fpgm_prep, table_fpgm_prep};
+use crate::table::VORG::table_VORG;
+use crate::table::_TSI::table_TSI;
+use crate::table::cmap::table_cmap;
+use crate::table::cvt::table_cvt;
+use crate::table::fpgm_prep::table_fpgm_prep;
 use crate::table::fvar::{table_fvar};
-use crate::table::gasp::{__caryll_elementinterface_table_gasp, table_gasp};
-use crate::table::glyf::{__caryll_vectorinterface_table_glyf, table_glyf};
+use crate::table::gasp::table_gasp;
+use crate::table::glyf::table_glyf;
 use crate::table::hdmx::{table_hdmx};
-use crate::table::head::{__caryll_elementinterface_table_head, table_head};
-use crate::table::hhea::{__caryll_elementinterface_table_hhea, table_hhea};
-use crate::table::hmtx::{__caryll_elementinterface_table_hmtx, table_hmtx};
-use crate::table::maxp::{__caryll_elementinterface_table_maxp, table_maxp};
-use crate::table::meta::types::{__caryll_elementinterface_table_meta, table_meta};
-use crate::table::name::{__caryll_vectorinterface_table_name, table_name};
-use crate::table::otl::{__caryll_elementinterface_table_OTL, table_OTL};
-use crate::table::post::{__caryll_elementinterface_table_post, table_post};
+use crate::table::head::table_head;
+use crate::table::hhea::table_hhea;
+use crate::table::hmtx::table_hmtx;
+use crate::table::maxp::table_maxp;
+use crate::table::meta::types::table_meta;
+use crate::table::name::table_name;
+use crate::table::otl::table_OTL;
+use crate::table::post::table_post;
 use crate::table::vdmx::types::{table_VDMX};
-use crate::table::vhea::{__caryll_elementinterface_table_vhea, table_vhea};
-use crate::table::vmtx::{__caryll_elementinterface_table_vmtx, table_vmtx};
+use crate::table::vhea::table_vhea;
+use crate::table::vmtx::table_vmtx;
+use crate::consolidate::{otfcc_consolidateFont};
+use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::table::BASE::{table_iBASE};
+use crate::table::CFF::{table_iCFF};
+use crate::table::COLR::{table_iCOLR};
+use crate::table::CPAL::{table_iCPAL};
+use crate::table::GDEF::{table_iGDEF};
+use crate::table::LTSH::{table_iLTSH};
+use crate::table::OS_2::{table_iOS_2};
+use crate::table::SVG::{table_iSVG};
+use crate::table::VORG::{table_iVORG};
+use crate::table::_TSI::{table_iTSI};
+use crate::table::cmap::{table_iCmap};
+use crate::table::cvt::{table_iCvt};
+use crate::table::fpgm_prep::{table_iFpgm_prep};
+use crate::table::gasp::{table_iGasp};
+use crate::table::glyf::{table_iGlyf};
+use crate::table::head::{table_iHead};
+use crate::table::hhea::{table_iHhea};
+use crate::table::hmtx::{table_iHmtx};
+use crate::table::maxp::{table_iMaxp};
+use crate::table::meta::types::{table_iMeta};
+use crate::table::name::{table_iName};
+use crate::table::otl::{table_iOTL};
+use crate::table::post::{iTable_post};
+use crate::table::vhea::{table_iVhea};
+use crate::table::vmtx::{table_iVmtx};
 
 
 
@@ -460,7 +457,6 @@ unsafe extern "C" fn otfcc_Font_move(mut dst: *mut otfcc_Font, mut src: *mut otf
     );
     otfcc_Font_init(src);
 }
-#[unsafe(no_mangle)]
 pub static otfcc_iFont: __caryll_elementinterface_otfcc_Font = {
     __caryll_elementinterface_otfcc_Font {
         init: Some(otfcc_Font_init as unsafe extern "C" fn(*mut otfcc_Font) -> ()),

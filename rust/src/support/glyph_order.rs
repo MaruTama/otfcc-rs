@@ -1,9 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-}
 
 use crate::support::handle::{handle_consolidateTo, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_CONSOLIDATED, HANDLE_STATE_NAME, HANDLE_STATE_INDEX};
 
@@ -12,6 +8,7 @@ use crate::support::primitives::{glyphid_t};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::vendor::sds::{sdsempty, sdsfree};
 pub type glyph_handle = otfcc_GlyphHandle;
 /// Which pass of a JSON font's glyph naming placed a glyph, and therefore how
 /// strongly it is placed: the *lowest* pass wins, because `setOrderByName`
@@ -4571,7 +4568,6 @@ unsafe extern "C" fn gordLookupName(mut go: *mut otfcc_GlyphOrder, mut name: sds
     }
     return false;
 }
-#[unsafe(no_mangle)]
 pub static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage = {
     otfcc_GlyphOrderPackage {
         init: Some(otfcc_GlyphOrder_init as unsafe extern "C" fn(*mut otfcc_GlyphOrder) -> ()),

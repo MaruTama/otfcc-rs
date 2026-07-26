@@ -1,25 +1,20 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-unsafe extern "C" {
-    fn json_parse(json: *const ::core::ffi::c_char, length: usize) -> *mut json_value;
-    fn json_value_free(_: *mut json_value);
-    fn otfcc_newLogger(target: *mut otfcc_ILoggerTarget) -> *mut otfcc_ILogger;
-    fn otfcc_newEmptyTarget() -> *mut otfcc_ILoggerTarget;
-    fn otfcc_newOptions() -> *mut otfcc_Options;
-    fn otfcc_Options_optimizeTo(options: *mut otfcc_Options, level: u8);
-    fn buffree(buf: *mut caryll_Buffer);
-    static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
-    fn otfcc_newJsonReader() -> *mut otfcc_IFontBuilder;
-    fn otfcc_newOTFWriter() -> *mut otfcc_IFontSerializer;
-}
 
 
-use crate::logger::{otfcc_ILogger, otfcc_ILoggerTarget};
+use crate::logger::otfcc_ILogger;
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 
 
 use crate::vendor::json::{json_value};
-use crate::font::caryll_font::{__caryll_elementinterface_otfcc_Font, otfcc_Font, otfcc_IFontBuilder, otfcc_IFontSerializer};
+use crate::font::caryll_font::{otfcc_Font, otfcc_IFontBuilder, otfcc_IFontSerializer};
+use crate::font::caryll_font::{otfcc_iFont};
+use crate::json_reader::{otfcc_newJsonReader};
+use crate::logger::{otfcc_newEmptyTarget, otfcc_newLogger};
+use crate::otf_writer::{otfcc_newOTFWriter};
+use crate::support::buffer::{buffree};
+use crate::support::options::{otfcc_Options_optimizeTo, otfcc_newOptions};
+use crate::vendor::json::{json_parse, json_value_free};
 
 
 

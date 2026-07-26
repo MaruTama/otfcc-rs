@@ -1,55 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset, strlen, strncmp};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-    fn otfcc_build_gsub_single_subtable(
-        _subtable: *const otl_Subtable,
-        heuristics: otl_BuildHeuristics,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_build_gsub_multi_subtable_split(
-        _subtable: *const otl_Subtable,
-        heuristics: otl_BuildHeuristics,
-        count: *mut tableid_t,
-    ) -> *mut *mut caryll_Buffer;
-    fn otfcc_build_gsub_ligature_subtable(
-        _subtable: *const otl_Subtable,
-        heuristics: otl_BuildHeuristics,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_build_gsub_reverse(
-        _subtable: *const otl_Subtable,
-        heuristics: otl_BuildHeuristics,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_build_gpos_single(
-        _subtable: *const otl_Subtable,
-        heuristics: otl_BuildHeuristics,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_build_gpos_cursive(
-        _subtable: *const otl_Subtable,
-        heuristics: otl_BuildHeuristics,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_build_gpos_markToSingle(
-        _subtable: *const otl_Subtable,
-        heuristics: otl_BuildHeuristics,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_build_gpos_markToLigature(
-        _subtable: *const otl_Subtable,
-        heuristics: otl_BuildHeuristics,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_classifiedBuildChaining(
-        lookup: *const otl_Lookup,
-        subtableBuffers: *mut *mut *mut caryll_Buffer,
-        lastOffset: *mut usize,
-    ) -> tableid_t;
-    fn otfcc_chainingLookupIsContextualLookup(lookup: *const otl_Lookup) -> bool;
-    fn otfcc_build_gpos_pair(
-        _subtable: *const otl_Subtable,
-        heuristics: otl_BuildHeuristics,
-    ) -> *mut caryll_Buffer;
-}
 
 
 
@@ -66,6 +16,20 @@ use crate::support::{NULL};
 use crate::table::otl::{otl_Feature, otl_FeaturePtr, otl_LanguageSystem, otl_Lookup, otl_LookupRef, otl_LookupType, otl_Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_extend, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gpos_unknown, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_extend, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, otl_type_gsub_unknown, table_OTL};
 use crate::table::otl::subtables::otl_BuildHeuristics;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::bk::bkblock::{bk_newBlockFromBuffer};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::table::otl::subtables::chaining::build::{otfcc_chainingLookupIsContextualLookup};
+use crate::table::otl::subtables::chaining::classifier::{otfcc_classifiedBuildChaining};
+use crate::table::otl::subtables::gpos_cursive::{otfcc_build_gpos_cursive};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{otfcc_build_gpos_markToLigature};
+use crate::table::otl::subtables::gpos_mark_to_single::{otfcc_build_gpos_markToSingle};
+use crate::table::otl::subtables::gpos_pair::{otfcc_build_gpos_pair};
+use crate::table::otl::subtables::gpos_single::{otfcc_build_gpos_single};
+use crate::table::otl::subtables::gsub_ligature::{otfcc_build_gsub_ligature_subtable};
+use crate::table::otl::subtables::gsub_multi::{otfcc_build_gsub_multi_subtable_split};
+use crate::table::otl::subtables::gsub_reverse::{otfcc_build_gsub_reverse};
+use crate::table::otl::subtables::gsub_single::{otfcc_build_gsub_single_subtable};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 pub type _otl_Builder =
     Option<unsafe extern "C" fn(*const otl_Subtable, otl_BuildHeuristics) -> *mut caryll_Buffer>;
 pub type _otl_SplitBuilder = Option<
@@ -1588,7 +1552,6 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
     }
     return root;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildOtl(
     mut table: *const table_OTL,
     mut options: *const otfcc_Options,

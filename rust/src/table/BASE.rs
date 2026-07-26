@@ -1,27 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
 unsafe extern "C" {
-    fn sdsempty() -> sds;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_object_push_length(
-        object: *mut json_value,
-        name_length: ::core::ffi::c_uint,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
 }
 
 
@@ -32,10 +12,12 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, pos_t, tableid_t};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_object, json_value};
 use crate::bk::bkblock::{b16, b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
+use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -145,7 +127,6 @@ unsafe extern "C" fn table_BASE_replace(mut dst: *mut table_BASE, src: table_BAS
         ::core::mem::size_of::<table_BASE>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static table_iBASE: __caryll_elementinterface_table_BASE = {
     __caryll_elementinterface_table_BASE {
         init: Some(table_BASE_init as unsafe extern "C" fn(*mut table_BASE) -> ()),
@@ -439,7 +420,6 @@ unsafe extern "C" fn readAxis(
     axis = ::core::ptr::null_mut::<otl_BaseAxis>();
     return axis;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readBASE(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -561,7 +541,6 @@ unsafe extern "C" fn axisToJson(mut axis: *const otl_BaseAxis) -> *mut json_valu
     }
     return _axis;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpBASE(
     mut base: *const table_BASE,
     mut root: *mut json_value,
@@ -693,7 +672,6 @@ unsafe extern "C" fn axisFromJson(mut _axis: *const json_value) -> *mut otl_Base
     );
     return axis;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseBASE(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -744,7 +722,6 @@ unsafe extern "C" fn by_tag(
 ) -> ::core::ffi::c_int {
     return (*(a as *mut u32)).wrapping_sub(*(b as *mut u32)) as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Block {
     if axis.is_null() {
         return ::core::ptr::null_mut::<bk_Block>();
@@ -882,7 +859,6 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const otl_BaseAxis) -> *mut bk_Bloc
     taglist.items = ::core::ptr::null_mut::<u32>();
     return bk_new_Block(&[bk_ptr(p16, baseTagList), bk_ptr(p16, baseScriptList)]);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildBASE(
     mut base: *const table_BASE,
     mut _options: *const otfcc_Options,

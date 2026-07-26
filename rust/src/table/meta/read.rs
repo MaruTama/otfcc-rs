@@ -1,18 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    static meta_iEntries: __caryll_vectorinterface_meta_Entries;
-    static table_iMeta: __caryll_elementinterface_table_meta;
-}
 use crate::support::binio::{read_32u};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
-use crate::vendor::sds::{sds};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
-use crate::table::meta::types::{__caryll_elementinterface_table_meta, __caryll_vectorinterface_meta_Entries, meta_Entry, table_meta};
-#[unsafe(no_mangle)]
+use crate::table::meta::types::{meta_Entry, table_meta};
+use crate::table::meta::types::{meta_iEntries, table_iMeta};
+use crate::vendor::sds::{sdsempty, sdsnewlen};
 pub unsafe extern "C" fn otfcc_readMeta(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,

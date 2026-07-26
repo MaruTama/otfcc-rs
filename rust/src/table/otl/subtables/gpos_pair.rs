@@ -2,50 +2,11 @@
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
 unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    static otl_iCoverage: __otfcc_ICoverage;
-    static otl_iClassDef: __otfcc_IClassDef;
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_newGraphFromRootBlock(b: *mut bk_Block) -> *mut bk_Graph;
-    fn bk_delete_Graph(f: *mut bk_Graph);
-    fn bk_minimizeGraph(f: *mut bk_Graph);
-    fn bk_untangleGraph(f: *mut bk_Graph);
-    fn bk_build_Graph(f: *mut bk_Graph) -> *mut caryll_Buffer;
-    fn bk_estimateSizeOfGraph(f: *mut bk_Graph) -> usize;
-    static FORMAT_DWIDTH: u8;
-    fn position_format_length(format: u16) -> u8;
-    fn position_zero() -> otl_PositionValue;
-    fn read_gpos_value(
-        data: font_file_pointer,
-        tableLength: u32,
-        offset: u32,
-        format: u16,
-    ) -> otl_PositionValue;
-    fn required_position_format(v: otl_PositionValue) -> u8;
-    fn bk_gpos_value(v: otl_PositionValue, format: u16) -> *mut bk_Block;
-    fn gpos_dump_value(value: otl_PositionValue) -> *mut json_value;
-    fn gpos_parse_value(pos: *mut json_value) -> otl_PositionValue;
 }
 
 use crate::support::json_funcs::{json_new_position, json_obj_get, json_obj_get_type, preserialize};
-use crate::table::otl::classdef::{__otfcc_IClassDef, expandClassDef, otl_ClassDef, otl_ClassDef_free, readClassDef};
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_free, readCoverage, shrinkCoverage};
+use crate::table::otl::classdef::{expandClassDef, otl_ClassDef, otl_ClassDef_free, readClassDef};
+use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_free, readCoverage, shrinkCoverage};
 use crate::support::handle::{handle_fromIndex, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -60,8 +21,13 @@ use crate::bk::bkgraph::{bk_Graph};
 use crate::support::{NULL};
 use crate::table::otl::{__caryll_elementinterface_subtable_gpos_pair, otl_PositionValue, otl_Subtable, subtable_gpos_pair};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::bk::bkblock::{bk_newBlockFromBuffer};
+use crate::bk::bkgraph::{bk_build_Graph, bk_delete_Graph, bk_estimateSizeOfGraph, bk_minimizeGraph, bk_newGraphFromRootBlock, bk_untangleGraph};
+use crate::table::otl::classdef::{otl_iClassDef};
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::subtables::gpos_common::{FORMAT_DWIDTH, bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, position_zero, read_gpos_value, required_position_format};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_object_new, json_object_push};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -171,7 +137,6 @@ unsafe extern "C" fn subtable_gpos_pair_create() -> *mut subtable_gpos_pair {
 unsafe extern "C" fn subtable_gpos_pair_init(mut x: *mut subtable_gpos_pair) {
     initGposPair(x);
 }
-#[unsafe(no_mangle)]
 pub static iSubtable_gpos_pair: __caryll_elementinterface_subtable_gpos_pair = {
     __caryll_elementinterface_subtable_gpos_pair {
         init: Some(subtable_gpos_pair_init as unsafe extern "C" fn(*mut subtable_gpos_pair) -> ()),
@@ -206,7 +171,6 @@ unsafe extern "C" fn subtable_gpos_pair_free(mut x: *mut subtable_gpos_pair) {
     subtable_gpos_pair_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gpos_pair(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -2019,7 +1983,6 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
     iSubtable_gpos_pair.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const otl_Subtable) -> *mut json_value {
     let mut subtable: *const subtable_gpos_pair = &raw const (*_subtable).gpos_pair;
     let mut st: *mut json_value = json_object_new(3 as usize);
@@ -2098,7 +2061,6 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const otl_Subtable) 
     );
     return st;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_parse_pair(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -2239,7 +2201,6 @@ unsafe extern "C" fn by_pairSecondGlyph(
     return (*(a as *mut IndividualGposPair)).gid as ::core::ffi::c_int
         - (*(b as *mut IndividualGposPair)).gid as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     mut _subtable: *const otl_Subtable,
 ) -> *mut bk_Block {
@@ -2370,7 +2331,6 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     pairCounts = ::core::ptr::null_mut::<glyphid_t>();
     return root;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
     mut _subtable: *const otl_Subtable,
 ) -> *mut bk_Block {
@@ -2422,7 +2382,6 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
     cov = ::core::ptr::null_mut::<otl_Coverage>();
     return root;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_pair(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

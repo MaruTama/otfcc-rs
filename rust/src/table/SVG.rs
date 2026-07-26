@@ -1,31 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    fn bufnew() -> *mut caryll_Buffer;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn bufwrite_bytes(buf: *mut caryll_Buffer, size: usize, str: *const u8);
-    fn bufwrite_buf(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn base64_encode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
-    fn bk_newBlockFromBufferCopy(buf: *const caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint, json_obj_getsds, json_obj_getstr_share};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{otfcc_ILogger};
@@ -38,6 +12,12 @@ use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cve
 use crate::bk::bkblock::{b16, b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{__compar_fn_t};
+use crate::bk::bkblock::{bk_newBlockFromBufferCopy};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::support::base64::{base64_encode};
+use crate::support::buffer::{buffree, bufnew, bufwrite_buf, bufwrite_bytes};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
+use crate::vendor::sds::{sdsempty, sdsfree};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -177,7 +157,6 @@ unsafe extern "C" fn svg_Assignment_replace(mut dst: *mut svg_Assignment, src: s
         ::core::mem::size_of::<svg_Assignment>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static svg_iAssignment: __caryll_elementinterface_svg_Assignment = {
     __caryll_elementinterface_svg_Assignment {
         init: Some(svg_Assignment_init as unsafe extern "C" fn(*mut svg_Assignment) -> ()),
@@ -261,7 +240,6 @@ unsafe fn table_SVG_as_cvec(arr: *mut table_SVG) -> *mut CVecRaw<svg_Assignment>
 unsafe extern "C" fn table_SVG_init(arr: *mut table_SVG) {
     cvec_init(table_SVG_as_cvec(arr));
 }
-#[unsafe(no_mangle)]
 pub static table_iSVG: __caryll_vectorinterface_table_SVG = {
     __caryll_vectorinterface_table_SVG {
         init: Some(table_SVG_init as unsafe extern "C" fn(*mut table_SVG) -> ()),
@@ -505,7 +483,6 @@ unsafe extern "C" fn table_SVG_create() -> *mut table_SVG {
 unsafe extern "C" fn table_SVG_resizeTo(arr: *mut table_SVG, target: usize) {
     cvec_resize_to(table_SVG_as_cvec(arr), target);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readSVG(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -626,7 +603,6 @@ unsafe extern "C" fn canUsePlainFormat(mut buf: *const caryll_Buffer) -> bool {
             && *(*buf).data.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
                 == 'l' as i32;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpSVG(
     mut svg: *const table_SVG,
     mut root: *mut json_value,
@@ -711,7 +687,6 @@ pub unsafe extern "C" fn otfcc_dumpSVG(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseSVG(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -793,7 +768,6 @@ unsafe extern "C" fn byStartGID(
 ) -> ::core::ffi::c_int {
     return (*a).start as ::core::ffi::c_int - (*b).start as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildSVG(
     mut _svg: *const table_SVG,
     mut _options: *const otfcc_Options,

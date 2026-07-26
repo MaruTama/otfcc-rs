@@ -1,18 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
 unsafe extern "C" {
-    fn bufnew() -> *mut caryll_Buffer;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn buflen(buf: *mut caryll_Buffer) -> usize;
-    fn bufclear(buf: *mut caryll_Buffer);
-    fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
-    fn bufwrite_bytes(buf: *mut caryll_Buffer, size: usize, str: *const u8);
-    fn bufwrite_buf(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-    fn buflongalign(buf: *mut caryll_Buffer);
-    fn otfcc_to_f2dot14(x: ::core::ffi::c_double) -> i16;
-    static iVQ: __caryll_vectorinterface_VQ;
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
@@ -30,14 +18,15 @@ use crate::support::primitives::{glyphid_t, shapeid_t};
 use crate::table::glyf::{MASK_ON_CURVE, REF_ANCHOR_CONSOLIDATED, glyf_ComponentFlags, glyf_PointFlags, glyf_ComponentReference, glyf_Glyph, glyf_Point, table_GlyfAndLocaBuffers, table_glyf};
 use crate::table::head::{table_head};
 
-use crate::vf::vq::{__caryll_vectorinterface_VQ};
+use crate::support::buffer::{bufclear, buffree, buflen, buflongalign, bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_buf, bufwrite_bytes};
+use crate::support::primitives::{otfcc_to_f2dot14};
+use crate::vf::vq::{iVQ};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union glyf_ComponentArg {
     pub pointid: u16,
     pub coord: i16,
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn shrinkFlags(mut flags: *mut caryll_Buffer) -> *mut caryll_Buffer {
     if buflen(flags) == 0 {
         return flags;
@@ -290,7 +279,6 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const glyf_Glyph, mut gbuf: *m
         }
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildGlyf(
     mut table: *const table_glyf,
     mut head: *mut table_head,

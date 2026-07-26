@@ -35,7 +35,6 @@ unsafe extern "C" fn DiyFp_from_parts(mut f: u64, mut e: ::core::ffi::c_int) -> 
     fp.e = e;
     return fp;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn DiyFp_from_double(mut d: ::core::ffi::c_double) -> DiyFp {
     let mut u: dtoa_DoubleBits = dtoa_DoubleBits { d: d };
     let mut res: DiyFp = DiyFp_s { f: 0, e: 0 };
@@ -912,7 +911,6 @@ unsafe extern "C" fn Prettify(
         );
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn emyg_dtoa(
     mut value: ::core::ffi::c_double,
     mut buffer: *mut ::core::ffi::c_char,

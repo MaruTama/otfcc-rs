@@ -1,25 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-}
 
 use crate::support::json_funcs::{preserialize};
 use crate::table::otl::coverage::{coverage_entry, otl_Coverage};
@@ -29,12 +9,13 @@ use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::primitives::{glyphclass_t, glyphid_t};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_double, json_integer, json_object, json_value};
 use crate::support::{NULL};
 use crate::support::glyph_order::{glyph_handle};
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::support::buffer::{bufnew, bufwrite16b, bufwrite_bufdel};
+use crate::vendor::json_builder::{json_integer_new, json_object_new, json_object_push};
+use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_ClassDef {
@@ -3016,7 +2997,6 @@ pub(crate) unsafe extern "C" fn shrinkClassDef(mut cd: *mut otl_ClassDef) {
     }
     (*cd).numGlyphs = k;
 }
-#[unsafe(no_mangle)]
 pub static otl_iClassDef: __otfcc_IClassDef = {
     __otfcc_IClassDef {
         init: Some(otl_ClassDef_init as unsafe extern "C" fn(*mut otl_ClassDef) -> ()),

@@ -212,7 +212,6 @@ unsafe extern "C" fn vdmx_Record_copyReplace(mut dst: *mut vdmx_Record, src: vdm
     vdmx_Record_dispose(dst);
     vdmx_Record_copy(dst, &raw const src);
 }
-#[unsafe(no_mangle)]
 pub static vdmx_iRecord: __caryll_elementinterface_vdmx_Record = {
     __caryll_elementinterface_vdmx_Record {
         init: Some(vdmx_Record_init as unsafe extern "C" fn(*mut vdmx_Record) -> ()),
@@ -385,7 +384,6 @@ unsafe extern "C" fn vdmx_Group_init(arr: *mut vdmx_Group) {
 unsafe extern "C" fn vdmx_Group_move(dst: *mut vdmx_Group, src: *mut vdmx_Group) {
     cvec_move(vdmx_Group_as_cvec(dst), vdmx_Group_as_cvec(src));
 }
-#[unsafe(no_mangle)]
 pub static vdmx_iGroup: __caryll_vectorinterface_vdmx_Group = {
     __caryll_vectorinterface_vdmx_Group {
         init: Some(vdmx_Group_init as unsafe extern "C" fn(*mut vdmx_Group) -> ()),
@@ -555,7 +553,6 @@ unsafe extern "C" fn vdmx_RatioRange_replace(mut dst: *mut vdmx_RatioRange, src:
         ::core::mem::size_of::<vdmx_RatioRange>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static vdmx_iRatioRange: __caryll_elementinterface_vdmx_RatioRange = {
     __caryll_elementinterface_vdmx_RatioRange {
         init: Some(vdmx_RatioRange_init as unsafe extern "C" fn(*mut vdmx_RatioRange) -> ()),
@@ -590,7 +587,6 @@ unsafe extern "C" fn vdmx_RatioRagneList_disposeItem(
     } else {
     };
 }
-#[unsafe(no_mangle)]
 pub static vdmx_iRatioRangeList: __caryll_vectorinterface_vdmx_RatioRagneList = {
     __caryll_vectorinterface_vdmx_RatioRagneList {
         init: Some(
@@ -937,7 +933,6 @@ unsafe extern "C" fn table_VDMX_copy(mut dst: *mut table_VDMX, mut src: *const t
         ::core::mem::size_of::<table_VDMX>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static table_iVDMX: __caryll_elementinterface_table_VDMX = {
     __caryll_elementinterface_table_VDMX {
         init: Some(table_VDMX_init as unsafe extern "C" fn(*mut table_VDMX) -> ()),

@@ -1,8 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{fprintf, free};
-unsafe extern "C" {
-    fn buffree(buf: *mut caryll_Buffer);
-}
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -63,6 +60,7 @@ pub type bk_Block = __caryll_bkblock;
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
+use crate::support::buffer::{buffree};
 
 unsafe extern "C" fn bkblock_acells(mut b: *mut bk_Block, mut len: u32) {
     if len <= (*b).length.wrapping_add((*b).free) {
@@ -79,7 +77,6 @@ unsafe extern "C" fn bkblock_acells(mut b: *mut bk_Block, mut len: u32) {
         ) as *mut bk_Cell;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_cellIsPointer(mut cell: *mut bk_Cell) -> bool {
     return (*cell).t >= p16;
 }
@@ -88,7 +85,6 @@ unsafe extern "C" fn bkblock_grow(mut b: *mut bk_Block, mut len: u32) -> *mut bk
     bkblock_acells(b, olen.wrapping_add(len));
     return (*b).cells.offset(olen as isize) as *mut bk_Cell;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn _bkblock_init() -> *mut bk_Block {
     let mut b: *mut bk_Block = ::core::ptr::null_mut::<bk_Block>();
     b = __caryll_allocate_clean(
@@ -98,7 +94,6 @@ pub unsafe extern "C" fn _bkblock_init() -> *mut bk_Block {
     bkblock_acells(b, 0 as u32);
     return b;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bkblock_pushint(
     mut b: *mut bk_Block,
     mut type_0: bk_CellType,
@@ -108,7 +103,6 @@ pub unsafe extern "C" fn bkblock_pushint(
     (*cell).t = type_0;
     (*cell).c2rust_unnamed.z = x;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bkblock_pushptr(
     mut b: *mut bk_Block,
     mut type_0: bk_CellType,
@@ -187,7 +181,6 @@ pub unsafe fn bk_push(b: *mut bk_Block, items: &[bk_Item]) -> *mut bk_Block {
     bkpushitems(b, items);
     return b;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_newBlockFromStringLen(
     len: usize,
     str: *const ::core::ffi::c_char,
@@ -201,7 +194,6 @@ pub unsafe extern "C" fn bk_newBlockFromStringLen(
     }
     return b;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block {
     if buf.is_null() {
         return ::core::ptr::null_mut::<bk_Block>();
@@ -213,7 +205,6 @@ pub unsafe extern "C" fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut 
     buffree(buf);
     return b;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_newBlockFromBufferCopy(buf: *const caryll_Buffer) -> *mut bk_Block {
     if buf.is_null() {
         return ::core::ptr::null_mut::<bk_Block>();
@@ -224,7 +215,6 @@ pub unsafe extern "C" fn bk_newBlockFromBufferCopy(buf: *const caryll_Buffer) ->
     }
     return b;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_printBlock(b: *mut bk_Block) {
     fprintf(
         stderr,

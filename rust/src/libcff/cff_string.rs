@@ -2,11 +2,8 @@
 use crate::support::primitives::{arity_t};
 use crate::vendor::sds::{sds};
 use crate::libcff::cff_index::{cff_Index};
+use crate::vendor::sds::{sdsnew, sdsnewlen};
 
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
-}
 static string_standard: [&::core::ffi::CStr; 391] = [
     c".notdef",
     c"space",
@@ -400,7 +397,6 @@ static string_standard: [&::core::ffi::CStr; 391] = [
     c"Roman",
     c"Semibold",
 ];
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsget_cff_sid(mut idx: u16, mut str: cff_Index) -> sds {
     if idx as ::core::ffi::c_int <= 390 as ::core::ffi::c_int {
         return sdsnew(string_standard[idx as usize].as_ptr());

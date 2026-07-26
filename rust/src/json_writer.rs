@@ -1,125 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-unsafe extern "C" {
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn otfcc_dumpFvar(
-        table: *const table_fvar,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpHead(
-        table: *const table_head,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpGlyf(
-        table: *const table_glyf,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-        ctx: *const GlyfIOContext,
-    );
-    fn otfcc_dumpCFF(table: *const table_CFF, root: *mut json_value, options: *const otfcc_Options);
-    fn otfcc_dumpMaxp(
-        table: *const table_maxp,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpHhea(
-        table: *const table_hhea,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpVhea(
-        table: *const table_vhea,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpOS_2(
-        table: *const table_OS_2,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpPost(
-        table: *const table_post,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpName(
-        table: *const table_name,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpMeta(
-        table: *const table_meta,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpCmap(
-        cmap: *const table_cmap,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpCvt(
-        table: *const table_cvt,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-        tag: *const ::core::ffi::c_char,
-    );
-    fn table_dumpTableFpgmPrep(
-        table: *const table_fpgm_prep,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-        tag: *const ::core::ffi::c_char,
-    );
-    fn otfcc_dumpGasp(
-        table: *const table_gasp,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpVDMX(
-        table: *const table_VDMX,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpGDEF(
-        gdef: *const table_GDEF,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpBASE(
-        base: *const table_BASE,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpOtl(
-        table: *const table_OTL,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-        tag: *const ::core::ffi::c_char,
-    );
-    fn otfcc_dumpCPAL(
-        table: *const table_CPAL,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpCOLR(
-        table: *const table_COLR,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-    fn otfcc_dumpSVG(svg: *const table_SVG, root: *mut json_value, options: *const otfcc_Options);
-    fn otfcc_dumpTSI(
-        table: *const table_TSI,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-        tag: *const ::core::ffi::c_char,
-    );
-    fn otfcc_dumpTSI5(
-        table: *const table_TSI5,
-        root: *mut json_value,
-        options: *const otfcc_Options,
-    );
-}
 
 
 
@@ -136,34 +16,36 @@ use crate::vendor::json::{json_value};
 use crate::font::caryll_font::{otfcc_Font, otfcc_IFontSerializer};
 use crate::support::{NULL};
 
-use crate::table::BASE::{table_BASE};
-use crate::table::CFF::{table_CFF};
-use crate::table::COLR::{table_COLR};
-use crate::table::CPAL::{table_CPAL};
-use crate::table::GDEF::{table_GDEF};
 
-use crate::table::OS_2::{table_OS_2};
-use crate::table::SVG::{table_SVG};
-use crate::table::TSI5::{table_TSI5};
 
-use crate::table::_TSI::{table_TSI};
-use crate::table::cmap::{table_cmap};
-use crate::table::cvt::{table_cvt};
-use crate::table::fpgm_prep::{table_fpgm_prep};
-use crate::table::fvar::{table_fvar};
-use crate::table::gasp::{table_gasp};
-use crate::table::glyf::{GlyfIOContext, table_glyf};
+use crate::table::glyf::GlyfIOContext;
 
-use crate::table::head::{table_head};
-use crate::table::hhea::{table_hhea};
 
-use crate::table::maxp::{table_maxp};
-use crate::table::meta::types::{table_meta};
-use crate::table::name::{table_name};
-use crate::table::otl::{table_OTL};
-use crate::table::post::{table_post};
-use crate::table::vdmx::types::{table_VDMX};
-use crate::table::vhea::{table_vhea};
+use crate::table::BASE::{otfcc_dumpBASE};
+use crate::table::CFF::{otfcc_dumpCFF};
+use crate::table::COLR::{otfcc_dumpCOLR};
+use crate::table::CPAL::{otfcc_dumpCPAL};
+use crate::table::GDEF::{otfcc_dumpGDEF};
+use crate::table::OS_2::{otfcc_dumpOS_2};
+use crate::table::SVG::{otfcc_dumpSVG};
+use crate::table::TSI5::{otfcc_dumpTSI5};
+use crate::table::_TSI::{otfcc_dumpTSI};
+use crate::table::cmap::{otfcc_dumpCmap};
+use crate::table::cvt::{otfcc_dumpCvt};
+use crate::table::fpgm_prep::{table_dumpTableFpgmPrep};
+use crate::table::fvar::{otfcc_dumpFvar};
+use crate::table::gasp::{otfcc_dumpGasp};
+use crate::table::glyf::{otfcc_dumpGlyf};
+use crate::table::head::{otfcc_dumpHead};
+use crate::table::hhea::{otfcc_dumpHhea};
+use crate::table::maxp::{otfcc_dumpMaxp};
+use crate::table::meta::dump::{otfcc_dumpMeta};
+use crate::table::name::{otfcc_dumpName};
+use crate::table::otl::dump::{otfcc_dumpOtl};
+use crate::table::post::{otfcc_dumpPost};
+use crate::table::vdmx::funcs::{otfcc_dumpVDMX};
+use crate::table::vhea::{otfcc_dumpVhea};
+use crate::vendor::json_builder::{json_object_new};
 
 
 
@@ -269,7 +151,6 @@ unsafe extern "C" fn serializeToJson(
 unsafe extern "C" fn freeJsonWriter(mut self_0: *mut otfcc_IFontSerializer) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newJsonWriter() -> *mut otfcc_IFontSerializer {
     let mut writer: *mut otfcc_IFontSerializer = ::core::ptr::null_mut::<otfcc_IFontSerializer>();
     writer = __caryll_allocate_clean(

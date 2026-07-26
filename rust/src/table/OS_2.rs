@@ -1,25 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
-    fn bufwrite_bytes(buf: *mut caryll_Buffer, size: usize, str: *const u8);
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_boolean_new(_: ::core::ffi::c_int) -> *mut json_value;
-}
 use crate::support::binio::{read_16u, read_16s, read_32u};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
@@ -29,6 +9,9 @@ use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_double, json_integer, json_object, json_string, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getnum_fallback, otfcc_dump_flags, otfcc_parse_flags};
+use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_bytes};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct table_OS_2 {
@@ -115,7 +98,6 @@ unsafe extern "C" fn table_OS_2_copyReplace(mut dst: *mut table_OS_2, src: table
 unsafe extern "C" fn table_OS_2_init(mut x: *mut table_OS_2) {
     initOS2(x);
 }
-#[unsafe(no_mangle)]
 pub static table_iOS_2: __caryll_elementinterface_table_OS_2 = {
     __caryll_elementinterface_table_OS_2 {
         init: Some(table_OS_2_init as unsafe extern "C" fn(*mut table_OS_2) -> ()),
@@ -170,7 +152,6 @@ unsafe extern "C" fn table_OS_2_free(mut x: *mut table_OS_2) {
     table_OS_2_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readOS_2(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -599,7 +580,6 @@ pub static unicodeRangeLabels4: [&::core::ffi::CStr; 27] = [
     c"Carian_and_Lycian",
     c"Domino_and_Mahjong_Tiles",
 ];
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpOS_2(
     mut table: *const table_OS_2,
     mut root: *mut json_value,
@@ -861,7 +841,6 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseOS_2(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -1146,7 +1125,6 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
     }
     return os_2;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildOS_2(
     mut os_2: *const table_OS_2,
     mut _options: *const otfcc_Options,

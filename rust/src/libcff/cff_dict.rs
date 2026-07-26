@@ -1,18 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-    fn cff_decodeCffToken(start: *const u8, val: *mut cff_Value) -> u32;
-    fn cff_encodeCffOperator(val: i32) -> *mut caryll_Buffer;
-    fn cff_encodeCffInteger(val: i32) -> *mut caryll_Buffer;
-    fn cff_encodeCffFloat(val: ::core::ffi::c_double) -> *mut caryll_Buffer;
-}
 
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
 use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_UNSET, cff_Value, cff_ValueBody};
+use crate::libcff::cff_codecs::{cff_decodeCffToken, cff_encodeCffFloat, cff_encodeCffInteger, cff_encodeCffOperator};
+use crate::support::buffer::{bufnew, bufwrite_bufdel};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -318,7 +312,6 @@ unsafe extern "C" fn buildDict(mut dict: *const cff_Dict) -> *mut caryll_Buffer 
     }
     return blob;
 }
-#[unsafe(no_mangle)]
 pub static cff_iDict: __caryll_elementinterface_cff_Dict = {
     __caryll_elementinterface_cff_Dict {
         init: Some(cff_Dict_init as unsafe extern "C" fn(*mut cff_Dict) -> ()),

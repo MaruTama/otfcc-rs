@@ -1,32 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    static otl_iCoverage: __otfcc_ICoverage;
-    static otl_iClassDef: __otfcc_IClassDef;
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
 use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, preserialize};
-use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef, otl_ClassDef_free, readClassDef};
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
+use crate::table::otl::classdef::{otl_ClassDef, otl_ClassDef_free, readClassDef};
+use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
 use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle_empty, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 use crate::support::binio::{read_16u};
 use crate::logger::{otfcc_ILogger};
@@ -39,8 +15,13 @@ use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cve
 use crate::bk::bkblock::{b16, b32, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::support::{__compar_fn_t};
+use crate::bk::bkblock::{bk_newBlockFromBuffer};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::table::otl::classdef::{otl_iClassDef};
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::sds::{sdsempty, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_CaretValue {
@@ -194,7 +175,6 @@ pub struct __caryll_elementinterface_table_GDEF {
     pub create: Option<unsafe extern "C" fn() -> *mut table_GDEF>,
     pub free: Option<unsafe extern "C" fn(*mut table_GDEF) -> ()>,
 }
-#[unsafe(no_mangle)]
 pub static otl_iCaretValue: __caryll_elementinterface_otl_CaretValue =
     __caryll_elementinterface_otl_CaretValue {
         init: None,
@@ -374,7 +354,6 @@ unsafe extern "C" fn otl_CaretValueList_init(arr: *mut otl_CaretValueList) {
 unsafe extern "C" fn otl_CaretValueList_push(arr: *mut otl_CaretValueList, elem: otl_CaretValue) {
     cvec_push(otl_CaretValueList_as_cvec(arr), elem);
 }
-#[unsafe(no_mangle)]
 pub static otl_iCaretValueList: __caryll_vectorinterface_otl_CaretValueList = {
     __caryll_vectorinterface_otl_CaretValueList {
         init: Some(otl_CaretValueList_init as unsafe extern "C" fn(*mut otl_CaretValueList) -> ()),
@@ -522,7 +501,6 @@ unsafe extern "C" fn deleteGdefLigCaretRec(mut v: *mut otl_CaretValueRecord) {
         .dispose
         .expect("non-null function pointer")(&raw mut (*v).carets);
 }
-#[unsafe(no_mangle)]
 pub static otl_iCaretValueRecord: __caryll_elementinterface_otl_CaretValueRecord = {
     __caryll_elementinterface_otl_CaretValueRecord {
         init: Some(initGdefLigCaretRec as unsafe extern "C" fn(*mut otl_CaretValueRecord) -> ()),
@@ -543,7 +521,6 @@ unsafe fn otl_LigCaretTable_as_cvec(arr: *mut otl_LigCaretTable) -> *mut CVecRaw
 unsafe extern "C" fn otl_LigCaretTable_init(arr: *mut otl_LigCaretTable) {
     cvec_init(otl_LigCaretTable_as_cvec(arr));
 }
-#[unsafe(no_mangle)]
 pub static otl_iLigCaretTable: __caryll_vectorinterface_otl_LigCaretTable = {
     __caryll_vectorinterface_otl_LigCaretTable {
         init: Some(otl_LigCaretTable_init as unsafe extern "C" fn(*mut otl_LigCaretTable) -> ()),
@@ -891,7 +868,6 @@ unsafe extern "C" fn table_GDEF_init(mut x: *mut table_GDEF) {
 unsafe extern "C" fn table_GDEF_dispose(mut x: *mut table_GDEF) {
     disposeGDEF(x);
 }
-#[unsafe(no_mangle)]
 pub static table_iGDEF: __caryll_elementinterface_table_GDEF = {
     __caryll_elementinterface_table_GDEF {
         init: Some(table_GDEF_init as unsafe extern "C" fn(*mut table_GDEF) -> ()),
@@ -1037,7 +1013,6 @@ unsafe extern "C" fn readLigCaretRecord(
     }
     return g;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readGDEF(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -1244,7 +1219,6 @@ unsafe extern "C" fn dumpGDEFLigCarets(mut gdef: *const table_GDEF) -> *mut json
     }
     return _carets;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpGDEF(
     mut gdef: *const table_GDEF,
     mut root: *mut json_value,
@@ -1375,7 +1349,6 @@ unsafe extern "C" fn ligCaretFromJson(
         j = j.wrapping_add(1);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseGDEF(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -1462,7 +1435,6 @@ unsafe extern "C" fn writeLigCarets(mut lc: *const otl_LigCaretTable) -> *mut bk
     otl_Coverage_free(cov);
     return lct;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildGDEF(
     mut gdef: *const table_GDEF,
     mut _options: *const otfcc_Options,

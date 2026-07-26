@@ -2,25 +2,6 @@
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort, strcmp, strlen};
 unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
-    fn json_null_new() -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsfree(s: sds);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
 }
 
 use crate::support::json_funcs::{json_new_position, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback, preserialize};
@@ -39,8 +20,10 @@ use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cve
 use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_push};
 use crate::support::{NULL, __compar_fn_t};
 use crate::table::otl::{__caryll_vectorinterface_otl_MarkArray, otl_Anchor, otl_MarkArray, otl_MarkRecord, otl_PositionValue};
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::support::buffer::{bufwrite16b};
+use crate::vendor::json_builder::{json_null_new, json_object_new, json_object_push};
+use crate::vendor::sds::{sdsfree, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_MarkRecord {
@@ -228,7 +211,6 @@ unsafe extern "C" fn otl_MarkArray_filterEnv(
     }
     (*arr).length = j;
 }
-#[unsafe(no_mangle)]
 pub static otl_iMarkArray: __caryll_vectorinterface_otl_MarkArray = {
     __caryll_vectorinterface_otl_MarkArray {
         init: Some(otl_MarkArray_init as unsafe extern "C" fn(*mut otl_MarkArray) -> ()),
@@ -360,7 +342,6 @@ unsafe extern "C" fn otl_MarkArray_push(arr: *mut otl_MarkArray, elem: otl_MarkR
 unsafe extern "C" fn otl_MarkArray_grow(arr: *mut otl_MarkArray) {
     cvec_grow(otl_MarkArray_as_cvec(arr));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_readMarkArray(
     mut array: *mut otl_MarkArray,
     mut cov: *mut otl_Coverage,
@@ -425,7 +406,6 @@ unsafe extern "C" fn compare_classHash(
         (*b).className as *const ::core::ffi::c_char,
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_parseMarkArray(
     mut _marks: *mut json_value,
     mut array: *mut otl_MarkArray,
@@ -1776,7 +1756,6 @@ pub unsafe extern "C" fn otl_parseMarkArray(
         j_0 = j_0.wrapping_add(1);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_anchor_absent() -> otl_Anchor {
     let mut anchor: otl_Anchor = otl_Anchor {
         present: false,
@@ -1785,7 +1764,6 @@ pub unsafe extern "C" fn otl_anchor_absent() -> otl_Anchor {
     };
     return anchor;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_anchor(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -1814,7 +1792,6 @@ pub unsafe extern "C" fn otl_read_anchor(
         return anchor;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_dump_anchor(mut a: otl_Anchor) -> *mut json_value {
     if a.present {
         let mut v: *mut json_value = json_object_new(2 as usize);
@@ -1833,7 +1810,6 @@ pub unsafe extern "C" fn otl_dump_anchor(mut a: otl_Anchor) -> *mut json_value {
         return json_null_new();
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_parse_anchor(mut v: *mut json_value) -> otl_Anchor {
     let mut anchor: otl_Anchor = otl_Anchor {
         present: false,
@@ -1858,22 +1834,16 @@ pub unsafe extern "C" fn otl_parse_anchor(mut v: *mut json_value) -> otl_Anchor 
     ) as pos_t;
     return anchor;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bkFromAnchor(mut a: otl_Anchor) -> *mut bk_Block {
     if !a.present {
         return ::core::ptr::null_mut::<bk_Block>();
     }
     return bk_new_Block(&[bk_int(b16, 1 as u32), bk_int(b16, (a.x as i16 as ::core::ffi::c_int) as u32), bk_int(b16, (a.y as i16 as ::core::ffi::c_int) as u32)]);
 }
-#[unsafe(no_mangle)]
 pub static FORMAT_DX: u8 = 1 as u8;
-#[unsafe(no_mangle)]
 pub static FORMAT_DY: u8 = 2 as u8;
-#[unsafe(no_mangle)]
 pub static FORMAT_DWIDTH: u8 = 4 as u8;
-#[unsafe(no_mangle)]
 pub static FORMAT_DHEIGHT: u8 = 8 as u8;
-#[unsafe(no_mangle)]
 pub static bits_in: [u8; 256] = [
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
@@ -3156,13 +3126,11 @@ pub static bits_in: [u8; 256] = [
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int) as u8,
 ];
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn position_format_length(mut format: u16) -> u8 {
     return ((bits_in[(format as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as usize]
         as ::core::ffi::c_int)
         << 1 as ::core::ffi::c_int) as u8;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn position_zero() -> otl_PositionValue {
     let mut v: otl_PositionValue = otl_PositionValue {
         dx: 0.0f64,
@@ -3172,7 +3140,6 @@ pub unsafe extern "C" fn position_zero() -> otl_PositionValue {
     };
     return v;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn read_gpos_value(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -3206,7 +3173,6 @@ pub unsafe extern "C" fn read_gpos_value(
     }
     return v;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gpos_dump_value(mut value: otl_PositionValue) -> *mut json_value {
     let mut v: *mut json_value = json_object_new(4 as usize);
     if value.dx != 0. {
@@ -3239,7 +3205,6 @@ pub unsafe extern "C" fn gpos_dump_value(mut value: otl_PositionValue) -> *mut j
     }
     return preserialize(v);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gpos_parse_value(mut pos: *mut json_value) -> otl_PositionValue {
     let mut v: otl_PositionValue = otl_PositionValue {
         dx: 0.0f64,
@@ -3260,7 +3225,6 @@ pub unsafe extern "C" fn gpos_parse_value(mut pos: *mut json_value) -> otl_Posit
         json_obj_getnum(pos, b"dHeight\0" as *const u8 as *const ::core::ffi::c_char) as pos_t;
     return v;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn required_position_format(mut v: otl_PositionValue) -> u8 {
     return ((if v.dx != 0. {
         FORMAT_DX as ::core::ffi::c_int
@@ -3280,7 +3244,6 @@ pub unsafe extern "C" fn required_position_format(mut v: otl_PositionValue) -> u
         0 as ::core::ffi::c_int
     })) as u8;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn write_gpos_value(
     mut buf: *mut caryll_Buffer,
     mut v: otl_PositionValue,
@@ -3299,7 +3262,6 @@ pub unsafe extern "C" fn write_gpos_value(
         bufwrite16b(buf, pos_to_u16(v.dHeight));
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bk_gpos_value(
     mut v: otl_PositionValue,
     mut format: u16,

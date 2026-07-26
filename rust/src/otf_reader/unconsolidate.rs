@@ -1,30 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-unsafe extern "C" {
-    fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    fn otfcc_to_f2dot14(x: ::core::ffi::c_double) -> i16;
-    fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16;
-    static iVQ: __caryll_vectorinterface_VQ;
-    static table_iVmtx: __caryll_elementinterface_table_vmtx;
-    static table_iVORG: __caryll_elementinterface_table_VORG;
-    static table_iHmtx: __caryll_elementinterface_table_hmtx;
-    static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
-    static otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn buflen(buf: *mut caryll_Buffer) -> usize;
-    fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
-    fn bufwrite_bytes(buf: *mut caryll_Buffer, size: usize, str: *const u8);
-    fn aglfn_setupNames(map: *mut otfcc_GlyphOrder);
-    fn sha1_init(ctx: *mut SHA1_CTX);
-    fn sha1_update(ctx: *mut SHA1_CTX, data: *const BYTE, len: usize);
-    fn sha1_final(ctx: *mut SHA1_CTX, hash: *mut BYTE);
-}
 
 
 
@@ -33,11 +8,11 @@ use crate::support::alloc::{__caryll_allocate_clean};
 
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{f16dot16, glyphid_t, pos_t, tableid_t};
+use crate::support::primitives::{glyphid_t, pos_t, tableid_t};
 use crate::vendor::sds::{Hex2Upper, Hex4Upper, sds};
 use crate::font::caryll_font::{otfcc_Font};
 use crate::support::{NULL};
-use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry, otfcc_GlyphOrderPackage};
+use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry};
 use crate::support::sha1::{BYTE, SHA1_CTX};
 
 
@@ -48,7 +23,7 @@ use crate::support::sha1::{BYTE, SHA1_CTX};
 
 
 
-use crate::table::VORG::{__caryll_elementinterface_table_VORG, table_VORG};
+use crate::table::VORG::table_VORG;
 
 use crate::table::cmap::{cmap_Entry};
 
@@ -59,20 +34,31 @@ use crate::table::glyf::{glyf_ComponentReference, glyf_Contour, glyf_Glyph, tabl
 
 
 
-use crate::table::hmtx::{__caryll_elementinterface_table_hmtx, table_hmtx};
+use crate::table::hmtx::table_hmtx;
 
 
 
-use crate::table::otl::{__caryll_vectorinterface_otl_SubtableList, otl_ChainingRule, otl_Lookup, otl_Subtable, otl_SubtableList, otl_SubtablePtr, otl_chaining_canonical, otl_chaining_poly, otl_type_gpos_chaining, otl_type_gsub_chaining, table_OTL};
+use crate::table::otl::{otl_ChainingRule, otl_Lookup, otl_Subtable, otl_SubtableList, otl_SubtablePtr, otl_chaining_canonical, otl_chaining_poly, otl_type_gpos_chaining, otl_type_gsub_chaining, table_OTL};
 
 
 
 
-use crate::table::vmtx::{__caryll_elementinterface_table_vmtx, table_vmtx};
+use crate::table::vmtx::table_vmtx;
 
 
 use crate::vf::region::{vq_AxisSpan};
-use crate::vf::vq::{VQ, VQ_DELTA, VQ_STILL, __caryll_vectorinterface_VQ, vq_Segment};
+use crate::vf::vq::{VQ, VQ_DELTA, VQ_STILL, vq_Segment};
+use crate::support::aglfn::{aglfn_setupNames};
+use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
+use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
+use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
+use crate::table::VORG::{table_iVORG};
+use crate::table::hmtx::{table_iHmtx};
+use crate::table::otl::{otl_iSubtableList};
+use crate::table::vmtx::{table_iVmtx};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew};
+use crate::vf::vq::{iVQ};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -124,7 +110,6 @@ unsafe extern "C" fn hashVQ(buf: *mut caryll_Buffer, x: VQ) {
         hashVQS(buf, *x.shift.items.offset(j as isize));
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn nameGlyphByHash(
     mut g: *mut glyf_Glyph,
     mut glyf: *mut table_glyf,
@@ -661,7 +646,6 @@ unsafe extern "C" fn mergeLTSH(font: *mut otfcc_Font) {
         }
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_unconsolidateFont(
     mut font: *mut otfcc_Font,
     mut options: *const otfcc_Options,

@@ -1,21 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strcmp};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    static otl_iCoverage: __otfcc_ICoverage;
-    fn fontop_consolidateCoverage(
-        font: *mut otfcc_Font,
-        coverage: *mut otl_Coverage,
-        options: *const otfcc_Options,
-    );
-}
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, shrinkCoverage};
+use crate::table::otl::coverage::shrinkCoverage;
 use crate::support::handle::{HANDLE_STATE_INDEX, handle_consolidateTo, otfcc_Handle, otfcc_Handle_dispose, otfcc_LookupHandle};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{glyphid_t, tableid_t};
-use crate::vendor::sds::{sds};
 
 use crate::font::caryll_font::{otfcc_Font};
 
@@ -45,6 +35,8 @@ use crate::font::caryll_font::{otfcc_Font};
 
 
 use crate::table::otl::{otl_ChainingRule, otl_Subtable, subtable_chaining, table_OTL};
+use crate::consolidate::otl::common::{fontop_consolidateCoverage};
+use crate::vendor::sds::{sdsempty};
 
 
 
@@ -56,7 +48,6 @@ use crate::table::otl::{otl_ChainingRule, otl_Subtable, subtable_chaining, table
 
 
 pub type lookup_handle = otfcc_LookupHandle;
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_chaining(
     mut font: *mut otfcc_Font,
     mut table: *mut table_OTL,

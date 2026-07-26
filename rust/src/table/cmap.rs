@@ -1,33 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, strtol};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    fn sdsfromlonglong(value: ::core::ffi::c_longlong) -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn buflen(buf: *mut caryll_Buffer) -> usize;
-    fn bufseek(buf: *mut caryll_Buffer, pos: usize);
-    fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite24b(buf: *mut caryll_Buffer, x: u32);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
-    fn bufwrite_buf(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_newBlockFromBufferCopy(buf: *const caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
 
 use crate::support::json_funcs::{json_obj_get_type};
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_GlyphHandle};
@@ -45,6 +17,11 @@ use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{NULL};
 use crate::support::glyph_order::{glyph_handle};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::bk::bkblock::{bk_newBlockFromBuffer, bk_newBlockFromBufferCopy};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::support::buffer::{buffree, buflen, bufnew, bufseek, bufwrite16b, bufwrite24b, bufwrite32b, bufwrite8, bufwrite_buf};
+use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsfromlonglong, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cmap_Entry {
@@ -333,7 +310,6 @@ unsafe extern "C" fn table_cmap_move(mut dst: *mut table_cmap, mut src: *mut tab
 unsafe extern "C" fn table_cmap_init(mut x: *mut table_cmap) {
     initCmap(x);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
     mut cmap: *mut table_cmap,
     mut c: ::core::ffi::c_int,
@@ -1085,7 +1061,6 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
         return false;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_encodeCmapByName(
     mut cmap: *mut table_cmap,
     mut c: ::core::ffi::c_int,
@@ -1837,7 +1812,6 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
         return false;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_unmapCmap(
     mut cmap: *mut table_cmap,
     mut c: ::core::ffi::c_int,
@@ -2205,7 +2179,6 @@ pub unsafe extern "C" fn otfcc_unmapCmap(
         return false;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_cmapLookup(
     mut cmap: *const table_cmap,
     mut c: ::core::ffi::c_int,
@@ -2520,7 +2493,6 @@ pub unsafe extern "C" fn otfcc_cmapLookup(
         return ::core::ptr::null_mut::<otfcc_GlyphHandle>();
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
     mut cmap: *mut table_cmap,
     mut c: cmap_UVS_key,
@@ -3264,7 +3236,6 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
         return false;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
     mut cmap: *mut table_cmap,
     mut c: cmap_UVS_key,
@@ -4008,7 +3979,6 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
         return false;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_unmapCmapUVS(
     mut cmap: *mut table_cmap,
     mut c: cmap_UVS_key,
@@ -4368,7 +4338,6 @@ pub unsafe extern "C" fn otfcc_unmapCmapUVS(
         return false;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_cmapLookupUVS(
     mut cmap: *const table_cmap,
     mut c: cmap_UVS_key,
@@ -4678,7 +4647,6 @@ pub unsafe extern "C" fn otfcc_cmapLookupUVS(
         return ::core::ptr::null_mut::<otfcc_GlyphHandle>();
     };
 }
-#[unsafe(no_mangle)]
 pub static table_iCmap: __caryll_elementinterface_table_cmap = {
     __caryll_elementinterface_table_cmap {
         init: Some(table_cmap_init as unsafe extern "C" fn(*mut table_cmap) -> ()),
@@ -5033,13 +5001,11 @@ unsafe extern "C" fn isValidCmapEncoding(mut platform: u16, mut encoding: u16) -
         || platform as ::core::ffi::c_int == 3 as ::core::ffi::c_int
             && encoding as ::core::ffi::c_int == 10 as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub static formatPriorities: [tableid_t; 3] = [
     12 as ::core::ffi::c_int as tableid_t,
     4 as ::core::ffi::c_int as tableid_t,
     0 as ::core::ffi::c_int as tableid_t,
 ];
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readCmap(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -5503,7 +5469,6 @@ pub unsafe extern "C" fn otfcc_readCmap(
     }
     return ::core::ptr::null_mut::<table_cmap>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpCmap(
     mut table: *const table_cmap,
     mut root: *mut json_value,
@@ -5751,7 +5716,6 @@ unsafe extern "C" fn parseCmapUVS(
         j = j.wrapping_add(1);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseCmap(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -6454,7 +6418,6 @@ unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const table_cmap) -> *m
     bufwrite32b(buf, buflen(buf) as u32);
     return buf;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildCmap(
     mut cmap: *const table_cmap,
     mut options: *const otfcc_Options,

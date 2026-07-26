@@ -1,20 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
 
 
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
+use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 
 use crate::support::alloc::__caryll_reallocate;
@@ -23,7 +11,6 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
@@ -31,6 +18,11 @@ use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p
 use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_multi, otl_GsubMultiEntry, otl_Subtable, subtable_gsub_multi};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
 use crate::support::{__compar_fn_t};
+use crate::bk::bkblock::{bk_newBlockFromBuffer};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::vendor::json_builder::{json_object_new, json_object_push};
+use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_GsubMultiEntry {
@@ -67,7 +59,6 @@ unsafe fn as_cvec(arr: *mut subtable_gsub_multi) -> *mut CVecRaw<otl_GsubMultiEn
 unsafe extern "C" fn subtable_gsub_multi_growTo(arr: *mut subtable_gsub_multi, target: usize) {
     cvec_grow_to(as_cvec(arr), target);
 }
-#[unsafe(no_mangle)]
 pub static iSubtable_gsub_multi: __caryll_vectorinterface_subtable_gsub_multi = {
     __caryll_vectorinterface_subtable_gsub_multi {
         init: Some(
@@ -387,7 +378,6 @@ unsafe extern "C" fn subtable_gsub_multi_filterEnv(
     }
     (*arr).length = j;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gsub_multi(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -472,7 +462,6 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_dump_multi(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -488,7 +477,6 @@ pub unsafe extern "C" fn otl_gsub_dump_multi(
     }
     return st;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_parse_multi(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -545,7 +533,6 @@ unsafe extern "C" fn buildGsubMultiSubtableRange(
     return bk_build_Block(root);
 }
 pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: ::core::ffi::c_int = 0xff00 as ::core::ffi::c_int;
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,
@@ -598,7 +585,6 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
     *count = nParts;
     return parts;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

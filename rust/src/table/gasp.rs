@@ -1,31 +1,18 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_boolean_new(_: ::core::ffi::c_int) -> *mut json_value;
-}
 use crate::support::binio::{read_16u};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphsize_t, tableid_t};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_object, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{__compar_fn_t};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getbool, json_obj_getint_fallback};
+use crate::support::buffer::{bufnew, bufwrite16b};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -147,7 +134,6 @@ unsafe extern "C" fn gasp_Record_init(mut x: *mut gasp_Record) {
         ::core::mem::size_of::<gasp_Record>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static gasp_iRecord: __caryll_elementinterface_gasp_Record = {
     __caryll_elementinterface_gasp_Record {
         init: Some(gasp_Record_init as unsafe extern "C" fn(*mut gasp_Record) -> ()),
@@ -334,7 +320,6 @@ unsafe extern "C" fn gasp_RecordList_filterEnv(
     }
     (*arr).length = j;
 }
-#[unsafe(no_mangle)]
 pub static gasp_iRecordList: __caryll_vectorinterface_gasp_RecordList = {
     __caryll_vectorinterface_gasp_RecordList {
         init: Some(gasp_RecordList_init as unsafe extern "C" fn(*mut gasp_RecordList) -> ()),
@@ -513,7 +498,6 @@ unsafe extern "C" fn table_gasp_copyReplace(mut dst: *mut table_gasp, src: table
     table_gasp_dispose(dst);
     table_gasp_copy(dst, &raw const src);
 }
-#[unsafe(no_mangle)]
 pub static table_iGasp: __caryll_elementinterface_table_gasp = {
     __caryll_elementinterface_table_gasp {
         init: Some(table_gasp_init as unsafe extern "C" fn(*mut table_gasp) -> ()),
@@ -542,7 +526,6 @@ unsafe extern "C" fn table_gasp_free(mut x: *mut table_gasp) {
     table_gasp_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readGasp(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -637,7 +620,6 @@ pub unsafe extern "C" fn otfcc_readGasp(
     }
     return ::core::ptr::null_mut::<table_gasp>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpGasp(
     mut table: *const table_gasp,
     mut root: *mut json_value,
@@ -709,7 +691,6 @@ pub unsafe extern "C" fn otfcc_dumpGasp(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseGasp(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -782,7 +763,6 @@ pub unsafe extern "C" fn otfcc_parseGasp(
     }
     return gasp;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildGasp(
     mut gasp: *const table_gasp,
     mut _options: *const otfcc_Options,

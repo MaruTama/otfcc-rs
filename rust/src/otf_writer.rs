@@ -2,132 +2,6 @@
 pub mod stat;
 
 use libc::{free};
-unsafe extern "C" {
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
-    fn otfcc_buildHead(
-        head: *const table_head,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildGlyf(
-        table: *const table_glyf,
-        head: *mut table_head,
-        options: *const otfcc_Options,
-    ) -> table_GlyfAndLocaBuffers;
-    fn otfcc_buildCFF(
-        cffAndGlyf: table_CFFAndGlyf,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildMaxp(
-        maxp: *const table_maxp,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildHhea(
-        hhea: *const table_hhea,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildVhea(
-        vhea: *const table_vhea,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildVmtx(
-        table: *const table_vmtx,
-        count_a: glyphid_t,
-        count_k: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildOS_2(
-        os_2: *const table_OS_2,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildPost(
-        post: *const table_post,
-        glyphorder: *mut otfcc_GlyphOrder,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildName(
-        name: *const table_name,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildMeta(
-        meta: *const table_meta,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildCmap(
-        cmap: *const table_cmap,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildCvt(table: *const table_cvt, options: *const otfcc_Options)
-        -> *mut caryll_Buffer;
-    fn otfcc_buildFpgmPrep(
-        table: *const table_fpgm_prep,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildGasp(
-        table: *const table_gasp,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildVDMX(
-        vdmx: *const table_VDMX,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildLTSH(
-        ltsh: *const table_LTSH,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildVORG(
-        table: *const table_VORG,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildGDEF(
-        gdef: *const table_GDEF,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildBASE(
-        base: *const table_BASE,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildOtl(
-        table: *const table_OTL,
-        options: *const otfcc_Options,
-        tag: *const ::core::ffi::c_char,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildCPAL(
-        cpal: *const table_CPAL,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildCOLR(
-        colr: *const table_COLR,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_buildSVG(svg: *const table_SVG, options: *const otfcc_Options) -> *mut caryll_Buffer;
-    fn otfcc_buildTSI(TSI: *const table_TSI, options: *const otfcc_Options) -> tsi_BuildTarget;
-    fn otfcc_buildTSI5(
-        TSI: *const table_TSI5,
-        options: *const otfcc_Options,
-        numGlyphs: glyphid_t,
-    ) -> *mut caryll_Buffer;
-    fn otfcc_newSFNTBuilder(
-        header: u32,
-        options: *const otfcc_Options,
-    ) -> *mut otfcc_SFNTBuilder;
-    fn otfcc_SFNTBuilder_pushTable(
-        builder: *mut otfcc_SFNTBuilder,
-        tag: u32,
-        buffer: *mut caryll_Buffer,
-    );
-    fn otfcc_deleteSFNTBuilder(builder: *mut otfcc_SFNTBuilder);
-    fn otfcc_SFNTBuilder_serialize(builder: *mut otfcc_SFNTBuilder) -> *mut caryll_Buffer;
-    fn otfcc_statFont(font: *mut otfcc_Font, options: *const otfcc_Options);
-    fn otfcc_unstatFont(font: *mut otfcc_Font, options: *const otfcc_Options);
-    fn otfcc_buildHmtx(
-        table: *const table_hmtx,
-        count_a: glyphid_t,
-        count_k: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut caryll_Buffer;
-}
 
 
 
@@ -142,36 +16,41 @@ use crate::support::primitives::{glyphid_t};
 use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, otfcc_Font, otfcc_IFontSerializer};
 use crate::font::caryll_sfnt_builder::{otfcc_SFNTBuilder};
 
-use crate::support::glyph_order::{otfcc_GlyphOrder};
-use crate::table::BASE::{table_BASE};
 use crate::table::CFF::{table_CFFAndGlyf};
-use crate::table::COLR::{table_COLR};
-use crate::table::CPAL::{table_CPAL};
-use crate::table::GDEF::{table_GDEF};
-use crate::table::LTSH::{table_LTSH};
-use crate::table::OS_2::{table_OS_2};
-use crate::table::SVG::{table_SVG};
-use crate::table::TSI5::{table_TSI5};
-use crate::table::VORG::{table_VORG};
-use crate::table::_TSI::{table_TSI, tsi_BuildTarget};
-use crate::table::cmap::{table_cmap};
-use crate::table::cvt::{table_cvt};
-use crate::table::fpgm_prep::{table_fpgm_prep};
+use crate::table::_TSI::tsi_BuildTarget;
 
-use crate::table::gasp::{table_gasp};
-use crate::table::glyf::{table_GlyfAndLocaBuffers, table_glyf};
+use crate::table::glyf::table_GlyfAndLocaBuffers;
 
-use crate::table::head::{table_head};
-use crate::table::hhea::{table_hhea};
-use crate::table::hmtx::{table_hmtx};
-use crate::table::maxp::{table_maxp};
-use crate::table::meta::types::{table_meta};
-use crate::table::name::{table_name};
-use crate::table::otl::{table_OTL};
-use crate::table::post::{table_post};
-use crate::table::vdmx::types::{table_VDMX};
-use crate::table::vhea::{table_vhea};
-use crate::table::vmtx::{table_vmtx};
+use crate::font::caryll_sfnt_builder::{otfcc_SFNTBuilder_pushTable, otfcc_SFNTBuilder_serialize, otfcc_deleteSFNTBuilder, otfcc_newSFNTBuilder};
+use crate::otf_writer::stat::{otfcc_statFont, otfcc_unstatFont};
+use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
+use crate::table::BASE::{otfcc_buildBASE};
+use crate::table::CFF::{otfcc_buildCFF};
+use crate::table::COLR::{otfcc_buildCOLR};
+use crate::table::CPAL::{otfcc_buildCPAL};
+use crate::table::GDEF::{otfcc_buildGDEF};
+use crate::table::LTSH::{otfcc_buildLTSH};
+use crate::table::OS_2::{otfcc_buildOS_2};
+use crate::table::SVG::{otfcc_buildSVG};
+use crate::table::TSI5::{otfcc_buildTSI5};
+use crate::table::VORG::{otfcc_buildVORG};
+use crate::table::_TSI::{otfcc_buildTSI};
+use crate::table::cmap::{otfcc_buildCmap};
+use crate::table::cvt::{otfcc_buildCvt};
+use crate::table::fpgm_prep::{otfcc_buildFpgmPrep};
+use crate::table::gasp::{otfcc_buildGasp};
+use crate::table::glyf::build::{otfcc_buildGlyf};
+use crate::table::head::{otfcc_buildHead};
+use crate::table::hhea::{otfcc_buildHhea};
+use crate::table::hmtx::{otfcc_buildHmtx};
+use crate::table::maxp::{otfcc_buildMaxp};
+use crate::table::meta::build::{otfcc_buildMeta};
+use crate::table::name::{otfcc_buildName};
+use crate::table::otl::build::{otfcc_buildOtl};
+use crate::table::post::{otfcc_buildPost};
+use crate::table::vdmx::funcs::{otfcc_buildVDMX};
+use crate::table::vhea::{otfcc_buildVhea};
+use crate::table::vmtx::{otfcc_buildVmtx};
 
 
 
@@ -415,7 +294,6 @@ unsafe extern "C" fn serializeToOTF(
 unsafe extern "C" fn freeFontWriter(mut self_0: *mut otfcc_IFontSerializer) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newOTFWriter() -> *mut otfcc_IFontSerializer {
     let mut writer: *mut otfcc_IFontSerializer = ::core::ptr::null_mut::<otfcc_IFontSerializer>();
     writer = __caryll_allocate_clean(

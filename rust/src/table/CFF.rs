@@ -1,91 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, strlen};
 unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    fn sdscat(s: sds, t: *const ::core::ffi::c_char) -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds);
-    fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-    fn otfcc_from_fixed(x: f16dot16) -> ::core::ffi::c_double;
-    fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16;
-    static iVQ: __caryll_vectorinterface_VQ;
-    static glyf_iPoint: __caryll_elementinterface_glyf_Point;
-    static glyf_iContour: __caryll_vectorinterface_glyf_Contour;
-    static glyf_iContourList: __caryll_vectorinterface_glyf_ContourList;
-    static glyf_iStemDefList: __caryll_vectorinterface_glyf_StemDefList;
-    static glyf_iMaskList: __caryll_vectorinterface_glyf_MaskList;
-    static table_iGlyf: __caryll_vectorinterface_table_glyf;
-    fn otfcc_newGlyf_glyph() -> *mut glyf_Glyph;
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
-    fn json_boolean_new(_: ::core::ffi::c_int) -> *mut json_value;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn json_new_VQ(z: VQ, fvar: *const table_fvar) -> *mut json_value;
-    fn cffnum(v: cff_Value) -> ::core::ffi::c_double;
-    static cff_iIndex: __caryll_elementinterface_cff_Index;
-    static cff_iDict: __caryll_elementinterface_cff_Dict;
-    fn cff_build_Charset(cset: cff_Charset) -> *mut caryll_Buffer;
-    fn cff_close_FDSelect(fds: cff_FDSelect);
-    fn cff_build_FDSelect(fd: cff_FDSelect) -> *mut caryll_Buffer;
-    fn sdsget_cff_sid(idx: u16, str: cff_Index) -> sds;
-    fn cff_encodeCffOperator(val: i32) -> *mut caryll_Buffer;
-    fn cff_buildOffset(val: i32) -> *mut caryll_Buffer;
-    fn cff_buildHeader() -> *mut caryll_Buffer;
-    fn cff_parseSubr(
-        idx: u16,
-        raw: *mut u8,
-        fdarray: cff_Index,
-        select: cff_FDSelect,
-        subr: *mut cff_Index,
-    ) -> u8;
-    fn cff_parseOutline(
-        data: *mut u8,
-        len: u32,
-        gsubr: cff_Index,
-        lsubr: cff_Index,
-        stack: *mut cff_Stack,
-        outline: *mut ::core::ffi::c_void,
-        methods: cff_IOutlineBuilder,
-        options: *const otfcc_Options,
-    );
-    fn cff_openStream(
-        data: *mut u8,
-        len: u32,
-        options: *const otfcc_Options,
-    ) -> *mut cff_File;
-    fn cff_close(file: *mut cff_File);
-    fn cff_compileGlyphToIL(
-        g: *mut glyf_Glyph,
-        defaultWidth: u16,
-        nominalWidth: u16,
-    ) -> *mut cff_CharstringIL;
-    fn cff_optimizeIL(il: *mut cff_CharstringIL, options: *const otfcc_Options);
-    static cff_iSubrGraph: __caryll_elementinterface_cff_SubrGraph;
-    fn cff_insertILToGraph(g: *mut cff_SubrGraph, il: *mut cff_CharstringIL);
-    fn cff_ilGraphToBuffers(
-        g: *mut cff_SubrGraph,
-        s: *mut *mut caryll_Buffer,
-        gs: *mut *mut caryll_Buffer,
-        ls: *mut *mut caryll_Buffer,
-        options: *const otfcc_Options,
-    );
 }
 
 use crate::support::handle::{handle_fromIndex, otfcc_FDHandle};
@@ -94,27 +10,45 @@ use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::logger::{otfcc_ILogger};
 use crate::support::buffer::{bufninit, caryll_Buffer};
 use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{arity_t, cffsid_t, f16dot16, font_file_pointer, glyphid_t, pos_t, scale_t, shapeid_t, tableid_t};
+use crate::support::primitives::{arity_t, cffsid_t, font_file_pointer, glyphid_t, pos_t, scale_t, shapeid_t, tableid_t};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 use crate::vendor::json::{json_array, json_object, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::libcff::{cff_File, cff_IOutlineBuilder, cff_Stack, op_BlueFuzz, op_BlueScale, op_BlueShift, op_BlueValues, op_CIDCount, op_CIDFontRevision, op_CIDFontVersion, op_CharStrings, op_Copyright, op_ExpansionFactor, op_FDArray, op_FDSelect, op_FamilyBlues, op_FamilyName, op_FamilyOtherBlues, op_FontBBox, op_FontMatrix, op_FontName, op_ForceBold, op_FullName, op_ItalicAngle, op_LanguageGroup, op_Notice, op_OtherBlues, op_Private, op_ROS, op_StdHW, op_StdVW, op_StemSnapH, op_StemSnapV, op_StrokeWidth, op_Subrs, op_UIDBase, op_UnderlinePosition, op_UnderlineThickness, op_Weight, op_charset, op_defaultWidthX, op_initialRandomSeed, op_isFixedPitch, op_nominalWidthX, op_version};
 use crate::libcff::cff_charset::{cff_CHARSET_FORMAT0, cff_CHARSET_FORMAT1, cff_CHARSET_FORMAT2, cff_CHARSET_ISOADOBE, cff_Charset, cff_CharsetRangeFormat2};
-use crate::libcff::cff_dict::{__caryll_elementinterface_cff_Dict, cff_Dict, cff_DictEntry};
+use crate::libcff::cff_dict::{cff_Dict, cff_DictEntry};
 use crate::libcff::cff_fdselect::{cff_FDSELECT_FORMAT3, cff_FDSELECT_UNSPECED, cff_FDSelect, cff_FDSelectRangeFormat3};
-use crate::libcff::cff_index::{CFF_INDEX_16, __caryll_elementinterface_cff_Index, cff_Index};
+use crate::libcff::cff_index::{CFF_INDEX_16, cff_Index};
 use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_UNSET, cff_Value, cff_ValueBody, cff_Value_Type};
 use crate::libcff::charstring_il::{cff_CharstringIL, cff_CharstringInstruction};
-use crate::libcff::subr::{__caryll_elementinterface_cff_SubrGraph, cff_SubrDiagramIndex, cff_SubrGraph, cff_SubrRule};
+use crate::libcff::subr::{cff_SubrDiagramIndex, cff_SubrGraph, cff_SubrRule};
 use crate::support::{NULL, false_0, true_0};
 use crate::table::fvar::{table_fvar};
-use crate::table::glyf::{__caryll_elementinterface_glyf_Point, __caryll_vectorinterface_glyf_Contour, __caryll_vectorinterface_glyf_ContourList, __caryll_vectorinterface_glyf_MaskList, __caryll_vectorinterface_glyf_StemDefList, __caryll_vectorinterface_table_glyf, glyf_Contour, glyf_Glyph, glyf_GlyphPtr, glyf_MaskList, glyf_Point, glyf_PostscriptHintMask, glyf_PostscriptStemDef, table_glyf};
+use crate::table::glyf::{glyf_Contour, glyf_Glyph, glyf_GlyphPtr, glyf_MaskList, glyf_Point, glyf_PostscriptHintMask, glyf_PostscriptStemDef, table_glyf};
 use crate::table::head::{table_head};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 
 
-use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_SegList, vq_Segment};
+use crate::vf::vq::{VQ, vq_SegList, vq_Segment};
 use crate::support::json_funcs::{json_numof, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds};
+use crate::libcff::cff_charset::{cff_build_Charset};
+use crate::libcff::cff_codecs::{cff_encodeCffOperator};
+use crate::libcff::cff_dict::{cff_iDict};
+use crate::libcff::cff_fdselect::{cff_build_FDSelect, cff_close_FDSelect};
+use crate::libcff::cff_index::{cff_iIndex};
+use crate::libcff::cff_parser::{cff_close, cff_openStream, cff_parseOutline, cff_parseSubr};
+use crate::libcff::cff_string::{sdsget_cff_sid};
+use crate::libcff::cff_value::{cffnum};
+use crate::libcff::cff_writer::{cff_buildHeader, cff_buildOffset};
+use crate::libcff::charstring_il::{cff_compileGlyphToIL, cff_optimizeIL};
+use crate::libcff::subr::{cff_iSubrGraph, cff_ilGraphToBuffers, cff_insertILToGraph};
+use crate::support::buffer::{buffree, bufnew, bufwrite_bufdel, bufwrite_sds};
+use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
+use crate::table::fvar::{json_new_VQ};
+use crate::table::glyf::{glyf_iContour, glyf_iContourList, glyf_iMaskList, glyf_iPoint, glyf_iStemDefList, otfcc_newGlyf_glyph, table_iGlyf};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_string_new_length};
+use crate::vendor::sds::{sdscat, sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
+use crate::vf::vq::{iVQ};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -285,15 +219,11 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     }
     return 0 as usize;
 }
-#[unsafe(no_mangle)]
 pub static DEFAULT_BLUE_SCALE: ::core::ffi::c_double = 0.039625f64;
-#[unsafe(no_mangle)]
 pub static DEFAULT_BLUE_SHIFT: ::core::ffi::c_double =
     7 as ::core::ffi::c_int as ::core::ffi::c_double;
-#[unsafe(no_mangle)]
 pub static DEFAULT_BLUE_FUZZ: ::core::ffi::c_double =
     1 as ::core::ffi::c_int as ::core::ffi::c_double;
-#[unsafe(no_mangle)]
 pub static DEFAULT_EXPANSION_FACTOR: ::core::ffi::c_double = 0.06f64;
 unsafe extern "C" fn otfcc_newCff_private() -> *mut cff_PrivateDict {
     let mut pd: *mut cff_PrivateDict = ::core::ptr::null_mut::<cff_PrivateDict>();
@@ -386,7 +316,6 @@ unsafe extern "C" fn table_CFF_replace(mut dst: *mut table_CFF, src: table_CFF) 
         ::core::mem::size_of::<table_CFF>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static table_iCFF: __caryll_elementinterface_table_CFF = {
     __caryll_elementinterface_table_CFF {
         init: Some(table_CFF_init as unsafe extern "C" fn(*mut table_CFF) -> ()),
@@ -1594,7 +1523,6 @@ unsafe extern "C" fn applyCffMatrix(
         jj = jj.wrapping_add(1);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readCFFAndGlyfTables(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -2094,7 +2022,6 @@ unsafe extern "C" fn fdToJson(mut table: *const table_CFF) -> *mut json_value {
     }
     return _CFF_;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpCFF(
     mut table: *const table_CFF,
     mut root: *mut json_value,
@@ -2408,7 +2335,6 @@ unsafe extern "C" fn fdFromJson(
     }
     return table;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseCFF(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -4160,7 +4086,6 @@ unsafe extern "C" fn writecff_CIDKeyed(
     endingPositionOfPrivates = ::core::ptr::null_mut::<usize>();
     return blob;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildCFF(
     cffAndGlyf: table_CFFAndGlyf,
     mut options: *const otfcc_Options,

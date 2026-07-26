@@ -1,55 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset, strcmp, strtol};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
-    static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
-    fn otfcc_parseHead(root: *const json_value, options: *const otfcc_Options) -> *mut table_head;
-    fn otfcc_parseGlyf(
-        root: *const json_value,
-        glyph_order: *mut otfcc_GlyphOrder,
-        options: *const otfcc_Options,
-    ) -> *mut table_glyf;
-    fn otfcc_parseCFF(root: *const json_value, options: *const otfcc_Options) -> *mut table_CFF;
-    fn otfcc_parseMaxp(root: *const json_value, options: *const otfcc_Options) -> *mut table_maxp;
-    fn otfcc_parseHhea(root: *const json_value, options: *const otfcc_Options) -> *mut table_hhea;
-    fn otfcc_parseVhea(root: *const json_value, options: *const otfcc_Options) -> *mut table_vhea;
-    fn otfcc_parseOS_2(root: *const json_value, options: *const otfcc_Options) -> *mut table_OS_2;
-    fn otfcc_parsePost(root: *const json_value, options: *const otfcc_Options) -> *mut table_post;
-    fn otfcc_parseName(root: *const json_value, options: *const otfcc_Options) -> *mut table_name;
-    fn otfcc_parseMeta(root: *const json_value, options: *const otfcc_Options) -> *mut table_meta;
-    fn otfcc_parseCmap(root: *const json_value, options: *const otfcc_Options) -> *mut table_cmap;
-    fn otfcc_parseCvt(
-        root: *const json_value,
-        options: *const otfcc_Options,
-        tag: *const ::core::ffi::c_char,
-    ) -> *mut table_cvt;
-    fn otfcc_parseFpgmPrep(
-        root: *const json_value,
-        options: *const otfcc_Options,
-        tag: *const ::core::ffi::c_char,
-    ) -> *mut table_fpgm_prep;
-    fn otfcc_parseGasp(root: *const json_value, options: *const otfcc_Options) -> *mut table_gasp;
-    fn otfcc_parseVDMX(root: *const json_value, options: *const otfcc_Options) -> *mut table_VDMX;
-    fn otfcc_parseGDEF(root: *const json_value, options: *const otfcc_Options) -> *mut table_GDEF;
-    fn otfcc_parseBASE(root: *const json_value, options: *const otfcc_Options) -> *mut table_BASE;
-    fn otfcc_parseOtl(
-        root: *const json_value,
-        options: *const otfcc_Options,
-        tag: *const ::core::ffi::c_char,
-    ) -> *mut table_OTL;
-    fn otfcc_parseCPAL(root: *const json_value, options: *const otfcc_Options) -> *mut table_CPAL;
-    fn otfcc_parseCOLR(root: *const json_value, options: *const otfcc_Options) -> *mut table_COLR;
-    fn otfcc_parseSVG(root: *const json_value, options: *const otfcc_Options) -> *mut table_SVG;
-    fn otfcc_parseTSI(
-        root: *const json_value,
-        options: *const otfcc_Options,
-        tag: *const ::core::ffi::c_char,
-    ) -> *mut table_TSI;
-    fn otfcc_parseTSI5(root: *const json_value, options: *const otfcc_Options) -> *mut table_TSI5;
-}
 
 
 
@@ -64,39 +14,42 @@ use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{glyphid_t};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
 use crate::vendor::json::{json_array, json_object, json_string, json_value};
-use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, __caryll_elementinterface_otfcc_Font, otfcc_Font, otfcc_IFontBuilder, otfcc_font_subtype};
+use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, otfcc_Font, otfcc_IFontBuilder, otfcc_font_subtype};
 use crate::support::{NULL};
-use crate::support::glyph_order::{ORD_CMAP, ORD_GLYF, ORD_GLYPHORDER, ORD_NOTDEF, json_GlyphOrderPass, otfcc_GlyphOrder, otfcc_GlyphOrderEntry, otfcc_GlyphOrderPackage};
-use crate::table::BASE::{table_BASE};
-use crate::table::CFF::{table_CFF};
-use crate::table::COLR::{table_COLR};
-use crate::table::CPAL::{table_CPAL};
-use crate::table::GDEF::{table_GDEF};
+use crate::support::glyph_order::{ORD_CMAP, ORD_GLYF, ORD_GLYPHORDER, ORD_NOTDEF, json_GlyphOrderPass, otfcc_GlyphOrder, otfcc_GlyphOrderEntry};
 
-use crate::table::OS_2::{table_OS_2};
-use crate::table::SVG::{table_SVG};
-use crate::table::TSI5::{table_TSI5};
 
-use crate::table::_TSI::{table_TSI};
-use crate::table::cmap::{table_cmap};
-use crate::table::cvt::{table_cvt};
-use crate::table::fpgm_prep::{table_fpgm_prep};
 
-use crate::table::gasp::{table_gasp};
-use crate::table::glyf::{table_glyf};
 
-use crate::table::head::{table_head};
-use crate::table::hhea::{table_hhea};
 
-use crate::table::maxp::{table_maxp};
-use crate::table::meta::types::{table_meta};
-use crate::table::name::{table_name};
-use crate::table::otl::{table_OTL};
-use crate::table::post::{table_post};
-use crate::table::vdmx::types::{table_VDMX};
-use crate::table::vhea::{table_vhea};
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::font::caryll_font::{otfcc_iFont};
+use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::table::BASE::{otfcc_parseBASE};
+use crate::table::CFF::{otfcc_parseCFF};
+use crate::table::COLR::{otfcc_parseCOLR};
+use crate::table::CPAL::{otfcc_parseCPAL};
+use crate::table::GDEF::{otfcc_parseGDEF};
+use crate::table::OS_2::{otfcc_parseOS_2};
+use crate::table::SVG::{otfcc_parseSVG};
+use crate::table::TSI5::{otfcc_parseTSI5};
+use crate::table::_TSI::{otfcc_parseTSI};
+use crate::table::cmap::{otfcc_parseCmap};
+use crate::table::cvt::{otfcc_parseCvt};
+use crate::table::fpgm_prep::{otfcc_parseFpgmPrep};
+use crate::table::gasp::{otfcc_parseGasp};
+use crate::table::glyf::{otfcc_parseGlyf};
+use crate::table::head::{otfcc_parseHead};
+use crate::table::hhea::{otfcc_parseHhea};
+use crate::table::maxp::{otfcc_parseMaxp};
+use crate::table::meta::parse::{otfcc_parseMeta};
+use crate::table::name::{otfcc_parseName};
+use crate::table::otl::parse::{otfcc_parseOtl};
+use crate::table::post::{otfcc_parsePost};
+use crate::table::vdmx::funcs::{otfcc_parseVDMX};
+use crate::table::vhea::{otfcc_parseVhea};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 
 
 
@@ -2080,7 +2033,6 @@ unsafe extern "C" fn readJson(
 unsafe extern "C" fn freeReader(mut self_0: *mut otfcc_IFontBuilder) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newJsonReader() -> *mut otfcc_IFontBuilder {
     let mut reader: *mut otfcc_IFontBuilder = ::core::ptr::null_mut::<otfcc_IFontBuilder>();
     reader = __caryll_allocate_clean(

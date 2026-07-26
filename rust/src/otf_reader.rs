@@ -2,74 +2,6 @@
 pub mod unconsolidate;
 
 use libc::{free};
-unsafe extern "C" {
-    static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
-    fn otfcc_readFvar(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_fvar;
-    fn otfcc_readHead(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_head;
-    fn otfcc_readGlyf(
-        packet: otfcc_Packet,
-        options: *const otfcc_Options,
-        ctx: *const GlyfIOContext,
-    ) -> *mut table_glyf;
-    fn otfcc_readCFFAndGlyfTables(
-        packet: otfcc_Packet,
-        options: *const otfcc_Options,
-        head: *const table_head,
-    ) -> table_CFFAndGlyf;
-    fn otfcc_readMaxp(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_maxp;
-    fn otfcc_readHhea(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_hhea;
-    fn otfcc_readVhea(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_vhea;
-    fn otfcc_readVmtx(
-        packet: otfcc_Packet,
-        options: *const otfcc_Options,
-        vhea: *mut table_vhea,
-        maxp: *mut table_maxp,
-    ) -> *mut table_vmtx;
-    fn otfcc_readOS_2(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_OS_2;
-    fn otfcc_readPost(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_post;
-    fn otfcc_readName(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_name;
-    fn otfcc_readMeta(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_meta;
-    fn otfcc_readCmap(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_cmap;
-    fn otfcc_readCvt(
-        packet: otfcc_Packet,
-        options: *const otfcc_Options,
-        tag: u32,
-    ) -> *mut table_cvt;
-    fn otfcc_readFpgmPrep(
-        packet: otfcc_Packet,
-        options: *const otfcc_Options,
-        tag: u32,
-    ) -> *mut table_fpgm_prep;
-    fn otfcc_readGasp(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_gasp;
-    fn otfcc_readVDMX(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_VDMX;
-    fn otfcc_readLTSH(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_LTSH;
-    fn otfcc_readVORG(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_VORG;
-    fn otfcc_readGDEF(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_GDEF;
-    fn otfcc_readBASE(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_BASE;
-    fn otfcc_readOtl(
-        packet: otfcc_Packet,
-        options: *const otfcc_Options,
-        tag: u32,
-        maxGlyphs: glyphid_t,
-    ) -> *mut table_OTL;
-    fn otfcc_readCPAL(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_CPAL;
-    fn otfcc_readCOLR(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_COLR;
-    fn otfcc_readSVG(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_SVG;
-    fn otfcc_readTSI(
-        packet: otfcc_Packet,
-        options: *const otfcc_Options,
-        tagIndex: u32,
-        tagText: u32,
-    ) -> *mut table_TSI;
-    fn otfcc_readTSI5(packet: otfcc_Packet, options: *const otfcc_Options) -> *mut table_TSI5;
-    fn otfcc_unconsolidateFont(font: *mut otfcc_Font, options: *const otfcc_Options);
-    fn otfcc_readHmtx(
-        packet: otfcc_Packet,
-        options: *const otfcc_Options,
-        hhea: *mut table_hhea,
-        maxp: *mut table_maxp,
-    ) -> *mut table_hmtx;
-}
 
 
 
@@ -81,39 +13,43 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{glyphid_t, shapeid_t};
 
-use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, __caryll_elementinterface_otfcc_Font, otfcc_Font, otfcc_IFontBuilder, otfcc_font_subtype};
+use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, otfcc_Font, otfcc_IFontBuilder, otfcc_font_subtype};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece, otfcc_SplineFontContainer};
 
 
-use crate::table::BASE::{table_BASE};
 use crate::table::CFF::{table_CFFAndGlyf};
-use crate::table::COLR::{table_COLR};
-use crate::table::CPAL::{table_CPAL};
-use crate::table::GDEF::{table_GDEF};
-use crate::table::LTSH::{table_LTSH};
-use crate::table::OS_2::{table_OS_2};
-use crate::table::SVG::{table_SVG};
-use crate::table::TSI5::{table_TSI5};
-use crate::table::VORG::{table_VORG};
-use crate::table::_TSI::{table_TSI};
-use crate::table::cmap::{table_cmap};
-use crate::table::cvt::{table_cvt};
-use crate::table::fpgm_prep::{table_fpgm_prep};
-use crate::table::fvar::{table_fvar};
-use crate::table::gasp::{table_gasp};
-use crate::table::glyf::{GlyfIOContext, table_glyf};
+use crate::table::glyf::GlyfIOContext;
 
-use crate::table::head::{table_head};
-use crate::table::hhea::{table_hhea};
-use crate::table::hmtx::{table_hmtx};
-use crate::table::maxp::{table_maxp};
-use crate::table::meta::types::{table_meta};
-use crate::table::name::{table_name};
-use crate::table::otl::{table_OTL};
-use crate::table::post::{table_post};
-use crate::table::vdmx::types::{table_VDMX};
-use crate::table::vhea::{table_vhea};
-use crate::table::vmtx::{table_vmtx};
+use crate::font::caryll_font::{otfcc_iFont};
+use crate::otf_reader::unconsolidate::{otfcc_unconsolidateFont};
+use crate::table::BASE::{otfcc_readBASE};
+use crate::table::CFF::{otfcc_readCFFAndGlyfTables};
+use crate::table::COLR::{otfcc_readCOLR};
+use crate::table::CPAL::{otfcc_readCPAL};
+use crate::table::GDEF::{otfcc_readGDEF};
+use crate::table::LTSH::{otfcc_readLTSH};
+use crate::table::OS_2::{otfcc_readOS_2};
+use crate::table::SVG::{otfcc_readSVG};
+use crate::table::TSI5::{otfcc_readTSI5};
+use crate::table::VORG::{otfcc_readVORG};
+use crate::table::_TSI::{otfcc_readTSI};
+use crate::table::cmap::{otfcc_readCmap};
+use crate::table::cvt::{otfcc_readCvt};
+use crate::table::fpgm_prep::{otfcc_readFpgmPrep};
+use crate::table::fvar::{otfcc_readFvar};
+use crate::table::gasp::{otfcc_readGasp};
+use crate::table::glyf::read::{otfcc_readGlyf};
+use crate::table::head::{otfcc_readHead};
+use crate::table::hhea::{otfcc_readHhea};
+use crate::table::hmtx::{otfcc_readHmtx};
+use crate::table::maxp::{otfcc_readMaxp};
+use crate::table::meta::read::{otfcc_readMeta};
+use crate::table::name::{otfcc_readName};
+use crate::table::otl::read::{otfcc_readOtl};
+use crate::table::post::{otfcc_readPost};
+use crate::table::vdmx::funcs::{otfcc_readVDMX};
+use crate::table::vhea::{otfcc_readVhea};
+use crate::table::vmtx::{otfcc_readVmtx};
 
 
 
@@ -256,7 +192,6 @@ unsafe extern "C" fn readOtf(
 unsafe extern "C" fn freeReader(mut self_0: *mut otfcc_IFontBuilder) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newOTFReader() -> *mut otfcc_IFontBuilder {
     let mut reader: *mut otfcc_IFontBuilder = ::core::ptr::null_mut::<otfcc_IFontBuilder>();
     reader = __caryll_allocate_clean(

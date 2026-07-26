@@ -2,11 +2,8 @@
 use libc::{memcpy};
 use crate::support::primitives::{glyphid_t};
 use crate::vendor::sds::{sds};
+use crate::vendor::sds::{sdsdup, sdsfree};
 
-unsafe extern "C" {
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-}
 /// Which of `otfcc_Handle`'s fields is meaningful.
 ///
 /// A real `enum` rather than c2rust's `pub type handle_state = c_uint` plus
@@ -170,7 +167,6 @@ pub(crate) unsafe extern "C" fn handle_consolidateTo(
     (*h).index = id;
     (*h).name = sdsdup(name);
 }
-#[unsafe(no_mangle)]
 pub static otfcc_iHandle: otfcc_HandlePackage = {
     otfcc_HandlePackage {
         init: Some(otfcc_Handle_init as unsafe extern "C" fn(*mut otfcc_Handle) -> ()),

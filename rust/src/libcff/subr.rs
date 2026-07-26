@@ -1,17 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, strncmp};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn buflen(buf: *mut caryll_Buffer) -> usize;
-    fn bufwrite_buf(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-    static cff_iIndex: __caryll_elementinterface_cff_Index;
-    fn cff_mergeCS2Int(blob: *mut caryll_Buffer, val: i32);
-    fn cff_mergeCS2Operator(blob: *mut caryll_Buffer, val: i32);
-    fn cff_mergeCS2Operand(blob: *mut caryll_Buffer, val: ::core::ffi::c_double);
-    fn cff_mergeCS2Special(blob: *mut caryll_Buffer, val: u8);
-}
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -19,12 +7,15 @@ use crate::logger::{log_type_progress, log_vl_progress, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 
-use crate::vendor::sds::{sds};
 use crate::libcff::{op_callgsubr, op_callsubr, op_endchar, op_return, type2_max_subrs, type2_subr_nesting};
-use crate::libcff::cff_index::{__caryll_elementinterface_cff_Index, cff_Index};
+use crate::libcff::cff_index::cff_Index;
 use crate::libcff::charstring_il::{cff_CharstringIL};
 use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::libcff::cff_index::{cff_iIndex};
+use crate::libcff::cff_writer::{cff_mergeCS2Int, cff_mergeCS2Operand, cff_mergeCS2Operator, cff_mergeCS2Special};
+use crate::support::buffer::{buffree, buflen, bufnew, bufwrite_buf};
+use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __cff_SubrRule {
@@ -230,7 +221,6 @@ unsafe extern "C" fn disposeSubrGraph(mut g: *mut cff_SubrGraph) {
             as *mut cff_SubrDiagramIndex;
     }
 }
-#[unsafe(no_mangle)]
 pub static cff_iSubrGraph: __caryll_elementinterface_cff_SubrGraph = {
     __caryll_elementinterface_cff_SubrGraph {
         init: Some(cff_SubrGraph_init as unsafe extern "C" fn(*mut cff_SubrGraph) -> ()),
@@ -4339,7 +4329,6 @@ unsafe extern "C" fn appendNodeToGraph(mut g: *mut cff_SubrGraph, mut n: *mut cf
         }
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_insertILToGraph(
     mut g: *mut cff_SubrGraph,
     mut il: *mut cff_CharstringIL,
@@ -4536,7 +4525,6 @@ unsafe extern "C" fn from_array(
     bufwrite_buf(blob, context.offset(j as isize));
     return blob;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_ilGraphToBuffers(
     mut g: *mut cff_SubrGraph,
     mut s: *mut *mut caryll_Buffer,

@@ -1,26 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, memcpy, memset, snprintf, strlen, strtol};
-unsafe extern "C" {
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsfree(s: sds);
-    fn base64_encode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
-    fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
-}
 
 use crate::support::json_funcs::{preserialize};
 
@@ -31,7 +10,9 @@ use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_integer, json_string, json_value};
 
 use crate::support::ctype_compat::{c_isdigit, c_tolower};
-use crate::vendor::json_builder::json_serialize_opts;
+use crate::support::base64::{base64_decode, base64_encode};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_string_new, json_string_new_length};
+use crate::vendor::sds::{sdsfree, sdsnewlen};
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
 /// instructions. `u8`, since that is what `instrdata.instrs` holds.
@@ -822,7 +803,6 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
     *bts.offset(i as isize) = bt_impliedreturn;
     return lh;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dump_ttinstr(
     mut instructions: *mut u8,
     mut length: u32,
@@ -881,7 +861,6 @@ pub unsafe extern "C" fn dump_ttinstr(
         return preserialize(ret);
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_ttinstr(
     mut col: *mut json_value,
     mut context: *mut ::core::ffi::c_void,

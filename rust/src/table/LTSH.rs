@@ -1,10 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-}
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -14,6 +9,7 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::buffer::{bufnew, bufwrite16b, bufwrite8};
 
 
 #[derive(Copy, Clone)]
@@ -50,7 +46,6 @@ unsafe extern "C" fn table_LTSH_free(mut x: *mut table_LTSH) {
     table_LTSH_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub static table_iLTSH: __caryll_elementinterface_table_LTSH = {
     __caryll_elementinterface_table_LTSH {
         init: Some(table_LTSH_init as unsafe extern "C" fn(*mut table_LTSH) -> ()),
@@ -121,7 +116,6 @@ unsafe extern "C" fn table_LTSH_replace(mut dst: *mut table_LTSH, src: table_LTS
         ::core::mem::size_of::<table_LTSH>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readLTSH(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -168,7 +162,6 @@ pub unsafe extern "C" fn otfcc_readLTSH(
     }
     return ::core::ptr::null_mut::<table_LTSH>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildLTSH(
     mut ltsh: *const table_LTSH,
     mut _options: *const otfcc_Options,

@@ -1,13 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    static otl_iCoverage: __otfcc_ICoverage;
-    static iSubtable_chaining: __caryll_elementinterface_subtable_chaining;
-}
 
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage};
+use crate::table::otl::coverage::otl_Coverage;
 use crate::support::handle::{handle_fromName, otfcc_Handle_empty, otfcc_LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -15,11 +10,12 @@ use crate::support::alloc::{__caryll_allocate_clean};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{tableid_t};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_object, json_string, json_value};
 
-use crate::table::otl::{__caryll_elementinterface_subtable_chaining, otl_ChainLookupApplication, otl_ChainingRule, otl_Subtable, otl_chaining_canonical, subtable_chaining};
-#[unsafe(no_mangle)]
+use crate::table::otl::{otl_ChainLookupApplication, otl_ChainingRule, otl_Subtable, otl_chaining_canonical, subtable_chaining};
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
+use crate::vendor::sds::{sdsnewlen};
 pub unsafe extern "C" fn otl_parse_chaining(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,

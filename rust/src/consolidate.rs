@@ -3,114 +3,7 @@ pub mod otl;
 
 use libc::{free, strcmp};
 unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    static tsi_iEntry: __caryll_elementinterface_tsi_Entry;
-    static table_iTSI: __caryll_vectorinterface_table_TSI;
-    static glyf_iContourList: __caryll_vectorinterface_glyf_ContourList;
-    static glyf_iStemDefList: __caryll_vectorinterface_glyf_StemDefList;
-    static glyf_iMaskList: __caryll_vectorinterface_glyf_MaskList;
-    static glyf_iComponentReference: __caryll_elementinterface_glyf_ComponentReference;
-    static glyf_iReferenceList: __caryll_vectorinterface_glyf_ReferenceList;
-    static iVQ: __caryll_vectorinterface_VQ;
-    static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
-    static iSubtable_gsub_single: __caryll_vectorinterface_subtable_gsub_single;
-    static iSubtable_gsub_multi: __caryll_vectorinterface_subtable_gsub_multi;
-    static iSubtable_gsub_ligature: __caryll_vectorinterface_subtable_gsub_ligature;
-    static iSubtable_chaining: __caryll_elementinterface_subtable_chaining;
-    static iSubtable_gsub_reverse: __caryll_elementinterface_subtable_gsub_reverse;
-    static iSubtable_gpos_single: __caryll_vectorinterface_subtable_gpos_single;
-    static iSubtable_gpos_pair: __caryll_elementinterface_subtable_gpos_pair;
-    static iSubtable_gpos_cursive: __caryll_vectorinterface_subtable_gpos_cursive;
-    static iSubtable_gpos_markToSingle: __caryll_elementinterface_subtable_gpos_markToSingle;
-    static iSubtable_gpos_markToLigature: __caryll_elementinterface_subtable_gpos_markToLigature;
-    static otl_iLookupList: __caryll_vectorinterface_otl_LookupList;
-    static otl_iLookupRefList: __caryll_vectorinterface_otl_LookupRefList;
-    static otl_iFeatureList: __caryll_vectorinterface_otl_FeatureList;
-    static otl_iFeatureRefList: __caryll_vectorinterface_otl_FeatureRefList;
-    static colr_iLayer: __caryll_elementinterface_colr_Layer;
-    static colr_iLayerList: __caryll_vectorinterface_colr_LayerList;
-    static colr_iMapping: __caryll_elementinterface_colr_Mapping;
-    static table_iCOLR: __caryll_vectorinterface_table_COLR;
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn otfcc_newGlyf_glyph() -> *mut glyf_Glyph;
-    fn fontop_consolidateClassDef(
-        font: *mut otfcc_Font,
-        cd: *mut otl_ClassDef,
-        options: *const otfcc_Options,
-    );
-    fn consolidate_gsub_single(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_gsub_multi(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_gsub_alternative(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_gsub_ligature(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_gsub_reverse(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_gpos_single(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_gpos_pair(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_gpos_cursive(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_chaining(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_mark_to_single(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_mark_to_ligature(
-        font: *mut otfcc_Font,
-        table: *mut table_OTL,
-        _subtable: *mut otl_Subtable,
-        options: *const otfcc_Options,
-    ) -> bool;
-    fn consolidate_GDEF(
-        font: *mut otfcc_Font,
-        gdef: *mut table_GDEF,
-        options: *const otfcc_Options,
-    );
 }
 
 
@@ -124,24 +17,23 @@ use crate::support::primitives::{glyphid_t, pos_t, shapeid_t, tableid_t};
 use crate::vendor::sds::{Hex4Upper, sds};
 use crate::font::caryll_font::{otfcc_Font};
 use crate::support::{NULL};
-use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderPackage};
+use crate::support::glyph_order::otfcc_GlyphOrder;
 
 use crate::table::CFF::{table_CFF};
-use crate::table::COLR::{__caryll_elementinterface_colr_Layer, __caryll_elementinterface_colr_Mapping, __caryll_vectorinterface_colr_LayerList, __caryll_vectorinterface_table_COLR, colr_Layer, colr_LayerList, colr_Mapping, table_COLR};
-
-use crate::table::GDEF::{table_GDEF};
+use crate::table::COLR::{colr_Layer, colr_LayerList, colr_Mapping, table_COLR};
 
 
 
 
 
-use crate::table::_TSI::{TSI_GLYPH, __caryll_elementinterface_tsi_Entry, __caryll_vectorinterface_table_TSI, table_TSI, tsi_Entry};
+
+use crate::table::_TSI::{TSI_GLYPH, table_TSI, tsi_Entry};
 use crate::table::cmap::{cmap_Entry, cmap_UVS_Entry};
 
 
 
 
-use crate::table::glyf::{REF_ANCHOR_ANCHOR, REF_ANCHOR_CONSOLIDATED, REF_ANCHOR_CONSOLIDATING_ANCHOR, REF_ANCHOR_CONSOLIDATING_XY, REF_XY, __caryll_elementinterface_glyf_ComponentReference, __caryll_vectorinterface_glyf_ContourList, __caryll_vectorinterface_glyf_MaskList, __caryll_vectorinterface_glyf_ReferenceList, __caryll_vectorinterface_glyf_StemDefList, glyf_ComponentReference, glyf_Glyph, glyf_GlyphPtr, glyf_Point, glyf_PostscriptHintMask, glyf_PostscriptStemDef, table_glyf};
+use crate::table::glyf::{REF_ANCHOR_ANCHOR, REF_ANCHOR_CONSOLIDATED, REF_ANCHOR_CONSOLIDATING_ANCHOR, REF_ANCHOR_CONSOLIDATING_XY, REF_XY, glyf_ComponentReference, glyf_Glyph, glyf_GlyphPtr, glyf_Point, glyf_PostscriptHintMask, glyf_PostscriptStemDef, table_glyf};
 
 
 
@@ -149,7 +41,7 @@ use crate::table::glyf::{REF_ANCHOR_ANCHOR, REF_ANCHOR_CONSOLIDATED, REF_ANCHOR_
 
 
 
-use crate::table::otl::{__caryll_elementinterface_subtable_chaining, __caryll_elementinterface_subtable_gpos_markToLigature, __caryll_elementinterface_subtable_gpos_markToSingle, __caryll_elementinterface_subtable_gpos_pair, __caryll_elementinterface_subtable_gsub_reverse, __caryll_vectorinterface_otl_FeatureList, __caryll_vectorinterface_otl_FeatureRefList, __caryll_vectorinterface_otl_LookupList, __caryll_vectorinterface_otl_LookupRefList, __caryll_vectorinterface_subtable_gpos_cursive, __caryll_vectorinterface_subtable_gpos_single, __caryll_vectorinterface_subtable_gsub_ligature, __caryll_vectorinterface_subtable_gsub_multi, __caryll_vectorinterface_subtable_gsub_single, otl_Feature, otl_FeaturePtr, otl_FeatureRef, otl_LanguageSystem, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupType, otl_Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, subtable_chaining, subtable_gpos_cursive, subtable_gpos_markToLigature, subtable_gpos_markToSingle, subtable_gpos_pair, subtable_gpos_single, subtable_gsub_ligature, subtable_gsub_multi, subtable_gsub_reverse, subtable_gsub_single, table_OTL};
+use crate::table::otl::{otl_Feature, otl_FeaturePtr, otl_FeatureRef, otl_LanguageSystem, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupType, otl_Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, subtable_chaining, subtable_gpos_cursive, subtable_gpos_markToLigature, subtable_gpos_markToSingle, subtable_gpos_pair, subtable_gpos_single, subtable_gsub_ligature, subtable_gsub_multi, subtable_gsub_reverse, subtable_gsub_single, table_OTL};
 use crate::table::otl::classdef::{otl_ClassDef};
 
 
@@ -158,7 +50,35 @@ use crate::table::otl::classdef::{otl_ClassDef};
 
 
 
-use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ};
+use crate::vf::vq::VQ;
+use crate::consolidate::otl::GDEF::{consolidate_GDEF};
+use crate::consolidate::otl::chaining::{consolidate_chaining};
+use crate::consolidate::otl::common::{fontop_consolidateClassDef};
+use crate::consolidate::otl::gpos_cursive::{consolidate_gpos_cursive};
+use crate::consolidate::otl::gpos_pair::{consolidate_gpos_pair};
+use crate::consolidate::otl::gpos_single::{consolidate_gpos_single};
+use crate::consolidate::otl::gsub_ligature::{consolidate_gsub_ligature};
+use crate::consolidate::otl::gsub_multi::{consolidate_gsub_alternative, consolidate_gsub_multi};
+use crate::consolidate::otl::gsub_reverse::{consolidate_gsub_reverse};
+use crate::consolidate::otl::gsub_single::{consolidate_gsub_single};
+use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
+use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::table::COLR::{colr_iLayer, colr_iLayerList, colr_iMapping, table_iCOLR};
+use crate::table::_TSI::{table_iTSI, tsi_iEntry};
+use crate::table::glyf::{glyf_iComponentReference, glyf_iContourList, glyf_iMaskList, glyf_iReferenceList, glyf_iStemDefList, otfcc_newGlyf_glyph};
+use crate::table::otl::{otl_iFeatureList, otl_iFeatureRefList, otl_iLookupList, otl_iLookupRefList};
+use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
+use crate::table::otl::subtables::gpos_cursive::{iSubtable_gpos_cursive};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{iSubtable_gpos_markToLigature};
+use crate::table::otl::subtables::gpos_mark_to_single::{iSubtable_gpos_markToSingle};
+use crate::table::otl::subtables::gpos_pair::{iSubtable_gpos_pair};
+use crate::table::otl::subtables::gpos_single::{iSubtable_gpos_single};
+use crate::table::otl::subtables::gsub_ligature::{iSubtable_gsub_ligature};
+use crate::table::otl::subtables::gsub_multi::{iSubtable_gsub_multi};
+use crate::table::otl::subtables::gsub_reverse::{iSubtable_gsub_reverse};
+use crate::table::otl::subtables::gsub_single::{iSubtable_gsub_single};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
+use crate::vf::vq::{iVQ};
 
 pub type subtable_remover = Option<unsafe extern "C" fn(*mut otl_Subtable) -> ()>;
 pub type otl_consolidation_function = Option<
@@ -468,7 +388,6 @@ unsafe extern "C" fn consolidateFDSelect(
         otfcc_Handle_dispose(h as *mut otfcc_Handle);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidateGlyph(
     mut g: *mut glyf_Glyph,
     mut font: *mut otfcc_Font,
@@ -479,7 +398,6 @@ pub unsafe extern "C" fn consolidateGlyph(
     consolidateGlyphHints(g, options);
     consolidateFDSelect(&raw mut (*g).fdSelect, (*font).CFF_, options, (*g).name);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getPointCoordinates(
     mut table: *mut table_glyf,
     mut gr: *mut glyf_ComponentReference,
@@ -576,7 +494,6 @@ pub unsafe extern "C" fn getPointCoordinates(
     }
     return false;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidateAnchorRef(
     mut table: *mut table_glyf,
     mut gr: *mut glyf_ComponentReference,
@@ -735,7 +652,6 @@ pub unsafe extern "C" fn consolidateAnchorRef(
     iVQ.dispose.expect("non-null function pointer")(&raw mut outerY);
     return false;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidateGlyf(
     mut font: *mut otfcc_Font,
     mut options: *const otfcc_Options,
@@ -795,7 +711,6 @@ pub unsafe extern "C" fn consolidateGlyf(
         j_0 = j_0.wrapping_add(1);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidateCmap(
     mut font: *mut otfcc_Font,
     mut options: *const otfcc_Options,
@@ -970,7 +885,6 @@ unsafe extern "C" fn __declare_otl_consolidation(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_consolidate_lookup(
     mut font: *mut otfcc_Font,
     mut table: *mut table_OTL,
@@ -1632,7 +1546,6 @@ unsafe extern "C" fn consolidateTSI(
     );
     *_tsi = consolidated;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_consolidateFont(
     mut font: *mut otfcc_Font,
     mut options: *const otfcc_Options,

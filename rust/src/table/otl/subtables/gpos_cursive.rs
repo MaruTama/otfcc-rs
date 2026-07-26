@@ -1,36 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-    fn otl_anchor_absent() -> otl_Anchor;
-    fn otl_read_anchor(
-        data: font_file_pointer,
-        tableLength: u32,
-        offset: u32,
-    ) -> otl_Anchor;
-    fn otl_dump_anchor(a: otl_Anchor) -> *mut json_value;
-    fn otl_parse_anchor(v: *mut json_value) -> otl_Anchor;
-    fn bkFromAnchor(a: otl_Anchor) -> *mut bk_Block;
-}
 
 use crate::support::json_funcs::{json_obj_get, preserialize};
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
+use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
 use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 use crate::support::binio::{read_16u};
 
@@ -44,8 +16,13 @@ use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p
 
 use crate::table::otl::{__caryll_vectorinterface_subtable_gpos_cursive, otl_Anchor, otl_GposCursiveEntry, otl_Subtable, subtable_gpos_cursive};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::support::{__compar_fn_t};
+use crate::bk::bkblock::{bk_newBlockFromBuffer};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::subtables::gpos_common::{bkFromAnchor, otl_anchor_absent, otl_dump_anchor, otl_parse_anchor, otl_read_anchor};
+use crate::vendor::json_builder::{json_object_new, json_object_push};
+use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_GposCursiveEntry {
@@ -324,7 +301,6 @@ unsafe extern "C" fn subtable_gpos_cursive_create() -> *mut subtable_gpos_cursiv
     subtable_gpos_cursive_init(x);
     return x;
 }
-#[unsafe(no_mangle)]
 pub static iSubtable_gpos_cursive: __caryll_vectorinterface_subtable_gpos_cursive = {
     __caryll_vectorinterface_subtable_gpos_cursive {
         init: Some(
@@ -425,7 +401,6 @@ pub static iSubtable_gpos_cursive: __caryll_vectorinterface_subtable_gpos_cursiv
 unsafe extern "C" fn subtable_gpos_cursive_shrinkToFit(mut arr: *mut subtable_gpos_cursive) {
     subtable_gpos_cursive_resizeTo(arr, (*arr).length);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gpos_cursive(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -527,7 +502,6 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_dump_cursive(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -555,7 +529,6 @@ pub unsafe extern "C" fn otl_gpos_dump_cursive(
     }
     return st;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_parse_cursive(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -601,7 +574,6 @@ pub unsafe extern "C" fn otl_gpos_parse_cursive(
     }
     return subtable as *mut otl_Subtable;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_cursive(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

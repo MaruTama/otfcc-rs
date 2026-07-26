@@ -11,7 +11,6 @@ pub struct SHA1_CTX {
     pub state: [WORD; 5],
     pub k: [WORD; 4],
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sha1_transform(mut ctx: *mut SHA1_CTX, mut data: *const BYTE) {
     let mut a: WORD = 0;
     let mut b: WORD = 0;
@@ -122,7 +121,6 @@ pub unsafe extern "C" fn sha1_transform(mut ctx: *mut SHA1_CTX, mut data: *const
     (*ctx).state[4 as ::core::ffi::c_int as usize] =
         (*ctx).state[4 as ::core::ffi::c_int as usize].wrapping_add(e);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sha1_init(mut ctx: *mut SHA1_CTX) {
     (*ctx).datalen = 0 as WORD;
     (*ctx).bitlen = 0 as ::core::ffi::c_ulonglong;
@@ -136,7 +134,6 @@ pub unsafe extern "C" fn sha1_init(mut ctx: *mut SHA1_CTX) {
     (*ctx).k[2 as ::core::ffi::c_int as usize] = 0x8f1bbcdc as ::core::ffi::c_uint as WORD;
     (*ctx).k[3 as ::core::ffi::c_int as usize] = 0xca62c1d6 as ::core::ffi::c_uint as WORD;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sha1_update(
     mut ctx: *mut SHA1_CTX,
     mut data: *const BYTE,
@@ -155,7 +152,6 @@ pub unsafe extern "C" fn sha1_update(
         i = i.wrapping_add(1);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sha1_final(mut ctx: *mut SHA1_CTX, mut hash: *mut BYTE) {
     let mut i: WORD = 0;
     i = (*ctx).datalen;

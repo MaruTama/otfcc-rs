@@ -1,26 +1,13 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
-    static iSubtable_gsub_ligature: __caryll_vectorinterface_subtable_gsub_ligature;
-    static otl_iCoverage: __otfcc_ICoverage;
-    fn fontop_consolidateCoverage(
-        font: *mut otfcc_Font,
-        coverage: *mut otl_Coverage,
-        options: *const otfcc_Options,
-    );
-}
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, shrinkCoverage};
+use crate::table::otl::coverage::{otl_Coverage, shrinkCoverage};
 use crate::support::handle::{otfcc_GlyphHandle, otfcc_Handle, otfcc_Handle_dup};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{glyphid_t};
-use crate::vendor::sds::{sds};
 
 use crate::font::caryll_font::{otfcc_Font};
 
-use crate::support::glyph_order::{otfcc_GlyphOrderPackage};
 
 
 
@@ -45,7 +32,11 @@ use crate::support::glyph_order::{otfcc_GlyphOrderPackage};
 
 
 
-use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_ligature, otl_GsubLigatureEntry, otl_Subtable, subtable_gsub_ligature, table_OTL};
+use crate::table::otl::{otl_GsubLigatureEntry, otl_Subtable, subtable_gsub_ligature, table_OTL};
+use crate::consolidate::otl::common::{fontop_consolidateCoverage};
+use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::table::otl::subtables::gsub_ligature::{iSubtable_gsub_ligature};
+use crate::vendor::sds::{sdsempty};
 
 
 
@@ -56,7 +47,6 @@ use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_ligature, otl_Gsu
 
 
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_gsub_ligature(
     mut font: *mut otfcc_Font,
     mut _table: *mut table_OTL,

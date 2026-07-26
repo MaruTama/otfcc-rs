@@ -1,23 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn buflen(buf: *mut caryll_Buffer) -> usize;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-}
 
 use crate::support::json_funcs::{preserialize};
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_Handle, otfcc_GlyphHandle};
@@ -26,12 +8,13 @@ use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::primitives::{glyphid_t};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_string, json_value};
 use crate::support::{NULL};
 use crate::support::glyph_order::{glyph_handle};
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite_bufdel};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_string_new};
+use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otl_Coverage {
@@ -2507,7 +2490,6 @@ pub(crate) unsafe extern "C" fn shrinkCoverage(mut coverage: *mut otl_Coverage, 
     }
     (*coverage).numGlyphs = k;
 }
-#[unsafe(no_mangle)]
 pub static otl_iCoverage: __otfcc_ICoverage = {
     __otfcc_ICoverage {
         init: Some(otl_Coverage_init as unsafe extern "C" fn(*mut otl_Coverage) -> ()),

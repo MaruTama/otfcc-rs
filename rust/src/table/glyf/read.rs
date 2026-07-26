@@ -1,22 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, memcpy};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn otfcc_from_f2dot14(x: f2dot14) -> ::core::ffi::c_double;
-    fn otfcc_from_fixed(x: f16dot16) -> ::core::ffi::c_double;
-    fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16;
-    fn otfcc_f1616_muldiv(a: f16dot16, b: f16dot16, c: f16dot16) -> f16dot16;
-    fn vq_createRegion(dimensions: shapeid_t) -> *mut vq_Region;
-    static vq_iSegList: __caryll_vectorinterface_vq_SegList;
-    static iVQ: __caryll_vectorinterface_VQ;
-    static table_iFvar: __caryll_elementinterface_table_fvar;
-    static glyf_iContour: __caryll_vectorinterface_glyf_Contour;
-    static glyf_iContourList: __caryll_vectorinterface_glyf_ContourList;
-    static glyf_iComponentReference: __caryll_elementinterface_glyf_ComponentReference;
-    static glyf_iReferenceList: __caryll_vectorinterface_glyf_ReferenceList;
-    static table_iGlyf: __caryll_vectorinterface_table_glyf;
-    fn otfcc_newGlyf_glyph() -> *mut glyf_Glyph;
-}
 
 use crate::support::handle::{handle_fromIndex, otfcc_GlyphHandle};
 
@@ -25,15 +8,20 @@ use crate::support::binio::{read_8u, read_8s, read_16u, read_16s, read_32u};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{f16dot16, f2dot14, font_file_pointer, glyphid_t, pos_t, scale_t, shapeid_t};
-use crate::vendor::sds::{sds};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
-use crate::table::fvar::{__caryll_elementinterface_table_fvar, table_fvar};
-use crate::table::glyf::{GlyfIOContext, REF_ANCHOR_ANCHOR, REF_XY, glyf_ComponentFlags, glyf_PointFlags, __caryll_elementinterface_glyf_ComponentReference, __caryll_vectorinterface_glyf_Contour, __caryll_vectorinterface_glyf_ContourList, __caryll_vectorinterface_glyf_ReferenceList, __caryll_vectorinterface_table_glyf, glyf_ComponentReference, glyf_Contour, glyf_ContourList, glyf_Glyph, glyf_GlyphPtr, glyf_Point, table_glyf};
+use crate::table::fvar::table_fvar;
+use crate::table::glyf::{GlyfIOContext, REF_ANCHOR_ANCHOR, REF_XY, glyf_ComponentFlags, glyf_PointFlags, glyf_ComponentReference, glyf_Contour, glyf_ContourList, glyf_Glyph, glyf_GlyphPtr, glyf_Point, table_glyf};
 
 
 use crate::vf::region::{vq_AxisSpan, vq_Region};
-use crate::vf::vq::{VQ, VQ_DELTA, __caryll_vectorinterface_VQ, __caryll_vectorinterface_vq_SegList, vq_Segment};
+use crate::vf::vq::{VQ, VQ_DELTA, vq_Segment};
+use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed};
+use crate::table::fvar::{table_iFvar};
+use crate::table::glyf::{glyf_iComponentReference, glyf_iContour, glyf_iContourList, glyf_iReferenceList, otfcc_newGlyf_glyph, table_iGlyf};
+use crate::vendor::sds::{sdsempty};
+use crate::vf::region::{vq_createRegion};
+use crate::vf::vq::{iVQ, vq_iSegList};
 
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
@@ -652,11 +640,9 @@ unsafe extern "C" fn readPackedDelta(
     }
     return data;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getX(mut z: *mut glyf_Point) -> *mut VQ {
     return &raw mut (*z).x;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn getY(mut z: *mut glyf_Point) -> *mut VQ {
     return &raw mut (*z).y;
 }
@@ -1202,7 +1188,6 @@ unsafe extern "C" fn polymorphize(
         __fortable_count += 1;
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readGlyf(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
