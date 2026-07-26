@@ -1,14 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-unsafe extern "C" {
-    static otl_iClassDef: __otfcc_IClassDef;
-    static iSubtable_chaining: __caryll_elementinterface_subtable_chaining;
-    fn otfcc_build_chaining(_subtable: *const otl_Subtable) -> *mut caryll_Buffer;
-    fn otfcc_build_contextual(_subtable: *const otl_Subtable) -> *mut caryll_Buffer;
-    fn otfcc_chainingLookupIsContextualLookup(lookup: *const otl_Lookup) -> bool;
-}
 
-use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef, otl_ClassDef_create, pushClassDef};
+use crate::table::otl::classdef::{otl_ClassDef, otl_ClassDef_create, pushClassDef};
 use crate::table::otl::coverage::{otl_Coverage};
 use crate::support::handle::{handle_fromConsolidated, handle_fromIndex, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
 
@@ -18,8 +11,10 @@ use crate::support::primitives::{glyphclass_t, glyphid_t, tableid_t};
 use crate::vendor::sds::{sds};
 
 use crate::support::{NULL};
-use crate::table::otl::{__caryll_elementinterface_subtable_chaining, otl_ChainLookupApplication, otl_ChainingRule, otl_Lookup, otl_Subtable, otl_chaining_classified, subtable_chaining};
+use crate::table::otl::{otl_ChainLookupApplication, otl_ChainingRule, otl_Lookup, otl_Subtable, otl_chaining_classified, subtable_chaining};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::table::otl::subtables::chaining::build::{otfcc_build_chaining, otfcc_build_contextual, otfcc_chainingLookupIsContextualLookup};
+use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct classifier_hash {
@@ -3521,7 +3516,6 @@ unsafe extern "C" fn toClass(mut h: *mut *mut classifier_hash) -> *mut otl_Class
     }
     return cd;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tryClassifyAround(
     mut lookup: *const otl_Lookup,
     mut j: tableid_t,
@@ -3862,7 +3856,6 @@ pub unsafe extern "C" fn tryClassifyAround(
         return 0 as tableid_t;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
     mut lookup: *const otl_Lookup,
     mut subtableBuffers: *mut *mut *mut caryll_Buffer,

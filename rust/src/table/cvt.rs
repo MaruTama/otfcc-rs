@@ -1,19 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
-}
 
 
 use crate::support::json_funcs::{json_obj_get_type};
@@ -23,9 +9,12 @@ use crate::logger::{otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_double, json_integer, json_string, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::base64::{base64_decode};
+use crate::support::buffer::{bufnew, bufwrite16b};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_push};
+use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -110,7 +99,6 @@ unsafe extern "C" fn table_cvt_replace(mut dst: *mut table_cvt, src: table_cvt) 
 unsafe extern "C" fn table_cvt_dispose(mut x: *mut table_cvt) {
     disposeCvt(x);
 }
-#[unsafe(no_mangle)]
 pub static table_iCvt: __caryll_elementinterface_table_cvt = {
     __caryll_elementinterface_table_cvt {
         init: Some(table_cvt_init as unsafe extern "C" fn(*mut table_cvt) -> ()),
@@ -125,7 +113,6 @@ pub static table_iCvt: __caryll_elementinterface_table_cvt = {
         free: Some(table_cvt_free as unsafe extern "C" fn(*mut table_cvt) -> ()),
     }
 };
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readCvt(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -174,7 +161,6 @@ pub unsafe extern "C" fn otfcc_readCvt(
     }
     return ::core::ptr::null_mut::<table_cvt>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpCvt(
     mut table: *const table_cvt,
     mut root: *mut json_value,
@@ -208,7 +194,6 @@ pub unsafe extern "C" fn otfcc_dumpCvt(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseCvt(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -305,7 +290,6 @@ pub unsafe extern "C" fn otfcc_parseCvt(
     }
     return t;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildCvt(
     mut table: *const table_cvt,
     mut _options: *const otfcc_Options,

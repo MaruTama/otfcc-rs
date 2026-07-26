@@ -97,11 +97,23 @@ otfccbuild_json_otf   otfcc_get_buf_len   otfcc_get_buf_data
 otfccbuild_free_otfbuf
 ```
 
-plus the two CLI binaries. Everything *else* the cdylib exports (574 symbols
-at the time of writing, listed in `scripts/abi-exports.txt`) is exported only
-because c2rust marked every non-`static` C function `#[no_mangle]`. Those are
-internal cross-module calls that happen to have external linkage; no consumer
-links against them.
+plus the two CLI binaries. And those four are now the *only* symbols the cdylib
+exports — `scripts/abi-exports.txt` is four lines long.
+
+It used to be 553. c2rust marked every non-`static` C function `#[no_mangle]`,
+and the crate then found **1,086 of its own items — 895 functions and 191
+vtable statics — through those C symbol names** rather than through Rust paths:
+one file wrote `#[unsafe(no_mangle)] pub unsafe extern "C" fn bufwrite8`, and 40
+others wrote `extern "C" { fn bufwrite8(...); }` and called it. The crate was
+linking to itself. Those declarations are now `use` imports and `#[no_mangle]`
+is gone from everything but the four, so the export table *is* the API.
+
+Two things followed from that, beyond the smaller surface. The declared
+signatures were never checked against the definitions — an `extern "C"` block is
+a promise to the linker, not to the type checker — so 1,086 boundaries had no
+verification at all; converting them made rustc check every one (all matched).
+And 305 of the declarations were for items the declaring file never used, dead
+text that could not fail to compile because nothing was being resolved.
 
 This is worth stating explicitly because it defines the boundary of what the
 idiomatization is allowed to change. `compare-with-c.sh` and `test-dll.py` run
@@ -117,14 +129,17 @@ share a struct inside one process. So:
 
 That is what makes the remaining work (replacing the C-style containers,
 `sds` strings, and `malloc`/`free` ownership with `Vec`/`String`/`Box`)
-possible at all, rather than being blocked by an imagined ABI contract.
+possible at all, rather than being blocked by an imagined ABI contract. Note
+that the internal functions keep their `extern "C"` calling convention for now,
+even without `#[no_mangle]`: many of them are stored as `extern "C" fn` pointers
+in the vtable statics, so the convention comes off with those, not before.
 
 `check-abi.sh` keeps this honest: it fails if any of the four goes missing,
-fails if a *new* symbol appears un-recorded (an internal helper accidentally
-becoming public), and fails if a recorded symbol *disappears* until the
-snapshot is refreshed with `check-abi.sh --update`. So each batch of newly
-internalized symbols shows up as a reviewable diff of `abi-exports.txt`
-instead of passing unnoticed. The snapshot needs no per-platform exceptions:
+fails if a *new* symbol appears un-recorded, and fails if a recorded symbol
+*disappears* until the snapshot is refreshed with `check-abi.sh --update`. With
+the snapshot down to four lines, "a new symbol" now means any accidental
+re-export whatsoever — a `#[unsafe(no_mangle)]` added out of habit, or a
+`pub extern "C"` item that escapes. The snapshot needs no per-platform exceptions:
 the last one was three `__ctype_*_loc` shims this crate exported on macOS to
 stand in for glibc internals the transpiled code called by name, and those are
 gone — `support/ctype_compat.rs` now provides the five C-locale functions
@@ -456,7 +471,19 @@ the CI-matching Linux container:
   the same export list as the one before it, which is what makes "this changed
   nothing observable" a checked claim rather than an assertion. The count only
   moves when a symbol is deliberately internalized, and then the diff is small
-  enough to read: 574 at the start, 554 now.
+  enough to read: 574 at the start, **4 now** — the surface is exactly the API.
+- **The crate stopped linking to itself.** 1,086 of its own items (895 functions,
+  191 vtable statics) were reached through C symbol names via
+  `extern "C" { … }` declarations; they are `use` imports now, and
+  `#[unsafe(no_mangle)]` is gone from all but the four public functions. Beyond
+  the export table, this is what makes renaming possible at all: a symbol-name
+  edge is invisible to the type checker, so renaming a definition would have
+  been a *link* error at best, and a silent bind to a same-named function at
+  worst. It also put 1,086 previously unchecked signatures under rustc (all
+  matched) and removed 305 declarations of items the declaring file never used.
+  `extern "C"` itself stays for now: many of these functions are stored as
+  `extern "C" fn` pointers in the vtable statics, so the calling convention
+  comes off together with those.
 - **Standard cargo layout**: `src/lib.rs` + `src/bin/` + `src/ffi/` +
   `src/vendor/`, replacing c2rust's `src::lib::` / `src::dep::r#extern::` /
   `src::src::` scaffolding. See "Crate layout" above.
@@ -557,6 +584,10 @@ the CI-matching Linux container:
   collide with another object's; and `extern "C" { … }` →
   `unsafe extern "C" { … }` (107 blocks), because writing down a foreign
   signature is the unsafe act and getting it wrong is UB at every call site.
+  Both counts are historical: the edition made the two claims audible, and the
+  audit that followed found almost nothing foreign behind either of them — 4
+  `#[unsafe(no_mangle)]` and 13 genuinely external names survive (see "The
+  public ABI is four functions").
 
   The third, `unsafe_op_in_unsafe_fn`, fires **48,000 times**, and it is the one
   worth having: it separates "this function is unsafe to call" from "this line is
@@ -598,7 +629,7 @@ the CI-matching Linux container:
   **139 definitions in total**. There is now one of each, in
   `support/json_funcs.rs`, at −2,469/+357 lines across 39 files. Every name's
   copies were checked textually identical before any was deleted, and none was
-  ever `#[no_mangle]`, so the ABI is untouched (still 553 exports).
+  ever `#[no_mangle]`, so the ABI was untouched (553 exports at the time).
 
   One of the seventeen looks redundant and is not: `json_obj_getnum` walks the
   object itself rather than calling `json_obj_get`, because on a name match whose

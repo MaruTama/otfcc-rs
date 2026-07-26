@@ -1,34 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
 
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
+use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -44,8 +19,12 @@ use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p
 use crate::support::{NULL, __compar_fn_t};
 use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_ligature, otl_GsubLigatureEntry, otl_Subtable, subtable_gsub_ligature};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::bk::bkblock::{bk_newBlockFromBuffer};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_length};
+use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_GsubLigatureEntry {
@@ -279,7 +258,6 @@ unsafe fn as_cvec(arr: *mut subtable_gsub_ligature) -> *mut CVecRaw<otl_GsubLiga
 unsafe extern "C" fn subtable_gsub_ligature_init(arr: *mut subtable_gsub_ligature) {
     cvec_init(as_cvec(arr));
 }
-#[unsafe(no_mangle)]
 pub static iSubtable_gsub_ligature: __caryll_vectorinterface_subtable_gsub_ligature = {
     __caryll_vectorinterface_subtable_gsub_ligature {
         init: Some(
@@ -457,7 +435,6 @@ unsafe extern "C" fn subtable_gsub_ligature_push(arr: *mut subtable_gsub_ligatur
 unsafe extern "C" fn subtable_gsub_ligature_grow(arr: *mut subtable_gsub_ligature) {
     cvec_grow(as_cvec(arr));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gsub_ligature(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -656,7 +633,6 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_dump_ligature(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -691,7 +667,6 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(
     );
     return ret;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_parse_ligature(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -785,7 +760,6 @@ unsafe extern "C" fn by_gid(
 ) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

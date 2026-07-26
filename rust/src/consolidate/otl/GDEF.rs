@@ -1,19 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
-    static otl_iClassDef: __otfcc_IClassDef;
-    static otl_iCaretValueList: __caryll_vectorinterface_otl_CaretValueList;
-    static otl_iLigCaretTable: __caryll_vectorinterface_otl_LigCaretTable;
-    fn fontop_consolidateClassDef(
-        font: *mut otfcc_Font,
-        cd: *mut otl_ClassDef,
-        options: *const otfcc_Options,
-    );
-}
 
 
 use crate::support::handle::{handle_fromConsolidated, otfcc_GlyphHandle};
@@ -27,16 +13,11 @@ use crate::vendor::sds::{sds};
 
 use crate::font::caryll_font::{otfcc_Font};
 use crate::support::{NULL};
-use crate::support::glyph_order::{otfcc_GlyphOrderPackage};
 
 
 
 
-use crate::table::GDEF::{__caryll_vectorinterface_otl_CaretValueList, __caryll_vectorinterface_otl_LigCaretTable, otl_CaretValue, otl_CaretValueList, otl_CaretValueRecord, table_GDEF};
-
-
-
-
+use crate::table::GDEF::{otl_CaretValue, otl_CaretValueList, otl_CaretValueRecord, table_GDEF};
 
 
 
@@ -53,12 +34,21 @@ use crate::table::GDEF::{__caryll_vectorinterface_otl_CaretValueList, __caryll_v
 
 
 
-use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef};
+
+
+
+
+use crate::table::otl::classdef::otl_ClassDef;
 
 
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::consolidate::otl::common::{fontop_consolidateClassDef};
+use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::table::GDEF::{otl_iCaretValueList, otl_iLigCaretTable};
+use crate::table::otl::classdef::{otl_iClassDef};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
 
@@ -77,7 +67,6 @@ unsafe extern "C" fn by_gid(
 ) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_GDEF(
     mut font: *mut otfcc_Font,
     mut gdef: *mut table_GDEF,

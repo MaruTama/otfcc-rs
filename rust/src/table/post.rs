@@ -1,29 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite8(buf: *mut caryll_Buffer, byte: u8);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
-    fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds);
-    fn otfcc_from_fixed(x: f16dot16) -> ::core::ffi::c_double;
-    fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16;
-    static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
-    fn json_boolean_new(_: ::core::ffi::c_int) -> *mut json_value;
-}
 
 use crate::support::binio::{read_16u, read_32u, read_32s};
 use crate::logger::{otfcc_ILogger};
@@ -34,8 +10,13 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{json_object, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{NULL};
-use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry, otfcc_GlyphOrderPackage};
+use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getbool, json_obj_getnum};
+use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_sds};
+use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
+use crate::vendor::json_builder::{json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -422,7 +403,6 @@ unsafe extern "C" fn table_post_replace(mut dst: *mut table_post, src: table_pos
         ::core::mem::size_of::<table_post>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static iTable_post: __caryll_elementinterface_table_post = {
     __caryll_elementinterface_table_post {
         init: Some(table_post_init as unsafe extern "C" fn(*mut table_post) -> ()),
@@ -443,7 +423,6 @@ pub static iTable_post: __caryll_elementinterface_table_post = {
         free: Some(table_post_free as unsafe extern "C" fn(*mut table_post) -> ()),
     }
 };
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readPost(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -574,7 +553,6 @@ pub unsafe extern "C" fn otfcc_readPost(
     }
     return ::core::ptr::null_mut::<table_post>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpPost(
     mut table: *const table_post,
     mut root: *mut json_value,
@@ -648,7 +626,6 @@ pub unsafe extern "C" fn otfcc_dumpPost(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parsePost(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -720,7 +697,6 @@ pub unsafe extern "C" fn otfcc_parsePost(
     }
     return post;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildPost(
     mut post: *const table_post,
     mut glyphorder: *mut otfcc_GlyphOrder,

@@ -1,30 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-    fn position_format_length(format: u16) -> u8;
-    fn read_gpos_value(
-        data: font_file_pointer,
-        tableLength: u32,
-        offset: u32,
-        format: u16,
-    ) -> otl_PositionValue;
-    fn required_position_format(v: otl_PositionValue) -> u8;
-    fn bk_gpos_value(v: otl_PositionValue, format: u16) -> *mut bk_Block;
-    fn gpos_dump_value(value: otl_PositionValue) -> *mut json_value;
-    fn gpos_parse_value(pos: *mut json_value) -> otl_PositionValue;
-}
 
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
+use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
 use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 use crate::support::binio::{read_16u};
 
@@ -39,6 +16,12 @@ use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, b
 use crate::table::otl::{__caryll_vectorinterface_subtable_gpos_single, otl_GposSingleEntry, otl_PositionValue, otl_Subtable, subtable_gpos_single};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
 use crate::support::{__compar_fn_t};
+use crate::bk::bkblock::{bk_newBlockFromBuffer};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::subtables::gpos_common::{bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value, required_position_format};
+use crate::vendor::json_builder::{json_object_new, json_object_push};
+use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_GposSingleEntry {
@@ -306,7 +289,6 @@ unsafe extern "C" fn subtable_gpos_single_create() -> *mut subtable_gpos_single 
     subtable_gpos_single_init(x);
     return x;
 }
-#[unsafe(no_mangle)]
 pub static iSubtable_gpos_single: __caryll_vectorinterface_subtable_gpos_single = {
     __caryll_vectorinterface_subtable_gpos_single {
         init: Some(
@@ -404,7 +386,6 @@ pub static iSubtable_gpos_single: __caryll_vectorinterface_subtable_gpos_single 
 unsafe extern "C" fn subtable_gpos_single_shrinkToFit(mut arr: *mut subtable_gpos_single) {
     subtable_gpos_single_resizeTo(arr, (*arr).length);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gpos_single(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -530,7 +511,6 @@ pub unsafe extern "C" fn otl_read_gpos_single(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_dump_single(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -547,7 +527,6 @@ pub unsafe extern "C" fn otl_gpos_dump_single(
     }
     return st;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_parse_single(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -588,7 +567,6 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
     }
     return subtable as *mut otl_Subtable;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_single(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

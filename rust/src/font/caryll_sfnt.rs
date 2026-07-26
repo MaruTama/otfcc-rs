@@ -116,7 +116,6 @@ unsafe extern "C" fn otfcc_read_packets(
         count = count.wrapping_add(1);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readSFNT(mut file: *mut FILE) -> *mut otfcc_SplineFontContainer {
     if file.is_null() {
         return ::core::ptr::null_mut::<otfcc_SplineFontContainer>();
@@ -173,7 +172,6 @@ pub unsafe extern "C" fn otfcc_readSFNT(mut file: *mut FILE) -> *mut otfcc_Splin
     fclose(file);
     return font;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_deleteSFNT(mut font: *mut otfcc_SplineFontContainer) {
     if font.is_null() {
         return;

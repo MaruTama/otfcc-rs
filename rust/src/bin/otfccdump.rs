@@ -19,18 +19,6 @@ use libc::{calloc, exit, fclose, fgetc, fileno, fopen, fprintf, fputc, fputs, fr
 // needed because `libc::FILE` is deliberately opaque.
 #[allow(improper_ctypes)]
 unsafe extern "C" {
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn otfcc_readSFNT(file: *mut FILE) -> *mut otfcc_SplineFontContainer;
-    fn otfcc_deleteSFNT(font: *mut otfcc_SplineFontContainer);
-    fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    fn otfcc_newLogger(target: *mut otfcc_ILoggerTarget) -> *mut otfcc_ILogger;
-    fn otfcc_newStdErrTarget() -> *mut otfcc_ILoggerTarget;
-    fn otfcc_newOptions() -> *mut otfcc_Options;
-    fn otfcc_deleteOptions(options: *mut otfcc_Options);
     static mut optarg: *mut ::core::ffi::c_char;
     static mut optind: ::core::ffi::c_int;
     fn getopt_long(
@@ -40,20 +28,15 @@ unsafe extern "C" {
         __longopts: *const option,
         __longind: *mut ::core::ffi::c_int,
     ) -> ::core::ffi::c_int;
-    static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
-    fn otfcc_newOTFReader() -> *mut otfcc_IFontBuilder;
-    fn otfcc_newJsonWriter() -> *mut otfcc_IFontSerializer;
-    fn time_now(tv: *mut timespec);
-    fn push_stopwatch(sofar: *mut timespec) -> sds;
 }
 
-use otfcc_rust::logger::{log_type_error, log_type_progress, otfcc_ILogger, otfcc_ILoggerTarget};
+use otfcc_rust::logger::{log_type_error, log_type_progress, otfcc_ILogger};
 
 use otfcc_rust::support::options::{otfcc_Options};
 
 use otfcc_rust::vendor::sds::{sds};
 use otfcc_rust::vendor::json::{json_value};
-use otfcc_rust::font::caryll_font::{__caryll_elementinterface_otfcc_Font, otfcc_Font, otfcc_IFontBuilder, otfcc_IFontSerializer};
+use otfcc_rust::font::caryll_font::{otfcc_Font, otfcc_IFontBuilder, otfcc_IFontSerializer};
 use otfcc_rust::font::caryll_sfnt::{otfcc_SplineFontContainer};
 use otfcc_rust::logger::{log_vl_critical, log_vl_progress};
 use otfcc_rust::support::{EXIT_FAILURE, NULL};
@@ -93,6 +76,15 @@ use otfcc_rust::vendor::json_builder::{json_serialize_mode_multiline, json_seria
 use libc::timespec;
 use otfcc_rust::support::getopt::{no_argument, option, required_argument};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
+use otfcc_rust::font::caryll_font::{otfcc_iFont};
+use otfcc_rust::font::caryll_sfnt::{otfcc_deleteSFNT, otfcc_readSFNT};
+use otfcc_rust::json_writer::{otfcc_newJsonWriter};
+use otfcc_rust::logger::{otfcc_newLogger, otfcc_newStdErrTarget};
+use otfcc_rust::otf_reader::{otfcc_newOTFReader};
+use otfcc_rust::support::options::{otfcc_deleteOptions, otfcc_newOptions};
+use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
+use otfcc_rust::vendor::json_builder::{json_builder_free, json_measure_ex, json_serialize_ex};
+use otfcc_rust::vendor::sds::{sdsempty, sdsfree, sdsnew};
 
 
 
@@ -110,7 +102,6 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
 unsafe extern "C" fn getchar() -> ::core::ffi::c_int {
     return fgetc(stdin);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn printInfo() {
     fprintf(
         stdout,
@@ -121,7 +112,6 @@ pub unsafe extern "C" fn printInfo() {
         PATCH_VER,
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn printHelp() {
     fprintf(
         stdout,

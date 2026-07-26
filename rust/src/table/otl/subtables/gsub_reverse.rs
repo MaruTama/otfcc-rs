@@ -1,23 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy};
-unsafe extern "C" {
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
 
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum_fallback};
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_free, readCoverage};
+use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_free, readCoverage};
 use crate::support::handle::{handle_fromIndex, otfcc_GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -31,6 +17,10 @@ use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p
 
 use crate::table::otl::{__caryll_elementinterface_subtable_gsub_reverse, otl_Subtable, subtable_gsub_reverse};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
+use crate::bk::bkblock::{bk_newBlockFromBuffer};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 
 #[inline]
 unsafe extern "C" fn initGsubReverse(mut subtable: *mut subtable_gsub_reverse) {
@@ -64,7 +54,6 @@ unsafe extern "C" fn subtable_gsub_reverse_free(mut x: *mut subtable_gsub_revers
     subtable_gsub_reverse_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub static iSubtable_gsub_reverse: __caryll_elementinterface_subtable_gsub_reverse = {
     __caryll_elementinterface_subtable_gsub_reverse {
         init: Some(
@@ -175,7 +164,6 @@ unsafe extern "C" fn reverseBacktracks(
         }
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gsub_reverse(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -344,7 +332,6 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_dump_reverse(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -378,7 +365,6 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
     );
     return _st;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_parse_reverse(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -423,7 +409,6 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
     (*subtable).to = otl_iCoverage.parse.expect("non-null function pointer")(_to);
     return subtable as *mut otl_Subtable;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gsub_reverse(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

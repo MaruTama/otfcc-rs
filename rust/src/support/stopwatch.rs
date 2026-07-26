@@ -7,10 +7,7 @@
 use libc::{clock_gettime, snprintf, time_t, timespec, CLOCK_REALTIME};
 
 use crate::vendor::sds::{sds};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-}
-#[unsafe(no_mangle)]
+use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn time_now(mut tv: *mut timespec) {
     clock_gettime(CLOCK_REALTIME, tv);
 }
@@ -28,7 +25,6 @@ unsafe extern "C" fn timespec_diff(
         (*result).tv_nsec = (*stop).tv_nsec - (*start).tv_nsec;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn push_stopwatch(mut sofar: *mut timespec) -> sds {
     let mut ends: timespec = timespec {
         tv_sec: 0,

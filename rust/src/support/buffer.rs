@@ -43,7 +43,6 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     }
     return 0 as usize;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufnew() -> *mut caryll_Buffer {
     let mut buf: *mut caryll_Buffer = ::core::ptr::null_mut::<caryll_Buffer>();
     buf = __caryll_allocate_clean(
@@ -54,7 +53,6 @@ pub unsafe extern "C" fn bufnew() -> *mut caryll_Buffer {
     (*buf).size = (*buf).free;
     return buf;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buffree(mut buf: *mut caryll_Buffer) {
     if buf.is_null() {
         return;
@@ -66,19 +64,15 @@ pub unsafe extern "C" fn buffree(mut buf: *mut caryll_Buffer) {
     free(buf as *mut ::core::ffi::c_void);
     buf = ::core::ptr::null_mut::<caryll_Buffer>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buflen(mut buf: *mut caryll_Buffer) -> usize {
     return (*buf).size;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufpos(mut buf: *mut caryll_Buffer) -> usize {
     return (*buf).cursor;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufseek(mut buf: *mut caryll_Buffer, mut pos: usize) {
     (*buf).cursor = pos;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufclear(mut buf: *mut caryll_Buffer) {
     (*buf).cursor = 0 as usize;
     (*buf).free = (*buf).size.wrapping_add((*buf).free);
@@ -118,41 +112,32 @@ unsafe fn buf_push_bytes(buf: *mut caryll_Buffer, bytes: &[u8]) {
     ::core::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, bytes.len());
     (*buf).cursor = (*buf).cursor.wrapping_add(bytes.len());
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite8(buf: *mut caryll_Buffer, byte: u8) {
     buf_push_bytes(buf, &[byte]);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite16l(buf: *mut caryll_Buffer, x: u16) {
     buf_push_bytes(buf, &x.to_le_bytes());
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite16b(buf: *mut caryll_Buffer, x: u16) {
     buf_push_bytes(buf, &x.to_be_bytes());
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite24l(buf: *mut caryll_Buffer, x: u32) {
     // Low 3 bytes only, matching the original's shift-mask expansion, which
     // never touched bits 24-31 either.
     buf_push_bytes(buf, &x.to_le_bytes()[..3]);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite24b(buf: *mut caryll_Buffer, x: u32) {
     buf_push_bytes(buf, &x.to_be_bytes()[1..]);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite32l(buf: *mut caryll_Buffer, x: u32) {
     buf_push_bytes(buf, &x.to_le_bytes());
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite32b(buf: *mut caryll_Buffer, x: u32) {
     buf_push_bytes(buf, &x.to_be_bytes());
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite64l(buf: *mut caryll_Buffer, x: u64) {
     buf_push_bytes(buf, &x.to_le_bytes());
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite64b(buf: *mut caryll_Buffer, x: u64) {
     buf_push_bytes(buf, &x.to_be_bytes());
 }
@@ -179,7 +164,6 @@ pub unsafe fn bufninit(bytes: &[u8]) -> *mut caryll_Buffer {
 pub unsafe fn bufnwrite8(buf: *mut caryll_Buffer, bytes: &[u8]) {
     buf_push_bytes(buf, bytes);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds) {
     if str.is_null() {
         return;
@@ -190,7 +174,6 @@ pub unsafe extern "C" fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds) {
     }
     buf_push_bytes(buf, ::core::slice::from_raw_parts(str as *const u8, len));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite_str(buf: *mut caryll_Buffer, str: *const ::core::ffi::c_char) {
     if str.is_null() {
         return;
@@ -201,21 +184,18 @@ pub unsafe extern "C" fn bufwrite_str(buf: *mut caryll_Buffer, str: *const ::cor
     }
     buf_push_bytes(buf, ::core::slice::from_raw_parts(str as *const u8, len));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite_bytes(buf: *mut caryll_Buffer, len: usize, str: *const u8) {
     if str.is_null() || len == 0 {
         return;
     }
     buf_push_bytes(buf, ::core::slice::from_raw_parts(str, len));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite_buf(buf: *mut caryll_Buffer, that: *mut caryll_Buffer) {
     if that.is_null() || (*that).data.is_null() {
         return;
     }
     buf_push_bytes(buf, ::core::slice::from_raw_parts((*that).data, buflen(that)));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut caryll_Buffer) {
     if that.is_null() {
         return;
@@ -227,7 +207,6 @@ pub unsafe extern "C" fn bufwrite_bufdel(buf: *mut caryll_Buffer, that: *mut car
     buf_push_bytes(buf, ::core::slice::from_raw_parts((*that).data, buflen(that)));
     buffree(that);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn buflongalign(buf: *mut caryll_Buffer) {
     let cp: usize = (*buf).cursor;
     bufseek(buf, buflen(buf));
@@ -239,13 +218,11 @@ pub unsafe extern "C" fn buflongalign(buf: *mut caryll_Buffer) {
     }
     bufseek(buf, cp);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufping16b(buf: *mut caryll_Buffer, offset: *mut usize, cp: *mut usize) {
     bufwrite16b(buf, *offset as u16);
     *cp = (*buf).cursor;
     bufseek(buf, *offset);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufping16bd(
     buf: *mut caryll_Buffer,
     offset: *mut usize,
@@ -256,12 +233,10 @@ pub unsafe extern "C" fn bufping16bd(
     *cp = (*buf).cursor;
     bufseek(buf, *offset);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufpong(buf: *mut caryll_Buffer, offset: *mut usize, cp: *mut usize) {
     *offset = (*buf).cursor;
     bufseek(buf, *cp);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufpingpong16b(
     buf: *mut caryll_Buffer,
     that: *mut caryll_Buffer,
@@ -445,7 +420,6 @@ mod tests {
     }
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bufprint(buf: *mut caryll_Buffer) {
     for j in 0..(*buf).size {
         if j % 16 != 0 {

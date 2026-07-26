@@ -1,34 +1,19 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    static vdmx_iGroup: __caryll_vectorinterface_vdmx_Group;
-    static vdmx_iRatioRange: __caryll_elementinterface_vdmx_RatioRange;
-    static vdmx_iRatioRangeList: __caryll_vectorinterface_vdmx_RatioRagneList;
-    static table_iVDMX: __caryll_elementinterface_table_VDMX;
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn bk_build_Block_noMinimize(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum};
 use crate::support::binio::{read_8u, read_16u, read_16s};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{shapeid_t};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_object, json_value};
 use crate::bk::bkblock::{b16, b8, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
-use crate::table::vdmx::types::{__caryll_elementinterface_table_VDMX, __caryll_elementinterface_vdmx_RatioRange, __caryll_vectorinterface_vdmx_Group, __caryll_vectorinterface_vdmx_RatioRagneList, table_VDMX, vdmx_Group, vdmx_RatioRange, vdmx_Record};
-#[unsafe(no_mangle)]
+use crate::table::vdmx::types::{table_VDMX, vdmx_Group, vdmx_RatioRange, vdmx_Record};
+use crate::bk::bkgraph::{bk_build_Block_noMinimize};
+use crate::table::vdmx::types::{table_iVDMX, vdmx_iGroup, vdmx_iRatioRange, vdmx_iRatioRangeList};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn otfcc_readVDMX(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -191,7 +176,6 @@ pub unsafe extern "C" fn otfcc_readVDMX(
     }
     return vdmx;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpVDMX(
     mut vdmx: *const table_VDMX,
     mut root: *mut json_value,
@@ -297,7 +281,6 @@ pub unsafe extern "C" fn otfcc_dumpVDMX(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseVDMX(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -415,7 +398,6 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
     }
     return vdmx;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildVDMX(
     mut vdmx: *const table_VDMX,
     mut _options: *const otfcc_Options,

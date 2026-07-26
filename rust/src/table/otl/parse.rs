@@ -1,69 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset, strcmp, strlen, strncmp};
-unsafe extern "C" {
-    fn json_value_free(_: *mut json_value);
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    fn json_ident(a: *const json_value, b: *const json_value) -> bool;
-    static otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList;
-    static otl_iLookupPtr: __caryll_elementinterface_otl_LookupPtr;
-    static otl_iLookupList: __caryll_vectorinterface_otl_LookupList;
-    static otl_iLookupRefList: __caryll_vectorinterface_otl_LookupRefList;
-    static otl_iFeaturePtr: __caryll_elementinterface_otl_FeaturePtr;
-    static otl_iFeatureList: __caryll_vectorinterface_otl_FeatureList;
-    static otl_iFeatureRefList: __caryll_vectorinterface_otl_FeatureRefList;
-    static otl_iLanguageSystem: __caryll_elementinterface_otl_LanguageSystemPtr;
-    static otl_iLangSystemList: __caryll_vectorinterface_otl_LangSystemList;
-    static table_iOTL: __caryll_elementinterface_table_OTL;
-    fn otl_gsub_parse_single(
-        _subtable: *const json_value,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_gsub_parse_multi(
-        _subtable: *const json_value,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_gsub_parse_ligature(
-        _subtable: *const json_value,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_gsub_parse_reverse(
-        _subtable: *const json_value,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_gpos_parse_single(
-        _subtable: *const json_value,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_gpos_parse_cursive(
-        _subtable: *const json_value,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_gpos_parse_markToSingle(
-        _subtable: *const json_value,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_gpos_parse_markToLigature(
-        _subtable: *const json_value,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_parse_chaining(
-        _subtable: *const json_value,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    static SCRIPT_LANGUAGE_SEPARATOR: ::core::ffi::c_char;
-    fn otfcc_delete_lookup(lookup: *mut otl_Lookup);
-    fn otl_gpos_parse_pair(
-        _subtable: *const json_value,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-}
 
 
 
@@ -77,10 +13,26 @@ use crate::support::primitives::{tableid_t};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{_json_value, json_array, json_object, json_string, json_value};
 use crate::support::{NULL, true_0};
-use crate::table::otl::{__caryll_elementinterface_otl_FeaturePtr, __caryll_elementinterface_otl_LanguageSystemPtr, __caryll_elementinterface_otl_LookupPtr, __caryll_elementinterface_table_OTL, __caryll_vectorinterface_otl_FeatureList, __caryll_vectorinterface_otl_FeatureRefList, __caryll_vectorinterface_otl_LangSystemList, __caryll_vectorinterface_otl_LookupList, __caryll_vectorinterface_otl_LookupRefList, __caryll_vectorinterface_otl_SubtableList, otl_Feature, otl_FeaturePtr, otl_FeatureRef, otl_FeatureRefList, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupRefList, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, table_OTL};
+use crate::table::otl::{otl_Feature, otl_FeaturePtr, otl_FeatureRef, otl_FeatureRefList, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupRefList, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, table_OTL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
 use crate::support::json_funcs::otfcc_parse_flags;
 use crate::table::otl::constants::{lookupFlagsLabels};
+use crate::support::json_ident::{json_ident};
+use crate::table::otl::{otfcc_delete_lookup, otl_iFeatureList, otl_iFeaturePtr, otl_iFeatureRefList, otl_iLangSystemList, otl_iLanguageSystem, otl_iLookupList, otl_iLookupPtr, otl_iLookupRefList, otl_iSubtableList, table_iOTL};
+use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
+use crate::table::otl::subtables::chaining::parse::{otl_parse_chaining};
+use crate::table::otl::subtables::gpos_cursive::{otl_gpos_parse_cursive};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_gpos_parse_markToLigature};
+use crate::table::otl::subtables::gpos_mark_to_single::{otl_gpos_parse_markToSingle};
+use crate::table::otl::subtables::gpos_pair::{otl_gpos_parse_pair};
+use crate::table::otl::subtables::gpos_single::{otl_gpos_parse_single};
+use crate::table::otl::subtables::gsub_ligature::{otl_gsub_parse_ligature};
+use crate::table::otl::subtables::gsub_multi::{otl_gsub_parse_multi};
+use crate::table::otl::subtables::gsub_reverse::{otl_gsub_parse_reverse};
+use crate::table::otl::subtables::gsub_single::{otl_gsub_parse_single};
+use crate::vendor::json::{json_value_free};
+use crate::vendor::json_builder::{json_string_new_length};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct language_hash {
@@ -4065,7 +4017,6 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
     }
     return fh;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn isValidLanguageName(
     mut name: *const ::core::ffi::c_char,
     length: usize,
@@ -5647,7 +5598,6 @@ unsafe extern "C" fn by_language_name(
 ) -> ::core::ffi::c_int {
     return strcmp((*a).name, (*b).name);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseOtl(
     mut root: *const json_value,
     mut options: *const otfcc_Options,

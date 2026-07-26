@@ -1,36 +1,14 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-unsafe extern "C" {
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_null_new() -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    static otl_iCoverage: __otfcc_ICoverage;
-}
 
 use crate::support::json_funcs::{preserialize};
-use crate::table::otl::coverage::{__otfcc_ICoverage};
 
 
 use crate::support::primitives::{tableid_t};
 use crate::vendor::json::json_value;
 use crate::table::otl::{otl_ChainingRule, otl_Subtable, subtable_chaining};
-use crate::vendor::json_builder::json_serialize_opts;
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new};
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const otl_Subtable) -> *mut json_value {
     let mut subtable: *const subtable_chaining = &raw const (*_subtable).chaining;
     if (*subtable).type_0 as u64 != 0 {

@@ -1,25 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
 
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint, json_obj_getint_fallback, preserialize};
@@ -29,14 +9,15 @@ use crate::logger::{otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{colorid_t, font_file_pointer, tableid_t};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_object, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{b16, b32, b8, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::support::{__compar_fn_t};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpal_Color {
@@ -196,7 +177,6 @@ unsafe extern "C" fn cpal_Color_replace(mut dst: *mut cpal_Color, src: cpal_Colo
         ::core::mem::size_of::<cpal_Color>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static cpal_iColor: __caryll_elementinterface_cpal_Color = {
     __caryll_elementinterface_cpal_Color {
         init: Some(cpal_Color_init as unsafe extern "C" fn(*mut cpal_Color) -> ()),
@@ -398,7 +378,6 @@ unsafe extern "C" fn cpal_ColorSet_move(dst: *mut cpal_ColorSet, src: *mut cpal_
 unsafe extern "C" fn cpal_ColorSet_shrinkToFit(mut arr: *mut cpal_ColorSet) {
     cpal_ColorSet_resizeTo(arr, (*arr).length);
 }
-#[unsafe(no_mangle)]
 pub static cpal_iColorSet: __caryll_vectorinterface_cpal_ColorSet = {
     __caryll_vectorinterface_cpal_ColorSet {
         init: Some(cpal_ColorSet_init as unsafe extern "C" fn(*mut cpal_ColorSet) -> ()),
@@ -525,7 +504,6 @@ unsafe extern "C" fn initPalette(mut p: *mut cpal_Palette) {
 unsafe extern "C" fn disposePalette(mut p: *mut cpal_Palette) {
     cpal_iColorSet.dispose.expect("non-null function pointer")(&raw mut (*p).colorset);
 }
-#[unsafe(no_mangle)]
 pub static cpal_iPalette: __caryll_elementinterface_cpal_Palette = {
     __caryll_elementinterface_cpal_Palette {
         init: Some(cpal_Palette_init as unsafe extern "C" fn(*mut cpal_Palette) -> ()),
@@ -801,7 +779,6 @@ unsafe extern "C" fn cpal_PaletteSet_create() -> *mut cpal_PaletteSet {
 unsafe extern "C" fn cpal_PaletteSet_shrinkToFit(mut arr: *mut cpal_PaletteSet) {
     cpal_PaletteSet_resizeTo(arr, (*arr).length);
 }
-#[unsafe(no_mangle)]
 pub static cpal_iPaletteSet: __caryll_vectorinterface_cpal_PaletteSet = {
     __caryll_vectorinterface_cpal_PaletteSet {
         init: Some(cpal_PaletteSet_init as unsafe extern "C" fn(*mut cpal_PaletteSet) -> ()),
@@ -932,7 +909,6 @@ unsafe extern "C" fn table_CPAL_move(mut dst: *mut table_CPAL, mut src: *mut tab
     );
     table_CPAL_init(src);
 }
-#[unsafe(no_mangle)]
 pub static table_iCPAL: __caryll_elementinterface_table_CPAL = {
     __caryll_elementinterface_table_CPAL {
         init: Some(table_CPAL_init as unsafe extern "C" fn(*mut table_CPAL) -> ()),
@@ -961,7 +937,6 @@ unsafe extern "C" fn table_CPAL_free(mut x: *mut table_CPAL) {
     table_CPAL_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub static white: cpal_Color = cpal_Color {
     red: 0xff as u8,
     green: 0xff as u8,
@@ -969,7 +944,6 @@ pub static white: cpal_Color = cpal_Color {
     alpha: 0xff as u8,
     label: 0xffff as u16,
 };
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readCPAL(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -1358,7 +1332,6 @@ unsafe extern "C" fn dumpPalette(mut palette: *mut cpal_Palette) -> *mut json_va
     );
     return _palette;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpCPAL(
     mut table: *const table_CPAL,
     mut root: *mut json_value,
@@ -1441,7 +1414,6 @@ unsafe extern "C" fn parseColor(mut _color: *const json_value) -> cpal_Color {
     ) as u16;
     return color;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseCPAL(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -1603,7 +1575,6 @@ unsafe extern "C" fn buildPaletteEntryLabel(mut cpal: *const table_CPAL) -> *mut
     }
     return block;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildCPAL(
     mut cpal: *const table_CPAL,
     mut _options: *const otfcc_Options,

@@ -10,25 +10,30 @@
 #     otfccbuild_json_otf  otfcc_get_buf_len  otfcc_get_buf_data
 #     otfccbuild_free_otfbuf
 #
-# Everything else the cdylib currently exports (see abi-exports.txt) is there
-# only because c2rust marked every non-`static` C function `#[no_mangle]`.
-# Those are internal cross-module calls, not API. Nothing links against them:
-# compare-with-c.sh and test-dll.py run the C and Rust implementations as
-# SEPARATE processes/libraries and compare their OUTPUT — no C code and Rust
-# code ever share a struct in one process.
+# And now those are the only four the cdylib exports at all. It used to export
+# 553: c2rust marked every non-`static` C function `#[no_mangle]`, and the crate
+# then resolved 1,086 of its OWN calls through those C symbol names rather than
+# through Rust paths. Replacing those declarations with `use` imports and
+# dropping `#[no_mangle]` from everything but the four left an export table that
+# is exactly the API. Nothing outside links against the rest: compare-with-c.sh
+# and test-dll.py run the C and Rust implementations as SEPARATE
+# processes/libraries and compare their OUTPUT — no C code and Rust code ever
+# share a struct in one process.
 #
 # That distinction is what licenses the Phase 3 refactor to change internal
 # struct layouts, drop `#[repr(C)]`, and move to Vec/String/Box: byte-identical
-# output is the real invariant, not ABI-compatible internals. This script keeps
-# that reasoning honest by making the ABI surface an explicit, reviewed artifact
-# instead of an assumption:
+# output is the real invariant, not ABI-compatible internals. The snapshot used
+# to be where that claim was merely *recorded*; now the linker enforces it, and
+# this script's job is to keep it that way:
 #
 #   - the four required symbols must always be exported (hard failure);
-#   - no NEW symbol may appear without being recorded (catches an internal
-#     helper accidentally becoming public);
+#   - no NEW symbol may appear without being recorded — which, with the
+#     snapshot down to the four, means any accidental re-export at all: a
+#     `#[unsafe(no_mangle)]` added by habit, or a `pub extern "C"` item that
+#     escapes;
 #   - a symbol that DISAPPEARS is also a failure until the snapshot is
-#     refreshed with `--update`, so every batch of internalized symbols shows
-#     up as a reviewable diff in abi-exports.txt rather than passing silently.
+#     refreshed with `--update`, so a change to the surface shows up as a
+#     reviewable diff in abi-exports.txt rather than passing silently.
 #
 # Usage:
 #   ./rust/scripts/check-abi.sh            # verify (needs a release build)

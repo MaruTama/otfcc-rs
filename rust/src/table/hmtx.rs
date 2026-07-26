@@ -1,10 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-}
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -13,11 +8,12 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t, length_t, pos_t};
-use crate::vendor::sds::{sds};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::table::hhea::{table_hhea};
 use crate::table::maxp::{table_maxp};
+use crate::support::buffer::{bufnew, bufwrite16b};
+use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct horizontal_metric {
@@ -103,7 +99,6 @@ unsafe extern "C" fn table_hmtx_replace(mut dst: *mut table_hmtx, src: table_hmt
         ::core::mem::size_of::<table_hmtx>() as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub static table_iHmtx: __caryll_elementinterface_table_hmtx = {
     __caryll_elementinterface_table_hmtx {
         init: Some(table_hmtx_init as unsafe extern "C" fn(*mut table_hmtx) -> ()),
@@ -132,7 +127,6 @@ unsafe extern "C" fn table_hmtx_free(mut x: *mut table_hmtx) {
     table_hmtx_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readHmtx(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -240,7 +234,6 @@ pub unsafe extern "C" fn otfcc_readHmtx(
     }
     return ::core::ptr::null_mut::<table_hmtx>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildHmtx(
     mut hmtx: *const table_hmtx,
     mut count_a: glyphid_t,

@@ -1,20 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
-    static iSubtable_gsub_multi: __caryll_vectorinterface_subtable_gsub_multi;
-    static otl_iCoverage: __otfcc_ICoverage;
-    fn fontop_consolidateCoverage(
-        font: *mut otfcc_Font,
-        coverage: *mut otl_Coverage,
-        options: *const otfcc_Options,
-    );
-}
 
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, shrinkCoverage};
+use crate::table::otl::coverage::{otl_Coverage, shrinkCoverage};
 use crate::support::handle::{handle_fromConsolidated, otfcc_GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -26,7 +13,6 @@ use crate::vendor::sds::{sds};
 
 use crate::font::caryll_font::{otfcc_Font};
 use crate::support::{NULL};
-use crate::support::glyph_order::{otfcc_GlyphOrderPackage};
 
 
 
@@ -51,13 +37,17 @@ use crate::support::glyph_order::{otfcc_GlyphOrderPackage};
 
 
 
-use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_multi, otl_GsubMultiEntry, otl_Subtable, subtable_gsub_multi, table_OTL};
+use crate::table::otl::{otl_GsubMultiEntry, otl_Subtable, subtable_gsub_multi, table_OTL};
 
 
 
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::consolidate::otl::common::{fontop_consolidateCoverage};
+use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::table::otl::subtables::gsub_multi::{iSubtable_gsub_multi};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
 
@@ -76,7 +66,6 @@ unsafe extern "C" fn by_from_id_multi(
 ) -> ::core::ffi::c_int {
     return (*a).fromid - (*b).fromid;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_gsub_multi(
     mut font: *mut otfcc_Font,
     mut _table: *mut table_OTL,
@@ -1133,7 +1122,6 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     }
     return (*subtable).length == 0 as usize;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_gsub_alternative(
     mut font: *mut otfcc_Font,
     mut table: *mut table_OTL,

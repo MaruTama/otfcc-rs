@@ -1,21 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
-    fn otfcc_from_fixed(x: f16dot16) -> ::core::ffi::c_double;
-    fn otfcc_to_fixed(x: ::core::ffi::c_double) -> f16dot16;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
-}
 
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum_fallback};
@@ -25,9 +9,12 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{f16dot16, font_file_pointer};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_object, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
+use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
+use crate::vendor::json_builder::{json_double_new, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -78,7 +65,6 @@ unsafe extern "C" fn table_hhea_free(mut x: *mut table_hhea) {
     table_hhea_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub static table_iHhea: __caryll_elementinterface_table_hhea = {
     __caryll_elementinterface_table_hhea {
         init: Some(table_hhea_init as unsafe extern "C" fn(*mut table_hhea) -> ()),
@@ -145,7 +131,6 @@ unsafe extern "C" fn table_hhea_copyReplace(mut dst: *mut table_hhea, src: table
     table_hhea_dispose(dst);
     table_hhea_copy(dst, &raw const src);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readHhea(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -245,7 +230,6 @@ pub unsafe extern "C" fn otfcc_readHhea(
     }
     return ::core::ptr::null_mut::<table_hhea>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpHhea(
     mut table: *const table_hhea,
     mut root: *mut json_value,
@@ -329,7 +313,6 @@ pub unsafe extern "C" fn otfcc_dumpHhea(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseHhea(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -416,7 +399,6 @@ pub unsafe extern "C" fn otfcc_parseHhea(
     }
     return hhea;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildHhea(
     mut hhea: *const table_hhea,
     mut _options: *const otfcc_Options,

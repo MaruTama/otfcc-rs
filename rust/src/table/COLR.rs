@@ -1,27 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint_fallback, preserialize};
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_init, otfcc_Handle_move, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
@@ -32,15 +10,16 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{colorid_t, glyphid_t};
-use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_object, json_string, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p32};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::support::glyph_order::{glyph_handle};
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::support::{__compar_fn_t};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new};
+use crate::vendor::sds::{sdsempty, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct colr_Layer {
@@ -176,7 +155,6 @@ unsafe extern "C" fn copyLayer(mut dst: *mut colr_Layer, mut src: *const colr_La
 unsafe extern "C" fn disposeLayer(mut layer: *mut colr_Layer) {
     otfcc_Handle_dispose(&raw mut (*layer).glyph);
 }
-#[unsafe(no_mangle)]
 pub static colr_iLayer: __caryll_elementinterface_colr_Layer = {
     __caryll_elementinterface_colr_Layer {
         init: Some(colr_Layer_init as unsafe extern "C" fn(*mut colr_Layer) -> ()),
@@ -284,7 +262,6 @@ unsafe extern "C" fn colr_LayerList_push(arr: *mut colr_LayerList, elem: colr_La
 unsafe extern "C" fn colr_LayerList_grow(arr: *mut colr_LayerList) {
     cvec_grow(colr_LayerList_as_cvec(arr));
 }
-#[unsafe(no_mangle)]
 pub static colr_iLayerList: __caryll_vectorinterface_colr_LayerList = {
     __caryll_vectorinterface_colr_LayerList {
         init: Some(colr_LayerList_init as unsafe extern "C" fn(*mut colr_LayerList) -> ()),
@@ -543,7 +520,6 @@ unsafe extern "C" fn colr_Mapping_copyReplace(mut dst: *mut colr_Mapping, src: c
     colr_Mapping_dispose(dst);
     colr_Mapping_copy(dst, &raw const src);
 }
-#[unsafe(no_mangle)]
 pub static colr_iMapping: __caryll_elementinterface_colr_Mapping = {
     __caryll_elementinterface_colr_Mapping {
         init: Some(colr_Mapping_init as unsafe extern "C" fn(*mut colr_Mapping) -> ()),
@@ -601,7 +577,6 @@ unsafe extern "C" fn table_COLR_replace(mut dst: *mut table_COLR, src: table_COL
 unsafe extern "C" fn table_COLR_growTo(arr: *mut table_COLR, target: usize) {
     cvec_grow_to(table_COLR_as_cvec(arr), target);
 }
-#[unsafe(no_mangle)]
 pub static table_iCOLR: __caryll_vectorinterface_table_COLR = {
     __caryll_vectorinterface_table_COLR {
         init: Some(table_COLR_init as unsafe extern "C" fn(*mut table_COLR) -> ()),
@@ -863,7 +838,6 @@ unsafe extern "C" fn table_COLR_create() -> *mut table_COLR {
 }
 static baseGlyphRecLength: usize = 6 as usize;
 static layerRecLength: usize = 4 as usize;
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readCOLR(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -1053,7 +1027,6 @@ pub unsafe extern "C" fn otfcc_readCOLR(
     }
     return colr;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpCOLR(
     mut colr: *const table_COLR,
     mut root: *mut json_value,
@@ -1128,7 +1101,6 @@ pub unsafe extern "C" fn otfcc_dumpCOLR(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseCOLR(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -1242,7 +1214,6 @@ unsafe extern "C" fn byGID(
 ) -> ::core::ffi::c_int {
     return (*a).glyph.index as ::core::ffi::c_int - (*b).glyph.index as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildCOLR(
     mut _colr: *const table_COLR,
     mut _options: *const otfcc_Options,

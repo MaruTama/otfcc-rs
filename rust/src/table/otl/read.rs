@@ -1,111 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    static otl_iSubtableList: __caryll_vectorinterface_otl_SubtableList;
-    static otl_iLookupPtr: __caryll_elementinterface_otl_LookupPtr;
-    static otl_iLookupList: __caryll_vectorinterface_otl_LookupList;
-    static otl_iLookupRefList: __caryll_vectorinterface_otl_LookupRefList;
-    static otl_iFeaturePtr: __caryll_elementinterface_otl_FeaturePtr;
-    static otl_iFeatureList: __caryll_vectorinterface_otl_FeatureList;
-    static otl_iFeatureRefList: __caryll_vectorinterface_otl_FeatureRefList;
-    static otl_iLanguageSystem: __caryll_elementinterface_otl_LanguageSystemPtr;
-    static otl_iLangSystemList: __caryll_vectorinterface_otl_LangSystemList;
-    static table_iOTL: __caryll_elementinterface_table_OTL;
-    fn otl_read_gsub_single(
-        data: font_file_pointer,
-        tableLength: u32,
-        subtableOffset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_read_gsub_multi(
-        data: font_file_pointer,
-        tableLength: u32,
-        subtableOffset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_read_gsub_ligature(
-        data: font_file_pointer,
-        tableLength: u32,
-        subtableOffset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_read_gsub_reverse(
-        data: font_file_pointer,
-        tableLength: u32,
-        offset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_read_gpos_pair(
-        data: font_file_pointer,
-        tableLength: u32,
-        offset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_read_gpos_cursive(
-        data: font_file_pointer,
-        tableLength: u32,
-        subtableOffset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_read_gpos_markToSingle(
-        data: font_file_pointer,
-        tableLength: u32,
-        subtableOffset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_read_gpos_markToLigature(
-        data: font_file_pointer,
-        tableLength: u32,
-        subtableOffset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_read_chaining(
-        data: font_file_pointer,
-        tableLength: u32,
-        offset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otl_read_contextual(
-        data: font_file_pointer,
-        tableLength: u32,
-        offset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otfcc_readOtl_gsub_extend(
-        data: font_file_pointer,
-        tableLength: u32,
-        subtableOffset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    fn otfcc_readOtl_gpos_extend(
-        data: font_file_pointer,
-        tableLength: u32,
-        subtableOffset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-    static SCRIPT_LANGUAGE_SEPARATOR: ::core::ffi::c_char;
-    fn otfcc_delete_lookup(lookup: *mut otl_Lookup);
-    fn otl_read_gpos_single(
-        data: font_file_pointer,
-        tableLength: u32,
-        subtableOffset: u32,
-        maxGlyphs: glyphid_t,
-        options: *const otfcc_Options,
-    ) -> *mut otl_Subtable;
-}
 
 
 
@@ -113,11 +7,24 @@ use crate::support::binio::{read_16u, read_32u};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t};
-use crate::vendor::sds::{Byte, Dec5, Hex2, sds};
+use crate::vendor::sds::{Byte, Dec5, Hex2};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
-use crate::table::otl::{__caryll_elementinterface_otl_FeaturePtr, __caryll_elementinterface_otl_LanguageSystemPtr, __caryll_elementinterface_otl_LookupPtr, __caryll_elementinterface_table_OTL, __caryll_vectorinterface_otl_FeatureList, __caryll_vectorinterface_otl_FeatureRefList, __caryll_vectorinterface_otl_LangSystemList, __caryll_vectorinterface_otl_LookupList, __caryll_vectorinterface_otl_LookupRefList, __caryll_vectorinterface_otl_SubtableList, otl_Feature, otl_FeatureList, otl_FeaturePtr, otl_FeatureRef, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_context, otl_type_gpos_cursive, otl_type_gpos_extend, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gpos_unknown, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_context, otl_type_gsub_extend, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, otl_type_gsub_unknown, otl_type_unknown, table_OTL};
-#[unsafe(no_mangle)]
+use crate::table::otl::{otl_Feature, otl_FeatureList, otl_FeaturePtr, otl_FeatureRef, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_context, otl_type_gpos_cursive, otl_type_gpos_extend, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gpos_unknown, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_context, otl_type_gsub_extend, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, otl_type_gsub_unknown, otl_type_unknown, table_OTL};
+use crate::table::otl::{otfcc_delete_lookup, otl_iFeatureList, otl_iFeaturePtr, otl_iFeatureRefList, otl_iLangSystemList, otl_iLanguageSystem, otl_iLookupList, otl_iLookupPtr, otl_iLookupRefList, otl_iSubtableList, table_iOTL};
+use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
+use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
+use crate::table::otl::subtables::extend::{otfcc_readOtl_gpos_extend, otfcc_readOtl_gsub_extend};
+use crate::table::otl::subtables::gpos_cursive::{otl_read_gpos_cursive};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_read_gpos_markToLigature};
+use crate::table::otl::subtables::gpos_mark_to_single::{otl_read_gpos_markToSingle};
+use crate::table::otl::subtables::gpos_pair::{otl_read_gpos_pair};
+use crate::table::otl::subtables::gpos_single::{otl_read_gpos_single};
+use crate::table::otl::subtables::gsub_ligature::{otl_read_gsub_ligature};
+use crate::table::otl::subtables::gsub_multi::{otl_read_gsub_multi};
+use crate::table::otl::subtables::gsub_reverse::{otl_read_gsub_reverse};
+use crate::table::otl::subtables::gsub_single::{otl_read_gsub_single};
+use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn otfcc_readOtl_subtable(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -943,7 +850,6 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
         (*lookup).type_0 = otl_type_gpos_chaining;
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readOtl(
     mut packet: otfcc_Packet,
     mut options: *const otfcc_Options,

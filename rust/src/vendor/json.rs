@@ -297,7 +297,6 @@ static flag_num_zero: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 9 as ::core::ffi::c_int) as ::core::ffi::c_long;
 static flag_num_e: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 10 as ::core::ffi::c_int) as ::core::ffi::c_long;
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_parse_ex(
     mut settings: *mut json_settings,
     mut json: *const ::core::ffi::c_char,
@@ -3267,7 +3266,6 @@ pub unsafe extern "C" fn json_parse_ex(
     }
     return ::core::ptr::null_mut::<json_value>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_parse(
     mut json: *const ::core::ffi::c_char,
     mut length: usize,
@@ -3293,7 +3291,6 @@ pub unsafe extern "C" fn json_parse(
         ::core::ptr::null_mut::<::core::ffi::c_char>(),
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_value_free_ex(
     mut settings: *mut json_settings,
     mut value: *mut json_value,
@@ -3355,7 +3352,6 @@ pub unsafe extern "C" fn json_value_free_ex(
         );
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_value_free(mut value: *mut json_value) {
     let mut settings: json_settings = json_settings {
         max_memory: 0,

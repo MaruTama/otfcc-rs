@@ -1,46 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
 unsafe extern "C" {
-    fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    fn sdscatsds(s: sds, t: sds) -> sds;
-    fn sdsfromlonglong(value: ::core::ffi::c_longlong) -> sds;
-    fn otfcc_from_fixed(x: f16dot16) -> ::core::ffi::c_double;
-    static iVV: __caryll_vectorinterface_VV;
-    fn vq_AxisSpanIsOne(a: *const vq_AxisSpan) -> bool;
-    fn vq_deleteRegion(region: *mut vq_Region);
-    static iVQ: __caryll_vectorinterface_VQ;
-    static vf_iAxes: __caryll_vectorinterface_vf_Axes;
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_object_push_length(
-        object: *mut json_value,
-        name_length: ::core::ffi::c_uint,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
-    fn json_boolean_new(_: ::core::ffi::c_int) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
@@ -55,12 +15,17 @@ use crate::vendor::json::json_value;
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{NULL, __compar_fn_t};
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
-use crate::vf::axis::{__caryll_vectorinterface_vf_Axes, vf_Axes, vf_Axis};
+use crate::vf::axis::{vf_Axes, vf_Axis};
 use crate::vf::region::{vq_AxisSpan, vq_Region};
-use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_Segment};
-use crate::vf::vv::{VV, __caryll_vectorinterface_VV};
+use crate::vf::vq::{VQ, vq_Segment};
+use crate::vf::vv::VV;
+use crate::support::primitives::{otfcc_from_fixed};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_length, json_string_new, json_string_new_length};
+use crate::vendor::sds::{sdscatsds, sdsempty, sdsfree, sdsfromlonglong, sdsnew};
+use crate::vf::axis::{vf_iAxes};
+use crate::vf::region::{vq_AxisSpanIsOne, vq_deleteRegion};
+use crate::vf::vq::{iVQ, iVV};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct fvar_Instance {
@@ -229,7 +194,6 @@ unsafe extern "C" fn initFvarInstance(mut inst: *mut fvar_Instance) {
 unsafe extern "C" fn disposeFvarInstance(mut inst: *mut fvar_Instance) {
     iVV.dispose.expect("non-null function pointer")(&raw mut (*inst).coordinates);
 }
-#[unsafe(no_mangle)]
 pub static fvar_iInstance: __caryll_elementinterface_fvar_Instance = {
     __caryll_elementinterface_fvar_Instance {
         init: Some(fvar_Instance_init as unsafe extern "C" fn(*mut fvar_Instance) -> ()),
@@ -509,7 +473,6 @@ unsafe extern "C" fn fvar_InstanceList_initCapN(mut arr: *mut fvar_InstanceList,
 unsafe extern "C" fn fvar_InstanceList_growToN(arr: *mut fvar_InstanceList, target: usize) {
     cvec_grow_to_n(fvar_InstanceList_as_cvec(arr), target);
 }
-#[unsafe(no_mangle)]
 pub static fvar_iInstanceList: __caryll_vectorinterface_fvar_InstanceList = {
     __caryll_vectorinterface_fvar_InstanceList {
         init: Some(fvar_InstanceList_init as unsafe extern "C" fn(*mut fvar_InstanceList) -> ()),
@@ -1849,7 +1812,6 @@ unsafe extern "C" fn table_fvar_move(mut dst: *mut table_fvar, mut src: *mut tab
     );
     table_fvar_init(src);
 }
-#[unsafe(no_mangle)]
 pub static table_iFvar: __caryll_elementinterface_table_fvar = {
     __caryll_elementinterface_table_fvar {
         init: Some(table_fvar_init as unsafe extern "C" fn(*mut table_fvar) -> ()),
@@ -1878,7 +1840,6 @@ pub static table_iFvar: __caryll_elementinterface_table_fvar = {
         ),
     }
 };
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readFvar(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -2126,7 +2087,6 @@ pub unsafe extern "C" fn otfcc_readFvar(
     }
     return ::core::ptr::null_mut::<table_fvar>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpFvar(
     mut table: *const table_fvar,
     mut root: *mut json_value,
@@ -2269,7 +2229,6 @@ pub unsafe extern "C" fn otfcc_dumpFvar(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VQSegment(
     mut s: *const vq_Segment,
     mut fvar: *const table_fvar,
@@ -2301,7 +2260,6 @@ pub unsafe extern "C" fn json_new_VQSegment(
         _ => return json_integer_new(0 as i64),
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VQ(z: VQ, mut fvar: *const table_fvar) -> *mut json_value {
     if z.shift.length == 0 {
         return preserialize(json_new_position(iVQ
@@ -2323,7 +2281,6 @@ pub unsafe extern "C" fn json_new_VQ(z: VQ, mut fvar: *const table_fvar) -> *mut
         return preserialize(a);
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VV(x: VV, mut fvar: *const table_fvar) -> *mut json_value {
     let mut axes: *const vf_Axes = &raw const (*fvar).axes;
     if !axes.is_null() && (*axes).length == x.length {
@@ -2359,7 +2316,6 @@ pub unsafe extern "C" fn json_new_VV(x: VV, mut fvar: *const table_fvar) -> *mut
         return preserialize(_coord_0);
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VVp(
     mut x: *const VV,
     mut fvar: *const table_fvar,
@@ -2401,11 +2357,9 @@ pub unsafe extern "C" fn json_new_VVp(
         return preserialize(_coord_0);
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_vqOf(mut cv: *const json_value, mut _fvar: *const table_fvar) -> VQ {
     return iVQ.createStill.expect("non-null function pointer")(json_numof(cv) as pos_t);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VQAxisSpan(mut s: *const vq_AxisSpan) -> *mut json_value {
     if vq_AxisSpanIsOne(s) {
         return json_string_new(b"*\0" as *const u8 as *const ::core::ffi::c_char);
@@ -2429,7 +2383,6 @@ pub unsafe extern "C" fn json_new_VQAxisSpan(mut s: *const vq_AxisSpan) -> *mut 
         return a;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VQRegion_Explicit(
     mut rs: *const vq_Region,
     mut fvar: *const table_fvar,
@@ -2466,7 +2419,6 @@ pub unsafe extern "C" fn json_new_VQRegion_Explicit(
         return r_0;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn json_new_VQRegion(
     mut rs: *const vq_Region,
     mut fvar: *const table_fvar,

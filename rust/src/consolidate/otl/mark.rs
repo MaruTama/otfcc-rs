@@ -1,14 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
-    static otl_iMarkArray: __caryll_vectorinterface_otl_MarkArray;
-    static otl_iBaseArray: __caryll_vectorinterface_otl_BaseArray;
-    static otl_iLigatureArray: __caryll_vectorinterface_otl_LigatureArray;
-}
 
 
 use crate::support::handle::{handle_fromConsolidated, otfcc_GlyphHandle};
@@ -21,7 +12,6 @@ use crate::support::primitives::{glyphclass_t, glyphid_t};
 use crate::vendor::sds::{sds};
 use crate::font::caryll_font::{otfcc_Font};
 use crate::support::{NULL};
-use crate::support::glyph_order::{otfcc_GlyphOrderPackage};
 
 
 
@@ -46,13 +36,18 @@ use crate::support::glyph_order::{otfcc_GlyphOrderPackage};
 
 
 
-use crate::table::otl::{__caryll_vectorinterface_otl_BaseArray, __caryll_vectorinterface_otl_LigatureArray, __caryll_vectorinterface_otl_MarkArray, otl_Anchor, otl_BaseArray, otl_BaseRecord, otl_LigatureArray, otl_LigatureBaseRecord, otl_MarkArray, otl_MarkRecord, otl_Subtable, subtable_gpos_markToLigature, subtable_gpos_markToSingle, table_OTL};
+use crate::table::otl::{otl_Anchor, otl_BaseArray, otl_BaseRecord, otl_LigatureArray, otl_LigatureBaseRecord, otl_MarkArray, otl_MarkRecord, otl_Subtable, subtable_gpos_markToLigature, subtable_gpos_markToSingle, table_OTL};
 
 
 
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::table::otl::subtables::gpos_common::{otl_iMarkArray};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_iLigatureArray};
+use crate::table::otl::subtables::gpos_mark_to_single::{otl_iBaseArray};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
 
@@ -3162,7 +3157,6 @@ unsafe extern "C" fn consolidateLigArray(
             (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut lig_hash as *mut lig_hash;
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_mark_to_single(
     mut font: *mut otfcc_Font,
     mut table: *mut table_OTL,
@@ -3181,7 +3175,6 @@ pub unsafe extern "C" fn consolidate_mark_to_single(
     return (*subtable).markArray.length == 0 as usize
         || (*subtable).baseArray.length == 0 as usize;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_mark_to_ligature(
     mut font: *mut otfcc_Font,
     mut table: *mut table_OTL,

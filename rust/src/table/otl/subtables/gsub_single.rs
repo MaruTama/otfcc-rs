@@ -1,21 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-}
 
 
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
+use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle_empty, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -34,6 +21,11 @@ use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_single, otl_GsubS
 use crate::table::otl::subtables::otl_BuildHeuristics;
 use crate::vendor::uthash::{UT_hash_handle};
 use crate::support::{__compar_fn_t};
+use crate::bk::bkblock::{bk_newBlockFromBuffer};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new};
+use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_GsubSingleEntry {
@@ -116,7 +108,6 @@ unsafe extern "C" fn subtable_gsub_single_filterEnv(
     }
     (*arr).length = j;
 }
-#[unsafe(no_mangle)]
 pub static iSubtable_gsub_single: __caryll_vectorinterface_subtable_gsub_single = {
     __caryll_vectorinterface_subtable_gsub_single {
         init: Some(
@@ -416,7 +407,6 @@ unsafe extern "C" fn subtable_gsub_single_move(
 ) {
     cvec_move(as_cvec(dst), as_cvec(src));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gsub_single(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -552,7 +542,6 @@ pub unsafe extern "C" fn otl_read_gsub_single(
     }
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_dump_single(
     mut _subtable: *const otl_Subtable,
 ) -> *mut json_value {
@@ -571,7 +560,6 @@ pub unsafe extern "C" fn otl_gsub_dump_single(
     }
     return st;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gsub_parse_single(
     mut _subtable: *const json_value,
     mut _options: *const otfcc_Options,
@@ -621,7 +609,6 @@ pub unsafe extern "C" fn otl_gsub_parse_single(
     }
     return subtable as *mut otl_Subtable;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
     mut _subtable: *const otl_Subtable,
     mut heuristics: otl_BuildHeuristics,

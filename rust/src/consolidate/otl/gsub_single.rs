@@ -1,12 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    static otfcc_pkgGlyphOrder: otfcc_GlyphOrderPackage;
-    static iSubtable_gsub_single: __caryll_vectorinterface_subtable_gsub_single;
-}
 
 
 use crate::support::handle::{handle_fromConsolidated, otfcc_GlyphHandle};
@@ -16,10 +9,8 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{glyphid_t};
-use crate::vendor::sds::{sds};
 use crate::font::caryll_font::{otfcc_Font};
 use crate::support::{NULL};
-use crate::support::glyph_order::{otfcc_GlyphOrderPackage};
 
 
 
@@ -44,7 +35,7 @@ use crate::support::glyph_order::{otfcc_GlyphOrderPackage};
 
 
 
-use crate::table::otl::{__caryll_vectorinterface_subtable_gsub_single, otl_GsubSingleEntry, otl_Subtable, subtable_gsub_single, table_OTL};
+use crate::table::otl::{otl_GsubSingleEntry, otl_Subtable, subtable_gsub_single, table_OTL};
 
 use crate::table::otl::subtables::gsub_single::{gsub_single_map_hash};
 
@@ -52,6 +43,9 @@ use crate::table::otl::subtables::gsub_single::{gsub_single_map_hash};
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::table::otl::subtables::gsub_single::{iSubtable_gsub_single};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
 
@@ -62,7 +56,6 @@ unsafe extern "C" fn by_from_id(
 ) -> ::core::ffi::c_int {
     return (*a).fromid - (*b).fromid;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn consolidate_gsub_single(
     mut font: *mut otfcc_Font,
     mut _table: *mut table_OTL,

@@ -19,7 +19,6 @@ pub struct vq_Region {
     pub dimensions: shapeid_t,
     pub spans: [vq_AxisSpan; 0],
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vq_createRegion(mut dimensions: shapeid_t) -> *mut vq_Region {
     let mut r: *mut vq_Region = ::core::ptr::null_mut::<vq_Region>();
     r = __caryll_allocate_clean(
@@ -31,12 +30,10 @@ pub unsafe extern "C" fn vq_createRegion(mut dimensions: shapeid_t) -> *mut vq_R
     (*r).dimensions = dimensions;
     return r;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vq_deleteRegion(mut region: *mut vq_Region) {
     free(region as *mut ::core::ffi::c_void);
     region = ::core::ptr::null_mut::<vq_Region>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vq_copyRegion(mut region: *const vq_Region) -> *mut vq_Region {
     let mut dst: *mut vq_Region = vq_createRegion((*region).dimensions);
     memcpy(
@@ -49,7 +46,6 @@ pub unsafe extern "C" fn vq_copyRegion(mut region: *const vq_Region) -> *mut vq_
     );
     return dst;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vq_compareRegion(
     mut a: *const vq_Region,
     mut b: *const vq_Region,
@@ -69,7 +65,6 @@ pub unsafe extern "C" fn vq_compareRegion(
         ),
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vq_AxisSpanIsOne(mut s: *const vq_AxisSpan) -> bool {
     let a: pos_t = (*s).start;
     let p: pos_t = (*s).peak;
@@ -105,7 +100,6 @@ unsafe extern "C" fn weightAxisRegion(mut as_0: *const vq_AxisSpan, x: pos_t) ->
         return (z - x) / (z - p);
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vqRegionGetWeight(mut r: *const vq_Region, mut v: *const VV) -> pos_t {
     let mut w: pos_t = 1 as ::core::ffi::c_int as pos_t;
     let mut j: usize = 0 as usize;
@@ -118,5 +112,4 @@ pub unsafe extern "C" fn vqRegionGetWeight(mut r: *const vq_Region, mut v: *cons
     }
     return w;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vq_showRegion(mut _r: *const vq_Region) {}

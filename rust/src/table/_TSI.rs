@@ -1,25 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
-    fn bufwrite_sds(buf: *mut caryll_Buffer, str: sds);
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-}
 use crate::support::json_funcs::{json_obj_get_type};
 use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_empty, otfcc_Handle_init, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 use crate::support::binio::{read_16u, read_32u};
@@ -32,6 +12,9 @@ use crate::vendor::json::{json_object, json_string, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{__compar_fn_t};
+use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_sds};
+use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnewlen};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -179,7 +162,6 @@ unsafe extern "C" fn tsi_Entry_move(mut dst: *mut tsi_Entry, mut src: *mut tsi_E
     );
     tsi_Entry_init(src);
 }
-#[unsafe(no_mangle)]
 pub static tsi_iEntry: __caryll_elementinterface_tsi_Entry = {
     __caryll_elementinterface_tsi_Entry {
         init: Some(tsi_Entry_init as unsafe extern "C" fn(*mut tsi_Entry) -> ()),
@@ -296,7 +278,6 @@ unsafe extern "C" fn table_TSI_sort(
         >(fn_0),
     );
 }
-#[unsafe(no_mangle)]
 pub static table_iTSI: __caryll_vectorinterface_table_TSI = {
     __caryll_vectorinterface_table_TSI {
         init: Some(table_TSI_init as unsafe extern "C" fn(*mut table_TSI) -> ()),
@@ -471,7 +452,6 @@ unsafe extern "C" fn isValidGID(mut gid: u16, mut tagIndex: u32) -> bool {
         return (gid as ::core::ffi::c_int) < 0xfffa as ::core::ffi::c_int;
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readTSI(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -631,7 +611,6 @@ pub unsafe extern "C" fn otfcc_readTSI(
     }
     return tsi;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpTSI(
     mut tsi: *const table_TSI,
     mut root: *mut json_value,
@@ -733,7 +712,6 @@ pub unsafe extern "C" fn otfcc_dumpTSI(
             .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseTSI(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -915,7 +893,6 @@ unsafe extern "C" fn pushTSIEntries(
         itemsPushed = (itemsPushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as glyphid_t;
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildTSI(
     mut tsi: *const table_TSI,
     mut _options: *const otfcc_Options,

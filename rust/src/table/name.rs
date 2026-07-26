@@ -1,34 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    fn sdsgrowzero(s: sds, len: usize) -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn bufseek(buf: *mut caryll_Buffer, pos: usize);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite_bytes(buf: *mut caryll_Buffer, size: usize, str: *const u8);
-    fn bufwrite_buf(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn base64_encode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
-    fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
-    fn utf16be_to_utf8(inb: *const u8, inlenb: ::core::ffi::c_int) -> sds;
-    fn utf8toutf16be(_in: sds, out_bytes: *mut usize) -> *mut u8;
-}
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint};
 use crate::support::binio::{read_16u};
 use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
@@ -41,6 +12,11 @@ use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cve
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 use crate::support::{__compar_fn_t};
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
+use crate::support::base64::{base64_decode, base64_encode};
+use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite16b, bufwrite_buf, bufwrite_bytes};
+use crate::support::unicodeconv::{utf16be_to_utf8, utf8toutf16be};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsgrowzero, sdsnewlen};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -182,7 +158,6 @@ unsafe extern "C" fn otfcc_NameRecord_copyReplace(
     otfcc_NameRecord_dispose(dst);
     otfcc_NameRecord_copy(dst, &raw const src);
 }
-#[unsafe(no_mangle)]
 pub static otfcc_iNameRecord: __caryll_elementinterface_otfcc_NameRecord = {
     __caryll_elementinterface_otfcc_NameRecord {
         init: Some(otfcc_NameRecord_init as unsafe extern "C" fn(*mut otfcc_NameRecord) -> ()),
@@ -333,7 +308,6 @@ unsafe extern "C" fn table_name_push(arr: *mut table_name, elem: otfcc_NameRecor
 unsafe extern "C" fn table_name_grow(arr: *mut table_name) {
     cvec_grow(table_name_as_cvec(arr));
 }
-#[unsafe(no_mangle)]
 pub static table_iName: __caryll_vectorinterface_table_name = {
     __caryll_vectorinterface_table_name {
         init: Some(table_name_init as unsafe extern "C" fn(*mut table_name) -> ()),
@@ -520,7 +494,6 @@ unsafe extern "C" fn shouldDecodeAsBytes(mut record: *const otfcc_NameRecord) ->
         && (*record).encodingID as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         && (*record).languageID as ::core::ffi::c_int == 0 as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readName(
     packet: otfcc_Packet,
     mut options: *const otfcc_Options,
@@ -674,7 +647,6 @@ pub unsafe extern "C" fn otfcc_readName(
     }
     return ::core::ptr::null_mut::<table_name>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpName(
     mut name: *const table_name,
     mut root: *mut json_value,
@@ -754,7 +726,6 @@ unsafe extern "C" fn name_record_sort(
     }
     return (*a).nameID as ::core::ffi::c_int - (*b).nameID as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseName(
     mut root: *const json_value,
     mut options: *const otfcc_Options,
@@ -941,7 +912,6 @@ pub unsafe extern "C" fn otfcc_parseName(
     }
     return name;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildName(
     mut name: *const table_name,
     mut _options: *const otfcc_Options,

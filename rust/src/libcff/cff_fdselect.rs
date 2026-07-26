@@ -1,12 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-unsafe extern "C" {
-    fn bufnew() -> *mut caryll_Buffer;
-}
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{caryll_Buffer};
+use crate::support::buffer::{bufnew};
 
 /// Which FDSelect format a CID font uses, or `UNSPECED` for a font that has
 /// none and for a format byte otfcc does not recognise.
@@ -69,7 +67,6 @@ unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
         .offset(1 as ::core::ffi::c_int as isize) as u32;
     return b0 | b1;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_close_FDSelect(mut fds: cff_FDSelect) {
     match fds.t {
         cff_FDSELECT_FORMAT0 => {
@@ -87,7 +84,6 @@ pub unsafe extern "C" fn cff_close_FDSelect(mut fds: cff_FDSelect) {
         _ => {}
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_build_FDSelect(mut fd: cff_FDSelect) -> *mut caryll_Buffer {
     match fd.t {
         cff_FDSELECT_UNSPECED => return bufnew(),
@@ -153,7 +149,6 @@ pub unsafe extern "C" fn cff_build_FDSelect(mut fd: cff_FDSelect) -> *mut caryll
         }
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_extract_FDSelect(
     mut data: *mut u8,
     mut offset: i32,

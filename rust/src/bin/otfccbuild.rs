@@ -13,16 +13,6 @@ use ::otfcc_rust;
 use otfcc_rust::support::stdio::{stderr, stdin, stdout, FILE};
 use libc::{SEEK_SET, exit, fclose, feof, fgets, fopen, fprintf, fread, free, fseek, ftell, fwrite, malloc, realloc, strcmp, strlen, strtol};
 unsafe extern "C" {
-    fn sdsnew(init: *const ::core::ffi::c_char) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    fn json_parse(json: *const ::core::ffi::c_char, length: usize) -> *mut json_value;
-    fn json_value_free(_: *mut json_value);
-    fn otfcc_newLogger(target: *mut otfcc_ILoggerTarget) -> *mut otfcc_ILogger;
-    fn otfcc_newStdErrTarget() -> *mut otfcc_ILoggerTarget;
-    fn otfcc_newOptions() -> *mut otfcc_Options;
-    fn otfcc_deleteOptions(options: *mut otfcc_Options);
-    fn otfcc_Options_optimizeTo(options: *mut otfcc_Options, level: u8);
     static mut optarg: *mut ::core::ffi::c_char;
     static mut optind: ::core::ffi::c_int;
     fn getopt_long(
@@ -32,27 +22,29 @@ unsafe extern "C" {
         __longopts: *const option,
         __longind: *mut ::core::ffi::c_int,
     ) -> ::core::ffi::c_int;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn buflen(buf: *mut caryll_Buffer) -> usize;
-    static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
-    fn otfcc_newJsonReader() -> *mut otfcc_IFontBuilder;
-    fn otfcc_newOTFWriter() -> *mut otfcc_IFontSerializer;
-    fn time_now(tv: *mut timespec);
-    fn push_stopwatch(sofar: *mut timespec) -> sds;
 }
 
-use otfcc_rust::logger::{log_type_error, log_type_progress, otfcc_ILogger, otfcc_ILoggerTarget};
+use otfcc_rust::logger::{log_type_error, log_type_progress, otfcc_ILogger};
 use otfcc_rust::support::buffer::{caryll_Buffer};
 use otfcc_rust::support::options::{otfcc_Options};
 
 use otfcc_rust::vendor::sds::{sds};
 use otfcc_rust::vendor::json::{json_value};
-use otfcc_rust::font::caryll_font::{__caryll_elementinterface_otfcc_Font, otfcc_Font, otfcc_IFontBuilder, otfcc_IFontSerializer};
+use otfcc_rust::font::caryll_font::{otfcc_Font, otfcc_IFontBuilder, otfcc_IFontSerializer};
 use otfcc_rust::logger::{log_vl_critical, log_vl_progress};
 use otfcc_rust::support::{EXIT_FAILURE, NULL};
 use libc::timespec;
 use otfcc_rust::support::getopt::{no_argument, option, required_argument};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
+use otfcc_rust::font::caryll_font::{otfcc_iFont};
+use otfcc_rust::json_reader::{otfcc_newJsonReader};
+use otfcc_rust::logger::{otfcc_newLogger, otfcc_newStdErrTarget};
+use otfcc_rust::otf_writer::{otfcc_newOTFWriter};
+use otfcc_rust::support::buffer::{buffree, buflen};
+use otfcc_rust::support::options::{otfcc_Options_optimizeTo, otfcc_deleteOptions, otfcc_newOptions};
+use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
+use otfcc_rust::vendor::json::{json_parse, json_value_free};
+use otfcc_rust::vendor::sds::{sdsempty, sdsfree, sdsnew};
 
 
 
@@ -99,7 +91,6 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
         10 as ::core::ffi::c_int,
     ) as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn printInfo() {
     fprintf(
         stdout,
@@ -110,7 +101,6 @@ pub unsafe extern "C" fn printInfo() {
         PATCH_VER,
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn printHelp() {
     fprintf(
         stdout,
@@ -118,7 +108,6 @@ pub unsafe extern "C" fn printHelp() {
             as *const u8 as *const ::core::ffi::c_char,
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn readEntireFile(
     mut inPath: *mut ::core::ffi::c_char,
     mut _buffer: *mut *mut ::core::ffi::c_char,
@@ -160,7 +149,6 @@ pub unsafe extern "C" fn readEntireFile(
     *_buffer = buffer;
     *_length = length;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn readEntireStdin(
     mut _buffer: *mut *mut ::core::ffi::c_char,
     mut _length: *mut ::core::ffi::c_long,

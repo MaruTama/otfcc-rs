@@ -1,26 +1,17 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn bufnew() -> *mut caryll_Buffer;
-    fn buffree(buf: *mut caryll_Buffer);
-    fn buflen(buf: *mut caryll_Buffer) -> usize;
-    fn bufseek(buf: *mut caryll_Buffer, pos: usize);
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    fn bufwrite32b(buf: *mut caryll_Buffer, x: u32);
-    fn bufwrite_buf(buf: *mut caryll_Buffer, that: *mut caryll_Buffer);
-    fn buflongalign(buf: *mut caryll_Buffer);
-}
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{log_type_progress, log_vl_progress, otfcc_ILogger};
 use crate::support::buffer::{caryll_Buffer};
 use crate::support::options::{otfcc_Options};
-use crate::vendor::sds::{Byte, sds};
+use crate::vendor::sds::Byte;
 use crate::support::{NULL};
 use crate::support::binio::{otfcc_EndianProbe16, otfcc_EndianProbe32};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::support::buffer::{buffree, buflen, buflongalign, bufnew, bufseek, bufwrite16b, bufwrite32b, bufwrite_buf};
+use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct otfcc_SFNTTableEntry {
@@ -106,7 +97,6 @@ unsafe extern "C" fn createSegment(
     (*table).checksum = sum;
     return table;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newSFNTBuilder(
     mut header: u32,
     mut options: *const otfcc_Options,
@@ -122,7 +112,6 @@ pub unsafe extern "C" fn otfcc_newSFNTBuilder(
     (*builder).options = options;
     return builder;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_deleteSFNTBuilder(mut builder: *mut otfcc_SFNTBuilder) {
     if builder.is_null() {
         return;
@@ -197,7 +186,6 @@ pub unsafe extern "C" fn otfcc_deleteSFNTBuilder(mut builder: *mut otfcc_SFNTBui
     free(builder as *mut ::core::ffi::c_void);
     builder = ::core::ptr::null_mut::<otfcc_SFNTBuilder>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
     mut builder: *mut otfcc_SFNTBuilder,
     mut tag: u32,
@@ -971,7 +959,6 @@ unsafe extern "C" fn byTag(
 ) -> ::core::ffi::c_int {
     return (*a).tag - (*b).tag;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
     mut builder: *mut otfcc_SFNTBuilder,
 ) -> *mut caryll_Buffer {

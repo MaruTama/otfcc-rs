@@ -1,63 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcmp, memcpy, memset, qsort, strlen};
-unsafe extern "C" {
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_object_push_length(
-        object: *mut json_value,
-        name_length: ::core::ffi::c_uint,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsfree(s: sds);
-    static otl_iCoverage: __otfcc_ICoverage;
-    fn bk_newBlockFromBuffer(buf: *mut caryll_Buffer) -> *mut bk_Block;
-    fn bk_build_Block(root: *mut bk_Block) -> *mut caryll_Buffer;
-    static otl_iMarkArray: __caryll_vectorinterface_otl_MarkArray;
-    fn otl_anchor_absent() -> otl_Anchor;
-    fn otl_read_anchor(
-        data: font_file_pointer,
-        tableLength: u32,
-        offset: u32,
-    ) -> otl_Anchor;
-    fn otl_parse_anchor(v: *mut json_value) -> otl_Anchor;
-    fn bkFromAnchor(a: otl_Anchor) -> *mut bk_Block;
-    fn otl_readMarkArray(
-        array: *mut otl_MarkArray,
-        cov: *mut otl_Coverage,
-        data: font_file_pointer,
-        tableLength: u32,
-        offset: u32,
-    );
-    fn otl_parseMarkArray(
-        _marks: *mut json_value,
-        array: *mut otl_MarkArray,
-        h: *mut *mut otl_ClassnameHash,
-        options: *const otfcc_Options,
-    );
-}
 
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
+use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
 use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -71,11 +17,16 @@ use crate::vendor::json::{json_object, json_value};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
 use crate::support::{NULL, __compar_fn_t};
-use crate::table::otl::{__caryll_elementinterface_subtable_gpos_markToSingle, __caryll_vectorinterface_otl_BaseArray, __caryll_vectorinterface_otl_MarkArray, otl_Anchor, otl_BaseArray, otl_BaseRecord, otl_MarkArray, otl_Subtable, subtable_gpos_markToSingle};
+use crate::table::otl::{__caryll_elementinterface_subtable_gpos_markToSingle, __caryll_vectorinterface_otl_BaseArray, otl_Anchor, otl_BaseArray, otl_BaseRecord, otl_Subtable, subtable_gpos_markToSingle};
 use crate::table::otl::subtables::{otl_BuildHeuristics};
 use crate::table::otl::subtables::gpos_common::{otl_ClassnameHash};
-use crate::vendor::json_builder::json_serialize_opts;
 use crate::vendor::uthash::{UT_hash_bucket, UT_hash_handle};
+use crate::bk::bkblock::{bk_newBlockFromBuffer};
+use crate::bk::bkgraph::{bk_build_Block};
+use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::subtables::gpos_common::{bkFromAnchor, otl_anchor_absent, otl_iMarkArray, otl_parseMarkArray, otl_parse_anchor, otl_readMarkArray, otl_read_anchor};
+use crate::vendor::json_builder::{json_integer_new, json_object_new, json_object_push, json_object_push_length, json_string_new_length};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __caryll_elementinterface_otl_BaseRecord {
@@ -283,7 +234,6 @@ unsafe extern "C" fn otl_BaseArray_filterEnv(
     }
     (*arr).length = j;
 }
-#[unsafe(no_mangle)]
 pub static otl_iBaseArray: __caryll_vectorinterface_otl_BaseArray = {
     __caryll_vectorinterface_otl_BaseArray {
         init: Some(otl_BaseArray_init as unsafe extern "C" fn(*mut otl_BaseArray) -> ()),
@@ -484,7 +434,6 @@ unsafe extern "C" fn subtable_gpos_markToSingle_init(mut x: *mut subtable_gpos_m
 unsafe extern "C" fn subtable_gpos_markToSingle_dispose(mut x: *mut subtable_gpos_markToSingle) {
     disposeMarkToSingle(x);
 }
-#[unsafe(no_mangle)]
 pub static iSubtable_gpos_markToSingle: __caryll_elementinterface_subtable_gpos_markToSingle = {
     __caryll_elementinterface_subtable_gpos_markToSingle {
         init: Some(
@@ -538,7 +487,6 @@ unsafe extern "C" fn subtable_gpos_markToSingle_create() -> *mut subtable_gpos_m
     subtable_gpos_markToSingle_init(x);
     return x;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_gpos_markToSingle(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -665,7 +613,6 @@ pub unsafe extern "C" fn otl_read_gpos_markToSingle(
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_dump_markToSingle(
     mut st: *const otl_Subtable,
 ) -> *mut json_value {
@@ -1184,7 +1131,6 @@ unsafe extern "C" fn parseBases(
         j = j.wrapping_add(1);
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_gpos_parse_markToSingle(
     mut _subtable: *const json_value,
     mut options: *const otfcc_Options,
@@ -1277,7 +1223,6 @@ pub unsafe extern "C" fn otl_gpos_parse_markToSingle(
     }
     return st as *mut otl_Subtable;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_build_gpos_markToSingle(
     mut _subtable: *const otl_Subtable,
     mut _heuristics: otl_BuildHeuristics,

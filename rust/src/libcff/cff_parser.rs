@@ -3,24 +3,6 @@ use libc::{free, memcpy};
 unsafe extern "C" {
     fn sqrt(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn sdsempty() -> sds;
-    static cff_iIndex: __caryll_elementinterface_cff_Index;
-    static cff_iDict: __caryll_elementinterface_cff_Dict;
-    fn cff_close_Charset(cset: cff_Charset);
-    fn cff_extract_Charset(
-        data: *mut u8,
-        offset: i32,
-        nchars: u16,
-        charsets: *mut cff_Charset,
-    );
-    fn cff_close_FDSelect(fds: cff_FDSelect);
-    fn cff_extract_FDSelect(
-        data: *mut u8,
-        offset: i32,
-        nchars: u16,
-        fdselect: *mut cff_FDSelect,
-    );
-    fn cff_decodeCS2Token(start: *const u8, val: *mut cff_Value) -> u32;
 }
 
 
@@ -29,13 +11,18 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{arity_t};
-use crate::vendor::sds::{Hex4, sds};
+use crate::vendor::sds::Hex4;
 use crate::libcff::{cff_Encoding, cff_EncodingRangeFormat1, cff_EncodingSupplement, cff_File, cff_IOutlineBuilder, cff_Stack, op_CharStrings, op_Encoding, op_FDArray, op_FDSelect, op_Private, op_Subrs, op_abs, op_add, op_and, op_callgsubr, op_callsubr, op_charset, op_cntrmask, op_div, op_drop, op_dup, op_eq, op_exch, op_flex, op_flex1, op_get, op_hflex, op_hflex1, op_hmoveto, op_ifelse, op_index, op_mul, op_neg, op_not, op_or, op_put, op_rmoveto, op_roll, op_sqrt, op_sub, op_vmoveto, op_vstem, op_vstemhm, type2_transient_array};
-use crate::libcff::cff_charset::{cff_CHARSET_UNSPECED, cff_Charset};
-use crate::libcff::cff_dict::{__caryll_elementinterface_cff_Dict};
+use crate::libcff::cff_charset::cff_CHARSET_UNSPECED;
 use crate::libcff::cff_fdselect::{cff_FDSELECT_FORMAT0, cff_FDSELECT_FORMAT3, cff_FDSELECT_UNSPECED, cff_FDSelect};
-use crate::libcff::cff_index::{__caryll_elementinterface_cff_Index, cff_Index};
+use crate::libcff::cff_index::cff_Index;
 use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_UNSET, cff_Value, cff_ValueBody};
+use crate::libcff::cff_charset::{cff_close_Charset, cff_extract_Charset};
+use crate::libcff::cff_codecs::{cff_decodeCS2Token};
+use crate::libcff::cff_dict::{cff_iDict};
+use crate::libcff::cff_fdselect::{cff_close_FDSelect, cff_extract_FDSelect};
+use crate::libcff::cff_index::{cff_iIndex};
+use crate::vendor::sds::{sdsempty};
 
 /// Which encoding a CFF font carries: one of the two predefined ones, or the
 /// format of an embedded encoding. Again the crate's own classification rather
@@ -414,7 +401,6 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut cff_File, mut options: *co
         cff_iIndex.empty.expect("non-null function pointer")(&raw mut (*cff).local_subr);
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_openStream(
     mut data: *mut u8,
     mut len: u32,
@@ -439,7 +425,6 @@ pub unsafe extern "C" fn cff_openStream(
     parse_cff_bytecode(file, options);
     return file;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_close(mut file: *mut cff_File) {
     if !file.is_null() {
         if !(*file).raw_data.is_null() {
@@ -484,7 +469,6 @@ pub unsafe extern "C" fn cff_close(mut file: *mut cff_File) {
         file = ::core::ptr::null_mut::<cff_File>();
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_parseSubr(
     mut idx: u16,
     mut raw: *mut u8,
@@ -658,7 +642,6 @@ unsafe extern "C" fn callback_nopgetrand(
 ) -> ::core::ffi::c_double {
     return 0 as ::core::ffi::c_int as ::core::ffi::c_double;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cff_parseOutline(
     mut data: *mut u8,
     mut len: u32,

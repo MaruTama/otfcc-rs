@@ -1,10 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, time, time_t};
 unsafe extern "C" {
-    fn sdsempty() -> sds;
-    static glyf_iComponentReference: __caryll_elementinterface_glyf_ComponentReference;
-    static iVQ: __caryll_vectorinterface_VQ;
-    static otfcc_iFont: __caryll_elementinterface_otfcc_Font;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
@@ -16,8 +12,7 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{f16dot16, glyphid_t, length_t, pos_t, scale_t, shapeid_t};
-use crate::vendor::sds::{sds};
-use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, __caryll_elementinterface_otfcc_Font, otfcc_Font};
+use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, otfcc_Font};
 
 
 
@@ -36,7 +31,7 @@ use crate::table::cmap::{cmap_Entry};
 
 
 
-use crate::table::glyf::{REF_XY, __caryll_elementinterface_glyf_ComponentReference, glyf_ComponentReference, glyf_Glyph, glyf_GlyphStat, glyf_Point, table_glyf};
+use crate::table::glyf::{REF_XY, glyf_ComponentReference, glyf_Glyph, glyf_GlyphStat, glyf_Point, table_glyf};
 
 
 
@@ -53,7 +48,11 @@ use crate::table::vmtx::{table_vmtx, vertical_metric};
 
 
 
-use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_SegList, vq_Segment};
+use crate::vf::vq::{VQ, vq_SegList, vq_Segment};
+use crate::font::caryll_font::{otfcc_iFont};
+use crate::table::glyf::{glyf_iComponentReference};
+use crate::vendor::sds::{sdsempty};
+use crate::vf::vq::{iVQ};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -64,7 +63,6 @@ pub enum stat_status {
 }
 pub use stat_status::*;
 pub const POS_MAX: ::core::ffi::c_float = FLT_MAX;
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn stat_single_glyph(
     mut table: *mut table_glyf,
     mut gr: *mut glyf_ComponentReference,
@@ -274,7 +272,6 @@ pub unsafe extern "C" fn stat_single_glyph(
     *stated.offset(j as isize) = stat_completed;
     return stat;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn statGlyf(mut font: *mut otfcc_Font, mut options: *const otfcc_Options) {
     let mut stated: *mut stat_status = ::core::ptr::null_mut::<stat_status>();
     stated = __caryll_allocate_clean(
@@ -351,7 +348,6 @@ pub unsafe extern "C" fn statGlyf(mut font: *mut otfcc_Font, mut options: *const
     free(stated as *mut ::core::ffi::c_void);
     stated = ::core::ptr::null_mut::<stat_status>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn statMaxp(mut font: *mut otfcc_Font) {
     let mut nestDepth: u16 = 0 as u16;
     let mut nPoints: u16 = 0 as u16;
@@ -1295,7 +1291,6 @@ unsafe extern "C" fn statLTSH(mut font: *mut otfcc_Font) {
     }
     (*font).LTSH = ltsh;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_statFont(
     mut font: *mut otfcc_Font,
     mut options: *const otfcc_Options,
@@ -1429,7 +1424,6 @@ pub unsafe extern "C" fn otfcc_statFont(
     }
     statLTSH(font);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_unstatFont(
     mut font: *mut otfcc_Font,
     mut _options: *const otfcc_Options,

@@ -280,7 +280,6 @@ unsafe extern "C" fn sdsReqType(mut string_size: usize) -> ::core::ffi::c_char {
     }
     return SDS_TYPE_64 as ::core::ffi::c_char;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsnewlen(
     mut init: *const ::core::ffi::c_void,
     mut initlen: usize,
@@ -356,14 +355,12 @@ pub unsafe extern "C" fn sdsnewlen(
     *s.offset(initlen as isize) = '\0' as i32 as ::core::ffi::c_char;
     return s;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsempty() -> sds {
     return sdsnewlen(
         b"\0" as *const u8 as *const ::core::ffi::c_char as *const ::core::ffi::c_void,
         0 as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsnew(mut init: *const ::core::ffi::c_char) -> sds {
     let mut initlen: usize = if init.is_null() {
         0 as usize
@@ -372,11 +369,9 @@ pub unsafe extern "C" fn sdsnew(mut init: *const ::core::ffi::c_char) -> sds {
     };
     return sdsnewlen(init as *const ::core::ffi::c_void, initlen);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsdup(s: sds) -> sds {
     return sdsnewlen(s as *const ::core::ffi::c_void, sdslen(s));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsfree(mut s: sds) {
     if s.is_null() {
         return;
@@ -386,18 +381,15 @@ pub unsafe extern "C" fn sdsfree(mut s: sds) {
             as *mut ::core::ffi::c_void,
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsupdatelen(mut s: sds) {
     let mut reallen: ::core::ffi::c_int =
         strlen(s as *const ::core::ffi::c_char) as ::core::ffi::c_int;
     sdssetlen(s, reallen as usize);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsclear(mut s: sds) {
     sdssetlen(s, 0 as usize);
     *s.offset(0 as ::core::ffi::c_int as isize) = '\0' as i32 as ::core::ffi::c_char;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsMakeRoomFor(mut s: sds, mut addlen: usize) -> sds {
     let mut sh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut newsh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
@@ -458,7 +450,6 @@ pub unsafe extern "C" fn sdsMakeRoomFor(mut s: sds, mut addlen: usize) -> sds {
     sdssetalloc(s, newlen);
     return s;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsRemoveFreeSpace(mut s: sds) -> sds {
     let mut sh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut newsh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
@@ -504,19 +495,16 @@ pub unsafe extern "C" fn sdsRemoveFreeSpace(mut s: sds) -> sds {
     sdssetalloc(s, len);
     return s;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsAllocSize(mut s: sds) -> usize {
     let mut alloc: usize = sdsalloc(s);
     return (sdsHdrSize(*s.offset(-(1 as ::core::ffi::c_int) as isize)) as usize)
         .wrapping_add(alloc)
         .wrapping_add(1 as usize);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsAllocPtr(mut s: sds) -> *mut ::core::ffi::c_void {
     return s.offset(-(sdsHdrSize(*s.offset(-(1 as ::core::ffi::c_int) as isize)) as isize))
         as *mut ::core::ffi::c_void;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsIncrLen(mut s: sds, mut incr: ::core::ffi::c_int) {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
@@ -565,7 +553,6 @@ pub unsafe extern "C" fn sdsIncrLen(mut s: sds, mut incr: ::core::ffi::c_int) {
     }
     *s.offset(len as isize) = '\0' as i32 as ::core::ffi::c_char;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsgrowzero(mut s: sds, mut len: usize) -> sds {
     let mut curlen: usize = sdslen(s);
     if len <= curlen {
@@ -583,7 +570,6 @@ pub unsafe extern "C" fn sdsgrowzero(mut s: sds, mut len: usize) -> sds {
     sdssetlen(s, len);
     return s;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdscatlen(
     mut s: sds,
     mut t: *const ::core::ffi::c_void,
@@ -603,15 +589,12 @@ pub unsafe extern "C" fn sdscatlen(
     *s.offset(curlen.wrapping_add(len) as isize) = '\0' as i32 as ::core::ffi::c_char;
     return s;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdscat(mut s: sds, mut t: *const ::core::ffi::c_char) -> sds {
     return sdscatlen(s, t as *const ::core::ffi::c_void, strlen(t));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdscatsds(mut s: sds, t: sds) -> sds {
     return sdscatlen(s, t as *const ::core::ffi::c_void, sdslen(t));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdscpylen(
     mut s: sds,
     mut t: *const ::core::ffi::c_char,
@@ -632,11 +615,9 @@ pub unsafe extern "C" fn sdscpylen(
     sdssetlen(s, len);
     return s;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdscpy(mut s: sds, mut t: *const ::core::ffi::c_char) -> sds {
     return sdscpylen(s, t, strlen(t));
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsll2str(
     mut s: *mut ::core::ffi::c_char,
     mut value: ::core::ffi::c_longlong,
@@ -679,7 +660,6 @@ pub unsafe extern "C" fn sdsll2str(
     }
     return l as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsull2str(
     mut s: *mut ::core::ffi::c_char,
     mut v: ::core::ffi::c_ulonglong,
@@ -711,7 +691,6 @@ pub unsafe extern "C" fn sdsull2str(
     }
     return l as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsfromlonglong(mut value: ::core::ffi::c_longlong) -> sds {
     let mut buf: [::core::ffi::c_char; 21] = [0; 21];
     let mut len: ::core::ffi::c_int = sdsll2str(&raw mut buf as *mut ::core::ffi::c_char, value);
@@ -905,7 +884,6 @@ macro_rules! sdsbuild {
     }};
 }
 
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdstrim(mut s: sds, mut cset: *const ::core::ffi::c_char) -> sds {
     let mut start: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut end: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -940,7 +918,6 @@ pub unsafe extern "C" fn sdstrim(mut s: sds, mut cset: *const ::core::ffi::c_cha
     sdssetlen(s, len);
     return s;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsrange(
     mut s: sds,
     mut start: ::core::ffi::c_int,
@@ -992,7 +969,6 @@ pub unsafe extern "C" fn sdsrange(
     *s.offset(newlen as isize) = 0 as ::core::ffi::c_char;
     sdssetlen(s, newlen);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdstolower(mut s: sds) {
     let mut len: ::core::ffi::c_int = sdslen(s) as ::core::ffi::c_int;
     let mut j: ::core::ffi::c_int = 0;
@@ -1002,7 +978,6 @@ pub unsafe extern "C" fn sdstolower(mut s: sds) {
         j += 1;
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdstoupper(mut s: sds) {
     let mut len: ::core::ffi::c_int = sdslen(s) as ::core::ffi::c_int;
     let mut j: ::core::ffi::c_int = 0;
@@ -1012,7 +987,6 @@ pub unsafe extern "C" fn sdstoupper(mut s: sds) {
         j += 1;
     }
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdscmp(s1: sds, s2: sds) -> ::core::ffi::c_int {
     let mut l1: usize = 0;
     let mut l2: usize = 0;
@@ -1031,7 +1005,6 @@ pub unsafe extern "C" fn sdscmp(s1: sds, s2: sds) -> ::core::ffi::c_int {
     }
     return cmp;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdssplitlen(
     mut s: *const ::core::ffi::c_char,
     mut len: ::core::ffi::c_int,
@@ -1125,7 +1098,6 @@ pub unsafe extern "C" fn sdssplitlen(
     *count = 0 as ::core::ffi::c_int;
     return ::core::ptr::null_mut::<sds>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsfreesplitres(mut tokens: *mut sds, mut count: ::core::ffi::c_int) {
     if tokens.is_null() {
         return;
@@ -1140,7 +1112,6 @@ pub unsafe extern "C" fn sdsfreesplitres(mut tokens: *mut sds, mut count: ::core
     }
     free(tokens as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdscatrepr(
     mut s: sds,
     mut p: *const ::core::ffi::c_char,
@@ -1222,14 +1193,12 @@ pub unsafe extern "C" fn sdscatrepr(
         1 as usize,
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn is_hex_digit(mut c: ::core::ffi::c_char) -> ::core::ffi::c_int {
     return (c as ::core::ffi::c_int >= '0' as i32 && c as ::core::ffi::c_int <= '9' as i32
         || c as ::core::ffi::c_int >= 'a' as i32 && c as ::core::ffi::c_int <= 'f' as i32
         || c as ::core::ffi::c_int >= 'A' as i32 && c as ::core::ffi::c_int <= 'F' as i32)
         as ::core::ffi::c_int;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hex_digit_to_int(mut c: ::core::ffi::c_char) -> ::core::ffi::c_int {
     match c as ::core::ffi::c_int {
         48 => return 0 as ::core::ffi::c_int,
@@ -1251,7 +1220,6 @@ pub unsafe extern "C" fn hex_digit_to_int(mut c: ::core::ffi::c_char) -> ::core:
         _ => return 0 as ::core::ffi::c_int,
     };
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdssplitargs(
     mut line: *const ::core::ffi::c_char,
     mut argc: *mut ::core::ffi::c_int,
@@ -1420,7 +1388,6 @@ pub unsafe extern "C" fn sdssplitargs(
     *argc = 0 as ::core::ffi::c_int;
     return ::core::ptr::null_mut::<sds>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsmapchars(
     mut s: sds,
     mut from: *const ::core::ffi::c_char,
@@ -1447,7 +1414,6 @@ pub unsafe extern "C" fn sdsmapchars(
     }
     return s;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsjoin(
     mut argv: *mut *mut ::core::ffi::c_char,
     mut argc: ::core::ffi::c_int,
@@ -1465,7 +1431,6 @@ pub unsafe extern "C" fn sdsjoin(
     }
     return join;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sdsjoinsds(
     mut argv: *mut sds,
     mut argc: ::core::ffi::c_int,

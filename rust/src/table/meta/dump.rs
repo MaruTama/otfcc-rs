@@ -6,23 +6,9 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{json_value};
 
 use crate::table::meta::types::{meta_Entry, table_meta};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn base64_encode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
-}
+use crate::support::base64::{base64_encode};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
+use crate::vendor::sds::{sdsempty};
 #[inline]
 unsafe extern "C" fn sdslen(s: sds) -> usize {
     let mut flags: ::core::ffi::c_uchar =
@@ -57,7 +43,6 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
 unsafe extern "C" fn isStringTag(mut tag: u32) -> bool {
     return tag == 1684827751i32 as u32 || tag == 1936485991i32 as u32;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpMeta(
     mut meta: *const table_meta,
     mut root: *mut json_value,

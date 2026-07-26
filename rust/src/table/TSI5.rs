@@ -1,18 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::free;
-unsafe extern "C" {
-    fn bufnew() -> *mut caryll_Buffer;
-    fn bufwrite16b(buf: *mut caryll_Buffer, x: u16);
-    static otl_iClassDef: __otfcc_IClassDef;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-}
 
 use crate::support::json_funcs::{json_obj_get_type};
-use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef, otl_ClassDef_create, pushClassDef};
+use crate::table::otl::classdef::{otl_ClassDef, otl_ClassDef_create, pushClassDef};
 
 use crate::support::handle::{handle_fromIndex, otfcc_GlyphHandle};
 
@@ -24,10 +14,12 @@ use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{glyphclass_t, glyphid_t};
 use crate::vendor::json::{json_object, json_value};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::buffer::{bufnew, bufwrite16b};
+use crate::table::otl::classdef::{otl_iClassDef};
+use crate::vendor::json_builder::{json_object_push};
 
 
 pub type table_TSI5 = otl_ClassDef;
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_readTSI5(
     packet: otfcc_Packet,
     mut _options: *const otfcc_Options,
@@ -70,7 +62,6 @@ pub unsafe extern "C" fn otfcc_readTSI5(
     }
     return ::core::ptr::null_mut::<table_TSI5>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpTSI5(
     mut table: *const table_TSI5,
     mut root: *mut json_value,
@@ -85,7 +76,6 @@ pub unsafe extern "C" fn otfcc_dumpTSI5(
         otl_iClassDef.dump.expect("non-null function pointer")(table as *const otl_ClassDef),
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseTSI5(
     mut root: *const json_value,
     mut _options: *const otfcc_Options,
@@ -101,7 +91,6 @@ pub unsafe extern "C" fn otfcc_parseTSI5(
     }
     return otl_iClassDef.parse.expect("non-null function pointer")(_tsi) as *mut table_TSI5;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_buildTSI5(
     mut tsi5: *const table_TSI5,
     mut _options: *const otfcc_Options,

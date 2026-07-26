@@ -4,57 +4,8 @@ pub mod read;
 
 use libc::{fprintf, free, malloc, memcmp, memcpy, memset, qsort, strcmp};
 unsafe extern "C" {
-    fn json_value_free(_: *mut json_value);
-    fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> sds;
-    fn sdsempty() -> sds;
-    fn sdsdup(s: sds) -> sds;
-    fn sdsfree(s: sds);
-    static iVQ: __caryll_vectorinterface_VQ;
-    fn json_array_new(length: usize) -> *mut json_value;
-    fn json_array_push(array: *mut json_value, _: *mut json_value) -> *mut json_value;
-    fn json_object_new(length: usize) -> *mut json_value;
-    fn json_object_push(
-        object: *mut json_value,
-        name: *const ::core::ffi::c_char,
-        _: *mut json_value,
-    ) -> *mut json_value;
-    fn json_string_new(_: *const ::core::ffi::c_char) -> *mut json_value;
-    fn json_string_new_length(
-        length: ::core::ffi::c_uint,
-        _: *const ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_string_new_nocopy(
-        length: ::core::ffi::c_uint,
-        _: *mut ::core::ffi::c_char,
-    ) -> *mut json_value;
-    fn json_integer_new(_: i64) -> *mut json_value;
-    fn json_double_new(_: ::core::ffi::c_double) -> *mut json_value;
-    fn json_boolean_new(_: ::core::ffi::c_int) -> *mut json_value;
-    fn json_null_new() -> *mut json_value;
-    fn json_measure_ex(_: *mut json_value, _: json_serialize_opts) -> usize;
-    fn json_serialize_ex(buf: *mut ::core::ffi::c_char, _: *mut json_value, _: json_serialize_opts);
-    fn json_builder_free(_: *mut json_value);
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn json_new_VQ(z: VQ, fvar: *const table_fvar) -> *mut json_value;
-    fn json_vqOf(cv: *const json_value, fvar: *const table_fvar) -> VQ;
-    fn parse_ttinstr(
-        col: *mut json_value,
-        context: *mut ::core::ffi::c_void,
-        Make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> ()>,
-        Wrong: Option<
-            unsafe extern "C" fn(
-                *mut ::core::ffi::c_void,
-                *mut ::core::ffi::c_char,
-                ::core::ffi::c_int,
-            ) -> (),
-        >,
-    );
-    fn dump_ttinstr(
-        instructions: *mut u8,
-        length: u32,
-        options: *const otfcc_Options,
-    ) -> *mut json_value;
 }
 
 use crate::support::handle::{HANDLE_STATE_EMPTY, handle_fromName, otfcc_FDHandle, otfcc_GlyphHandle, otfcc_Handle, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_empty};
@@ -70,12 +21,17 @@ use crate::support::buffer::{caryll_Buffer};
 use crate::support::{__compar_fn_t, true_0};
 use crate::support::glyph_order::{otfcc_GlyphOrder, otfcc_GlyphOrderEntry};
 use crate::table::fvar::{table_fvar};
-use crate::vendor::json_builder::json_serialize_opts;
 
 
 
-use crate::vf::vq::{VQ, __caryll_vectorinterface_VQ, vq_SegList, vq_Segment};
+use crate::vf::vq::{VQ, vq_SegList, vq_Segment};
 use crate::support::json_funcs::{json_boolof, json_new_position, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds, preserialize};
+use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
+use crate::table::fvar::{json_new_VQ, json_vqOf};
+use crate::vendor::json::{json_value_free};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnewlen};
+use crate::vf::vq::{iVQ};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -629,7 +585,6 @@ unsafe extern "C" fn glyf_Point_replace(mut dst: *mut glyf_Point, src: glyf_Poin
 unsafe extern "C" fn glyf_Point_init(mut x: *mut glyf_Point) {
     createPoint(x);
 }
-#[unsafe(no_mangle)]
 pub static glyf_iPoint: __caryll_elementinterface_glyf_Point = {
     __caryll_elementinterface_glyf_Point {
         init: Some(glyf_Point_init as unsafe extern "C" fn(*mut glyf_Point) -> ()),
@@ -715,7 +670,6 @@ unsafe extern "C" fn glyf_Contour_create() -> *mut glyf_Contour {
     glyf_Contour_init(x);
     return x;
 }
-#[unsafe(no_mangle)]
 pub static glyf_iContour: __caryll_vectorinterface_glyf_Contour = {
     __caryll_vectorinterface_glyf_Contour {
         init: Some(glyf_Contour_init as unsafe extern "C" fn(*mut glyf_Contour) -> ()),
@@ -1128,7 +1082,6 @@ unsafe extern "C" fn glyf_ContourList_dispose(mut arr: *mut glyf_ContourList) {
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
 }
-#[unsafe(no_mangle)]
 pub static glyf_iContourList: __caryll_vectorinterface_glyf_ContourList = {
     __caryll_vectorinterface_glyf_ContourList {
         init: Some(glyf_ContourList_init as unsafe extern "C" fn(*mut glyf_ContourList) -> ()),
@@ -1423,7 +1376,6 @@ unsafe extern "C" fn glyf_ComponentReference_empty() -> glyf_ComponentReference 
 unsafe extern "C" fn glyf_ComponentReference_init(mut x: *mut glyf_ComponentReference) {
     initGlyfReference(x);
 }
-#[unsafe(no_mangle)]
 pub static glyf_iComponentReference: __caryll_elementinterface_glyf_ComponentReference = {
     __caryll_elementinterface_glyf_ComponentReference {
         init: Some(
@@ -1660,7 +1612,6 @@ unsafe extern "C" fn glyf_ReferenceList_move(dst: *mut glyf_ReferenceList, src: 
 unsafe extern "C" fn glyf_ReferenceList_shrinkToFit(mut arr: *mut glyf_ReferenceList) {
     glyf_ReferenceList_resizeTo(arr, (*arr).length);
 }
-#[unsafe(no_mangle)]
 pub static glyf_iReferenceList: __caryll_vectorinterface_glyf_ReferenceList = {
     __caryll_vectorinterface_glyf_ReferenceList {
         init: Some(glyf_ReferenceList_init as unsafe extern "C" fn(*mut glyf_ReferenceList) -> ()),
@@ -1835,7 +1786,6 @@ unsafe extern "C" fn glyf_PostscriptStemDef_copyReplace(
     glyf_PostscriptStemDef_dispose(dst);
     glyf_PostscriptStemDef_copy(dst, &raw const src);
 }
-#[unsafe(no_mangle)]
 pub static glyf_iPostscriptStemDef: __caryll_elementinterface_glyf_PostscriptStemDef = {
     __caryll_elementinterface_glyf_PostscriptStemDef {
         init: Some(
@@ -2151,7 +2101,6 @@ unsafe extern "C" fn glyf_StemDefList_create() -> *mut glyf_StemDefList {
     glyf_StemDefList_init(x);
     return x;
 }
-#[unsafe(no_mangle)]
 pub static glyf_iStemDefList: __caryll_vectorinterface_glyf_StemDefList = {
     __caryll_vectorinterface_glyf_StemDefList {
         init: Some(glyf_StemDefList_init as unsafe extern "C" fn(*mut glyf_StemDefList) -> ()),
@@ -2231,7 +2180,6 @@ pub static glyf_iStemDefList: __caryll_vectorinterface_glyf_StemDefList = {
         ),
     }
 };
-#[unsafe(no_mangle)]
 pub static glyf_iPostscriptHintMask: __caryll_elementinterface_glyf_PostscriptHintMask = {
     __caryll_elementinterface_glyf_PostscriptHintMask {
         init: Some(
@@ -2353,7 +2301,6 @@ unsafe extern "C" fn glyf_MaskList_copy(
         }
     };
 }
-#[unsafe(no_mangle)]
 pub static glyf_iMaskList: __caryll_vectorinterface_glyf_MaskList = {
     __caryll_vectorinterface_glyf_MaskList {
         init: Some(glyf_MaskList_init as unsafe extern "C" fn(*mut glyf_MaskList) -> ()),
@@ -2627,7 +2574,6 @@ unsafe extern "C" fn glyf_MaskList_free(mut x: *mut glyf_MaskList) {
     glyf_MaskList_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_newGlyf_glyph() -> *mut glyf_Glyph {
     let mut g: *mut glyf_Glyph = ::core::ptr::null_mut::<glyf_Glyph>();
     g = __caryll_allocate_clean(
@@ -2703,7 +2649,6 @@ unsafe extern "C" fn copyGlyfPtr(mut dst: *mut glyf_GlyphPtr, mut src: *const gl
 unsafe extern "C" fn disposeGlyfPtr(mut g: *mut glyf_GlyphPtr) {
     otfcc_deleteGlyf_glyph(*g);
 }
-#[unsafe(no_mangle)]
 pub static glyf_iGlyphPtr: __caryll_elementinterface_glyf_GlyphPtr = {
     __caryll_elementinterface_glyf_GlyphPtr {
         init: Some(initGlyfPtr as unsafe extern "C" fn(*mut glyf_GlyphPtr) -> ()),
@@ -2926,7 +2871,6 @@ unsafe extern "C" fn table_glyf_create() -> *mut table_glyf {
     table_glyf_init(x);
     return x;
 }
-#[unsafe(no_mangle)]
 pub static table_iGlyf: __caryll_vectorinterface_table_glyf = {
     __caryll_vectorinterface_table_glyf {
         init: Some(table_glyf_init as unsafe extern "C" fn(*mut table_glyf) -> ()),
@@ -3306,7 +3250,6 @@ unsafe extern "C" fn glyf_dump_glyph(
     }
     return glyph;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dump_glyphorder(
     mut table: *const table_glyf,
     mut root: *mut json_value,
@@ -3332,7 +3275,6 @@ pub unsafe extern "C" fn otfcc_dump_glyphorder(
         preserialize(order),
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_dumpGlyf(
     mut table: *const table_glyf,
     mut root: *mut json_value,
@@ -3836,7 +3778,6 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
     }
     return g;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_parseGlyf(
     mut root: *const json_value,
     mut glyph_order: *mut otfcc_GlyphOrder,

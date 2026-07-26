@@ -1,14 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-unsafe extern "C" {
-    fn sdsempty() -> sds;
-    static otl_iCoverage: __otfcc_ICoverage;
-    static otl_iClassDef: __otfcc_IClassDef;
-    static iSubtable_chaining: __caryll_elementinterface_subtable_chaining;
-}
 
-use crate::table::otl::classdef::{__otfcc_IClassDef, otl_ClassDef, otl_ClassDef_free, readClassDef};
-use crate::table::otl::coverage::{__otfcc_ICoverage, otl_Coverage, otl_Coverage_free, readCoverage};
+use crate::table::otl::classdef::{otl_ClassDef, otl_ClassDef_free, readClassDef};
+use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_free, readCoverage};
 use crate::support::handle::{handle_fromIndex, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, otfcc_LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -17,10 +11,11 @@ use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
 
 use crate::support::options::{otfcc_Options};
 use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t};
-use crate::vendor::sds::{sds};
 
 use crate::support::{NULL};
-use crate::table::otl::{__caryll_elementinterface_subtable_chaining, otl_ChainLookupApplication, otl_ChainingRule, otl_Subtable, otl_chaining_poly, subtable_chaining};
+use crate::table::otl::{otl_ChainLookupApplication, otl_ChainingRule, otl_Subtable, otl_chaining_poly, subtable_chaining};
+use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
+use crate::vendor::sds::{sdsempty};
 pub type CoverageReaderHandler = Option<
     unsafe extern "C" fn(
         font_file_pointer,
@@ -39,7 +34,6 @@ pub struct classdefs {
     pub ic: *mut otl_ClassDef,
     pub fc: *mut otl_ClassDef,
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn singleCoverage(
     mut _data: font_file_pointer,
     mut _tableLength: u32,
@@ -63,7 +57,6 @@ pub unsafe extern "C" fn singleCoverage(
         handle_fromIndex(gid) as otfcc_GlyphHandle;
     return cov;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn classCoverage(
     mut _data: font_file_pointer,
     mut _tableLength: u32,
@@ -174,7 +167,6 @@ pub unsafe extern "C" fn classCoverage(
     }
     return cov;
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn format3Coverage(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -192,7 +184,6 @@ pub unsafe extern "C" fn format3Coverage(
             .wrapping_sub(2 as u32),
     );
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn GeneralReadContextualRule(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -614,7 +605,6 @@ unsafe extern "C" fn readContextualFormat2(
     iSubtable_chaining.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<subtable_chaining>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_contextual(
     data: font_file_pointer,
     mut tableLength: u32,
@@ -685,7 +675,6 @@ pub unsafe extern "C" fn otl_read_contextual(
     iSubtable_chaining.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<otl_Subtable>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn GeneralReadChainingRule(
     mut data: font_file_pointer,
     mut tableLength: u32,
@@ -1260,7 +1249,6 @@ unsafe extern "C" fn readChainingFormat2(
     iSubtable_chaining.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<subtable_chaining>();
 }
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn otl_read_chaining(
     data: font_file_pointer,
     mut tableLength: u32,
