@@ -12,7 +12,7 @@ unsafe extern "C" {
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{caryll_Buffer};
-use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_Value, cff_ValueBody, cff_Value_Type};
+use crate::libcff::cff_value::{cff_DOUBLE, cff_INTEGER, cff_OPERATOR, cff_UNSET, cff_Value, cff_ValueBody};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -145,18 +145,18 @@ unsafe extern "C" fn parseDict(mut data: *const u8, len: u32) -> *mut cff_Dict {
     let mut index: u32 = 0 as u32;
     let mut advance: u32 = 0;
     let mut val: cff_Value = cff_Value {
-        t: 0 as cff_Value_Type,
+        t: cff_UNSET,
         c2rust_unnamed: cff_ValueBody { i: 0 },
     };
     let mut stack: [cff_Value; 48] = [cff_Value {
-        t: 0 as cff_Value_Type,
+        t: cff_UNSET,
         c2rust_unnamed: cff_ValueBody { i: 0 },
     }; 48];
     let mut temp: *const u8 = data;
     while temp < data.offset(len as isize) {
         advance = cff_decodeCffToken(temp, &raw mut val);
-        match val.t as ::core::ffi::c_uint {
-            1 => {
+        match val.t {
+            cff_OPERATOR => {
                 (*dict).ents = __caryll_reallocate(
                     (*dict).ents as *mut ::core::ffi::c_void,
                     (::core::mem::size_of::<cff_DictEntry>() as usize)
@@ -179,7 +179,7 @@ unsafe extern "C" fn parseDict(mut data: *const u8, len: u32) -> *mut cff_Dict {
                 (*dict).count = (*dict).count.wrapping_add(1);
                 index = 0 as u32;
             }
-            2 | 3 => {
+            cff_INTEGER | cff_DOUBLE => {
                 let fresh2 = index;
                 index = index.wrapping_add(1);
                 stack[fresh2 as usize] = val;
@@ -201,18 +201,18 @@ unsafe extern "C" fn parseToCallback(
     let mut index: u8 = 0 as u8;
     let mut advance: u32 = 0;
     let mut val: cff_Value = cff_Value {
-        t: 0 as cff_Value_Type,
+        t: cff_UNSET,
         c2rust_unnamed: cff_ValueBody { i: 0 },
     };
     let mut stack: [cff_Value; 256] = [cff_Value {
-        t: 0 as cff_Value_Type,
+        t: cff_UNSET,
         c2rust_unnamed: cff_ValueBody { i: 0 },
     }; 256];
     let mut temp: *const u8 = data;
     while temp < data.offset(len as isize) {
         advance = cff_decodeCffToken(temp, &raw mut val);
-        match val.t as ::core::ffi::c_uint {
-            1 => {
+        match val.t {
+            cff_OPERATOR => {
                 callback.expect("non-null function pointer")(
                     val.c2rust_unnamed.i as u32,
                     index,
@@ -221,7 +221,7 @@ unsafe extern "C" fn parseToCallback(
                 );
                 index = 0 as u8;
             }
-            2 | 3 => {
+            cff_INTEGER | cff_DOUBLE => {
                 let fresh0 = index;
                 index = index.wrapping_add(1);
                 stack[fresh0 as usize] = val;
@@ -252,7 +252,7 @@ unsafe extern "C" fn parseDictKey(
     let mut context: cff_get_key_context = cff_get_key_context {
         found: false,
         res: cff_Value {
-            t: 0 as cff_Value_Type,
+            t: cff_UNSET,
             c2rust_unnamed: cff_ValueBody { i: 0 },
         },
         op: 0,
@@ -261,7 +261,7 @@ unsafe extern "C" fn parseDictKey(
     context.found = false;
     context.idx = idx;
     context.op = op;
-    context.res.t = 0 as cff_Value_Type;
+    context.res.t = cff_UNSET;
     context.res.c2rust_unnamed.i = -(1 as ::core::ffi::c_int) as i32;
     parseToCallback(
         data,
