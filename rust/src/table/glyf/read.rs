@@ -29,7 +29,7 @@ use crate::vendor::sds::{sds};
 use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
 
 use crate::table::fvar::{__caryll_elementinterface_table_fvar, table_fvar};
-use crate::table::glyf::{ARGS_ARE_XY_VALUES, ARG_1_AND_2_ARE_WORDS, GLYF_FLAG_ON_CURVE, GLYF_FLAG_POSITIVE_X, GLYF_FLAG_POSITIVE_Y, GLYF_FLAG_REPEAT, GLYF_FLAG_SAME_X, GLYF_FLAG_SAME_Y, GLYF_FLAG_X_SHORT, GLYF_FLAG_Y_SHORT, GlyfIOContext, MORE_COMPONENTS, REF_ANCHOR_ANCHOR, REF_XY, ROUND_XY_TO_GRID, SCALED_COMPONENT_OFFSET, USE_MY_METRICS, WE_HAVE_AN_X_AND_Y_SCALE, WE_HAVE_A_SCALE, WE_HAVE_A_TWO_BY_TWO, WE_HAVE_INSTRUCTIONS, __caryll_elementinterface_glyf_ComponentReference, __caryll_vectorinterface_glyf_Contour, __caryll_vectorinterface_glyf_ContourList, __caryll_vectorinterface_glyf_ReferenceList, __caryll_vectorinterface_table_glyf, glyf_ComponentReference, glyf_Contour, glyf_ContourList, glyf_Glyph, glyf_GlyphPtr, glyf_Point, table_glyf};
+use crate::table::glyf::{GlyfIOContext, REF_ANCHOR_ANCHOR, REF_XY, glyf_ComponentFlags, glyf_PointFlags, __caryll_elementinterface_glyf_ComponentReference, __caryll_vectorinterface_glyf_Contour, __caryll_vectorinterface_glyf_ContourList, __caryll_vectorinterface_glyf_ReferenceList, __caryll_vectorinterface_table_glyf, glyf_ComponentReference, glyf_Contour, glyf_ContourList, glyf_Glyph, glyf_GlyphPtr, glyf_Point, table_glyf};
 
 
 use crate::vf::region::{vq_AxisSpan, vq_Region};
@@ -164,8 +164,9 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
     let mut currentContour: shapeid_t = 0 as shapeid_t;
     let mut currentContourPointIndex: shapeid_t = 0 as shapeid_t;
     while (flagsReadSofar as ::core::ffi::c_int) < pointsInGlyph as ::core::ffi::c_int {
-        let mut flag: u8 = *flagStart.offset(flagBytesReadSofar as isize);
-        *flags.offset(flagsReadSofar as isize) = flag;
+        let mut flag: glyf_PointFlags =
+            glyf_PointFlags::from_bits_retain(*flagStart.offset(flagBytesReadSofar as isize));
+        *flags.offset(flagsReadSofar as isize) = flag.bits();
         flagBytesReadSofar =
             (flagBytesReadSofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as shapeid_t;
         flagsReadSofar =
@@ -175,9 +176,8 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             &raw mut currentContour,
             &raw mut currentContourPointIndex,
         ))
-        .onCurve =
-            (flag as ::core::ffi::c_int & GLYF_FLAG_ON_CURVE as ::core::ffi::c_int) as i8;
-        if flag as ::core::ffi::c_int & GLYF_FLAG_REPEAT as ::core::ffi::c_int != 0 {
+        .onCurve = flag.contains(glyf_PointFlags::ON_CURVE) as i8;
+        if flag.contains(glyf_PointFlags::REPEAT) {
             let mut repeat: u8 = *flagStart.offset(flagBytesReadSofar as isize);
             flagBytesReadSofar =
                 (flagBytesReadSofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as shapeid_t;
@@ -185,14 +185,13 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             while (j_0 as ::core::ffi::c_int) < repeat as ::core::ffi::c_int {
                 *flags.offset(
                     (flagsReadSofar as ::core::ffi::c_int + j_0 as ::core::ffi::c_int) as isize,
-                ) = flag;
+                ) = flag.bits();
                 (*next_point(
                     contours,
                     &raw mut currentContour,
                     &raw mut currentContourPointIndex,
                 ))
-                .onCurve = (flag as ::core::ffi::c_int & GLYF_FLAG_ON_CURVE as ::core::ffi::c_int)
-                    as i8;
+                .onCurve = flag.contains(glyf_PointFlags::ON_CURVE) as i8;
                 j_0 = j_0.wrapping_add(1);
             }
             flagsReadSofar =
@@ -206,18 +205,18 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
     currentContour = 0 as shapeid_t;
     currentContourPointIndex = 0 as shapeid_t;
     while (coordinatesRead as ::core::ffi::c_int) < pointsInGlyph as ::core::ffi::c_int {
-        let mut flag_0: u8 = *flags.offset(coordinatesRead as isize);
+        let mut flag_0: glyf_PointFlags =
+            glyf_PointFlags::from_bits_retain(*flags.offset(coordinatesRead as isize));
         let mut x: i16 = 0;
-        if flag_0 as ::core::ffi::c_int & GLYF_FLAG_X_SHORT as ::core::ffi::c_int != 0 {
-            x = ((if flag_0 as ::core::ffi::c_int & GLYF_FLAG_POSITIVE_X as ::core::ffi::c_int != 0
-            {
+        if flag_0.contains(glyf_PointFlags::X_SHORT) {
+            x = ((if flag_0.contains(glyf_PointFlags::POSITIVE_X) {
                 1 as ::core::ffi::c_int
             } else {
                 -(1 as ::core::ffi::c_int)
             }) * read_8u(coordinatesStart.offset(coordinatesOffset as isize) as *const u8)
                 as ::core::ffi::c_int) as i16;
             coordinatesOffset = coordinatesOffset.wrapping_add(1 as u32);
-        } else if flag_0 as ::core::ffi::c_int & GLYF_FLAG_SAME_X as ::core::ffi::c_int != 0 {
+        } else if flag_0.contains(glyf_PointFlags::SAME_X) {
             x = 0 as i16;
         } else {
             x = read_16s(coordinatesStart.offset(coordinatesOffset as isize) as *const u8);
@@ -244,18 +243,18 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
     currentContour = 0 as shapeid_t;
     currentContourPointIndex = 0 as shapeid_t;
     while (coordinatesRead as ::core::ffi::c_int) < pointsInGlyph as ::core::ffi::c_int {
-        let mut flag_1: u8 = *flags.offset(coordinatesRead as isize);
+        let mut flag_1: glyf_PointFlags =
+            glyf_PointFlags::from_bits_retain(*flags.offset(coordinatesRead as isize));
         let mut y: i16 = 0;
-        if flag_1 as ::core::ffi::c_int & GLYF_FLAG_Y_SHORT as ::core::ffi::c_int != 0 {
-            y = ((if flag_1 as ::core::ffi::c_int & GLYF_FLAG_POSITIVE_Y as ::core::ffi::c_int != 0
-            {
+        if flag_1.contains(glyf_PointFlags::Y_SHORT) {
+            y = ((if flag_1.contains(glyf_PointFlags::POSITIVE_Y) {
                 1 as ::core::ffi::c_int
             } else {
                 -(1 as ::core::ffi::c_int)
             }) * read_8u(coordinatesStart.offset(coordinatesOffset as isize) as *const u8)
                 as ::core::ffi::c_int) as i16;
             coordinatesOffset = coordinatesOffset.wrapping_add(1 as u32);
-        } else if flag_1 as ::core::ffi::c_int & GLYF_FLAG_SAME_Y as ::core::ffi::c_int != 0 {
+        } else if flag_1.contains(glyf_PointFlags::SAME_Y) {
             y = 0 as i16;
         } else {
             y = read_16s(coordinatesStart.offset(coordinatesOffset as isize) as *const u8);
@@ -316,11 +315,13 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
     mut options: *const otfcc_Options,
 ) -> *mut glyf_Glyph {
     let mut g: *mut glyf_Glyph = otfcc_newGlyf_glyph();
-    let mut flags: u16 = 0 as u16;
+    let mut flags: glyf_ComponentFlags = glyf_ComponentFlags::empty();
     let mut offset: u32 = 0 as u32;
     let mut glyphHasInstruction: bool = false;
     loop {
-        flags = read_16u(start.offset(offset as isize) as *const u8);
+        flags = glyf_ComponentFlags::from_bits_retain(read_16u(
+            start.offset(offset as isize) as *const u8,
+        ));
         let mut index: glyphid_t = read_16u(
             start
                 .offset(offset as isize)
@@ -334,9 +335,9 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
         ref_0.glyph =
             handle_fromIndex(index) as otfcc_GlyphHandle;
         offset = offset.wrapping_add(4 as u32);
-        if flags as ::core::ffi::c_int & ARGS_ARE_XY_VALUES as ::core::ffi::c_int != 0 {
+        if flags.contains(glyf_ComponentFlags::ARGS_ARE_XY_VALUES) {
             ref_0.isAnchored = REF_XY;
-            if flags as ::core::ffi::c_int & ARG_1_AND_2_ARE_WORDS as ::core::ffi::c_int != 0 {
+            if flags.contains(glyf_ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
                 ref_0.x = iVQ.createStill.expect("non-null function pointer")(read_16s(
                     start.offset(offset as isize) as *const u8,
                 )
@@ -365,7 +366,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
             }
         } else {
             ref_0.isAnchored = REF_ANCHOR_ANCHOR;
-            if flags as ::core::ffi::c_int & ARG_1_AND_2_ARE_WORDS as ::core::ffi::c_int != 0 {
+            if flags.contains(glyf_ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
                 ref_0.outer =
                     read_16u(start.offset(offset as isize) as *const u8) as shapeid_t;
                 ref_0.inner = read_16u(
@@ -386,13 +387,13 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                 offset = offset.wrapping_add(2 as u32);
             }
         }
-        if flags as ::core::ffi::c_int & WE_HAVE_A_SCALE as ::core::ffi::c_int != 0 {
+        if flags.contains(glyf_ComponentFlags::WE_HAVE_A_SCALE) {
             ref_0.d = otfcc_from_f2dot14(
                 read_16s(start.offset(offset as isize) as *const u8) as f2dot14
             ) as scale_t;
             ref_0.a = ref_0.d;
             offset = offset.wrapping_add(2 as u32);
-        } else if flags as ::core::ffi::c_int & WE_HAVE_AN_X_AND_Y_SCALE as ::core::ffi::c_int != 0
+        } else if flags.contains(glyf_ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
         {
             ref_0.a = otfcc_from_f2dot14(
                 read_16s(start.offset(offset as isize) as *const u8) as f2dot14
@@ -403,7 +404,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             ) as f2dot14) as scale_t;
             offset = offset.wrapping_add(4 as u32);
-        } else if flags as ::core::ffi::c_int & WE_HAVE_A_TWO_BY_TWO as ::core::ffi::c_int != 0 {
+        } else if flags.contains(glyf_ComponentFlags::WE_HAVE_A_TWO_BY_TWO) {
             ref_0.a = otfcc_from_f2dot14(
                 read_16s(start.offset(offset as isize) as *const u8) as f2dot14
             ) as scale_t;
@@ -425,30 +426,30 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
             offset = offset.wrapping_add(8 as u32);
         }
         ref_0.roundToGrid =
-            flags as ::core::ffi::c_int & ROUND_XY_TO_GRID as ::core::ffi::c_int != 0;
+            flags.contains(glyf_ComponentFlags::ROUND_XY_TO_GRID);
         ref_0.useMyMetrics =
-            flags as ::core::ffi::c_int & USE_MY_METRICS as ::core::ffi::c_int != 0;
-        if flags as ::core::ffi::c_int & SCALED_COMPONENT_OFFSET as ::core::ffi::c_int != 0
-            && (flags as ::core::ffi::c_int & WE_HAVE_AN_X_AND_Y_SCALE as ::core::ffi::c_int != 0
-                || flags as ::core::ffi::c_int & WE_HAVE_A_TWO_BY_TWO as ::core::ffi::c_int != 0)
+            flags.contains(glyf_ComponentFlags::USE_MY_METRICS);
+        if flags.contains(glyf_ComponentFlags::SCALED_COMPONENT_OFFSET)
+            && (flags.contains(glyf_ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
+                || flags.contains(glyf_ComponentFlags::WE_HAVE_A_TWO_BY_TWO))
         {
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(sdsempty(), b"glyf: SCALED_COMPONENT_OFFSET is not supported."),
             );
         }
-        if flags as ::core::ffi::c_int & WE_HAVE_INSTRUCTIONS as ::core::ffi::c_int != 0 {
+        if flags.contains(glyf_ComponentFlags::WE_HAVE_INSTRUCTIONS) {
             glyphHasInstruction = true;
         }
         glyf_iReferenceList.push.expect("non-null function pointer")(
             &raw mut (*g).references,
             ref_0,
         );
-        if !(flags as ::core::ffi::c_int & MORE_COMPONENTS as ::core::ffi::c_int != 0) {
+        if !(flags.contains(glyf_ComponentFlags::MORE_COMPONENTS)) {
             break;
         }
     }
@@ -1137,7 +1138,7 @@ unsafe extern "C" fn polymorphize(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut otfcc_ILogger,
-                            log_vl_important as ::core::ffi::c_int as u8,
+                            log_vl_important,
                             log_type_warning,
                             crate::sdsbuild!(
                                 sdsempty(),
@@ -1283,7 +1284,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut otfcc_ILogger,
-                            log_vl_important as ::core::ffi::c_int as u8,
+                            log_vl_important,
                             log_type_warning,
                             crate::sdsbuild!(sdsempty(), b"table 'loca' corrupted.\n"),
                         );
@@ -1326,7 +1327,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                                     .logSDS
                                     .expect("non-null function pointer")(
                                     (*options).logger as *mut otfcc_ILogger,
-                                    log_vl_important as ::core::ffi::c_int as u8,
+                                    log_vl_important,
                                     log_type_warning,
                                     crate::sdsbuild!(sdsempty(), b"table 'glyf' corrupted.\n"),
                                 );

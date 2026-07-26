@@ -678,7 +678,7 @@ pub unsafe extern "C" fn otl_read_contextual(
         .logSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        log_vl_important as ::core::ffi::c_int as u8,
+        log_vl_important,
         log_type_warning,
         crate::sdsbuild!(sdsempty(), b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
@@ -1324,7 +1324,7 @@ pub unsafe extern "C" fn otl_read_chaining(
         .logSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut otfcc_ILogger,
-        log_vl_important as ::core::ffi::c_int as u8,
+        log_vl_important,
         log_type_warning,
         crate::sdsbuild!(sdsempty(), b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );

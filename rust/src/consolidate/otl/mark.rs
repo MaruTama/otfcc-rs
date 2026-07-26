@@ -118,7 +118,7 @@ unsafe extern "C" fn consolidateMarkArray(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -909,7 +909,7 @@ unsafe extern "C" fn consolidateMarkArray(
                         "non-null function pointer",
                     )(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1143,7 +1143,7 @@ unsafe extern "C" fn consolidateBaseArray(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -1928,7 +1928,7 @@ unsafe extern "C" fn consolidateBaseArray(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -2161,7 +2161,7 @@ unsafe extern "C" fn consolidateLigArray(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -2947,7 +2947,7 @@ unsafe extern "C" fn consolidateLigArray(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),

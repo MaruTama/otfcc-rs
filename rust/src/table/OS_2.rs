@@ -357,7 +357,7 @@ pub unsafe extern "C" fn otfcc_readOS_2(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as u8,
+                        log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(sdsempty(), b"table 'OS/2' corrupted.\n"),
                     );

@@ -412,7 +412,7 @@ unsafe extern "C" fn _declareLookupParser(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -727,7 +727,7 @@ unsafe extern "C" fn _declareLookupParser(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_important as ::core::ffi::c_int as u8,
+            log_vl_important,
             log_type_warning,
             crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" already exists."),
         );
@@ -743,7 +743,7 @@ unsafe extern "C" fn _declareLookupParser(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_important as ::core::ffi::c_int as u8,
+            log_vl_important,
             log_type_warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -808,7 +808,7 @@ unsafe extern "C" fn _declareLookupParser(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_important as ::core::ffi::c_int as u8,
+            log_vl_important,
             log_type_warning,
             crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" does not have any subtables."),
         );
@@ -1265,7 +1265,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -2100,7 +2100,7 @@ unsafe extern "C" fn feature_merger_activate(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_notice as ::core::ffi::c_int as u8,
+                        log_vl_notice,
                         log_type_info,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -2490,7 +2490,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut otfcc_ILogger,
-                            log_vl_important as ::core::ffi::c_int as u8,
+                            log_vl_important,
                             log_type_warning,
                             crate::sdsbuild!(
                                 sdsempty(),
@@ -3305,7 +3305,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             "non-null function pointer",
                         )(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as u8,
+                        log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -3327,7 +3327,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         "non-null function pointer",
                     )(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -5643,7 +5643,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                             "non-null function pointer",
                         )(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as u8,
+                        log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -5665,7 +5665,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         "non-null function pointer",
                     )(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -6794,7 +6794,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_important as ::core::ffi::c_int as u8,
+            log_vl_important,
             log_type_warning,
             crate::sdsbuild!(
                 sdsempty(),

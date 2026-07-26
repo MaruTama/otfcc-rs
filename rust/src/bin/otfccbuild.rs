@@ -559,7 +559,7 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_critical as ::core::ffi::c_int as u8,
+            log_vl_critical,
             log_type_error,
             otfcc_rust::sdsbuild!(
                 sdsempty(),
@@ -623,7 +623,7 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_progress as ::core::ffi::c_int as u8,
+            log_vl_progress,
             log_type_progress,
             push_stopwatch(&raw mut begin),
         );
@@ -647,7 +647,7 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_progress as ::core::ffi::c_int as u8,
+            log_vl_progress,
             log_type_progress,
             push_stopwatch(&raw mut begin),
         );
@@ -656,7 +656,7 @@ unsafe fn main_0(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_critical as ::core::ffi::c_int as u8,
+                log_vl_critical,
                 log_type_error,
                 otfcc_rust::sdsbuild!(
                     sdsempty(),
@@ -692,7 +692,7 @@ unsafe fn main_0(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_critical as ::core::ffi::c_int as u8,
+                log_vl_critical,
                 log_type_error,
                 otfcc_rust::sdsbuild!(
                     sdsempty(),
@@ -709,7 +709,7 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_progress as ::core::ffi::c_int as u8,
+            log_vl_progress,
             log_type_progress,
             push_stopwatch(&raw mut begin),
         );
@@ -731,7 +731,7 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_progress as ::core::ffi::c_int as u8,
+            log_vl_progress,
             log_type_progress,
             push_stopwatch(&raw mut begin),
         );
@@ -769,7 +769,7 @@ unsafe fn main_0(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_critical as ::core::ffi::c_int as u8,
+                    log_vl_critical,
                     log_type_error,
                     otfcc_rust::sdsbuild!(
                         sdsempty(),
@@ -798,7 +798,7 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_progress as ::core::ffi::c_int as u8,
+            log_vl_progress,
             log_type_progress,
             push_stopwatch(&raw mut begin),
         );

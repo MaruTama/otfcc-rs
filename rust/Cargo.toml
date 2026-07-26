@@ -25,4 +25,5 @@ crate-type = ["staticlib", "rlib", "cdylib"]
 warnings = "deny"
 
 [dependencies]
+bitflags = "2.13.1"
 libc = "0.2.189"

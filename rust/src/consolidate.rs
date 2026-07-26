@@ -219,7 +219,7 @@ unsafe extern "C" fn consolidateGlyphContours(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -255,7 +255,7 @@ unsafe extern "C" fn consolidateGlyphReferences(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -451,7 +451,7 @@ unsafe extern "C" fn consolidateFDSelect(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -595,7 +595,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_important as ::core::ffi::c_int as u8,
+            log_vl_important,
             log_type_warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -651,7 +651,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_important as ::core::ffi::c_int as u8,
+            log_vl_important,
             log_type_warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -666,7 +666,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut otfcc_ILogger,
-            log_vl_important as ::core::ffi::c_int as u8,
+            log_vl_important,
             log_type_warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -712,7 +712,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -813,7 +813,7 @@ pub unsafe extern "C" fn consolidateCmap(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -844,7 +844,7 @@ pub unsafe extern "C" fn consolidateCmap(
                         "non-null function pointer",
                     )(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -893,7 +893,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -922,7 +922,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as u8,
+                        log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -954,7 +954,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut otfcc_ILogger,
-                log_vl_important as ::core::ffi::c_int as u8,
+                log_vl_important,
                 log_type_warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -1417,7 +1417,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut otfcc_Font, mut options: *co
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1459,7 +1459,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut otfcc_Font, mut options: *co
                                 .logSDS
                                 .expect("non-null function pointer")(
                                 (*options).logger as *mut otfcc_ILogger,
-                                log_vl_important as ::core::ffi::c_int as u8,
+                                log_vl_important,
                                 log_type_warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -1497,7 +1497,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut otfcc_Font, mut options: *co
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as u8,
+                        log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -1568,7 +1568,7 @@ unsafe extern "C" fn consolidateTSI(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut otfcc_ILogger,
-                        log_vl_important as ::core::ffi::c_int as u8,
+                        log_vl_important,
                         log_type_warning,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -1662,7 +1662,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut otfcc_ILogger,
-                    log_vl_important as ::core::ffi::c_int as u8,
+                    log_vl_important,
                     log_type_warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1688,7 +1688,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut otfcc_ILogger,
-                            log_vl_important as ::core::ffi::c_int as u8,
+                            log_vl_important,
                             log_type_warning,
                             crate::sdsbuild!(
                                 sdsempty(),
