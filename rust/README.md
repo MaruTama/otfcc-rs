@@ -484,6 +484,44 @@ the CI-matching Linux container:
   `extern "C"` itself stays for now: many of these functions are stored as
   `extern "C" fn` pointers in the vtable statics, so the calling convention
   comes off together with those.
+- **The type namespace is Rust-shaped.** 419 of the 453 type definitions still
+  had their C spelling; they are UpperCamelCase now (22,459 occurrences over
+  124 files), and the 90 enum variants are written `Enum::Variant`.
+  `#![allow(non_camel_case_types)]` is gone. The naming rule is that a prefix
+  the crate or the module already supplies comes off — `otfcc_Options` →
+  `Options`, `otl_Coverage` → `Coverage` — unless the bare remainder is too
+  generic to read at an unqualified use site, where it stays and is CamelCased
+  (`bk_Cell` → `BkCell`, `json_value` → `JsonValue`). `table_head` →
+  `HeadTable` and `subtable_gsub_single` → `GsubSingleSubtable` put the noun
+  first. **Note that the entries above this one use the pre-rename names**,
+  because they describe what those PRs did at the time.
+  Three things worth knowing:
+  - **`non_camel_case_types` could not drive the pass, and still cannot check
+    most of it.** rustc exempts `#[repr(C)]` types from that lint — such a type
+    is presumed to mirror a C declaration — and 352 of the crate's 400
+    struct/enum/union definitions are `#[repr(C)]`. The lint saw 160 of the
+    419. The rest were found by inventorying the source, and deleting the
+    `allow` proves only that the 48 non-`repr(C)` types and the 90 variants
+    stay conformant; the other 352 are unchecked until Stage 6 drops
+    `#[repr(C)]`, at which point they must already be correct or the build
+    breaks. That is the honest reading of that deleted line.
+  - **Qualifying the variants removed a hazard rather than avoiding it.** Each
+    defining module carried a `pub use ThatEnum::*;` glob so use sites could
+    name variants bare; all 20 globs are gone. A bare variant name in a pattern
+    position is not an error if it is not in scope — it is a catch-all binding
+    that eats the arms after it, which is how PR #34 lost a `match`.
+    `Enum::Variant` cannot be read that way. The globs were also shadowing the
+    prelude: `JsonType`'s variants are `None` and `String`, so with the glob in
+    place `mem_alloc: None` in `vendor/json.rs` meant `JsonType::None`. Twelve
+    type errors appeared when the glob came out, all of them latent before.
+  - **Fourteen `typedef struct _foo foo;` pairs resolved to one Rust name**, so
+    the redundant alias is gone: `_caryll_font`/`otfcc_Font` → `Font`,
+    `bk_Item` (an alias of `bk_Cell`) → `BkCell`, and the six names for one
+    handle type collapse to `Handle`, `GlyphHandle`, `LookupHandle`,
+    `FdHandle`. A module name and a type name can also be the same identifier:
+    `sds` was both `pub type sds` and `pub mod sds`, and a whole-identifier
+    rename rewrote 123 path segments along with the type. The build caught it,
+    and the rename tool now refuses any name that is also a module name.
 - **Standard cargo layout**: `src/lib.rs` + `src/bin/` + `src/ffi/` +
   `src/vendor/`, replacing c2rust's `src::lib::` / `src::dep::r#extern::` /
   `src::src::` scaffolding. See "Crate layout" above.
@@ -773,11 +811,24 @@ on the other platform before a commit is trusted.
   inlines (`sdsavail`, `sdssetlen`, `sdsalloc`, …) are already single, so this is
   one name — but it needs a `pub sdslen` in `vendor/sds.rs`, which is also what
   `json_from_sds` is waiting for.
-- **Rust naming**, once each type exists in one place: `otfcc_Options` →
-  `Options`, functions → inherent methods, fields → snake_case. Then the
-  crate-level `allow(non_camel_case_types)`/`non_snake_case`/
-  `non_upper_case_globals` come out, which is what turns "this is idiomatic
-  now" from an opinion into something the compiler checks.
+- **Rust naming for the rest of the crate.** Types and enum variants are done
+  (above); what is left is 3,547 diagnostics over 109 files, split by what the
+  compiler can check rather than by module:
+  - 339 constants and statics (`f16dot16_precision`, the enum-adjacent consts
+    like `cff_CHARSET_UNSPECED`, the label tables) → `SCREAMING_SNAKE_CASE`,
+    ending with `allow(non_upper_case_globals)`. `f16dot16_negativeIntinity`
+    gets its C typo fixed on the way.
+  - 480 local variables and parameters — file-local, so each file stands alone.
+  - 1,738 functions, then inherent methods where a function is a type's
+    operation (`otfcc_iHandle`'s group → `impl Handle`).
+  - 345 struct fields, last and most carefully: **JSON keys are string
+    literals and must not move with the field names**, so each site needs
+    checking. The rename tool skips string and char literals for exactly this
+    reason, which mattered for none of the type names and will matter here —
+    `BASE`, `GDEF`, `OS_2` and `glyf` are all both identifiers and JSON keys.
+  - 11 modules (`table::CFF` → `table::cff`), which is also a file rename.
+  Then `allow(non_snake_case)` comes out, and "this is idiomatic now" stops
+  being an opinion.
 - **Then safe Rust, type by type**: `CVecRaw<T>` → `Vec<T>` first (one
   implementation backs ~37 container types), then `sds` → `String`,
   `caryll_Buffer` → `Vec<u8>`, `malloc`/`dispose` → `Box` + `Drop`, and the
