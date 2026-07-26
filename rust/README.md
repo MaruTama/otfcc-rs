@@ -124,10 +124,18 @@ fails if a *new* symbol appears un-recorded (an internal helper accidentally
 becoming public), and fails if a recorded symbol *disappears* until the
 snapshot is refreshed with `check-abi.sh --update`. So each batch of newly
 internalized symbols shows up as a reviewable diff of `abi-exports.txt`
-instead of passing unnoticed. The three `__ctype_*_loc` shims are excluded
-from the snapshot because they are `#[cfg(target_os = "macos")]`-only (on
-glibc they come from libc), making them the one genuinely platform-dependent
-part of the surface.
+instead of passing unnoticed. The snapshot needs no per-platform exceptions:
+the last one was three `__ctype_*_loc` shims this crate exported on macOS to
+stand in for glibc internals the transpiled code called by name, and those are
+gone — `support/ctype_compat.rs` now provides the five C-locale functions
+(`c_isdigit`, `c_isspace`, `c_isprint`, `c_tolower`, `c_toupper`) that the call
+sites were reaching for through the tables, so nothing is `#[cfg]`-dependent
+and the exported surface is identical on both platforms. Nine of the twelve
+`_IS*` classes turned out to be tested by nothing at all. The two Rust
+functions that look like drop-in replacements are not:
+`is_ascii_whitespace` omits `\v`, and `is_ascii_graphic` omits the space that
+`isprint` includes — `ctype_matches_libc` checks all 384 possible inputs
+against the platform's own libc rather than trusting the reading.
 
 ## Regenerating the Rust source — retired, kept for the audit trail
 
