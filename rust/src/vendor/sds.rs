@@ -1,19 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcmp, memcpy, memmove, memset, realloc, strchr, strlen};
 
-use crate::support::ctype_compat::{_ISprint, _ISspace};
-unsafe extern "C" {
-    #[cfg(not(target_os = "macos"))]
-    fn __ctype_b_loc() -> *mut *const ::core::ffi::c_ushort;
-    #[cfg(not(target_os = "macos"))]
-    fn __ctype_tolower_loc() -> *mut *const i32;
-    #[cfg(not(target_os = "macos"))]
-    fn __ctype_toupper_loc() -> *mut *const i32;
-}
-#[cfg(target_os = "macos")]
-use crate::support::ctype_compat::{
-    __ctype_b_loc, __ctype_tolower_loc, __ctype_toupper_loc,
-};
+use crate::support::ctype_compat::{c_isprint, c_isspace, c_tolower, c_toupper};
 pub type sds = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
@@ -52,22 +40,6 @@ pub struct sdshdr64 {
     pub alloc: u64,
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
-}
-#[inline]
-unsafe extern "C" fn tolower(mut __c: ::core::ffi::c_int) -> ::core::ffi::c_int {
-    return if __c >= -(128 as ::core::ffi::c_int) && __c < 256 as ::core::ffi::c_int {
-        *(*__ctype_tolower_loc()).offset(__c as isize) as ::core::ffi::c_int
-    } else {
-        __c
-    };
-}
-#[inline]
-unsafe extern "C" fn toupper(mut __c: ::core::ffi::c_int) -> ::core::ffi::c_int {
-    return if __c >= -(128 as ::core::ffi::c_int) && __c < 256 as ::core::ffi::c_int {
-        *(*__ctype_toupper_loc()).offset(__c as isize) as ::core::ffi::c_int
-    } else {
-        __c
-    };
 }
 pub const SDS_MAX_PREALLOC: ::core::ffi::c_int =
     1024 as ::core::ffi::c_int * 1024 as ::core::ffi::c_int;
@@ -1026,27 +998,7 @@ pub unsafe extern "C" fn sdstolower(mut s: sds) {
     let mut j: ::core::ffi::c_int = 0;
     j = 0 as ::core::ffi::c_int;
     while j < len {
-        *s.offset(j as isize) = ({
-            let mut __res: ::core::ffi::c_int = 0;
-            if ::core::mem::size_of::<::core::ffi::c_char>() > 1_usize {
-                if 0 != 0 {
-                    let mut __c: ::core::ffi::c_int = *s.offset(j as isize) as ::core::ffi::c_int;
-                    __res =
-                        (if __c < -(128 as ::core::ffi::c_int) || __c > 255 as ::core::ffi::c_int {
-                            __c as i32
-                        } else {
-                            *(*__ctype_tolower_loc()).offset(__c as isize)
-                        }) as ::core::ffi::c_int;
-                } else {
-                    __res = tolower(*s.offset(j as isize) as ::core::ffi::c_int);
-                }
-            } else {
-                __res = *(*__ctype_tolower_loc())
-                    .offset(*s.offset(j as isize) as ::core::ffi::c_int as isize)
-                    as ::core::ffi::c_int;
-            }
-            __res
-        }) as ::core::ffi::c_char;
+        *s.offset(j as isize) = (c_tolower(*s.offset(j as isize) as ::core::ffi::c_int)) as ::core::ffi::c_char;
         j += 1;
     }
 }
@@ -1056,27 +1008,7 @@ pub unsafe extern "C" fn sdstoupper(mut s: sds) {
     let mut j: ::core::ffi::c_int = 0;
     j = 0 as ::core::ffi::c_int;
     while j < len {
-        *s.offset(j as isize) = ({
-            let mut __res: ::core::ffi::c_int = 0;
-            if ::core::mem::size_of::<::core::ffi::c_char>() > 1_usize {
-                if 0 != 0 {
-                    let mut __c: ::core::ffi::c_int = *s.offset(j as isize) as ::core::ffi::c_int;
-                    __res =
-                        (if __c < -(128 as ::core::ffi::c_int) || __c > 255 as ::core::ffi::c_int {
-                            __c as i32
-                        } else {
-                            *(*__ctype_toupper_loc()).offset(__c as isize)
-                        }) as ::core::ffi::c_int;
-                } else {
-                    __res = toupper(*s.offset(j as isize) as ::core::ffi::c_int);
-                }
-            } else {
-                __res = *(*__ctype_toupper_loc())
-                    .offset(*s.offset(j as isize) as ::core::ffi::c_int as isize)
-                    as ::core::ffi::c_int;
-            }
-            __res
-        }) as ::core::ffi::c_char;
+        *s.offset(j as isize) = (c_toupper(*s.offset(j as isize) as ::core::ffi::c_int)) as ::core::ffi::c_char;
         j += 1;
     }
 }
@@ -1270,10 +1202,7 @@ pub unsafe extern "C" fn sdscatrepr(
                 );
             }
             _ => {
-                if *(*__ctype_b_loc()).offset(*p as ::core::ffi::c_int as isize)
-                    as ::core::ffi::c_int
-                    & _ISprint as ::core::ffi::c_int as ::core::ffi::c_ushort as ::core::ffi::c_int
-                    != 0
+                if c_isprint(*p as ::core::ffi::c_int)
                 {
                     s = crate::sdsbuild!(s, Byte((*p as ::core::ffi::c_int) as u8));
                 } else {
@@ -1334,9 +1263,7 @@ pub unsafe extern "C" fn sdssplitargs(
     *argc = 0 as ::core::ffi::c_int;
     's_13: loop {
         while *p as ::core::ffi::c_int != 0
-            && *(*__ctype_b_loc()).offset(*p as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-                & _ISspace as ::core::ffi::c_int as ::core::ffi::c_ushort as ::core::ffi::c_int
-                != 0
+            && c_isspace(*p as ::core::ffi::c_int)
         {
             p = p.offset(1);
         }
@@ -1398,13 +1325,7 @@ pub unsafe extern "C" fn sdssplitargs(
                         ) as *mut ::core::ffi::c_char;
                     } else if *p as ::core::ffi::c_int == '"' as i32 {
                         if *p.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int != 0
-                            && *(*__ctype_b_loc())
-                                .offset(*p.offset(1 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_int
-                                    as isize) as ::core::ffi::c_int
-                                & _ISspace as ::core::ffi::c_int as ::core::ffi::c_ushort
-                                    as ::core::ffi::c_int
-                                == 0
+                            && !c_isspace(*p.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
                         {
                             break 's_13;
                         }
@@ -1430,13 +1351,7 @@ pub unsafe extern "C" fn sdssplitargs(
                         ) as *mut ::core::ffi::c_char;
                     } else if *p as ::core::ffi::c_int == '\'' as i32 {
                         if *p.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int != 0
-                            && *(*__ctype_b_loc())
-                                .offset(*p.offset(1 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_int
-                                    as isize) as ::core::ffi::c_int
-                                & _ISspace as ::core::ffi::c_int as ::core::ffi::c_ushort
-                                    as ::core::ffi::c_int
-                                == 0
+                            && !c_isspace(*p.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
                         {
                             break 's_13;
                         }

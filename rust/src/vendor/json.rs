@@ -1,14 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{calloc, free, malloc, memcpy, memset, sprintf, strcpy};
 unsafe extern "C" {
-    #[cfg(not(target_os = "macos"))]
-    fn __ctype_b_loc() -> *mut *const ::core::ffi::c_ushort;
     fn pow(__x: ::core::ffi::c_double, __y: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
-#[cfg(target_os = "macos")]
-use crate::support::ctype_compat::__ctype_b_loc;
 use crate::support::{NULL};
-use crate::support::ctype_compat::{_ISdigit};
+use crate::support::ctype_compat::c_isdigit;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct json_settings {
@@ -121,9 +117,7 @@ pub const json_value_none: _json_value = _json_value {
     },
 };
 unsafe extern "C" fn hex_value(mut c: ::core::ffi::c_char) -> ::core::ffi::c_uchar {
-    if *(*__ctype_b_loc()).offset(c as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-        & _ISdigit as ::core::ffi::c_int as ::core::ffi::c_ushort as ::core::ffi::c_int
-        != 0
+    if c_isdigit(c as ::core::ffi::c_int)
     {
         return (c as ::core::ffi::c_int - '0' as i32) as ::core::ffi::c_uchar;
     }
@@ -1219,15 +1213,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     11603475171617447446;
                                                             }
                                                             _ => {
-                                                                if *(*__ctype_b_loc()).offset(
-                                                                    b as ::core::ffi::c_int
-                                                                        as isize,
-                                                                )
-                                                                    as ::core::ffi::c_int
-                                                                    & _ISdigit as ::core::ffi::c_int
-                                                                        as ::core::ffi::c_ushort
-                                                                        as ::core::ffi::c_int
-                                                                    != 0
+                                                                if c_isdigit(b as ::core::ffi::c_int)
                                                                     || b as ::core::ffi::c_int
                                                                         == '-' as i32
                                                                 {
@@ -1244,11 +1230,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         break 's_107;
                                                                     }
                                                                     if state.first_pass == 0 {
-                                                                        while *(*__ctype_b_loc())
-                                                                            .offset(b as ::core::ffi::c_int as isize)
-                                                                            as ::core::ffi::c_int
-                                                                            & _ISdigit as ::core::ffi::c_int as ::core::ffi::c_ushort
-                                                                                as ::core::ffi::c_int != 0
+                                                                        while c_isdigit(b as ::core::ffi::c_int)
                                                                             || b as ::core::ffi::c_int == '+' as i32
                                                                             || b as ::core::ffi::c_int == '-' as i32
                                                                             || b as ::core::ffi::c_int == 'e' as i32
@@ -1583,15 +1565,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     11603475171617447446;
                                                             }
                                                             _ => {
-                                                                if *(*__ctype_b_loc()).offset(
-                                                                    b as ::core::ffi::c_int
-                                                                        as isize,
-                                                                )
-                                                                    as ::core::ffi::c_int
-                                                                    & _ISdigit as ::core::ffi::c_int
-                                                                        as ::core::ffi::c_ushort
-                                                                        as ::core::ffi::c_int
-                                                                    != 0
+                                                                if c_isdigit(b as ::core::ffi::c_int)
                                                                     || b as ::core::ffi::c_int
                                                                         == '-' as i32
                                                                 {
@@ -1608,11 +1582,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         break 's_107;
                                                                     }
                                                                     if state.first_pass == 0 {
-                                                                        while *(*__ctype_b_loc())
-                                                                            .offset(b as ::core::ffi::c_int as isize)
-                                                                            as ::core::ffi::c_int
-                                                                            & _ISdigit as ::core::ffi::c_int as ::core::ffi::c_ushort
-                                                                                as ::core::ffi::c_int != 0
+                                                                        while c_isdigit(b as ::core::ffi::c_int)
                                                                             || b as ::core::ffi::c_int == '+' as i32
                                                                             || b as ::core::ffi::c_int == '-' as i32
                                                                             || b as ::core::ffi::c_int == 'e' as i32
@@ -1944,15 +1914,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     11603475171617447446;
                                                             }
                                                             _ => {
-                                                                if *(*__ctype_b_loc()).offset(
-                                                                    b as ::core::ffi::c_int
-                                                                        as isize,
-                                                                )
-                                                                    as ::core::ffi::c_int
-                                                                    & _ISdigit as ::core::ffi::c_int
-                                                                        as ::core::ffi::c_ushort
-                                                                        as ::core::ffi::c_int
-                                                                    != 0
+                                                                if c_isdigit(b as ::core::ffi::c_int)
                                                                     || b as ::core::ffi::c_int
                                                                         == '-' as i32
                                                                 {
@@ -1969,11 +1931,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         break 's_107;
                                                                     }
                                                                     if state.first_pass == 0 {
-                                                                        while *(*__ctype_b_loc())
-                                                                            .offset(b as ::core::ffi::c_int as isize)
-                                                                            as ::core::ffi::c_int
-                                                                            & _ISdigit as ::core::ffi::c_int as ::core::ffi::c_ushort
-                                                                                as ::core::ffi::c_int != 0
+                                                                        while c_isdigit(b as ::core::ffi::c_int)
                                                                             || b as ::core::ffi::c_int == '+' as i32
                                                                             || b as ::core::ffi::c_int == '-' as i32
                                                                             || b as ::core::ffi::c_int == 'e' as i32
@@ -2412,13 +2370,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                     }
                                                 }
                                                 _ => {
-                                                    if *(*__ctype_b_loc())
-                                                        .offset(b as ::core::ffi::c_int as isize)
-                                                        as ::core::ffi::c_int
-                                                        & _ISdigit as ::core::ffi::c_int
-                                                            as ::core::ffi::c_ushort
-                                                            as ::core::ffi::c_int
-                                                        != 0
+                                                    if c_isdigit(b as ::core::ffi::c_int)
                                                     {
                                                         num_digits += 1;
                                                         if (*top).type_0 as ::core::ffi::c_uint
@@ -2992,13 +2944,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                     }
                                                 }
                                                 _ => {
-                                                    if *(*__ctype_b_loc())
-                                                        .offset(b as ::core::ffi::c_int as isize)
-                                                        as ::core::ffi::c_int
-                                                        & _ISdigit as ::core::ffi::c_int
-                                                            as ::core::ffi::c_ushort
-                                                            as ::core::ffi::c_int
-                                                        != 0
+                                                    if c_isdigit(b as ::core::ffi::c_int)
                                                     {
                                                         num_digits += 1;
                                                         if (*top).type_0 as ::core::ffi::c_uint

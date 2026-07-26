@@ -1,199 +1,158 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-// c2rust translated the C source's <ctype.h> macro/inline expansions
-// literally. On glibc these route through the internal table-pointer
-// functions `__ctype_b_loc`/`__ctype_tolower_loc`/`__ctype_toupper_loc`,
-// which the transpiled call sites (in sds.rs, json.rs, ttinstr.rs) still
-// reference by name via `extern "C" { fn __ctype_b_loc() -> ...; }`. Those
-// symbols don't exist on macOS (Darwin libc classifies chars differently
-// internally), so a macOS build fails to link.
-//
-// Rather than rewrite every call site (the reconstructed expansions vary in
-// shape: direct bitmask tests, `tolower`/`toupper` reimplementations feeding
-// a `__res` local, etc.), this provides real, portable implementations of
-// the three table-pointer functions themselves, built from the plain "C"
-// locale classification rules (this codebase never calls `setlocale`, so
-// that's the only locale ever actually in effect) — every existing call
-// site keeps working completely unmodified, on any platform.
-//
-// glibc's tables are indexable from -128..255 (to classify a byte that was
-// sign-extended from a signed `char`, e.g. `byte as c_char as c_int`). Any
-// index outside plain 0..=127 ASCII classifies as "no bits set" here, which
-// matches glibc's own "C" locale table (only 0..127 has non-zero bits) and
-// sidesteps needing to special-case EOF(-1) separately.
+//! The three `<ctype.h>` classifications and two conversions otfcc actually
+//! uses, in the only locale it ever runs in.
+//!
+//! c2rust translated the C source's `<ctype.h>` macros literally, so on glibc
+//! every call went through the internal table-pointer functions
+//! `__ctype_b_loc`/`__ctype_tolower_loc`/`__ctype_toupper_loc` and a bitmask
+//! test against `_ISdigit` & co. Those symbols do not exist on macOS, so this
+//! module used to *supply* them: three 384-entry tables and three fake
+//! `#[no_mangle]` functions returning pointers into them, which let every call
+//! site keep its glibc shape unchanged.
+//!
+//! That shape is gone now — the call sites ask these functions directly — so
+//! the tables, the fake symbols and the twelve `_IS*` bit constants went with
+//! it. Nine of those twelve classes were never tested by anything.
+//!
+//! The definitions are the plain "C" locale's, which is the only locale in
+//! effect: otfcc never calls `setlocale`. Argument and return types are
+//! `c_int` because that is what the call sites have — a byte read from a font,
+//! sign-extended through `c_char`, so `-128..=127` — and because the C
+//! functions are specified that way. Anything outside `0..=127` is
+//! unclassified and unchanged, which is what glibc's own "C" table says and
+//! what makes `EOF` (-1) fall out for free rather than needing a special case.
+//!
+//! The three predicates are checked against the platform's own libc over all
+//! 384 inputs. The two case conversions cannot be, because **the two libcs
+//! disagree** where C leaves the answer undefined: for `-128..=-2` glibc
+//! returns `c + 256` (its tables are indexed from -128 so a sign-extended
+//! `char` lands on the unsigned byte's entry) while Darwin returns `c`. Both
+//! agree on `-1..=255`. This module returns `c`, and the disagreement is
+//! unobservable at both call sites — `the_negative_range_disagreement_is_unobservable`
+//! is the proof, not the assurance.
 
-use core::ffi::c_ushort;
-#[cfg(target_os = "macos")]
 use core::ffi::c_int;
 
-const IS_UPPER: c_ushort = 1 << 8;
-const IS_LOWER: c_ushort = 1 << 9;
-const IS_ALPHA: c_ushort = 1 << 10;
-const IS_DIGIT: c_ushort = 1 << 11;
-const IS_XDIGIT: c_ushort = 1 << 12;
-const IS_SPACE: c_ushort = 1 << 13;
-const IS_PRINT: c_ushort = 1 << 14;
-const IS_GRAPH: c_ushort = 1 << 15;
-const IS_BLANK: c_ushort = 1 << 0;
-const IS_CNTRL: c_ushort = 1 << 1;
-const IS_PUNCT: c_ushort = 1 << 2;
-const IS_ALNUM: c_ushort = 1 << 3;
-
-const fn classify_ascii(c: i32) -> c_ushort {
-    if c < 0 || c > 127 {
-        return 0;
-    }
-    let b = c as u8;
-    let is_upper = b.is_ascii_uppercase();
-    let is_lower = b.is_ascii_lowercase();
-    let is_digit = b.is_ascii_digit();
-    let is_space = matches!(b, b' ' | 0x09..=0x0D); // space, \t \n \v \f \r
-    let is_cntrl = b < 0x20 || b == 0x7F;
-    let is_alpha = is_upper || is_lower;
-    let is_alnum = is_alpha || is_digit;
-    let is_xdigit = b.is_ascii_hexdigit();
-    let is_print = b >= 0x20 && b < 0x7F;
-    let is_graph = is_print && b != b' ';
-    let is_blank = b == b' ' || b == b'\t';
-    let is_punct = is_graph && !is_alnum;
-
-    let mut bits: c_ushort = 0;
-    if is_upper {
-        bits |= IS_UPPER;
-    }
-    if is_lower {
-        bits |= IS_LOWER;
-    }
-    if is_alpha {
-        bits |= IS_ALPHA;
-    }
-    if is_digit {
-        bits |= IS_DIGIT;
-    }
-    if is_xdigit {
-        bits |= IS_XDIGIT;
-    }
-    if is_space {
-        bits |= IS_SPACE;
-    }
-    if is_print {
-        bits |= IS_PRINT;
-    }
-    if is_graph {
-        bits |= IS_GRAPH;
-    }
-    if is_blank {
-        bits |= IS_BLANK;
-    }
-    if is_cntrl {
-        bits |= IS_CNTRL;
-    }
-    if is_punct {
-        bits |= IS_PUNCT;
-    }
-    if is_alnum {
-        bits |= IS_ALNUM;
-    }
-    bits
+/// `isdigit`: decimal digits only — not hex, not Unicode.
+pub const fn c_isdigit(c: c_int) -> bool {
+    matches!(c, 0x30..=0x39)
 }
 
-const fn to_lower_ascii(c: i32) -> i32 {
-    if c >= 'A' as i32 && c <= 'Z' as i32 {
-        c + 32
-    } else {
-        c
+/// `isspace`: space, and the five control characters `\t \n \v \f \r`.
+///
+/// `\v` (0x0B) is why this is not `u8::is_ascii_whitespace`, which omits it:
+/// swapping the two would silently change where the JSON parser and
+/// `sdssplitargs` stop.
+pub const fn c_isspace(c: c_int) -> bool {
+    matches!(c, 0x20 | 0x09..=0x0D)
+}
+
+/// `isprint`: the printable ASCII range, **space included**.
+///
+/// Which is why this is not `u8::is_ascii_graphic`, whose range starts one
+/// character later.
+pub const fn c_isprint(c: c_int) -> bool {
+    matches!(c, 0x20..=0x7E)
+}
+
+/// `tolower`; for unclassified input, the identity.
+pub const fn c_tolower(c: c_int) -> c_int {
+    if matches!(c, 0x41..=0x5A) { c + 32 } else { c }
+}
+
+/// `toupper`; for unclassified input, the identity.
+pub const fn c_toupper(c: c_int) -> c_int {
+    if matches!(c, 0x61..=0x7A) { c - 32 } else { c }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // These replace calls that went to the platform's libc on Linux and to a
+    // hand-built table on macOS, so "the C locale, obviously" is not enough --
+    // check them against the real thing, over the whole range a call site can
+    // produce (a `c_char` byte is -128..=127; 128..=255 and EOF are included
+    // because glibc's tables are indexable there and C code does reach them).
+    #[test]
+    fn ctype_predicates_match_libc() {
+        for c in -128..=255 {
+            unsafe {
+                assert_eq!(c_isdigit(c), libc::isdigit(c) != 0, "isdigit({c})");
+                assert_eq!(c_isspace(c), libc::isspace(c) != 0, "isspace({c})");
+                assert_eq!(c_isprint(c), libc::isprint(c) != 0, "isprint({c})");
+            }
+        }
+    }
+
+    #[test]
+    fn case_conversion_matches_libc_where_c_defines_it() {
+        // `EOF` and any value of an `unsigned char` -- everything C actually
+        // specifies, and everything the two libcs agree on.
+        for c in -1..=255 {
+            unsafe {
+                assert_eq!(c_tolower(c), libc::tolower(c), "tolower({c})");
+                assert_eq!(c_toupper(c), libc::toupper(c), "toupper({c})");
+            }
+        }
+    }
+
+    /// glibc's answer for the range C leaves undefined: its tables start at
+    /// -128, so a sign-extended `char` reads the unsigned byte's entry. (`-1`
+    /// is `EOF` and comes back unchanged, which is why it is not in the range.)
+    fn glibc_tolower(c: c_int) -> c_int {
+        if (-128..=-2).contains(&c) {
+            c + 256
+        } else {
+            c_tolower(c)
+        }
+    }
+
+    // Where the two libcs disagree, C is a byte >= 0x80 in a glyph name, a
+    // table string or hinting text -- reachable, so the disagreement has to be
+    // shown harmless rather than assumed to be. Two properties do it, one per
+    // call site.
+    #[test]
+    fn the_negative_range_disagreement_is_unobservable() {
+        // sdstolower/sdstoupper store the result back into a `c_char`, and
+        // `128 as c_char == -128`, so the byte written is the same either way.
+        // Checked against whichever libc is present, over the full range.
+        for c in -128..=127 {
+            unsafe {
+                assert_eq!(
+                    c_tolower(c) as ::core::ffi::c_char,
+                    libc::tolower(c) as ::core::ffi::c_char,
+                    "tolower({c}) truncated"
+                );
+                assert_eq!(
+                    c_toupper(c) as ::core::ffi::c_char,
+                    libc::toupper(c) as ::core::ffi::c_char,
+                    "toupper({c}) truncated"
+                );
+            }
+        }
+
+        // strnmatch only ever asks whether two folded bytes are *equal* -- both
+        // of its callers test `== 0` and neither looks at the sign of the
+        // difference. Both foldings keep the negatives injective and disjoint
+        // from the ASCII image, so they agree on every such question.
+        for a in -128..=127 {
+            for b in -128..=127 {
+                assert_eq!(
+                    c_tolower(a) == c_tolower(b),
+                    glibc_tolower(a) == glibc_tolower(b),
+                    "tolower({a}) == tolower({b})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_two_rust_lookalikes_are_not_the_same_function() {
+        // `\v`: whitespace to C, not to Rust.
+        assert!(c_isspace(0x0B));
+        assert!(!(0x0B_u8).is_ascii_whitespace());
+        // space: printable to C, not "graphic" to Rust.
+        assert!(c_isprint(0x20));
+        assert!(!(0x20_u8).is_ascii_graphic());
     }
 }
-
-const fn to_upper_ascii(c: i32) -> i32 {
-    if c >= 'a' as i32 && c <= 'z' as i32 {
-        c - 32
-    } else {
-        c
-    }
-}
-
-const fn build_class_table() -> [c_ushort; 384] {
-    let mut table = [0 as c_ushort; 384];
-    let mut i = 0;
-    while i < 384 {
-        table[i] = classify_ascii(i as i32 - 128);
-        i += 1;
-    }
-    table
-}
-
-const fn build_lower_table() -> [i32; 384] {
-    let mut table = [0i32; 384];
-    let mut i = 0;
-    while i < 384 {
-        let c = i as i32 - 128;
-        table[i] = if c < 0 || c > 127 { c } else { to_lower_ascii(c) };
-        i += 1;
-    }
-    table
-}
-
-const fn build_upper_table() -> [i32; 384] {
-    let mut table = [0i32; 384];
-    let mut i = 0;
-    while i < 384 {
-        let c = i as i32 - 128;
-        table[i] = if c < 0 || c > 127 { c } else { to_upper_ascii(c) };
-        i += 1;
-    }
-    table
-}
-
-static CLASS_TABLE: [c_ushort; 384] = build_class_table();
-static LOWER_TABLE: [i32; 384] = build_lower_table();
-static UPPER_TABLE: [i32; 384] = build_upper_table();
-
-#[cfg(target_os = "macos")]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn __ctype_b_loc() -> *mut *const c_ushort {
-    static mut PTR: *const c_ushort = core::ptr::null();
-    PTR = CLASS_TABLE.as_ptr().offset(128);
-    core::ptr::addr_of_mut!(PTR)
-}
-
-#[cfg(target_os = "macos")]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn __ctype_tolower_loc() -> *mut *const c_int {
-    static mut PTR: *const c_int = core::ptr::null();
-    PTR = LOWER_TABLE.as_ptr().offset(128);
-    core::ptr::addr_of_mut!(PTR)
-}
-
-#[cfg(target_os = "macos")]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn __ctype_toupper_loc() -> *mut *const c_int {
-    static mut PTR: *const c_int = core::ptr::null();
-    PTR = UPPER_TABLE.as_ptr().offset(128);
-    core::ptr::addr_of_mut!(PTR)
-}
-
-pub const _ISdigit: ctype_class_bits = 2048;
-
-pub type ctype_class_bits = ::core::ffi::c_uint;
-
-pub const _ISalnum: ctype_class_bits = 8;
-
-pub const _ISpunct: ctype_class_bits = 4;
-
-pub const _IScntrl: ctype_class_bits = 2;
-
-pub const _ISblank: ctype_class_bits = 1;
-
-pub const _ISgraph: ctype_class_bits = 32768;
-
-pub const _ISprint: ctype_class_bits = 16384;
-
-pub const _ISspace: ctype_class_bits = 8192;
-
-pub const _ISxdigit: ctype_class_bits = 4096;
-
-pub const _ISalpha: ctype_class_bits = 1024;
-
-pub const _ISlower: ctype_class_bits = 512;
-
-pub const _ISupper: ctype_class_bits = 256;

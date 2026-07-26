@@ -64,11 +64,6 @@ fi
 #     hides them, but filter defensively.
 #   - _init/_fini/__bss_start/_edata/_end/_IO_stdin_used are ELF linker
 #     artifacts, not ours.
-#   - __ctype_b_loc/__ctype_tolower_loc/__ctype_toupper_loc are the
-#     macOS-only portability shims in rust/src/support/ctype_compat.rs
-#     (`#[cfg(target_os = "macos")]` — on glibc these come from libc instead),
-#     so they are the one genuinely platform-dependent part of the surface and
-#     are excluded to keep a single shared snapshot.
 extract_symbols() {
 	if [ "$(uname -s)" = "Darwin" ]; then
 		nm -gU "${LIB}" | awk '{print $NF}' | sed 's/^_//'
@@ -77,7 +72,6 @@ extract_symbols() {
 	fi |
 		grep -Ev '^(_ZN|_R)' |
 		grep -Ev '^(_init|_fini|__bss_start|_edata|_end|_IO_stdin_used)$' |
-		grep -Ev '^__ctype_(b|tolower|toupper)_loc$' |
 		LC_ALL=C sort -u
 }
 

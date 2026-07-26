@@ -20,14 +20,7 @@ unsafe extern "C" {
     fn sdsfree(s: sds);
     fn base64_encode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
     fn base64_decode(src: *const u8, len: usize, out_len: *mut usize) -> *mut u8;
-    #[cfg(not(target_os = "macos"))]
-    fn __ctype_b_loc() -> *mut *const ::core::ffi::c_ushort;
-    #[cfg(not(target_os = "macos"))]
-    fn __ctype_tolower_loc() -> *mut *const i32;
 }
-
-#[cfg(target_os = "macos")]
-use crate::support::ctype_compat::{__ctype_b_loc, __ctype_tolower_loc};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 
@@ -35,7 +28,7 @@ use crate::support::options::{otfcc_Options};
 use crate::vendor::sds::{sds};
 use crate::vendor::json::{json_array, json_integer, json_pre_serialized, json_string, json_value};
 
-use crate::support::ctype_compat::{_ISdigit};
+use crate::support::ctype_compat::{c_isdigit, c_tolower};
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
@@ -373,44 +366,8 @@ unsafe extern "C" fn strnmatch(
         let fresh21 = str2;
         str2 = str2.offset(1);
         ch2 = *fresh21 as ::core::ffi::c_int;
-        ch1 = {
-            let mut __res: ::core::ffi::c_int = 0;
-            if ::core::mem::size_of::<::core::ffi::c_int>() > 1_usize {
-                if 0 != 0 {
-                    let mut __c: ::core::ffi::c_int = ch1;
-                    __res =
-                        (if __c < -(128 as ::core::ffi::c_int) || __c > 255 as ::core::ffi::c_int {
-                            __c as i32
-                        } else {
-                            *(*__ctype_tolower_loc()).offset(__c as isize)
-                        }) as ::core::ffi::c_int;
-                } else {
-                    __res = tolower(ch1);
-                }
-            } else {
-                __res = *(*__ctype_tolower_loc()).offset(ch1 as isize) as ::core::ffi::c_int;
-            }
-            __res
-        };
-        ch2 = {
-            let mut __res: ::core::ffi::c_int = 0;
-            if ::core::mem::size_of::<::core::ffi::c_int>() > 1_usize {
-                if 0 != 0 {
-                    let mut __c: ::core::ffi::c_int = ch2;
-                    __res =
-                        (if __c < -(128 as ::core::ffi::c_int) || __c > 255 as ::core::ffi::c_int {
-                            __c as i32
-                        } else {
-                            *(*__ctype_tolower_loc()).offset(__c as isize)
-                        }) as ::core::ffi::c_int;
-                } else {
-                    __res = tolower(ch2);
-                }
-            } else {
-                __res = *(*__ctype_tolower_loc()).offset(ch2 as isize) as ::core::ffi::c_int;
-            }
-            __res
-        };
+        ch1 = c_tolower(ch1);
+        ch2 = c_tolower(ch2);
         if ch1 != ch2 || ch1 == '\0' as i32 {
             return ch1 - ch2;
         }
@@ -456,10 +413,7 @@ unsafe extern "C" fn parse_instrs(
             {
                 pt = pt.offset(1);
             }
-            if !(*(*__ctype_b_loc()).offset(*pt as ::core::ffi::c_int as isize)
-                as ::core::ffi::c_int
-                & _ISdigit as ::core::ffi::c_int as ::core::ffi::c_ushort as ::core::ffi::c_int
-                != 0
+            if !(c_isdigit(*pt as ::core::ffi::c_int)
                 || *pt as ::core::ffi::c_int == '-' as i32)
             {
                 break;
@@ -1060,14 +1014,6 @@ pub unsafe extern "C" fn parse_ttinstr(
             ::core::ptr::null_mut::<u8>(),
             0 as u32,
         );
-    };
-}
-#[inline]
-unsafe extern "C" fn tolower(mut __c: ::core::ffi::c_int) -> ::core::ffi::c_int {
-    return if __c >= -(128 as ::core::ffi::c_int) && __c < 256 as ::core::ffi::c_int {
-        *(*__ctype_tolower_loc()).offset(__c as isize) as ::core::ffi::c_int
-    } else {
-        __c
     };
 }
 
