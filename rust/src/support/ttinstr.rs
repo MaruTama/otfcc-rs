@@ -37,144 +37,47 @@ use crate::vendor::json::{json_array, json_integer, json_pre_serialized, json_st
 
 use crate::support::ctype_compat::{_ISdigit};
 use crate::vendor::json_builder::{json_serialize_mode_packed, json_serialize_opts};
-pub const ttf_pushw: ttf_instructions = 184;
-pub const ttf_pushb: ttf_instructions = 176;
-pub const ttf_npushw: ttf_instructions = 65;
-pub const ttf_npushb: ttf_instructions = 64;
+/// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
+/// their operands are part of the instruction stream rather than separate
+/// instructions. `u8`, since that is what `instrdata.instrs` holds.
+///
+/// c2rust emitted all 123 of `ttf_instructions`' names, of which these were the
+/// only ones any code referenced. The rest restated `ff_ttf_instrnames` below,
+/// which the dumper and parser actually use and which covers all 256 opcodes --
+/// checked name by name against it before removing them (121 matched exactly;
+/// `ttf_pushb`/`ttf_pushw` name the base of the eight `PUSHB_1`..`PUSHB_8`
+/// variants the table spells out).
+pub const ttf_npushb: u8 = 64;
+pub const ttf_npushw: u8 = 65;
+pub const ttf_pushb: u8 = 176;
+pub const ttf_pushw: u8 = 184;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct instrdata {
     pub instrs: *mut u8,
     pub instr_cnt: u32,
-    pub bts: *mut u8,
+    /// What each byte of `instrs` *is*, one entry per byte, filled in by
+    /// [`instr_typify`]. Not part of the instruction stream: the two arrays run
+    /// in parallel, which is why this one is typed and `instrs` stays `u8`.
+    pub bts: *mut byte_types,
 }
-pub const bt_byte: byte_types = 2;
-pub const bt_cnt: byte_types = 1;
-pub const bt_wordhi: byte_types = 3;
-pub const bt_impliedreturn: byte_types = 5;
-pub const bt_wordlo: byte_types = 4;
-pub const bt_instr: byte_types = 0;
-pub type ttf_instructions = ::core::ffi::c_uint;
-pub const ttf_getvariation: ttf_instructions = 145;
-pub const ttf_ws: ttf_instructions = 66;
-pub const ttf_wcvtp: ttf_instructions = 68;
-pub const ttf_wcvtf: ttf_instructions = 112;
-pub const ttf_utp: ttf_instructions = 41;
-pub const ttf_szps: ttf_instructions = 22;
-pub const ttf_szp2: ttf_instructions = 21;
-pub const ttf_szp1: ttf_instructions = 20;
-pub const ttf_szp0: ttf_instructions = 19;
-pub const ttf_swap: ttf_instructions = 35;
-pub const ttf_svtca: ttf_instructions = 0;
-pub const ttf_sub: ttf_instructions = 97;
-pub const ttf_sswci: ttf_instructions = 30;
-pub const ttf_ssw: ttf_instructions = 31;
-pub const ttf_srp2: ttf_instructions = 18;
-pub const ttf_srp1: ttf_instructions = 17;
-pub const ttf_srp0: ttf_instructions = 16;
-pub const ttf_sround: ttf_instructions = 118;
-pub const ttf_spvtl: ttf_instructions = 6;
-pub const ttf_spvtca: ttf_instructions = 2;
-pub const ttf_spvfs: ttf_instructions = 10;
-pub const ttf_smd: ttf_instructions = 26;
-pub const ttf_sloop: ttf_instructions = 23;
-pub const ttf_shz: ttf_instructions = 54;
-pub const ttf_shpix: ttf_instructions = 56;
-pub const ttf_shp: ttf_instructions = 50;
-pub const ttf_shc: ttf_instructions = 52;
-pub const ttf_sfvtpv: ttf_instructions = 14;
-pub const ttf_sfvtl: ttf_instructions = 8;
-pub const ttf_sfvtca: ttf_instructions = 4;
-pub const ttf_sfvfs: ttf_instructions = 11;
-pub const ttf_sds: ttf_instructions = 95;
-pub const ttf_sdpvtl: ttf_instructions = 134;
-pub const ttf_sdb: ttf_instructions = 94;
-pub const ttf_scvtci: ttf_instructions = 29;
-pub const ttf_scfs: ttf_instructions = 72;
-pub const ttf_scantype: ttf_instructions = 141;
-pub const ttf_scanctrl: ttf_instructions = 133;
-pub const ttf_sangw: ttf_instructions = 126;
-pub const ttf_s45round: ttf_instructions = 119;
-pub const ttf_rutg: ttf_instructions = 124;
-pub const ttf_rthg: ttf_instructions = 25;
-pub const ttf_rtg: ttf_instructions = 24;
-pub const ttf_rtdg: ttf_instructions = 61;
-pub const ttf_rs: ttf_instructions = 67;
-pub const ttf_round: ttf_instructions = 104;
-pub const ttf_roll: ttf_instructions = 138;
-pub const ttf_roff: ttf_instructions = 122;
-pub const ttf_rdtg: ttf_instructions = 125;
-pub const ttf_rcvt: ttf_instructions = 69;
-pub const ttf_pop: ttf_instructions = 33;
-pub const ttf_or: ttf_instructions = 91;
-pub const ttf_odd: ttf_instructions = 86;
-pub const ttf_nround: ttf_instructions = 108;
-pub const ttf_not: ttf_instructions = 92;
-pub const ttf_neq: ttf_instructions = 85;
-pub const ttf_neg: ttf_instructions = 101;
-pub const ttf_mul: ttf_instructions = 99;
-pub const ttf_msirp: ttf_instructions = 58;
-pub const ttf_mps: ttf_instructions = 76;
-pub const ttf_mppem: ttf_instructions = 75;
-pub const ttf_mirp: ttf_instructions = 224;
-pub const ttf_mindex: ttf_instructions = 38;
-pub const ttf_min: ttf_instructions = 140;
-pub const ttf_miap: ttf_instructions = 62;
-pub const ttf_mdrp: ttf_instructions = 192;
-pub const ttf_mdap: ttf_instructions = 46;
-pub const ttf_md: ttf_instructions = 73;
-pub const ttf_max: ttf_instructions = 139;
-pub const ttf_lteq: ttf_instructions = 81;
-pub const ttf_lt: ttf_instructions = 80;
-pub const ttf_loopcall: ttf_instructions = 42;
-pub const ttf_jrot: ttf_instructions = 120;
-pub const ttf_jrof: ttf_instructions = 121;
-pub const ttf_jmpr: ttf_instructions = 28;
-pub const ttf_iup: ttf_instructions = 48;
-pub const ttf_isect: ttf_instructions = 15;
-pub const ttf_ip: ttf_instructions = 57;
-pub const ttf_instctrl: ttf_instructions = 142;
-pub const ttf_if: ttf_instructions = 88;
-pub const ttf_idef: ttf_instructions = 137;
-pub const ttf_gteq: ttf_instructions = 83;
-pub const ttf_gt: ttf_instructions = 82;
-pub const ttf_gpv: ttf_instructions = 12;
-pub const ttf_gfv: ttf_instructions = 13;
-pub const ttf_getinfo: ttf_instructions = 136;
-pub const ttf_gc: ttf_instructions = 70;
-pub const ttf_floor: ttf_instructions = 102;
-pub const ttf_fliprgon: ttf_instructions = 129;
-pub const ttf_fliprgoff: ttf_instructions = 130;
-pub const ttf_flippt: ttf_instructions = 128;
-pub const ttf_flipon: ttf_instructions = 77;
-pub const ttf_flipoff: ttf_instructions = 78;
-pub const ttf_fdef: ttf_instructions = 44;
-pub const ttf_even: ttf_instructions = 87;
-pub const ttf_eq: ttf_instructions = 84;
-pub const ttf_endf: ttf_instructions = 45;
-pub const ttf_else: ttf_instructions = 27;
-pub const ttf_eif: ttf_instructions = 89;
-pub const ttf_dup: ttf_instructions = 32;
-pub const ttf_div: ttf_instructions = 98;
-pub const ttf_depth: ttf_instructions = 36;
-pub const ttf_deltap3: ttf_instructions = 114;
-pub const ttf_deltap2: ttf_instructions = 113;
-pub const ttf_deltap1: ttf_instructions = 93;
-pub const ttf_deltac3: ttf_instructions = 117;
-pub const ttf_deltac2: ttf_instructions = 116;
-pub const ttf_deltac1: ttf_instructions = 115;
-pub const ttf_debug: ttf_instructions = 79;
-pub const ttf_clear: ttf_instructions = 34;
-pub const ttf_cindex: ttf_instructions = 37;
-pub const ttf_ceiling: ttf_instructions = 103;
-pub const ttf_call: ttf_instructions = 43;
-pub const ttf_and: ttf_instructions = 90;
-pub const ttf_alignrp: ttf_instructions = 60;
-pub const ttf_alignpts: ttf_instructions = 39;
-pub const ttf_add: ttf_instructions = 96;
-pub const ttf_abs: ttf_instructions = 100;
-pub const ttf_aa: ttf_instructions = 127;
-pub type byte_types = ::core::ffi::c_uint;
+
+/// The role of one byte in a TrueType instruction stream: the opcode itself, or
+/// one of the operand bytes that follow a push.
+///
+/// `#[repr(u8)]` deliberately -- the array is `calloc`ed one byte per
+/// instruction byte, and `bt_instr` being 0 is what makes that zeroing valid.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum byte_types {
+    bt_instr = 0,
+    bt_cnt = 1,
+    bt_byte = 2,
+    bt_wordhi = 3,
+    bt_wordlo = 4,
+    bt_impliedreturn = 5,
+}
+pub use byte_types::*;
 #[inline]
 unsafe extern "C" fn preserialize(mut x: *mut json_value) -> *mut json_value {
     let mut opts: json_serialize_opts = json_serialize_opts {
@@ -720,7 +623,7 @@ unsafe extern "C" fn parse_instrs(
                             let fresh8 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh8 as isize) =
-                                ttf_npushb as ::core::ffi::c_int as u8;
+                                ttf_npushb;
                             let fresh9 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh9 as isize) = (i - nread) as u8;
@@ -753,7 +656,7 @@ unsafe extern "C" fn parse_instrs(
                             let fresh13 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh13 as isize) =
-                                ttf_npushw as ::core::ffi::c_int as u8;
+                                ttf_npushw;
                             let fresh14 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh14 as isize) = (i - nread) as u8;
@@ -910,44 +813,42 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
     let mut j: ::core::ffi::c_int = 0;
     let mut lh: ::core::ffi::c_int = 0;
     let mut instrs: *mut u8 = (*id).instrs;
-    let mut bts: *mut u8 = ::core::ptr::null_mut::<u8>();
+    let mut bts: *mut byte_types = ::core::ptr::null_mut::<byte_types>();
     if (*id).bts.is_null() {
         (*id).bts = __caryll_allocate_clean(
-            (::core::mem::size_of::<u8>() as usize)
+            (::core::mem::size_of::<byte_types>() as usize)
                 .wrapping_mul((len + 1 as ::core::ffi::c_int) as usize),
             582 as ::core::ffi::c_ulong,
-        ) as *mut u8;
+        ) as *mut byte_types;
     }
     bts = (*id).bts;
     lh = 0 as ::core::ffi::c_int;
     i = lh;
     while i < len {
-        *bts.offset(i as isize) = bt_instr as ::core::ffi::c_int as u8;
+        *bts.offset(i as isize) = bt_instr;
         lh += 1;
-        if *instrs.offset(i as isize) as ::core::ffi::c_int == ttf_npushb as ::core::ffi::c_int {
+        if *instrs.offset(i as isize) == ttf_npushb {
             i += 1;
-            *bts.offset(i as isize) = bt_cnt as ::core::ffi::c_int as u8;
+            *bts.offset(i as isize) = bt_cnt;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_byte as ::core::ffi::c_int as u8;
+                *bts.offset(i as isize) = bt_byte;
                 j += 1;
             }
             lh += 1 as ::core::ffi::c_int + cnt;
-        } else if *instrs.offset(i as isize) as ::core::ffi::c_int
-            == ttf_npushw as ::core::ffi::c_int
-        {
+        } else if *instrs.offset(i as isize) == ttf_npushw {
             i += 1;
-            *bts.offset(i as isize) = bt_cnt as ::core::ffi::c_int as u8;
+            *bts.offset(i as isize) = bt_cnt;
             lh += 1;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_wordhi as ::core::ffi::c_int as u8;
+                *bts.offset(i as isize) = bt_wordhi;
                 i += 1;
-                *bts.offset(i as isize) = bt_wordlo as ::core::ffi::c_int as u8;
+                *bts.offset(i as isize) = bt_wordlo;
                 j += 1;
             }
             lh += 1 as ::core::ffi::c_int + cnt;
@@ -959,7 +860,7 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_byte as ::core::ffi::c_int as u8;
+                *bts.offset(i as isize) = bt_byte;
                 j += 1;
             }
             lh += cnt;
@@ -971,16 +872,16 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_wordhi as ::core::ffi::c_int as u8;
+                *bts.offset(i as isize) = bt_wordhi;
                 i += 1;
-                *bts.offset(i as isize) = bt_wordlo as ::core::ffi::c_int as u8;
+                *bts.offset(i as isize) = bt_wordlo;
                 j += 1;
             }
             lh += cnt;
         }
         i += 1;
     }
-    *bts.offset(i as isize) = bt_impliedreturn as ::core::ffi::c_int as u8;
+    *bts.offset(i as isize) = bt_impliedreturn;
     return lh;
 }
 #[unsafe(no_mangle)]
@@ -997,7 +898,7 @@ pub unsafe extern "C" fn dump_ttinstr(
         let mut id: instrdata = instrdata {
             instrs: ::core::ptr::null_mut::<u8>(),
             instr_cnt: 0,
-            bts: ::core::ptr::null_mut::<u8>(),
+            bts: ::core::ptr::null_mut::<byte_types>(),
         };
         memset(
             &raw mut id as *mut ::core::ffi::c_void,
@@ -1010,7 +911,7 @@ pub unsafe extern "C" fn dump_ttinstr(
         let mut ret: *mut json_value = json_array_new(id.instr_cnt as usize);
         let mut i: u32 = 0 as u32;
         while i < id.instr_cnt {
-            if *id.bts.offset(i as isize) as ::core::ffi::c_int == bt_wordhi as ::core::ffi::c_int {
+            if *id.bts.offset(i as isize) == bt_wordhi {
                 json_array_push(
                     ret,
                     json_integer_new(
@@ -1022,9 +923,8 @@ pub unsafe extern "C" fn dump_ttinstr(
                     ),
                 );
                 i = i.wrapping_add(1);
-            } else if *id.bts.offset(i as isize) as ::core::ffi::c_int
-                == bt_cnt as ::core::ffi::c_int
-                || *id.bts.offset(i as isize) as ::core::ffi::c_int == bt_byte as ::core::ffi::c_int
+            } else if *id.bts.offset(i as isize) == bt_cnt
+                || *id.bts.offset(i as isize) == bt_byte
             {
                 json_array_push(
                     ret,
@@ -1039,7 +939,7 @@ pub unsafe extern "C" fn dump_ttinstr(
             i = i.wrapping_add(1);
         }
         free(id.bts as *mut ::core::ffi::c_void);
-        id.bts = ::core::ptr::null_mut::<u8>();
+        id.bts = ::core::ptr::null_mut::<byte_types>();
         return preserialize(ret);
     };
 }
@@ -1169,4 +1069,47 @@ unsafe extern "C" fn tolower(mut __c: ::core::ffi::c_int) -> ::core::ffi::c_int 
     } else {
         __c
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `instr_typify` allocates the `bts` array with `__caryll_allocate_clean`,
+    // one byte per instruction byte, and then fills it in -- so `bt_instr` has
+    // to be the zero variant (a calloc'ed enum with no zero variant is instantly
+    // invalid) and the type has to stay one byte wide or the allocation is short.
+    #[test]
+    fn byte_types_is_a_calloc_safe_byte() {
+        assert_eq!(::core::mem::size_of::<byte_types>(), 1);
+        assert_eq!(bt_instr as u8, 0);
+        assert_eq!(
+            [bt_cnt as u8, bt_byte as u8, bt_wordhi as u8, bt_wordlo as u8, bt_impliedreturn as u8],
+            [1, 2, 3, 4, 5]
+        );
+    }
+
+    // The four opcodes whose operands sit inside the instruction stream. These
+    // are the values the TrueType spec assigns, and `ff_ttf_instrnames` -- which
+    // is what the dumper writes and the parser matches -- has to agree with them,
+    // since the two are the only remaining record of the opcode numbering.
+    #[test]
+    fn push_opcodes_agree_with_the_name_table() {
+        assert_eq!([ttf_npushb, ttf_npushw, ttf_pushb, ttf_pushw], [64, 65, 176, 184]);
+        assert_eq!(ff_ttf_instrnames[ttf_npushb as usize], c"NPUSHB");
+        assert_eq!(ff_ttf_instrnames[ttf_npushw as usize], c"NPUSHW");
+        // `PUSHB`/`PUSHW` are eight opcodes each, pushing 1..=8 values; the
+        // constant is the first of the run, which is why the code adds an offset
+        // to it rather than comparing for equality.
+        for n in 0..8u8 {
+            assert_eq!(
+                ff_ttf_instrnames[(ttf_pushb + n) as usize].to_bytes(),
+                format!("PUSHB_{}", n + 1).as_bytes()
+            );
+            assert_eq!(
+                ff_ttf_instrnames[(ttf_pushw + n) as usize].to_bytes(),
+                format!("PUSHW_{}", n + 1).as_bytes()
+            );
+        }
+    }
 }
