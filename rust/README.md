@@ -928,6 +928,32 @@ on the other platform before a commit is trusted.
   end by deleting its files' `allow(unsafe_op_in_unsafe_fn)`: 120 files carry
   one today, and that count is the honest measure of how much of this crate is
   still C.
+  - **First, though: the `Vec<T>` conversion's real obstacle wasn't the
+    generic arithmetic in `cvec.rs`, it was that every container-owning
+    struct is `#[derive(Copy, Clone)]` and gets memcpy'd wholesale by its
+    own `move`/`replace`/`copy_replace` — a struct containing a real `Vec`
+    can't be `Copy`, and a raw memcpy of one would alias two owners onto
+    one heap allocation. Measured which of these were actually reachable
+    (`grep`-checking `INSTANCE\s*\.\s*SLOT` outside each vtable's own
+    initializer, across the whole crate) before touching anything: of 286
+    non-`VQ` `move_0`/`replace`/`copy_replace` slots, only 4 are ever
+    called from outside their own file, and `VQ`'s own `move_0` is dead
+    too — every other one of the 1,185 total vtable slots exists only
+    because c2rust's vtable-package macro stamped out the full C interface
+    unconditionally (same cause as PR #43's 305 dead `extern "C"`
+    declarations). A first same-line-only version of that grep undercounted
+    by 4 real call sites, wrapped across lines by long identifiers
+    (`OTL_I_CARET_VALUE_LIST\n    .move_0`); the compiler caught all 4
+    before anything shipped, which is the whole reason this class of
+    mistake is survivable here and division-by-repr(C) mistakes in the
+    naming stage weren't as cheap to catch. Deleted the 284 confirmed-dead
+    slots, then re-measured with `--force-warn dead_code` (not assumed)
+    to find and delete the 311 functions that became unreachable as a
+    result — converged in one pass, no cascade. `I_VQ`'s live
+    `.replace`/`.copy_replace` (variable-font Pos blending) are the only
+    survivors of this category; converting `VqSegList` to a real `Vec`
+    is real, careful work — everything else in this list can just use
+    `Vec`'s own `Clone`/`Drop`.
 - Before `c/` can be deleted, freeze each payload's expected output into
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.
