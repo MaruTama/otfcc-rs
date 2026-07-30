@@ -90,7 +90,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(builder, 1819239265i32 as u32, pair.loca);
     } else {
         let mut r: CffAndGlyf = CffAndGlyf {
-            meta: (*font).CFF_,
+            meta: (*font).cff,
             glyphs: (*font).glyf,
         };
         otfcc_sfnt_builder_push_table(
@@ -168,13 +168,13 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             1447316824i32 as u32,
-            otfcc_build_vdmx((*font).VDMX, options),
+            otfcc_build_vdmx((*font).vdmx, options),
         );
     }
     if !(*font).hhea.is_null() && !(*font).maxp.is_null() && !(*font).hmtx.is_null() {
-        let mut hmtx_counta: u16 = (*(*font).hhea).numberOfMetrics;
-        let mut hmtx_countk: u16 = ((*(*font).maxp).numGlyphs as ::core::ffi::c_int
-            - (*(*font).hhea).numberOfMetrics as ::core::ffi::c_int)
+        let mut hmtx_counta: u16 = (*(*font).hhea).number_of_metrics;
+        let mut hmtx_countk: u16 = ((*(*font).maxp).num_glyphs as ::core::ffi::c_int
+            - (*(*font).hhea).number_of_metrics as ::core::ffi::c_int)
             as u16;
         otfcc_sfnt_builder_push_table(
             builder,
@@ -193,9 +193,9 @@ impl FontSerializer for OtfSerializer {
         otfcc_build_vhea((*font).vhea, options),
     );
     if !(*font).vhea.is_null() && !(*font).maxp.is_null() && !(*font).vmtx.is_null() {
-        let mut vmtx_counta: u16 = (*(*font).vhea).numOfLongVerMetrics;
-        let mut vmtx_countk: u16 = ((*(*font).maxp).numGlyphs as ::core::ffi::c_int
-            - (*(*font).vhea).numOfLongVerMetrics as ::core::ffi::c_int)
+        let mut vmtx_counta: u16 = (*(*font).vhea).num_of_long_ver_metrics;
+        let mut vmtx_countk: u16 = ((*(*font).maxp).num_glyphs as ::core::ffi::c_int
+            - (*(*font).vhea).num_of_long_ver_metrics as ::core::ffi::c_int)
             as u16;
         otfcc_sfnt_builder_push_table(
             builder,
@@ -217,7 +217,7 @@ impl FontSerializer for OtfSerializer {
         builder,
         1196643650i32 as u32,
         otfcc_build_otl(
-            (*font).GSUB,
+            (*font).gsub,
             options,
             b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
         ),
@@ -226,7 +226,7 @@ impl FontSerializer for OtfSerializer {
         builder,
         1196445523i32 as u32,
         otfcc_build_otl(
-            (*font).GPOS,
+            (*font).gpos,
             options,
             b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
         ),
@@ -254,14 +254,14 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1398163232i32 as u32,
-        otfcc_build_svg((*font).SVG_, options),
+        otfcc_build_svg((*font).svg, options),
     );
-    let mut target: TsiBuildTarget = otfcc_build_tsi((*font).TSI_01, options);
-    otfcc_sfnt_builder_push_table(builder, 1414744368i32 as u32, target.indexPart);
-    otfcc_sfnt_builder_push_table(builder, 1414744369i32 as u32, target.textPart);
-    let mut target_0: TsiBuildTarget = otfcc_build_tsi((*font).TSI_23, options);
-    otfcc_sfnt_builder_push_table(builder, 1414744370i32 as u32, target_0.indexPart);
-    otfcc_sfnt_builder_push_table(builder, 1414744371i32 as u32, target_0.textPart);
+    let mut target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01, options);
+    otfcc_sfnt_builder_push_table(builder, 1414744368i32 as u32, target.index_part);
+    otfcc_sfnt_builder_push_table(builder, 1414744369i32 as u32, target.text_part);
+    let mut target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23, options);
+    otfcc_sfnt_builder_push_table(builder, 1414744370i32 as u32, target_0.index_part);
+    otfcc_sfnt_builder_push_table(builder, 1414744371i32 as u32, target_0.text_part);
     if !(*font).glyf.is_null() {
         otfcc_sfnt_builder_push_table(
             builder,
@@ -269,7 +269,7 @@ impl FontSerializer for OtfSerializer {
             otfcc_build_tsi5((*font).TSI5, options, (*(*font).glyf).length as GlyphId),
         );
     }
-    if (*options).dummy_DSIG {
+    if (*options).dummy_dsig {
         let mut dsig: *mut Buffer = bufnew();
         bufwrite32b(dsig, 0x1 as u32);
         bufwrite16b(dsig, 0 as u16);

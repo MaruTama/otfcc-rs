@@ -16,44 +16,44 @@ use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 #[repr(C)]
 pub struct Os2Table {
     pub version: u16,
-    pub xAvgCharWidth: i16,
-    pub usWeightClass: u16,
-    pub usWidthClass: u16,
-    pub fsType: u16,
-    pub ySubscriptXSize: i16,
-    pub ySubscriptYSize: i16,
-    pub ySubscriptXOffset: i16,
-    pub ySubscriptYOffset: i16,
-    pub ySupscriptXSize: i16,
-    pub ySupscriptYSize: i16,
-    pub ySupscriptXOffset: i16,
-    pub ySupscriptYOffset: i16,
-    pub yStrikeoutSize: i16,
-    pub yStrikeoutPosition: i16,
-    pub sFamilyClass: i16,
+    pub x_avg_char_width: i16,
+    pub us_weight_class: u16,
+    pub us_width_class: u16,
+    pub fs_type: u16,
+    pub y_subscript_x_size: i16,
+    pub y_subscript_y_size: i16,
+    pub y_subscript_x_offset: i16,
+    pub y_subscript_y_offset: i16,
+    pub y_supscript_x_size: i16,
+    pub y_supscript_y_size: i16,
+    pub y_supscript_x_offset: i16,
+    pub y_supscript_y_offset: i16,
+    pub y_strikeout_size: i16,
+    pub y_strikeout_position: i16,
+    pub s_family_class: i16,
     pub panose: [u8; 10],
-    pub ulUnicodeRange1: u32,
-    pub ulUnicodeRange2: u32,
-    pub ulUnicodeRange3: u32,
-    pub ulUnicodeRange4: u32,
-    pub achVendID: [u8; 4],
-    pub fsSelection: u16,
-    pub usFirstCharIndex: u16,
-    pub usLastCharIndex: u16,
-    pub sTypoAscender: i16,
-    pub sTypoDescender: i16,
-    pub sTypoLineGap: i16,
-    pub usWinAscent: u16,
-    pub usWinDescent: u16,
-    pub ulCodePageRange1: u32,
-    pub ulCodePageRange2: u32,
-    pub sxHeight: i16,
-    pub sCapHeight: i16,
-    pub usDefaultChar: u16,
-    pub usBreakChar: u16,
-    pub usMaxContext: u16,
-    pub usLowerOpticalPointSize: u16,
-    pub usUpperOpticalPointSize: u16,
+    pub ul_unicode_range1: u32,
+    pub ul_unicode_range2: u32,
+    pub ul_unicode_range3: u32,
+    pub ul_unicode_range4: u32,
+    pub ach_vend_id: [u8; 4],
+    pub fs_selection: u16,
+    pub us_first_char_index: u16,
+    pub us_last_char_index: u16,
+    pub s_typo_ascender: i16,
+    pub s_typo_descender: i16,
+    pub s_typo_line_gap: i16,
+    pub us_win_ascent: u16,
+    pub us_win_descent: u16,
+    pub ul_code_page_range1: u32,
+    pub ul_code_page_range2: u32,
+    pub sx_height: i16,
+    pub s_cap_height: i16,
+    pub us_default_char: u16,
+    pub us_break_char: u16,
+    pub us_max_context: u16,
+    pub us_lower_optical_point_size: u16,
+    pub us_upper_optical_point_size: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -63,7 +63,7 @@ pub struct Os2TableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut Os2Table, *mut Os2Table) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Os2Table) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut Os2Table, Os2Table) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut Os2Table, Os2Table) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut Os2Table, Os2Table) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut Os2Table>,
     pub free: Option<unsafe extern "C" fn(*mut Os2Table) -> ()>,
 }
@@ -111,7 +111,7 @@ pub static TABLE_I_OS_2: Os2TableElementInterface = {
         replace: Some(
             table_os_2_replace as unsafe extern "C" fn(*mut Os2Table, Os2Table) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_os_2_copy_replace as unsafe extern "C" fn(*mut Os2Table, Os2Table) -> (),
         ),
         create: Some(table_os_2_create),
@@ -162,7 +162,7 @@ pub unsafe extern "C" fn otfcc_read_os_2(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -176,49 +176,49 @@ pub unsafe extern "C" fn otfcc_read_os_2(
                             TABLE_I_OS_2.create.expect("non-null function pointer"))();
                         (*os_2).version = read_16u(data as *const u8);
                         if !(length < 68 as u32) {
-                            (*os_2).xAvgCharWidth = read_16u(
+                            (*os_2).x_avg_char_width = read_16u(
                                 data.offset(2 as ::core::ffi::c_int as isize) as *const u8,
                             ) as i16;
-                            (*os_2).usWeightClass = read_16u(
+                            (*os_2).us_weight_class = read_16u(
                                 data.offset(4 as ::core::ffi::c_int as isize) as *const u8,
                             );
-                            (*os_2).usWidthClass = read_16u(
+                            (*os_2).us_width_class = read_16u(
                                 data.offset(6 as ::core::ffi::c_int as isize) as *const u8,
                             );
-                            (*os_2).fsType = read_16u(
+                            (*os_2).fs_type = read_16u(
                                 data.offset(8 as ::core::ffi::c_int as isize) as *const u8,
                             );
-                            (*os_2).ySubscriptXSize =
+                            (*os_2).y_subscript_x_size =
                                 read_16u(data.offset(10 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
-                            (*os_2).ySubscriptYSize =
+                            (*os_2).y_subscript_y_size =
                                 read_16u(data.offset(12 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
-                            (*os_2).ySubscriptXOffset =
+                            (*os_2).y_subscript_x_offset =
                                 read_16u(data.offset(14 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
-                            (*os_2).ySubscriptYOffset =
+                            (*os_2).y_subscript_y_offset =
                                 read_16u(data.offset(16 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
-                            (*os_2).ySupscriptXSize =
+                            (*os_2).y_supscript_x_size =
                                 read_16u(data.offset(18 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
-                            (*os_2).ySupscriptYSize =
+                            (*os_2).y_supscript_y_size =
                                 read_16u(data.offset(20 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
-                            (*os_2).ySupscriptXOffset =
+                            (*os_2).y_supscript_x_offset =
                                 read_16u(data.offset(22 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
-                            (*os_2).ySupscriptYOffset =
+                            (*os_2).y_supscript_y_offset =
                                 read_16u(data.offset(24 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
-                            (*os_2).yStrikeoutSize =
+                            (*os_2).y_strikeout_size =
                                 read_16u(data.offset(26 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
-                            (*os_2).yStrikeoutPosition =
+                            (*os_2).y_strikeout_position =
                                 read_16u(data.offset(28 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
-                            (*os_2).sFamilyClass =
+                            (*os_2).s_family_class =
                                 read_16u(data.offset(30 as ::core::ffi::c_int as isize)
                                     as *const u8) as i16;
                             memcpy(
@@ -227,48 +227,48 @@ pub unsafe extern "C" fn otfcc_read_os_2(
                                     as *const ::core::ffi::c_void,
                                 10 as usize,
                             );
-                            (*os_2).ulUnicodeRange1 =
+                            (*os_2).ul_unicode_range1 =
                                 read_32u(data.offset(42 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*os_2).ulUnicodeRange2 =
+                            (*os_2).ul_unicode_range2 =
                                 read_32u(data.offset(46 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*os_2).ulUnicodeRange3 =
+                            (*os_2).ul_unicode_range3 =
                                 read_32u(data.offset(50 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*os_2).ulUnicodeRange4 =
+                            (*os_2).ul_unicode_range4 =
                                 read_32u(data.offset(54 as ::core::ffi::c_int as isize)
                                     as *const u8);
                             memcpy(
-                                &raw mut (*os_2).achVendID as *mut u8
+                                &raw mut (*os_2).ach_vend_id as *mut u8
                                     as *mut ::core::ffi::c_void,
                                 data.offset(58 as ::core::ffi::c_int as isize)
                                     as *const ::core::ffi::c_void,
                                 4 as usize,
                             );
-                            (*os_2).fsSelection =
+                            (*os_2).fs_selection =
                                 read_16u(data.offset(62 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*os_2).usFirstCharIndex =
+                            (*os_2).us_first_char_index =
                                 read_16u(data.offset(64 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*os_2).usLastCharIndex =
+                            (*os_2).us_last_char_index =
                                 read_16u(data.offset(66 as ::core::ffi::c_int as isize)
                                     as *const u8);
                             if length >= 78 as u32 {
-                                (*os_2).sTypoAscender =
+                                (*os_2).s_typo_ascender =
                                     read_16s(data.offset(68 as ::core::ffi::c_int as isize)
                                         as *const u8);
-                                (*os_2).sTypoDescender =
+                                (*os_2).s_typo_descender =
                                     read_16s(data.offset(70 as ::core::ffi::c_int as isize)
                                         as *const u8);
-                                (*os_2).sTypoLineGap =
+                                (*os_2).s_typo_line_gap =
                                     read_16s(data.offset(72 as ::core::ffi::c_int as isize)
                                         as *const u8);
-                                (*os_2).usWinAscent =
+                                (*os_2).us_win_ascent =
                                     read_16u(data.offset(74 as ::core::ffi::c_int as isize)
                                         as *const u8);
-                                (*os_2).usWinDescent =
+                                (*os_2).us_win_descent =
                                     read_16u(data.offset(76 as ::core::ffi::c_int as isize)
                                         as *const u8);
                             }
@@ -277,10 +277,10 @@ pub unsafe extern "C" fn otfcc_read_os_2(
                             {
                                 if (*os_2).version as ::core::ffi::c_int >= 1 as ::core::ffi::c_int
                                 {
-                                    (*os_2).ulCodePageRange1 =
+                                    (*os_2).ul_code_page_range1 =
                                         read_32u(data.offset(78 as ::core::ffi::c_int as isize)
                                             as *const u8);
-                                    (*os_2).ulCodePageRange2 =
+                                    (*os_2).ul_code_page_range2 =
                                         read_32u(data.offset(82 as ::core::ffi::c_int as isize)
                                             as *const u8);
                                 }
@@ -291,23 +291,23 @@ pub unsafe extern "C" fn otfcc_read_os_2(
                                     if (*os_2).version as ::core::ffi::c_int
                                         >= 2 as ::core::ffi::c_int
                                     {
-                                        (*os_2).sxHeight = read_16s(
+                                        (*os_2).sx_height = read_16s(
                                             data.offset(86 as ::core::ffi::c_int as isize)
                                                 as *const u8,
                                         );
-                                        (*os_2).sCapHeight = read_16s(
+                                        (*os_2).s_cap_height = read_16s(
                                             data.offset(88 as ::core::ffi::c_int as isize)
                                                 as *const u8,
                                         );
-                                        (*os_2).usDefaultChar = read_16u(
+                                        (*os_2).us_default_char = read_16u(
                                             data.offset(90 as ::core::ffi::c_int as isize)
                                                 as *const u8,
                                         );
-                                        (*os_2).usBreakChar = read_16u(
+                                        (*os_2).us_break_char = read_16u(
                                             data.offset(92 as ::core::ffi::c_int as isize)
                                                 as *const u8,
                                         );
-                                        (*os_2).usMaxContext = read_16u(
+                                        (*os_2).us_max_context = read_16u(
                                             data.offset(94 as ::core::ffi::c_int as isize)
                                                 as *const u8,
                                         );
@@ -319,11 +319,11 @@ pub unsafe extern "C" fn otfcc_read_os_2(
                                         if (*os_2).version as ::core::ffi::c_int
                                             >= 5 as ::core::ffi::c_int
                                         {
-                                            (*os_2).usLowerOpticalPointSize = read_16u(
+                                            (*os_2).us_lower_optical_point_size = read_16u(
                                                 data.offset(96 as ::core::ffi::c_int as isize)
                                                     as *const u8,
                                             );
-                                            (*os_2).usLowerOpticalPointSize = read_16u(
+                                            (*os_2).us_lower_optical_point_size = read_16u(
                                                 data.offset(98 as ::core::ffi::c_int as isize)
                                                     as *const u8,
                                             );
@@ -335,7 +335,7 @@ pub unsafe extern "C" fn otfcc_read_os_2(
                         }
                     }
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -589,7 +589,7 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"OS/2"),
@@ -605,80 +605,80 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
         json_object_push(
             os_2,
             b"xAvgCharWidth\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).xAvgCharWidth as i64),
+            json_integer_new((*table).x_avg_char_width as i64),
         );
         json_object_push(
             os_2,
             b"usWeightClass\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usWeightClass as i64),
+            json_integer_new((*table).us_weight_class as i64),
         );
         json_object_push(
             os_2,
             b"usWidthClass\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usWidthClass as i64),
+            json_integer_new((*table).us_width_class as i64),
         );
         json_object_push(
             os_2,
             b"fsType\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
-                (*table).fsType as ::core::ffi::c_int,
+                (*table).fs_type as ::core::ffi::c_int,
                 &FS_TYPE_LABELS,
             ),
         );
         json_object_push(
             os_2,
             b"ySubscriptXSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ySubscriptXSize as i64),
+            json_integer_new((*table).y_subscript_x_size as i64),
         );
         json_object_push(
             os_2,
             b"ySubscriptYSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ySubscriptYSize as i64),
+            json_integer_new((*table).y_subscript_y_size as i64),
         );
         json_object_push(
             os_2,
             b"ySubscriptXOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ySubscriptXOffset as i64),
+            json_integer_new((*table).y_subscript_x_offset as i64),
         );
         json_object_push(
             os_2,
             b"ySubscriptYOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ySubscriptYOffset as i64),
+            json_integer_new((*table).y_subscript_y_offset as i64),
         );
         json_object_push(
             os_2,
             b"ySupscriptXSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ySupscriptXSize as i64),
+            json_integer_new((*table).y_supscript_x_size as i64),
         );
         json_object_push(
             os_2,
             b"ySupscriptYSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ySupscriptYSize as i64),
+            json_integer_new((*table).y_supscript_y_size as i64),
         );
         json_object_push(
             os_2,
             b"ySupscriptXOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ySupscriptXOffset as i64),
+            json_integer_new((*table).y_supscript_x_offset as i64),
         );
         json_object_push(
             os_2,
             b"ySupscriptYOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ySupscriptYOffset as i64),
+            json_integer_new((*table).y_supscript_y_offset as i64),
         );
         json_object_push(
             os_2,
             b"yStrikeoutSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).yStrikeoutSize as i64),
+            json_integer_new((*table).y_strikeout_size as i64),
         );
         json_object_push(
             os_2,
             b"yStrikeoutPosition\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).yStrikeoutPosition as i64),
+            json_integer_new((*table).y_strikeout_position as i64),
         );
         json_object_push(
             os_2,
             b"sFamilyClass\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).sFamilyClass as i64),
+            json_integer_new((*table).s_family_class as i64),
         );
         let mut panose: *mut JsonValue = json_array_new(10 as usize);
         let mut j: u8 = 0 as u8;
@@ -698,7 +698,7 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
             os_2,
             b"ulUnicodeRange1\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
-                (*table).ulUnicodeRange1 as ::core::ffi::c_int,
+                (*table).ul_unicode_range1 as ::core::ffi::c_int,
                 &UNICODE_RANGE_LABELS1,
             ),
         );
@@ -706,7 +706,7 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
             os_2,
             b"ulUnicodeRange2\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
-                (*table).ulUnicodeRange2 as ::core::ffi::c_int,
+                (*table).ul_unicode_range2 as ::core::ffi::c_int,
                 &UNICODE_RANGE_LABELS2,
             ),
         );
@@ -714,7 +714,7 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
             os_2,
             b"ulUnicodeRange3\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
-                (*table).ulUnicodeRange3 as ::core::ffi::c_int,
+                (*table).ul_unicode_range3 as ::core::ffi::c_int,
                 &UNICODE_RANGE_LABELS3,
             ),
         );
@@ -722,12 +722,12 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
             os_2,
             b"ulUnicodeRange4\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
-                (*table).ulUnicodeRange4 as ::core::ffi::c_int,
+                (*table).ul_unicode_range4 as ::core::ffi::c_int,
                 &UNICODE_RANGE_LABELS4,
             ),
         );
         let mut vendorid: SdsRaw = sdsnewlen(
-            &raw const (*table).achVendID as *const u8 as *const ::core::ffi::c_void,
+            &raw const (*table).ach_vend_id as *const u8 as *const ::core::ffi::c_void,
             4 as usize,
         );
         json_object_push(
@@ -740,50 +740,50 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
             os_2,
             b"fsSelection\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
-                (*table).fsSelection as ::core::ffi::c_int,
+                (*table).fs_selection as ::core::ffi::c_int,
                 &FS_SELECTION_LABELS,
             ),
         );
         json_object_push(
             os_2,
             b"usFirstCharIndex\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usFirstCharIndex as i64),
+            json_integer_new((*table).us_first_char_index as i64),
         );
         json_object_push(
             os_2,
             b"usLastCharIndex\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usLastCharIndex as i64),
+            json_integer_new((*table).us_last_char_index as i64),
         );
         json_object_push(
             os_2,
             b"sTypoAscender\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).sTypoAscender as i64),
+            json_integer_new((*table).s_typo_ascender as i64),
         );
         json_object_push(
             os_2,
             b"sTypoDescender\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).sTypoDescender as i64),
+            json_integer_new((*table).s_typo_descender as i64),
         );
         json_object_push(
             os_2,
             b"sTypoLineGap\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).sTypoLineGap as i64),
+            json_integer_new((*table).s_typo_line_gap as i64),
         );
         json_object_push(
             os_2,
             b"usWinAscent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usWinAscent as i64),
+            json_integer_new((*table).us_win_ascent as i64),
         );
         json_object_push(
             os_2,
             b"usWinDescent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usWinDescent as i64),
+            json_integer_new((*table).us_win_descent as i64),
         );
         json_object_push(
             os_2,
             b"ulCodePageRange1\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
-                (*table).ulCodePageRange1 as ::core::ffi::c_int,
+                (*table).ul_code_page_range1 as ::core::ffi::c_int,
                 &CODE_PAGE_LABELS1,
             ),
         );
@@ -791,44 +791,44 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
             os_2,
             b"ulCodePageRange2\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
-                (*table).ulCodePageRange2 as ::core::ffi::c_int,
+                (*table).ul_code_page_range2 as ::core::ffi::c_int,
                 &CODE_PAGE_LABELS2,
             ),
         );
         json_object_push(
             os_2,
             b"sxHeight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).sxHeight as i64),
+            json_integer_new((*table).sx_height as i64),
         );
         json_object_push(
             os_2,
             b"sCapHeight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).sCapHeight as i64),
+            json_integer_new((*table).s_cap_height as i64),
         );
         json_object_push(
             os_2,
             b"usDefaultChar\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usDefaultChar as i64),
+            json_integer_new((*table).us_default_char as i64),
         );
         json_object_push(
             os_2,
             b"usBreakChar\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usBreakChar as i64),
+            json_integer_new((*table).us_break_char as i64),
         );
         json_object_push(
             os_2,
             b"usMaxContext\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usMaxContext as i64),
+            json_integer_new((*table).us_max_context as i64),
         );
         json_object_push(
             os_2,
             b"usLowerOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usLowerOpticalPointSize as i64),
+            json_integer_new((*table).us_lower_optical_point_size as i64),
         );
         json_object_push(
             os_2,
             b"usUpperOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).usUpperOpticalPointSize as i64),
+            json_integer_new((*table).us_upper_optical_point_size as i64),
         );
         json_object_push(
             root,
@@ -858,7 +858,7 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
     );
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"OS/2"),
@@ -870,198 +870,198 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
                 b"version\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).xAvgCharWidth = json_obj_getnum_fallback(
+            (*os_2).x_avg_char_width = json_obj_getnum_fallback(
                 table,
                 b"xAvgCharWidth\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).usWeightClass = json_obj_getnum_fallback(
+            (*os_2).us_weight_class = json_obj_getnum_fallback(
                 table,
                 b"usWeightClass\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).usWidthClass = json_obj_getnum_fallback(
+            (*os_2).us_width_class = json_obj_getnum_fallback(
                 table,
                 b"usWidthClass\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).fsType = otfcc_parse_flags(
+            (*os_2).fs_type = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"fsType\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
                 &FS_TYPE_LABELS,
             ) as u16;
-            (*os_2).ySubscriptXSize = json_obj_getnum_fallback(
+            (*os_2).y_subscript_x_size = json_obj_getnum_fallback(
                 table,
                 b"ySubscriptXSize\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).ySubscriptYSize = json_obj_getnum_fallback(
+            (*os_2).y_subscript_y_size = json_obj_getnum_fallback(
                 table,
                 b"ySubscriptYSize\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).ySubscriptXOffset = json_obj_getnum_fallback(
+            (*os_2).y_subscript_x_offset = json_obj_getnum_fallback(
                 table,
                 b"ySubscriptXOffset\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).ySubscriptYOffset = json_obj_getnum_fallback(
+            (*os_2).y_subscript_y_offset = json_obj_getnum_fallback(
                 table,
                 b"ySubscriptYOffset\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).ySupscriptXSize = json_obj_getnum_fallback(
+            (*os_2).y_supscript_x_size = json_obj_getnum_fallback(
                 table,
                 b"ySupscriptXSize\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).ySupscriptYSize = json_obj_getnum_fallback(
+            (*os_2).y_supscript_y_size = json_obj_getnum_fallback(
                 table,
                 b"ySupscriptYSize\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).ySupscriptXOffset = json_obj_getnum_fallback(
+            (*os_2).y_supscript_x_offset = json_obj_getnum_fallback(
                 table,
                 b"ySupscriptXOffset\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).ySupscriptYOffset = json_obj_getnum_fallback(
+            (*os_2).y_supscript_y_offset = json_obj_getnum_fallback(
                 table,
                 b"ySupscriptYOffset\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).yStrikeoutSize = json_obj_getnum_fallback(
+            (*os_2).y_strikeout_size = json_obj_getnum_fallback(
                 table,
                 b"yStrikeoutSize\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).yStrikeoutPosition = json_obj_getnum_fallback(
+            (*os_2).y_strikeout_position = json_obj_getnum_fallback(
                 table,
                 b"yStrikeoutPosition\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).sFamilyClass = json_obj_getnum_fallback(
+            (*os_2).s_family_class = json_obj_getnum_fallback(
                 table,
                 b"sFamilyClass\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).fsSelection = otfcc_parse_flags(
+            (*os_2).fs_selection = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"fsSelection\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
                 &FS_SELECTION_LABELS,
             ) as u16;
-            (*os_2).usFirstCharIndex = json_obj_getnum_fallback(
+            (*os_2).us_first_char_index = json_obj_getnum_fallback(
                 table,
                 b"usFirstCharIndex\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).usLastCharIndex = json_obj_getnum_fallback(
+            (*os_2).us_last_char_index = json_obj_getnum_fallback(
                 table,
                 b"usLastCharIndex\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).sTypoAscender = json_obj_getnum_fallback(
+            (*os_2).s_typo_ascender = json_obj_getnum_fallback(
                 table,
                 b"sTypoAscender\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).sTypoDescender = json_obj_getnum_fallback(
+            (*os_2).s_typo_descender = json_obj_getnum_fallback(
                 table,
                 b"sTypoDescender\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).sTypoLineGap = json_obj_getnum_fallback(
+            (*os_2).s_typo_line_gap = json_obj_getnum_fallback(
                 table,
                 b"sTypoLineGap\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).usWinAscent = json_obj_getnum_fallback(
+            (*os_2).us_win_ascent = json_obj_getnum_fallback(
                 table,
                 b"usWinAscent\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).usWinDescent = json_obj_getnum_fallback(
+            (*os_2).us_win_descent = json_obj_getnum_fallback(
                 table,
                 b"usWinDescent\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).ulCodePageRange1 = otfcc_parse_flags(
+            (*os_2).ul_code_page_range1 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulCodePageRange1\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
                 &CODE_PAGE_LABELS1,
             );
-            (*os_2).ulCodePageRange2 = otfcc_parse_flags(
+            (*os_2).ul_code_page_range2 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulCodePageRange2\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
                 &CODE_PAGE_LABELS2,
             );
-            (*os_2).ulUnicodeRange1 = otfcc_parse_flags(
+            (*os_2).ul_unicode_range1 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange1\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
                 &UNICODE_RANGE_LABELS1,
             );
-            (*os_2).ulUnicodeRange2 = otfcc_parse_flags(
+            (*os_2).ul_unicode_range2 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange2\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
                 &UNICODE_RANGE_LABELS2,
             );
-            (*os_2).ulUnicodeRange3 = otfcc_parse_flags(
+            (*os_2).ul_unicode_range3 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange3\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
                 &UNICODE_RANGE_LABELS3,
             );
-            (*os_2).ulUnicodeRange4 = otfcc_parse_flags(
+            (*os_2).ul_unicode_range4 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange4\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
                 &UNICODE_RANGE_LABELS4,
             );
-            (*os_2).sxHeight = json_obj_getnum_fallback(
+            (*os_2).sx_height = json_obj_getnum_fallback(
                 table,
                 b"sxHeight\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).sCapHeight = json_obj_getnum_fallback(
+            (*os_2).s_cap_height = json_obj_getnum_fallback(
                 table,
                 b"sCapHeight\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*os_2).usDefaultChar = json_obj_getnum_fallback(
+            (*os_2).us_default_char = json_obj_getnum_fallback(
                 table,
                 b"usDefaultChar\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).usBreakChar = json_obj_getnum_fallback(
+            (*os_2).us_break_char = json_obj_getnum_fallback(
                 table,
                 b"usBreakChar\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).usMaxContext = json_obj_getnum_fallback(
+            (*os_2).us_max_context = json_obj_getnum_fallback(
                 table,
                 b"usMaxContext\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).usLowerOpticalPointSize = json_obj_getnum_fallback(
+            (*os_2).us_lower_optical_point_size = json_obj_getnum_fallback(
                 table,
                 b"usLowerOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*os_2).usUpperOpticalPointSize = json_obj_getnum_fallback(
+            (*os_2).us_upper_optical_point_size = json_obj_getnum_fallback(
                 table,
                 b"usUpperOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
@@ -1094,19 +1094,19 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
                 JsonType::String,
             );
             if !vendorid.is_null() {
-                (*os_2).achVendID[0 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
-                (*os_2).achVendID[1 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
-                (*os_2).achVendID[2 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
-                (*os_2).achVendID[3 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
+                (*os_2).ach_vend_id[0 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
+                (*os_2).ach_vend_id[1 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
+                (*os_2).ach_vend_id[2 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
+                (*os_2).ach_vend_id[3 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
                 if (*vendorid).u.string.length >= 4 as ::core::ffi::c_uint {
                     memcpy(
-                        &raw mut (*os_2).achVendID as *mut u8 as *mut ::core::ffi::c_void,
+                        &raw mut (*os_2).ach_vend_id as *mut u8 as *mut ::core::ffi::c_void,
                         (*vendorid).u.string.ptr as *const ::core::ffi::c_void,
                         4 as usize,
                     );
                 } else {
                     memcpy(
-                        &raw mut (*os_2).achVendID as *mut u8 as *mut ::core::ffi::c_void,
+                        &raw mut (*os_2).ach_vend_id as *mut u8 as *mut ::core::ffi::c_void,
                         (*vendorid).u.string.ptr as *const ::core::ffi::c_void,
                         (*vendorid).u.string.length as usize,
                     );
@@ -1134,57 +1134,57 @@ pub unsafe extern "C" fn otfcc_build_os_2(
     }
     let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, (*os_2).version);
-    bufwrite16b(buf, (*os_2).xAvgCharWidth as u16);
-    bufwrite16b(buf, (*os_2).usWeightClass);
-    bufwrite16b(buf, (*os_2).usWidthClass);
-    bufwrite16b(buf, (*os_2).fsType);
-    bufwrite16b(buf, (*os_2).ySubscriptXSize as u16);
-    bufwrite16b(buf, (*os_2).ySubscriptYSize as u16);
-    bufwrite16b(buf, (*os_2).ySubscriptXOffset as u16);
-    bufwrite16b(buf, (*os_2).ySubscriptYOffset as u16);
-    bufwrite16b(buf, (*os_2).ySupscriptXSize as u16);
-    bufwrite16b(buf, (*os_2).ySupscriptYSize as u16);
-    bufwrite16b(buf, (*os_2).ySupscriptXOffset as u16);
-    bufwrite16b(buf, (*os_2).ySupscriptYOffset as u16);
-    bufwrite16b(buf, (*os_2).yStrikeoutSize as u16);
-    bufwrite16b(buf, (*os_2).yStrikeoutPosition as u16);
-    bufwrite16b(buf, (*os_2).sFamilyClass as u16);
+    bufwrite16b(buf, (*os_2).x_avg_char_width as u16);
+    bufwrite16b(buf, (*os_2).us_weight_class);
+    bufwrite16b(buf, (*os_2).us_width_class);
+    bufwrite16b(buf, (*os_2).fs_type);
+    bufwrite16b(buf, (*os_2).y_subscript_x_size as u16);
+    bufwrite16b(buf, (*os_2).y_subscript_y_size as u16);
+    bufwrite16b(buf, (*os_2).y_subscript_x_offset as u16);
+    bufwrite16b(buf, (*os_2).y_subscript_y_offset as u16);
+    bufwrite16b(buf, (*os_2).y_supscript_x_size as u16);
+    bufwrite16b(buf, (*os_2).y_supscript_y_size as u16);
+    bufwrite16b(buf, (*os_2).y_supscript_x_offset as u16);
+    bufwrite16b(buf, (*os_2).y_supscript_y_offset as u16);
+    bufwrite16b(buf, (*os_2).y_strikeout_size as u16);
+    bufwrite16b(buf, (*os_2).y_strikeout_position as u16);
+    bufwrite16b(buf, (*os_2).s_family_class as u16);
     bufwrite_bytes(
         buf,
         10 as usize,
         &raw const (*os_2).panose as *const u8,
     );
-    bufwrite32b(buf, (*os_2).ulUnicodeRange1);
-    bufwrite32b(buf, (*os_2).ulUnicodeRange2);
-    bufwrite32b(buf, (*os_2).ulUnicodeRange3);
-    bufwrite32b(buf, (*os_2).ulUnicodeRange4);
+    bufwrite32b(buf, (*os_2).ul_unicode_range1);
+    bufwrite32b(buf, (*os_2).ul_unicode_range2);
+    bufwrite32b(buf, (*os_2).ul_unicode_range3);
+    bufwrite32b(buf, (*os_2).ul_unicode_range4);
     bufwrite_bytes(
         buf,
         4 as usize,
-        &raw const (*os_2).achVendID as *const u8,
+        &raw const (*os_2).ach_vend_id as *const u8,
     );
-    bufwrite16b(buf, (*os_2).fsSelection);
-    bufwrite16b(buf, (*os_2).usFirstCharIndex);
-    bufwrite16b(buf, (*os_2).usLastCharIndex);
-    bufwrite16b(buf, (*os_2).sTypoAscender as u16);
-    bufwrite16b(buf, (*os_2).sTypoDescender as u16);
-    bufwrite16b(buf, (*os_2).sTypoLineGap as u16);
-    bufwrite16b(buf, (*os_2).usWinAscent);
-    bufwrite16b(buf, (*os_2).usWinDescent);
-    bufwrite32b(buf, (*os_2).ulCodePageRange1);
-    bufwrite32b(buf, (*os_2).ulCodePageRange2);
+    bufwrite16b(buf, (*os_2).fs_selection);
+    bufwrite16b(buf, (*os_2).us_first_char_index);
+    bufwrite16b(buf, (*os_2).us_last_char_index);
+    bufwrite16b(buf, (*os_2).s_typo_ascender as u16);
+    bufwrite16b(buf, (*os_2).s_typo_descender as u16);
+    bufwrite16b(buf, (*os_2).s_typo_line_gap as u16);
+    bufwrite16b(buf, (*os_2).us_win_ascent);
+    bufwrite16b(buf, (*os_2).us_win_descent);
+    bufwrite32b(buf, (*os_2).ul_code_page_range1);
+    bufwrite32b(buf, (*os_2).ul_code_page_range2);
     if ((*os_2).version as ::core::ffi::c_int) < 2 as ::core::ffi::c_int {
         return buf;
     }
-    bufwrite16b(buf, (*os_2).sxHeight as u16);
-    bufwrite16b(buf, (*os_2).sCapHeight as u16);
-    bufwrite16b(buf, (*os_2).usDefaultChar);
-    bufwrite16b(buf, (*os_2).usBreakChar);
-    bufwrite16b(buf, (*os_2).usMaxContext);
+    bufwrite16b(buf, (*os_2).sx_height as u16);
+    bufwrite16b(buf, (*os_2).s_cap_height as u16);
+    bufwrite16b(buf, (*os_2).us_default_char);
+    bufwrite16b(buf, (*os_2).us_break_char);
+    bufwrite16b(buf, (*os_2).us_max_context);
     if ((*os_2).version as ::core::ffi::c_int) < 5 as ::core::ffi::c_int {
         return buf;
     }
-    bufwrite16b(buf, (*os_2).usLowerOpticalPointSize);
-    bufwrite16b(buf, (*os_2).usUpperOpticalPointSize);
+    bufwrite16b(buf, (*os_2).us_lower_optical_point_size);
+    bufwrite16b(buf, (*os_2).us_upper_optical_point_size);
     return buf;
 }

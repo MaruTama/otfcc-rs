@@ -26,7 +26,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -54,10 +54,10 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                     + 2 as ::core::ffi::c_int * g as ::core::ffi::c_int)
                                     as usize;
                                 let mut r: VdmxRatioRange = VdmxRatioRange {
-                                    bCharset: 0,
-                                    xRatio: 0,
-                                    yStartRatio: 0,
-                                    yEndRatio: 0,
+                                    b_charset: 0,
+                                    x_ratio: 0,
+                                    y_start_ratio: 0,
+                                    y_end_ratio: 0,
                                     records: VdmxGroup {
                                         length: 0,
                                         capacity: 0,
@@ -67,25 +67,25 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                 VDMX_I_RATIO_RANGE.init.expect("non-null function pointer")(
                                     &raw mut r,
                                 );
-                                r.bCharset = read_8u(
+                                r.b_charset = read_8u(
                                     table
                                         .data
                                         .offset(ratio_range_offset as isize)
                                         .offset(0 as ::core::ffi::c_int as isize),
                                 );
-                                r.xRatio = read_8u(
+                                r.x_ratio = read_8u(
                                     table
                                         .data
                                         .offset(ratio_range_offset as isize)
                                         .offset(1 as ::core::ffi::c_int as isize),
                                 );
-                                r.yStartRatio = read_8u(
+                                r.y_start_ratio = read_8u(
                                     table
                                         .data
                                         .offset(ratio_range_offset as isize)
                                         .offset(2 as ::core::ffi::c_int as isize),
                                 );
-                                r.yEndRatio = read_8u(
+                                r.y_end_ratio = read_8u(
                                     table
                                         .data
                                         .offset(ratio_range_offset as isize)
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                 );
                                 let mut j: u16 = 0 as u16;
                                 while (j as ::core::ffi::c_int) < recs as ::core::ffi::c_int {
-                                    let mut yPelHeight: u16 = read_16u(
+                                    let mut y_pel_height: u16 = read_16u(
                                         table
                                             .data
                                             .offset(group_offset as ::core::ffi::c_int as isize)
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                             )
                                             .offset(0 as ::core::ffi::c_int as isize),
                                     );
-                                    let mut yMax: i16 = read_16s(
+                                    let mut y_max: i16 = read_16s(
                                         table
                                             .data
                                             .offset(group_offset as ::core::ffi::c_int as isize)
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                             )
                                             .offset(2 as ::core::ffi::c_int as isize),
                                     );
-                                    let mut yMin: i16 = read_16s(
+                                    let mut y_min: i16 = read_16s(
                                         table
                                             .data
                                             .offset(group_offset as ::core::ffi::c_int as isize)
@@ -137,9 +137,9 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                     VDMX_I_GROUP.push.expect("non-null function pointer")(
                                         &raw mut r.records,
                                         VdmxRecord {
-                                            yPelHeight: yPelHeight,
-                                            yMax: yMax,
-                                            yMin: yMin,
+                                            y_pel_height: y_pel_height,
+                                            y_max: y_max,
+                                            y_min: y_min,
                                         },
                                     );
                                     j = j.wrapping_add(1);
@@ -156,7 +156,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                         }
                     }
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn otfcc_dump_vdmx(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"VDMX"),
@@ -214,22 +214,22 @@ pub unsafe extern "C" fn otfcc_dump_vdmx(
                 json_object_push(
                     _rr,
                     b"bCharset\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*rr).bCharset as i64),
+                    json_integer_new((*rr).b_charset as i64),
                 );
                 json_object_push(
                     _rr,
                     b"xRatio\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*rr).xRatio as i64),
+                    json_integer_new((*rr).x_ratio as i64),
                 );
                 json_object_push(
                     _rr,
                     b"yStartRatio\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*rr).yStartRatio as i64),
+                    json_integer_new((*rr).y_start_ratio as i64),
                 );
                 json_object_push(
                     _rr,
                     b"yEndRatio\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*rr).yEndRatio as i64),
+                    json_integer_new((*rr).y_end_ratio as i64),
                 );
                 let mut _records: *mut JsonValue = json_array_new((*rr).records.length);
                 json_object_push(
@@ -248,17 +248,17 @@ pub unsafe extern "C" fn otfcc_dump_vdmx(
                         json_object_push(
                             _r,
                             b"yPelHeight\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new((*r).yPelHeight as i64),
+                            json_integer_new((*r).y_pel_height as i64),
                         );
                         json_object_push(
                             _r,
                             b"yMax\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new((*r).yMax as i64),
+                            json_integer_new((*r).y_max as i64),
                         );
                         json_object_push(
                             _r,
                             b"yMin\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new((*r).yMin as i64),
+                            json_integer_new((*r).y_min as i64),
                         );
                         keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
                     }
@@ -297,7 +297,7 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
     let mut vdmx: *mut VdmxTable = (
         TABLE_I_VDMX.create.expect("non-null function pointer"))();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"VDMX"),
@@ -321,10 +321,10 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
                 || (*_rr).type_0 != JsonType::Object)
             {
                 let mut r: VdmxRatioRange = VdmxRatioRange {
-                    bCharset: 0,
-                    xRatio: 0,
-                    yStartRatio: 0,
-                    yEndRatio: 0,
+                    b_charset: 0,
+                    x_ratio: 0,
+                    y_start_ratio: 0,
+                    y_end_ratio: 0,
                     records: VdmxGroup {
                         length: 0,
                         capacity: 0,
@@ -332,18 +332,18 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
                     },
                 };
                 VDMX_I_RATIO_RANGE.init.expect("non-null function pointer")(&raw mut r);
-                r.bCharset = json_obj_getnum(
+                r.b_charset = json_obj_getnum(
                     _rr,
                     b"bCharset\0" as *const u8 as *const ::core::ffi::c_char,
                 ) as u8;
-                r.xRatio =
+                r.x_ratio =
                     json_obj_getnum(_rr, b"xRatio\0" as *const u8 as *const ::core::ffi::c_char)
                         as u8;
-                r.yStartRatio = json_obj_getnum(
+                r.y_start_ratio = json_obj_getnum(
                     _rr,
                     b"yStartRatio\0" as *const u8 as *const ::core::ffi::c_char,
                 ) as u8;
-                r.yEndRatio = json_obj_getnum(
+                r.y_end_ratio = json_obj_getnum(
                     _rr,
                     b"yEndRatio\0" as *const u8 as *const ::core::ffi::c_char,
                 ) as u8;
@@ -365,15 +365,15 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
                             VDMX_I_GROUP.push.expect("non-null function pointer")(
                                 &raw mut r.records,
                                 VdmxRecord {
-                                    yPelHeight: json_obj_getnum(
+                                    y_pel_height: json_obj_getnum(
                                         _r,
                                         b"yPelHeight\0" as *const u8 as *const ::core::ffi::c_char,
                                     ) as u16,
-                                    yMax: json_obj_getnum(
+                                    y_max: json_obj_getnum(
                                         _r,
                                         b"yMax\0" as *const u8 as *const ::core::ffi::c_char,
                                     ) as i16,
-                                    yMin: json_obj_getnum(
+                                    y_min: json_obj_getnum(
                                         _r,
                                         b"yMin\0" as *const u8 as *const ::core::ffi::c_char,
                                     ) as i16,
@@ -411,7 +411,7 @@ pub unsafe extern "C" fn otfcc_build_vdmx(
     while keep != 0 && __caryll_index < (*vdmx).ratios.length {
         let mut rr: *mut VdmxRatioRange = (*vdmx).ratios.items.offset(__caryll_index as isize);
         while keep != 0 {
-            bk_push(root, &[bk_int(BkCellType::B8, ((*rr).bCharset as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, ((*rr).xRatio as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, ((*rr).yStartRatio as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, ((*rr).yEndRatio as ::core::ffi::c_int) as u32)]);
+            bk_push(root, &[bk_int(BkCellType::B8, ((*rr).b_charset as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, ((*rr).x_ratio as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, ((*rr).y_start_ratio as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, ((*rr).y_end_ratio as ::core::ffi::c_int) as u32)]);
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;
@@ -430,11 +430,11 @@ pub unsafe extern "C" fn otfcc_build_vdmx(
                 let mut r: *mut VdmxRecord =
                     (*rr_0).records.items.offset(__caryll_index_1 as isize);
                 while keep_1 != 0 {
-                    if startsz as ::core::ffi::c_int > (*r).yPelHeight as ::core::ffi::c_int {
-                        startsz = (*r).yPelHeight;
+                    if startsz as ::core::ffi::c_int > (*r).y_pel_height as ::core::ffi::c_int {
+                        startsz = (*r).y_pel_height;
                     }
-                    if (endsz as ::core::ffi::c_int) < (*r).yPelHeight as ::core::ffi::c_int {
-                        endsz = (*r).yPelHeight;
+                    if (endsz as ::core::ffi::c_int) < (*r).y_pel_height as ::core::ffi::c_int {
+                        endsz = (*r).y_pel_height;
                     }
                     keep_1 = (keep_1 == 0) as ::core::ffi::c_int as usize;
                 }
@@ -448,7 +448,7 @@ pub unsafe extern "C" fn otfcc_build_vdmx(
                 let mut r_0: *mut VdmxRecord =
                     (*rr_0).records.items.offset(__caryll_index_2 as isize);
                 while keep_2 != 0 {
-                    bk_push(group, &[bk_int(BkCellType::B16, ((*r_0).yPelHeight as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*r_0).yMax as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*r_0).yMin as ::core::ffi::c_int) as u32)]);
+                    bk_push(group, &[bk_int(BkCellType::B16, ((*r_0).y_pel_height as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*r_0).y_max as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*r_0).y_min as ::core::ffi::c_int) as u32)]);
                     keep_2 = (keep_2 == 0) as ::core::ffi::c_int as usize;
                 }
                 keep_2 = (keep_2 == 0) as ::core::ffi::c_int as usize;

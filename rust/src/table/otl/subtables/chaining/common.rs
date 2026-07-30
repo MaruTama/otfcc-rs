@@ -21,7 +21,7 @@ pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut ChainingSubtabl
         if !(*subtable).c2rust_unnamed.c2rust_unnamed.rules.is_null() {
             let mut j: TableId = 0 as TableId;
             while (j as ::core::ffi::c_int)
-                < (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount as ::core::ffi::c_int
+                < (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count as ::core::ffi::c_int
             {
                 delete_rule(
                     *(*subtable)
@@ -73,7 +73,7 @@ pub static I_SUBTABLE_CHAINING: ChainingSubtableElementInterface = {
             subtable_chaining_replace
                 as unsafe extern "C" fn(*mut ChainingSubtable, ChainingSubtable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             subtable_chaining_copy_replace
                 as unsafe extern "C" fn(*mut ChainingSubtable, ChainingSubtable) -> (),
         ),
@@ -151,10 +151,10 @@ unsafe extern "C" fn subtable_chaining_move(
 unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
     if !rule.is_null()
         && !(*rule).match_0.is_null()
-        && (*rule).matchCount as ::core::ffi::c_int != 0
+        && (*rule).match_count as ::core::ffi::c_int != 0
     {
         let mut k: TableId = 0 as TableId;
-        while (k as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
+        while (k as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
             otl_coverage_free(
                 *(*rule).match_0.offset(k as isize),
             );
@@ -165,7 +165,7 @@ unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
     }
     if !rule.is_null() && !(*rule).apply.is_null() {
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
+        while (j as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
             otfcc_handle_dispose(
                 &raw mut (*(*rule).apply.offset(j as isize)).lookup,
             );

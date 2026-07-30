@@ -33,7 +33,7 @@ pub struct GsubMultiEntryElementInterface {
         Option<unsafe extern "C" fn(*mut GsubMultiEntry, *mut GsubMultiEntry) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GsubMultiEntry) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut GsubMultiEntry, GsubMultiEntry) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GsubMultiEntry, GsubMultiEntry) -> ()>,
 }
 unsafe extern "C" fn delete_gsub_multi_entry(mut entry: *mut GsubMultiEntry) {
@@ -48,7 +48,7 @@ static GSM_TYPEINFO: GsubMultiEntryElementInterface = {
         move_0: None,
         dispose: Some(delete_gsub_multi_entry as unsafe extern "C" fn(*mut GsubMultiEntry) -> ()),
         replace: None,
-        copyReplace: None,
+        copy_replace: None,
     }
 };
 #[inline]
@@ -79,7 +79,7 @@ pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
             subtable_gsub_multi_replace
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiSubtable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             subtable_gsub_multi_copy_replace
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiSubtable) -> (),
         ),
@@ -87,15 +87,15 @@ pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
         free: Some(
             subtable_gsub_multi_free as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
         ),
-        initN: Some(
+        init_n: Some(
             subtable_gsub_multi_init_n
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             subtable_gsub_multi_init_cap_n
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             subtable_gsub_multi_create_n as unsafe extern "C" fn(usize) -> *mut GsubMultiSubtable,
         ),
         fill: Some(
@@ -109,18 +109,18 @@ pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
             subtable_gsub_multi_push
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiEntry) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             subtable_gsub_multi_shrink_to_fit as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
         ),
         pop: Some(
             subtable_gsub_multi_pop
                 as unsafe extern "C" fn(*mut GsubMultiSubtable) -> GsubMultiEntry,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             subtable_gsub_multi_dispose_item
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             subtable_gsub_multi_filter_env
                 as unsafe extern "C" fn(
                     *mut GsubMultiSubtable,
@@ -405,7 +405,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
             data.offset(offset as isize)
                 .offset(4 as ::core::ffi::c_int as isize) as *const u8,
         ) as GlyphId;
-        if seq_count as ::core::ffi::c_int == (*from).numGlyphs as ::core::ffi::c_int {
+        if seq_count as ::core::ffi::c_int == (*from).num_glyphs as ::core::ffi::c_int {
             if !(table_length
                 < offset.wrapping_add(6 as u32).wrapping_add(
                     (seq_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
@@ -523,8 +523,8 @@ unsafe extern "C" fn build_gsub_multi_subtable_range(
     let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
     for j_0 in start..end {
         let to = (*(*subtable).items.offset(j_0 as isize)).to;
-        let b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*to).numGlyphs as ::core::ffi::c_int) as u32)]);
-        for k in 0..(*to).numGlyphs {
+        let b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*to).num_glyphs as ::core::ffi::c_int) as u32)]);
+        for k in 0..(*to).num_glyphs {
             bk_push(b, &[bk_int(BkCellType::B16, ((*(*to).glyphs.offset(k as isize)).index as ::core::ffi::c_int) as u32)]);
         }
         bk_push(root, &[bk_ptr(BkCellType::P16, b)]);
@@ -550,7 +550,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
                 + 2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int) as usize)
                 .wrapping_add(
-                    ((*(*(*subtable).items.offset(end as isize)).to).numGlyphs as usize)
+                    ((*(*(*subtable).items.offset(end as isize)).to).num_glyphs as usize)
                         .wrapping_mul(2 as usize),
                 );
             if end as ::core::ffi::c_int > start as ::core::ffi::c_int

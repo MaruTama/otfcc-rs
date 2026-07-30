@@ -37,7 +37,7 @@ pub struct GsubLigatureEntryElementInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GsubLigatureEntry) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut GsubLigatureEntry, GsubLigatureEntry) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GsubLigatureEntry, GsubLigatureEntry) -> ()>,
 }
 #[derive(Copy, Clone)]
@@ -90,7 +90,7 @@ static GSS_TYPEINFO: GsubLigatureEntryElementInterface = {
             delete_gsub_ligature_entry as unsafe extern "C" fn(*mut GsubLigatureEntry) -> (),
         ),
         replace: None,
-        copyReplace: None,
+        copy_replace: None,
     }
 };
 #[inline]
@@ -285,7 +285,7 @@ pub static I_SUBTABLE_GSUB_LIGATURE: GsubLigatureSubtableVectorInterface = {
             subtable_gsub_ligature_replace
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureSubtable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             subtable_gsub_ligature_copy_replace
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureSubtable) -> (),
         ),
@@ -293,15 +293,15 @@ pub static I_SUBTABLE_GSUB_LIGATURE: GsubLigatureSubtableVectorInterface = {
         free: Some(
             subtable_gsub_ligature_free as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> (),
         ),
-        initN: Some(
+        init_n: Some(
             subtable_gsub_ligature_init_n
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             subtable_gsub_ligature_init_cap_n
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             subtable_gsub_ligature_create_n
                 as unsafe extern "C" fn(usize) -> *mut GsubLigatureSubtable,
         ),
@@ -317,7 +317,7 @@ pub static I_SUBTABLE_GSUB_LIGATURE: GsubLigatureSubtableVectorInterface = {
             subtable_gsub_ligature_push
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureEntry) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             subtable_gsub_ligature_shrink_to_fit
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> (),
         ),
@@ -325,11 +325,11 @@ pub static I_SUBTABLE_GSUB_LIGATURE: GsubLigatureSubtableVectorInterface = {
             subtable_gsub_ligature_pop
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> GsubLigatureEntry,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             subtable_gsub_ligature_dispose_item
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             subtable_gsub_ligature_filter_env
                 as unsafe extern "C" fn(
                     *mut GsubLigatureSubtable,
@@ -465,7 +465,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                 data.offset(offset as isize)
                     .offset(4 as ::core::ffi::c_int as isize) as *const u8,
             ) as GlyphId;
-            if !(set_count as ::core::ffi::c_int != (*start_coverage).numGlyphs as ::core::ffi::c_int)
+            if !(set_count as ::core::ffi::c_int != (*start_coverage).num_glyphs as ::core::ffi::c_int)
             {
                 if !(table_length
                     < offset.wrapping_add(6 as u32).wrapping_add(
@@ -1668,7 +1668,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     }
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             startcov,
-        ))), bk_int(BkCellType::B16, ((*startcov).numGlyphs as ::core::ffi::c_int) as u32)]);
+        ))), bk_int(BkCellType::B16, ((*startcov).num_glyphs as ::core::ffi::c_int) as u32)]);
     s = h;
     while !s.is_null() {
         let mut n_ligs_here: GlyphId = 0 as GlyphId;
@@ -1693,11 +1693,11 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
             .index as ::core::ffi::c_int
                 == (*s).gid
             {
-                let mut ligdef: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*(*subtable).items.offset(j_1 as isize)).to.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*(*subtable).items.offset(j_1 as isize)).from).numGlyphs
+                let mut ligdef: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*(*subtable).items.offset(j_1 as isize)).to.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*(*subtable).items.offset(j_1 as isize)).from).num_glyphs
                         as ::core::ffi::c_int) as u32)]);
                 let mut m: GlyphId = 1 as GlyphId;
                 while (m as ::core::ffi::c_int)
-                    < (*(*(*subtable).items.offset(j_1 as isize)).from).numGlyphs
+                    < (*(*(*subtable).items.offset(j_1 as isize)).from).num_glyphs
                         as ::core::ffi::c_int
                 {
                     bk_push(ligdef, &[bk_int(BkCellType::B16, ((*(*(*(*subtable).items.offset(j_1 as isize)).from)

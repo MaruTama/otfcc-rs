@@ -31,7 +31,7 @@ unsafe extern "C" fn init_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
 unsafe extern "C" fn dispose_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
     if !(*subtable).match_0.is_null() {
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
+        while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
             otl_coverage_free(
                 *(*subtable).match_0.offset(j as isize),
             );
@@ -80,7 +80,7 @@ pub static I_SUBTABLE_GSUB_REVERSE: GsubReverseSubtableElementInterface = {
             subtable_gsub_reverse_replace
                 as unsafe extern "C" fn(*mut GsubReverseSubtable, GsubReverseSubtable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             subtable_gsub_reverse_copy_replace
                 as unsafe extern "C" fn(*mut GsubReverseSubtable, GsubReverseSubtable) -> (),
         ),
@@ -147,12 +147,12 @@ unsafe extern "C" fn subtable_gsub_reverse_replace(
 }
 unsafe extern "C" fn reverse_backtracks(
     mut match_0: *mut *mut Coverage,
-    mut inputIndex: TableId,
+    mut input_index: TableId,
 ) {
-    if inputIndex as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+    if input_index as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
         let mut start: TableId = 0 as TableId;
         let mut end: TableId =
-            (inputIndex as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
+            (input_index as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
         while end as ::core::ffi::c_int > start as ::core::ffi::c_int {
             let mut tmp: *mut Coverage = *match_0.offset(start as isize);
             let ref mut fresh3 = *match_0.offset(start as isize);
@@ -217,16 +217,16 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                             * 2 as ::core::ffi::c_int) as u32,
                     ))
                 {
-                    (*subtable).matchCount = (n_backtrack as ::core::ffi::c_int
+                    (*subtable).match_count = (n_backtrack as ::core::ffi::c_int
                         + n_forward as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as TableId;
                     (*subtable).match_0 = __caryll_allocate_clean(
                         (::core::mem::size_of::<*mut Coverage>() as usize)
-                            .wrapping_mul((*subtable).matchCount as usize),
+                            .wrapping_mul((*subtable).match_count as usize),
                         47 as ::core::ffi::c_ulong,
                     ) as *mut *mut Coverage;
-                    (*subtable).inputIndex = n_backtrack;
+                    (*subtable).input_index = n_backtrack;
                     let mut j: TableId = 0 as TableId;
                     while (j as ::core::ffi::c_int) < n_backtrack as ::core::ffi::c_int {
                         let mut cov_offset: u32 = offset.wrapping_add(read_16u(
@@ -252,14 +252,14 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                     )
                         as u32);
                     let ref mut fresh1 =
-                        *(*subtable).match_0.offset((*subtable).inputIndex as isize);
+                        *(*subtable).match_0.offset((*subtable).input_index as isize);
                     *fresh1 = read_coverage(
                         data as *const u8,
                         table_length,
                         cov_offset_0,
                     );
                     if !(n_replacement as ::core::ffi::c_int
-                        != (**(*subtable).match_0.offset((*subtable).inputIndex as isize)).numGlyphs
+                        != (**(*subtable).match_0.offset((*subtable).input_index as isize)).num_glyphs
                             as ::core::ffi::c_int)
                     {
                         let mut j_0: TableId = 0 as TableId;
@@ -294,7 +294,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                             ::core::mem::size_of::<Coverage>() as usize,
                             64 as ::core::ffi::c_ulong,
                         ) as *mut Coverage;
-                        (*(*subtable).to).numGlyphs = n_replacement as GlyphId;
+                        (*(*subtable).to).num_glyphs = n_replacement as GlyphId;
                         (*(*subtable).to).glyphs = __caryll_allocate_clean(
                             (::core::mem::size_of::<GlyphHandle>() as usize)
                                 .wrapping_mul(n_replacement as usize),
@@ -320,7 +320,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                                 ) as GlyphHandle;
                             j_1 = j_1.wrapping_add(1);
                         }
-                        reverse_backtracks((*subtable).match_0, (*subtable).inputIndex);
+                        reverse_backtracks((*subtable).match_0, (*subtable).input_index);
                         return subtable as *mut Subtable;
                     }
                 }
@@ -337,9 +337,9 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
 ) -> *mut JsonValue {
     let mut subtable: *const GsubReverseSubtable = &raw const (*_subtable).gsub_reverse;
     let mut _st: *mut JsonValue = json_object_new(3 as usize);
-    let mut _match: *mut JsonValue = json_array_new((*subtable).matchCount as usize);
+    let mut _match: *mut JsonValue = json_array_new((*subtable).match_count as usize);
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
         json_array_push(
             _match,
             OTL_I_COVERAGE.dump.expect("non-null function pointer")(
@@ -361,7 +361,7 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
     json_object_push(
         _st,
         b"inputIndex\0" as *const u8 as *const ::core::ffi::c_char,
-        json_integer_new((*subtable).inputIndex as i64),
+        json_integer_new((*subtable).input_index as i64),
     );
     return _st;
 }
@@ -387,19 +387,19 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
             I_SUBTABLE_GSUB_REVERSE
                 .create
                 .expect("non-null function pointer"))();
-    (*subtable).matchCount = (*_match).u.array.length as TableId;
+    (*subtable).match_count = (*_match).u.array.length as TableId;
     (*subtable).match_0 = __caryll_allocate_clean(
         (::core::mem::size_of::<*mut Coverage>() as usize)
-            .wrapping_mul((*subtable).matchCount as usize),
+            .wrapping_mul((*subtable).match_count as usize),
         100 as ::core::ffi::c_ulong,
     ) as *mut *mut Coverage;
-    (*subtable).inputIndex = json_obj_getnum_fallback(
+    (*subtable).input_index = json_obj_getnum_fallback(
         _subtable,
         b"inputIndex\0" as *const u8 as *const ::core::ffi::c_char,
         0 as ::core::ffi::c_int as ::core::ffi::c_double,
     ) as TableId;
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
         let ref mut fresh5 = *(*subtable).match_0.offset(j as isize);
         *fresh5 = OTL_I_COVERAGE.parse.expect("non-null function pointer")(
             *(*_match).u.array.values.offset(j as isize),
@@ -414,32 +414,32 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
     let mut subtable: *const GsubReverseSubtable = &raw const (*_subtable).gsub_reverse;
-    reverse_backtracks((*subtable).match_0, (*subtable).inputIndex);
+    reverse_backtracks((*subtable).match_0, (*subtable).input_index);
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
-            *(*subtable).match_0.offset((*subtable).inputIndex as isize),
+            *(*subtable).match_0.offset((*subtable).input_index as isize),
         )))]);
-    bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).inputIndex as ::core::ffi::c_int) as u32)]);
+    bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).input_index as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*subtable).inputIndex as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*subtable).input_index as ::core::ffi::c_int {
         bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j as isize),
             )))]);
         j = j.wrapping_add(1);
     }
-    bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).matchCount as ::core::ffi::c_int
-            - (*subtable).inputIndex as ::core::ffi::c_int
+    bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).match_count as ::core::ffi::c_int
+            - (*subtable).input_index as ::core::ffi::c_int
             - 1 as ::core::ffi::c_int) as u32)]);
     let mut j_0: TableId =
-        ((*subtable).inputIndex as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
-    while (j_0 as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
+        ((*subtable).input_index as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
+    while (j_0 as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
         bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j_0 as isize),
             )))]);
         j_0 = j_0.wrapping_add(1);
     }
-    bk_push(root, &[bk_int(BkCellType::B16, ((*(*subtable).to).numGlyphs as ::core::ffi::c_int) as u32)]);
+    bk_push(root, &[bk_int(BkCellType::B16, ((*(*subtable).to).num_glyphs as ::core::ffi::c_int) as u32)]);
     let mut j_1: TableId = 0 as TableId;
-    while (j_1 as ::core::ffi::c_int) < (*(*subtable).to).numGlyphs as ::core::ffi::c_int {
+    while (j_1 as ::core::ffi::c_int) < (*(*subtable).to).num_glyphs as ::core::ffi::c_int {
         bk_push(root, &[bk_int(BkCellType::B16, ((*(*(*subtable).to).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int) as u32)]);
         j_1 = j_1.wrapping_add(1);
     }

@@ -8,11 +8,11 @@ use crate::support::{ComparFn};
 #[repr(C)]
 pub struct VfAxis {
     pub tag: u32,
-    pub minValue: Pos,
-    pub defaultValue: Pos,
-    pub maxValue: Pos,
+    pub min_value: Pos,
+    pub default_value: Pos,
+    pub max_value: Pos,
     pub flags: u16,
-    pub axisNameID: u16,
+    pub axis_name_id: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -22,7 +22,7 @@ pub struct VfAxisElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut VfAxis, *mut VfAxis) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VfAxis) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VfAxis, VfAxis) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VfAxis, VfAxis) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut VfAxis, VfAxis) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> VfAxis>,
     pub dup: Option<unsafe extern "C" fn(VfAxis) -> VfAxis>,
 }
@@ -41,19 +41,19 @@ pub struct VfAxesVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut VfAxes, *mut VfAxes) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VfAxes) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VfAxes, VfAxes) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VfAxes, VfAxes) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut VfAxes, VfAxes) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VfAxes>,
     pub free: Option<unsafe extern "C" fn(*mut VfAxes) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut VfAxes, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut VfAxes, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut VfAxes>,
+    pub init_n: Option<unsafe extern "C" fn(*mut VfAxes, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut VfAxes, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut VfAxes>,
     pub fill: Option<unsafe extern "C" fn(*mut VfAxes, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut VfAxes) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut VfAxes, VfAxis) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut VfAxes) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut VfAxes) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut VfAxes) -> VfAxis>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut VfAxes, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut VfAxes, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut VfAxes,
             Option<unsafe extern "C" fn(*const VfAxis, *mut ::core::ffi::c_void) -> bool>,
@@ -92,11 +92,11 @@ unsafe extern "C" fn vf_axis_copy(mut dst: *mut VfAxis, mut src: *const VfAxis) 
 unsafe extern "C" fn vf_axis_empty() -> VfAxis {
     let mut x: VfAxis = VfAxis {
         tag: 0,
-        minValue: 0.,
-        defaultValue: 0.,
-        maxValue: 0.,
+        min_value: 0.,
+        default_value: 0.,
+        max_value: 0.,
         flags: 0,
-        axisNameID: 0,
+        axis_name_id: 0,
     };
     vf_axis_init(&raw mut x);
     return x;
@@ -128,7 +128,7 @@ pub static VF_I_AXIS: VfAxisElementInterface = {
         move_0: Some(vf_axis_move as unsafe extern "C" fn(*mut VfAxis, *mut VfAxis) -> ()),
         dispose: Some(vf_axis_dispose as unsafe extern "C" fn(*mut VfAxis) -> ()),
         replace: Some(vf_axis_replace as unsafe extern "C" fn(*mut VfAxis, VfAxis) -> ()),
-        copyReplace: Some(vf_axis_copy_replace as unsafe extern "C" fn(*mut VfAxis, VfAxis) -> ()),
+        copy_replace: Some(vf_axis_copy_replace as unsafe extern "C" fn(*mut VfAxis, VfAxis) -> ()),
         empty: Some(vf_axis_empty),
         dup: Some(vf_axis_dup as unsafe extern "C" fn(VfAxis) -> VfAxis),
     }
@@ -137,11 +137,11 @@ pub static VF_I_AXIS: VfAxisElementInterface = {
 unsafe extern "C" fn vf_axis_dup(src: VfAxis) -> VfAxis {
     let mut dst: VfAxis = VfAxis {
         tag: 0,
-        minValue: 0.,
-        defaultValue: 0.,
-        maxValue: 0.,
+        min_value: 0.,
+        default_value: 0.,
+        max_value: 0.,
         flags: 0,
-        axisNameID: 0,
+        axis_name_id: 0,
     };
     vf_axis_copy(&raw mut dst, &raw const src);
     return dst;
@@ -173,19 +173,19 @@ pub static VF_I_AXES: VfAxesVectorInterface = {
         move_0: Some(vf_axes_move as unsafe extern "C" fn(*mut VfAxes, *mut VfAxes) -> ()),
         dispose: Some(vf_axes_dispose as unsafe extern "C" fn(*mut VfAxes) -> ()),
         replace: Some(vf_axes_replace as unsafe extern "C" fn(*mut VfAxes, VfAxes) -> ()),
-        copyReplace: Some(vf_axes_copy_replace as unsafe extern "C" fn(*mut VfAxes, VfAxes) -> ()),
+        copy_replace: Some(vf_axes_copy_replace as unsafe extern "C" fn(*mut VfAxes, VfAxes) -> ()),
         create: Some(vf_axes_create),
         free: Some(vf_axes_free as unsafe extern "C" fn(*mut VfAxes) -> ()),
-        initN: Some(vf_axes_init_n as unsafe extern "C" fn(*mut VfAxes, usize) -> ()),
-        initCapN: Some(vf_axes_init_cap_n as unsafe extern "C" fn(*mut VfAxes, usize) -> ()),
-        createN: Some(vf_axes_create_n as unsafe extern "C" fn(usize) -> *mut VfAxes),
+        init_n: Some(vf_axes_init_n as unsafe extern "C" fn(*mut VfAxes, usize) -> ()),
+        init_cap_n: Some(vf_axes_init_cap_n as unsafe extern "C" fn(*mut VfAxes, usize) -> ()),
+        create_n: Some(vf_axes_create_n as unsafe extern "C" fn(usize) -> *mut VfAxes),
         fill: Some(vf_axes_fill as unsafe extern "C" fn(*mut VfAxes, usize) -> ()),
         clear: Some(vf_axes_dispose as unsafe extern "C" fn(*mut VfAxes) -> ()),
         push: Some(vf_axes_push as unsafe extern "C" fn(*mut VfAxes, VfAxis) -> ()),
-        shrinkToFit: Some(vf_axes_shrink_to_fit as unsafe extern "C" fn(*mut VfAxes) -> ()),
+        shrink_to_fit: Some(vf_axes_shrink_to_fit as unsafe extern "C" fn(*mut VfAxes) -> ()),
         pop: Some(vf_axes_pop as unsafe extern "C" fn(*mut VfAxes) -> VfAxis),
-        disposeItem: Some(vf_axes_dispose_item as unsafe extern "C" fn(*mut VfAxes, usize) -> ()),
-        filterEnv: Some(
+        dispose_item: Some(vf_axes_dispose_item as unsafe extern "C" fn(*mut VfAxes, usize) -> ()),
+        filter_env: Some(
             vf_axes_filter_env
                 as unsafe extern "C" fn(
                     *mut VfAxes,
@@ -262,11 +262,11 @@ unsafe extern "C" fn vf_axes_fill(mut arr: *mut VfAxes, mut n: usize) {
     while (*arr).length < n {
         let mut x: VfAxis = VfAxis {
             tag: 0,
-            minValue: 0.,
-            defaultValue: 0.,
-            maxValue: 0.,
+            min_value: 0.,
+            default_value: 0.,
+            max_value: 0.,
             flags: 0,
-            axisNameID: 0,
+            axis_name_id: 0,
         };
         if VF_I_AXIS.init.is_some() {
             VF_I_AXIS.init.expect("non-null function pointer")(&raw mut x);

@@ -54,8 +54,8 @@ pub struct LookupHash {
     pub name: *mut ::core::ffi::c_char,
     pub lookup: *mut Lookup,
     pub hh: UtHashHandle,
-    pub orderType: LookupOrderType,
-    pub orderVal: u16,
+    pub order_type: LookupOrderType,
+    pub order_val: u16,
 }
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -65,7 +65,7 @@ pub enum LookupOrderType {
 }
 unsafe extern "C" fn _parse_lookup(
     mut lookup: *mut JsonValue,
-    mut lookupName: *mut ::core::ffi::c_char,
+    mut lookup_name: *mut ::core::ffi::c_char,
     mut options: *const Options,
     mut lh: *mut *mut LookupHash,
 ) -> bool {
@@ -81,7 +81,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -97,7 +97,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -113,7 +113,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -129,7 +129,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -145,7 +145,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -161,7 +161,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -177,7 +177,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -193,7 +193,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -209,7 +209,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -225,7 +225,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -241,7 +241,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -257,7 +257,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -273,7 +273,7 @@ unsafe extern "C" fn _parse_lookup(
                     ) -> *mut Subtable,
             ),
             lookup,
-            lookupName,
+            lookup_name,
             options,
             lh,
         );
@@ -286,7 +286,7 @@ unsafe extern "C" fn _declare_lookup_parser(
         unsafe extern "C" fn(*const JsonValue, *const Options) -> *mut Subtable,
     >,
     mut _lookup: *mut JsonValue,
-    mut lookupName: *mut ::core::ffi::c_char,
+    mut lookup_name: *mut ::core::ffi::c_char,
     mut options: *const Options,
     mut lh: *mut *mut LookupHash,
 ) -> bool {
@@ -298,7 +298,7 @@ unsafe extern "C" fn _declare_lookup_parser(
     if type_0.is_null() || strcmp((*type_0).u.string.ptr, llt.name().as_ptr()) != 0 {
         if type_0.is_null() {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -306,7 +306,7 @@ unsafe extern "C" fn _declare_lookup_parser(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"Lookup ",
-                    lookupName,
+                    lookup_name,
                     b" does not have a valid 'type' field.",
                 ),
             );
@@ -318,11 +318,11 @@ unsafe extern "C" fn _declare_lookup_parser(
     let mut _hj_i: ::core::ffi::c_uint = 0;
     let mut _hj_j: ::core::ffi::c_uint = 0;
     let mut _hj_k: ::core::ffi::c_uint = 0;
-    let mut _hj_key: *const ::core::ffi::c_uchar = lookupName as *const ::core::ffi::c_uchar;
+    let mut _hj_key: *const ::core::ffi::c_uchar = lookup_name as *const ::core::ffi::c_uchar;
     _hf_hashv = 0xfeedbeef as ::core::ffi::c_uint;
     _hj_j = 0x9e3779b9 as ::core::ffi::c_uint;
     _hj_i = _hj_j;
-    _hj_k = strlen(lookupName) as ::core::ffi::c_uint;
+    _hj_k = strlen(lookup_name) as ::core::ffi::c_uint;
     while _hj_k >= 12 as ::core::ffi::c_uint {
         _hj_i = _hj_i.wrapping_add(
             (*_hj_key.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
@@ -399,7 +399,7 @@ unsafe extern "C" fn _declare_lookup_parser(
         _hj_key = _hj_key.offset(12 as ::core::ffi::c_int as isize);
         _hj_k = _hj_k.wrapping_sub(12 as ::core::ffi::c_uint);
     }
-    _hf_hashv = _hf_hashv.wrapping_add(strlen(lookupName) as ::core::ffi::c_uint);
+    _hf_hashv = _hf_hashv.wrapping_add(strlen(lookup_name) as ::core::ffi::c_uint);
     let mut current_block_56: u64;
     match _hj_k {
         11 => {
@@ -589,12 +589,12 @@ unsafe extern "C" fn _declare_lookup_parser(
             }
             while !item.is_null() {
                 if (*item).hh.hashv == _hf_hashv
-                    && (*item).hh.keylen == strlen(lookupName) as ::core::ffi::c_uint
+                    && (*item).hh.keylen == strlen(lookup_name) as ::core::ffi::c_uint
                 {
                     if memcmp(
                         (*item).hh.key,
-                        lookupName as *const ::core::ffi::c_void,
-                        strlen(lookupName) as ::core::ffi::c_uint as usize,
+                        lookup_name as *const ::core::ffi::c_void,
+                        strlen(lookup_name) as ::core::ffi::c_uint as usize,
                     ) == 0 as ::core::ffi::c_int
                     {
                         break;
@@ -613,12 +613,12 @@ unsafe extern "C" fn _declare_lookup_parser(
     }
     if !item.is_null() {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" already exists."),
+            crate::sdsbuild!(sdsempty(), b"Lookup ", lookup_name, b" already exists."),
         );
         return false;
     }
@@ -629,7 +629,7 @@ unsafe extern "C" fn _declare_lookup_parser(
     );
     if _subtables.is_null() {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
@@ -637,7 +637,7 @@ unsafe extern "C" fn _declare_lookup_parser(
             crate::sdsbuild!(
                 sdsempty(),
                 b"Lookup ",
-                lookupName,
+                lookup_name,
                 b" does not have a valid subtable list.",
             ),
         );
@@ -664,10 +664,10 @@ unsafe extern "C" fn _declare_lookup_parser(
     }
     let mut subtable_count: TableId = (*_subtables).u.array.length as TableId;
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), lookupName),
+        crate::sdsbuild!(sdsempty(), lookup_name),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -694,12 +694,12 @@ unsafe extern "C" fn _declare_lookup_parser(
     }
     if (*lookup).subtables.length == 0 {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" does not have any subtables."),
+            crate::sdsbuild!(sdsempty(), b"Lookup ", lookup_name, b" does not have any subtables."),
         );
         otfcc_delete_lookup(lookup);
         return false;
@@ -708,11 +708,11 @@ unsafe extern "C" fn _declare_lookup_parser(
         ::core::mem::size_of::<LookupHash>() as usize,
         105 as ::core::ffi::c_ulong,
     ) as *mut LookupHash;
-    (*item).name = sdsnew(lookupName) as *mut ::core::ffi::c_char;
+    (*item).name = sdsnew(lookup_name) as *mut ::core::ffi::c_char;
     (*lookup).name = sdsdup((*item).name as SdsRaw);
     (*item).lookup = lookup;
-    (*item).orderType = LookupOrderType::File;
-    (*item).orderVal = (if !(*lh).is_null() {
+    (*item).order_type = LookupOrderType::File;
+    (*item).order_val = (if !(*lh).is_null() {
         (*(**lh).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
@@ -1139,19 +1139,19 @@ unsafe extern "C" fn figure_out_lookups_from_json(
     let mut lh: *mut LookupHash = ::core::ptr::null_mut::<LookupHash>();
     let mut j: u32 = 0 as u32;
     while j < (*lookups).u.object.length as u32 {
-        let mut lookupName: *mut ::core::ffi::c_char =
+        let mut lookup_name: *mut ::core::ffi::c_char =
             (*(*lookups).u.object.values.offset(j as isize)).name;
         if (*(*(*lookups).u.object.values.offset(j as isize)).value).type_0 == JsonType::Object
         {
             let mut parsed: bool = _parse_lookup(
                 (*(*lookups).u.object.values.offset(j as isize)).value as *mut JsonValue,
-                lookupName,
+                lookup_name,
                 options,
                 &raw mut lh,
             );
             if !parsed {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -1159,7 +1159,7 @@ unsafe extern "C" fn figure_out_lookups_from_json(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[OTFCC-fea] Ignoring invalid or unsupported lookup ",
-                        lookupName,
+                        lookup_name,
                         b".\n",
                     ),
                 );
@@ -1487,10 +1487,10 @@ unsafe extern "C" fn figure_out_lookups_from_json(
                     ::core::mem::size_of::<LookupHash>() as usize,
                     132 as ::core::ffi::c_ulong,
                 ) as *mut LookupHash;
-                (*dup).name = sdsnew(lookupName) as *mut ::core::ffi::c_char;
+                (*dup).name = sdsnew(lookup_name) as *mut ::core::ffi::c_char;
                 (*dup).lookup = (*s).lookup;
-                (*dup).orderType = LookupOrderType::File;
-                (*dup).orderVal = (if !lh.is_null() {
+                (*dup).order_type = LookupOrderType::File;
+                (*dup).order_val = (if !lh.is_null() {
                     (*(*lh).hh.tbl).num_items
                 } else {
                     0 as ::core::ffi::c_uint
@@ -1986,7 +1986,7 @@ unsafe extern "C" fn feature_merger_activate(
                     let ref mut fresh6 = (*(*d).u.object.values.offset(k as isize)).value;
                     *fresh6 = v as *mut JsonValue;
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_NOTICE,
@@ -2376,7 +2376,7 @@ unsafe extern "C" fn figure_out_features_from_json(
                         );
                     } else {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -3189,7 +3189,7 @@ unsafe extern "C" fn figure_out_features_from_json(
                     }
                 } else {
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect(
                             "non-null function pointer",
                         )(
@@ -3211,7 +3211,7 @@ unsafe extern "C" fn figure_out_features_from_json(
                 }
             } else {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect(
                         "non-null function pointer",
                     )(
@@ -4042,7 +4042,7 @@ unsafe extern "C" fn figure_out_languages_from_json(
         if is_valid_language_name(language_name, language_name_len) as ::core::ffi::c_int != 0
             && (*_language).type_0 == JsonType::Object
         {
-            let mut requiredFeature: *mut Feature = ::core::ptr::null_mut::<Feature>();
+            let mut required_feature: *mut Feature = ::core::ptr::null_mut::<Feature>();
             let mut _rf: *mut JsonValue = json_obj_get_type(
                 _language,
                 b"requiredFeature\0" as *const u8 as *const ::core::ffi::c_char,
@@ -4371,7 +4371,7 @@ unsafe extern "C" fn figure_out_languages_from_json(
                     }
                 }
                 if !rf.is_null() {
-                    requiredFeature = (*rf).feature;
+                    required_feature = (*rf).feature;
                 }
             }
             let mut af: FeatureRefList = FeatureRefList {
@@ -4730,7 +4730,7 @@ unsafe extern "C" fn figure_out_languages_from_json(
                     k = k.wrapping_add(1);
                 }
             }
-            if !requiredFeature.is_null() || af.length > 0 as usize {
+            if !required_feature.is_null() || af.length > 0 as usize {
                 let mut s: *mut LanguageHash = ::core::ptr::null_mut::<LanguageHash>();
                 let mut _hf_hashv_1: ::core::ffi::c_uint = 0;
                 let mut _hj_i_1: ::core::ffi::c_uint = 0;
@@ -5063,7 +5063,7 @@ unsafe extern "C" fn figure_out_languages_from_json(
                         &raw mut (*s).language,
                     );
                     (*(*s).language).name = sdsdup((*s).name as SdsRaw);
-                    (*(*s).language).requiredFeature = requiredFeature as FeatureRef;
+                    (*(*s).language).required_feature = required_feature as FeatureRef;
                     OTL_I_FEATURE_REF_LIST
                         .replace
                         .expect("non-null function pointer")(
@@ -5526,7 +5526,7 @@ unsafe extern "C" fn figure_out_languages_from_json(
                     }
                 } else {
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect(
                             "non-null function pointer",
                         )(
@@ -5548,7 +5548,7 @@ unsafe extern "C" fn figure_out_languages_from_json(
                 }
             } else {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect(
                         "non-null function pointer",
                     )(
@@ -5577,11 +5577,11 @@ unsafe extern "C" fn by_lookup_order(
     mut a: *mut LookupHash,
     mut b: *mut LookupHash,
 ) -> ::core::ffi::c_int {
-    if (*a).orderType as ::core::ffi::c_uint == (*b).orderType as ::core::ffi::c_uint {
-        return (*a).orderVal as ::core::ffi::c_int - (*b).orderVal as ::core::ffi::c_int;
+    if (*a).order_type as ::core::ffi::c_uint == (*b).order_type as ::core::ffi::c_uint {
+        return (*a).order_val as ::core::ffi::c_int - (*b).order_val as ::core::ffi::c_int;
     } else {
-        return ((*a).orderType as ::core::ffi::c_uint)
-            .wrapping_sub((*b).orderType as ::core::ffi::c_uint)
+        return ((*a).order_type as ::core::ffi::c_uint)
+            .wrapping_sub((*b).order_type as ::core::ffi::c_uint)
             as ::core::ffi::c_int;
     };
 }
@@ -5628,7 +5628,7 @@ pub unsafe extern "C" fn otfcc_parse_otl(
         );
         if !(languages.is_null() || features.is_null() || lookups.is_null()) {
             (*(*options).logger)
-                .startSDS
+                .start_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 crate::sdsbuild!(sdsempty(), tag),
@@ -5983,8 +5983,8 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                                 }
                             }
                             if !item.is_null() {
-                                (*item).orderType = LookupOrderType::Force;
-                                (*item).orderVal = j as u16;
+                                (*item).order_type = LookupOrderType::Force;
+                                (*item).order_val = j as u16;
                             }
                         }
                         j = j.wrapping_add(1);
@@ -6678,7 +6678,7 @@ pub unsafe extern "C" fn otfcc_parse_otl(
     }
     if !otl.is_null() {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,

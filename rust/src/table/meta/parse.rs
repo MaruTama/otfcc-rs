@@ -75,7 +75,7 @@ pub unsafe extern "C" fn otfcc_parse_meta(
     let mut meta: *mut MetaTable = (
         TABLE_I_META.create.expect("non-null function pointer"))();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"meta"),

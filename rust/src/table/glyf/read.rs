@@ -26,38 +26,38 @@ use crate::vf::vq::{I_VQ, VQ_I_SEG_LIST};
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct GlyphVariationData {
-    pub tupleVariationCount: u16,
-    pub dataOffset: u16,
+    pub tuple_variation_count: u16,
+    pub data_offset: u16,
     pub tvhs: [TupleVariationHeader; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct TupleVariationHeader {
-    pub variationDataSize: u16,
-    pub tupleIndex: u16,
+    pub variation_data_size: u16,
+    pub tuple_index: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct GVARHeader {
-    pub majorVersion: u16,
-    pub minorVersion: u16,
-    pub axisCount: u16,
-    pub sharedTupleCount: u16,
-    pub sharedTuplesOffset: u32,
-    pub glyphCount: u16,
+    pub major_version: u16,
+    pub minor_version: u16,
+    pub axis_count: u16,
+    pub shared_tuple_count: u16,
+    pub shared_tuples_offset: u32,
+    pub glyph_count: u16,
     pub flags: u16,
-    pub glyphVariationDataArrayOffset: u32,
+    pub glyph_variation_data_array_offset: u32,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct TuplePolymorphizerCtx {
     pub fvar: *mut FvarTable,
     pub dimensions: u16,
-    pub sharedTupleCount: u16,
-    pub sharedTuples: *mut F2Dot14,
-    pub coordDimensions: u8,
-    pub allowIUP: bool,
-    pub nPhantomPoints: ShapeId,
+    pub shared_tuple_count: u16,
+    pub shared_tuples: *mut F2Dot14,
+    pub coord_dimensions: u8,
+    pub allow_iup: bool,
+    pub n_phantom_points: ShapeId,
 }
 pub type CoordPartGetter = Option<unsafe extern "C" fn(*mut Point) -> *mut VQ>;
 #[derive(Copy, Clone)]
@@ -136,7 +136,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             (::core::mem::size_of::<u8>() as usize).wrapping_mul(instruction_length as usize),
         );
     }
-    (*g).instructionsLength = instruction_length;
+    (*g).instructions_length = instruction_length;
     (*g).instructions = instructions;
     let mut flags: FontFilePointer = ::core::ptr::null_mut::<u8>();
     flags = __caryll_allocate_clean(
@@ -164,7 +164,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             &raw mut current_contour,
             &raw mut current_contour_point_index,
         ))
-        .onCurve = flag.contains(PointFlags::ON_CURVE) as i8;
+        .on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
         if flag.contains(PointFlags::REPEAT) {
             let mut repeat: u8 = *flag_start.offset(flag_bytes_read_sofar as isize);
             flag_bytes_read_sofar =
@@ -179,7 +179,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
                     &raw mut current_contour,
                     &raw mut current_contour_point_index,
                 ))
-                .onCurve = flag.contains(PointFlags::ON_CURVE) as i8;
+                .on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
                 j_0 = j_0.wrapping_add(1);
             }
             flags_read_sofar =
@@ -222,7 +222,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
                 &raw mut current_contour_point_index,
             ))
             .x,
-            I_VQ.createStill.expect("non-null function pointer")(x as Pos) as VQ,
+            I_VQ.create_still.expect("non-null function pointer")(x as Pos) as VQ,
         );
         coordinates_read =
             (coordinates_read as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
@@ -260,7 +260,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
                 &raw mut current_contour_point_index,
             ))
             .y,
-            I_VQ.createStill.expect("non-null function pointer")(y as Pos) as VQ,
+            I_VQ.create_still.expect("non-null function pointer")(y as Pos) as VQ,
         );
         coordinates_read =
             (coordinates_read as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
@@ -278,21 +278,21 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             let mut z: *mut Point = (*(*contours).items.offset(j_1 as isize))
                 .items
                 .offset(k as isize) as *mut Point;
-            I_VQ.inplacePlus.expect("non-null function pointer")(&raw mut cx, (*z).x);
-            I_VQ.inplacePlus.expect("non-null function pointer")(&raw mut cy, (*z).y);
-            I_VQ.copyReplace.expect("non-null function pointer")(&raw mut (*z).x, cx);
-            I_VQ.copyReplace.expect("non-null function pointer")(&raw mut (*z).y, cy);
+            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cx, (*z).x);
+            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cy, (*z).y);
+            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).x, cx);
+            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).y, cy);
             k = k.wrapping_add(1);
         }
         GLYF_I_CONTOUR
-            .shrinkToFit
+            .shrink_to_fit
             .expect("non-null function pointer")(
             (*contours).items.offset(j_1 as isize) as *mut Contour
         );
         j_1 = j_1.wrapping_add(1);
     }
     GLYF_I_CONTOUR_LIST
-        .shrinkToFit
+        .shrink_to_fit
         .expect("non-null function pointer")(contours);
     I_VQ.dispose.expect("non-null function pointer")(&raw mut cx);
     I_VQ.dispose.expect("non-null function pointer")(&raw mut cy);
@@ -324,13 +324,13 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
             handle_from_index(index) as GlyphHandle;
         offset = offset.wrapping_add(4 as u32);
         if flags.contains(ComponentFlags::ARGS_ARE_XY_VALUES) {
-            ref_0.isAnchored = RefAnchorStatus::Xy;
+            ref_0.is_anchored = RefAnchorStatus::Xy;
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-                ref_0.x = I_VQ.createStill.expect("non-null function pointer")(read_16s(
+                ref_0.x = I_VQ.create_still.expect("non-null function pointer")(read_16s(
                     start.offset(offset as isize) as *const u8,
                 )
                     as Pos);
-                ref_0.y = I_VQ.createStill.expect("non-null function pointer")(read_16s(
+                ref_0.y = I_VQ.create_still.expect("non-null function pointer")(read_16s(
                     start
                         .offset(offset as isize)
                         .offset(2 as ::core::ffi::c_int as isize)
@@ -339,11 +339,11 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                     as Pos);
                 offset = offset.wrapping_add(4 as u32);
             } else {
-                ref_0.x = I_VQ.createStill.expect("non-null function pointer")(read_8s(
+                ref_0.x = I_VQ.create_still.expect("non-null function pointer")(read_8s(
                     start.offset(offset as isize) as *const u8,
                 )
                     as Pos);
-                ref_0.y = I_VQ.createStill.expect("non-null function pointer")(read_8s(
+                ref_0.y = I_VQ.create_still.expect("non-null function pointer")(read_8s(
                     start
                         .offset(offset as isize)
                         .offset(1 as ::core::ffi::c_int as isize)
@@ -353,7 +353,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                 offset = offset.wrapping_add(2 as u32);
             }
         } else {
-            ref_0.isAnchored = RefAnchorStatus::AnchorAnchor;
+            ref_0.is_anchored = RefAnchorStatus::AnchorAnchor;
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
                 ref_0.outer =
                     read_16u(start.offset(offset as isize) as *const u8) as ShapeId;
@@ -413,16 +413,16 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
             ) as F2Dot14) as Scale;
             offset = offset.wrapping_add(8 as u32);
         }
-        ref_0.roundToGrid =
+        ref_0.round_to_grid =
             flags.contains(ComponentFlags::ROUND_XY_TO_GRID);
-        ref_0.useMyMetrics =
+        ref_0.use_my_metrics =
             flags.contains(ComponentFlags::USE_MY_METRICS);
         if flags.contains(ComponentFlags::SCALED_COMPONENT_OFFSET)
             && (flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
                 || flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO))
         {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -461,10 +461,10 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                     .wrapping_mul(instruction_length as usize),
             );
         }
-        (*g).instructionsLength = instruction_length;
+        (*g).instructions_length = instruction_length;
         (*g).instructions = instructions as *mut u8;
     } else {
-        (*g).instructionsLength = 0 as u16;
+        (*g).instructions_length = 0 as u16;
         (*g).instructions = ::core::ptr::null_mut::<u8>();
     }
     return g;
@@ -486,13 +486,13 @@ unsafe extern "C" fn otfcc_read_glyph(
     } else {
         g = otfcc_read_composite_glyph(start.offset(10 as ::core::ffi::c_int as isize), options);
     }
-    (*g).stat.xMin =
+    (*g).stat.x_min =
         read_16s(start.offset(2 as ::core::ffi::c_int as isize) as *const u8) as Pos;
-    (*g).stat.yMin =
+    (*g).stat.y_min =
         read_16s(start.offset(4 as ::core::ffi::c_int as isize) as *const u8) as Pos;
-    (*g).stat.xMax =
+    (*g).stat.x_max =
         read_16s(start.offset(6 as ::core::ffi::c_int as isize) as *const u8) as Pos;
-    (*g).stat.yMax =
+    (*g).stat.y_max =
         read_16s(start.offset(8 as ::core::ffi::c_int as isize) as *const u8) as Pos;
     return g;
 }
@@ -508,14 +508,14 @@ unsafe extern "C" fn next_tvh(
 ) -> *mut TupleVariationHeader {
     let mut bump: u32 =
         2_usize.wrapping_mul(::core::mem::size_of::<u16>()) as u32;
-    let mut tupleIndex: u16 = be16((*current_header).tupleIndex);
-    if tupleIndex as ::core::ffi::c_int & EMBEDDED_PEAK_TUPLE != 0 {
+    let mut tuple_index: u16 = be16((*current_header).tuple_index);
+    if tuple_index as ::core::ffi::c_int & EMBEDDED_PEAK_TUPLE != 0 {
         bump = (bump as ::core::ffi::c_ulong).wrapping_add(
             ((*ctx).dimensions as usize).wrapping_mul(::core::mem::size_of::<F2Dot14>())
                 as ::core::ffi::c_ulong,
         ) as u32 as u32;
     }
-    if tupleIndex as ::core::ffi::c_int & INTERMEDIATE_REGION != 0 {
+    if tuple_index as ::core::ffi::c_int & INTERMEDIATE_REGION != 0 {
         bump = (bump as ::core::ffi::c_ulong).wrapping_add(
             ((2 as ::core::ffi::c_int * (*ctx).dimensions as ::core::ffi::c_int) as usize)
                 .wrapping_mul(::core::mem::size_of::<F2Dot14>())
@@ -535,30 +535,30 @@ unsafe extern "C" fn parse_point_numbers(
     mut pc: *mut ShapeId,
     mut total_points: ShapeId,
 ) -> FontFilePointer {
-    let mut nPoints: u16 = 0 as u16;
+    let mut n_points: u16 = 0 as u16;
     let mut first_byte: u8 = *data;
     if first_byte as ::core::ffi::c_int & POINT_COUNT_IS_WORD != 0 {
-        nPoints = (((*data.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
+        n_points = (((*data.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
             << 8 as ::core::ffi::c_int
             | *data.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
             & POINT_COUNT_LONG_MASK) as u16;
         data = data.offset(2 as ::core::ffi::c_int as isize);
     } else {
-        nPoints = first_byte as u16;
+        n_points = first_byte as u16;
         data = data.offset(1);
     }
-    if nPoints as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+    if n_points as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
         let mut run: PackedPointRun = PackedPointRun {
             length: 0 as ShapeId,
             wide: false,
         };
         let mut filled: ShapeId = 0 as ShapeId;
-        let mut jPoint: ShapeId = 0 as ShapeId;
+        let mut j_point: ShapeId = 0 as ShapeId;
         *point_indeces = __caryll_allocate_clean(
-            (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul(nPoints as usize),
+            (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul(n_points as usize),
             305 as ::core::ffi::c_ulong,
         ) as *mut ShapeId;
-        while (filled as ::core::ffi::c_int) < nPoints as ::core::ffi::c_int {
+        while (filled as ::core::ffi::c_int) < n_points as ::core::ffi::c_int {
             if run.length as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
                 let fresh6 = data;
                 data = data.offset(1);
@@ -567,7 +567,7 @@ unsafe extern "C" fn parse_point_numbers(
                 run.length = ((run_header as ::core::ffi::c_int & POINT_RUN_COUNT_MASK)
                     + 1 as ::core::ffi::c_int) as ShapeId;
             }
-            let mut point_number: i16 = jPoint as i16;
+            let mut point_number: i16 = j_point as i16;
             if run.wide {
                 point_number = (point_number as ::core::ffi::c_int
                     + *(data as *mut u16) as ::core::ffi::c_int)
@@ -581,10 +581,10 @@ unsafe extern "C" fn parse_point_numbers(
             }
             *(*point_indeces).offset(filled as isize) = point_number as ShapeId;
             filled = filled.wrapping_add(1);
-            jPoint = point_number as ShapeId;
+            j_point = point_number as ShapeId;
             run.length = run.length.wrapping_sub(1);
         }
-        *pc = nPoints as ShapeId;
+        *pc = n_points as ShapeId;
     } else {
         *point_indeces = __caryll_allocate_clean(
             (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul(total_points as usize),
@@ -605,7 +605,7 @@ pub const DELTA_RUN_COUNT_MASK: ::core::ffi::c_int = 0x3f as ::core::ffi::c_int;
 #[inline]
 unsafe extern "C" fn read_packed_delta(
     mut data: FontFilePointer,
-    mut nPoints: ShapeId,
+    mut n_points: ShapeId,
     mut deltas: *mut Pos,
 ) -> FontFilePointer {
     let mut run: PackedDeltaRun = PackedDeltaRun {
@@ -614,7 +614,7 @@ unsafe extern "C" fn read_packed_delta(
         zero: false,
     };
     let mut filled: ShapeId = 0 as ShapeId;
-    while (filled as ::core::ffi::c_int) < nPoints as ::core::ffi::c_int {
+    while (filled as ::core::ffi::c_int) < n_points as ::core::ffi::c_int {
         let mut delta: i16 = 0 as i16;
         if run.length as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
             let fresh5 = data;
@@ -883,14 +883,14 @@ unsafe extern "C" fn apply_polymorphism(
     if (total_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
         < n_touched_points as ::core::ffi::c_int
     {
-        I_VQ.addDelta.expect("non-null function pointer")(
-            &raw mut (*glyph).horizontalOrigin,
+        I_VQ.add_delta.expect("non-null function pointer")(
+            &raw mut (*glyph).horizontal_origin,
             true,
             r,
             *delta_x.offset(total_points as isize),
         );
-        I_VQ.addDelta.expect("non-null function pointer")(
-            &raw mut (*glyph).advanceWidth,
+        I_VQ.add_delta.expect("non-null function pointer")(
+            &raw mut (*glyph).advance_width,
             true,
             r,
             *delta_x.offset((total_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize)
@@ -900,14 +900,14 @@ unsafe extern "C" fn apply_polymorphism(
     if (total_points as ::core::ffi::c_int + 3 as ::core::ffi::c_int)
         < n_touched_points as ::core::ffi::c_int
     {
-        I_VQ.addDelta.expect("non-null function pointer")(
-            &raw mut (*glyph).verticalOrigin,
+        I_VQ.add_delta.expect("non-null function pointer")(
+            &raw mut (*glyph).vertical_origin,
             true,
             r,
             *delta_y.offset((total_points as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize),
         );
-        I_VQ.addDelta.expect("non-null function pointer")(
-            &raw mut (*glyph).advanceHeight,
+        I_VQ.add_delta.expect("non-null function pointer")(
+            &raw mut (*glyph).advance_height,
             true,
             r,
             *delta_y.offset((total_points as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize)
@@ -977,17 +977,17 @@ unsafe extern "C" fn polymorphize_glyph(
     total_points =
         (total_points as usize).wrapping_add((*glyph).references.length) as ShapeId as ShapeId;
     let mut total_delta_entries: ShapeId = (total_points as ::core::ffi::c_int
-        + (*ctx).nPhantomPoints as ::core::ffi::c_int)
+        + (*ctx).n_phantom_points as ::core::ffi::c_int)
         as ShapeId;
-    let mut n_tuples: u16 = (be16((*gvd).tupleVariationCount) as ::core::ffi::c_int
+    let mut n_tuples: u16 = (be16((*gvd).tuple_variation_count) as ::core::ffi::c_int
         & 0xfff as ::core::ffi::c_int) as u16;
     let mut tvh: *mut TupleVariationHeader = &raw mut (*gvd).tvhs as *mut TupleVariationHeader;
     let mut has_shared_point_numbers: bool =
-        be16((*gvd).tupleVariationCount) as ::core::ffi::c_int & 0x8000 as ::core::ffi::c_int != 0;
+        be16((*gvd).tuple_variation_count) as ::core::ffi::c_int & 0x8000 as ::core::ffi::c_int != 0;
     let mut shared_point_count: ShapeId = 0 as ShapeId;
     let mut shared_point_indeces: *mut ShapeId = ::core::ptr::null_mut::<ShapeId>();
     let mut data: FontFilePointer =
-        (gvd as FontFilePointer).offset(be16((*gvd).dataOffset) as ::core::ffi::c_int as isize);
+        (gvd as FontFilePointer).offset(be16((*gvd).data_offset) as ::core::ffi::c_int as isize);
     if has_shared_point_numbers {
         data = parse_point_numbers(
             data,
@@ -999,19 +999,19 @@ unsafe extern "C" fn polymorphize_glyph(
     let mut tsd_start: usize = 0 as usize;
     let mut j: u16 = 0 as u16;
     while (j as ::core::ffi::c_int) < n_tuples as ::core::ffi::c_int {
-        let mut tupleIndex: ShapeId =
-            (be16((*tvh).tupleIndex) as ::core::ffi::c_int & TUPLE_INDEX_MASK) as ShapeId;
+        let mut tuple_index: ShapeId =
+            (be16((*tvh).tuple_index) as ::core::ffi::c_int & TUPLE_INDEX_MASK) as ShapeId;
         let mut has_embedded_peak: bool =
-            be16((*tvh).tupleIndex) as ::core::ffi::c_int & EMBEDDED_PEAK_TUPLE != 0;
+            be16((*tvh).tuple_index) as ::core::ffi::c_int & EMBEDDED_PEAK_TUPLE != 0;
         let mut has_intermediate: bool =
-            be16((*tvh).tupleIndex) as ::core::ffi::c_int & INTERMEDIATE_REGION != 0;
+            be16((*tvh).tuple_index) as ::core::ffi::c_int & INTERMEDIATE_REGION != 0;
         let mut peak: *mut F2Dot14 = ::core::ptr::null_mut::<F2Dot14>();
         if has_embedded_peak {
             peak =
                 (tvh as FontFilePointer).offset(4 as ::core::ffi::c_int as isize) as *mut F2Dot14;
         } else {
-            peak = (*ctx).sharedTuples.offset(
-                ((*ctx).dimensions as ::core::ffi::c_int * tupleIndex as ::core::ffi::c_int)
+            peak = (*ctx).shared_tuples.offset(
+                ((*ctx).dimensions as ::core::ffi::c_int * tuple_index as ::core::ffi::c_int)
                     as isize,
             );
         }
@@ -1042,15 +1042,15 @@ unsafe extern "C" fn polymorphize_glyph(
                 ) as *mut F2Dot14;
         }
         let mut r: *const VqRegion = TABLE_I_FVAR
-            .registerRegion
+            .register_region
             .expect("non-null function pointer")(
             (*ctx).fvar,
             create_region_from_tuples((*ctx).dimensions, peak, start, end),
         );
         let mut tsd: FontFilePointer = data.offset(tsd_start as isize);
-        let mut nPoints: ShapeId = shared_point_count;
+        let mut n_points: ShapeId = shared_point_count;
         let mut point_indeces: *mut ShapeId = shared_point_indeces;
-        if be16((*tvh).tupleIndex) as ::core::ffi::c_int & PRIVATE_POINT_NUMBERS != 0 {
+        if be16((*tvh).tuple_index) as ::core::ffi::c_int & PRIVATE_POINT_NUMBERS != 0 {
             let mut private_point_count: ShapeId = 0 as ShapeId;
             let mut private_point_numbers: *mut ShapeId = ::core::ptr::null_mut::<ShapeId>();
             tsd = parse_point_numbers(
@@ -1059,33 +1059,33 @@ unsafe extern "C" fn polymorphize_glyph(
                 &raw mut private_point_count,
                 total_delta_entries,
             );
-            nPoints = private_point_count;
+            n_points = private_point_count;
             point_indeces = private_point_numbers;
         }
         if !point_indeces.is_null() {
             let mut delta_x: *mut Pos = ::core::ptr::null_mut::<Pos>();
             let mut delta_y: *mut Pos = ::core::ptr::null_mut::<Pos>();
             delta_x = __caryll_allocate_clean(
-                (::core::mem::size_of::<Pos>() as usize).wrapping_mul(nPoints as usize),
+                (::core::mem::size_of::<Pos>() as usize).wrapping_mul(n_points as usize),
                 586 as ::core::ffi::c_ulong,
             ) as *mut Pos;
             delta_y = __caryll_allocate_clean(
-                (::core::mem::size_of::<Pos>() as usize).wrapping_mul(nPoints as usize),
+                (::core::mem::size_of::<Pos>() as usize).wrapping_mul(n_points as usize),
                 587 as ::core::ffi::c_ulong,
             ) as *mut Pos;
-            tsd = read_packed_delta(tsd, nPoints, delta_x);
-            tsd = read_packed_delta(tsd, nPoints, delta_y);
-            apply_polymorphism(total_points, glyph, nPoints, point_indeces, delta_x, delta_y, r);
+            tsd = read_packed_delta(tsd, n_points, delta_x);
+            tsd = read_packed_delta(tsd, n_points, delta_y);
+            apply_polymorphism(total_points, glyph, n_points, point_indeces, delta_x, delta_y, r);
             free(delta_x as *mut ::core::ffi::c_void);
             delta_x = ::core::ptr::null_mut::<Pos>();
             free(delta_y as *mut ::core::ffi::c_void);
             delta_y = ::core::ptr::null_mut::<Pos>();
         }
-        if be16((*tvh).tupleIndex) as ::core::ffi::c_int & PRIVATE_POINT_NUMBERS != 0 {
+        if be16((*tvh).tuple_index) as ::core::ffi::c_int & PRIVATE_POINT_NUMBERS != 0 {
             free(point_indeces as *mut ::core::ffi::c_void);
             point_indeces = ::core::ptr::null_mut::<ShapeId>();
         }
-        tsd_start = tsd_start.wrapping_add(be16((*tvh).variationDataSize) as usize);
+        tsd_start = tsd_start.wrapping_add(be16((*tvh).variation_data_size) as usize);
         tvh = next_tvh(tvh, ctx);
         j = j.wrapping_add(1);
     }
@@ -1107,7 +1107,7 @@ unsafe extern "C" fn polymorphize(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -1119,9 +1119,9 @@ unsafe extern "C" fn polymorphize(
                         return;
                     }
                     let mut header: *mut GVARHeader = data as *mut GVARHeader;
-                    if be16((*header).axisCount) as usize != (*(*ctx).fvar).axes.length {
+                    if be16((*header).axis_count) as usize != (*(*ctx).fvar).axes.length {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -1138,13 +1138,13 @@ unsafe extern "C" fn polymorphize(
                         let mut tpctx: TuplePolymorphizerCtx = TuplePolymorphizerCtx {
                             fvar: (*ctx).fvar,
                             dimensions: (*(*ctx).fvar).axes.length as u16,
-                            sharedTupleCount: be16((*header).sharedTupleCount),
-                            sharedTuples: data.offset(be32((*header).sharedTuplesOffset) as isize)
+                            shared_tuple_count: be16((*header).shared_tuple_count),
+                            shared_tuples: data.offset(be32((*header).shared_tuples_offset) as isize)
                                 as *mut F2Dot14,
-                            coordDimensions: 2 as u8,
-                            allowIUP: (**(*glyf).items.offset(j as isize)).contours.length
+                            coord_dimensions: 2 as u8,
+                            allow_iup: (**(*glyf).items.offset(j as isize)).contours.length
                                 > 0 as usize,
-                            nPhantomPoints: (*ctx).nPhantomPoints,
+                            n_phantom_points: (*ctx).n_phantom_points,
                         };
                         let mut glyph_variation_data_offset: u32 = 0 as u32;
                         if be16((*header).flags) as ::core::ffi::c_int & GVAR_OFFSETS_ARE_LONG != 0
@@ -1166,7 +1166,7 @@ unsafe extern "C" fn polymorphize(
                                 as u32;
                         }
                         let mut gvd: *mut GlyphVariationData = data
-                            .offset(be32((*header).glyphVariationDataArrayOffset) as isize)
+                            .offset(be32((*header).glyph_variation_data_array_offset) as isize)
                             .offset(glyph_variation_data_offset as isize)
                             as *mut GlyphVariationData;
                         polymorphize_glyph(
@@ -1199,7 +1199,7 @@ pub unsafe extern "C" fn otfcc_read_glyf(
     let mut glyf: *mut GlyfTable = ::core::ptr::null_mut::<GlyfTable>();
     offsets = __caryll_allocate_clean(
         (::core::mem::size_of::<u32>() as usize).wrapping_mul(
-            ((*ctx).numGlyphs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
+            ((*ctx).num_glyphs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
         ),
         649 as ::core::ffi::c_ulong,
     ) as *mut u32;
@@ -1210,7 +1210,7 @@ pub unsafe extern "C" fn otfcc_read_glyf(
         let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
         while __notfound != 0
             && __fortable_keep != 0
-            && __fortable_count < packet.numTables as ::core::ffi::c_int
+            && __fortable_count < packet.num_tables as ::core::ffi::c_int
         {
             let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
             while __fortable_keep != 0 {
@@ -1220,21 +1220,21 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                         let mut data: FontFilePointer = table.data as FontFilePointer;
                         let mut length: u32 = table.length;
                         if !(length
-                            < (2 as ::core::ffi::c_int * (*ctx).numGlyphs as ::core::ffi::c_int
+                            < (2 as ::core::ffi::c_int * (*ctx).num_glyphs as ::core::ffi::c_int
                                 + 2 as ::core::ffi::c_int)
                                 as u32)
                         {
                             let mut j: u32 = 0 as u32;
                             loop {
                                 if !(j
-                                    < ((*ctx).numGlyphs as ::core::ffi::c_int
+                                    < ((*ctx).num_glyphs as ::core::ffi::c_int
                                         + 1 as ::core::ffi::c_int)
                                         as u32)
                                 {
                                     current_block = 7149356873433890176;
                                     break;
                                 }
-                                if (*ctx).locaIsLong {
+                                if (*ctx).loca_is_long {
                                     *offsets.offset(j as isize) = read_32u(
                                         data.offset(j.wrapping_mul(4 as u32) as isize)
                                             as *const u8,
@@ -1266,7 +1266,7 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                             }
                         }
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -1294,7 +1294,7 @@ pub unsafe extern "C" fn otfcc_read_glyf(
             's_126: loop {
                 if !(__notfound_0 != 0
                     && __fortable_keep_0 != 0
-                    && __fortable_count_0 < packet.numTables as ::core::ffi::c_int)
+                    && __fortable_count_0 < packet.num_tables as ::core::ffi::c_int)
                 {
                     current_block = 4135528745514935090;
                     break;
@@ -1307,9 +1307,9 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                         while __fortable_k2_0 != 0 {
                             let mut data_0: FontFilePointer = table_0.data as FontFilePointer;
                             let mut length_0: u32 = table_0.length;
-                            if length_0 < *offsets.offset((*ctx).numGlyphs as isize) {
+                            if length_0 < *offsets.offset((*ctx).num_glyphs as isize) {
                                 (*(*options).logger)
-                                    .logSDS
+                                    .log_sds
                                     .expect("non-null function pointer")(
                                     (*options).logger as *mut ILogger,
                                     LOG_VL_IMPORTANT,
@@ -1328,7 +1328,7 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                                     TABLE_I_GLYF.create.expect("non-null function pointer"))();
                                 let mut j_0: GlyphId = 0 as GlyphId;
                                 while (j_0 as ::core::ffi::c_int)
-                                    < (*ctx).numGlyphs as ::core::ffi::c_int
+                                    < (*ctx).num_glyphs as ::core::ffi::c_int
                                 {
                                     if *offsets.offset(j_0 as isize)
                                         < *offsets.offset(

@@ -16,9 +16,9 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *m
     }
     let mut rule: *const ChainingRule = &raw const (*subtable).c2rust_unnamed.rule;
     let mut _st: *mut JsonValue = json_object_new(4 as usize);
-    let mut _match: *mut JsonValue = json_array_new((*rule).matchCount as usize);
+    let mut _match: *mut JsonValue = json_array_new((*rule).match_count as usize);
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
         json_array_push(
             _match,
             OTL_I_COVERAGE.dump.expect("non-null function pointer")(
@@ -32,9 +32,9 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *m
         b"match\0" as *const u8 as *const ::core::ffi::c_char,
         _match,
     );
-    let mut _apply: *mut JsonValue = json_array_new((*rule).applyCount as usize);
+    let mut _apply: *mut JsonValue = json_array_new((*rule).apply_count as usize);
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
+    while (j_0 as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
         let mut _application: *mut JsonValue = json_object_new(2 as usize);
         json_object_push(
             _application,
@@ -59,12 +59,12 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *m
     json_object_push(
         _st,
         b"inputBegins\0" as *const u8 as *const ::core::ffi::c_char,
-        json_integer_new((*rule).inputBegins as i64),
+        json_integer_new((*rule).input_begins as i64),
     );
     json_object_push(
         _st,
         b"inputEnds\0" as *const u8 as *const ::core::ffi::c_char,
-        json_integer_new((*rule).inputEnds as i64),
+        json_integer_new((*rule).input_ends as i64),
     );
     return _st;
 }

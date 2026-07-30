@@ -32,7 +32,7 @@ pub struct GposSingleEntryElementInterface {
         Option<unsafe extern "C" fn(*mut GposSingleEntry, *mut GposSingleEntry) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GposSingleEntry) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut GposSingleEntry, GposSingleEntry) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GposSingleEntry, GposSingleEntry) -> ()>,
 }
 unsafe extern "C" fn delete_gpos_single_entry(mut entry: *mut GposSingleEntry) {
@@ -47,7 +47,7 @@ static GSS_TYPEINFO: GposSingleEntryElementInterface = {
             delete_gpos_single_entry as unsafe extern "C" fn(*mut GposSingleEntry) -> (),
         ),
         replace: None,
-        copyReplace: None,
+        copy_replace: None,
     }
 };
 #[inline]
@@ -146,8 +146,8 @@ unsafe extern "C" fn subtable_gpos_single_fill(mut arr: *mut GposSingleSubtable,
             value: PositionValue {
                 dx: 0.,
                 dy: 0.,
-                dWidth: 0.,
-                dHeight: 0.,
+                d_width: 0.,
+                d_height: 0.,
             },
         };
         if GSS_TYPEINFO.init.is_some() {
@@ -312,7 +312,7 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
             subtable_gpos_single_replace
                 as unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleSubtable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             subtable_gpos_single_copy_replace
                 as unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleSubtable) -> (),
         ),
@@ -320,15 +320,15 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
         free: Some(
             subtable_gpos_single_free as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
         ),
-        initN: Some(
+        init_n: Some(
             subtable_gpos_single_init_n
                 as unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             subtable_gpos_single_init_cap_n
                 as unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             subtable_gpos_single_create_n
                 as unsafe extern "C" fn(usize) -> *mut GposSingleSubtable,
         ),
@@ -343,7 +343,7 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
             subtable_gpos_single_push
                 as unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleEntry) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             subtable_gpos_single_shrink_to_fit
                 as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
         ),
@@ -351,11 +351,11 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
             subtable_gpos_single_pop
                 as unsafe extern "C" fn(*mut GposSingleSubtable) -> GposSingleEntry,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             subtable_gpos_single_dispose_item
                 as unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             subtable_gpos_single_filter_env
                 as unsafe extern "C" fn(
                     *mut GposSingleSubtable,
@@ -412,7 +412,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
             ) as u32),
         );
         if !(targets.is_null()
-            || (*targets).numGlyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
+            || (*targets).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
         {
             if subtable_format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
                 let mut v: PositionValue = read_gpos_value(
@@ -426,7 +426,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                     ),
                 );
                 let mut j: GlyphId = 0 as GlyphId;
-                while (j as ::core::ffi::c_int) < (*targets).numGlyphs as ::core::ffi::c_int {
+                while (j as ::core::ffi::c_int) < (*targets).num_glyphs as ::core::ffi::c_int {
                     I_SUBTABLE_GPOS_SINGLE
                         .push
                         .expect("non-null function pointer")(
@@ -460,12 +460,12 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                 {
                     current_block = 18154618883129817269;
                 } else if value_count as ::core::ffi::c_int
-                    != (*targets).numGlyphs as ::core::ffi::c_int
+                    != (*targets).num_glyphs as ::core::ffi::c_int
                 {
                     current_block = 18154618883129817269;
                 } else {
                     let mut j_0: GlyphId = 0 as GlyphId;
-                    while (j_0 as ::core::ffi::c_int) < (*targets).numGlyphs as ::core::ffi::c_int {
+                    while (j_0 as ::core::ffi::c_int) < (*targets).num_glyphs as ::core::ffi::c_int {
                         I_SUBTABLE_GPOS_SINGLE
                             .push
                             .expect("non-null function pointer")(
@@ -586,14 +586,14 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
                     == (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
                         .value
                         .dy
-                && (*(*subtable).items.offset(j as isize)).value.dWidth
+                && (*(*subtable).items.offset(j as isize)).value.d_width
                     == (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
                         .value
-                        .dWidth
-                && (*(*subtable).items.offset(j as isize)).value.dHeight
+                        .d_width
+                && (*(*subtable).items.offset(j as isize)).value.d_height
                     == (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
                         .value
-                        .dHeight;
+                        .d_height;
             format = (format as ::core::ffi::c_int
                 | required_position_format((*(*subtable).items.offset(j as isize)).value)
                     as ::core::ffi::c_int) as u16;

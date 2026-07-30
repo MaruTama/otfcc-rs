@@ -6,9 +6,9 @@ use crate::support::{ComparFn};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VdmxRecord {
-    pub yPelHeight: u16,
-    pub yMax: i16,
-    pub yMin: i16,
+    pub y_pel_height: u16,
+    pub y_max: i16,
+    pub y_min: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -18,7 +18,7 @@ pub struct VdmxRecordElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut VdmxRecord, *mut VdmxRecord) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VdmxRecord) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VdmxRecord, VdmxRecord) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VdmxRecord, VdmxRecord) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut VdmxRecord, VdmxRecord) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> VdmxRecord>,
     pub dup: Option<unsafe extern "C" fn(VdmxRecord) -> VdmxRecord>,
 }
@@ -37,19 +37,19 @@ pub struct VdmxGroupVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut VdmxGroup, *mut VdmxGroup) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VdmxGroup) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VdmxGroup, VdmxGroup) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VdmxGroup, VdmxGroup) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut VdmxGroup, VdmxGroup) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VdmxGroup>,
     pub free: Option<unsafe extern "C" fn(*mut VdmxGroup) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut VdmxGroup>,
+    pub init_n: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut VdmxGroup>,
     pub fill: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut VdmxGroup) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut VdmxGroup, VdmxRecord) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut VdmxGroup) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut VdmxGroup) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut VdmxGroup) -> VdmxRecord>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut VdmxGroup,
             Option<unsafe extern "C" fn(*const VdmxRecord, *mut ::core::ffi::c_void) -> bool>,
@@ -68,10 +68,10 @@ pub struct VdmxGroupVectorInterface {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VdmxRatioRange {
-    pub bCharset: u8,
-    pub xRatio: u8,
-    pub yStartRatio: u8,
-    pub yEndRatio: u8,
+    pub b_charset: u8,
+    pub x_ratio: u8,
+    pub y_start_ratio: u8,
+    pub y_end_ratio: u8,
     pub records: VdmxGroup,
 }
 #[derive(Copy, Clone)]
@@ -82,7 +82,7 @@ pub struct VdmxRatioRangeElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut VdmxRatioRange, *mut VdmxRatioRange) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VdmxRatioRange) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VdmxRatioRange, VdmxRatioRange) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VdmxRatioRange, VdmxRatioRange) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut VdmxRatioRange, VdmxRatioRange) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -101,20 +101,20 @@ pub struct VdmxRatioRangeListVectorInterface {
         Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, *mut VdmxRatioRangeList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, VdmxRatioRangeList) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, VdmxRatioRangeList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VdmxRatioRangeList>,
     pub free: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut VdmxRatioRangeList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut VdmxRatioRangeList>,
     pub fill: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, VdmxRatioRange) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> VdmxRatioRange>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut VdmxRatioRangeList,
             Option<unsafe extern "C" fn(*const VdmxRatioRange, *mut ::core::ffi::c_void) -> bool>,
@@ -147,7 +147,7 @@ pub struct VdmxTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut VdmxTable, *mut VdmxTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VdmxTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VdmxTable, VdmxTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VdmxTable, VdmxTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut VdmxTable, VdmxTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VdmxTable>,
     pub free: Option<unsafe extern "C" fn(*mut VdmxTable) -> ()>,
 }
@@ -170,9 +170,9 @@ unsafe extern "C" fn vdmx_record_copy(mut dst: *mut VdmxRecord, mut src: *const 
 #[inline]
 unsafe extern "C" fn vdmx_record_empty() -> VdmxRecord {
     let mut x: VdmxRecord = VdmxRecord {
-        yPelHeight: 0,
-        yMax: 0,
-        yMin: 0,
+        y_pel_height: 0,
+        y_max: 0,
+        y_min: 0,
     };
     vdmx_record_init(&raw mut x);
     return x;
@@ -200,9 +200,9 @@ unsafe extern "C" fn vdmx_record_move(mut dst: *mut VdmxRecord, mut src: *mut Vd
 #[inline]
 unsafe extern "C" fn vdmx_record_dup(src: VdmxRecord) -> VdmxRecord {
     let mut dst: VdmxRecord = VdmxRecord {
-        yPelHeight: 0,
-        yMax: 0,
-        yMin: 0,
+        y_pel_height: 0,
+        y_max: 0,
+        y_min: 0,
     };
     vdmx_record_copy(&raw mut dst, &raw const src);
     return dst;
@@ -225,7 +225,7 @@ pub static VDMX_I_RECORD: VdmxRecordElementInterface = {
         replace: Some(
             vdmx_record_replace as unsafe extern "C" fn(*mut VdmxRecord, VdmxRecord) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             vdmx_record_copy_replace as unsafe extern "C" fn(*mut VdmxRecord, VdmxRecord) -> (),
         ),
         empty: Some(vdmx_record_empty),
@@ -356,9 +356,9 @@ unsafe extern "C" fn vdmx_group_resize_to(arr: *mut VdmxGroup, target: usize) {
 unsafe extern "C" fn vdmx_group_fill(mut arr: *mut VdmxGroup, mut n: usize) {
     while (*arr).length < n {
         let mut x: VdmxRecord = VdmxRecord {
-            yPelHeight: 0,
-            yMax: 0,
-            yMin: 0,
+            y_pel_height: 0,
+            y_max: 0,
+            y_min: 0,
         };
         if VDMX_I_RECORD.init.is_some() {
             VDMX_I_RECORD.init.expect("non-null function pointer")(&raw mut x);
@@ -397,23 +397,23 @@ pub static VDMX_I_GROUP: VdmxGroupVectorInterface = {
         replace: Some(
             vdmx_group_replace as unsafe extern "C" fn(*mut VdmxGroup, VdmxGroup) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             vdmx_group_copy_replace as unsafe extern "C" fn(*mut VdmxGroup, VdmxGroup) -> (),
         ),
         create: Some(vdmx_group_create),
         free: Some(vdmx_group_free as unsafe extern "C" fn(*mut VdmxGroup) -> ()),
-        initN: Some(vdmx_group_init_n as unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()),
-        initCapN: Some(vdmx_group_init_cap_n as unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()),
-        createN: Some(vdmx_group_create_n as unsafe extern "C" fn(usize) -> *mut VdmxGroup),
+        init_n: Some(vdmx_group_init_n as unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()),
+        init_cap_n: Some(vdmx_group_init_cap_n as unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()),
+        create_n: Some(vdmx_group_create_n as unsafe extern "C" fn(usize) -> *mut VdmxGroup),
         fill: Some(vdmx_group_fill as unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()),
         clear: Some(vdmx_group_dispose as unsafe extern "C" fn(*mut VdmxGroup) -> ()),
         push: Some(vdmx_group_push as unsafe extern "C" fn(*mut VdmxGroup, VdmxRecord) -> ()),
-        shrinkToFit: Some(vdmx_group_shrink_to_fit as unsafe extern "C" fn(*mut VdmxGroup) -> ()),
+        shrink_to_fit: Some(vdmx_group_shrink_to_fit as unsafe extern "C" fn(*mut VdmxGroup) -> ()),
         pop: Some(vdmx_group_pop as unsafe extern "C" fn(*mut VdmxGroup) -> VdmxRecord),
-        disposeItem: Some(
+        dispose_item: Some(
             vdmx_group_dispose_item as unsafe extern "C" fn(*mut VdmxGroup, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             vdmx_group_filter_env
                 as unsafe extern "C" fn(
                     *mut VdmxGroup,
@@ -569,7 +569,7 @@ pub static VDMX_I_RATIO_RANGE: VdmxRatioRangeElementInterface = {
             vdmx_ratio_range_replace
                 as unsafe extern "C" fn(*mut VdmxRatioRange, VdmxRatioRange) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             vdmx_ratio_range_copy_replace
                 as unsafe extern "C" fn(*mut VdmxRatioRange, VdmxRatioRange) -> (),
         ),
@@ -607,7 +607,7 @@ pub static VDMX_I_RATIO_RANGE_LIST: VdmxRatioRangeListVectorInterface = {
             vdmx_ratio_ragne_list_replace
                 as unsafe extern "C" fn(*mut VdmxRatioRangeList, VdmxRatioRangeList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             vdmx_ratio_ragne_list_copy_replace
                 as unsafe extern "C" fn(*mut VdmxRatioRangeList, VdmxRatioRangeList) -> (),
         ),
@@ -615,15 +615,15 @@ pub static VDMX_I_RATIO_RANGE_LIST: VdmxRatioRangeListVectorInterface = {
         free: Some(
             vdmx_ratio_ragne_list_free as unsafe extern "C" fn(*mut VdmxRatioRangeList) -> (),
         ),
-        initN: Some(
+        init_n: Some(
             vdmx_ratio_ragne_list_init_n
                 as unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             vdmx_ratio_ragne_list_init_cap_n
                 as unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             vdmx_ratio_ragne_list_create_n as unsafe extern "C" fn(usize) -> *mut VdmxRatioRangeList,
         ),
         fill: Some(
@@ -637,18 +637,18 @@ pub static VDMX_I_RATIO_RANGE_LIST: VdmxRatioRangeListVectorInterface = {
             vdmx_ratio_ragne_list_push
                 as unsafe extern "C" fn(*mut VdmxRatioRangeList, VdmxRatioRange) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             vdmx_ratio_ragne_list_shrink_to_fit as unsafe extern "C" fn(*mut VdmxRatioRangeList) -> (),
         ),
         pop: Some(
             vdmx_ratio_ragne_list_pop
                 as unsafe extern "C" fn(*mut VdmxRatioRangeList) -> VdmxRatioRange,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             vdmx_ratio_ragne_list_dispose_item
                 as unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             vdmx_ratio_ragne_list_filter_env
                 as unsafe extern "C" fn(
                     *mut VdmxRatioRangeList,
@@ -752,10 +752,10 @@ unsafe extern "C" fn vdmx_ratio_ragne_list_sort(
 unsafe extern "C" fn vdmx_ratio_ragne_list_fill(mut arr: *mut VdmxRatioRangeList, mut n: usize) {
     while (*arr).length < n {
         let mut x: VdmxRatioRange = VdmxRatioRange {
-            bCharset: 0,
-            xRatio: 0,
-            yStartRatio: 0,
-            yEndRatio: 0,
+            b_charset: 0,
+            x_ratio: 0,
+            y_start_ratio: 0,
+            y_end_ratio: 0,
             records: VdmxGroup {
                 length: 0,
                 capacity: 0,
@@ -946,7 +946,7 @@ pub static TABLE_I_VDMX: VdmxTableElementInterface = {
         replace: Some(
             table_vdmx_replace as unsafe extern "C" fn(*mut VdmxTable, VdmxTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_vdmx_copy_replace as unsafe extern "C" fn(*mut VdmxTable, VdmxTable) -> (),
         ),
         create: Some(table_vdmx_create),

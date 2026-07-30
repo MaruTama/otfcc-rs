@@ -19,22 +19,22 @@ use crate::vendor::sds::{sdsempty};
 #[repr(C)]
 pub struct HeadTable {
     pub version: F16Dot16,
-    pub fontRevision: u32,
-    pub checkSumAdjustment: u32,
-    pub magicNumber: u32,
+    pub font_revision: u32,
+    pub check_sum_adjustment: u32,
+    pub magic_number: u32,
     pub flags: u16,
-    pub unitsPerEm: u16,
+    pub units_per_em: u16,
     pub created: i64,
     pub modified: i64,
-    pub xMin: i16,
-    pub yMin: i16,
-    pub xMax: i16,
-    pub yMax: i16,
-    pub macStyle: u16,
-    pub lowestRecPPEM: u16,
-    pub fontDirectoryHint: i16,
-    pub indexToLocFormat: i16,
-    pub glyphDataFormat: i16,
+    pub x_min: i16,
+    pub y_min: i16,
+    pub x_max: i16,
+    pub y_max: i16,
+    pub mac_style: u16,
+    pub lowest_rec_ppem: u16,
+    pub font_directory_hint: i16,
+    pub index_to_loc_format: i16,
+    pub glyph_data_format: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -44,7 +44,7 @@ pub struct HeadTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut HeadTable, *mut HeadTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut HeadTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut HeadTable, HeadTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut HeadTable, HeadTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut HeadTable, HeadTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut HeadTable>,
     pub free: Option<unsafe extern "C" fn(*mut HeadTable) -> ()>,
 }
@@ -55,8 +55,8 @@ unsafe extern "C" fn init_head(mut head: *mut HeadTable) {
         0 as ::core::ffi::c_int,
         ::core::mem::size_of::<HeadTable>() as usize,
     );
-    (*head).magicNumber = 0x5f0f3cf5 as u32;
-    (*head).unitsPerEm = 1000 as u16;
+    (*head).magic_number = 0x5f0f3cf5 as u32;
+    (*head).units_per_em = 1000 as u16;
 }
 #[inline]
 unsafe extern "C" fn dispose_head(mut _head: *mut HeadTable) {}
@@ -116,7 +116,7 @@ pub static TABLE_I_HEAD: HeadTableElementInterface = {
         replace: Some(
             table_head_replace as unsafe extern "C" fn(*mut HeadTable, HeadTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_head_copy_replace as unsafe extern "C" fn(*mut HeadTable, HeadTable) -> (),
         ),
         create: Some(table_head_create),
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn otfcc_read_head(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn otfcc_read_head(
                     let mut length: u32 = table.length;
                     if length < 54 as u32 {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -168,19 +168,19 @@ pub unsafe extern "C" fn otfcc_read_head(
                             24 as ::core::ffi::c_ulong,
                         ) as *mut HeadTable;
                         (*head).version = read_32s(data as *const u8) as F16Dot16;
-                        (*head).fontRevision = read_32u(
+                        (*head).font_revision = read_32u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        (*head).checkSumAdjustment = read_32u(
+                        (*head).check_sum_adjustment = read_32u(
                             data.offset(8 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        (*head).magicNumber = read_32u(
+                        (*head).magic_number = read_32u(
                             data.offset(12 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         (*head).flags = read_16u(
                             data.offset(16 as ::core::ffi::c_int as isize) as *const u8
                         );
-                        (*head).unitsPerEm = read_16u(
+                        (*head).units_per_em = read_16u(
                             data.offset(18 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         (*head).created = read_64u(
@@ -189,31 +189,31 @@ pub unsafe extern "C" fn otfcc_read_head(
                         (*head).modified = read_64u(
                             data.offset(28 as ::core::ffi::c_int as isize) as *const u8
                         ) as i64;
-                        (*head).xMin = read_16u(
+                        (*head).x_min = read_16u(
                             data.offset(36 as ::core::ffi::c_int as isize) as *const u8
                         ) as i16;
-                        (*head).yMin = read_16u(
+                        (*head).y_min = read_16u(
                             data.offset(38 as ::core::ffi::c_int as isize) as *const u8
                         ) as i16;
-                        (*head).xMax = read_16u(
+                        (*head).x_max = read_16u(
                             data.offset(40 as ::core::ffi::c_int as isize) as *const u8
                         ) as i16;
-                        (*head).yMax = read_16u(
+                        (*head).y_max = read_16u(
                             data.offset(42 as ::core::ffi::c_int as isize) as *const u8
                         ) as i16;
-                        (*head).macStyle = read_16u(
+                        (*head).mac_style = read_16u(
                             data.offset(44 as ::core::ffi::c_int as isize) as *const u8
                         );
-                        (*head).lowestRecPPEM = read_16u(
+                        (*head).lowest_rec_ppem = read_16u(
                             data.offset(46 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        (*head).fontDirectoryHint = read_16u(
+                        (*head).font_directory_hint = read_16u(
                             data.offset(48 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
-                        (*head).indexToLocFormat = read_16u(
+                        (*head).index_to_loc_format = read_16u(
                             data.offset(50 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
-                        (*head).glyphDataFormat = read_16u(
+                        (*head).glyph_data_format = read_16u(
                             data.offset(52 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
                         return head;
@@ -264,7 +264,7 @@ pub unsafe extern "C" fn otfcc_dump_head(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"head"),
@@ -280,7 +280,7 @@ pub unsafe extern "C" fn otfcc_dump_head(
         json_object_push(
             head,
             b"fontRevision\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new(otfcc_from_fixed((*table).fontRevision as F16Dot16)),
+            json_double_new(otfcc_from_fixed((*table).font_revision as F16Dot16)),
         );
         json_object_push(
             head,
@@ -293,7 +293,7 @@ pub unsafe extern "C" fn otfcc_dump_head(
         json_object_push(
             head,
             b"unitsPerEm\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).unitsPerEm as i64),
+            json_integer_new((*table).units_per_em as i64),
         );
         json_object_push(
             head,
@@ -308,50 +308,50 @@ pub unsafe extern "C" fn otfcc_dump_head(
         json_object_push(
             head,
             b"xMin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).xMin as i64),
+            json_integer_new((*table).x_min as i64),
         );
         json_object_push(
             head,
             b"xMax\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).xMax as i64),
+            json_integer_new((*table).x_max as i64),
         );
         json_object_push(
             head,
             b"yMin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).yMin as i64),
+            json_integer_new((*table).y_min as i64),
         );
         json_object_push(
             head,
             b"yMax\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).yMax as i64),
+            json_integer_new((*table).y_max as i64),
         );
         json_object_push(
             head,
             b"macStyle\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
-                (*table).macStyle as ::core::ffi::c_int,
+                (*table).mac_style as ::core::ffi::c_int,
                 &MAC_STYLE_LABELS,
             ),
         );
         json_object_push(
             head,
             b"lowestRecPPEM\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).lowestRecPPEM as i64),
+            json_integer_new((*table).lowest_rec_ppem as i64),
         );
         json_object_push(
             head,
             b"fontDirectoryHint\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).fontDirectoryHint as i64),
+            json_integer_new((*table).font_directory_hint as i64),
         );
         json_object_push(
             head,
             b"indexToLocFormat\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).indexToLocFormat as i64),
+            json_integer_new((*table).index_to_loc_format as i64),
         );
         json_object_push(
             head,
             b"glyphDataFormat\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).glyphDataFormat as i64),
+            json_integer_new((*table).glyph_data_format as i64),
         );
         json_object_push(
             root,
@@ -378,7 +378,7 @@ pub unsafe extern "C" fn otfcc_parse_head(
     );
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"head"),
@@ -390,7 +390,7 @@ pub unsafe extern "C" fn otfcc_parse_head(
                 b"version\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ));
-            (*head).fontRevision = otfcc_to_fixed(json_obj_getnum_fallback(
+            (*head).font_revision = otfcc_to_fixed(json_obj_getnum_fallback(
                 table,
                 b"fontRevision\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
@@ -399,7 +399,7 @@ pub unsafe extern "C" fn otfcc_parse_head(
                 json_obj_get(table, b"flags\0" as *const u8 as *const ::core::ffi::c_char),
                 &HEAD_FLAGS_LABELS,
             ) as u16;
-            (*head).unitsPerEm = json_obj_getnum_fallback(
+            (*head).units_per_em = json_obj_getnum_fallback(
                 table,
                 b"unitsPerEm\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
@@ -414,49 +414,49 @@ pub unsafe extern "C" fn otfcc_parse_head(
                 b"modified\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i64;
-            (*head).xMin = json_obj_getnum_fallback(
+            (*head).x_min = json_obj_getnum_fallback(
                 table,
                 b"xMin\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*head).xMax = json_obj_getnum_fallback(
+            (*head).x_max = json_obj_getnum_fallback(
                 table,
                 b"xMax\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*head).yMin = json_obj_getnum_fallback(
+            (*head).y_min = json_obj_getnum_fallback(
                 table,
                 b"yMin\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*head).yMax = json_obj_getnum_fallback(
+            (*head).y_max = json_obj_getnum_fallback(
                 table,
                 b"yMax\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*head).macStyle = otfcc_parse_flags(
+            (*head).mac_style = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"macStyle\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
                 &MAC_STYLE_LABELS,
             ) as u16;
-            (*head).lowestRecPPEM = json_obj_getnum_fallback(
+            (*head).lowest_rec_ppem = json_obj_getnum_fallback(
                 table,
                 b"lowestRecPPEM\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*head).fontDirectoryHint = json_obj_getnum_fallback(
+            (*head).font_directory_hint = json_obj_getnum_fallback(
                 table,
                 b"fontDirectoryHint\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*head).indexToLocFormat = json_obj_getnum_fallback(
+            (*head).index_to_loc_format = json_obj_getnum_fallback(
                 table,
                 b"indexToLocFormat\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*head).glyphDataFormat = json_obj_getnum_fallback(
+            (*head).glyph_data_format = json_obj_getnum_fallback(
                 table,
                 b"glyphDataFormat\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
@@ -480,21 +480,21 @@ pub unsafe extern "C" fn otfcc_build_head(
     }
     let mut buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*head).version as u32);
-    bufwrite32b(buf, (*head).fontRevision);
-    bufwrite32b(buf, (*head).checkSumAdjustment);
-    bufwrite32b(buf, (*head).magicNumber);
+    bufwrite32b(buf, (*head).font_revision);
+    bufwrite32b(buf, (*head).check_sum_adjustment);
+    bufwrite32b(buf, (*head).magic_number);
     bufwrite16b(buf, (*head).flags);
-    bufwrite16b(buf, (*head).unitsPerEm);
+    bufwrite16b(buf, (*head).units_per_em);
     bufwrite64b(buf, (*head).created as u64);
     bufwrite64b(buf, (*head).modified as u64);
-    bufwrite16b(buf, (*head).xMin as u16);
-    bufwrite16b(buf, (*head).yMin as u16);
-    bufwrite16b(buf, (*head).xMax as u16);
-    bufwrite16b(buf, (*head).yMax as u16);
-    bufwrite16b(buf, (*head).macStyle);
-    bufwrite16b(buf, (*head).lowestRecPPEM);
-    bufwrite16b(buf, (*head).fontDirectoryHint as u16);
-    bufwrite16b(buf, (*head).indexToLocFormat as u16);
-    bufwrite16b(buf, (*head).glyphDataFormat as u16);
+    bufwrite16b(buf, (*head).x_min as u16);
+    bufwrite16b(buf, (*head).y_min as u16);
+    bufwrite16b(buf, (*head).x_max as u16);
+    bufwrite16b(buf, (*head).y_max as u16);
+    bufwrite16b(buf, (*head).mac_style);
+    bufwrite16b(buf, (*head).lowest_rec_ppem);
+    bufwrite16b(buf, (*head).font_directory_hint as u16);
+    bufwrite16b(buf, (*head).index_to_loc_format as u16);
+    bufwrite16b(buf, (*head).glyph_data_format as u16);
     return buf;
 }

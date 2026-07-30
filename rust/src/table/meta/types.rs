@@ -19,7 +19,7 @@ pub struct MetaEntryElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut MetaEntry, *mut MetaEntry) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MetaEntry) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut MetaEntry, MetaEntry) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut MetaEntry, MetaEntry) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut MetaEntry, MetaEntry) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -36,19 +36,19 @@ pub struct MetaEntriesVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut MetaEntries, *mut MetaEntries) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MetaEntries) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut MetaEntries, MetaEntries) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut MetaEntries, MetaEntries) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut MetaEntries, MetaEntries) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut MetaEntries>,
     pub free: Option<unsafe extern "C" fn(*mut MetaEntries) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut MetaEntries, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut MetaEntries, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut MetaEntries>,
+    pub init_n: Option<unsafe extern "C" fn(*mut MetaEntries, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut MetaEntries, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut MetaEntries>,
     pub fill: Option<unsafe extern "C" fn(*mut MetaEntries, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut MetaEntries) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut MetaEntries, MetaEntry) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut MetaEntries) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut MetaEntries) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut MetaEntries) -> MetaEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut MetaEntries, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut MetaEntries, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut MetaEntries,
             Option<unsafe extern "C" fn(*const MetaEntry, *mut ::core::ffi::c_void) -> bool>,
@@ -77,7 +77,7 @@ pub struct MetaTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut MetaTable, *mut MetaTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MetaTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut MetaTable, MetaTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut MetaTable, MetaTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut MetaTable, MetaTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut MetaTable>,
     pub free: Option<unsafe extern "C" fn(*mut MetaTable) -> ()>,
 }
@@ -101,7 +101,7 @@ pub static META_I_ENTRY: MetaEntryElementInterface = {
         replace: Some(
             meta_entry_replace as unsafe extern "C" fn(*mut MetaEntry, MetaEntry) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             meta_entry_copy_replace as unsafe extern "C" fn(*mut MetaEntry, MetaEntry) -> (),
         ),
     }
@@ -199,27 +199,27 @@ pub static META_I_ENTRIES: MetaEntriesVectorInterface = {
         replace: Some(
             meta_entries_replace as unsafe extern "C" fn(*mut MetaEntries, MetaEntries) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             meta_entries_copy_replace as unsafe extern "C" fn(*mut MetaEntries, MetaEntries) -> (),
         ),
         create: Some(meta_entries_create),
         free: Some(meta_entries_free as unsafe extern "C" fn(*mut MetaEntries) -> ()),
-        initN: Some(meta_entries_init_n as unsafe extern "C" fn(*mut MetaEntries, usize) -> ()),
-        initCapN: Some(
+        init_n: Some(meta_entries_init_n as unsafe extern "C" fn(*mut MetaEntries, usize) -> ()),
+        init_cap_n: Some(
             meta_entries_init_cap_n as unsafe extern "C" fn(*mut MetaEntries, usize) -> (),
         ),
-        createN: Some(meta_entries_create_n as unsafe extern "C" fn(usize) -> *mut MetaEntries),
+        create_n: Some(meta_entries_create_n as unsafe extern "C" fn(usize) -> *mut MetaEntries),
         fill: Some(meta_entries_fill as unsafe extern "C" fn(*mut MetaEntries, usize) -> ()),
         clear: Some(meta_entries_dispose as unsafe extern "C" fn(*mut MetaEntries) -> ()),
         push: Some(meta_entries_push as unsafe extern "C" fn(*mut MetaEntries, MetaEntry) -> ()),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             meta_entries_shrink_to_fit as unsafe extern "C" fn(*mut MetaEntries) -> (),
         ),
         pop: Some(meta_entries_pop as unsafe extern "C" fn(*mut MetaEntries) -> MetaEntry),
-        disposeItem: Some(
+        dispose_item: Some(
             meta_entries_dispose_item as unsafe extern "C" fn(*mut MetaEntries, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             meta_entries_filter_env
                 as unsafe extern "C" fn(
                     *mut MetaEntries,
@@ -456,7 +456,7 @@ pub static TABLE_I_META: MetaTableElementInterface = {
         replace: Some(
             table_meta_replace as unsafe extern "C" fn(*mut MetaTable, MetaTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_meta_copy_replace as unsafe extern "C" fn(*mut MetaTable, MetaTable) -> (),
         ),
         create: Some(table_meta_create),

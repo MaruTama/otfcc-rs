@@ -105,11 +105,11 @@ unsafe extern "C" fn by_mask_pointindex(
     mut a: *const PostscriptHintMask,
     mut b: *const PostscriptHintMask,
 ) -> ::core::ffi::c_int {
-    return if (*a).contoursBefore as ::core::ffi::c_int == (*b).contoursBefore as ::core::ffi::c_int
+    return if (*a).contours_before as ::core::ffi::c_int == (*b).contours_before as ::core::ffi::c_int
     {
-        (*a).pointsBefore as ::core::ffi::c_int - (*b).pointsBefore as ::core::ffi::c_int
+        (*a).points_before as ::core::ffi::c_int - (*b).points_before as ::core::ffi::c_int
     } else {
-        (*a).contoursBefore as ::core::ffi::c_int - (*b).contoursBefore as ::core::ffi::c_int
+        (*a).contours_before as ::core::ffi::c_int - (*b).contours_before as ::core::ffi::c_int
     };
 }
 unsafe extern "C" fn consolidate_glyph_contours(
@@ -130,12 +130,12 @@ unsafe extern "C" fn consolidate_glyph_contours(
                 + 1 as ::core::ffi::c_int) as ShapeId;
         } else {
             GLYF_I_CONTOUR_LIST
-                .disposeItem
+                .dispose_item
                 .expect("non-null function pointer")(
                 &raw mut (*g).contours, j as usize
             );
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -165,13 +165,13 @@ unsafe extern "C" fn consolidate_glyph_references(
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < (*g).references.length {
         if !OTFCC_PKG_GLYPH_ORDER
-            .consolidateHandle
+            .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
             &raw mut (*(*g).references.items.offset(j as isize)).glyph,
         ) {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -186,7 +186,7 @@ unsafe extern "C" fn consolidate_glyph_references(
                 ),
             );
             GLYF_I_REFERENCE_LIST
-                .disposeItem
+                .dispose_item
                 .expect("non-null function pointer")(
                 &raw mut (*g).references, j as usize
             );
@@ -208,14 +208,14 @@ unsafe extern "C" fn consolidate_glyph_hints(
     mut g: *mut Glyph,
     mut _options: *const Options,
 ) {
-    if (*g).stemH.length != 0 {
+    if (*g).stem_h.length != 0 {
         let mut j: ShapeId = 0 as ShapeId;
-        while (j as usize) < (*g).stemH.length {
-            (*(*g).stemH.items.offset(j as isize)).map = j as u16;
+        while (j as usize) < (*g).stem_h.length {
+            (*(*g).stem_h.items.offset(j as isize)).map = j as u16;
             j = j.wrapping_add(1);
         }
         GLYF_I_STEM_DEF_LIST.sort.expect("non-null function pointer")(
-            &raw mut (*g).stemH,
+            &raw mut (*g).stem_h,
             Some(
                 by_stem_pos
                     as unsafe extern "C" fn(
@@ -225,14 +225,14 @@ unsafe extern "C" fn consolidate_glyph_hints(
             ),
         );
     }
-    if (*g).stemV.length != 0 {
+    if (*g).stem_v.length != 0 {
         let mut j_0: ShapeId = 0 as ShapeId;
-        while (j_0 as usize) < (*g).stemV.length {
-            (*(*g).stemV.items.offset(j_0 as isize)).map = j_0 as u16;
+        while (j_0 as usize) < (*g).stem_v.length {
+            (*(*g).stem_v.items.offset(j_0 as isize)).map = j_0 as u16;
             j_0 = j_0.wrapping_add(1);
         }
         GLYF_I_STEM_DEF_LIST.sort.expect("non-null function pointer")(
-            &raw mut (*g).stemV,
+            &raw mut (*g).stem_v,
             Some(
                 by_stem_pos
                     as unsafe extern "C" fn(
@@ -244,27 +244,27 @@ unsafe extern "C" fn consolidate_glyph_hints(
     }
     let mut hmap: *mut ShapeId = ::core::ptr::null_mut::<ShapeId>();
     hmap = __caryll_allocate_clean(
-        (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul((*g).stemH.length),
+        (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul((*g).stem_h.length),
         80 as ::core::ffi::c_ulong,
     ) as *mut ShapeId;
     let mut vmap: *mut ShapeId = ::core::ptr::null_mut::<ShapeId>();
     vmap = __caryll_allocate_clean(
-        (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul((*g).stemV.length),
+        (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul((*g).stem_v.length),
         82 as ::core::ffi::c_ulong,
     ) as *mut ShapeId;
     let mut j_1: ShapeId = 0 as ShapeId;
-    while (j_1 as usize) < (*g).stemH.length {
-        *hmap.offset((*(*g).stemH.items.offset(j_1 as isize)).map as isize) = j_1;
+    while (j_1 as usize) < (*g).stem_h.length {
+        *hmap.offset((*(*g).stem_h.items.offset(j_1 as isize)).map as isize) = j_1;
         j_1 = j_1.wrapping_add(1);
     }
     let mut j_2: ShapeId = 0 as ShapeId;
-    while (j_2 as usize) < (*g).stemV.length {
-        *vmap.offset((*(*g).stemV.items.offset(j_2 as isize)).map as isize) = j_2;
+    while (j_2 as usize) < (*g).stem_v.length {
+        *vmap.offset((*(*g).stem_v.items.offset(j_2 as isize)).map as isize) = j_2;
         j_2 = j_2.wrapping_add(1);
     }
-    if (*g).hintMasks.length != 0 {
+    if (*g).hint_masks.length != 0 {
         GLYF_I_MASK_LIST.sort.expect("non-null function pointer")(
-            &raw mut (*g).hintMasks,
+            &raw mut (*g).hint_masks,
             Some(
                 by_mask_pointindex
                     as unsafe extern "C" fn(
@@ -274,26 +274,26 @@ unsafe extern "C" fn consolidate_glyph_hints(
             ),
         );
         let mut j_3: ShapeId = 0 as ShapeId;
-        while (j_3 as usize) < (*g).hintMasks.length {
-            let mut oldmask: PostscriptHintMask = *(*g).hintMasks.items.offset(j_3 as isize);
+        while (j_3 as usize) < (*g).hint_masks.length {
+            let mut oldmask: PostscriptHintMask = *(*g).hint_masks.items.offset(j_3 as isize);
             let mut k: ShapeId = 0 as ShapeId;
-            while (k as usize) < (*g).stemH.length {
-                (*(*g).hintMasks.items.offset(j_3 as isize)).maskH[k as usize] =
-                    oldmask.maskH[*hmap.offset(k as isize) as usize];
+            while (k as usize) < (*g).stem_h.length {
+                (*(*g).hint_masks.items.offset(j_3 as isize)).mask_h[k as usize] =
+                    oldmask.mask_h[*hmap.offset(k as isize) as usize];
                 k = k.wrapping_add(1);
             }
             let mut k_0: ShapeId = 0 as ShapeId;
-            while (k_0 as usize) < (*g).stemV.length {
-                (*(*g).hintMasks.items.offset(j_3 as isize)).maskV[k_0 as usize] =
-                    oldmask.maskV[*vmap.offset(k_0 as isize) as usize];
+            while (k_0 as usize) < (*g).stem_v.length {
+                (*(*g).hint_masks.items.offset(j_3 as isize)).mask_v[k_0 as usize] =
+                    oldmask.mask_v[*vmap.offset(k_0 as isize) as usize];
                 k_0 = k_0.wrapping_add(1);
             }
             j_3 = j_3.wrapping_add(1);
         }
     }
-    if (*g).contourMasks.length != 0 {
+    if (*g).contour_masks.length != 0 {
         GLYF_I_MASK_LIST.sort.expect("non-null function pointer")(
-            &raw mut (*g).contourMasks,
+            &raw mut (*g).contour_masks,
             Some(
                 by_mask_pointindex
                     as unsafe extern "C" fn(
@@ -303,19 +303,19 @@ unsafe extern "C" fn consolidate_glyph_hints(
             ),
         );
         let mut j_4: ShapeId = 0 as ShapeId;
-        while (j_4 as usize) < (*g).contourMasks.length {
+        while (j_4 as usize) < (*g).contour_masks.length {
             let mut oldmask_0: PostscriptHintMask =
-                *(*g).contourMasks.items.offset(j_4 as isize);
+                *(*g).contour_masks.items.offset(j_4 as isize);
             let mut k_1: ShapeId = 0 as ShapeId;
-            while (k_1 as usize) < (*g).stemH.length {
-                (*(*g).contourMasks.items.offset(j_4 as isize)).maskH[k_1 as usize] =
-                    oldmask_0.maskH[*hmap.offset(k_1 as isize) as usize];
+            while (k_1 as usize) < (*g).stem_h.length {
+                (*(*g).contour_masks.items.offset(j_4 as isize)).mask_h[k_1 as usize] =
+                    oldmask_0.mask_h[*hmap.offset(k_1 as isize) as usize];
                 k_1 = k_1.wrapping_add(1);
             }
             let mut k_2: ShapeId = 0 as ShapeId;
-            while (k_2 as usize) < (*g).stemV.length {
-                (*(*g).contourMasks.items.offset(j_4 as isize)).maskV[k_2 as usize] =
-                    oldmask_0.maskV[*vmap.offset(k_2 as isize) as usize];
+            while (k_2 as usize) < (*g).stem_v.length {
+                (*(*g).contour_masks.items.offset(j_4 as isize)).mask_v[k_2 as usize] =
+                    oldmask_0.mask_v[*vmap.offset(k_2 as isize) as usize];
                 k_2 = k_2.wrapping_add(1);
             }
             j_4 = j_4.wrapping_add(1);
@@ -332,33 +332,33 @@ unsafe extern "C" fn consolidate_fd_select(
     mut options: *const Options,
     gname: SdsRaw,
 ) {
-    if cff.is_null() || (*cff).fdArray.is_null() || (*cff).fdArrayCount == 0 {
+    if cff.is_null() || (*cff).fd_array.is_null() || (*cff).fd_array_count == 0 {
         return;
     }
     if (*h).state == HandleState::Index
     {
-        if (*h).index as ::core::ffi::c_int >= (*cff).fdArrayCount as ::core::ffi::c_int {
+        if (*h).index as ::core::ffi::c_int >= (*cff).fd_array_count as ::core::ffi::c_int {
             (*h).index = 0 as GlyphId;
         }
         handle_consolidate_to(
             h as *mut Handle,
             (*h).index,
-            (**(*cff).fdArray.offset((*h).index as isize)).fontName,
+            (**(*cff).fd_array.offset((*h).index as isize)).font_name,
         );
     } else if !(*h).name.is_null() {
         let mut found: bool = false;
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*cff).fdArrayCount as ::core::ffi::c_int {
+        while (j as ::core::ffi::c_int) < (*cff).fd_array_count as ::core::ffi::c_int {
             if strcmp(
                 (*h).name as *const ::core::ffi::c_char,
-                (**(*cff).fdArray.offset(j as isize)).fontName as *const ::core::ffi::c_char,
+                (**(*cff).fd_array.offset(j as isize)).font_name as *const ::core::ffi::c_char,
             ) == 0 as ::core::ffi::c_int
             {
                 found = true;
                 handle_consolidate_to(
                     h as *mut Handle,
                     j as GlyphId,
-                    (**(*cff).fdArray.offset(j as isize)).fontName,
+                    (**(*cff).fd_array.offset(j as isize)).font_name,
                 );
                 break;
             } else {
@@ -367,7 +367,7 @@ unsafe extern "C" fn consolidate_fd_select(
         }
         if !found {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -395,7 +395,7 @@ pub unsafe extern "C" fn consolidate_glyph(
     consolidate_glyph_contours(g, options);
     consolidate_glyph_references(g, font, options);
     consolidate_glyph_hints(g, options);
-    consolidate_fd_select(&raw mut (*g).fdSelect, (*font).CFF_, options, (*g).name);
+    consolidate_fd_select(&raw mut (*g).fd_select, (*font).cff, options, (*g).name);
 }
 pub unsafe extern "C" fn get_point_coordinates(
     mut table: *mut GlyfTable,
@@ -419,7 +419,7 @@ pub unsafe extern "C" fn get_point_coordinates(
                     as *mut Point;
                 I_VQ.replace.expect("non-null function pointer")(
                     x,
-                    I_VQ.pointLinearTfm.expect("non-null function pointer")(
+                    I_VQ.point_linear_tfm.expect("non-null function pointer")(
                         (*gr).x,
                         (*gr).a as Pos,
                         (*p).x,
@@ -429,7 +429,7 @@ pub unsafe extern "C" fn get_point_coordinates(
                 );
                 I_VQ.replace.expect("non-null function pointer")(
                     y,
-                    I_VQ.pointLinearTfm.expect("non-null function pointer")(
+                    I_VQ.point_linear_tfm.expect("non-null function pointer")(
                         (*gr).y,
                         (*gr).c as Pos,
                         (*p).x,
@@ -463,7 +463,7 @@ pub unsafe extern "C" fn get_point_coordinates(
         ref_0.d = (*gr).b * (*rr).c + (*rr).d * (*gr).d;
         I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.x,
-            I_VQ.pointLinearTfm.expect("non-null function pointer")(
+            I_VQ.point_linear_tfm.expect("non-null function pointer")(
                 (*rr).x,
                 (*rr).a as Pos,
                 (*gr).x,
@@ -473,7 +473,7 @@ pub unsafe extern "C" fn get_point_coordinates(
         );
         I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.y,
-            I_VQ.pointLinearTfm.expect("non-null function pointer")(
+            I_VQ.point_linear_tfm.expect("non-null function pointer")(
                 (*rr).y,
                 (*rr).c as Pos,
                 (*gr).x,
@@ -499,16 +499,16 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
     mut rr: *mut ComponentReference,
     mut options: *const Options,
 ) -> bool {
-    if (*rr).isAnchored == RefAnchorStatus::AnchorConsolidated
-        || (*rr).isAnchored == RefAnchorStatus::Xy
+    if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidated
+        || (*rr).is_anchored == RefAnchorStatus::Xy
     {
         return true;
     }
-    if (*rr).isAnchored == RefAnchorStatus::AnchorConsolidatingAnchor
-        || (*rr).isAnchored == RefAnchorStatus::AnchorConsolidatingXy
+    if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingAnchor
+        || (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingXy
     {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
@@ -518,14 +518,14 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
                 b"Found circular reference of out-of-range point reference in anchored reference.",
             ),
         );
-        (*rr).isAnchored = RefAnchorStatus::Xy;
+        (*rr).is_anchored = RefAnchorStatus::Xy;
         return false;
     }
-    if (*rr).isAnchored == RefAnchorStatus::AnchorAnchor
+    if (*rr).is_anchored == RefAnchorStatus::AnchorAnchor
     {
-        (*rr).isAnchored = RefAnchorStatus::AnchorConsolidatingAnchor;
+        (*rr).is_anchored = RefAnchorStatus::AnchorConsolidatingAnchor;
     } else {
-        (*rr).isAnchored = RefAnchorStatus::AnchorConsolidatingXy;
+        (*rr).is_anchored = RefAnchorStatus::AnchorConsolidatingXy;
     }
     let mut inner_x: VQ =
         (I_VQ.neutral.expect("non-null function pointer"))();
@@ -564,7 +564,7 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
     );
     if !s1 {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
@@ -579,7 +579,7 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
     }
     if !s2 {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
@@ -594,38 +594,38 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
             ),
         );
     }
-    let mut rrx: VQ = I_VQ.pointLinearTfm.expect("non-null function pointer")(
+    let mut rrx: VQ = I_VQ.point_linear_tfm.expect("non-null function pointer")(
         outer_x,
         -((*rr).a as Pos),
         inner_x,
         -((*rr).b as Pos),
         inner_y,
     );
-    let mut rry: VQ = I_VQ.pointLinearTfm.expect("non-null function pointer")(
+    let mut rry: VQ = I_VQ.point_linear_tfm.expect("non-null function pointer")(
         outer_y,
         -((*rr).c as Pos),
         inner_x,
         -((*rr).d as Pos),
         inner_y,
     );
-    if (*rr).isAnchored == RefAnchorStatus::AnchorConsolidatingAnchor
+    if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingAnchor
     {
         I_VQ.replace.expect("non-null function pointer")(&raw mut (*rr).x, rrx);
         I_VQ.replace.expect("non-null function pointer")(&raw mut (*rr).y, rry);
-        (*rr).isAnchored = RefAnchorStatus::AnchorConsolidated;
+        (*rr).is_anchored = RefAnchorStatus::AnchorConsolidated;
     } else {
         if fabs(
-            I_VQ.getStill.expect("non-null function pointer")((*rr).x) as ::core::ffi::c_double
-                - I_VQ.getStill.expect("non-null function pointer")(rrx) as ::core::ffi::c_double,
+            I_VQ.get_still.expect("non-null function pointer")((*rr).x) as ::core::ffi::c_double
+                - I_VQ.get_still.expect("non-null function pointer")(rrx) as ::core::ffi::c_double,
         ) > 0.5f64
             && fabs(
-                I_VQ.getStill.expect("non-null function pointer")((*rr).y) as ::core::ffi::c_double
-                    - I_VQ.getStill.expect("non-null function pointer")(rry)
+                I_VQ.get_still.expect("non-null function pointer")((*rr).y) as ::core::ffi::c_double
+                    - I_VQ.get_still.expect("non-null function pointer")(rry)
                         as ::core::ffi::c_double,
             ) > 0.5f64
         {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -638,7 +638,7 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
                 ),
             );
         }
-        (*rr).isAnchored = RefAnchorStatus::AnchorConsolidated;
+        (*rr).is_anchored = RefAnchorStatus::AnchorConsolidated;
         I_VQ.dispose.expect("non-null function pointer")(&raw mut rrx);
         I_VQ.dispose.expect("non-null function pointer")(&raw mut rry);
     }
@@ -676,7 +676,7 @@ pub unsafe extern "C" fn consolidate_glyf(
     while (j_0 as usize) < (*(*font).glyf).length {
         let mut g: *mut Glyph = *(*(*font).glyf).items.offset(j_0 as isize) as *mut Glyph;
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), (*g).name),
@@ -719,12 +719,12 @@ pub unsafe extern "C" fn consolidate_cmap(
         item = (*(*font).cmap).unicodes;
         while !item.is_null() {
             if !OTFCC_PKG_GLYPH_ORDER
-                .consolidateHandle
+                .consolidate_handle
                 .expect("non-null function pointer")(
                 (*font).glyph_order, &raw mut (*item).glyph
             ) {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -748,12 +748,12 @@ pub unsafe extern "C" fn consolidate_cmap(
         item_0 = (*(*font).cmap).uvs;
         while !item_0.is_null() {
             if !OTFCC_PKG_GLYPH_ORDER
-                .consolidateHandle
+                .consolidate_handle
                 .expect("non-null function pointer")(
                 (*font).glyph_order, &raw mut (*item_0).glyph
             ) {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect(
                         "non-null function pointer",
                     )(
@@ -793,7 +793,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), (*lookup).name),
@@ -804,7 +804,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
         while (j as usize) < (*lookup).subtables.length {
             if (*(*lookup).subtables.items.offset(j as isize)).is_null() {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -833,7 +833,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                     let ref mut fresh3 = *(*lookup).subtables.items.offset(j as isize);
                     *fresh3 = ::core::ptr::null_mut::<Subtable>();
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -865,7 +865,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
         (*lookup).subtables.length = k as usize;
         if k == 0 {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -1201,7 +1201,7 @@ unsafe extern "C" fn consolidate_otl_table(
             let mut feature: *mut Feature =
                 *(*table).features.items.offset(j_0 as isize) as *mut Feature;
             OTL_I_LOOKUP_REF_LIST
-                .filterEnv
+                .filter_env
                 .expect("non-null function pointer")(
                 &raw mut (*feature).lookups,
                 Some(
@@ -1220,7 +1220,7 @@ unsafe extern "C" fn consolidate_otl_table(
             let mut lang: *mut LanguageSystem =
                 *(*table).languages.items.offset(j_1 as isize) as *mut LanguageSystem;
             OTL_I_FEATURE_REF_LIST
-                .filterEnv
+                .filter_env
                 .expect("non-null function pointer")(
                 &raw mut (*lang).features,
                 Some(
@@ -1235,7 +1235,7 @@ unsafe extern "C" fn consolidate_otl_table(
             j_1 = j_1.wrapping_add(1);
         }
         OTL_I_LOOKUP_LIST
-            .filterEnv
+            .filter_env
             .expect("non-null function pointer")(
             &raw mut (*table).lookups,
             Some(
@@ -1245,7 +1245,7 @@ unsafe extern "C" fn consolidate_otl_table(
             NULL,
         );
         OTL_I_FEATURE_LIST
-            .filterEnv
+            .filter_env
             .expect("non-null function pointer")(
             &raw mut (*table).features,
             Some(
@@ -1268,35 +1268,35 @@ unsafe extern "C" fn consolidate_otl_table(
 }
 unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Options) {
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"GSUB"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        consolidate_otl_table(font, (*font).GSUB, options);
+        consolidate_otl_table(font, (*font).gsub, options);
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"GPOS"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        consolidate_otl_table(font, (*font).GPOS, options);
+        consolidate_otl_table(font, (*font).gpos, options);
         ___loggedstep_v_0 = false;
         (*(*options).logger)
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"GDEF"),
@@ -1322,12 +1322,12 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
         let mut mapping: *mut ColrMapping = (*(*font).COLR).items.offset(__caryll_index as isize);
         while keep != 0 {
             if !OTFCC_PKG_GLYPH_ORDER
-                .consolidateHandle
+                .consolidate_handle
                 .expect("non-null function pointer")(
                 (*font).glyph_order, &raw mut (*mapping).glyph
             ) {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -1363,13 +1363,13 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                         (*mapping).layers.items.offset(__caryll_index_0 as isize);
                     while keep_0 != 0 {
                         if !OTFCC_PKG_GLYPH_ORDER
-                            .consolidateHandle
+                            .consolidate_handle
                             .expect("non-null function pointer")(
                             (*font).glyph_order,
                             &raw mut (*layer).glyph,
                         ) {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect("non-null function pointer")(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
@@ -1387,7 +1387,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                                     index: 0,
                                     name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                                 },
-                                paletteIndex: 0,
+                                palette_index: 0,
                             };
                             COLR_I_LAYER.copy.expect("non-null function pointer")(
                                 &raw mut layer1,
@@ -1407,7 +1407,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                     TABLE_I_COLR.push.expect("non-null function pointer")(consolidated, m);
                 } else {
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -1465,7 +1465,7 @@ unsafe extern "C" fn consolidate_tsi(
                 == TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint
             {
                 if OTFCC_PKG_GLYPH_ORDER
-                    .consolidateHandle
+                    .consolidate_handle
                     .expect("non-null function pointer")(
                     (*font).glyph_order,
                     &raw mut (*entry).glyph,
@@ -1478,7 +1478,7 @@ unsafe extern "C" fn consolidate_tsi(
                     (*entry).content = ::core::ptr::null_mut::<::core::ffi::c_char>();
                 } else {
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -1523,7 +1523,7 @@ unsafe extern "C" fn consolidate_tsi(
         e_0.glyph =
             handle_from_index(j) as GlyphHandle;
         OTFCC_PKG_GLYPH_ORDER
-            .consolidateHandle
+            .consolidate_handle
             .expect("non-null function pointer")((*font).glyph_order, &raw mut e_0.glyph);
         e_0.content = if !(*gid_entries.offset(j as isize)).is_null() {
             *gid_entries.offset(j as isize)
@@ -1567,11 +1567,11 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
                 *fresh0 = sdsdup(name);
             }
             if !OTFCC_PKG_GLYPH_ORDER
-                .setByName
+                .set_by_name
                 .expect("non-null function pointer")(go, name, j)
             {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -1588,7 +1588,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
                 loop {
                     let mut newname: SdsRaw = crate::sdsbuild!(sdsempty(), name, b"_", suffix);
                     success = OTFCC_PKG_GLYPH_ORDER
-                        .setByName
+                        .set_by_name
                         .expect("non-null function pointer")(
                         go, newname, j
                     );
@@ -1597,7 +1597,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
                         suffix = suffix.wrapping_add(1 as u32);
                     } else {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -1626,7 +1626,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         (*font).glyph_order = go;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"glyf"),
@@ -1640,7 +1640,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"cmap"),
@@ -1657,7 +1657,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         consolidate_otl(font, options);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"COLR"),
@@ -1671,35 +1671,35 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"TSI_01"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
-        consolidate_tsi(font, &raw mut (*font).TSI_01, options);
+        consolidate_tsi(font, &raw mut (*font).tsi_01, options);
         ___loggedstep_v_2 = false;
         (*(*options).logger)
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"TSI_23"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
-        consolidate_tsi(font, &raw mut (*font).TSI_23, options);
+        consolidate_tsi(font, &raw mut (*font).tsi_23, options);
         ___loggedstep_v_3 = false;
         (*(*options).logger)
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"TSI5"),

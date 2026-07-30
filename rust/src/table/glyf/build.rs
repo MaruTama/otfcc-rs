@@ -74,10 +74,10 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffe
     let mut xs: *mut Buffer = bufnew();
     let mut ys: *mut Buffer = bufnew();
     bufwrite16b(gbuf, (*g).contours.length as u16);
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.xMin));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.yMin));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.xMax));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.yMax));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.x_min));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.y_min));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.x_max));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.y_max));
     let mut ptid: ShapeId = 0 as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < (*g).contours.length {
@@ -89,9 +89,9 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffe
         );
         j = j.wrapping_add(1);
     }
-    bufwrite16b(gbuf, (*g).instructionsLength);
+    bufwrite16b(gbuf, (*g).instructions_length);
     if !(*g).instructions.is_null() {
-        bufwrite_bytes(gbuf, (*g).instructionsLength as usize, (*g).instructions);
+        bufwrite_bytes(gbuf, (*g).instructions_length as usize, (*g).instructions);
     }
     bufclear(flags);
     bufclear(xs);
@@ -105,16 +105,16 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffe
             let mut p: *mut Point = (*(*g).contours.items.offset(cj as isize))
                 .items
                 .offset(k as isize) as *mut Point;
-            let mut flag: PointFlags = if (*p).onCurve & MASK_ON_CURVE != 0 {
+            let mut flag: PointFlags = if (*p).on_curve & MASK_ON_CURVE != 0 {
                 PointFlags::ON_CURVE
             } else {
                 PointFlags::empty()
             };
             let mut px: i32 =
-                round(I_VQ.getStill.expect("non-null function pointer")((*p).x)
+                round(I_VQ.get_still.expect("non-null function pointer")((*p).x)
                     as ::core::ffi::c_double) as i32;
             let mut py: i32 =
-                round(I_VQ.getStill.expect("non-null function pointer")((*p).y)
+                round(I_VQ.get_still.expect("non-null function pointer")((*p).y)
                     as ::core::ffi::c_double) as i32;
             let mut dx: i16 = (px - cx) as i16;
             let mut dy: i16 = (py - cy) as i16;
@@ -165,10 +165,10 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffe
 }
 unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
     bufwrite16b(gbuf, -(1 as ::core::ffi::c_int) as u16);
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.xMin));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.yMin));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.xMax));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.yMax));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.x_min));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.y_min));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.x_max));
+    bufwrite16b(gbuf, pos_to_u16((*g).stat.y_max));
     let mut rj: ShapeId = 0 as ShapeId;
     while (rj as usize) < (*g).references.length {
         let mut r: *mut ComponentReference =
@@ -176,12 +176,12 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
         let mut flags: ComponentFlags =
             if (rj as usize) < (*g).references.length.wrapping_sub(1 as usize) {
                 ComponentFlags::MORE_COMPONENTS
-            } else if (*g).instructionsLength as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+            } else if (*g).instructions_length as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
                 ComponentFlags::WE_HAVE_INSTRUCTIONS
             } else {
                 ComponentFlags::empty()
             };
-        let mut output_anchor: bool = (*r).isAnchored == RefAnchorStatus::AnchorConsolidated;
+        let mut output_anchor: bool = (*r).is_anchored == RefAnchorStatus::AnchorConsolidated;
         let mut arg1: ComponentArg = ComponentArg { pointid: 0 };
         let mut arg2: ComponentArg = ComponentArg { pointid: 0 };
         if output_anchor {
@@ -194,8 +194,8 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
             }
         } else {
             flags.insert(ComponentFlags::ARGS_ARE_XY_VALUES);
-            arg1.coord = I_VQ.getStill.expect("non-null function pointer")((*r).x) as i16;
-            arg2.coord = I_VQ.getStill.expect("non-null function pointer")((*r).y) as i16;
+            arg1.coord = I_VQ.get_still.expect("non-null function pointer")((*r).x) as i16;
+            arg2.coord = I_VQ.get_still.expect("non-null function pointer")((*r).y) as i16;
             if !((arg1.coord as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
                 && arg1.coord as ::core::ffi::c_int >= -(128 as ::core::ffi::c_int)
                 && (arg2.coord as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
@@ -221,10 +221,10 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
                 flags.insert(ComponentFlags::WE_HAVE_A_SCALE);
             }
         }
-        if (*r).roundToGrid {
+        if (*r).round_to_grid {
             flags.insert(ComponentFlags::ROUND_XY_TO_GRID);
         }
-        if (*r).useMyMetrics {
+        if (*r).use_my_metrics {
             flags.insert(ComponentFlags::USE_MY_METRICS);
         }
         flags.insert(ComponentFlags::UNSCALED_COMPONENT_OFFSET);
@@ -272,10 +272,10 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
         }
         rj = rj.wrapping_add(1);
     }
-    if (*g).instructionsLength != 0 {
-        bufwrite16b(gbuf, (*g).instructionsLength);
+    if (*g).instructions_length != 0 {
+        bufwrite16b(gbuf, (*g).instructions_length);
         if !(*g).instructions.is_null() {
-            bufwrite_bytes(gbuf, (*g).instructionsLength as usize, (*g).instructions);
+            bufwrite_bytes(gbuf, (*g).instructions_length as usize, (*g).instructions);
         }
     }
 }
@@ -310,13 +310,13 @@ pub unsafe extern "C" fn otfcc_build_glyf(
         }
         *loca.offset((*table).length as isize) = (*bufglyf).cursor as u32;
         if (*bufglyf).cursor >= 0x20000 as ::core::ffi::c_int as usize {
-            (*head).indexToLocFormat = 1 as i16;
+            (*head).index_to_loc_format = 1 as i16;
         } else {
-            (*head).indexToLocFormat = 0 as i16;
+            (*head).index_to_loc_format = 0 as i16;
         }
         let mut j_0: u32 = 0 as u32;
         while j_0 as usize <= (*table).length {
-            if (*head).indexToLocFormat != 0 {
+            if (*head).index_to_loc_format != 0 {
                 bufwrite32b(bufloca, *loca.offset(j_0 as isize));
             } else {
                 bufwrite16b(

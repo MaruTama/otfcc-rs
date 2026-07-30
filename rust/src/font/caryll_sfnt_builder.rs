@@ -934,7 +934,7 @@ pub unsafe extern "C" fn otfcc_sfnt_builder_push_table(
             }
         }
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -971,7 +971,7 @@ pub unsafe extern "C" fn otfcc_sfnt_builder_serialize(
     } else {
         0 as ::core::ffi::c_uint
     }) as u16;
-    let mut searchRange: u16 = ((if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int
+    let mut search_range: u16 = ((if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int
     {
         8 as ::core::ffi::c_int
     } else {
@@ -987,7 +987,7 @@ pub unsafe extern "C" fn otfcc_sfnt_builder_serialize(
     }) * 16 as ::core::ffi::c_int) as u16;
     bufwrite32b(buffer, (*builder).header);
     bufwrite16b(buffer, n_tables);
-    bufwrite16b(buffer, searchRange);
+    bufwrite16b(buffer, search_range);
     bufwrite16b(
         buffer,
         (if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int {
@@ -1003,7 +1003,7 @@ pub unsafe extern "C" fn otfcc_sfnt_builder_serialize(
     bufwrite16b(
         buffer,
         (n_tables as ::core::ffi::c_int * 16 as ::core::ffi::c_int
-            - searchRange as ::core::ffi::c_int) as u16,
+            - search_range as ::core::ffi::c_int) as u16,
     );
     let mut table: *mut SfntTableEntry = ::core::ptr::null_mut::<SfntTableEntry>();
     let mut offset: usize = (12 as ::core::ffi::c_int

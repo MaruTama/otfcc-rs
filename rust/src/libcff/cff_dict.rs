@@ -29,11 +29,11 @@ pub struct CffDictElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut CffDict, *mut CffDict) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CffDict) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut CffDict, CffDict) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut CffDict, CffDict) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut CffDict, CffDict) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CffDict>,
     pub free: Option<unsafe extern "C" fn(*mut CffDict) -> ()>,
     pub parse: Option<unsafe extern "C" fn(*const u8, u32) -> *mut CffDict>,
-    pub parseToCallback: Option<
+    pub parse_to_callback: Option<
         unsafe extern "C" fn(
             *const u8,
             u32,
@@ -48,7 +48,7 @@ pub struct CffDictElementInterface {
             >,
         ) -> (),
     >,
-    pub parseDictKey:
+    pub parse_dict_key:
         Option<unsafe extern "C" fn(*const u8, u32, u32, u32) -> CffValue>,
     pub build: Option<unsafe extern "C" fn(*const CffDict) -> *mut Buffer>,
 }
@@ -184,7 +184,7 @@ unsafe extern "C" fn parse_dict(mut data: *const u8, len: u32) -> *mut CffDict {
     }
     return dict;
 }
-unsafe extern "C" fn parseToCallback(
+unsafe extern "C" fn parse_to_callback(
     mut data: *const u8,
     len: u32,
     mut context: *mut ::core::ffi::c_void,
@@ -237,7 +237,7 @@ unsafe extern "C" fn callback_get_key(
         (*context).res = *stack.offset((*context).idx as isize);
     }
 }
-unsafe extern "C" fn parseDictKey(
+unsafe extern "C" fn parse_dict_key(
     mut data: *const u8,
     len: u32,
     op: u32,
@@ -257,7 +257,7 @@ unsafe extern "C" fn parseDictKey(
     context.op = op;
     context.res.t = CffValueType::Unset;
     context.res.c2rust_unnamed.i = -(1 as ::core::ffi::c_int) as i32;
-    parseToCallback(
+    parse_to_callback(
         data,
         len,
         &raw mut context as *mut ::core::ffi::c_void,
@@ -319,14 +319,14 @@ pub static CFF_I_DICT: CffDictElementInterface = {
         move_0: Some(cff_dict_move as unsafe extern "C" fn(*mut CffDict, *mut CffDict) -> ()),
         dispose: Some(cff_dict_dispose as unsafe extern "C" fn(*mut CffDict) -> ()),
         replace: Some(cff_dict_replace as unsafe extern "C" fn(*mut CffDict, CffDict) -> ()),
-        copyReplace: Some(
+        copy_replace: Some(
             cff_dict_copy_replace as unsafe extern "C" fn(*mut CffDict, CffDict) -> (),
         ),
         create: Some(cff_dict_create),
         free: Some(cff_dict_free as unsafe extern "C" fn(*mut CffDict) -> ()),
         parse: Some(parse_dict as unsafe extern "C" fn(*const u8, u32) -> *mut CffDict),
-        parseToCallback: Some(
-            parseToCallback
+        parse_to_callback: Some(
+            parse_to_callback
                 as unsafe extern "C" fn(
                     *const u8,
                     u32,
@@ -341,8 +341,8 @@ pub static CFF_I_DICT: CffDictElementInterface = {
                     >,
                 ) -> (),
         ),
-        parseDictKey: Some(
-            parseDictKey
+        parse_dict_key: Some(
+            parse_dict_key
                 as unsafe extern "C" fn(*const u8, u32, u32, u32) -> CffValue,
         ),
         build: Some(build_dict as unsafe extern "C" fn(*const CffDict) -> *mut Buffer),

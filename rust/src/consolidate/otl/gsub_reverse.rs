@@ -64,21 +64,21 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
 ) -> bool {
     let mut subtable: *mut GsubReverseSubtable = &raw mut (*_subtable).gsub_reverse;
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
         fontop_consolidate_coverage(font, *(*subtable).match_0.offset(j as isize), options);
         j = j.wrapping_add(1);
     }
     fontop_consolidate_coverage(font, (*subtable).to, options);
-    if (*subtable).inputIndex as ::core::ffi::c_int >= (*subtable).matchCount as ::core::ffi::c_int
+    if (*subtable).input_index as ::core::ffi::c_int >= (*subtable).match_count as ::core::ffi::c_int
     {
-        (*subtable).inputIndex =
-            ((*subtable).matchCount as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
+        (*subtable).input_index =
+            ((*subtable).match_count as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
     }
     let mut h: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
-    let mut from: *mut Coverage = *(*subtable).match_0.offset((*subtable).inputIndex as isize);
+    let mut from: *mut Coverage = *(*subtable).match_0.offset((*subtable).input_index as isize);
     let mut k: GlyphId = 0 as GlyphId;
-    while (k as ::core::ffi::c_int) < (*from).numGlyphs as ::core::ffi::c_int
-        && (k as ::core::ffi::c_int) < (*(*subtable).to).numGlyphs as ::core::ffi::c_int
+    while (k as ::core::ffi::c_int) < (*from).num_glyphs as ::core::ffi::c_int
+        && (k as ::core::ffi::c_int) < (*(*subtable).to).num_glyphs as ::core::ffi::c_int
     {
         let mut s: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
         let mut fromid: ::core::ffi::c_int =
@@ -389,7 +389,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
         }
         if !s.is_null() {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -987,15 +987,15 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
         (*(*h).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
-    }) != (*from).numGlyphs as ::core::ffi::c_uint
+    }) != (*from).num_glyphs as ::core::ffi::c_uint
         || (if !h.is_null() {
             (*(*h).hh.tbl).num_items
         } else {
             0 as ::core::ffi::c_uint
-        }) != (*(*subtable).to).numGlyphs as ::core::ffi::c_uint
+        }) != (*(*subtable).to).num_glyphs as ::core::ffi::c_uint
     {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
@@ -1006,12 +1006,12 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
             ),
         );
     }
-    (*from).numGlyphs = (if !h.is_null() {
+    (*from).num_glyphs = (if !h.is_null() {
         (*(*h).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
     }) as GlyphId;
-    (*(*subtable).to).numGlyphs = (if !h.is_null() {
+    (*(*subtable).to).num_glyphs = (if !h.is_null() {
         (*(*h).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint

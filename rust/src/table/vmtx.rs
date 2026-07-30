@@ -17,14 +17,14 @@ use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VerticalMetric {
-    pub advanceHeight: Length,
+    pub advance_height: Length,
     pub tsb: Pos,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VmtxTable {
     pub metrics: *mut VerticalMetric,
-    pub topSideBearing: *mut Pos,
+    pub top_side_bearing: *mut Pos,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -34,7 +34,7 @@ pub struct VmtxTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut VmtxTable, *mut VmtxTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VmtxTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VmtxTable>,
     pub free: Option<unsafe extern "C" fn(*mut VmtxTable) -> ()>,
 }
@@ -44,9 +44,9 @@ unsafe extern "C" fn dispose_vmtx(mut table: *mut VmtxTable) {
         free((*table).metrics as *mut ::core::ffi::c_void);
         (*table).metrics = ::core::ptr::null_mut::<VerticalMetric>();
     }
-    if !(*table).topSideBearing.is_null() {
-        free((*table).topSideBearing as *mut ::core::ffi::c_void);
-        (*table).topSideBearing = ::core::ptr::null_mut::<Pos>();
+    if !(*table).top_side_bearing.is_null() {
+        free((*table).top_side_bearing as *mut ::core::ffi::c_void);
+        (*table).top_side_bearing = ::core::ptr::null_mut::<Pos>();
     }
 }
 #[inline]
@@ -112,7 +112,7 @@ pub static TABLE_I_VMTX: VmtxTableElementInterface = {
         replace: Some(
             table_vmtx_replace as unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_vmtx_copy_replace as unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> (),
         ),
         create: Some(table_vmtx_create),
@@ -135,9 +135,9 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
 ) -> *mut VmtxTable {
     if vhea.is_null()
         || maxp.is_null()
-        || (*vhea).numOfLongVerMetrics as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-        || ((*maxp).numGlyphs as ::core::ffi::c_int)
-            < (*vhea).numOfLongVerMetrics as ::core::ffi::c_int
+        || (*vhea).num_of_long_ver_metrics as ::core::ffi::c_int == 0 as ::core::ffi::c_int
+        || ((*maxp).num_glyphs as ::core::ffi::c_int)
+            < (*vhea).num_of_long_ver_metrics as ::core::ffi::c_int
     {
         return ::core::ptr::null_mut::<VmtxTable>();
     }
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -156,9 +156,9 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     let mut vmtx: *mut VmtxTable = ::core::ptr::null_mut::<VmtxTable>();
-                    let mut count_a: GlyphId = (*vhea).numOfLongVerMetrics as GlyphId;
-                    let mut count_k: GlyphId = ((*maxp).numGlyphs as ::core::ffi::c_int
-                        - (*vhea).numOfLongVerMetrics as ::core::ffi::c_int)
+                    let mut count_a: GlyphId = (*vhea).num_of_long_ver_metrics as GlyphId;
+                    let mut count_k: GlyphId = ((*maxp).num_glyphs as ::core::ffi::c_int
+                        - (*vhea).num_of_long_ver_metrics as ::core::ffi::c_int)
                         as GlyphId;
                     if length
                         < (count_a as ::core::ffi::c_int * 4 as ::core::ffi::c_int
@@ -166,7 +166,7 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
                             as u32
                     {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -187,14 +187,14 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
                                 .wrapping_mul(count_a as usize),
                             28 as ::core::ffi::c_ulong,
                         ) as *mut VerticalMetric;
-                        (*vmtx).topSideBearing = __caryll_allocate_clean(
+                        (*vmtx).top_side_bearing = __caryll_allocate_clean(
                             (::core::mem::size_of::<Pos>() as usize)
                                 .wrapping_mul(count_k as usize),
                             29 as ::core::ffi::c_ulong,
                         ) as *mut Pos;
                         let mut ia: GlyphId = 0 as GlyphId;
                         while (ia as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-                            (*(*vmtx).metrics.offset(ia as isize)).advanceHeight =
+                            (*(*vmtx).metrics.offset(ia as isize)).advance_height =
                                 read_16u(data.offset(
                                     (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
                                 ) as *const u8) as Length;
@@ -210,7 +210,7 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
                         }
                         let mut ik: GlyphId = 0 as GlyphId;
                         while (ik as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
-                            *(*vmtx).topSideBearing.offset(ik as isize) = read_16s(
+                            *(*vmtx).top_side_bearing.offset(ik as isize) = read_16s(
                                 data.offset(
                                     (count_a as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
                                         as isize,
@@ -250,18 +250,18 @@ pub unsafe extern "C" fn otfcc_build_vmtx(
         while (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
             bufwrite16b(
                 buf,
-                (*(*vmtx).metrics.offset(j as isize)).advanceHeight as u16,
+                (*(*vmtx).metrics.offset(j as isize)).advance_height as u16,
             );
             bufwrite16b(buf, pos_to_u16((*(*vmtx).metrics.offset(j as isize)).tsb));
             j = j.wrapping_add(1);
         }
     }
-    if !(*vmtx).topSideBearing.is_null() {
+    if !(*vmtx).top_side_bearing.is_null() {
         let mut j_0: GlyphId = 0 as GlyphId;
         while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
             bufwrite16b(
                 buf,
-                pos_to_u16(*(*vmtx).topSideBearing.offset(j_0 as isize)),
+                pos_to_u16(*(*vmtx).top_side_bearing.offset(j_0 as isize)),
             );
             j_0 = j_0.wrapping_add(1);
         }

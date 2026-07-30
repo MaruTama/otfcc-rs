@@ -17,7 +17,7 @@ use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GaspRecord {
-    pub rangeMaxPPEM: GlyphSize,
+    pub range_max_ppem: GlyphSize,
     pub dogray: bool,
     pub gridfit: bool,
     pub symmetric_smoothing: bool,
@@ -31,7 +31,7 @@ pub struct GaspRecordElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut GaspRecord, *mut GaspRecord) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GaspRecord) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut GaspRecord, GaspRecord) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut GaspRecord, GaspRecord) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut GaspRecord, GaspRecord) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -48,19 +48,19 @@ pub struct GaspRecordListVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut GaspRecordList, *mut GaspRecordList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GaspRecordList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut GaspRecordList, GaspRecordList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut GaspRecordList, GaspRecordList) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut GaspRecordList, GaspRecordList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GaspRecordList>,
     pub free: Option<unsafe extern "C" fn(*mut GaspRecordList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut GaspRecordList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GaspRecordList>,
     pub fill: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GaspRecordList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut GaspRecordList, GaspRecord) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut GaspRecordList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GaspRecordList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut GaspRecordList) -> GaspRecord>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut GaspRecordList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut GaspRecordList,
             Option<unsafe extern "C" fn(*const GaspRecord, *mut ::core::ffi::c_void) -> bool>,
@@ -90,7 +90,7 @@ pub struct GaspTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut GaspTable, *mut GaspTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GaspTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut GaspTable, GaspTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut GaspTable, GaspTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut GaspTable, GaspTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GaspTable>,
     pub free: Option<unsafe extern "C" fn(*mut GaspTable) -> ()>,
 }
@@ -147,7 +147,7 @@ pub static GASP_I_RECORD: GaspRecordElementInterface = {
         replace: Some(
             gasp_record_replace as unsafe extern "C" fn(*mut GaspRecord, GaspRecord) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             gasp_record_copy_replace as unsafe extern "C" fn(*mut GaspRecord, GaspRecord) -> (),
         ),
     }
@@ -336,19 +336,19 @@ pub static GASP_I_RECORD_LIST: GaspRecordListVectorInterface = {
             gasp_record_list_replace
                 as unsafe extern "C" fn(*mut GaspRecordList, GaspRecordList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             gasp_record_list_copy_replace
                 as unsafe extern "C" fn(*mut GaspRecordList, GaspRecordList) -> (),
         ),
         create: Some(gasp_record_list_create),
         free: Some(gasp_record_list_free as unsafe extern "C" fn(*mut GaspRecordList) -> ()),
-        initN: Some(
+        init_n: Some(
             gasp_record_list_init_n as unsafe extern "C" fn(*mut GaspRecordList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             gasp_record_list_init_cap_n as unsafe extern "C" fn(*mut GaspRecordList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             gasp_record_list_create_n as unsafe extern "C" fn(usize) -> *mut GaspRecordList,
         ),
         fill: Some(
@@ -358,14 +358,14 @@ pub static GASP_I_RECORD_LIST: GaspRecordListVectorInterface = {
         push: Some(
             gasp_record_list_push as unsafe extern "C" fn(*mut GaspRecordList, GaspRecord) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             gasp_record_list_shrink_to_fit as unsafe extern "C" fn(*mut GaspRecordList) -> (),
         ),
         pop: Some(gasp_record_list_pop as unsafe extern "C" fn(*mut GaspRecordList) -> GaspRecord),
-        disposeItem: Some(
+        dispose_item: Some(
             gasp_record_list_dispose_item as unsafe extern "C" fn(*mut GaspRecordList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             gasp_record_list_filter_env
                 as unsafe extern "C" fn(
                     *mut GaspRecordList,
@@ -421,7 +421,7 @@ unsafe extern "C" fn gasp_record_list_sort(
 unsafe extern "C" fn gasp_record_list_fill(mut arr: *mut GaspRecordList, mut n: usize) {
     while (*arr).length < n {
         let mut x: GaspRecord = GaspRecord {
-            rangeMaxPPEM: 0,
+            range_max_ppem: 0,
             dogray: false,
             gridfit: false,
             symmetric_smoothing: false,
@@ -511,7 +511,7 @@ pub static TABLE_I_GASP: GaspTableElementInterface = {
         replace: Some(
             table_gasp_replace as unsafe extern "C" fn(*mut GaspTable, GaspTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_gasp_copy_replace as unsafe extern "C" fn(*mut GaspTable, GaspTable) -> (),
         ),
         create: Some(table_gasp_create),
@@ -537,7 +537,7 @@ pub unsafe extern "C" fn otfcc_read_gasp(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -561,13 +561,13 @@ pub unsafe extern "C" fn otfcc_read_gasp(
                             let mut j: u32 = 0 as u32;
                             while j < num_ranges as u32 {
                                 let mut record: GaspRecord = GaspRecord {
-                                    rangeMaxPPEM: 0,
+                                    range_max_ppem: 0,
                                     dogray: false,
                                     gridfit: false,
                                     symmetric_smoothing: false,
                                     symmetric_gridfit: false,
                                 };
-                                record.rangeMaxPPEM = read_16u(
+                                record.range_max_ppem = read_16u(
                                     data.offset(4 as ::core::ffi::c_int as isize)
                                         .offset(j.wrapping_mul(4 as u32) as isize)
                                         as *const u8,
@@ -600,7 +600,7 @@ pub unsafe extern "C" fn otfcc_read_gasp(
                         }
                     }
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -629,7 +629,7 @@ pub unsafe extern "C" fn otfcc_dump_gasp(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"gasp"),
@@ -644,7 +644,7 @@ pub unsafe extern "C" fn otfcc_dump_gasp(
                 rec,
                 b"rangeMaxPPEM\0" as *const u8 as *const ::core::ffi::c_char,
                 json_integer_new(
-                    (*(*table).records.items.offset(j as isize)).rangeMaxPPEM as i64,
+                    (*(*table).records.items.offset(j as isize)).range_max_ppem as i64,
                 ),
             );
             json_object_push(
@@ -704,7 +704,7 @@ pub unsafe extern "C" fn otfcc_parse_gasp(
     );
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"gasp"),
@@ -721,13 +721,13 @@ pub unsafe extern "C" fn otfcc_parse_gasp(
                     || (*r).type_0 != JsonType::Object)
                 {
                     let mut record: GaspRecord = GaspRecord {
-                        rangeMaxPPEM: 0,
+                        range_max_ppem: 0,
                         dogray: false,
                         gridfit: false,
                         symmetric_smoothing: false,
                         symmetric_gridfit: false,
                     };
-                    record.rangeMaxPPEM = json_obj_getint_fallback(
+                    record.range_max_ppem = json_obj_getint_fallback(
                         r,
                         b"rangeMaxPPEM\0" as *const u8 as *const ::core::ffi::c_char,
                         0xffff as i32,
@@ -776,7 +776,7 @@ pub unsafe extern "C" fn otfcc_build_gasp(
     let mut j: u16 = 0 as u16;
     while (j as usize) < (*gasp).records.length {
         let mut r: *mut GaspRecord = (*gasp).records.items.offset(j as isize) as *mut GaspRecord;
-        bufwrite16b(buf, (*r).rangeMaxPPEM as u16);
+        bufwrite16b(buf, (*r).range_max_ppem as u16);
         bufwrite16b(
             buf,
             ((if (*r).dogray as ::core::ffi::c_int != 0 {

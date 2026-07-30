@@ -140,15 +140,15 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
     let mut offset: i32 = 0;
     (*cff).head.major = gu1((*cff).raw_data, 0 as u32) as u8;
     (*cff).head.minor = gu1((*cff).raw_data, 1 as u32) as u8;
-    (*cff).head.hdrSize = gu1((*cff).raw_data, 2 as u32) as u8;
-    (*cff).head.offSize = gu1((*cff).raw_data, 3 as u32) as u8;
-    pos = (*cff).head.hdrSize as u32;
+    (*cff).head.hdr_size = gu1((*cff).raw_data, 2 as u32) as u8;
+    (*cff).head.off_size = gu1((*cff).raw_data, 3 as u32) as u8;
+    pos = (*cff).head.hdr_size as u32;
     CFF_I_INDEX.parse.expect("non-null function pointer")(
         (*cff).raw_data,
         pos,
         &raw mut (*cff).name,
     );
-    pos = (4 as u32).wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
+    pos = (4 as u32).wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
         &raw mut (*cff).name,
     ));
     CFF_I_INDEX.parse.expect("non-null function pointer")(
@@ -158,7 +158,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
     );
     if (*cff).name.count != (*cff).top_dict.count {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
@@ -174,10 +174,10 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         );
     }
     pos = (4 as u32)
-        .wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
+        .wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
             &raw mut (*cff).name,
         ))
-        .wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
+        .wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
             &raw mut (*cff).top_dict,
         ));
     CFF_I_INDEX.parse.expect("non-null function pointer")(
@@ -186,13 +186,13 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         &raw mut (*cff).string,
     );
     pos = (4 as u32)
-        .wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
+        .wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
             &raw mut (*cff).name,
         ))
-        .wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
+        .wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
             &raw mut (*cff).top_dict,
         ))
-        .wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
+        .wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
             &raw mut (*cff).string,
         ));
     CFF_I_INDEX.parse.expect("non-null function pointer")(
@@ -202,7 +202,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
     );
     if !(*cff).top_dict.data.is_null() {
         let mut offset_0: i32 = 0;
-        offset_0 = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+        offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -229,7 +229,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         } else {
             CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).char_strings);
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -237,7 +237,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                 crate::sdsbuild!(sdsempty(), b"[libcff] Bad CFF font: no any glyph data.\n"),
             );
         }
-        offset_0 = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+        offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -259,7 +259,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         } else {
             (*cff).encodings.t = CffEncodingType::Unspecified;
         }
-        offset_0 = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+        offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -286,7 +286,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         } else {
             (*cff).charsets.t = CFF_CHARSET_UNSPECED;
         }
-        offset_0 = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+        offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -313,7 +313,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         } else {
             (*cff).fdselect.t = CffFdSelectType::Unspecified;
         }
-        offset_0 = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+        offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -343,7 +343,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
     let mut private_len: i32 = -(1 as i32);
     let mut private_off: i32 = -(1 as i32);
     if !(*cff).top_dict.data.is_null() {
-        private_len = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+        private_len = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -360,7 +360,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         )
         .c2rust_unnamed
         .i;
-        private_off = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+        private_off = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -379,7 +379,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         .i;
     }
     if private_off != -(1 as i32) && private_len != -(1 as i32) {
-        offset = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+        offset = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).raw_data.offset(private_off as isize),
             private_len as u32,
             OP_SUBRS as u32,
@@ -523,7 +523,7 @@ pub unsafe extern "C" fn cff_parse_subr(
             fd = 0 as u8;
         }
     }
-    off_private = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+    off_private = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
         fdarray
             .data
             .offset(*fdarray.offset.offset(fd as isize) as isize)
@@ -537,7 +537,7 @@ pub unsafe extern "C" fn cff_parse_subr(
     )
     .c2rust_unnamed
     .i;
-    len_private = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+    len_private = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
         fdarray
             .data
             .offset(*fdarray.offset.offset(fd as isize) as isize)
@@ -552,7 +552,7 @@ pub unsafe extern "C" fn cff_parse_subr(
     .c2rust_unnamed
     .i;
     if off_private != -(1 as i32) && len_private != -(1 as i32) {
-        off_subr = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
+        off_subr = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             raw.offset(off_private as isize),
             len_private as u32,
             OP_SUBRS as u32,
@@ -661,19 +661,19 @@ pub unsafe extern "C" fn cff_parse_outline(
         t: CffValueType::Unset,
         c2rust_unnamed: CffValueBody { i: 0 },
     };
-    let mut setWidth: Option<
+    let mut set_width: Option<
         unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> (),
-    > = methods.setWidth;
-    let mut newContour: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ()> =
-        methods.newContour;
-    let mut lineTo: Option<
+    > = methods.set_width;
+    let mut new_contour: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ()> =
+        methods.new_contour;
+    let mut line_to: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             ::core::ffi::c_double,
             ::core::ffi::c_double,
         ) -> (),
-    > = methods.lineTo;
-    let mut curveTo: Option<
+    > = methods.line_to;
+    let mut curve_to: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             ::core::ffi::c_double,
@@ -683,34 +683,34 @@ pub unsafe extern "C" fn cff_parse_outline(
             ::core::ffi::c_double,
             ::core::ffi::c_double,
         ) -> (),
-    > = methods.curveTo;
-    let mut setHint: Option<
+    > = methods.curve_to;
+    let mut set_hint: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             bool,
             ::core::ffi::c_double,
             ::core::ffi::c_double,
         ) -> (),
-    > = methods.setHint;
-    let mut setMask: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, bool, *mut bool) -> ()> =
-        methods.setMask;
+    > = methods.set_hint;
+    let mut set_mask: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, bool, *mut bool) -> ()> =
+        methods.set_mask;
     let mut getrand: Option<
         unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ::core::ffi::c_double,
     > = methods.getrand;
-    if setWidth.is_none() {
-        setWidth = Some(
+    if set_width.is_none() {
+        set_width = Some(
             callback_nop_set_width
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> (),
         )
             as Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> ()>;
     }
-    if newContour.is_none() {
-        newContour =
+    if new_contour.is_none() {
+        new_contour =
             Some(callback_nop_new_contour as unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ())
                 as Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ()>;
     }
-    if lineTo.is_none() {
-        lineTo = Some(
+    if line_to.is_none() {
+        line_to = Some(
             callback_nop_line_to
                 as unsafe extern "C" fn(
                     *mut ::core::ffi::c_void,
@@ -726,8 +726,8 @@ pub unsafe extern "C" fn cff_parse_outline(
                 ) -> (),
             >;
     }
-    if curveTo.is_none() {
-        curveTo = Some(
+    if curve_to.is_none() {
+        curve_to = Some(
             callback_nop_curve_to
                 as unsafe extern "C" fn(
                     *mut ::core::ffi::c_void,
@@ -751,8 +751,8 @@ pub unsafe extern "C" fn cff_parse_outline(
                 ) -> (),
             >;
     }
-    if setHint.is_none() {
-        setHint = Some(
+    if set_hint.is_none() {
+        set_hint = Some(
             callback_nopset_hint
                 as unsafe extern "C" fn(
                     *mut ::core::ffi::c_void,
@@ -770,8 +770,8 @@ pub unsafe extern "C" fn cff_parse_outline(
                 ) -> (),
             >;
     }
-    if setMask.is_none() {
-        setMask = Some(
+    if set_mask.is_none() {
+        set_mask = Some(
             callback_nopset_mask
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, bool, *mut bool) -> (),
         )
@@ -792,7 +792,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                 match val.c2rust_unnamed.i {
                     1 | 3 | 18 | 23 => {
                         if (*stack).index.wrapping_rem(2 as Arity) != 0 {
-                            setWidth.expect("non-null function pointer")(
+                            set_width.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -812,7 +812,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             ))
                             .c2rust_unnamed
                             .d;
-                            setHint.expect("non-null function pointer")(
+                            set_hint.expect("non-null function pointer")(
                                 outline,
                                 val.c2rust_unnamed.i == OP_VSTEM
                                     || val.c2rust_unnamed.i
@@ -827,7 +827,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     }
                     19 | 20 => {
                         if (*stack).index.wrapping_rem(2 as Arity) != 0 {
-                            setWidth.expect("non-null function pointer")(
+                            set_width.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -851,7 +851,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             ))
                             .c2rust_unnamed
                             .d;
-                            setHint.expect("non-null function pointer")(
+                            set_hint.expect("non-null function pointer")(
                                 outline,
                                 is_vertical,
                                 pos_0 + hint_base_0,
@@ -925,7 +925,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 != 0;
                             byte = byte.wrapping_add(1);
                         }
-                        setMask.expect("non-null function pointer")(
+                        set_mask.expect("non-null function pointer")(
                             outline,
                             val.c2rust_unnamed.i == OP_CNTRMASK,
                             mask,
@@ -936,7 +936,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     4 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -954,7 +954,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             if (*stack).index > 1 as Arity {
-                                setWidth
+                                set_width
                                     .expect(
                                         "non-null function pointer",
                                     )(
@@ -966,8 +966,8 @@ pub unsafe extern "C" fn cff_parse_outline(
                                         .d,
                                 );
                             }
-                            newContour.expect("non-null function pointer")(outline);
-                            lineTo.expect("non-null function pointer")(
+                            new_contour.expect("non-null function pointer")(outline);
+                            line_to.expect("non-null function pointer")(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
@@ -982,7 +982,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     21 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -1000,7 +1000,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             if (*stack).index > 2 as Arity {
-                                setWidth
+                                set_width
                                     .expect(
                                         "non-null function pointer",
                                     )(
@@ -1012,8 +1012,8 @@ pub unsafe extern "C" fn cff_parse_outline(
                                         .d,
                                 );
                             }
-                            newContour.expect("non-null function pointer")(outline);
-                            lineTo.expect("non-null function pointer")(
+                            new_contour.expect("non-null function pointer")(outline);
+                            line_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
                                     .stack
@@ -1032,7 +1032,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     22 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -1050,7 +1050,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             if (*stack).index > 1 as Arity {
-                                setWidth
+                                set_width
                                     .expect(
                                         "non-null function pointer",
                                     )(
@@ -1062,8 +1062,8 @@ pub unsafe extern "C" fn cff_parse_outline(
                                         .d,
                                 );
                             }
-                            newContour.expect("non-null function pointer")(outline);
-                            lineTo.expect("non-null function pointer")(
+                            new_contour.expect("non-null function pointer")(outline);
+                            line_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
                                     .stack
@@ -1077,7 +1077,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     }
                     14 => {
                         if (*stack).index > 0 as Arity {
-                            setWidth.expect("non-null function pointer")(
+                            set_width.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
                                     .stack
@@ -1090,7 +1090,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     5 => {
                         i = 0 as u32;
                         while i < (*stack).index {
-                            lineTo.expect("non-null function pointer")(
+                            line_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                 (*(*stack)
@@ -1105,7 +1105,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     }
                     7 => {
                         if (*stack).index.wrapping_rem(2 as Arity) == 1 as Arity {
-                            lineTo.expect("non-null function pointer")(
+                            line_to.expect("non-null function pointer")(
                                 outline,
                                 0.0f64,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
@@ -1114,12 +1114,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                             i = 1 as u32;
                             while i < (*stack).index {
-                                lineTo.expect("non-null function pointer")(
+                                line_to.expect("non-null function pointer")(
                                     outline,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
                                 );
-                                lineTo.expect("non-null function pointer")(
+                                line_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
                                     (*(*stack)
@@ -1133,12 +1133,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                         } else {
                             i = 0 as u32;
                             while i < (*stack).index {
-                                lineTo.expect("non-null function pointer")(
+                                line_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                 );
-                                lineTo.expect("non-null function pointer")(
+                                line_to.expect("non-null function pointer")(
                                     outline,
                                     (*(*stack)
                                         .stack
@@ -1154,7 +1154,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     }
                     6 => {
                         if (*stack).index.wrapping_rem(2 as Arity) == 1 as Arity {
-                            lineTo.expect("non-null function pointer")(
+                            line_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -1163,12 +1163,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                             i = 1 as u32;
                             while i < (*stack).index {
-                                lineTo.expect("non-null function pointer")(
+                                line_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                 );
-                                lineTo.expect("non-null function pointer")(
+                                line_to.expect("non-null function pointer")(
                                     outline,
                                     (*(*stack)
                                         .stack
@@ -1182,12 +1182,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                         } else {
                             i = 0 as u32;
                             while i < (*stack).index {
-                                lineTo.expect("non-null function pointer")(
+                                line_to.expect("non-null function pointer")(
                                     outline,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
                                 );
-                                lineTo.expect("non-null function pointer")(
+                                line_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
                                     (*(*stack)
@@ -1204,7 +1204,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     8 => {
                         i = 0 as u32;
                         while i < (*stack).index {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                 (*(*stack)
@@ -1240,7 +1240,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     24 => {
                         i = 0 as u32;
                         while i < (*stack).index.wrapping_sub(2 as Arity) {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                 (*(*stack)
@@ -1271,7 +1271,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                             i = i.wrapping_add(6 as u32);
                         }
-                        lineTo.expect("non-null function pointer")(
+                        line_to.expect("non-null function pointer")(
                             outline,
                             (*(*stack)
                                 .stack
@@ -1289,7 +1289,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     25 => {
                         i = 0 as u32;
                         while i < (*stack).index.wrapping_sub(6 as Arity) {
-                            lineTo.expect("non-null function pointer")(
+                            line_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                 (*(*stack)
@@ -1300,7 +1300,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                             i = i.wrapping_add(2 as u32);
                         }
-                        curveTo.expect("non-null function pointer")(
+                        curve_to.expect("non-null function pointer")(
                             outline,
                             (*(*stack)
                                 .stack
@@ -1337,7 +1337,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     }
                     26 => {
                         if (*stack).index.wrapping_rem(4 as Arity) == 1 as Arity {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -1358,7 +1358,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                             i = 5 as u32;
                             while i < (*stack).index {
-                                curveTo.expect("non-null function pointer")(
+                                curve_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
@@ -1384,7 +1384,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                         } else {
                             i = 0 as u32;
                             while i < (*stack).index {
-                                curveTo.expect("non-null function pointer")(
+                                curve_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
@@ -1412,7 +1412,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     }
                     27 => {
                         if (*stack).index.wrapping_rem(4 as Arity) == 1 as Arity {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(1 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -1433,7 +1433,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                             i = 5 as u32;
                             while i < (*stack).index {
-                                curveTo.expect("non-null function pointer")(
+                                curve_to.expect("non-null function pointer")(
                                     outline,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
@@ -1459,7 +1459,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                         } else {
                             i = 0 as u32;
                             while i < (*stack).index {
-                                curveTo.expect("non-null function pointer")(
+                                curve_to.expect("non-null function pointer")(
                                     outline,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
@@ -1500,7 +1500,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             if i.wrapping_div(4 as u32).wrapping_rem(2 as u32)
                                 == 0 as u32
                             {
-                                curveTo.expect("non-null function pointer")(
+                                curve_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
@@ -1522,7 +1522,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     0.0f64,
                                 );
                             } else {
-                                curveTo.expect("non-null function pointer")(
+                                curve_to.expect("non-null function pointer")(
                                     outline,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
@@ -1547,7 +1547,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             i = i.wrapping_add(4 as u32);
                         }
                         if (*stack).index.wrapping_rem(8 as Arity) == 5 as Arity {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
@@ -1578,7 +1578,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         }
                         if (*stack).index.wrapping_rem(8 as Arity) == 1 as Arity {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
                                     .stack
@@ -1625,7 +1625,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             if i.wrapping_div(4 as u32).wrapping_rem(2 as u32)
                                 == 0 as u32
                             {
-                                curveTo.expect("non-null function pointer")(
+                                curve_to.expect("non-null function pointer")(
                                     outline,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
@@ -1647,7 +1647,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     .d,
                                 );
                             } else {
-                                curveTo.expect("non-null function pointer")(
+                                curve_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
                                     (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
@@ -1672,7 +1672,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             i = i.wrapping_add(4 as u32);
                         }
                         if (*stack).index.wrapping_rem(8 as Arity) == 5 as Arity {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
                                     .stack
@@ -1703,7 +1703,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         }
                         if (*stack).index.wrapping_rem(8 as Arity) == 1 as Arity {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
@@ -1738,7 +1738,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3106 => {
                         if (*stack).index < 7 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -1755,7 +1755,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -1772,7 +1772,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     .d,
                                 0.0f64,
                             );
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(4 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -1795,7 +1795,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3107 => {
                         if (*stack).index < 12 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -1812,7 +1812,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -1833,7 +1833,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     .c2rust_unnamed
                                     .d,
                             );
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(6 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -1860,7 +1860,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3108 => {
                         if (*stack).index < 9 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -1877,7 +1877,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -1896,7 +1896,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     .d,
                                 0.0f64,
                             );
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(5 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -1927,7 +1927,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3109 => {
                         if (*stack).index < 11 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -1987,7 +1987,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     .c2rust_unnamed
                                     .d;
                             }
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -2008,7 +2008,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     .c2rust_unnamed
                                     .d,
                             );
-                            curveTo.expect("non-null function pointer")(
+                            curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack).stack.offset(6 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
@@ -2031,7 +2031,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3075 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2073,7 +2073,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3076 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2115,7 +2115,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3077 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2147,7 +2147,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3081 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2179,7 +2179,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3082 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2217,7 +2217,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3083 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2255,7 +2255,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3084 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2293,7 +2293,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3086 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2325,7 +2325,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3087 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2363,7 +2363,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3090 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2386,7 +2386,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3092 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2424,7 +2424,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3093 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2460,7 +2460,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3094 => {
                         if (*stack).index < 4 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2515,7 +2515,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3096 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2553,7 +2553,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3098 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2585,7 +2585,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3099 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2611,7 +2611,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3100 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2653,7 +2653,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3101 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2685,7 +2685,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     3102 => {
                         if (*stack).index < 2 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2714,7 +2714,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             .d as u32;
                             if (*stack).index < (2 as u32).wrapping_add(n_0) {
                                 (*(*options).logger)
-                                    .logSDS
+                                    .log_sds
                                     .expect(
                                         "non-null function pointer",
                                     )(
@@ -2759,7 +2759,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     10 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2815,7 +2815,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     29 => {
                         if (*stack).index < 1 as Arity {
                             (*(*options).logger)
-                                .logSDS
+                                .log_sds
                                 .expect(
                                     "non-null function pointer",
                                 )(
@@ -2866,7 +2866,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                     }
                     _ => {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect(
                                 "non-null function pointer",
                             )(

@@ -23,7 +23,7 @@ use crate::vendor::sds::{sdsempty, sdsnewlen};
 #[repr(C)]
 pub struct ColrLayer {
     pub glyph: GlyphHandle,
-    pub paletteIndex: ColorId,
+    pub palette_index: ColorId,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -33,7 +33,7 @@ pub struct ColrLayerElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut ColrLayer, *mut ColrLayer) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ColrLayer) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut ColrLayer, ColrLayer) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut ColrLayer, ColrLayer) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut ColrLayer, ColrLayer) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -50,19 +50,19 @@ pub struct ColrLayerListVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut ColrLayerList, *mut ColrLayerList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut ColrLayerList, ColrLayerList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut ColrLayerList, ColrLayerList) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut ColrLayerList, ColrLayerList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut ColrLayerList>,
     pub free: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut ColrLayerList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut ColrLayerList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut ColrLayerList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut ColrLayerList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut ColrLayerList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut ColrLayerList>,
     pub fill: Option<unsafe extern "C" fn(*mut ColrLayerList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut ColrLayerList, ColrLayer) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ColrLayer>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut ColrLayerList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut ColrLayerList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut ColrLayerList,
             Option<unsafe extern "C" fn(*const ColrLayer, *mut ::core::ffi::c_void) -> bool>,
@@ -90,7 +90,7 @@ pub struct ColrMappingElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut ColrMapping, *mut ColrMapping) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ColrMapping) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut ColrMapping, ColrMapping) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut ColrMapping, ColrMapping) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut ColrMapping, ColrMapping) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -107,19 +107,19 @@ pub struct ColrTableVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut ColrTable, *mut ColrTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut ColrTable, ColrTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut ColrTable, ColrTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut ColrTable, ColrTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut ColrTable>,
     pub free: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut ColrTable, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut ColrTable, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut ColrTable>,
+    pub init_n: Option<unsafe extern "C" fn(*mut ColrTable, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut ColrTable, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut ColrTable>,
     pub fill: Option<unsafe extern "C" fn(*mut ColrTable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut ColrTable, ColrMapping) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut ColrTable) -> ColrMapping>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut ColrTable, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut ColrTable, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut ColrTable,
             Option<unsafe extern "C" fn(*const ColrMapping, *mut ::core::ffi::c_void) -> bool>,
@@ -148,7 +148,7 @@ unsafe extern "C" fn copy_layer(mut dst: *mut ColrLayer, mut src: *const ColrLay
         &raw mut (*dst).glyph,
         &raw const (*src).glyph,
     );
-    (*dst).paletteIndex = (*src).paletteIndex;
+    (*dst).palette_index = (*src).palette_index;
 }
 #[inline]
 unsafe extern "C" fn dispose_layer(mut layer: *mut ColrLayer) {
@@ -167,7 +167,7 @@ pub static COLR_I_LAYER: ColrLayerElementInterface = {
         replace: Some(
             colr_layer_replace as unsafe extern "C" fn(*mut ColrLayer, ColrLayer) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             colr_layer_copy_replace as unsafe extern "C" fn(*mut ColrLayer, ColrLayer) -> (),
         ),
     }
@@ -239,7 +239,7 @@ unsafe extern "C" fn colr_layer_list_fill(mut arr: *mut ColrLayerList, mut n: us
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
-            paletteIndex: 0,
+            palette_index: 0,
         };
         if COLR_I_LAYER.init.is_some() {
             COLR_I_LAYER.init.expect("non-null function pointer")(&raw mut x);
@@ -277,19 +277,19 @@ pub static COLR_I_LAYER_LIST: ColrLayerListVectorInterface = {
             colr_layer_list_replace
                 as unsafe extern "C" fn(*mut ColrLayerList, ColrLayerList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             colr_layer_list_copy_replace
                 as unsafe extern "C" fn(*mut ColrLayerList, ColrLayerList) -> (),
         ),
         create: Some(colr_layer_list_create),
         free: Some(colr_layer_list_free as unsafe extern "C" fn(*mut ColrLayerList) -> ()),
-        initN: Some(
+        init_n: Some(
             colr_layer_list_init_n as unsafe extern "C" fn(*mut ColrLayerList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             colr_layer_list_init_cap_n as unsafe extern "C" fn(*mut ColrLayerList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             colr_layer_list_create_n as unsafe extern "C" fn(usize) -> *mut ColrLayerList,
         ),
         fill: Some(colr_layer_list_fill as unsafe extern "C" fn(*mut ColrLayerList, usize) -> ()),
@@ -297,14 +297,14 @@ pub static COLR_I_LAYER_LIST: ColrLayerListVectorInterface = {
         push: Some(
             colr_layer_list_push as unsafe extern "C" fn(*mut ColrLayerList, ColrLayer) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             colr_layer_list_shrink_to_fit as unsafe extern "C" fn(*mut ColrLayerList) -> (),
         ),
         pop: Some(colr_layer_list_pop as unsafe extern "C" fn(*mut ColrLayerList) -> ColrLayer),
-        disposeItem: Some(
+        dispose_item: Some(
             colr_layer_list_dispose_item as unsafe extern "C" fn(*mut ColrLayerList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             colr_layer_list_filter_env
                 as unsafe extern "C" fn(
                     *mut ColrLayerList,
@@ -532,7 +532,7 @@ pub static COLR_I_MAPPING: ColrMappingElementInterface = {
         replace: Some(
             colr_mapping_replace as unsafe extern "C" fn(*mut ColrMapping, ColrMapping) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             colr_mapping_copy_replace as unsafe extern "C" fn(*mut ColrMapping, ColrMapping) -> (),
         ),
     }
@@ -589,23 +589,23 @@ pub static TABLE_I_COLR: ColrTableVectorInterface = {
         replace: Some(
             table_colr_replace as unsafe extern "C" fn(*mut ColrTable, ColrTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_colr_copy_replace as unsafe extern "C" fn(*mut ColrTable, ColrTable) -> (),
         ),
         create: Some(table_colr_create),
         free: Some(table_colr_free as unsafe extern "C" fn(*mut ColrTable) -> ()),
-        initN: Some(table_colr_init_n as unsafe extern "C" fn(*mut ColrTable, usize) -> ()),
-        initCapN: Some(table_colr_init_cap_n as unsafe extern "C" fn(*mut ColrTable, usize) -> ()),
-        createN: Some(table_colr_create_n as unsafe extern "C" fn(usize) -> *mut ColrTable),
+        init_n: Some(table_colr_init_n as unsafe extern "C" fn(*mut ColrTable, usize) -> ()),
+        init_cap_n: Some(table_colr_init_cap_n as unsafe extern "C" fn(*mut ColrTable, usize) -> ()),
+        create_n: Some(table_colr_create_n as unsafe extern "C" fn(usize) -> *mut ColrTable),
         fill: Some(table_colr_fill as unsafe extern "C" fn(*mut ColrTable, usize) -> ()),
         clear: Some(table_colr_dispose as unsafe extern "C" fn(*mut ColrTable) -> ()),
         push: Some(table_colr_push as unsafe extern "C" fn(*mut ColrTable, ColrMapping) -> ()),
-        shrinkToFit: Some(table_colr_shrink_to_fit as unsafe extern "C" fn(*mut ColrTable) -> ()),
+        shrink_to_fit: Some(table_colr_shrink_to_fit as unsafe extern "C" fn(*mut ColrTable) -> ()),
         pop: Some(table_colr_pop as unsafe extern "C" fn(*mut ColrTable) -> ColrMapping),
-        disposeItem: Some(
+        dispose_item: Some(
             table_colr_dispose_item as unsafe extern "C" fn(*mut ColrTable, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             table_colr_filter_env
                 as unsafe extern "C" fn(
                     *mut ColrTable,
@@ -853,7 +853,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -986,7 +986,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                                         ),
                                                     )
                                                         as GlyphHandle,
-                                                    paletteIndex: *colors.offset(
+                                                    palette_index: *colors.offset(
                                                         (k as ::core::ffi::c_int
                                                             + first_layer_index as ::core::ffi::c_int)
                                                             as isize,
@@ -1006,7 +1006,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
                         }
                     }
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -1035,7 +1035,7 @@ pub unsafe extern "C" fn otfcc_dump_colr(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"COLR"),
@@ -1070,7 +1070,7 @@ pub unsafe extern "C" fn otfcc_dump_colr(
                         json_object_push(
                             _layer,
                             b"paletteIndex\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new((*layer).paletteIndex as i64),
+                            json_integer_new((*layer).palette_index as i64),
                         );
                         json_array_push(_layers, _layer);
                         keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
@@ -1116,7 +1116,7 @@ pub unsafe extern "C" fn otfcc_parse_colr(
     let mut colr: *mut ColrTable = (
         TABLE_I_COLR.create.expect("non-null function pointer"))();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"COLR"),
@@ -1182,7 +1182,7 @@ pub unsafe extern "C" fn otfcc_parse_colr(
                                             ),
                                         )
                                             as GlyphHandle,
-                                        paletteIndex: json_obj_getint_fallback(
+                                        palette_index: json_obj_getint_fallback(
                                             _layer,
                                             b"paletteIndex\0" as *const u8
                                                 as *const ::core::ffi::c_char,
@@ -1207,7 +1207,7 @@ pub unsafe extern "C" fn otfcc_parse_colr(
     }
     return colr;
 }
-unsafe extern "C" fn byGID(
+unsafe extern "C" fn by_gid(
     mut a: *const ColrMapping,
     mut b: *const ColrMapping,
 ) -> ::core::ffi::c_int {
@@ -1229,7 +1229,7 @@ pub unsafe extern "C" fn otfcc_build_colr(
     TABLE_I_COLR.sort.expect("non-null function pointer")(
         &raw mut colr,
         Some(
-            byGID
+            by_gid
                 as unsafe extern "C" fn(
                     *const ColrMapping,
                     *const ColrMapping,
@@ -1251,7 +1251,7 @@ pub unsafe extern "C" fn otfcc_build_colr(
                 let mut layer: *mut ColrLayer =
                     (*mapping).layers.items.offset(__caryll_index_0 as isize);
                 while keep_0 != 0 {
-                    bk_push(layer_records, &[bk_int(BkCellType::B16, ((*layer).glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*layer).paletteIndex as ::core::ffi::c_int) as u32)]);
+                    bk_push(layer_records, &[bk_int(BkCellType::B16, ((*layer).glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*layer).palette_index as ::core::ffi::c_int) as u32)]);
                     current_layer_index = (current_layer_index as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as GlyphId;

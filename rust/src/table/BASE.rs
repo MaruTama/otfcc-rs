@@ -29,14 +29,14 @@ pub struct BaseValue {
 #[repr(C)]
 pub struct BaseScriptEntry {
     pub tag: u32,
-    pub defaultBaselineTag: u32,
-    pub baseValuesCount: TableId,
-    pub baseValues: *mut BaseValue,
+    pub default_baseline_tag: u32,
+    pub base_values_count: TableId,
+    pub base_values: *mut BaseValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct BaseAxis {
-    pub scriptCount: TableId,
+    pub script_count: TableId,
     pub entries: *mut BaseScriptEntry,
 }
 #[derive(Copy, Clone)]
@@ -53,7 +53,7 @@ pub struct BaseTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut BaseTable, *mut BaseTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut BaseTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut BaseTable, BaseTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut BaseTable, BaseTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut BaseTable, BaseTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut BaseTable>,
     pub free: Option<unsafe extern "C" fn(*mut BaseTable) -> ()>,
 }
@@ -69,10 +69,10 @@ unsafe extern "C" fn delete_base_axis(mut axis: *mut BaseAxis) {
     }
     if !(*axis).entries.is_null() {
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
-            if !(*(*axis).entries.offset(j as isize)).baseValues.is_null() {
-                free((*(*axis).entries.offset(j as isize)).baseValues as *mut ::core::ffi::c_void);
-                let ref mut fresh0 = (*(*axis).entries.offset(j as isize)).baseValues;
+        while (j as ::core::ffi::c_int) < (*axis).script_count as ::core::ffi::c_int {
+            if !(*(*axis).entries.offset(j as isize)).base_values.is_null() {
+                free((*(*axis).entries.offset(j as isize)).base_values as *mut ::core::ffi::c_void);
+                let ref mut fresh0 = (*(*axis).entries.offset(j as isize)).base_values;
                 *fresh0 = ::core::ptr::null_mut::<BaseValue>();
             }
             j = j.wrapping_add(1);
@@ -140,7 +140,7 @@ pub static TABLE_I_BASE: BaseTableElementInterface = {
         replace: Some(
             table_base_replace as unsafe extern "C" fn(*mut BaseTable, BaseTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_base_copy_replace as unsafe extern "C" fn(*mut BaseTable, BaseTable) -> (),
         ),
         create: Some(table_base_create),
@@ -187,9 +187,9 @@ unsafe extern "C" fn read_base_script(
     mut n_base_tags: u16,
 ) {
     let mut base_values_offset: u16 = 0;
-    (*entry).baseValuesCount = 0 as TableId;
-    (*entry).baseValues = ::core::ptr::null_mut::<BaseValue>();
-    (*entry).defaultBaselineTag = 0 as u32;
+    (*entry).base_values_count = 0 as TableId;
+    (*entry).base_values = ::core::ptr::null_mut::<BaseValue>();
+    (*entry).default_baseline_tag = 0 as u32;
     if !(table_length < (offset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32) {
         base_values_offset =
             read_16u(data.offset(offset as ::core::ffi::c_int as isize) as *const u8);
@@ -203,32 +203,32 @@ unsafe extern "C" fn read_base_script(
                     (read_16u(data.offset(base_values_offset as ::core::ffi::c_int as isize)
                         as *const u8) as ::core::ffi::c_int
                         % n_base_tags as ::core::ffi::c_int) as u16;
-                (*entry).defaultBaselineTag = *base_tag_list.offset(default_index as isize);
-                (*entry).baseValuesCount = read_16u(
+                (*entry).default_baseline_tag = *base_tag_list.offset(default_index as isize);
+                (*entry).base_values_count = read_16u(
                     data.offset(base_values_offset as ::core::ffi::c_int as isize)
                         .offset(2 as ::core::ffi::c_int as isize)
                         as *const u8,
                 ) as TableId;
-                if !((*entry).baseValuesCount as ::core::ffi::c_int
+                if !((*entry).base_values_count as ::core::ffi::c_int
                     != n_base_tags as ::core::ffi::c_int)
                 {
                     if !(table_length
                         < (base_values_offset as ::core::ffi::c_int
                             + 4 as ::core::ffi::c_int
                             + 2 as ::core::ffi::c_int
-                                * (*entry).baseValuesCount as ::core::ffi::c_int)
+                                * (*entry).base_values_count as ::core::ffi::c_int)
                             as u32)
                     {
-                        (*entry).baseValues = __caryll_allocate_clean(
+                        (*entry).base_values = __caryll_allocate_clean(
                             (::core::mem::size_of::<BaseValue>() as usize)
-                                .wrapping_mul((*entry).baseValuesCount as usize),
+                                .wrapping_mul((*entry).base_values_count as usize),
                             44 as ::core::ffi::c_ulong,
                         ) as *mut BaseValue;
                         let mut j: TableId = 0 as TableId;
                         while (j as ::core::ffi::c_int)
-                            < (*entry).baseValuesCount as ::core::ffi::c_int
+                            < (*entry).base_values_count as ::core::ffi::c_int
                         {
-                            (*(*entry).baseValues.offset(j as isize)).tag =
+                            (*(*entry).base_values.offset(j as isize)).tag =
                                 *base_tag_list.offset(j as isize);
                             let mut _val_offset: u16 = read_16u(
                                 data.offset(base_values_offset as ::core::ffi::c_int as isize)
@@ -239,7 +239,7 @@ unsafe extern "C" fn read_base_script(
                                     ) as *const u8,
                             );
                             if _val_offset != 0 {
-                                (*(*entry).baseValues.offset(j as isize)).coordinate = read_base_value(
+                                (*(*entry).base_values.offset(j as isize)).coordinate = read_base_value(
                                     data,
                                     table_length,
                                     (base_values_offset as ::core::ffi::c_int
@@ -248,7 +248,7 @@ unsafe extern "C" fn read_base_script(
                                 )
                                     as Pos;
                             } else {
-                                (*(*entry).baseValues.offset(j as isize)).coordinate =
+                                (*(*entry).base_values.offset(j as isize)).coordinate =
                                     0 as ::core::ffi::c_int as Pos;
                             }
                             j = j.wrapping_add(1);
@@ -259,13 +259,13 @@ unsafe extern "C" fn read_base_script(
             }
         }
     }
-    (*entry).baseValuesCount = 0 as TableId;
-    if !(*entry).baseValues.is_null() {
-        free((*entry).baseValues as *mut ::core::ffi::c_void);
-        (*entry).baseValues = ::core::ptr::null_mut::<BaseValue>();
+    (*entry).base_values_count = 0 as TableId;
+    if !(*entry).base_values.is_null() {
+        free((*entry).base_values as *mut ::core::ffi::c_void);
+        (*entry).base_values = ::core::ptr::null_mut::<BaseValue>();
     }
-    (*entry).baseValues = ::core::ptr::null_mut::<BaseValue>();
-    (*entry).defaultBaselineTag = 0 as u32;
+    (*entry).base_values = ::core::ptr::null_mut::<BaseValue>();
+    (*entry).default_baseline_tag = 0 as u32;
 }
 unsafe extern "C" fn read_axis(
     mut data: FontFilePointer,
@@ -344,7 +344,7 @@ unsafe extern "C" fn read_axis(
                                         87 as ::core::ffi::c_ulong,
                                     )
                                         as *mut BaseAxis;
-                                    (*axis).scriptCount = n_base_scripts;
+                                    (*axis).script_count = n_base_scripts;
                                     (*axis).entries = __caryll_allocate_clean(
                                         (::core::mem::size_of::<BaseScriptEntry>() as usize)
                                             .wrapping_mul(n_base_scripts as usize),
@@ -394,12 +394,12 @@ unsafe extern "C" fn read_axis(
                                             );
                                         } else {
                                             (*(*axis).entries.offset(j_0 as isize))
-                                                .baseValuesCount = 0 as TableId;
+                                                .base_values_count = 0 as TableId;
                                             let ref mut fresh1 =
-                                                (*(*axis).entries.offset(j_0 as isize)).baseValues;
+                                                (*(*axis).entries.offset(j_0 as isize)).base_values;
                                             *fresh1 = ::core::ptr::null_mut::<BaseValue>();
                                             (*(*axis).entries.offset(j_0 as isize))
-                                                .defaultBaselineTag = 0 as u32;
+                                                .default_baseline_tag = 0 as u32;
                                         }
                                         j_0 = j_0.wrapping_add(1);
                                     }
@@ -430,7 +430,7 @@ pub unsafe extern "C" fn otfcc_read_base(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -443,7 +443,7 @@ pub unsafe extern "C" fn otfcc_read_base(
                     let mut table_length: u32 = table.length;
                     if table_length < 8 as u32 {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -483,15 +483,15 @@ pub unsafe extern "C" fn otfcc_read_base(
     return base;
 }
 unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut JsonValue {
-    let mut _axis: *mut JsonValue = json_object_new((*axis).scriptCount as usize);
+    let mut _axis: *mut JsonValue = json_object_new((*axis).script_count as usize);
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*axis).script_count as ::core::ffi::c_int {
         if !((*(*axis).entries.offset(j as isize)).tag == 0) {
             let mut _entry: *mut JsonValue = json_object_new(3 as usize);
-            if (*(*axis).entries.offset(j as isize)).defaultBaselineTag != 0 {
+            if (*(*axis).entries.offset(j as isize)).default_baseline_tag != 0 {
                 let mut tag: [::core::ffi::c_char; 4] = [0; 4];
                 tag2str(
-                    (*(*axis).entries.offset(j as isize)).defaultBaselineTag,
+                    (*(*axis).entries.offset(j as isize)).default_baseline_tag,
                     &raw mut tag as *mut ::core::ffi::c_char,
                 );
                 json_object_push(
@@ -504,25 +504,25 @@ unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut JsonValue {
                 );
             }
             let mut _values: *mut JsonValue =
-                json_object_new((*(*axis).entries.offset(j as isize)).baseValuesCount as usize);
+                json_object_new((*(*axis).entries.offset(j as isize)).base_values_count as usize);
             let mut k: TableId = 0 as TableId;
             while (k as ::core::ffi::c_int)
-                < (*(*axis).entries.offset(j as isize)).baseValuesCount as ::core::ffi::c_int
+                < (*(*axis).entries.offset(j as isize)).base_values_count as ::core::ffi::c_int
             {
                 if (*(*(*axis).entries.offset(j as isize))
-                    .baseValues
+                    .base_values
                     .offset(k as isize))
                 .tag != 0
                 {
                     json_object_push_tag(
                         _values,
                         (*(*(*axis).entries.offset(j as isize))
-                            .baseValues
+                            .base_values
                             .offset(k as isize))
                         .tag,
                         json_new_position(
                             (*(*(*axis).entries.offset(j as isize))
-                                .baseValues
+                                .base_values
                                 .offset(k as isize))
                             .coordinate,
                         ),
@@ -550,7 +550,7 @@ pub unsafe extern "C" fn otfcc_dump_base(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"BASE"),
@@ -587,7 +587,7 @@ unsafe extern "C" fn base_script_from_json(
     mut _sr: *const JsonValue,
     mut entry: *mut BaseScriptEntry,
 ) {
-    (*entry).defaultBaselineTag = str2tag(json_obj_getstr_share(
+    (*entry).default_baseline_tag = str2tag(json_obj_getstr_share(
         _sr,
         b"defaultBaseline\0" as *const u8 as *const ::core::ffi::c_char,
     ));
@@ -597,20 +597,20 @@ unsafe extern "C" fn base_script_from_json(
         JsonType::Object,
     );
     if _basevalues.is_null() {
-        (*entry).baseValuesCount = 0 as TableId;
-        (*entry).baseValues = ::core::ptr::null_mut::<BaseValue>();
+        (*entry).base_values_count = 0 as TableId;
+        (*entry).base_values = ::core::ptr::null_mut::<BaseValue>();
     } else {
-        (*entry).baseValuesCount = (*_basevalues).u.object.length as TableId;
-        (*entry).baseValues = __caryll_allocate_clean(
+        (*entry).base_values_count = (*_basevalues).u.object.length as TableId;
+        (*entry).base_values = __caryll_allocate_clean(
             (::core::mem::size_of::<BaseValue>() as usize)
-                .wrapping_mul((*entry).baseValuesCount as usize),
+                .wrapping_mul((*entry).base_values_count as usize),
             171 as ::core::ffi::c_ulong,
         ) as *mut BaseValue;
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*entry).baseValuesCount as ::core::ffi::c_int {
-            (*(*entry).baseValues.offset(j as isize)).tag =
+        while (j as ::core::ffi::c_int) < (*entry).base_values_count as ::core::ffi::c_int {
+            (*(*entry).base_values.offset(j as isize)).tag =
                 str2tag((*(*_basevalues).u.object.values.offset(j as isize)).name);
-            (*(*entry).baseValues.offset(j as isize)).coordinate =
+            (*(*entry).base_values.offset(j as isize)).coordinate =
                 json_numof((*(*_basevalues).u.object.values.offset(j as isize)).value) as Pos;
             j = j.wrapping_add(1);
         }
@@ -633,15 +633,15 @@ unsafe extern "C" fn axis_from_json(mut _axis: *const JsonValue) -> *mut BaseAxi
         ::core::mem::size_of::<BaseAxis>() as usize,
         186 as ::core::ffi::c_ulong,
     ) as *mut BaseAxis;
-    (*axis).scriptCount = (*_axis).u.object.length as TableId;
+    (*axis).script_count = (*_axis).u.object.length as TableId;
     (*axis).entries = __caryll_allocate_clean(
         (::core::mem::size_of::<BaseScriptEntry>() as usize)
-            .wrapping_mul((*axis).scriptCount as usize),
+            .wrapping_mul((*axis).script_count as usize),
         188 as ::core::ffi::c_ulong,
     ) as *mut BaseScriptEntry;
     let mut jj: TableId = 0 as TableId;
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*axis).script_count as ::core::ffi::c_int {
         if !(*(*_axis).u.object.values.offset(j as isize))
             .value
             .is_null()
@@ -657,10 +657,10 @@ unsafe extern "C" fn axis_from_json(mut _axis: *const JsonValue) -> *mut BaseAxi
         }
         j = j.wrapping_add(1);
     }
-    (*axis).scriptCount = jj;
+    (*axis).script_count = jj;
     qsort(
         (*axis).entries as *mut ::core::ffi::c_void,
-        (*axis).scriptCount as usize,
+        (*axis).script_count as usize,
         ::core::mem::size_of::<BaseScriptEntry>() as usize,
         Some(
             by_script_tag
@@ -685,7 +685,7 @@ pub unsafe extern "C" fn otfcc_parse_base(
     );
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"BASE"),
@@ -733,14 +733,14 @@ pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
     taglist.size = 0 as TableId;
     taglist.items = ::core::ptr::null_mut::<u32>();
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*axis).script_count as ::core::ffi::c_int {
         let mut entry: *mut BaseScriptEntry =
             (*axis).entries.offset(j as isize) as *mut BaseScriptEntry;
-        if (*entry).defaultBaselineTag != 0 {
+        if (*entry).default_baseline_tag != 0 {
             let mut found: bool = false;
             let mut jk: TableId = 0 as TableId;
             while (jk as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
-                if *taglist.items.offset(jk as isize) == (*entry).defaultBaselineTag {
+                if *taglist.items.offset(jk as isize) == (*entry).default_baseline_tag {
                     found = true;
                     break;
                 } else {
@@ -758,12 +758,12 @@ pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
                 ) as *mut u32;
                 *taglist.items.offset(
                     (taglist.size as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize,
-                ) = (*entry).defaultBaselineTag;
+                ) = (*entry).default_baseline_tag;
             }
         }
         let mut k: TableId = 0 as TableId;
-        while (k as ::core::ffi::c_int) < (*entry).baseValuesCount as ::core::ffi::c_int {
-            let mut tag: u32 = (*(*entry).baseValues.offset(k as isize)).tag;
+        while (k as ::core::ffi::c_int) < (*entry).base_values_count as ::core::ffi::c_int {
+            let mut tag: u32 = (*(*entry).base_values.offset(k as isize)).tag;
             let mut found_0: bool = false;
             let mut jk_0: TableId = 0 as TableId;
             while (jk_0 as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
@@ -809,31 +809,31 @@ pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
         bk_push(base_tag_list, &[bk_int(BkCellType::B32, (*taglist.items.offset(j_0 as isize)) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
-    let mut base_script_list: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*axis).scriptCount as ::core::ffi::c_int) as u32)]);
+    let mut base_script_list: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*axis).script_count as ::core::ffi::c_int) as u32)]);
     let mut j_1: TableId = 0 as TableId;
-    while (j_1 as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
+    while (j_1 as ::core::ffi::c_int) < (*axis).script_count as ::core::ffi::c_int {
         let mut entry_0: *mut BaseScriptEntry =
             (*axis).entries.offset(j_1 as isize) as *mut BaseScriptEntry;
-        let mut baseValues: *mut BkBlock = bk_new_block(&[]);
+        let mut base_values: *mut BkBlock = bk_new_block(&[]);
         let mut default_index: TableId = 0 as TableId;
         let mut m: TableId = 0 as TableId;
         while (m as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
-            if *taglist.items.offset(m as isize) == (*entry_0).defaultBaselineTag {
+            if *taglist.items.offset(m as isize) == (*entry_0).default_baseline_tag {
                 default_index = m;
                 break;
             } else {
                 m = m.wrapping_add(1);
             }
         }
-        bk_push(baseValues, &[bk_int(BkCellType::B16, (default_index as ::core::ffi::c_int) as u32)]);
-        bk_push(baseValues, &[bk_int(BkCellType::B16, (taglist.size as ::core::ffi::c_int) as u32)]);
+        bk_push(base_values, &[bk_int(BkCellType::B16, (default_index as ::core::ffi::c_int) as u32)]);
+        bk_push(base_values, &[bk_int(BkCellType::B16, (taglist.size as ::core::ffi::c_int) as u32)]);
         let mut m_0: usize = 0 as usize;
         while m_0 < taglist.size as usize {
             let mut found_1: bool = false;
             let mut found_index: TableId = 0 as TableId;
             let mut k_0: TableId = 0 as TableId;
-            while (k_0 as ::core::ffi::c_int) < (*entry_0).baseValuesCount as ::core::ffi::c_int {
-                if (*(*entry_0).baseValues.offset(k_0 as isize)).tag
+            while (k_0 as ::core::ffi::c_int) < (*entry_0).base_values_count as ::core::ffi::c_int {
+                if (*(*entry_0).base_values.offset(k_0 as isize)).tag
                     == *taglist.items.offset(m_0 as isize)
                 {
                     found_1 = true;
@@ -844,14 +844,14 @@ pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
                 }
             }
             if found_1 {
-                bk_push(baseValues, &[bk_ptr(BkCellType::P16, bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, ((*(*entry_0).baseValues.offset(found_index as isize)).coordinate as i16
+                bk_push(base_values, &[bk_ptr(BkCellType::P16, bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, ((*(*entry_0).base_values.offset(found_index as isize)).coordinate as i16
                             as ::core::ffi::c_int) as u32)]))]);
             } else {
-                bk_push(baseValues, &[bk_ptr(BkCellType::P16, bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, 0 as u32)]))]);
+                bk_push(base_values, &[bk_ptr(BkCellType::P16, bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, 0 as u32)]))]);
             }
             m_0 = m_0.wrapping_add(1);
         }
-        let mut script_record: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, baseValues), bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, 0 as u32)]);
+        let mut script_record: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, base_values), bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, 0 as u32)]);
         bk_push(base_script_list, &[bk_int(BkCellType::B32, ((*entry_0).tag) as u32), bk_ptr(BkCellType::P16, script_record)]);
         j_1 = j_1.wrapping_add(1);
     }

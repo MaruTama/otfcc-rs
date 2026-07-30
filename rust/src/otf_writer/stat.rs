@@ -71,15 +71,15 @@ pub unsafe extern "C" fn stat_single_glyph(
     mut options: *const Options,
 ) -> GlyphStat {
     let mut stat: GlyphStat = GlyphStat {
-        xMin: 0 as ::core::ffi::c_int as Pos,
-        xMax: 0 as ::core::ffi::c_int as Pos,
-        yMin: 0 as ::core::ffi::c_int as Pos,
-        yMax: 0 as ::core::ffi::c_int as Pos,
-        nestDepth: 0 as u16,
-        nPoints: 0 as u16,
-        nContours: 0 as u16,
-        nCompositePoints: 0 as u16,
-        nCompositeContours: 0 as u16,
+        x_min: 0 as ::core::ffi::c_int as Pos,
+        x_max: 0 as ::core::ffi::c_int as Pos,
+        y_min: 0 as ::core::ffi::c_int as Pos,
+        y_max: 0 as ::core::ffi::c_int as Pos,
+        nest_depth: 0 as u16,
+        n_points: 0 as u16,
+        n_contours: 0 as u16,
+        n_composite_points: 0 as u16,
+        n_composite_contours: 0 as u16,
     };
     let j: GlyphId = (*gr).glyph.index;
     if depth as ::core::ffi::c_int >= 0xff as ::core::ffi::c_int {
@@ -87,7 +87,7 @@ pub unsafe extern "C" fn stat_single_glyph(
     }
     if *stated.offset(j as isize) == StatStatus::Doing {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect(
                 "non-null function pointer",
             )(
@@ -112,30 +112,30 @@ pub unsafe extern "C" fn stat_single_glyph(
     let mut xmax: Pos = -POS_MAX as Pos;
     let mut ymin: Pos = POS_MAX as Pos;
     let mut ymax: Pos = -POS_MAX as Pos;
-    let mut nestDepth: u16 = 0 as u16;
-    let mut nPoints: u16 = 0 as u16;
-    let mut nCompositePoints: u16 = 0 as u16;
-    let mut nCompositeContours: u16 = 0 as u16;
+    let mut nest_depth: u16 = 0 as u16;
+    let mut n_points: u16 = 0 as u16;
+    let mut n_composite_points: u16 = 0 as u16;
+    let mut n_composite_contours: u16 = 0 as u16;
     for c in 0..(*g).contours.length as ShapeId {
         let contour = (*g).contours.items.offset(c as isize);
         for pj in 0..(*contour).length as ShapeId {
             let p: *mut Point = (*contour).items.offset(pj as isize) as *mut Point;
             let x: Pos = round(
-                I_VQ.getStill.expect("non-null function pointer")((*gr).x) as ::core::ffi::c_double
+                I_VQ.get_still.expect("non-null function pointer")((*gr).x) as ::core::ffi::c_double
                     + (*gr).a as ::core::ffi::c_double
-                        * I_VQ.getStill.expect("non-null function pointer")((*p).x)
+                        * I_VQ.get_still.expect("non-null function pointer")((*p).x)
                             as ::core::ffi::c_double
                     + (*gr).b as ::core::ffi::c_double
-                        * I_VQ.getStill.expect("non-null function pointer")((*p).y)
+                        * I_VQ.get_still.expect("non-null function pointer")((*p).y)
                             as ::core::ffi::c_double,
             ) as Pos;
             let mut y: Pos = round(
-                I_VQ.getStill.expect("non-null function pointer")((*gr).y) as ::core::ffi::c_double
+                I_VQ.get_still.expect("non-null function pointer")((*gr).y) as ::core::ffi::c_double
                     + (*gr).c as ::core::ffi::c_double
-                        * I_VQ.getStill.expect("non-null function pointer")((*p).x)
+                        * I_VQ.get_still.expect("non-null function pointer")((*p).x)
                             as ::core::ffi::c_double
                     + (*gr).d as ::core::ffi::c_double
-                        * I_VQ.getStill.expect("non-null function pointer")((*p).y)
+                        * I_VQ.get_still.expect("non-null function pointer")((*p).y)
                             as ::core::ffi::c_double,
             ) as Pos;
             if x < xmin {
@@ -150,11 +150,11 @@ pub unsafe extern "C" fn stat_single_glyph(
             if y > ymax {
                 ymax = y;
             }
-            nPoints = (nPoints as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
+            n_points = (n_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
         }
     }
-    nCompositePoints = nPoints;
-    nCompositeContours = (*g).contours.length as u16;
+    n_composite_points = n_points;
+    n_composite_contours = (*g).contours.length as u16;
     for r in 0..(*g).references.length as ShapeId {
         let mut ref_0: ComponentReference = ComponentReference {
             x: VQ {
@@ -173,8 +173,8 @@ pub unsafe extern "C" fn stat_single_glyph(
                     items: ::core::ptr::null_mut::<VqSegment>(),
                 },
             },
-            roundToGrid: false,
-            useMyMetrics: false,
+            round_to_grid: false,
+            use_my_metrics: false,
             glyph: Handle {
                 state: HandleState::Empty,
                 index: 0,
@@ -184,7 +184,7 @@ pub unsafe extern "C" fn stat_single_glyph(
             b: 0.,
             c: 0.,
             d: 0.,
-            isAnchored: RefAnchorStatus::Xy,
+            is_anchored: RefAnchorStatus::Xy,
             inner: 0,
             outer: 0,
         };
@@ -204,18 +204,18 @@ pub unsafe extern "C" fn stat_single_glyph(
         ref_0.d = (*gr).b * (*rr).c + (*rr).d * (*gr).d;
         I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.x,
-            I_VQ.createStill.expect("non-null function pointer")(
-                I_VQ.getStill.expect("non-null function pointer")((*rr).x)
-                    + (*rr).a as Pos * I_VQ.getStill.expect("non-null function pointer")((*gr).x)
-                    + (*rr).b as Pos * I_VQ.getStill.expect("non-null function pointer")((*gr).y),
+            I_VQ.create_still.expect("non-null function pointer")(
+                I_VQ.get_still.expect("non-null function pointer")((*rr).x)
+                    + (*rr).a as Pos * I_VQ.get_still.expect("non-null function pointer")((*gr).x)
+                    + (*rr).b as Pos * I_VQ.get_still.expect("non-null function pointer")((*gr).y),
             ) as VQ,
         );
         I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.y,
-            I_VQ.createStill.expect("non-null function pointer")(
-                I_VQ.getStill.expect("non-null function pointer")((*rr).y)
-                    + (*rr).c as Pos * I_VQ.getStill.expect("non-null function pointer")((*gr).x)
-                    + (*rr).d as Pos * I_VQ.getStill.expect("non-null function pointer")((*gr).y),
+            I_VQ.create_still.expect("non-null function pointer")(
+                I_VQ.get_still.expect("non-null function pointer")((*rr).y)
+                    + (*rr).c as Pos * I_VQ.get_still.expect("non-null function pointer")((*gr).x)
+                    + (*rr).d as Pos * I_VQ.get_still.expect("non-null function pointer")((*gr).y),
             ) as VQ,
         );
         let mut thatstat: GlyphStat = stat_single_glyph(
@@ -226,29 +226,29 @@ pub unsafe extern "C" fn stat_single_glyph(
             topj,
             options,
         );
-        if thatstat.xMin < xmin {
-            xmin = thatstat.xMin;
+        if thatstat.x_min < xmin {
+            xmin = thatstat.x_min;
         }
-        if thatstat.xMax > xmax {
-            xmax = thatstat.xMax;
+        if thatstat.x_max > xmax {
+            xmax = thatstat.x_max;
         }
-        if thatstat.yMin < ymin {
-            ymin = thatstat.yMin;
+        if thatstat.y_min < ymin {
+            ymin = thatstat.y_min;
         }
-        if thatstat.yMax > ymax {
-            ymax = thatstat.yMax;
+        if thatstat.y_max > ymax {
+            ymax = thatstat.y_max;
         }
-        if thatstat.nestDepth as ::core::ffi::c_int + 1 as ::core::ffi::c_int
-            > nestDepth as ::core::ffi::c_int
+        if thatstat.nest_depth as ::core::ffi::c_int + 1 as ::core::ffi::c_int
+            > nest_depth as ::core::ffi::c_int
         {
-            nestDepth =
-                (thatstat.nestDepth as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
+            nest_depth =
+                (thatstat.nest_depth as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
         }
-        nCompositePoints = (nCompositePoints as ::core::ffi::c_int
-            + thatstat.nCompositePoints as ::core::ffi::c_int)
+        n_composite_points = (n_composite_points as ::core::ffi::c_int
+            + thatstat.n_composite_points as ::core::ffi::c_int)
             as u16;
-        nCompositeContours = (nCompositeContours as ::core::ffi::c_int
-            + thatstat.nCompositeContours as ::core::ffi::c_int)
+        n_composite_contours = (n_composite_contours as ::core::ffi::c_int
+            + thatstat.n_composite_contours as ::core::ffi::c_int)
             as u16;
     }
     if xmin > xmax {
@@ -259,15 +259,15 @@ pub unsafe extern "C" fn stat_single_glyph(
         ymax = 0 as ::core::ffi::c_int as Pos;
         ymin = ymax;
     }
-    stat.xMin = xmin;
-    stat.xMax = xmax;
-    stat.yMin = ymin;
-    stat.yMax = ymax;
-    stat.nestDepth = nestDepth;
-    stat.nPoints = nPoints;
-    stat.nContours = (*g).contours.length as u16;
-    stat.nCompositePoints = nCompositePoints;
-    stat.nCompositeContours = nCompositeContours;
+    stat.x_min = xmin;
+    stat.x_max = xmax;
+    stat.y_min = ymin;
+    stat.y_max = ymax;
+    stat.nest_depth = nest_depth;
+    stat.n_points = n_points;
+    stat.n_contours = (*g).contours.length as u16;
+    stat.n_composite_points = n_composite_points;
+    stat.n_composite_contours = n_composite_contours;
     *stated.offset(j as isize) = StatStatus::Completed;
     return stat;
 }
@@ -299,8 +299,8 @@ pub unsafe extern "C" fn stat_glyf(mut font: *mut Font, mut options: *const Opti
                     items: ::core::ptr::null_mut::<VqSegment>(),
                 },
             },
-            roundToGrid: false,
-            useMyMetrics: false,
+            round_to_grid: false,
+            use_my_metrics: false,
             glyph: Handle {
                 state: HandleState::Empty,
                 index: 0,
@@ -310,16 +310,16 @@ pub unsafe extern "C" fn stat_glyf(mut font: *mut Font, mut options: *const Opti
             b: 0.,
             c: 0.,
             d: 0.,
-            isAnchored: RefAnchorStatus::Xy,
+            is_anchored: RefAnchorStatus::Xy,
             inner: 0,
             outer: 0,
         };
         gr.glyph =
             handle_from_index(j) as GlyphHandle;
         gr.x =
-            I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+            I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
         gr.y =
-            I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+            I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
         gr.a = 1 as ::core::ffi::c_int as Scale;
         gr.b = 0 as ::core::ffi::c_int as Scale;
         gr.c = 0 as ::core::ffi::c_int as Scale;
@@ -327,72 +327,72 @@ pub unsafe extern "C" fn stat_glyf(mut font: *mut Font, mut options: *const Opti
         let ref mut fresh2 = (**(*(*font).glyf).items.offset(j as isize)).stat;
         *fresh2 = stat_single_glyph((*font).glyf, &raw mut gr, stated, 0 as u8, j, options);
         let mut thatstat: GlyphStat = *fresh2;
-        if thatstat.xMin < xmin {
-            xmin = thatstat.xMin;
+        if thatstat.x_min < xmin {
+            xmin = thatstat.x_min;
         }
-        if thatstat.xMax > xmax {
-            xmax = thatstat.xMax;
+        if thatstat.x_max > xmax {
+            xmax = thatstat.x_max;
         }
-        if thatstat.yMin < ymin {
-            ymin = thatstat.yMin;
+        if thatstat.y_min < ymin {
+            ymin = thatstat.y_min;
         }
-        if thatstat.yMax > ymax {
-            ymax = thatstat.yMax;
+        if thatstat.y_max > ymax {
+            ymax = thatstat.y_max;
         }
     }
-    (*(*font).head).xMin = xmin as i16;
-    (*(*font).head).xMax = xmax as i16;
-    (*(*font).head).yMin = ymin as i16;
-    (*(*font).head).yMax = ymax as i16;
+    (*(*font).head).x_min = xmin as i16;
+    (*(*font).head).x_max = xmax as i16;
+    (*(*font).head).y_min = ymin as i16;
+    (*(*font).head).y_max = ymax as i16;
     free(stated as *mut ::core::ffi::c_void);
     stated = ::core::ptr::null_mut::<StatStatus>();
 }
 pub unsafe extern "C" fn stat_maxp(mut font: *mut Font) {
-    let mut nestDepth: u16 = 0 as u16;
-    let mut nPoints: u16 = 0 as u16;
-    let mut nContours: u16 = 0 as u16;
+    let mut nest_depth: u16 = 0 as u16;
+    let mut n_points: u16 = 0 as u16;
+    let mut n_contours: u16 = 0 as u16;
     let mut n_components: u16 = 0 as u16;
-    let mut nCompositePoints: u16 = 0 as u16;
-    let mut nCompositeContours: u16 = 0 as u16;
+    let mut n_composite_points: u16 = 0 as u16;
+    let mut n_composite_contours: u16 = 0 as u16;
     let mut inst_size: u16 = 0 as u16;
     for j in 0..(*(*font).glyf).length as GlyphId {
         let g: *mut Glyph = *(*(*font).glyf).items.offset(j as isize) as *mut Glyph;
         if (*g).contours.length > 0 as usize {
-            if (*g).stat.nPoints as ::core::ffi::c_int > nPoints as ::core::ffi::c_int {
-                nPoints = (*g).stat.nPoints;
+            if (*g).stat.n_points as ::core::ffi::c_int > n_points as ::core::ffi::c_int {
+                n_points = (*g).stat.n_points;
             }
-            if (*g).stat.nContours as ::core::ffi::c_int > nContours as ::core::ffi::c_int {
-                nContours = (*g).stat.nContours;
+            if (*g).stat.n_contours as ::core::ffi::c_int > n_contours as ::core::ffi::c_int {
+                n_contours = (*g).stat.n_contours;
             }
         } else if (*g).references.length > 0 as usize {
-            if (*g).stat.nCompositePoints as ::core::ffi::c_int
-                > nCompositePoints as ::core::ffi::c_int
+            if (*g).stat.n_composite_points as ::core::ffi::c_int
+                > n_composite_points as ::core::ffi::c_int
             {
-                nCompositePoints = (*g).stat.nCompositePoints;
+                n_composite_points = (*g).stat.n_composite_points;
             }
-            if (*g).stat.nCompositeContours as ::core::ffi::c_int
-                > nCompositeContours as ::core::ffi::c_int
+            if (*g).stat.n_composite_contours as ::core::ffi::c_int
+                > n_composite_contours as ::core::ffi::c_int
             {
-                nCompositeContours = (*g).stat.nCompositeContours;
+                n_composite_contours = (*g).stat.n_composite_contours;
             }
-            if (*g).stat.nestDepth as ::core::ffi::c_int > nestDepth as ::core::ffi::c_int {
-                nestDepth = (*g).stat.nestDepth;
+            if (*g).stat.nest_depth as ::core::ffi::c_int > nest_depth as ::core::ffi::c_int {
+                nest_depth = (*g).stat.nest_depth;
             }
             if (*g).references.length > n_components as usize {
                 n_components = (*g).references.length as u16;
             }
         }
-        if (*g).instructionsLength as ::core::ffi::c_int > inst_size as ::core::ffi::c_int {
-            inst_size = (*g).instructionsLength;
+        if (*g).instructions_length as ::core::ffi::c_int > inst_size as ::core::ffi::c_int {
+            inst_size = (*g).instructions_length;
         }
     }
-    (*(*font).maxp).maxPoints = nPoints;
-    (*(*font).maxp).maxContours = nContours;
-    (*(*font).maxp).maxCompositePoints = nCompositePoints;
-    (*(*font).maxp).maxCompositeContours = nCompositeContours;
-    (*(*font).maxp).maxComponentDepth = nestDepth;
-    (*(*font).maxp).maxComponentElements = n_components;
-    (*(*font).maxp).maxSizeOfInstructions = inst_size;
+    (*(*font).maxp).max_points = n_points;
+    (*(*font).maxp).max_contours = n_contours;
+    (*(*font).maxp).max_composite_points = n_composite_points;
+    (*(*font).maxp).max_composite_contours = n_composite_contours;
+    (*(*font).maxp).max_component_depth = nest_depth;
+    (*(*font).maxp).max_component_elements = n_components;
+    (*(*font).maxp).max_size_of_instructions = inst_size;
 }
 unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options) {
     if (*font).glyf.is_null() {
@@ -408,16 +408,16 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
     let mut lsb_at_x_0: bool = true;
     if (*font).subtype != FontSubtype::Cff {
         while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
-            && I_VQ.getStill.expect("non-null function pointer")(
+            && I_VQ.get_still.expect("non-null function pointer")(
                 (**(*(*font).glyf)
                     .items
                     .offset((count_a as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
-                .advanceWidth,
-            ) == I_VQ.getStill.expect("non-null function pointer")(
+                .advance_width,
+            ) == I_VQ.get_still.expect("non-null function pointer")(
                 (**(*(*font).glyf)
                     .items
                     .offset((count_a as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize))
-                .advanceWidth,
+                .advance_width,
             )
         {
             count_a = count_a.wrapping_sub(1);
@@ -428,20 +428,20 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
         (::core::mem::size_of::<HorizontalMetric>() as usize).wrapping_mul(count_a as usize),
         175 as ::core::ffi::c_ulong,
     ) as *mut HorizontalMetric;
-    (*hmtx).leftSideBearing = __caryll_allocate_clean(
+    (*hmtx).left_side_bearing = __caryll_allocate_clean(
         (::core::mem::size_of::<Pos>() as usize).wrapping_mul(count_k as usize),
         176 as ::core::ffi::c_ulong,
     ) as *mut Pos;
     let mut min_lsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
     let mut min_rsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
     let mut max_extent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
-    let mut maxWidth: Length = 0 as ::core::ffi::c_int as Length;
+    let mut max_width: Length = 0 as ::core::ffi::c_int as Length;
     for j in 0..(*(*font).glyf).length as GlyphId {
         let g: *mut Glyph = *(*(*font).glyf).items.offset(j as isize) as *mut Glyph;
-        if I_VQ.isZero.expect("non-null function pointer")((*g).horizontalOrigin, 1.0f64 / 1000.0f64)
+        if I_VQ.is_zero.expect("non-null function pointer")((*g).horizontal_origin, 1.0f64 / 1000.0f64)
         {
             I_VQ.replace.expect("non-null function pointer")(
-                &raw mut (*g).horizontalOrigin,
+                &raw mut (*g).horizontal_origin,
                 (
                     I_VQ.neutral.expect("non-null function pointer"))() as VQ,
             );
@@ -449,21 +449,21 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
             lsb_at_x_0 = false;
         }
         let hori: Pos =
-            I_VQ.getStill.expect("non-null function pointer")((*g).horizontalOrigin) as Pos;
+            I_VQ.get_still.expect("non-null function pointer")((*g).horizontal_origin) as Pos;
         let advw: Pos =
-            I_VQ.getStill.expect("non-null function pointer")((*g).advanceWidth) as Pos;
-        let lsb: Pos = (*g).stat.xMin - hori;
-        let rsb: Pos = advw + hori - (*g).stat.xMax;
+            I_VQ.get_still.expect("non-null function pointer")((*g).advance_width) as Pos;
+        let lsb: Pos = (*g).stat.x_min - hori;
+        let rsb: Pos = advw + hori - (*g).stat.x_max;
         if (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-            (*(*hmtx).metrics.offset(j as isize)).advanceWidth = advw as Length;
+            (*(*hmtx).metrics.offset(j as isize)).advance_width = advw as Length;
             (*(*hmtx).metrics.offset(j as isize)).lsb = lsb;
         } else {
             *(*hmtx)
-                .leftSideBearing
+                .left_side_bearing
                 .offset((j as ::core::ffi::c_int - count_a as ::core::ffi::c_int) as isize) = lsb;
         }
-        if advw > maxWidth {
-            maxWidth = advw as Length;
+        if advw > max_width {
+            max_width = advw as Length;
         }
         if lsb < min_lsb {
             min_lsb = lsb;
@@ -471,15 +471,15 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
         if rsb < min_rsb {
             min_rsb = rsb;
         }
-        if (*g).stat.xMax - hori > max_extent {
-            max_extent = (*g).stat.xMax - hori;
+        if (*g).stat.x_max - hori > max_extent {
+            max_extent = (*g).stat.x_max - hori;
         }
     }
-    (*(*font).hhea).numberOfMetrics = count_a as u16;
-    (*(*font).hhea).minLeftSideBearing = min_lsb as i16;
-    (*(*font).hhea).minRightSideBearing = min_rsb as i16;
-    (*(*font).hhea).xMaxExtent = max_extent as i16;
-    (*(*font).hhea).advanceWidthMax = maxWidth as u16;
+    (*(*font).hhea).number_of_metrics = count_a as u16;
+    (*(*font).hhea).min_left_side_bearing = min_lsb as i16;
+    (*(*font).hhea).min_right_side_bearing = min_rsb as i16;
+    (*(*font).hhea).x_max_extent = max_extent as i16;
+    (*(*font).hhea).advance_width_max = max_width as u16;
     (*font).hmtx = hmtx;
     (*(*font).head).flags = ((*(*font).head).flags as ::core::ffi::c_int
         & !(0x2 as ::core::ffi::c_int)
@@ -499,16 +499,16 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
     let mut count_k: GlyphId = 0 as GlyphId;
     if !((*font).subtype == FontSubtype::Cff && !(*options).cff_short_vmtx) {
         while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
-            && I_VQ.getStill.expect("non-null function pointer")(
+            && I_VQ.get_still.expect("non-null function pointer")(
                 (**(*(*font).glyf)
                     .items
                     .offset((count_a as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
-                .advanceHeight,
-            ) == I_VQ.getStill.expect("non-null function pointer")(
+                .advance_height,
+            ) == I_VQ.get_still.expect("non-null function pointer")(
                 (**(*(*font).glyf)
                     .items
                     .offset((count_a as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize))
-                .advanceHeight,
+                .advance_height,
             )
         {
             count_a = count_a.wrapping_sub(1);
@@ -519,7 +519,7 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
         (::core::mem::size_of::<VerticalMetric>() as usize).wrapping_mul(count_a as usize),
         230 as ::core::ffi::c_ulong,
     ) as *mut VerticalMetric;
-    (*vmtx).topSideBearing = __caryll_allocate_clean(
+    (*vmtx).top_side_bearing = __caryll_allocate_clean(
         (::core::mem::size_of::<Pos>() as usize).wrapping_mul(count_k as usize),
         231 as ::core::ffi::c_ulong,
     ) as *mut Pos;
@@ -530,17 +530,17 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
     for j in 0..(*(*font).glyf).length as GlyphId {
         let g: *mut Glyph = *(*(*font).glyf).items.offset(j as isize) as *mut Glyph;
         let vori: Pos =
-            I_VQ.getStill.expect("non-null function pointer")((*g).verticalOrigin) as Pos;
+            I_VQ.get_still.expect("non-null function pointer")((*g).vertical_origin) as Pos;
         let advh: Pos =
-            I_VQ.getStill.expect("non-null function pointer")((*g).advanceHeight) as Pos;
-        let tsb: Pos = vori - (*g).stat.yMax;
-        let bsb: Pos = (*g).stat.yMin - vori + advh;
+            I_VQ.get_still.expect("non-null function pointer")((*g).advance_height) as Pos;
+        let tsb: Pos = vori - (*g).stat.y_max;
+        let bsb: Pos = (*g).stat.y_min - vori + advh;
         if (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-            (*(*vmtx).metrics.offset(j as isize)).advanceHeight = advh as Length;
+            (*(*vmtx).metrics.offset(j as isize)).advance_height = advh as Length;
             (*(*vmtx).metrics.offset(j as isize)).tsb = tsb;
         } else {
             *(*vmtx)
-                .topSideBearing
+                .top_side_bearing
                 .offset((j as ::core::ffi::c_int - count_a as ::core::ffi::c_int) as isize) = tsb;
         }
         if advh > max_height {
@@ -552,15 +552,15 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
         if bsb < min_bsb {
             min_bsb = bsb;
         }
-        if vori - (*g).stat.yMin > max_extent {
-            max_extent = vori - (*g).stat.yMin;
+        if vori - (*g).stat.y_min > max_extent {
+            max_extent = vori - (*g).stat.y_min;
         }
     }
-    (*(*font).vhea).numOfLongVerMetrics = count_a as u16;
-    (*(*font).vhea).minTop = min_tsb as i16;
-    (*(*font).vhea).minBottom = min_bsb as i16;
-    (*(*font).vhea).yMaxExtent = max_extent as i16;
-    (*(*font).vhea).advanceHeightMax = max_height as i16;
+    (*(*font).vhea).num_of_long_ver_metrics = count_a as u16;
+    (*(*font).vhea).min_top = min_tsb as i16;
+    (*(*font).vhea).min_bottom = min_bsb as i16;
+    (*(*font).vhea).y_max_extent = max_extent as i16;
+    (*(*font).vhea).advance_height_max = max_height as i16;
     (*font).vmtx = vmtx;
 }
 unsafe extern "C" fn stat_os_2_unicode_ranges(
@@ -1029,20 +1029,20 @@ unsafe extern "C" fn stat_os_2_unicode_ranges(
         item = (*item).hh.next as *mut CmapEntry;
     }
     if !(*options).keep_unicode_ranges {
-        (*(*font).OS_2).ulUnicodeRange1 = u1;
-        (*(*font).OS_2).ulUnicodeRange2 = u2;
-        (*(*font).OS_2).ulUnicodeRange3 = u3;
-        (*(*font).OS_2).ulUnicodeRange4 = u4;
+        (*(*font).OS_2).ul_unicode_range1 = u1;
+        (*(*font).OS_2).ul_unicode_range2 = u2;
+        (*(*font).OS_2).ul_unicode_range3 = u3;
+        (*(*font).OS_2).ul_unicode_range4 = u4;
     }
     if min_unicode < 0x10000 as i32 {
-        (*(*font).OS_2).usFirstCharIndex = min_unicode as u16;
+        (*(*font).OS_2).us_first_char_index = min_unicode as u16;
     } else {
-        (*(*font).OS_2).usFirstCharIndex = 0xffff as u16;
+        (*(*font).OS_2).us_first_char_index = 0xffff as u16;
     }
     if max_unicode < 0x10000 as i32 {
-        (*(*font).OS_2).usLastCharIndex = max_unicode as u16;
+        (*(*font).OS_2).us_last_char_index = max_unicode as u16;
     } else {
-        (*(*font).OS_2).usLastCharIndex = 0xffff as u16;
+        (*(*font).OS_2).us_last_char_index = 0xffff as u16;
     };
 }
 unsafe extern "C" fn stat_os_2_average_width(
@@ -1054,14 +1054,14 @@ unsafe extern "C" fn stat_os_2_average_width(
     }
     let mut total_width: u32 = 0 as u32;
     for j in 0..(*(*font).glyf).length as GlyphId {
-        let adw: Pos = I_VQ.getStill.expect("non-null function pointer")(
-            (**(*(*font).glyf).items.offset(j as isize)).advanceWidth,
+        let adw: Pos = I_VQ.get_still.expect("non-null function pointer")(
+            (**(*(*font).glyf).items.offset(j as isize)).advance_width,
         ) as Pos;
         if adw > 0 as ::core::ffi::c_int as Pos {
             total_width = (total_width as Pos + adw) as u32;
         }
     }
-    (*(*font).OS_2).xAvgCharWidth =
+    (*(*font).OS_2).x_avg_char_width =
         (total_width as usize).wrapping_div((*(*font).glyf).length) as i16;
 }
 unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
@@ -1086,9 +1086,9 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                         *(*lookup).subtables.items.offset(si as isize) as *mut GsubLigatureSubtable;
                     for ei in 0..(*subtable).length {
                         let entry: *mut GsubLigatureEntry = (*subtable).items.offset(ei as isize);
-                        if (maxc as ::core::ffi::c_int) < (*(*entry).from).numGlyphs as ::core::ffi::c_int
+                        if (maxc as ::core::ffi::c_int) < (*(*entry).from).num_glyphs as ::core::ffi::c_int
                         {
-                            maxc = (*(*entry).from).numGlyphs as u16;
+                            maxc = (*(*entry).from).num_glyphs as u16;
                         }
                     }
                 }
@@ -1098,9 +1098,9 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                     let subtable: *mut ChainingSubtable =
                         *(*lookup).subtables.items.offset(si as isize) as *mut ChainingSubtable;
                     if (maxc as ::core::ffi::c_int)
-                        < (*subtable).c2rust_unnamed.rule.matchCount as ::core::ffi::c_int
+                        < (*subtable).c2rust_unnamed.rule.match_count as ::core::ffi::c_int
                     {
-                        maxc = (*subtable).c2rust_unnamed.rule.matchCount as u16;
+                        maxc = (*subtable).c2rust_unnamed.rule.match_count as u16;
                     }
                 }
             }
@@ -1108,8 +1108,8 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                 for si in 0..(*lookup).subtables.length {
                     let subtable: *mut GsubReverseSubtable =
                         *(*lookup).subtables.items.offset(si as isize) as *mut GsubReverseSubtable;
-                    if (maxc as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
-                        maxc = (*subtable).matchCount as u16;
+                    if (maxc as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
+                        maxc = (*subtable).match_count as u16;
                     }
                 }
             }
@@ -1120,19 +1120,19 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
 }
 unsafe extern "C" fn stat_max_context(mut font: *mut Font, mut _options: *const Options) {
     let mut maxc: u16 = 1 as u16;
-    if !(*font).GSUB.is_null() {
-        let mut maxc_gsub: u16 = stat_max_context_otl((*font).GSUB);
+    if !(*font).gsub.is_null() {
+        let mut maxc_gsub: u16 = stat_max_context_otl((*font).gsub);
         if maxc_gsub as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
             maxc = maxc_gsub;
         }
     }
-    if !(*font).GPOS.is_null() {
-        let mut maxc_gpos: u16 = stat_max_context_otl((*font).GPOS);
+    if !(*font).gpos.is_null() {
+        let mut maxc_gpos: u16 = stat_max_context_otl((*font).gpos);
         if maxc_gpos as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
             maxc = maxc_gpos;
         }
     }
-    (*(*font).OS_2).usMaxContext = maxc;
+    (*(*font).OS_2).us_max_context = maxc;
 }
 unsafe extern "C" fn stat_os_2(mut font: *mut Font, mut options: *const Options) {
     stat_os_2_unicode_ranges(font, options);
@@ -1141,7 +1141,7 @@ unsafe extern "C" fn stat_os_2(mut font: *mut Font, mut options: *const Options)
 }
 pub const MAX_STAT_METRIC: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
 unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
-    if (*font).glyf.is_null() || (*font).CFF_.is_null() {
+    if (*font).glyf.is_null() || (*font).cff.is_null() {
         return;
     }
     let mut frequency: *mut u32 = ::core::ptr::null_mut::<u32>();
@@ -1150,8 +1150,8 @@ unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
         524 as ::core::ffi::c_ulong,
     ) as *mut u32;
     for j in 0..(*(*font).glyf).length as GlyphId {
-        let int_width: u16 = I_VQ.getStill.expect("non-null function pointer")(
-            (**(*(*font).glyf).items.offset(j as isize)).advanceWidth,
+        let int_width: u16 = I_VQ.get_still.expect("non-null function pointer")(
+            (**(*(*font).glyf).items.offset(j as isize)).advance_width,
         ) as u16;
         if (int_width as ::core::ffi::c_int) < MAX_STAT_METRIC {
             let fresh1 = frequency.offset(int_width as isize);
@@ -1169,36 +1169,36 @@ unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
     let mut nn: u16 = 0 as u16;
     let mut nnsum: u32 = 0 as u32;
     for j_1 in 0..(*(*font).glyf).length as GlyphId {
-        let adw: Pos = I_VQ.getStill.expect("non-null function pointer")(
-            (**(*(*font).glyf).items.offset(j_1 as isize)).advanceWidth,
+        let adw: Pos = I_VQ.get_still.expect("non-null function pointer")(
+            (**(*(*font).glyf).items.offset(j_1 as isize)).advance_width,
         ) as Pos;
         if adw != maxj as ::core::ffi::c_int as Pos {
             nn = (nn as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
             nnsum = (nnsum as Pos + adw) as u32;
         }
     }
-    let mut nominalWidthX: i16 = 0 as i16;
+    let mut nominal_width_x: i16 = 0 as i16;
     if nn as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-        nominalWidthX = nnsum.wrapping_div(nn as u32) as i16;
+        nominal_width_x = nnsum.wrapping_div(nn as u32) as i16;
     }
-    if !(*(*font).CFF_).privateDict.is_null() {
-        (*(*(*font).CFF_).privateDict).defaultWidthX = maxj as ::core::ffi::c_double;
+    if !(*(*font).cff).private_dict.is_null() {
+        (*(*(*font).cff).private_dict).default_width_x = maxj as ::core::ffi::c_double;
         if nn as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-            (*(*(*font).CFF_).privateDict).nominalWidthX = nominalWidthX as ::core::ffi::c_double;
+            (*(*(*font).cff).private_dict).nominal_width_x = nominal_width_x as ::core::ffi::c_double;
         }
     }
-    if !(*(*font).CFF_).fdArray.is_null() {
-        for j_2 in 0..(*(*font).CFF_).fdArrayCount {
-            let fd = *(*(*font).CFF_).fdArray.offset(j_2 as isize);
-            (*(*fd).privateDict).defaultWidthX = maxj as ::core::ffi::c_double;
-            (*(*fd).privateDict).nominalWidthX = nominalWidthX as ::core::ffi::c_double;
+    if !(*(*font).cff).fd_array.is_null() {
+        for j_2 in 0..(*(*font).cff).fd_array_count {
+            let fd = *(*(*font).cff).fd_array.offset(j_2 as isize);
+            (*(*fd).private_dict).default_width_x = maxj as ::core::ffi::c_double;
+            (*(*fd).private_dict).nominal_width_x = nominal_width_x as ::core::ffi::c_double;
         }
     }
     free(frequency as *mut ::core::ffi::c_void);
 }
 unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
     if (*font).glyf.is_null()
-        || (*font).CFF_.is_null()
+        || (*font).cff.is_null()
         || (*font).vhea.is_null()
         || (*font).vmtx.is_null()
     {
@@ -1210,8 +1210,8 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
         562 as ::core::ffi::c_ulong,
     ) as *mut u32;
     for j in 0..(*(*font).glyf).length as GlyphId {
-        let vori: Pos = I_VQ.getStill.expect("non-null function pointer")(
-            (**(*(*font).glyf).items.offset(j as isize)).verticalOrigin,
+        let vori: Pos = I_VQ.get_still.expect("non-null function pointer")(
+            (**(*(*font).glyf).items.offset(j as isize)).vertical_origin,
         ) as Pos;
         if vori >= 0 as ::core::ffi::c_int as Pos && vori < MAX_STAT_METRIC as Pos {
             let fresh0 = frequency.offset(vori as u16 as isize);
@@ -1231,29 +1231,29 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
         ::core::mem::size_of::<VorgTable>() as usize,
         578 as ::core::ffi::c_ulong,
     ) as *mut VorgTable;
-    (*vorg).defaultVerticalOrigin = maxj as Pos;
+    (*vorg).default_vertical_origin = maxj as Pos;
     let mut n_vert_origs: GlyphId = 0 as GlyphId;
     for j_1 in 0..(*(*font).glyf).length as GlyphId {
-        let vori_0: Pos = I_VQ.getStill.expect("non-null function pointer")(
-            (**(*(*font).glyf).items.offset(j_1 as isize)).verticalOrigin,
+        let vori_0: Pos = I_VQ.get_still.expect("non-null function pointer")(
+            (**(*(*font).glyf).items.offset(j_1 as isize)).vertical_origin,
         ) as Pos;
         if vori_0 != maxj as ::core::ffi::c_int as Pos {
             n_vert_origs = (n_vert_origs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
         }
     }
-    (*vorg).numVertOriginYMetrics = n_vert_origs;
+    (*vorg).num_vert_origin_y_metrics = n_vert_origs;
     (*vorg).entries = __caryll_allocate_clean(
         (::core::mem::size_of::<VorgEntry>() as usize).wrapping_mul(n_vert_origs as usize),
         587 as ::core::ffi::c_ulong,
     ) as *mut VorgEntry;
     let mut jj: GlyphId = 0 as GlyphId;
     for j_2 in 0..(*(*font).glyf).length as GlyphId {
-        let vori_1: Pos = I_VQ.getStill.expect("non-null function pointer")(
-            (**(*(*font).glyf).items.offset(j_2 as isize)).verticalOrigin,
+        let vori_1: Pos = I_VQ.get_still.expect("non-null function pointer")(
+            (**(*(*font).glyf).items.offset(j_2 as isize)).vertical_origin,
         ) as Pos;
         if vori_1 != maxj as ::core::ffi::c_int as Pos {
             (*(*vorg).entries.offset(jj as isize)).gid = j_2;
-            (*(*vorg).entries.offset(jj as isize)).verticalOrigin = vori_1 as i16;
+            (*(*vorg).entries.offset(jj as isize)).vertical_origin = vori_1 as i16;
             jj = (jj as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
         }
     }
@@ -1266,7 +1266,7 @@ unsafe extern "C" fn stat_ltsh(mut font: *mut Font) {
     }
     let mut need_ltsh: bool = false;
     for j in 0..(*(*font).glyf).length as GlyphId {
-        if (**(*(*font).glyf).items.offset(j as isize)).yPel as ::core::ffi::c_int
+        if (**(*(*font).glyf).items.offset(j as isize)).y_pel as ::core::ffi::c_int
             > 1 as ::core::ffi::c_int
         {
             need_ltsh = true;
@@ -1280,13 +1280,13 @@ unsafe extern "C" fn stat_ltsh(mut font: *mut Font) {
         ::core::mem::size_of::<LtshTable>() as usize,
         610 as ::core::ffi::c_ulong,
     ) as *mut LtshTable;
-    (*ltsh).numGlyphs = (*(*font).glyf).length as GlyphId;
-    (*ltsh).yPels = __caryll_allocate_clean(
-        (::core::mem::size_of::<u8>() as usize).wrapping_mul((*ltsh).numGlyphs as usize),
+    (*ltsh).num_glyphs = (*(*font).glyf).length as GlyphId;
+    (*ltsh).y_pels = __caryll_allocate_clean(
+        (::core::mem::size_of::<u8>() as usize).wrapping_mul((*ltsh).num_glyphs as usize),
         612 as ::core::ffi::c_ulong,
     ) as *mut u8;
     for j_0 in 0..(*(*font).glyf).length as GlyphId {
-        *(*ltsh).yPels.offset(j_0 as isize) = (**(*(*font).glyf).items.offset(j_0 as isize)).yPel;
+        *(*ltsh).y_pels.offset(j_0 as isize) = (**(*(*font).glyf).items.offset(j_0 as isize)).y_pel;
     }
     (*font).LTSH = ltsh;
 }
@@ -1301,92 +1301,92 @@ pub unsafe extern "C" fn otfcc_stat_font(
                 2082844800 as i64 + time(::core::ptr::null_mut::<time_t>()) as i64;
         }
     }
-    if !(*font).head.is_null() && !(*font).CFF_.is_null() {
-        let mut cff: *mut CffTable = (*font).CFF_;
-        if (*cff).fontBBoxBottom
-            > (*(*font).head).yMin as ::core::ffi::c_int as ::core::ffi::c_double
+    if !(*font).head.is_null() && !(*font).cff.is_null() {
+        let mut cff: *mut CffTable = (*font).cff;
+        if (*cff).font_b_box_bottom
+            > (*(*font).head).y_min as ::core::ffi::c_int as ::core::ffi::c_double
         {
-            (*cff).fontBBoxBottom = (*(*font).head).yMin as ::core::ffi::c_double;
+            (*cff).font_b_box_bottom = (*(*font).head).y_min as ::core::ffi::c_double;
         }
-        if (*cff).fontBBoxTop < (*(*font).head).yMax as ::core::ffi::c_int as ::core::ffi::c_double
+        if (*cff).font_b_box_top < (*(*font).head).y_max as ::core::ffi::c_int as ::core::ffi::c_double
         {
-            (*cff).fontBBoxTop = (*(*font).head).yMax as ::core::ffi::c_double;
+            (*cff).font_b_box_top = (*(*font).head).y_max as ::core::ffi::c_double;
         }
-        if (*cff).fontBBoxLeft < (*(*font).head).xMin as ::core::ffi::c_int as ::core::ffi::c_double
+        if (*cff).font_b_box_left < (*(*font).head).x_min as ::core::ffi::c_int as ::core::ffi::c_double
         {
-            (*cff).fontBBoxLeft = (*(*font).head).xMin as ::core::ffi::c_double;
+            (*cff).font_b_box_left = (*(*font).head).x_min as ::core::ffi::c_double;
         }
-        if (*cff).fontBBoxRight
-            < (*(*font).head).xMax as ::core::ffi::c_int as ::core::ffi::c_double
+        if (*cff).font_b_box_right
+            < (*(*font).head).x_max as ::core::ffi::c_int as ::core::ffi::c_double
         {
-            (*cff).fontBBoxRight = (*(*font).head).xMax as ::core::ffi::c_double;
+            (*cff).font_b_box_right = (*(*font).head).x_max as ::core::ffi::c_double;
         }
-        if !(*font).glyf.is_null() && (*cff).isCID {
-            (*cff).cidCount = (*(*font).glyf).length as u32;
+        if !(*font).glyf.is_null() && (*cff).is_cid {
+            (*cff).cid_count = (*(*font).glyf).length as u32;
         }
-        if (*cff).isCID {
-            if !(*cff).fontMatrix.is_null() {
-                I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*cff).fontMatrix).x);
-                I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*cff).fontMatrix).y);
-                free((*cff).fontMatrix as *mut ::core::ffi::c_void);
-                (*cff).fontMatrix = ::core::ptr::null_mut::<CffFontMatrix>();
+        if (*cff).is_cid {
+            if !(*cff).font_matrix.is_null() {
+                I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*cff).font_matrix).x);
+                I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*cff).font_matrix).y);
+                free((*cff).font_matrix as *mut ::core::ffi::c_void);
+                (*cff).font_matrix = ::core::ptr::null_mut::<CffFontMatrix>();
             }
-            for j in 0..(*cff).fdArrayCount {
-                let fd: *mut CffTable = *(*cff).fdArray.offset(j as isize);
-                if !(*fd).fontMatrix.is_null() {
-                    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*fd).fontMatrix).x);
-                    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*fd).fontMatrix).y);
-                    free((*fd).fontMatrix as *mut ::core::ffi::c_void);
-                    (*fd).fontMatrix = ::core::ptr::null_mut::<CffFontMatrix>();
+            for j in 0..(*cff).fd_array_count {
+                let fd: *mut CffTable = *(*cff).fd_array.offset(j as isize);
+                if !(*fd).font_matrix.is_null() {
+                    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*fd).font_matrix).x);
+                    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*fd).font_matrix).y);
+                    free((*fd).font_matrix as *mut ::core::ffi::c_void);
+                    (*fd).font_matrix = ::core::ptr::null_mut::<CffFontMatrix>();
                 }
-                if (*(*font).head).unitsPerEm as ::core::ffi::c_int == 1000 as ::core::ffi::c_int {
-                    (*fd).fontMatrix = ::core::ptr::null_mut::<CffFontMatrix>();
+                if (*(*font).head).units_per_em as ::core::ffi::c_int == 1000 as ::core::ffi::c_int {
+                    (*fd).font_matrix = ::core::ptr::null_mut::<CffFontMatrix>();
                 } else {
-                    (*fd).fontMatrix = __caryll_allocate_clean(
+                    (*fd).font_matrix = __caryll_allocate_clean(
                         ::core::mem::size_of::<CffFontMatrix>() as usize,
                         651 as ::core::ffi::c_ulong,
                     ) as *mut CffFontMatrix;
-                    (*(*fd).fontMatrix).a = (1.0f64
-                        / (*(*font).head).unitsPerEm as ::core::ffi::c_int as ::core::ffi::c_double)
+                    (*(*fd).font_matrix).a = (1.0f64
+                        / (*(*font).head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
                         as Scale;
-                    (*(*fd).fontMatrix).b = 0.0f64 as Scale;
-                    (*(*fd).fontMatrix).c = 0.0f64 as Scale;
-                    (*(*fd).fontMatrix).d = (1.0f64
-                        / (*(*font).head).unitsPerEm as ::core::ffi::c_int as ::core::ffi::c_double)
+                    (*(*fd).font_matrix).b = 0.0f64 as Scale;
+                    (*(*fd).font_matrix).c = 0.0f64 as Scale;
+                    (*(*fd).font_matrix).d = (1.0f64
+                        / (*(*font).head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
                         as Scale;
-                    (*(*fd).fontMatrix).x = (
+                    (*(*fd).font_matrix).x = (
                         I_VQ.neutral.expect("non-null function pointer"))();
-                    (*(*fd).fontMatrix).y = (
+                    (*(*fd).font_matrix).y = (
                         I_VQ.neutral.expect("non-null function pointer"))();
                 }
             }
-        } else if (*(*font).head).unitsPerEm as ::core::ffi::c_int == 1000 as ::core::ffi::c_int {
-            (*cff).fontMatrix = ::core::ptr::null_mut::<CffFontMatrix>();
+        } else if (*(*font).head).units_per_em as ::core::ffi::c_int == 1000 as ::core::ffi::c_int {
+            (*cff).font_matrix = ::core::ptr::null_mut::<CffFontMatrix>();
         } else {
-            (*cff).fontMatrix = __caryll_allocate_clean(
+            (*cff).font_matrix = __caryll_allocate_clean(
                 ::core::mem::size_of::<CffFontMatrix>() as usize,
                 664 as ::core::ffi::c_ulong,
             ) as *mut CffFontMatrix;
-            (*(*cff).fontMatrix).a = (1.0f64
-                / (*(*font).head).unitsPerEm as ::core::ffi::c_int as ::core::ffi::c_double)
+            (*(*cff).font_matrix).a = (1.0f64
+                / (*(*font).head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
                 as Scale;
-            (*(*cff).fontMatrix).b = 0.0f64 as Scale;
-            (*(*cff).fontMatrix).c = 0.0f64 as Scale;
-            (*(*cff).fontMatrix).d = (1.0f64
-                / (*(*font).head).unitsPerEm as ::core::ffi::c_int as ::core::ffi::c_double)
+            (*(*cff).font_matrix).b = 0.0f64 as Scale;
+            (*(*cff).font_matrix).c = 0.0f64 as Scale;
+            (*(*cff).font_matrix).d = (1.0f64
+                / (*(*font).head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
                 as Scale;
-            (*(*cff).fontMatrix).x = (
+            (*(*cff).font_matrix).x = (
                 I_VQ.neutral.expect("non-null function pointer"))();
-            (*(*cff).fontMatrix).y = (
+            (*(*cff).font_matrix).y = (
                 I_VQ.neutral.expect("non-null function pointer"))();
         }
         stat_cff_widths(font);
     }
     if !(*font).glyf.is_null() && !(*font).maxp.is_null() {
-        (*(*font).maxp).numGlyphs = (*(*font).glyf).length as u16;
+        (*(*font).maxp).num_glyphs = (*(*font).glyf).length as u16;
     }
     if !(*font).glyf.is_null() && !(*font).post.is_null() {
-        (*(*font).post).maxMemType42 = (*(*font).glyf).length as u32;
+        (*(*font).post).max_mem_type42 = (*(*font).glyf).length as u32;
     }
     if !(*font).glyf.is_null()
         && !(*font).maxp.is_null()
@@ -1394,14 +1394,14 @@ pub unsafe extern "C" fn otfcc_stat_font(
     {
         stat_maxp(font);
         if !(*font).fpgm.is_null()
-            && (*(*font).fpgm).length > (*(*font).maxp).maxSizeOfInstructions as u32
+            && (*(*font).fpgm).length > (*(*font).maxp).max_size_of_instructions as u32
         {
-            (*(*font).maxp).maxSizeOfInstructions = (*(*font).fpgm).length as u16;
+            (*(*font).maxp).max_size_of_instructions = (*(*font).fpgm).length as u16;
         }
         if !(*font).prep.is_null()
-            && (*(*font).prep).length > (*(*font).maxp).maxSizeOfInstructions as u32
+            && (*(*font).prep).length > (*(*font).maxp).max_size_of_instructions as u32
         {
-            (*(*font).maxp).maxSizeOfInstructions = (*(*font).prep).length as u16;
+            (*(*font).maxp).max_size_of_instructions = (*(*font).prep).length as u16;
         }
     }
     if !(*font).OS_2.is_null() && !(*font).cmap.is_null() && !(*font).glyf.is_null() {
@@ -1427,11 +1427,11 @@ pub unsafe extern "C" fn otfcc_unstat_font(
     mut font: *mut Font,
     mut _options: *const Options,
 ) {
-    OTFCC_I_FONT.deleteTable.expect("non-null function pointer")(font, 1751412088i32 as u32);
-    OTFCC_I_FONT.deleteTable.expect("non-null function pointer")(font, 1752003704i32 as u32);
-    OTFCC_I_FONT.deleteTable.expect("non-null function pointer")(font, 1448038983i32 as u32);
-    OTFCC_I_FONT.deleteTable.expect("non-null function pointer")(font, 1986884728i32 as u32);
-    OTFCC_I_FONT.deleteTable.expect("non-null function pointer")(font, 1280594760i32 as u32);
+    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, 1751412088i32 as u32);
+    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, 1752003704i32 as u32);
+    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, 1448038983i32 as u32);
+    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, 1986884728i32 as u32);
+    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, 1280594760i32 as u32);
 }
 pub const FLT_MAX: ::core::ffi::c_float = __FLT_MAX__;
 pub const __FLT_MAX__: ::core::ffi::c_float = 3.40282347e+38f32;

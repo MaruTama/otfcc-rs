@@ -17,7 +17,7 @@ pub struct Options {
     pub keep_average_char_width: bool,
     pub keep_unicode_ranges: bool,
     pub short_post: bool,
-    pub dummy_DSIG: bool,
+    pub dummy_dsig: bool,
     pub keep_modified_time: bool,
     pub instr_as_bytes: bool,
     pub verbose: bool,
@@ -26,8 +26,8 @@ pub struct Options {
     pub merge_lookups: bool,
     pub merge_features: bool,
     pub force_cid: bool,
-    pub cff_rollCharString: bool,
-    pub cff_doSubroutinize: bool,
+    pub cff_roll_char_string: bool,
+    pub cff_do_subroutinize: bool,
     pub stub_cmap4: bool,
     pub decimal_cmap: bool,
     pub name_glyphs_by_hash: bool,
@@ -62,20 +62,20 @@ pub unsafe extern "C" fn otfcc_options_optimize_to(
     mut options: *mut Options,
     mut level: u8,
 ) {
-    (*options).cff_rollCharString = false;
+    (*options).cff_roll_char_string = false;
     (*options).short_post = false;
     (*options).ignore_glyph_order = false;
     (*options).cff_short_vmtx = false;
     (*options).merge_features = false;
     (*options).force_cid = false;
-    (*options).cff_doSubroutinize = false;
+    (*options).cff_do_subroutinize = false;
     if level as ::core::ffi::c_int >= 1 as ::core::ffi::c_int {
-        (*options).cff_rollCharString = true;
+        (*options).cff_roll_char_string = true;
         (*options).cff_short_vmtx = true;
     }
     if level as ::core::ffi::c_int >= 2 as ::core::ffi::c_int {
         (*options).short_post = true;
-        (*options).cff_doSubroutinize = true;
+        (*options).cff_do_subroutinize = true;
         (*options).merge_features = true;
     }
     if level as ::core::ffi::c_int >= 3 as ::core::ffi::c_int {

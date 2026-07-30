@@ -458,7 +458,7 @@ unsafe fn main_0(
                             b"subroutinize\0" as *const u8 as *const ::core::ffi::c_char,
                         ) == 0 as ::core::ffi::c_int
                         {
-                            (*options).cff_doSubroutinize = true;
+                            (*options).cff_do_subroutinize = true;
                         } else if strcmp(
                             longopts[option_index as usize].name,
                             b"stub-cmap4\0" as *const u8 as *const ::core::ffi::c_char,
@@ -472,7 +472,7 @@ unsafe fn main_0(
                         {
                             (*options).ignore_glyph_order = true;
                             (*options).short_post = true;
-                            (*options).dummy_DSIG = true;
+                            (*options).dummy_dsig = true;
                         } else if strcmp(
                             longopts[option_index as usize].name,
                             b"verbose\0" as *const u8 as *const ::core::ffi::c_char,
@@ -505,7 +505,7 @@ unsafe fn main_0(
                 outputPath = sdsnew(optarg);
             }
             115 => {
-                (*options).dummy_DSIG = true;
+                (*options).dummy_dsig = true;
             }
             113 => {
                 (*options).quiet = true;
@@ -517,7 +517,7 @@ unsafe fn main_0(
         }
     }
     (*(*options).logger)
-        .setVerbosity
+        .set_verbosity
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         (if (*options).quiet as ::core::ffi::c_int != 0 {
@@ -544,7 +544,7 @@ unsafe fn main_0(
     }
     if outputPath.is_null() {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_CRITICAL,
@@ -560,7 +560,7 @@ unsafe fn main_0(
     let mut buffer: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut length: ::core::ffi::c_long = 0;
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Load file"),
@@ -569,7 +569,7 @@ unsafe fn main_0(
     while ___loggedstep_v {
         if !inPath.is_null() {
             (*(*options).logger)
-                .startSDS
+                .start_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 otfcc_rust::sdsbuild!(sdsempty(), b"Load from file ", inPath),
@@ -591,7 +591,7 @@ unsafe fn main_0(
             }
         } else {
             (*(*options).logger)
-                .startSDS
+                .start_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 otfcc_rust::sdsbuild!(sdsempty(), b"Load from stdin"),
@@ -608,7 +608,7 @@ unsafe fn main_0(
             }
         }
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -622,7 +622,7 @@ unsafe fn main_0(
     }
     let mut json_root: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Parse into JSON"),
@@ -632,7 +632,7 @@ unsafe fn main_0(
         json_root = json_parse(buffer, length as usize);
         free(buffer as *mut ::core::ffi::c_void);
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -641,7 +641,7 @@ unsafe fn main_0(
         );
         if json_root.is_null() {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
@@ -662,7 +662,7 @@ unsafe fn main_0(
     }
     let mut font: *mut Font = ::core::ptr::null_mut::<Font>();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Parse"),
@@ -677,7 +677,7 @@ unsafe fn main_0(
         );
         if font.is_null() {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
@@ -694,7 +694,7 @@ unsafe fn main_0(
         (*parser).free.expect("non-null function pointer")(parser as *mut IFontBuilder);
         json_value_free(json_root);
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -707,7 +707,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Consolidate"),
@@ -716,7 +716,7 @@ unsafe fn main_0(
     while ___loggedstep_v_4 {
         OTFCC_I_FONT.consolidate.expect("non-null function pointer")(font, options);
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -729,7 +729,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Build"),
@@ -741,7 +741,7 @@ unsafe fn main_0(
             (*writer).serialize.expect("non-null function pointer")(font, options)
                 as *mut Buffer;
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             otfcc_rust::sdsbuild!(sdsempty(), b"Write to file"),
@@ -754,7 +754,7 @@ unsafe fn main_0(
             ) as *mut FILE;
             if outfile.is_null() {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_CRITICAL,
@@ -783,7 +783,7 @@ unsafe fn main_0(
             );
         }
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,

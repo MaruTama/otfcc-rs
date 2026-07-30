@@ -14,16 +14,16 @@ use crate::table::maxp::{MaxpTable};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct DeviceRecord {
-    pub pixelSize: u8,
-    pub maxWidth: u8,
+    pub pixel_size: u8,
+    pub max_width: u8,
     pub widths: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct HdmxTable {
     pub version: u16,
-    pub numRecords: u16,
-    pub sizeDeviceRecord: u32,
+    pub num_records: u16,
+    pub size_device_record: u32,
     pub records: *mut DeviceRecord,
 }
 #[derive(Copy, Clone)]
@@ -34,7 +34,7 @@ pub struct HdmxTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut HdmxTable, *mut HdmxTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut HdmxTable>,
     pub free: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
 }
@@ -44,7 +44,7 @@ unsafe extern "C" fn dispose_hdmx(mut table: *mut HdmxTable) {
         return;
     }
     let mut i: u32 = 0 as u32;
-    while i < (*table).numRecords as u32 {
+    while i < (*table).num_records as u32 {
         if !(*(*table).records.offset(i as isize)).widths.is_null() {
             free((*(*table).records.offset(i as isize)).widths as *mut ::core::ffi::c_void);
             let ref mut fresh0 = (*(*table).records.offset(i as isize)).widths;
@@ -68,7 +68,7 @@ pub static TABLE_I_HDMX: HdmxTableElementInterface = {
         replace: Some(
             table_hdmx_replace as unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_hdmx_copy_replace as unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> (),
         ),
         create: Some(table_hdmx_create),
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn otfcc_read_hdmx(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -157,34 +157,34 @@ pub unsafe extern "C" fn otfcc_read_hdmx(
                         20 as ::core::ffi::c_ulong,
                     ) as *mut HdmxTable;
                     (*hdmx).version = read_16u(data as *const u8);
-                    (*hdmx).numRecords =
+                    (*hdmx).num_records =
                         read_16u(data.offset(2 as ::core::ffi::c_int as isize) as *const u8);
-                    (*hdmx).sizeDeviceRecord =
+                    (*hdmx).size_device_record =
                         read_32u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8);
                     (*hdmx).records = __caryll_allocate_clean(
                         (::core::mem::size_of::<DeviceRecord>() as usize)
-                            .wrapping_mul((*hdmx).numRecords as usize),
+                            .wrapping_mul((*hdmx).num_records as usize),
                         24 as ::core::ffi::c_ulong,
                     ) as *mut DeviceRecord;
                     let mut i: u32 = 0 as u32;
-                    while i < (*hdmx).numRecords as u32 {
-                        (*(*hdmx).records.offset(i as isize)).pixelSize = *data
+                    while i < (*hdmx).num_records as u32 {
+                        (*(*hdmx).records.offset(i as isize)).pixel_size = *data
                             .offset(8 as ::core::ffi::c_int as isize)
                             .offset(i.wrapping_mul(
-                                (2 as ::core::ffi::c_int + (*maxp).numGlyphs as ::core::ffi::c_int)
+                                (2 as ::core::ffi::c_int + (*maxp).num_glyphs as ::core::ffi::c_int)
                                     as u32,
                             ) as isize);
-                        (*(*hdmx).records.offset(i as isize)).maxWidth = *data
+                        (*(*hdmx).records.offset(i as isize)).max_width = *data
                             .offset(8 as ::core::ffi::c_int as isize)
                             .offset(i.wrapping_mul(
-                                (2 as ::core::ffi::c_int + (*maxp).numGlyphs as ::core::ffi::c_int)
+                                (2 as ::core::ffi::c_int + (*maxp).num_glyphs as ::core::ffi::c_int)
                                     as u32,
                             ) as isize)
                             .offset(1 as ::core::ffi::c_int as isize);
                         let ref mut fresh1 = (*(*hdmx).records.offset(i as isize)).widths;
                         *fresh1 = __caryll_allocate_clean(
                             (::core::mem::size_of::<u8>() as usize)
-                                .wrapping_mul((*maxp).numGlyphs as usize),
+                                .wrapping_mul((*maxp).num_glyphs as usize),
                             29 as ::core::ffi::c_ulong,
                         ) as *mut u8;
                         memcpy(
@@ -193,12 +193,12 @@ pub unsafe extern "C" fn otfcc_read_hdmx(
                             data.offset(8 as ::core::ffi::c_int as isize)
                                 .offset(i.wrapping_mul(
                                     (2 as ::core::ffi::c_int
-                                        + (*maxp).numGlyphs as ::core::ffi::c_int)
+                                        + (*maxp).num_glyphs as ::core::ffi::c_int)
                                         as u32,
                                 ) as isize)
                                 .offset(2 as ::core::ffi::c_int as isize)
                                 as *const ::core::ffi::c_void,
-                            (*maxp).numGlyphs as usize,
+                            (*maxp).num_glyphs as usize,
                         );
                         i = i.wrapping_add(1);
                     }

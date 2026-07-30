@@ -35,7 +35,7 @@ pub struct BaseRecordElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut BaseRecord, *mut BaseRecord) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut BaseRecord) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut BaseRecord, BaseRecord) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut BaseRecord, BaseRecord) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut BaseRecord, BaseRecord) -> ()>,
 }
 #[inline]
 unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
@@ -79,7 +79,7 @@ static BA_TYPEINFO: BaseRecordElementInterface = {
         move_0: None,
         dispose: Some(delete_base_array_item as unsafe extern "C" fn(*mut BaseRecord) -> ()),
         replace: None,
-        copyReplace: None,
+        copy_replace: None,
     }
 };
 #[inline]
@@ -249,30 +249,30 @@ pub static OTL_I_BASE_ARRAY: BaseArrayVectorInterface = {
         replace: Some(
             otl_base_array_replace as unsafe extern "C" fn(*mut BaseArray, BaseArray) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_base_array_copy_replace
                 as unsafe extern "C" fn(*mut BaseArray, BaseArray) -> (),
         ),
         create: Some(otl_base_array_create),
         free: Some(otl_base_array_free as unsafe extern "C" fn(*mut BaseArray) -> ()),
-        initN: Some(otl_base_array_init_n as unsafe extern "C" fn(*mut BaseArray, usize) -> ()),
-        initCapN: Some(
+        init_n: Some(otl_base_array_init_n as unsafe extern "C" fn(*mut BaseArray, usize) -> ()),
+        init_cap_n: Some(
             otl_base_array_init_cap_n as unsafe extern "C" fn(*mut BaseArray, usize) -> (),
         ),
-        createN: Some(otl_base_array_create_n as unsafe extern "C" fn(usize) -> *mut BaseArray),
+        create_n: Some(otl_base_array_create_n as unsafe extern "C" fn(usize) -> *mut BaseArray),
         fill: Some(otl_base_array_fill as unsafe extern "C" fn(*mut BaseArray, usize) -> ()),
         clear: Some(otl_base_array_dispose as unsafe extern "C" fn(*mut BaseArray) -> ()),
         push: Some(
             otl_base_array_push as unsafe extern "C" fn(*mut BaseArray, BaseRecord) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             otl_base_array_shrink_to_fit as unsafe extern "C" fn(*mut BaseArray) -> (),
         ),
         pop: Some(otl_base_array_pop as unsafe extern "C" fn(*mut BaseArray) -> BaseRecord),
-        disposeItem: Some(
+        dispose_item: Some(
             otl_base_array_dispose_item as unsafe extern "C" fn(*mut BaseArray, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             otl_base_array_filter_env
                 as unsafe extern "C" fn(
                     *mut BaseArray,
@@ -367,13 +367,13 @@ unsafe extern "C" fn otl_base_array_fill(mut arr: *mut BaseArray, mut n: usize) 
 }
 #[inline]
 unsafe extern "C" fn init_mark_to_single(mut subtable: *mut GposMarkToSingleSubtable) {
-    OTL_I_MARK_ARRAY.init.expect("non-null function pointer")(&raw mut (*subtable).markArray);
-    OTL_I_BASE_ARRAY.init.expect("non-null function pointer")(&raw mut (*subtable).baseArray);
+    OTL_I_MARK_ARRAY.init.expect("non-null function pointer")(&raw mut (*subtable).mark_array);
+    OTL_I_BASE_ARRAY.init.expect("non-null function pointer")(&raw mut (*subtable).base_array);
 }
 #[inline]
 unsafe extern "C" fn dispose_mark_to_single(mut subtable: *mut GposMarkToSingleSubtable) {
-    OTL_I_MARK_ARRAY.dispose.expect("non-null function pointer")(&raw mut (*subtable).markArray);
-    OTL_I_BASE_ARRAY.dispose.expect("non-null function pointer")(&raw mut (*subtable).baseArray);
+    OTL_I_MARK_ARRAY.dispose.expect("non-null function pointer")(&raw mut (*subtable).mark_array);
+    OTL_I_BASE_ARRAY.dispose.expect("non-null function pointer")(&raw mut (*subtable).base_array);
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_mark_to_single_copy_replace(
@@ -465,7 +465,7 @@ pub static I_SUBTABLE_GPOS_MARK_TO_SINGLE: GposMarkToSingleSubtableElementInterf
                     GposMarkToSingleSubtable,
                 ) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             subtable_gpos_mark_to_single_copy_replace
                 as unsafe extern "C" fn(
                     *mut GposMarkToSingleSubtable,
@@ -522,11 +522,11 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
             ) as u32),
         );
         if !(marks.is_null()
-            || (*marks).numGlyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int
+            || (*marks).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int
             || bases.is_null()
-            || (*bases).numGlyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
+            || (*bases).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
         {
-            (*subtable).classCount = read_16u(
+            (*subtable).class_count = read_16u(
                 data.offset(subtable_offset as isize)
                     .offset(6 as ::core::ffi::c_int as isize) as *const u8,
             ) as GlyphClass;
@@ -535,7 +535,7 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
                     .offset(8 as ::core::ffi::c_int as isize) as *const u8,
             ) as u32);
             otl_read_mark_array(
-                &raw mut (*subtable).markArray,
+                &raw mut (*subtable).mark_array,
                 marks,
                 data,
                 table_length,
@@ -548,28 +548,28 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
             if !(table_length
                 < base_array_offset.wrapping_add(2 as u32).wrapping_add(
                     (2 as ::core::ffi::c_int
-                        * (*bases).numGlyphs as ::core::ffi::c_int
-                        * (*subtable).classCount as ::core::ffi::c_int)
+                        * (*bases).num_glyphs as ::core::ffi::c_int
+                        * (*subtable).class_count as ::core::ffi::c_int)
                         as u32,
                 ))
             {
                 if !(read_16u(data.offset(base_array_offset as isize) as *const u8)
                     as ::core::ffi::c_int
-                    != (*bases).numGlyphs as ::core::ffi::c_int)
+                    != (*bases).num_glyphs as ::core::ffi::c_int)
                 {
                     _offset = base_array_offset.wrapping_add(2 as u32);
                     let mut j: GlyphId = 0 as GlyphId;
-                    while (j as ::core::ffi::c_int) < (*bases).numGlyphs as ::core::ffi::c_int {
+                    while (j as ::core::ffi::c_int) < (*bases).num_glyphs as ::core::ffi::c_int {
                         let mut base_anchors: *mut Anchor =
                             ::core::ptr::null_mut::<Anchor>();
                         base_anchors = __caryll_allocate_clean(
                             (::core::mem::size_of::<Anchor>() as usize)
-                                .wrapping_mul((*subtable).classCount as usize),
+                                .wrapping_mul((*subtable).class_count as usize),
                             49 as ::core::ffi::c_ulong,
                         ) as *mut Anchor;
                         let mut k: GlyphClass = 0 as GlyphClass;
                         while (k as ::core::ffi::c_int)
-                            < (*subtable).classCount as ::core::ffi::c_int
+                            < (*subtable).class_count as ::core::ffi::c_int
                         {
                             if read_16u(data.offset(_offset as isize) as *const u8) != 0 {
                                 *base_anchors.offset(k as isize) = otl_read_anchor(
@@ -587,7 +587,7 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
                             k = k.wrapping_add(1);
                         }
                         OTL_I_BASE_ARRAY.push.expect("non-null function pointer")(
-                            &raw mut (*subtable).baseArray,
+                            &raw mut (*subtable).base_array,
                             BaseRecord {
                                 glyph: otfcc_handle_dup(
                                     *(*bases).glyphs.offset(j as isize) as Handle,
@@ -616,17 +616,17 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
 pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
     mut st: *const Subtable,
 ) -> *mut JsonValue {
-    let mut subtable: *const GposMarkToSingleSubtable = &raw const (*st).gpos_markToSingle;
+    let mut subtable: *const GposMarkToSingleSubtable = &raw const (*st).gpos_mark_to_single;
     let mut _subtable: *mut JsonValue = json_object_new(3 as usize);
-    let mut _marks: *mut JsonValue = json_object_new((*subtable).markArray.length);
-    let mut _bases: *mut JsonValue = json_object_new((*subtable).baseArray.length);
+    let mut _marks: *mut JsonValue = json_object_new((*subtable).mark_array.length);
+    let mut _bases: *mut JsonValue = json_object_new((*subtable).base_array.length);
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).markArray.length {
+    while (j as usize) < (*subtable).mark_array.length {
         let mut _mark: *mut JsonValue = json_object_new(3 as usize);
         let mut mark_class_name: SdsRaw = crate::sdsbuild!(
             sdsempty(),
             b"anchor",
-            (*(*subtable).markArray.items.offset(j as isize)).markClass as ::core::ffi::c_int,
+            (*(*subtable).mark_array.items.offset(j as isize)).mark_class as ::core::ffi::c_int,
         );
         json_object_push(
             _mark,
@@ -640,27 +640,27 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
         json_object_push(
             _mark,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*(*subtable).markArray.items.offset(j as isize)).anchor.x as i64),
+            json_integer_new((*(*subtable).mark_array.items.offset(j as isize)).anchor.x as i64),
         );
         json_object_push(
             _mark,
             b"y\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*(*subtable).markArray.items.offset(j as isize)).anchor.y as i64),
+            json_integer_new((*(*subtable).mark_array.items.offset(j as isize)).anchor.y as i64),
         );
         json_object_push(
             _marks,
-            (*(*subtable).markArray.items.offset(j as isize)).glyph.name
+            (*(*subtable).mark_array.items.offset(j as isize)).glyph.name
                 as *const ::core::ffi::c_char,
             preserialize(_mark),
         );
         j = j.wrapping_add(1);
     }
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*subtable).baseArray.length {
-        let mut _base: *mut JsonValue = json_object_new((*subtable).classCount as usize);
+    while (j_0 as usize) < (*subtable).base_array.length {
+        let mut _base: *mut JsonValue = json_object_new((*subtable).class_count as usize);
         let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as ::core::ffi::c_int) < (*subtable).classCount as ::core::ffi::c_int {
-            if (*(*(*subtable).baseArray.items.offset(j_0 as isize))
+        while (k as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
+            if (*(*(*subtable).base_array.items.offset(j_0 as isize))
                 .anchors
                 .offset(k as isize))
             .present
@@ -670,7 +670,7 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
                     _anchor,
                     b"x\0" as *const u8 as *const ::core::ffi::c_char,
                     json_integer_new(
-                        (*(*(*subtable).baseArray.items.offset(j_0 as isize))
+                        (*(*(*subtable).base_array.items.offset(j_0 as isize))
                             .anchors
                             .offset(k as isize))
                         .x as i64,
@@ -680,7 +680,7 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
                     _anchor,
                     b"y\0" as *const u8 as *const ::core::ffi::c_char,
                     json_integer_new(
-                        (*(*(*subtable).baseArray.items.offset(j_0 as isize))
+                        (*(*(*subtable).base_array.items.offset(j_0 as isize))
                             .anchors
                             .offset(k as isize))
                         .y as i64,
@@ -699,7 +699,7 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
         }
         json_object_push(
             _bases,
-            (*(*subtable).baseArray.items.offset(j_0 as isize))
+            (*(*subtable).base_array.items.offset(j_0 as isize))
                 .glyph
                 .name as *const ::core::ffi::c_char,
             preserialize(_base),
@@ -724,7 +724,7 @@ unsafe extern "C" fn parse_bases(
     mut h: *mut *mut ClassNameHash,
     mut options: *const Options,
 ) {
-    let mut classCount: GlyphClass = (if !(*h).is_null() {
+    let mut class_count: GlyphClass = (if !(*h).is_null() {
         (*(**h).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
@@ -746,11 +746,11 @@ unsafe extern "C" fn parse_bases(
             (*(*_bases).u.object.values.offset(j as isize)).name_length as usize,
         )) as GlyphHandle;
         base.anchors = __caryll_allocate_clean(
-            (::core::mem::size_of::<Anchor>() as usize).wrapping_mul(classCount as usize),
+            (::core::mem::size_of::<Anchor>() as usize).wrapping_mul(class_count as usize),
             116 as ::core::ffi::c_ulong,
         ) as *mut Anchor;
         let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as ::core::ffi::c_int) < classCount as ::core::ffi::c_int {
+        while (k as ::core::ffi::c_int) < class_count as ::core::ffi::c_int {
             *base.anchors.offset(k as isize) = otl_anchor_absent();
             k = k.wrapping_add(1);
         }
@@ -760,13 +760,13 @@ unsafe extern "C" fn parse_bases(
             || (*base_record).type_0 != JsonType::Object
         {
             OTL_I_BASE_ARRAY.push.expect("non-null function pointer")(
-                &raw mut (*subtable).baseArray,
+                &raw mut (*subtable).base_array,
                 base,
             );
         } else {
             let mut k_0: GlyphClass = 0 as GlyphClass;
             while (k_0 as ::core::ffi::c_uint) < (*base_record).u.object.length {
-                let mut className: SdsRaw = sdsnewlen(
+                let mut class_name: SdsRaw = sdsnewlen(
                     (*(*base_record).u.object.values.offset(k_0 as isize)).name
                         as *const ::core::ffi::c_void,
                     (*(*base_record).u.object.values.offset(k_0 as isize)).name_length as usize,
@@ -777,11 +777,11 @@ unsafe extern "C" fn parse_bases(
                 let mut _hj_j: ::core::ffi::c_uint = 0;
                 let mut _hj_k: ::core::ffi::c_uint = 0;
                 let mut _hj_key: *const ::core::ffi::c_uchar =
-                    className as *const ::core::ffi::c_uchar;
+                    class_name as *const ::core::ffi::c_uchar;
                 _hf_hashv = 0xfeedbeef as ::core::ffi::c_uint;
                 _hj_j = 0x9e3779b9 as ::core::ffi::c_uint;
                 _hj_i = _hj_j;
-                _hj_k = strlen(className as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
+                _hj_k = strlen(class_name as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
                 while _hj_k >= 12 as ::core::ffi::c_uint {
                     _hj_i = _hj_i.wrapping_add(
                         (*_hj_key.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
@@ -868,7 +868,7 @@ unsafe extern "C" fn parse_bases(
                     _hj_k = _hj_k.wrapping_sub(12 as ::core::ffi::c_uint);
                 }
                 _hf_hashv = _hf_hashv.wrapping_add(
-                    strlen(className as *const ::core::ffi::c_char) as ::core::ffi::c_uint
+                    strlen(class_name as *const ::core::ffi::c_char) as ::core::ffi::c_uint
                 );
                 let mut current_block_56: u64;
                 match _hj_k {
@@ -1070,13 +1070,13 @@ unsafe extern "C" fn parse_bases(
                         while !s.is_null() {
                             if (*s).hh.hashv == _hf_hashv
                                 && (*s).hh.keylen
-                                    == strlen(className as *const ::core::ffi::c_char)
+                                    == strlen(class_name as *const ::core::ffi::c_char)
                                         as ::core::ffi::c_uint
                             {
                                 if memcmp(
                                     (*s).hh.key,
-                                    className as *const ::core::ffi::c_void,
-                                    strlen(className as *const ::core::ffi::c_char)
+                                    class_name as *const ::core::ffi::c_void,
+                                    strlen(class_name as *const ::core::ffi::c_char)
                                         as ::core::ffi::c_uint
                                         as usize,
                                 ) == 0 as ::core::ffi::c_int
@@ -1098,7 +1098,7 @@ unsafe extern "C" fn parse_bases(
                 }
                 if s.is_null() {
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect(
                             "non-null function pointer",
                         )(
@@ -1108,23 +1108,23 @@ unsafe extern "C" fn parse_bases(
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[OTFCC-fea] Invalid anchor class name <",
-                            className,
+                            class_name,
                             b"> for /",
                             gname,
                             b". This base anchor is ignored.\n",
                         ),
                     );
                 } else {
-                    *base.anchors.offset((*s).classID as isize) = otl_parse_anchor(
+                    *base.anchors.offset((*s).class_id as isize) = otl_parse_anchor(
                         (*(*base_record).u.object.values.offset(k_0 as isize)).value
                             as *mut JsonValue,
                     );
                 }
-                sdsfree(className);
+                sdsfree(class_name);
                 k_0 = k_0.wrapping_add(1);
             }
             OTL_I_BASE_ARRAY.push.expect("non-null function pointer")(
-                &raw mut (*subtable).baseArray,
+                &raw mut (*subtable).base_array,
                 base,
             );
         }
@@ -1154,8 +1154,8 @@ pub unsafe extern "C" fn otl_gpos_parse_mark_to_single(
                 .create
                 .expect("non-null function pointer"))();
     let mut h: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
-    otl_parse_mark_array(_marks, &raw mut (*st).markArray, &raw mut h, options);
-    (*st).classCount = (if !h.is_null() {
+    otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h, options);
+    (*st).class_count = (if !h.is_null() {
         (*(*h).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
@@ -1214,7 +1214,7 @@ pub unsafe extern "C" fn otl_gpos_parse_mark_to_single(
             }
             (*(*h).hh.tbl).num_items = (*(*h).hh.tbl).num_items.wrapping_sub(1);
         }
-        sdsfree((*s).className);
+        sdsfree((*s).class_name);
         free(s as *mut ::core::ffi::c_void);
         s = ::core::ptr::null_mut::<ClassNameHash>();
         s = tmp;
@@ -1227,25 +1227,25 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let mut subtable: *const GposMarkToSingleSubtable = &raw const (*_subtable).gpos_markToSingle;
+    let mut subtable: *const GposMarkToSingleSubtable = &raw const (*_subtable).gpos_mark_to_single;
     let mut marks: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).markArray.length {
+    while (j as usize) < (*subtable).mark_array.length {
         push_to_coverage(
             marks,
             otfcc_handle_dup(
-                (*(*subtable).markArray.items.offset(j as isize)).glyph as Handle,
+                (*(*subtable).mark_array.items.offset(j as isize)).glyph as Handle,
             ) as GlyphHandle,
         );
         j = j.wrapping_add(1);
     }
     let mut bases: *mut Coverage = otl_coverage_create();
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*subtable).baseArray.length {
+    while (j_0 as usize) < (*subtable).base_array.length {
         push_to_coverage(
             bases,
             otfcc_handle_dup(
-                (*(*subtable).baseArray.items.offset(j_0 as isize)).glyph as Handle,
+                (*(*subtable).base_array.items.offset(j_0 as isize)).glyph as Handle,
             ) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
@@ -1254,20 +1254,20 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
             marks,
         ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             bases,
-        ))), bk_int(BkCellType::B16, ((*subtable).classCount as ::core::ffi::c_int) as u32)]);
-    let mut markArray: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).markArray.length) as u32)]);
+        ))), bk_int(BkCellType::B16, ((*subtable).class_count as ::core::ffi::c_int) as u32)]);
+    let mut mark_array: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).mark_array.length) as u32)]);
     let mut j_1: GlyphId = 0 as GlyphId;
-    while (j_1 as usize) < (*subtable).markArray.length {
-        bk_push(markArray, &[bk_int(BkCellType::B16, ((*(*subtable).markArray.items.offset(j_1 as isize)).markClass as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_from_anchor((*(*subtable).markArray.items.offset(j_1 as isize)).anchor))]);
+    while (j_1 as usize) < (*subtable).mark_array.length {
+        bk_push(mark_array, &[bk_int(BkCellType::B16, ((*(*subtable).mark_array.items.offset(j_1 as isize)).mark_class as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_from_anchor((*(*subtable).mark_array.items.offset(j_1 as isize)).anchor))]);
         j_1 = j_1.wrapping_add(1);
     }
-    let mut baseArray: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).baseArray.length) as u32)]);
+    let mut base_array: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).base_array.length) as u32)]);
     let mut j_2: GlyphId = 0 as GlyphId;
-    while (j_2 as usize) < (*subtable).baseArray.length {
+    while (j_2 as usize) < (*subtable).base_array.length {
         let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as ::core::ffi::c_int) < (*subtable).classCount as ::core::ffi::c_int {
-            bk_push(baseArray, &[bk_ptr(BkCellType::P16, bk_from_anchor(
-                    *(*(*subtable).baseArray.items.offset(j_2 as isize))
+        while (k as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
+            bk_push(base_array, &[bk_ptr(BkCellType::P16, bk_from_anchor(
+                    *(*(*subtable).base_array.items.offset(j_2 as isize))
                         .anchors
                         .offset(k as isize),
                 ))]);
@@ -1275,7 +1275,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
         }
         j_2 = j_2.wrapping_add(1);
     }
-    bk_push(root, &[bk_ptr(BkCellType::P16, markArray), bk_ptr(BkCellType::P16, baseArray)]);
+    bk_push(root, &[bk_ptr(BkCellType::P16, mark_array), bk_ptr(BkCellType::P16, base_array)]);
     otl_coverage_free(marks);
     otl_coverage_free(bases);
     return bk_build_block(root);

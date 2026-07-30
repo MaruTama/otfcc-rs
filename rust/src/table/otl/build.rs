@@ -463,7 +463,7 @@ unsafe extern "C" fn write_otl_lookups(
             *(*table).lookups.items.offset(j as isize) as *mut Lookup;
         let mut heu: BuildHeuristics = get_lookup_heuristics(table, lookup);
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -508,7 +508,7 @@ unsafe extern "C" fn write_otl_lookups(
     while (j_1 as usize) < (*table).lookups.length {
         if *subtable_quantity.offset(j_1 as isize) == 0 {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_NOTICE,
@@ -528,7 +528,7 @@ unsafe extern "C" fn write_otl_lookups(
             || *prefer_ext_for_this_lut.offset(j_1 as isize) as ::core::ffi::c_int != 0;
         if use_extended_for_it {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_NOTICE,
@@ -649,7 +649,7 @@ unsafe extern "C" fn write_language(
     if lang.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, (feature_index((*lang).requiredFeature as *const Feature, table) as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lang).features.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, (feature_index((*lang).required_feature as *const Feature, table) as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lang).features.length) as u32)]);
     let mut k: TableId = 0 as TableId;
     while (k as usize) < (*lang).features.length {
         bk_push(root, &[bk_int(BkCellType::B16, (feature_index(
@@ -1562,7 +1562,7 @@ pub unsafe extern "C" fn otfcc_build_otl(
     }
     let mut buf: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), tag),

@@ -268,8 +268,8 @@ pub const TYPE2_ARGUMENT_STACK: u32 = 48;
 pub struct CffHeader {
     pub major: u8,
     pub minor: u8,
-    pub hdrSize: u8,
-    pub offSize: u8,
+    pub hdr_size: u8,
+    pub off_size: u8,
 }
 
 #[derive(Copy, Clone)]
@@ -356,17 +356,17 @@ pub struct CffFile {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffIOutlineBuilder {
-    pub setWidth:
+    pub set_width:
         Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> ()>,
-    pub newContour: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ()>,
-    pub lineTo: Option<
+    pub new_contour: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ()>,
+    pub line_to: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             ::core::ffi::c_double,
             ::core::ffi::c_double,
         ) -> (),
     >,
-    pub curveTo: Option<
+    pub curve_to: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             ::core::ffi::c_double,
@@ -377,7 +377,7 @@ pub struct CffIOutlineBuilder {
             ::core::ffi::c_double,
         ) -> (),
     >,
-    pub setHint: Option<
+    pub set_hint: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             bool,
@@ -385,7 +385,7 @@ pub struct CffIOutlineBuilder {
             ::core::ffi::c_double,
         ) -> (),
     >,
-    pub setMask: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, bool, *mut bool) -> ()>,
+    pub set_mask: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, bool, *mut bool) -> ()>,
     pub getrand: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ::core::ffi::c_double>,
 }
 

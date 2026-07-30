@@ -21,11 +21,11 @@ use crate::vendor::sds::{sdsempty, sdsfree, sdsgrowzero, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct NameRecord {
-    pub platformID: u16,
-    pub encodingID: u16,
-    pub languageID: u16,
-    pub nameID: u16,
-    pub nameString: SdsRaw,
+    pub platform_id: u16,
+    pub encoding_id: u16,
+    pub language_id: u16,
+    pub name_id: u16,
+    pub name_string: SdsRaw,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -35,7 +35,7 @@ pub struct NameRecordElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut NameRecord, *mut NameRecord) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut NameRecord) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut NameRecord, NameRecord) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut NameRecord, NameRecord) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut NameRecord, NameRecord) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -52,19 +52,19 @@ pub struct NameTableVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut NameTable, *mut NameTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut NameTable, NameTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut NameTable, NameTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut NameTable, NameTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut NameTable>,
     pub free: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut NameTable>,
+    pub init_n: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut NameTable>,
     pub fill: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut NameTable, NameRecord) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut NameTable) -> NameRecord>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut NameTable,
             Option<unsafe extern "C" fn(*const NameRecord, *mut ::core::ffi::c_void) -> bool>,
@@ -115,8 +115,8 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
 }
 pub const COPYRIGHT_LEN: ::core::ffi::c_int = 32 as ::core::ffi::c_int;
 unsafe extern "C" fn name_record_dtor(mut entry: *mut NameRecord) {
-    sdsfree((*entry).nameString);
-    (*entry).nameString = ::core::ptr::null_mut::<::core::ffi::c_char>();
+    sdsfree((*entry).name_string);
+    (*entry).name_string = ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
 #[inline]
 unsafe extern "C" fn otfcc_name_record_move(
@@ -176,7 +176,7 @@ pub static OTFCC_I_NAME_RECORD: NameRecordElementInterface = {
             otfcc_name_record_replace
                 as unsafe extern "C" fn(*mut NameRecord, NameRecord) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otfcc_name_record_copy_replace
                 as unsafe extern "C" fn(*mut NameRecord, NameRecord) -> (),
         ),
@@ -282,11 +282,11 @@ unsafe extern "C" fn table_name_sort(
 unsafe extern "C" fn table_name_fill(mut arr: *mut NameTable, mut n: usize) {
     while (*arr).length < n {
         let mut x: NameRecord = NameRecord {
-            platformID: 0,
-            encodingID: 0,
-            languageID: 0,
-            nameID: 0,
-            nameString: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+            platform_id: 0,
+            encoding_id: 0,
+            language_id: 0,
+            name_id: 0,
+            name_string: ::core::ptr::null_mut::<::core::ffi::c_char>(),
         };
         if OTFCC_I_NAME_RECORD.init.is_some() {
             OTFCC_I_NAME_RECORD.init.expect("non-null function pointer")(&raw mut x);
@@ -321,25 +321,25 @@ pub static TABLE_I_NAME: NameTableVectorInterface = {
         replace: Some(
             table_name_replace as unsafe extern "C" fn(*mut NameTable, NameTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_name_copy_replace as unsafe extern "C" fn(*mut NameTable, NameTable) -> (),
         ),
         create: Some(table_name_create),
         free: Some(table_name_free as unsafe extern "C" fn(*mut NameTable) -> ()),
-        initN: Some(table_name_init_n as unsafe extern "C" fn(*mut NameTable, usize) -> ()),
-        initCapN: Some(table_name_init_cap_n as unsafe extern "C" fn(*mut NameTable, usize) -> ()),
-        createN: Some(table_name_create_n as unsafe extern "C" fn(usize) -> *mut NameTable),
+        init_n: Some(table_name_init_n as unsafe extern "C" fn(*mut NameTable, usize) -> ()),
+        init_cap_n: Some(table_name_init_cap_n as unsafe extern "C" fn(*mut NameTable, usize) -> ()),
+        create_n: Some(table_name_create_n as unsafe extern "C" fn(usize) -> *mut NameTable),
         fill: Some(table_name_fill as unsafe extern "C" fn(*mut NameTable, usize) -> ()),
         clear: Some(table_name_dispose as unsafe extern "C" fn(*mut NameTable) -> ()),
         push: Some(
             table_name_push as unsafe extern "C" fn(*mut NameTable, NameRecord) -> (),
         ),
-        shrinkToFit: Some(table_name_shrink_to_fit as unsafe extern "C" fn(*mut NameTable) -> ()),
+        shrink_to_fit: Some(table_name_shrink_to_fit as unsafe extern "C" fn(*mut NameTable) -> ()),
         pop: Some(table_name_pop as unsafe extern "C" fn(*mut NameTable) -> NameRecord),
-        disposeItem: Some(
+        dispose_item: Some(
             table_name_dispose_item as unsafe extern "C" fn(*mut NameTable, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             table_name_filter_env
                 as unsafe extern "C" fn(
                     *mut NameTable,
@@ -481,18 +481,18 @@ unsafe extern "C" fn table_name_move(dst: *mut NameTable, src: *mut NameTable) {
     cvec_move(table_name_as_cvec(dst), table_name_as_cvec(src));
 }
 unsafe extern "C" fn should_decode_as_utf16(mut record: *const NameRecord) -> bool {
-    return (*record).platformID as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-        || (*record).platformID as ::core::ffi::c_int == 2 as ::core::ffi::c_int
-            && (*record).encodingID as ::core::ffi::c_int == 1 as ::core::ffi::c_int
-        || (*record).platformID as ::core::ffi::c_int == 3 as ::core::ffi::c_int
-            && ((*record).encodingID as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-                || (*record).encodingID as ::core::ffi::c_int == 1 as ::core::ffi::c_int
-                || (*record).encodingID as ::core::ffi::c_int == 10 as ::core::ffi::c_int);
+    return (*record).platform_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
+        || (*record).platform_id as ::core::ffi::c_int == 2 as ::core::ffi::c_int
+            && (*record).encoding_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
+        || (*record).platform_id as ::core::ffi::c_int == 3 as ::core::ffi::c_int
+            && ((*record).encoding_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
+                || (*record).encoding_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
+                || (*record).encoding_id as ::core::ffi::c_int == 10 as ::core::ffi::c_int);
 }
 unsafe extern "C" fn should_decode_as_bytes(mut record: *const NameRecord) -> bool {
-    return (*record).platformID as ::core::ffi::c_int == 1 as ::core::ffi::c_int
-        && (*record).encodingID as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-        && (*record).languageID as ::core::ffi::c_int == 0 as ::core::ffi::c_int;
+    return (*record).platform_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
+        && (*record).encoding_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
+        && (*record).language_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int;
 }
 pub unsafe extern "C" fn otfcc_read_name(
     packet: Packet,
@@ -505,7 +505,7 @@ pub unsafe extern "C" fn otfcc_read_name(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -530,19 +530,19 @@ pub unsafe extern "C" fn otfcc_read_name(
                             let mut j: u16 = 0 as u16;
                             while (j as u32) < count {
                                 let mut record: NameRecord = NameRecord {
-                                    platformID: 0,
-                                    encodingID: 0,
-                                    languageID: 0,
-                                    nameID: 0,
-                                    nameString: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                                    platform_id: 0,
+                                    encoding_id: 0,
+                                    language_id: 0,
+                                    name_id: 0,
+                                    name_string: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                                 };
-                                record.platformID = read_16u(
+                                record.platform_id = read_16u(
                                     data.offset(6 as ::core::ffi::c_int as isize).offset(
                                         (j as ::core::ffi::c_int * 12 as ::core::ffi::c_int)
                                             as isize,
                                     ) as *const u8,
                                 );
-                                record.encodingID = read_16u(
+                                record.encoding_id = read_16u(
                                     data.offset(6 as ::core::ffi::c_int as isize)
                                         .offset(
                                             (j as ::core::ffi::c_int * 12 as ::core::ffi::c_int)
@@ -551,7 +551,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                                         .offset(2 as ::core::ffi::c_int as isize)
                                         as *const u8,
                                 );
-                                record.languageID = read_16u(
+                                record.language_id = read_16u(
                                     data.offset(6 as ::core::ffi::c_int as isize)
                                         .offset(
                                             (j as ::core::ffi::c_int * 12 as ::core::ffi::c_int)
@@ -560,7 +560,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                                         .offset(4 as ::core::ffi::c_int as isize)
                                         as *const u8,
                                 );
-                                record.nameID = read_16u(
+                                record.name_id = read_16u(
                                     data.offset(6 as ::core::ffi::c_int as isize)
                                         .offset(
                                             (j as ::core::ffi::c_int * 12 as ::core::ffi::c_int)
@@ -569,7 +569,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                                         .offset(6 as ::core::ffi::c_int as isize)
                                         as *const u8,
                                 );
-                                record.nameString = ::core::ptr::null_mut::<::core::ffi::c_char>();
+                                record.name_string = ::core::ptr::null_mut::<::core::ffi::c_char>();
                                 let mut length_0: u16 = read_16u(
                                     data.offset(6 as ::core::ffi::c_int as isize)
                                         .offset(
@@ -589,21 +589,21 @@ pub unsafe extern "C" fn otfcc_read_name(
                                         as *const u8,
                                 );
                                 if should_decode_as_bytes(&raw mut record) {
-                                    let mut nameString: SdsRaw = sdsnewlen(
+                                    let mut name_string: SdsRaw = sdsnewlen(
                                         data.offset(string_offset as isize)
                                             .offset(offset as ::core::ffi::c_int as isize)
                                             as *const ::core::ffi::c_void,
                                         length_0 as usize,
                                     );
-                                    record.nameString = nameString;
+                                    record.name_string = name_string;
                                 } else if should_decode_as_utf16(&raw mut record) {
-                                    let mut nameString_0: SdsRaw = utf16be_to_utf8(
+                                    let mut name_string_0: SdsRaw = utf16be_to_utf8(
                                         data.offset(string_offset as isize)
                                             .offset(offset as ::core::ffi::c_int as isize)
                                             as *const u8,
                                         length_0 as ::core::ffi::c_int,
                                     );
-                                    record.nameString = nameString_0;
+                                    record.name_string = name_string_0;
                                 } else {
                                     let mut len: usize = 0 as usize;
                                     let mut buf: *mut u8 = base64_encode(
@@ -613,7 +613,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                                         length_0 as usize,
                                         &raw mut len,
                                     );
-                                    record.nameString =
+                                    record.name_string =
                                         sdsnewlen(buf as *const ::core::ffi::c_void, len);
                                     free(buf as *mut ::core::ffi::c_void);
                                     buf = ::core::ptr::null_mut::<u8>();
@@ -625,7 +625,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                         }
                     }
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -656,7 +656,7 @@ pub unsafe extern "C" fn otfcc_dump_name(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"name"),
@@ -672,29 +672,29 @@ pub unsafe extern "C" fn otfcc_dump_name(
             json_object_push(
                 record,
                 b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).platformID as i64),
+                json_integer_new((*r).platform_id as i64),
             );
             json_object_push(
                 record,
                 b"encodingID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).encodingID as i64),
+                json_integer_new((*r).encoding_id as i64),
             );
             json_object_push(
                 record,
                 b"languageID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).languageID as i64),
+                json_integer_new((*r).language_id as i64),
             );
             json_object_push(
                 record,
                 b"nameID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).nameID as i64),
+                json_integer_new((*r).name_id as i64),
             );
             json_object_push(
                 record,
                 b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
                 json_string_new_length(
-                    sdslen((*r).nameString) as ::core::ffi::c_uint,
-                    (*r).nameString as *const ::core::ffi::c_char,
+                    sdslen((*r).name_string) as ::core::ffi::c_uint,
+                    (*r).name_string as *const ::core::ffi::c_char,
                 ),
             );
             json_array_push(_name, record);
@@ -715,16 +715,16 @@ unsafe extern "C" fn name_record_sort(
     mut a: *const NameRecord,
     mut b: *const NameRecord,
 ) -> ::core::ffi::c_int {
-    if (*a).platformID as ::core::ffi::c_int != (*b).platformID as ::core::ffi::c_int {
-        return (*a).platformID as ::core::ffi::c_int - (*b).platformID as ::core::ffi::c_int;
+    if (*a).platform_id as ::core::ffi::c_int != (*b).platform_id as ::core::ffi::c_int {
+        return (*a).platform_id as ::core::ffi::c_int - (*b).platform_id as ::core::ffi::c_int;
     }
-    if (*a).encodingID as ::core::ffi::c_int != (*b).encodingID as ::core::ffi::c_int {
-        return (*a).encodingID as ::core::ffi::c_int - (*b).encodingID as ::core::ffi::c_int;
+    if (*a).encoding_id as ::core::ffi::c_int != (*b).encoding_id as ::core::ffi::c_int {
+        return (*a).encoding_id as ::core::ffi::c_int - (*b).encoding_id as ::core::ffi::c_int;
     }
-    if (*a).languageID as ::core::ffi::c_int != (*b).languageID as ::core::ffi::c_int {
-        return (*a).languageID as ::core::ffi::c_int - (*b).languageID as ::core::ffi::c_int;
+    if (*a).language_id as ::core::ffi::c_int != (*b).language_id as ::core::ffi::c_int {
+        return (*a).language_id as ::core::ffi::c_int - (*b).language_id as ::core::ffi::c_int;
     }
-    return (*a).nameID as ::core::ffi::c_int - (*b).nameID as ::core::ffi::c_int;
+    return (*a).name_id as ::core::ffi::c_int - (*b).name_id as ::core::ffi::c_int;
 }
 pub unsafe extern "C" fn otfcc_parse_name(
     mut root: *const JsonValue,
@@ -740,7 +740,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
     );
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"name"),
@@ -762,7 +762,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                     .is_null()
                     {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -782,7 +782,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                     .is_null()
                     {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -802,7 +802,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                     .is_null()
                     {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -822,7 +822,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                     .is_null()
                     {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -842,7 +842,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                     .is_null()
                     {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -856,25 +856,25 @@ pub unsafe extern "C" fn otfcc_parse_name(
                         );
                     } else {
                         let mut record: NameRecord = NameRecord {
-                            platformID: 0,
-                            encodingID: 0,
-                            languageID: 0,
-                            nameID: 0,
-                            nameString: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                            platform_id: 0,
+                            encoding_id: 0,
+                            language_id: 0,
+                            name_id: 0,
+                            name_string: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                         };
-                        record.platformID = json_obj_getint(
+                        record.platform_id = json_obj_getint(
                             _record,
                             b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
                         ) as u16;
-                        record.encodingID = json_obj_getint(
+                        record.encoding_id = json_obj_getint(
                             _record,
                             b"encodingID\0" as *const u8 as *const ::core::ffi::c_char,
                         ) as u16;
-                        record.languageID = json_obj_getint(
+                        record.language_id = json_obj_getint(
                             _record,
                             b"languageID\0" as *const u8 as *const ::core::ffi::c_char,
                         ) as u16;
-                        record.nameID = json_obj_getint(
+                        record.name_id = json_obj_getint(
                             _record,
                             b"nameID\0" as *const u8 as *const ::core::ffi::c_char,
                         ) as u16;
@@ -883,7 +883,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
                             JsonType::String,
                         );
-                        record.nameString = sdsnewlen(
+                        record.name_string = sdsnewlen(
                             (*str).u.string.ptr as *const ::core::ffi::c_void,
                             (*str).u.string.length as usize,
                         );
@@ -928,28 +928,28 @@ pub unsafe extern "C" fn otfcc_build_name(
     while (j as usize) < (*name).length {
         let mut record: *mut NameRecord =
             (*name).items.offset(j as isize) as *mut NameRecord;
-        bufwrite16b(buf, (*record).platformID);
-        bufwrite16b(buf, (*record).encodingID);
-        bufwrite16b(buf, (*record).languageID);
-        bufwrite16b(buf, (*record).nameID);
+        bufwrite16b(buf, (*record).platform_id);
+        bufwrite16b(buf, (*record).encoding_id);
+        bufwrite16b(buf, (*record).language_id);
+        bufwrite16b(buf, (*record).name_id);
         let mut cbefore: usize = (*strings).cursor;
         if should_decode_as_utf16(record) {
             let mut words: usize = 0;
-            let mut u16: *mut u8 = utf8toutf16be((*record).nameString, &raw mut words);
+            let mut u16: *mut u8 = utf8toutf16be((*record).name_string, &raw mut words);
             bufwrite_bytes(strings, words, u16);
             free(u16 as *mut ::core::ffi::c_void);
             u16 = ::core::ptr::null_mut::<u8>();
         } else if should_decode_as_bytes(record) {
             bufwrite_bytes(
                 strings,
-                sdslen((*record).nameString),
-                (*record).nameString as *mut u8,
+                sdslen((*record).name_string),
+                (*record).name_string as *mut u8,
             );
         } else {
             let mut length: usize = 0;
             let mut decoded: *mut u8 = base64_decode(
-                (*record).nameString as *mut u8,
-                sdslen((*record).nameString),
+                (*record).name_string as *mut u8,
+                sdslen((*record).name_string),
                 &raw mut length,
             );
             bufwrite_bytes(strings, length, decoded);

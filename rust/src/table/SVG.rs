@@ -34,7 +34,7 @@ pub struct SvgAssignmentElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut SvgAssignment, *mut SvgAssignment) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut SvgAssignment) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> SvgAssignment>,
     pub dup: Option<unsafe extern "C" fn(SvgAssignment) -> SvgAssignment>,
 }
@@ -53,19 +53,19 @@ pub struct SvgTableVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut SvgTable, *mut SvgTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut SvgTable, SvgTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut SvgTable, SvgTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut SvgTable, SvgTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut SvgTable>,
     pub free: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut SvgTable>,
+    pub init_n: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut SvgTable>,
     pub fill: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut SvgTable, SvgAssignment) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut SvgTable) -> SvgAssignment>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut SvgTable,
             Option<unsafe extern "C" fn(*const SvgAssignment, *mut ::core::ffi::c_void) -> bool>,
@@ -173,7 +173,7 @@ pub static SVG_I_ASSIGNMENT: SvgAssignmentElementInterface = {
             svg_assignment_replace
                 as unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             svg_assignment_copy_replace
                 as unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> (),
         ),
@@ -247,23 +247,23 @@ pub static TABLE_I_SVG: SvgTableVectorInterface = {
         move_0: Some(table_svg_move as unsafe extern "C" fn(*mut SvgTable, *mut SvgTable) -> ()),
         dispose: Some(table_svg_dispose as unsafe extern "C" fn(*mut SvgTable) -> ()),
         replace: Some(table_svg_replace as unsafe extern "C" fn(*mut SvgTable, SvgTable) -> ()),
-        copyReplace: Some(
+        copy_replace: Some(
             table_svg_copy_replace as unsafe extern "C" fn(*mut SvgTable, SvgTable) -> (),
         ),
         create: Some(table_svg_create),
         free: Some(table_svg_free as unsafe extern "C" fn(*mut SvgTable) -> ()),
-        initN: Some(table_svg_init_n as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
-        initCapN: Some(table_svg_init_cap_n as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
-        createN: Some(table_svg_create_n as unsafe extern "C" fn(usize) -> *mut SvgTable),
+        init_n: Some(table_svg_init_n as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
+        init_cap_n: Some(table_svg_init_cap_n as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
+        create_n: Some(table_svg_create_n as unsafe extern "C" fn(usize) -> *mut SvgTable),
         fill: Some(table_svg_fill as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
         clear: Some(table_svg_dispose as unsafe extern "C" fn(*mut SvgTable) -> ()),
         push: Some(table_svg_push as unsafe extern "C" fn(*mut SvgTable, SvgAssignment) -> ()),
-        shrinkToFit: Some(table_svg_shrink_to_fit as unsafe extern "C" fn(*mut SvgTable) -> ()),
+        shrink_to_fit: Some(table_svg_shrink_to_fit as unsafe extern "C" fn(*mut SvgTable) -> ()),
         pop: Some(table_svg_pop as unsafe extern "C" fn(*mut SvgTable) -> SvgAssignment),
-        disposeItem: Some(
+        dispose_item: Some(
             table_svg_dispose_item as unsafe extern "C" fn(*mut SvgTable, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             table_svg_filter_env
                 as unsafe extern "C" fn(
                     *mut SvgTable,
@@ -495,7 +495,7 @@ pub unsafe extern "C" fn otfcc_read_svg(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -612,7 +612,7 @@ pub unsafe extern "C" fn otfcc_dump_svg(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"SVG "),
@@ -703,7 +703,7 @@ pub unsafe extern "C" fn otfcc_parse_svg(
     let mut svg: *mut SvgTable = (
         TABLE_I_SVG.create.expect("non-null function pointer"))();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"SVG "),

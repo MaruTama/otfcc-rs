@@ -32,7 +32,7 @@ use crate::table::otl::subtables::gsub_single::{I_SUBTABLE_GSUB_SINGLE};
 use crate::vendor::sds::{sdsfree};
 
 
-/// Which GSUB/GPOS subtable format a lookup is, in otfcc's own numbering: the
+/// Which gsub/gpos subtable format a lookup is, in otfcc's own numbering: the
 /// file's 16-bit format number offset by the table's base, `otl_type_gsub_*`
 /// starting at 16 and `otl_type_gpos_*` at 32, so one value names both the
 /// table and the format.
@@ -82,8 +82,8 @@ pub const OTL_TYPE_UNKNOWN: LookupType = LookupType(0);
 
 impl LookupType {
     /// The type of a lookup as the font file spells it: a format number
-    /// relative to `base`, which is `OTL_TYPE_GSUB_UNKNOWN` for GSUB and
-    /// `OTL_TYPE_GPOS_UNKNOWN` for GPOS. Wrapping, like the C addition it
+    /// relative to `base`, which is `OTL_TYPE_GSUB_UNKNOWN` for gsub and
+    /// `OTL_TYPE_GPOS_UNKNOWN` for gpos. Wrapping, like the C addition it
     /// replaces — `raw` is a full `u16` straight out of the file and is not
     /// validated here, exactly as C does not validate it.
     pub const fn from_file(base: Self, raw: u16) -> Self {
@@ -97,12 +97,12 @@ impl LookupType {
     }
 
     /// The format number to write back into the file — this value with its
-    /// table's base taken off again, and 0 for anything at or below GSUB's base.
+    /// table's base taken off again, and 0 for anything at or below gsub's base.
     ///
     /// The comparisons are `>`, not `>=`, exactly as in C: `OTL_TYPE_UNKNOWN`
     /// and `OTL_TYPE_GSUB_UNKNOWN` give 0, while `OTL_TYPE_GPOS_UNKNOWN` (32)
-    /// is above *GSUB's* base and so reads as GSUB format 16. That is a quirk
-    /// of the original, reachable only from a font declaring a GPOS lookup of
+    /// is above *gsub's* base and so reads as gsub format 16. That is a quirk
+    /// of the original, reachable only from a font declaring a gpos lookup of
     /// format 0; the number reaches the lookup header, so it is reproduced
     /// rather than tidied. `file_format_undoes_the_table_base` pins it.
     pub const fn file_format(self) -> u32 {
@@ -160,8 +160,8 @@ pub union Subtable {
     pub gpos_single: GposSingleSubtable,
     pub gpos_pair: GposPairSubtable,
     pub gpos_cursive: GposCursiveSubtable,
-    pub gpos_markToSingle: GposMarkToSingleSubtable,
-    pub gpos_markToLigature: GposMarkToLigatureSubtable,
+    pub gpos_mark_to_single: GposMarkToSingleSubtable,
+    pub gpos_mark_to_ligature: GposMarkToLigatureSubtable,
     pub extend: ExtendSubtable,
 }
 #[derive(Copy, Clone)]
@@ -173,9 +173,9 @@ pub struct ExtendSubtable {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GposMarkToLigatureSubtable {
-    pub classCount: GlyphClass,
-    pub markArray: MarkArray,
-    pub ligArray: LigatureArray,
+    pub class_count: GlyphClass,
+    pub mark_array: MarkArray,
+    pub lig_array: LigatureArray,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -188,7 +188,7 @@ pub struct LigatureArray {
 #[repr(C)]
 pub struct LigatureBaseRecord {
     pub glyph: GlyphHandle,
-    pub componentCount: GlyphId,
+    pub component_count: GlyphId,
     pub anchors: *mut *mut Anchor,
 }
 #[derive(Copy, Clone)]
@@ -209,15 +209,15 @@ pub struct MarkArray {
 #[repr(C)]
 pub struct MarkRecord {
     pub glyph: GlyphHandle,
-    pub markClass: GlyphClass,
+    pub mark_class: GlyphClass,
     pub anchor: Anchor,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GposMarkToSingleSubtable {
-    pub classCount: GlyphClass,
-    pub markArray: MarkArray,
-    pub baseArray: BaseArray,
+    pub class_count: GlyphClass,
+    pub mark_array: MarkArray,
+    pub base_array: BaseArray,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -251,16 +251,16 @@ pub struct GposCursiveEntry {
 pub struct GposPairSubtable {
     pub first: *mut ClassDef,
     pub second: *mut ClassDef,
-    pub firstValues: *mut *mut PositionValue,
-    pub secondValues: *mut *mut PositionValue,
+    pub first_values: *mut *mut PositionValue,
+    pub second_values: *mut *mut PositionValue,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct PositionValue {
     pub dx: Pos,
     pub dy: Pos,
-    pub dWidth: Pos,
-    pub dHeight: Pos,
+    pub d_width: Pos,
+    pub d_height: Pos,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -278,8 +278,8 @@ pub struct GposSingleEntry {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GsubReverseSubtable {
-    pub matchCount: TableId,
-    pub inputIndex: TableId,
+    pub match_count: TableId,
+    pub input_index: TableId,
     pub match_0: *mut *mut Coverage,
     pub to: *mut Coverage,
 }
@@ -298,7 +298,7 @@ pub union ChainingBody {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ChainingRuleSet {
-    pub rulesCount: TableId,
+    pub rules_count: TableId,
     pub rules: *mut *mut ChainingRule,
     pub bc: *mut ClassDef,
     pub ic: *mut ClassDef,
@@ -307,11 +307,11 @@ pub struct ChainingRuleSet {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ChainingRule {
-    pub matchCount: TableId,
-    pub inputBegins: TableId,
-    pub inputEnds: TableId,
+    pub match_count: TableId,
+    pub input_begins: TableId,
+    pub input_ends: TableId,
     pub match_0: *mut *mut Coverage,
-    pub applyCount: TableId,
+    pub apply_count: TableId,
     pub apply: *mut ChainLookupApplication,
 }
 #[derive(Copy, Clone)]
@@ -394,20 +394,20 @@ pub struct GsubSingleSubtableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut GsubSingleSubtable, GsubSingleSubtable) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GsubSingleSubtable, GsubSingleSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GsubSingleSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut GsubSingleSubtable>,
+    pub init_n: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GsubSingleSubtable>,
     pub fill: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, GsubSingleEntry) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> GsubSingleEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut GsubSingleSubtable,
             Option<
@@ -438,20 +438,20 @@ pub struct GsubMultiSubtableVectorInterface {
         Option<unsafe extern "C" fn(*mut GsubMultiSubtable, *mut GsubMultiSubtable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiSubtable) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GsubMultiSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut GsubMultiSubtable>,
+    pub init_n: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GsubMultiSubtable>,
     pub fill: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiEntry) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> GsubMultiEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut GsubMultiSubtable,
             Option<
@@ -485,21 +485,21 @@ pub struct GsubLigatureSubtableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureSubtable) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GsubLigatureSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut GsubLigatureSubtable>,
+    pub init_n: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GsubLigatureSubtable>,
     pub fill: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
     pub push:
         Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureEntry) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> GsubLigatureEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut GsubLigatureSubtable,
             Option<
@@ -531,7 +531,7 @@ pub struct ChainingSubtableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut ChainingSubtable, *mut ChainingSubtable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut ChainingSubtable, ChainingSubtable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut ChainingSubtable, ChainingSubtable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut ChainingSubtable, ChainingSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut ChainingSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
 }
@@ -547,7 +547,7 @@ pub struct GsubReverseSubtableElementInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GsubReverseSubtable) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut GsubReverseSubtable, GsubReverseSubtable) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GsubReverseSubtable, GsubReverseSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GsubReverseSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GsubReverseSubtable) -> ()>,
@@ -563,20 +563,20 @@ pub struct GposSingleSubtableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleSubtable) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GposSingleSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut GposSingleSubtable>,
+    pub init_n: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GposSingleSubtable>,
     pub fill: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleEntry) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> GposSingleEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut GposSingleSubtable,
             Option<
@@ -607,7 +607,7 @@ pub struct GposPairSubtableElementInterface {
         Option<unsafe extern "C" fn(*mut GposPairSubtable, *mut GposPairSubtable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut GposPairSubtable, GposPairSubtable) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GposPairSubtable, GposPairSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GposPairSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
@@ -624,20 +624,20 @@ pub struct GposCursiveSubtableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut GposCursiveSubtable, GposCursiveSubtable) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GposCursiveSubtable, GposCursiveSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GposCursiveSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut GposCursiveSubtable>,
+    pub init_n: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GposCursiveSubtable>,
     pub fill: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, GposCursiveEntry) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> GposCursiveEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut GposCursiveSubtable,
             Option<
@@ -678,7 +678,7 @@ pub struct GposMarkToSingleSubtableElementInterface {
     pub replace: Option<
         unsafe extern "C" fn(*mut GposMarkToSingleSubtable, GposMarkToSingleSubtable) -> (),
     >,
-    pub copyReplace: Option<
+    pub copy_replace: Option<
         unsafe extern "C" fn(*mut GposMarkToSingleSubtable, GposMarkToSingleSubtable) -> (),
     >,
     pub create: Option<unsafe extern "C" fn() -> *mut GposMarkToSingleSubtable>,
@@ -704,7 +704,7 @@ pub struct GposMarkToLigatureSubtableElementInterface {
     pub replace: Option<
         unsafe extern "C" fn(*mut GposMarkToLigatureSubtable, GposMarkToLigatureSubtable) -> (),
     >,
-    pub copyReplace: Option<
+    pub copy_replace: Option<
         unsafe extern "C" fn(*mut GposMarkToLigatureSubtable, GposMarkToLigatureSubtable) -> (),
     >,
     pub create: Option<unsafe extern "C" fn() -> *mut GposMarkToLigatureSubtable>,
@@ -718,19 +718,19 @@ pub struct SubtableListVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut SubtableList, *mut SubtableList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut SubtableList, SubtableList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut SubtableList, SubtableList) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut SubtableList, SubtableList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut SubtableList>,
     pub free: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut SubtableList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut SubtableList>,
     pub fill: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut SubtableList, SubtablePtr) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut SubtableList) -> SubtablePtr>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut SubtableList,
             Option<unsafe extern "C" fn(*const SubtablePtr, *mut ::core::ffi::c_void) -> bool>,
@@ -748,7 +748,7 @@ pub struct SubtableListVectorInterface {
             >,
         ) -> (),
     >,
-    pub disposeDependent:
+    pub dispose_dependent:
         Option<unsafe extern "C" fn(*mut SubtableList, *const Lookup) -> ()>,
 }
 #[derive(Copy, Clone)]
@@ -759,7 +759,7 @@ pub struct SubtablePtrElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut SubtablePtr, *mut SubtablePtr) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut SubtablePtr) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut SubtablePtr, SubtablePtr) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut SubtablePtr, SubtablePtr) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut SubtablePtr, SubtablePtr) -> ()>,
 }
 pub type LookupPtr = *mut Lookup;
 #[derive(Copy, Clone)]
@@ -770,7 +770,7 @@ pub struct LookupPtrElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut LookupPtr, *mut LookupPtr) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut LookupPtr) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut LookupPtr, LookupPtr) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut LookupPtr, LookupPtr) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut LookupPtr, LookupPtr) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -787,19 +787,19 @@ pub struct LookupListVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut LookupList, *mut LookupList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut LookupList, LookupList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut LookupList, LookupList) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut LookupList, LookupList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LookupList>,
     pub free: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut LookupList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut LookupList>,
     pub fill: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut LookupList, LookupPtr) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut LookupList) -> LookupPtr>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut LookupList,
             Option<unsafe extern "C" fn(*const LookupPtr, *mut ::core::ffi::c_void) -> bool>,
@@ -827,7 +827,7 @@ pub struct LookupRefElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut LookupRef, *mut LookupRef) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut LookupRef) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut LookupRef, LookupRef) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut LookupRef, LookupRef) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut LookupRef, LookupRef) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -844,19 +844,19 @@ pub struct LookupRefListVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut LookupRefList, *mut LookupRefList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut LookupRefList, LookupRefList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut LookupRefList, LookupRefList) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut LookupRefList, LookupRefList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LookupRefList>,
     pub free: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut LookupRefList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut LookupRefList>,
     pub fill: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut LookupRefList, LookupRef) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut LookupRefList) -> LookupRef>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut LookupRefList,
             Option<unsafe extern "C" fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool>,
@@ -890,7 +890,7 @@ pub struct FeaturePtrElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut FeaturePtr, *mut FeaturePtr) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FeaturePtr) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut FeaturePtr, FeaturePtr) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut FeaturePtr, FeaturePtr) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut FeaturePtr, FeaturePtr) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -907,19 +907,19 @@ pub struct FeatureListVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut FeatureList, *mut FeatureList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut FeatureList, FeatureList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut FeatureList, FeatureList) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut FeatureList, FeatureList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FeatureList>,
     pub free: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut FeatureList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut FeatureList>,
     pub fill: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut FeatureList, FeaturePtr) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut FeatureList) -> FeaturePtr>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut FeatureList,
             Option<unsafe extern "C" fn(*const FeaturePtr, *mut ::core::ffi::c_void) -> bool>,
@@ -947,7 +947,7 @@ pub struct FeatureRefElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut FeatureRef, *mut FeatureRef) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FeatureRef) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut FeatureRef, FeatureRef) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut FeatureRef, FeatureRef) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut FeatureRef, FeatureRef) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -966,20 +966,20 @@ pub struct FeatureRefListVectorInterface {
         Option<unsafe extern "C" fn(*mut FeatureRefList, *mut FeatureRefList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut FeatureRefList, FeatureRefList) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut FeatureRefList, FeatureRefList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FeatureRefList>,
     pub free: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut FeatureRefList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut FeatureRefList>,
     pub fill: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut FeatureRefList, FeatureRef) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut FeatureRefList) -> FeatureRef>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut FeatureRefList,
             Option<unsafe extern "C" fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool>,
@@ -1002,7 +1002,7 @@ pub struct FeatureRefListVectorInterface {
 #[repr(C)]
 pub struct LanguageSystem {
     pub name: SdsRaw,
-    pub requiredFeature: FeatureRef,
+    pub required_feature: FeatureRef,
     pub features: FeatureRefList,
 }
 pub type LanguageSystemPtr = *mut LanguageSystem;
@@ -1018,7 +1018,7 @@ pub struct LanguageSystemPtrElementInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut LanguageSystemPtr) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut LanguageSystemPtr, LanguageSystemPtr) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut LanguageSystemPtr, LanguageSystemPtr) -> ()>,
 }
 #[derive(Copy, Clone)]
@@ -1038,20 +1038,20 @@ pub struct LangSystemListVectorInterface {
         Option<unsafe extern "C" fn(*mut LangSystemList, *mut LangSystemList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut LangSystemList, LangSystemList) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut LangSystemList, LangSystemList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LangSystemList>,
     pub free: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut LangSystemList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut LangSystemList>,
     pub fill: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut LangSystemList, LanguageSystemPtr) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut LangSystemList) -> LanguageSystemPtr>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut LangSystemList,
             Option<
@@ -1090,7 +1090,7 @@ pub struct OtlTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut OtlTable, *mut OtlTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut OtlTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut OtlTable, OtlTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut OtlTable, OtlTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut OtlTable, OtlTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut OtlTable>,
     pub free: Option<unsafe extern "C" fn(*mut OtlTable) -> ()>,
 }
@@ -1201,7 +1201,7 @@ static OTL_I_SUBTABLE_PTR: SubtablePtrElementInterface =
         move_0: None,
         dispose: None,
         replace: None,
-        copyReplace: None,
+        copy_replace: None,
     };
 #[inline]
 unsafe extern "C" fn otl_subtable_list_dispose_dependent(
@@ -1467,19 +1467,19 @@ pub static OTL_I_SUBTABLE_LIST: SubtableListVectorInterface = {
             otl_subtable_list_replace
                 as unsafe extern "C" fn(*mut SubtableList, SubtableList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_subtable_list_copy_replace
                 as unsafe extern "C" fn(*mut SubtableList, SubtableList) -> (),
         ),
         create: Some(otl_subtable_list_create),
         free: Some(otl_subtable_list_free as unsafe extern "C" fn(*mut SubtableList) -> ()),
-        initN: Some(
+        init_n: Some(
             otl_subtable_list_init_n as unsafe extern "C" fn(*mut SubtableList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             otl_subtable_list_init_cap_n as unsafe extern "C" fn(*mut SubtableList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             otl_subtable_list_create_n as unsafe extern "C" fn(usize) -> *mut SubtableList,
         ),
         fill: Some(
@@ -1490,17 +1490,17 @@ pub static OTL_I_SUBTABLE_LIST: SubtableListVectorInterface = {
             otl_subtable_list_push
                 as unsafe extern "C" fn(*mut SubtableList, SubtablePtr) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             otl_subtable_list_shrink_to_fit as unsafe extern "C" fn(*mut SubtableList) -> (),
         ),
         pop: Some(
             otl_subtable_list_pop as unsafe extern "C" fn(*mut SubtableList) -> SubtablePtr,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             otl_subtable_list_dispose_item
                 as unsafe extern "C" fn(*mut SubtableList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             otl_subtable_list_filter_env
                 as unsafe extern "C" fn(
                     *mut SubtableList,
@@ -1525,7 +1525,7 @@ pub static OTL_I_SUBTABLE_LIST: SubtableListVectorInterface = {
                     >,
                 ) -> (),
         ),
-        disposeDependent: Some(
+        dispose_dependent: Some(
             otl_subtable_list_dispose_dependent
                 as unsafe extern "C" fn(*mut SubtableList, *const Lookup) -> (),
         ),
@@ -1536,7 +1536,7 @@ pub unsafe extern "C" fn otfcc_delete_lookup(mut lookup: *mut Lookup) {
         return;
     }
     OTL_I_SUBTABLE_LIST
-        .disposeDependent
+        .dispose_dependent
         .expect("non-null function pointer")(&raw mut (*lookup).subtables, lookup);
     sdsfree((*lookup).name);
     free(lookup as *mut ::core::ffi::c_void);
@@ -1570,7 +1570,7 @@ pub static OTL_I_LOOKUP_PTR: LookupPtrElementInterface = {
         replace: Some(
             otl_lookup_ptr_replace as unsafe extern "C" fn(*mut LookupPtr, LookupPtr) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_lookup_ptr_copy_replace
                 as unsafe extern "C" fn(*mut LookupPtr, LookupPtr) -> (),
         ),
@@ -1847,19 +1847,19 @@ pub static OTL_I_LOOKUP_LIST: LookupListVectorInterface = {
             otl_lookup_list_replace
                 as unsafe extern "C" fn(*mut LookupList, LookupList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_lookup_list_copy_replace
                 as unsafe extern "C" fn(*mut LookupList, LookupList) -> (),
         ),
         create: Some(otl_lookup_list_create),
         free: Some(otl_lookup_list_free as unsafe extern "C" fn(*mut LookupList) -> ()),
-        initN: Some(
+        init_n: Some(
             otl_lookup_list_init_n as unsafe extern "C" fn(*mut LookupList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             otl_lookup_list_init_cap_n as unsafe extern "C" fn(*mut LookupList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             otl_lookup_list_create_n as unsafe extern "C" fn(usize) -> *mut LookupList,
         ),
         fill: Some(otl_lookup_list_fill as unsafe extern "C" fn(*mut LookupList, usize) -> ()),
@@ -1867,14 +1867,14 @@ pub static OTL_I_LOOKUP_LIST: LookupListVectorInterface = {
         push: Some(
             otl_lookup_list_push as unsafe extern "C" fn(*mut LookupList, LookupPtr) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             otl_lookup_list_shrink_to_fit as unsafe extern "C" fn(*mut LookupList) -> (),
         ),
         pop: Some(otl_lookup_list_pop as unsafe extern "C" fn(*mut LookupList) -> LookupPtr),
-        disposeItem: Some(
+        dispose_item: Some(
             otl_lookup_list_dispose_item as unsafe extern "C" fn(*mut LookupList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             otl_lookup_list_filter_env
                 as unsafe extern "C" fn(
                     *mut LookupList,
@@ -1960,7 +1960,7 @@ pub static OTL_I_LOOKUP_REF: LookupRefElementInterface = {
         replace: Some(
             otl_lookup_ref_replace as unsafe extern "C" fn(*mut LookupRef, LookupRef) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_lookup_ref_copy_replace
                 as unsafe extern "C" fn(*mut LookupRef, LookupRef) -> (),
         ),
@@ -1988,20 +1988,20 @@ pub static OTL_I_LOOKUP_REF_LIST: LookupRefListVectorInterface = {
             otl_lookup_ref_list_replace
                 as unsafe extern "C" fn(*mut LookupRefList, LookupRefList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_lookup_ref_list_copy_replace
                 as unsafe extern "C" fn(*mut LookupRefList, LookupRefList) -> (),
         ),
         create: Some(otl_lookup_ref_list_create),
         free: Some(otl_lookup_ref_list_free as unsafe extern "C" fn(*mut LookupRefList) -> ()),
-        initN: Some(
+        init_n: Some(
             otl_lookup_ref_list_init_n as unsafe extern "C" fn(*mut LookupRefList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             otl_lookup_ref_list_init_cap_n
                 as unsafe extern "C" fn(*mut LookupRefList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             otl_lookup_ref_list_create_n as unsafe extern "C" fn(usize) -> *mut LookupRefList,
         ),
         fill: Some(
@@ -2014,17 +2014,17 @@ pub static OTL_I_LOOKUP_REF_LIST: LookupRefListVectorInterface = {
             otl_lookup_ref_list_push
                 as unsafe extern "C" fn(*mut LookupRefList, LookupRef) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             otl_lookup_ref_list_shrink_to_fit as unsafe extern "C" fn(*mut LookupRefList) -> (),
         ),
         pop: Some(
             otl_lookup_ref_list_pop as unsafe extern "C" fn(*mut LookupRefList) -> LookupRef,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             otl_lookup_ref_list_dispose_item
                 as unsafe extern "C" fn(*mut LookupRefList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             otl_lookup_ref_list_filter_env
                 as unsafe extern "C" fn(
                     *mut LookupRefList,
@@ -2344,7 +2344,7 @@ pub static OTL_I_FEATURE_PTR: FeaturePtrElementInterface = {
             otl_feature_ptr_replace
                 as unsafe extern "C" fn(*mut FeaturePtr, FeaturePtr) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_feature_ptr_copy_replace
                 as unsafe extern "C" fn(*mut FeaturePtr, FeaturePtr) -> (),
         ),
@@ -2536,19 +2536,19 @@ pub static OTL_I_FEATURE_LIST: FeatureListVectorInterface = {
             otl_feature_list_replace
                 as unsafe extern "C" fn(*mut FeatureList, FeatureList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_feature_list_copy_replace
                 as unsafe extern "C" fn(*mut FeatureList, FeatureList) -> (),
         ),
         create: Some(otl_feature_list_create),
         free: Some(otl_feature_list_free as unsafe extern "C" fn(*mut FeatureList) -> ()),
-        initN: Some(
+        init_n: Some(
             otl_feature_list_init_n as unsafe extern "C" fn(*mut FeatureList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             otl_feature_list_init_cap_n as unsafe extern "C" fn(*mut FeatureList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             otl_feature_list_create_n as unsafe extern "C" fn(usize) -> *mut FeatureList,
         ),
         fill: Some(
@@ -2559,16 +2559,16 @@ pub static OTL_I_FEATURE_LIST: FeatureListVectorInterface = {
             otl_feature_list_push
                 as unsafe extern "C" fn(*mut FeatureList, FeaturePtr) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             otl_feature_list_shrink_to_fit as unsafe extern "C" fn(*mut FeatureList) -> (),
         ),
         pop: Some(
             otl_feature_list_pop as unsafe extern "C" fn(*mut FeatureList) -> FeaturePtr,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             otl_feature_list_dispose_item as unsafe extern "C" fn(*mut FeatureList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             otl_feature_list_filter_env
                 as unsafe extern "C" fn(
                     *mut FeatureList,
@@ -2662,7 +2662,7 @@ pub static OTL_I_FEATURE_REF: FeatureRefElementInterface = {
             otl_feature_ref_replace
                 as unsafe extern "C" fn(*mut FeatureRef, FeatureRef) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_feature_ref_copy_replace
                 as unsafe extern "C" fn(*mut FeatureRef, FeatureRef) -> (),
         ),
@@ -2863,20 +2863,20 @@ pub static OTL_I_FEATURE_REF_LIST: FeatureRefListVectorInterface = {
             otl_feature_ref_list_replace
                 as unsafe extern "C" fn(*mut FeatureRefList, FeatureRefList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_feature_ref_list_copy_replace
                 as unsafe extern "C" fn(*mut FeatureRefList, FeatureRefList) -> (),
         ),
         create: Some(otl_feature_ref_list_create),
         free: Some(otl_feature_ref_list_free as unsafe extern "C" fn(*mut FeatureRefList) -> ()),
-        initN: Some(
+        init_n: Some(
             otl_feature_ref_list_init_n as unsafe extern "C" fn(*mut FeatureRefList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             otl_feature_ref_list_init_cap_n
                 as unsafe extern "C" fn(*mut FeatureRefList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             otl_feature_ref_list_create_n as unsafe extern "C" fn(usize) -> *mut FeatureRefList,
         ),
         fill: Some(
@@ -2889,18 +2889,18 @@ pub static OTL_I_FEATURE_REF_LIST: FeatureRefListVectorInterface = {
             otl_feature_ref_list_push
                 as unsafe extern "C" fn(*mut FeatureRefList, FeatureRef) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             otl_feature_ref_list_shrink_to_fit as unsafe extern "C" fn(*mut FeatureRefList) -> (),
         ),
         pop: Some(
             otl_feature_ref_list_pop
                 as unsafe extern "C" fn(*mut FeatureRefList) -> FeatureRef,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             otl_feature_ref_list_dispose_item
                 as unsafe extern "C" fn(*mut FeatureRefList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             otl_feature_ref_list_filter_env
                 as unsafe extern "C" fn(
                     *mut FeatureRefList,
@@ -3048,7 +3048,7 @@ pub static OTL_I_LANGUAGE_SYSTEM: LanguageSystemPtrElementInterface = {
         move_0: None,
         dispose: Some(dispose_language_ptr as unsafe extern "C" fn(*mut LanguageSystemPtr) -> ()),
         replace: None,
-        copyReplace: None,
+        copy_replace: None,
     }
 };
 #[inline]
@@ -3111,20 +3111,20 @@ pub static OTL_I_LANG_SYSTEM_LIST: LangSystemListVectorInterface = {
             otl_lang_system_list_replace
                 as unsafe extern "C" fn(*mut LangSystemList, LangSystemList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_lang_system_list_copy_replace
                 as unsafe extern "C" fn(*mut LangSystemList, LangSystemList) -> (),
         ),
         create: Some(otl_lang_system_list_create),
         free: Some(otl_lang_system_list_free as unsafe extern "C" fn(*mut LangSystemList) -> ()),
-        initN: Some(
+        init_n: Some(
             otl_lang_system_list_init_n as unsafe extern "C" fn(*mut LangSystemList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             otl_lang_system_list_init_cap_n
                 as unsafe extern "C" fn(*mut LangSystemList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             otl_lang_system_list_create_n as unsafe extern "C" fn(usize) -> *mut LangSystemList,
         ),
         fill: Some(
@@ -3137,18 +3137,18 @@ pub static OTL_I_LANG_SYSTEM_LIST: LangSystemListVectorInterface = {
             otl_lang_system_list_push
                 as unsafe extern "C" fn(*mut LangSystemList, LanguageSystemPtr) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             otl_lang_system_list_shrink_to_fit as unsafe extern "C" fn(*mut LangSystemList) -> (),
         ),
         pop: Some(
             otl_lang_system_list_pop
                 as unsafe extern "C" fn(*mut LangSystemList) -> LanguageSystemPtr,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             otl_lang_system_list_dispose_item
                 as unsafe extern "C" fn(*mut LangSystemList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             otl_lang_system_list_filter_env
                 as unsafe extern "C" fn(
                     *mut LangSystemList,
@@ -3416,7 +3416,7 @@ pub static TABLE_I_OTL: OtlTableElementInterface = {
         move_0: Some(table_otl_move as unsafe extern "C" fn(*mut OtlTable, *mut OtlTable) -> ()),
         dispose: Some(table_otl_dispose as unsafe extern "C" fn(*mut OtlTable) -> ()),
         replace: Some(table_otl_replace as unsafe extern "C" fn(*mut OtlTable, OtlTable) -> ()),
-        copyReplace: Some(
+        copy_replace: Some(
             table_otl_copy_replace as unsafe extern "C" fn(*mut OtlTable, OtlTable) -> (),
         ),
         create: Some(table_otl_create),
@@ -3458,19 +3458,19 @@ pub struct MarkArrayVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut MarkArray, *mut MarkArray) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut MarkArray, MarkArray) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut MarkArray, MarkArray) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut MarkArray, MarkArray) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut MarkArray>,
     pub free: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut MarkArray>,
+    pub init_n: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut MarkArray>,
     pub fill: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut MarkArray, MarkRecord) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut MarkArray) -> MarkRecord>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut MarkArray,
             Option<unsafe extern "C" fn(*const MarkRecord, *mut ::core::ffi::c_void) -> bool>,
@@ -3498,19 +3498,19 @@ pub struct BaseArrayVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut BaseArray, *mut BaseArray) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut BaseArray, BaseArray) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut BaseArray, BaseArray) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut BaseArray, BaseArray) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut BaseArray>,
     pub free: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut BaseArray>,
+    pub init_n: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut BaseArray>,
     pub fill: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut BaseArray, BaseRecord) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut BaseArray) -> BaseRecord>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut BaseArray,
             Option<unsafe extern "C" fn(*const BaseRecord, *mut ::core::ffi::c_void) -> bool>,
@@ -3538,19 +3538,19 @@ pub struct LigatureArrayVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut LigatureArray, *mut LigatureArray) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut LigatureArray, LigatureArray) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut LigatureArray, LigatureArray) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut LigatureArray, LigatureArray) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LigatureArray>,
     pub free: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut LigatureArray>,
+    pub init_n: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut LigatureArray>,
     pub fill: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut LigatureArray, LigatureBaseRecord) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut LigatureArray) -> LigatureBaseRecord>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut LigatureArray,
             Option<
@@ -3613,8 +3613,8 @@ mod tests {
         }
     }
 
-    // The numbering is otfcc's own: the file's format number plus 16 for GSUB or
-    // 32 for GPOS. `file_format` has to undo exactly that, because its result is
+    // The numbering is otfcc's own: the file's format number plus 16 for gsub or
+    // 32 for gpos. `file_format` has to undo exactly that, because its result is
     // written straight into the lookup header.
     #[test]
     fn file_format_undoes_the_table_base() {
@@ -3628,9 +3628,9 @@ mod tests {
         assert_eq!(OTL_TYPE_UNKNOWN.file_format(), 0);
         assert_eq!(OTL_TYPE_GSUB_UNKNOWN.file_format(), 0);
         // Except `gpos_unknown`, and this one is a quirk kept on purpose: 32 is
-        // not above GPOS's base but it *is* above GSUB's, so C's nested
-        // comparisons read it as GSUB format 16. Reachable only from a font
-        // declaring a GPOS lookup of format 0, which no version of the spec has
+        // not above gpos's base but it *is* above gsub's, so C's nested
+        // comparisons read it as gsub format 16. Reachable only from a font
+        // declaring a gpos lookup of format 0, which no version of the spec has
         // -- but the number would go straight into the lookup header, so it is
         // reproduced rather than tidied.
         assert_eq!(OTL_TYPE_GPOS_UNKNOWN.file_format(), 16);
@@ -3650,7 +3650,7 @@ mod tests {
             LookupType::from_file(OTL_TYPE_GPOS_UNKNOWN, 9),
             OTL_TYPE_GPOS_EXTEND
         );
-        // GSUB format 9 exists in no version of the spec otfcc knows; it stays
+        // gsub format 9 exists in no version of the spec otfcc knows; it stays
         // 25, gets no subtable, and reaches the output as `lookup_0019_…`.
         let unnamed = LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 9);
         assert_eq!(unnamed.raw(), 25);

@@ -67,7 +67,7 @@ pub(crate) unsafe fn read_64u(src: *const u8) -> u64 {
 /// **`x as u16` is not the same thing and must never be substituted here.**
 /// Rust's float-to-unsigned conversion *saturates*, so every negative value
 /// would become 0, silently zeroing negative `hmtx.lsb`, `vmtx.tsb` and
-/// `VORG.defaultVerticalOrigin` in the built font. C converts through a
+/// `VORG.default_vertical_origin` in the built font. C converts through a
 /// signed integer and reinterprets the bits, so `-41.0` has to come out as
 /// `0xffd7` (which the reader decodes back to -41). Going through `i16` is
 /// what reproduces that.

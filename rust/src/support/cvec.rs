@@ -19,7 +19,7 @@
 // Only the callback-free, purely structural operations are generic here:
 // growth/capacity math, push/pop by value, and move. Operations that need
 // per-element behavior (custom dispose via a container's own `typeinfo`
-// struct, custom init, sort/filterEnv taking element-specific function
+// struct, custom init, sort/filter_env taking element-specific function
 // pointers) stay written out per container, since genericizing callback
 // dispatch is a separate, larger design question than this arithmetic.
 

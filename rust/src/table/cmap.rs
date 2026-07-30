@@ -55,22 +55,22 @@ pub struct CmapTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut CmapTable, *mut CmapTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CmapTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut CmapTable, CmapTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut CmapTable, CmapTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut CmapTable, CmapTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CmapTable>,
     pub free: Option<unsafe extern "C" fn(*mut CmapTable) -> ()>,
-    pub encodeByIndex:
+    pub encode_by_index:
         Option<unsafe extern "C" fn(*mut CmapTable, ::core::ffi::c_int, u16) -> bool>,
-    pub encodeByName:
+    pub encode_by_name:
         Option<unsafe extern "C" fn(*mut CmapTable, ::core::ffi::c_int, SdsRaw) -> bool>,
     pub unmap: Option<unsafe extern "C" fn(*mut CmapTable, ::core::ffi::c_int) -> bool>,
     pub lookup: Option<
         unsafe extern "C" fn(*const CmapTable, ::core::ffi::c_int) -> *mut GlyphHandle,
     >,
-    pub encodeUVSByIndex:
+    pub encode_uvs_by_index:
         Option<unsafe extern "C" fn(*mut CmapTable, CmapUvsKey, u16) -> bool>,
-    pub encodeUVSByName: Option<unsafe extern "C" fn(*mut CmapTable, CmapUvsKey, SdsRaw) -> bool>,
-    pub unmapUVS: Option<unsafe extern "C" fn(*mut CmapTable, CmapUvsKey) -> bool>,
-    pub lookupUVS:
+    pub encode_uvs_by_name: Option<unsafe extern "C" fn(*mut CmapTable, CmapUvsKey, SdsRaw) -> bool>,
+    pub unmap_uvs: Option<unsafe extern "C" fn(*mut CmapTable, CmapUvsKey) -> bool>,
+    pub lookup_uvs:
         Option<unsafe extern "C" fn(*const CmapTable, CmapUvsKey) -> *mut GlyphHandle>,
 }
 pub const UINT16_MAX: ::core::ffi::c_int = 65535 as ::core::ffi::c_int;
@@ -4659,16 +4659,16 @@ pub static TABLE_I_CMAP: CmapTableElementInterface = {
         replace: Some(
             table_cmap_replace as unsafe extern "C" fn(*mut CmapTable, CmapTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_cmap_copy_replace as unsafe extern "C" fn(*mut CmapTable, CmapTable) -> (),
         ),
         create: Some(table_cmap_create),
         free: Some(table_cmap_free as unsafe extern "C" fn(*mut CmapTable) -> ()),
-        encodeByIndex: Some(
+        encode_by_index: Some(
             otfcc_encode_cmap_by_index
                 as unsafe extern "C" fn(*mut CmapTable, ::core::ffi::c_int, u16) -> bool,
         ),
-        encodeByName: Some(
+        encode_by_name: Some(
             otfcc_encode_cmap_by_name
                 as unsafe extern "C" fn(*mut CmapTable, ::core::ffi::c_int, SdsRaw) -> bool,
         ),
@@ -4682,18 +4682,18 @@ pub static TABLE_I_CMAP: CmapTableElementInterface = {
                     ::core::ffi::c_int,
                 ) -> *mut GlyphHandle,
         ),
-        encodeUVSByIndex: Some(
+        encode_uvs_by_index: Some(
             otfcc_encode_cmap_uvs_by_index
                 as unsafe extern "C" fn(*mut CmapTable, CmapUvsKey, u16) -> bool,
         ),
-        encodeUVSByName: Some(
+        encode_uvs_by_name: Some(
             otfcc_encode_cmap_uvs_by_name
                 as unsafe extern "C" fn(*mut CmapTable, CmapUvsKey, SdsRaw) -> bool,
         ),
-        unmapUVS: Some(
+        unmap_uvs: Some(
             otfcc_unmap_cmap_uvs as unsafe extern "C" fn(*mut CmapTable, CmapUvsKey) -> bool,
         ),
-        lookupUVS: Some(
+        lookup_uvs: Some(
             otfcc_cmap_lookup_uvs
                 as unsafe extern "C" fn(*const CmapTable, CmapUvsKey) -> *mut GlyphHandle,
         ),
@@ -4855,7 +4855,7 @@ unsafe extern "C" fn read_uvs_default(
             );
             if !g.is_null() {
                 TABLE_I_CMAP
-                    .encodeUVSByIndex
+                    .encode_uvs_by_index
                     .expect("non-null function pointer")(
                     cmap,
                     CmapUvsKey {
@@ -4892,7 +4892,7 @@ unsafe extern "C" fn read_uvs_non_default(
         let mut glyph_id: GlyphId =
             read_16u(vsr.offset(3 as ::core::ffi::c_int as isize) as *const u8) as GlyphId;
         TABLE_I_CMAP
-            .encodeUVSByIndex
+            .encode_uvs_by_index
             .expect("non-null function pointer")(
             cmap,
             CmapUvsKey {
@@ -5009,14 +5009,14 @@ pub unsafe extern "C" fn otfcc_read_cmap(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut CmapTable {
-    let mut numTables: u16 = 0;
+    let mut num_tables: u16 = 0;
     let mut cmap: *mut CmapTable = ::core::ptr::null_mut::<CmapTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -5028,18 +5028,18 @@ pub unsafe extern "C" fn otfcc_read_cmap(
                     if !(length < 4 as u32) {
                         cmap = (
                             TABLE_I_CMAP.create.expect("non-null function pointer"))();
-                        numTables = read_16u(
+                        num_tables = read_16u(
                             data.offset(2 as ::core::ffi::c_int as isize) as *const u8
                         );
                         if !(length
                             < (4 as ::core::ffi::c_int
-                                + 8 as ::core::ffi::c_int * numTables as ::core::ffi::c_int)
+                                + 8 as ::core::ffi::c_int * num_tables as ::core::ffi::c_int)
                                 as u32)
                         {
                             let mut k_subtable_type: usize = 0 as usize;
                             while FORMAT_PRIORITIES[k_subtable_type] != 0 {
                                 let mut j: u16 = 0 as u16;
-                                while (j as ::core::ffi::c_int) < numTables as ::core::ffi::c_int {
+                                while (j as ::core::ffi::c_int) < num_tables as ::core::ffi::c_int {
                                     let mut platform: u16 = read_16u(
                                         data.offset(4 as ::core::ffi::c_int as isize).offset(
                                             (8 as ::core::ffi::c_int * j as ::core::ffi::c_int)
@@ -5241,7 +5241,7 @@ pub unsafe extern "C" fn otfcc_read_cmap(
                                 }
                             }
                             let mut j_0: u16 = 0 as u16;
-                            while (j_0 as ::core::ffi::c_int) < numTables as ::core::ffi::c_int {
+                            while (j_0 as ::core::ffi::c_int) < num_tables as ::core::ffi::c_int {
                                 let mut platform_0: u16 = read_16u(
                                     data.offset(4 as ::core::ffi::c_int as isize).offset(
                                         (8 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int)
@@ -5445,7 +5445,7 @@ pub unsafe extern "C" fn otfcc_read_cmap(
                         }
                     }
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -5477,7 +5477,7 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"cmap"),
@@ -5620,7 +5620,7 @@ unsafe extern "C" fn parse_cmap_unicodes(
                 let mut current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup(cmap, unicode as ::core::ffi::c_int) as *mut GlyphHandle;
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -5692,7 +5692,7 @@ unsafe extern "C" fn parse_cmap_uvs(
                 let mut current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup_uvs(cmap, k) as *mut GlyphHandle;
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -5726,7 +5726,7 @@ pub unsafe extern "C" fn otfcc_parse_cmap(
     let mut cmap: *mut CmapTable = (
         TABLE_I_CMAP.create.expect("non-null function pointer"))();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"cmap"),
@@ -5748,7 +5748,7 @@ pub unsafe extern "C" fn otfcc_parse_cmap(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"cmap_uvs"),

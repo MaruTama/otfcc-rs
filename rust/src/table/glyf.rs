@@ -38,7 +38,7 @@ use crate::vf::vq::{I_VQ};
 pub struct Point {
     pub x: VQ,
     pub y: VQ,
-    pub onCurve: i8,
+    pub on_curve: i8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -48,7 +48,7 @@ pub struct PointElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut Point, *mut Point) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Point) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut Point, Point) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut Point, Point) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut Point, Point) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> Point>,
     pub dup: Option<unsafe extern "C" fn(Point) -> Point>,
 }
@@ -67,19 +67,19 @@ pub struct ContourVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut Contour, *mut Contour) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut Contour, Contour) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut Contour, Contour) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut Contour, Contour) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut Contour>,
     pub free: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut Contour, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut Contour, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut Contour>,
+    pub init_n: Option<unsafe extern "C" fn(*mut Contour, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut Contour, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut Contour>,
     pub fill: Option<unsafe extern "C" fn(*mut Contour, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut Contour, Point) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut Contour) -> Point>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut Contour, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut Contour, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut Contour,
             Option<unsafe extern "C" fn(*const Point, *mut ::core::ffi::c_void) -> bool>,
@@ -108,19 +108,19 @@ pub struct ContourListVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut ContourList, *mut ContourList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut ContourList, ContourList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut ContourList, ContourList) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut ContourList, ContourList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut ContourList>,
     pub free: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut ContourList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut ContourList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut ContourList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut ContourList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut ContourList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut ContourList>,
     pub fill: Option<unsafe extern "C" fn(*mut ContourList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut ContourList, Contour) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut ContourList) -> Contour>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut ContourList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut ContourList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut ContourList,
             Option<unsafe extern "C" fn(*const Contour, *mut ::core::ffi::c_void) -> bool>,
@@ -159,7 +159,7 @@ pub struct PostscriptStemDefElementInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut PostscriptStemDef) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut PostscriptStemDef, PostscriptStemDef) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut PostscriptStemDef, PostscriptStemDef) -> ()>,
 }
 #[derive(Copy, Clone)]
@@ -177,19 +177,19 @@ pub struct StemDefListVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut StemDefList, *mut StemDefList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut StemDefList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut StemDefList, StemDefList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut StemDefList, StemDefList) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut StemDefList, StemDefList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut StemDefList>,
     pub free: Option<unsafe extern "C" fn(*mut StemDefList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut StemDefList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut StemDefList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut StemDefList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut StemDefList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut StemDefList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut StemDefList>,
     pub fill: Option<unsafe extern "C" fn(*mut StemDefList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut StemDefList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut StemDefList, PostscriptStemDef) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut StemDefList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut StemDefList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut StemDefList) -> PostscriptStemDef>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut StemDefList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut StemDefList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut StemDefList,
             Option<
@@ -216,10 +216,10 @@ pub struct StemDefListVectorInterface {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct PostscriptHintMask {
-    pub pointsBefore: u16,
-    pub contoursBefore: u16,
-    pub maskH: [bool; 256],
-    pub maskV: [bool; 256],
+    pub points_before: u16,
+    pub contours_before: u16,
+    pub mask_h: [bool; 256],
+    pub mask_v: [bool; 256],
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -234,7 +234,7 @@ pub struct PostscriptHintMaskElementInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut PostscriptHintMask) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut PostscriptHintMask, PostscriptHintMask) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut PostscriptHintMask, PostscriptHintMask) -> ()>,
 }
 #[derive(Copy, Clone)]
@@ -252,19 +252,19 @@ pub struct MaskListVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut MaskList, *mut MaskList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MaskList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut MaskList, MaskList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut MaskList, MaskList) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut MaskList, MaskList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut MaskList>,
     pub free: Option<unsafe extern "C" fn(*mut MaskList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut MaskList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut MaskList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut MaskList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut MaskList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut MaskList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut MaskList>,
     pub fill: Option<unsafe extern "C" fn(*mut MaskList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut MaskList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut MaskList, PostscriptHintMask) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut MaskList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut MaskList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut MaskList) -> PostscriptHintMask>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut MaskList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut MaskList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut MaskList,
             Option<
@@ -303,14 +303,14 @@ pub enum RefAnchorStatus {
 pub struct ComponentReference {
     pub x: VQ,
     pub y: VQ,
-    pub roundToGrid: bool,
-    pub useMyMetrics: bool,
+    pub round_to_grid: bool,
+    pub use_my_metrics: bool,
     pub glyph: GlyphHandle,
     pub a: Scale,
     pub b: Scale,
     pub c: Scale,
     pub d: Scale,
-    pub isAnchored: RefAnchorStatus,
+    pub is_anchored: RefAnchorStatus,
     pub inner: ShapeId,
     pub outer: ShapeId,
 }
@@ -327,7 +327,7 @@ pub struct ComponentReferenceElementInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut ComponentReference) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut ComponentReference, ComponentReference) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut ComponentReference, ComponentReference) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> ComponentReference>,
     pub dup: Option<unsafe extern "C" fn(ComponentReference) -> ComponentReference>,
@@ -349,20 +349,20 @@ pub struct ReferenceListVectorInterface {
         Option<unsafe extern "C" fn(*mut ReferenceList, *mut ReferenceList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut ReferenceList, ReferenceList) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut ReferenceList, ReferenceList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut ReferenceList>,
     pub free: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut ReferenceList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut ReferenceList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut ReferenceList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut ReferenceList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut ReferenceList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut ReferenceList>,
     pub fill: Option<unsafe extern "C" fn(*mut ReferenceList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut ReferenceList, ComponentReference) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut ReferenceList) -> ComponentReference>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut ReferenceList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut ReferenceList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut ReferenceList,
             Option<
@@ -389,34 +389,34 @@ pub struct ReferenceListVectorInterface {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GlyphStat {
-    pub xMin: Pos,
-    pub xMax: Pos,
-    pub yMin: Pos,
-    pub yMax: Pos,
-    pub nestDepth: u16,
-    pub nPoints: u16,
-    pub nContours: u16,
-    pub nCompositePoints: u16,
-    pub nCompositeContours: u16,
+    pub x_min: Pos,
+    pub x_max: Pos,
+    pub y_min: Pos,
+    pub y_max: Pos,
+    pub nest_depth: u16,
+    pub n_points: u16,
+    pub n_contours: u16,
+    pub n_composite_points: u16,
+    pub n_composite_contours: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Glyph {
     pub name: SdsRaw,
-    pub horizontalOrigin: VQ,
-    pub advanceWidth: VQ,
-    pub verticalOrigin: VQ,
-    pub advanceHeight: VQ,
+    pub horizontal_origin: VQ,
+    pub advance_width: VQ,
+    pub vertical_origin: VQ,
+    pub advance_height: VQ,
     pub contours: ContourList,
     pub references: ReferenceList,
-    pub stemH: StemDefList,
-    pub stemV: StemDefList,
-    pub hintMasks: MaskList,
-    pub contourMasks: MaskList,
-    pub instructionsLength: u16,
+    pub stem_h: StemDefList,
+    pub stem_v: StemDefList,
+    pub hint_masks: MaskList,
+    pub contour_masks: MaskList,
+    pub instructions_length: u16,
     pub instructions: *mut u8,
-    pub yPel: u8,
-    pub fdSelect: FdHandle,
+    pub y_pel: u8,
+    pub fd_select: FdHandle,
     pub cid: GlyphId,
     pub stat: GlyphStat,
 }
@@ -429,7 +429,7 @@ pub struct GlyphPtrElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut GlyphPtr, *mut GlyphPtr) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GlyphPtr) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut GlyphPtr, GlyphPtr) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut GlyphPtr, GlyphPtr) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut GlyphPtr, GlyphPtr) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -446,19 +446,19 @@ pub struct GlyfTableVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut GlyfTable, *mut GlyfTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut GlyfTable, GlyfTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut GlyfTable, GlyfTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut GlyfTable, GlyfTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GlyfTable>,
     pub free: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut GlyfTable, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut GlyfTable, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut GlyfTable>,
+    pub init_n: Option<unsafe extern "C" fn(*mut GlyfTable, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut GlyfTable, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GlyfTable>,
     pub fill: Option<unsafe extern "C" fn(*mut GlyfTable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut GlyfTable, GlyphPtr) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut GlyfTable) -> GlyphPtr>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut GlyfTable, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut GlyfTable, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut GlyfTable,
             Option<unsafe extern "C" fn(*const GlyphPtr, *mut ::core::ffi::c_void) -> bool>,
@@ -480,17 +480,17 @@ pub struct GlyfTableVectorInterface {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GlyfIOContext {
-    pub locaIsLong: bool,
-    pub numGlyphs: GlyphId,
-    pub nPhantomPoints: ShapeId,
+    pub loca_is_long: bool,
+    pub num_glyphs: GlyphId,
+    pub n_phantom_points: ShapeId,
     pub fvar: *mut FvarTable,
-    pub hasVerticalMetrics: bool,
-    pub exportFDSelect: bool,
+    pub has_vertical_metrics: bool,
+    pub export_fd_select: bool,
 }
-/// The only bit of [`Point::onCurve`] that means anything.
+/// The only bit of [`Point::on_curve`] that means anything.
 ///
 /// Not a flag *set*, despite C giving it a `glyf_OnCurveMask` type of its own:
-/// `onCurve` is an `i8` holding 0 or 1, and both readers of the field mask it
+/// `on_curve` is an `i8` holding 0 or 1, and both readers of the field mask it
 /// down to bit 0 rather than trusting it -- so this is typed as the `i8` it is
 /// applied to, which is what lets the two sites drop their casts.
 pub const MASK_ON_CURVE: i8 = 1;
@@ -525,14 +525,14 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     return 0 as usize;
 }
 unsafe extern "C" fn create_point(mut p: *mut Point) {
-    (*p).x = I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
-    (*p).y = I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
-    (*p).onCurve = TRUE_0 as i8;
+    (*p).x = I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+    (*p).y = I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+    (*p).on_curve = TRUE_0 as i8;
 }
 unsafe extern "C" fn copy_point(mut dst: *mut Point, mut src: *const Point) {
     I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).x, &raw const (*src).x);
     I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).y, &raw const (*src).y);
-    (*dst).onCurve = (*src).onCurve;
+    (*dst).on_curve = (*src).on_curve;
 }
 unsafe extern "C" fn dispose_point(mut p: *mut Point) {
     I_VQ.dispose.expect("non-null function pointer")(&raw mut (*p).x);
@@ -566,7 +566,7 @@ unsafe extern "C" fn glyf_point_empty() -> Point {
                 items: ::core::ptr::null_mut::<VqSegment>(),
             },
         },
-        onCurve: 0,
+        on_curve: 0,
     };
     glyf_point_init(&raw mut x);
     return x;
@@ -597,7 +597,7 @@ pub static GLYF_I_POINT: PointElementInterface = {
         replace: Some(
             glyf_point_replace as unsafe extern "C" fn(*mut Point, Point) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             glyf_point_copy_replace as unsafe extern "C" fn(*mut Point, Point) -> (),
         ),
         empty: Some(glyf_point_empty),
@@ -623,7 +623,7 @@ unsafe extern "C" fn glyf_point_dup(src: Point) -> Point {
                 items: ::core::ptr::null_mut::<VqSegment>(),
             },
         },
-        onCurve: 0,
+        on_curve: 0,
     };
     glyf_point_copy(&raw mut dst, &raw const src);
     return dst;
@@ -682,27 +682,27 @@ pub static GLYF_I_CONTOUR: ContourVectorInterface = {
         replace: Some(
             glyf_contour_replace as unsafe extern "C" fn(*mut Contour, Contour) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             glyf_contour_copy_replace as unsafe extern "C" fn(*mut Contour, Contour) -> (),
         ),
         create: Some(glyf_contour_create),
         free: Some(glyf_contour_free as unsafe extern "C" fn(*mut Contour) -> ()),
-        initN: Some(glyf_contour_init_n as unsafe extern "C" fn(*mut Contour, usize) -> ()),
-        initCapN: Some(
+        init_n: Some(glyf_contour_init_n as unsafe extern "C" fn(*mut Contour, usize) -> ()),
+        init_cap_n: Some(
             glyf_contour_init_cap_n as unsafe extern "C" fn(*mut Contour, usize) -> (),
         ),
-        createN: Some(glyf_contour_create_n as unsafe extern "C" fn(usize) -> *mut Contour),
+        create_n: Some(glyf_contour_create_n as unsafe extern "C" fn(usize) -> *mut Contour),
         fill: Some(glyf_contour_fill as unsafe extern "C" fn(*mut Contour, usize) -> ()),
         clear: Some(glyf_contour_dispose as unsafe extern "C" fn(*mut Contour) -> ()),
         push: Some(glyf_contour_push as unsafe extern "C" fn(*mut Contour, Point) -> ()),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             glyf_contour_shrink_to_fit as unsafe extern "C" fn(*mut Contour) -> (),
         ),
         pop: Some(glyf_contour_pop as unsafe extern "C" fn(*mut Contour) -> Point),
-        disposeItem: Some(
+        dispose_item: Some(
             glyf_contour_dispose_item as unsafe extern "C" fn(*mut Contour, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             glyf_contour_filter_env
                 as unsafe extern "C" fn(
                     *mut Contour,
@@ -823,7 +823,7 @@ unsafe extern "C" fn glyf_contour_fill(mut arr: *mut Contour, mut n: usize) {
                     items: ::core::ptr::null_mut::<VqSegment>(),
                 },
             },
-            onCurve: 0,
+            on_curve: 0,
         };
         if GLYF_I_POINT.init.is_some() {
             GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut x);
@@ -1099,19 +1099,19 @@ pub static GLYF_I_CONTOUR_LIST: ContourListVectorInterface = {
             glyf_contour_list_replace
                 as unsafe extern "C" fn(*mut ContourList, ContourList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             glyf_contour_list_copy_replace
                 as unsafe extern "C" fn(*mut ContourList, ContourList) -> (),
         ),
         create: Some(glyf_contour_list_create),
         free: Some(glyf_contour_list_free as unsafe extern "C" fn(*mut ContourList) -> ()),
-        initN: Some(
+        init_n: Some(
             glyf_contour_list_init_n as unsafe extern "C" fn(*mut ContourList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             glyf_contour_list_init_cap_n as unsafe extern "C" fn(*mut ContourList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             glyf_contour_list_create_n as unsafe extern "C" fn(usize) -> *mut ContourList,
         ),
         fill: Some(
@@ -1122,17 +1122,17 @@ pub static GLYF_I_CONTOUR_LIST: ContourListVectorInterface = {
             glyf_contour_list_push
                 as unsafe extern "C" fn(*mut ContourList, Contour) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             glyf_contour_list_shrink_to_fit as unsafe extern "C" fn(*mut ContourList) -> (),
         ),
         pop: Some(
             glyf_contour_list_pop as unsafe extern "C" fn(*mut ContourList) -> Contour,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             glyf_contour_list_dispose_item
                 as unsafe extern "C" fn(*mut ContourList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             glyf_contour_list_filter_env
                 as unsafe extern "C" fn(
                     *mut ContourList,
@@ -1221,18 +1221,18 @@ unsafe extern "C" fn glyf_contour_list_init_cap_n(mut arr: *mut ContourList, mut
 unsafe extern "C" fn init_glyf_reference(mut ref_0: *mut ComponentReference) {
     (*ref_0).glyph = otfcc_handle_empty() as GlyphHandle;
     (*ref_0).x =
-        I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+        I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
     (*ref_0).y =
-        I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+        I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
     (*ref_0).a = 1 as ::core::ffi::c_int as Scale;
     (*ref_0).b = 0 as ::core::ffi::c_int as Scale;
     (*ref_0).c = 0 as ::core::ffi::c_int as Scale;
     (*ref_0).d = 1 as ::core::ffi::c_int as Scale;
-    (*ref_0).isAnchored = RefAnchorStatus::Xy;
+    (*ref_0).is_anchored = RefAnchorStatus::Xy;
     (*ref_0).outer = 0 as ShapeId;
     (*ref_0).inner = (*ref_0).outer;
-    (*ref_0).roundToGrid = false;
-    (*ref_0).useMyMetrics = false;
+    (*ref_0).round_to_grid = false;
+    (*ref_0).use_my_metrics = false;
 }
 unsafe extern "C" fn copy_glyf_reference(
     mut dst: *mut ComponentReference,
@@ -1248,11 +1248,11 @@ unsafe extern "C" fn copy_glyf_reference(
     (*dst).b = (*src).b;
     (*dst).c = (*src).c;
     (*dst).d = (*src).d;
-    (*dst).isAnchored = (*src).isAnchored;
+    (*dst).is_anchored = (*src).is_anchored;
     (*dst).inner = (*src).inner;
     (*dst).outer = (*src).outer;
-    (*dst).roundToGrid = (*src).roundToGrid;
-    (*dst).useMyMetrics = (*src).useMyMetrics;
+    (*dst).round_to_grid = (*src).round_to_grid;
+    (*dst).use_my_metrics = (*src).use_my_metrics;
 }
 #[inline]
 unsafe extern "C" fn dispose_glyf_reference(mut ref_0: *mut ComponentReference) {
@@ -1297,8 +1297,8 @@ unsafe extern "C" fn glyf_component_reference_dup(
                 items: ::core::ptr::null_mut::<VqSegment>(),
             },
         },
-        roundToGrid: false,
-        useMyMetrics: false,
+        round_to_grid: false,
+        use_my_metrics: false,
         glyph: Handle {
             state: HandleState::Empty,
             index: 0,
@@ -1308,7 +1308,7 @@ unsafe extern "C" fn glyf_component_reference_dup(
         b: 0.,
         c: 0.,
         d: 0.,
-        isAnchored: RefAnchorStatus::Xy,
+        is_anchored: RefAnchorStatus::Xy,
         inner: 0,
         outer: 0,
     };
@@ -1353,8 +1353,8 @@ unsafe extern "C" fn glyf_component_reference_empty() -> ComponentReference {
                 items: ::core::ptr::null_mut::<VqSegment>(),
             },
         },
-        roundToGrid: false,
-        useMyMetrics: false,
+        round_to_grid: false,
+        use_my_metrics: false,
         glyph: Handle {
             state: HandleState::Empty,
             index: 0,
@@ -1364,7 +1364,7 @@ unsafe extern "C" fn glyf_component_reference_empty() -> ComponentReference {
         b: 0.,
         c: 0.,
         d: 0.,
-        isAnchored: RefAnchorStatus::Xy,
+        is_anchored: RefAnchorStatus::Xy,
         inner: 0,
         outer: 0,
     };
@@ -1406,7 +1406,7 @@ pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
                     ComponentReference,
                 ) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             glyf_component_reference_copy_replace
                 as unsafe extern "C" fn(
                     *mut ComponentReference,
@@ -1462,8 +1462,8 @@ unsafe extern "C" fn glyf_reference_list_fill(mut arr: *mut ReferenceList, mut n
                     items: ::core::ptr::null_mut::<VqSegment>(),
                 },
             },
-            roundToGrid: false,
-            useMyMetrics: false,
+            round_to_grid: false,
+            use_my_metrics: false,
             glyph: Handle {
                 state: HandleState::Empty,
                 index: 0,
@@ -1473,7 +1473,7 @@ unsafe extern "C" fn glyf_reference_list_fill(mut arr: *mut ReferenceList, mut n
             b: 0.,
             c: 0.,
             d: 0.,
-            isAnchored: RefAnchorStatus::Xy,
+            is_anchored: RefAnchorStatus::Xy,
             inner: 0,
             outer: 0,
         };
@@ -1629,20 +1629,20 @@ pub static GLYF_I_REFERENCE_LIST: ReferenceListVectorInterface = {
             glyf_reference_list_replace
                 as unsafe extern "C" fn(*mut ReferenceList, ReferenceList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             glyf_reference_list_copy_replace
                 as unsafe extern "C" fn(*mut ReferenceList, ReferenceList) -> (),
         ),
         create: Some(glyf_reference_list_create),
         free: Some(glyf_reference_list_free as unsafe extern "C" fn(*mut ReferenceList) -> ()),
-        initN: Some(
+        init_n: Some(
             glyf_reference_list_init_n as unsafe extern "C" fn(*mut ReferenceList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             glyf_reference_list_init_cap_n
                 as unsafe extern "C" fn(*mut ReferenceList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             glyf_reference_list_create_n as unsafe extern "C" fn(usize) -> *mut ReferenceList,
         ),
         fill: Some(
@@ -1655,18 +1655,18 @@ pub static GLYF_I_REFERENCE_LIST: ReferenceListVectorInterface = {
             glyf_reference_list_push
                 as unsafe extern "C" fn(*mut ReferenceList, ComponentReference) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             glyf_reference_list_shrink_to_fit as unsafe extern "C" fn(*mut ReferenceList) -> (),
         ),
         pop: Some(
             glyf_reference_list_pop
                 as unsafe extern "C" fn(*mut ReferenceList) -> ComponentReference,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             glyf_reference_list_dispose_item
                 as unsafe extern "C" fn(*mut ReferenceList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             glyf_reference_list_filter_env
                 as unsafe extern "C" fn(
                     *mut ReferenceList,
@@ -1812,7 +1812,7 @@ pub static GLYF_I_POSTSCRIPT_STEM_DEF: PostscriptStemDefElementInterface = {
             glyf_postscript_stem_def_replace
                 as unsafe extern "C" fn(*mut PostscriptStemDef, PostscriptStemDef) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             glyf_postscript_stem_def_copy_replace
                 as unsafe extern "C" fn(*mut PostscriptStemDef, PostscriptStemDef) -> (),
         ),
@@ -2118,19 +2118,19 @@ pub static GLYF_I_STEM_DEF_LIST: StemDefListVectorInterface = {
             glyf_stem_def_list_replace
                 as unsafe extern "C" fn(*mut StemDefList, StemDefList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             glyf_stem_def_list_copy_replace
                 as unsafe extern "C" fn(*mut StemDefList, StemDefList) -> (),
         ),
         create: Some(glyf_stem_def_list_create),
         free: Some(glyf_stem_def_list_free as unsafe extern "C" fn(*mut StemDefList) -> ()),
-        initN: Some(
+        init_n: Some(
             glyf_stem_def_list_init_n as unsafe extern "C" fn(*mut StemDefList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             glyf_stem_def_list_init_cap_n as unsafe extern "C" fn(*mut StemDefList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             glyf_stem_def_list_create_n as unsafe extern "C" fn(usize) -> *mut StemDefList,
         ),
         fill: Some(
@@ -2141,18 +2141,18 @@ pub static GLYF_I_STEM_DEF_LIST: StemDefListVectorInterface = {
             glyf_stem_def_list_push
                 as unsafe extern "C" fn(*mut StemDefList, PostscriptStemDef) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             glyf_stem_def_list_shrink_to_fit as unsafe extern "C" fn(*mut StemDefList) -> (),
         ),
         pop: Some(
             glyf_stem_def_list_pop
                 as unsafe extern "C" fn(*mut StemDefList) -> PostscriptStemDef,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             glyf_stem_def_list_dispose_item
                 as unsafe extern "C" fn(*mut StemDefList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             glyf_stem_def_list_filter_env
                 as unsafe extern "C" fn(
                     *mut StemDefList,
@@ -2210,7 +2210,7 @@ pub static GLYF_I_POSTSCRIPT_HINT_MASK: PostscriptHintMaskElementInterface = {
                     PostscriptHintMask,
                 ) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             glyf_postscript_hint_mask_copy_replace
                 as unsafe extern "C" fn(
                     *mut PostscriptHintMask,
@@ -2315,34 +2315,34 @@ pub static GLYF_I_MASK_LIST: MaskListVectorInterface = {
         replace: Some(
             glyf_mask_list_replace as unsafe extern "C" fn(*mut MaskList, MaskList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             glyf_mask_list_copy_replace
                 as unsafe extern "C" fn(*mut MaskList, MaskList) -> (),
         ),
         create: Some(glyf_mask_list_create),
         free: Some(glyf_mask_list_free as unsafe extern "C" fn(*mut MaskList) -> ()),
-        initN: Some(glyf_mask_list_init_n as unsafe extern "C" fn(*mut MaskList, usize) -> ()),
-        initCapN: Some(
+        init_n: Some(glyf_mask_list_init_n as unsafe extern "C" fn(*mut MaskList, usize) -> ()),
+        init_cap_n: Some(
             glyf_mask_list_init_cap_n as unsafe extern "C" fn(*mut MaskList, usize) -> (),
         ),
-        createN: Some(glyf_mask_list_create_n as unsafe extern "C" fn(usize) -> *mut MaskList),
+        create_n: Some(glyf_mask_list_create_n as unsafe extern "C" fn(usize) -> *mut MaskList),
         fill: Some(glyf_mask_list_fill as unsafe extern "C" fn(*mut MaskList, usize) -> ()),
         clear: Some(glyf_mask_list_dispose as unsafe extern "C" fn(*mut MaskList) -> ()),
         push: Some(
             glyf_mask_list_push
                 as unsafe extern "C" fn(*mut MaskList, PostscriptHintMask) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             glyf_mask_list_shrink_to_fit as unsafe extern "C" fn(*mut MaskList) -> (),
         ),
         pop: Some(
             glyf_mask_list_pop
                 as unsafe extern "C" fn(*mut MaskList) -> PostscriptHintMask,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             glyf_mask_list_dispose_item as unsafe extern "C" fn(*mut MaskList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             glyf_mask_list_filter_env
                 as unsafe extern "C" fn(
                     *mut MaskList,
@@ -2462,10 +2462,10 @@ unsafe extern "C" fn glyf_mask_list_sort(
 unsafe extern "C" fn glyf_mask_list_fill(mut arr: *mut MaskList, mut n: usize) {
     while (*arr).length < n {
         let mut x: PostscriptHintMask = PostscriptHintMask {
-            pointsBefore: 0,
-            contoursBefore: 0,
-            maskH: [false; 256],
-            maskV: [false; 256],
+            points_before: 0,
+            contours_before: 0,
+            mask_h: [false; 256],
+            mask_v: [false; 256],
         };
         if GLYF_I_POSTSCRIPT_HINT_MASK.init.is_some() {
             GLYF_I_POSTSCRIPT_HINT_MASK
@@ -2580,39 +2580,39 @@ pub unsafe extern "C" fn otfcc_new_glyf_glyph() -> *mut Glyph {
         78 as ::core::ffi::c_ulong,
     ) as *mut Glyph;
     (*g).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).horizontalOrigin);
-    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).advanceWidth);
-    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).verticalOrigin);
-    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).advanceHeight);
+    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).horizontal_origin);
+    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).advance_width);
+    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).vertical_origin);
+    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).advance_height);
     GLYF_I_CONTOUR_LIST.init.expect("non-null function pointer")(&raw mut (*g).contours);
     GLYF_I_REFERENCE_LIST.init.expect("non-null function pointer")(&raw mut (*g).references);
-    GLYF_I_STEM_DEF_LIST.init.expect("non-null function pointer")(&raw mut (*g).stemH);
-    GLYF_I_STEM_DEF_LIST.init.expect("non-null function pointer")(&raw mut (*g).stemV);
-    GLYF_I_MASK_LIST.init.expect("non-null function pointer")(&raw mut (*g).hintMasks);
-    GLYF_I_MASK_LIST.init.expect("non-null function pointer")(&raw mut (*g).contourMasks);
-    (*g).instructionsLength = 0 as u16;
+    GLYF_I_STEM_DEF_LIST.init.expect("non-null function pointer")(&raw mut (*g).stem_h);
+    GLYF_I_STEM_DEF_LIST.init.expect("non-null function pointer")(&raw mut (*g).stem_v);
+    GLYF_I_MASK_LIST.init.expect("non-null function pointer")(&raw mut (*g).hint_masks);
+    GLYF_I_MASK_LIST.init.expect("non-null function pointer")(&raw mut (*g).contour_masks);
+    (*g).instructions_length = 0 as u16;
     (*g).instructions = ::core::ptr::null_mut::<u8>();
-    (*g).fdSelect = otfcc_handle_empty() as FdHandle;
-    (*g).yPel = 0 as u8;
-    (*g).stat.xMin = 0 as ::core::ffi::c_int as Pos;
-    (*g).stat.xMax = 0 as ::core::ffi::c_int as Pos;
-    (*g).stat.yMin = 0 as ::core::ffi::c_int as Pos;
-    (*g).stat.yMax = 0 as ::core::ffi::c_int as Pos;
-    (*g).stat.nestDepth = 0 as u16;
-    (*g).stat.nPoints = 0 as u16;
-    (*g).stat.nContours = 0 as u16;
-    (*g).stat.nCompositePoints = 0 as u16;
-    (*g).stat.nCompositeContours = 0 as u16;
+    (*g).fd_select = otfcc_handle_empty() as FdHandle;
+    (*g).y_pel = 0 as u8;
+    (*g).stat.x_min = 0 as ::core::ffi::c_int as Pos;
+    (*g).stat.x_max = 0 as ::core::ffi::c_int as Pos;
+    (*g).stat.y_min = 0 as ::core::ffi::c_int as Pos;
+    (*g).stat.y_max = 0 as ::core::ffi::c_int as Pos;
+    (*g).stat.nest_depth = 0 as u16;
+    (*g).stat.n_points = 0 as u16;
+    (*g).stat.n_contours = 0 as u16;
+    (*g).stat.n_composite_points = 0 as u16;
+    (*g).stat.n_composite_contours = 0 as u16;
     return g;
 }
 unsafe extern "C" fn otfcc_delete_glyf_glyph(mut g: *mut Glyph) {
     if g.is_null() {
         return;
     }
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).horizontalOrigin);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).advanceWidth);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).verticalOrigin);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).advanceHeight);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).horizontal_origin);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).advance_width);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).vertical_origin);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).advance_height);
     sdsfree((*g).name);
     GLYF_I_CONTOUR_LIST
         .dispose
@@ -2622,17 +2622,17 @@ unsafe extern "C" fn otfcc_delete_glyf_glyph(mut g: *mut Glyph) {
         .expect("non-null function pointer")(&raw mut (*g).references);
     GLYF_I_STEM_DEF_LIST
         .dispose
-        .expect("non-null function pointer")(&raw mut (*g).stemH);
+        .expect("non-null function pointer")(&raw mut (*g).stem_h);
     GLYF_I_STEM_DEF_LIST
         .dispose
-        .expect("non-null function pointer")(&raw mut (*g).stemV);
-    GLYF_I_MASK_LIST.dispose.expect("non-null function pointer")(&raw mut (*g).hintMasks);
-    GLYF_I_MASK_LIST.dispose.expect("non-null function pointer")(&raw mut (*g).contourMasks);
+        .expect("non-null function pointer")(&raw mut (*g).stem_v);
+    GLYF_I_MASK_LIST.dispose.expect("non-null function pointer")(&raw mut (*g).hint_masks);
+    GLYF_I_MASK_LIST.dispose.expect("non-null function pointer")(&raw mut (*g).contour_masks);
     if !(*g).instructions.is_null() {
         free((*g).instructions as *mut ::core::ffi::c_void);
         (*g).instructions = ::core::ptr::null_mut::<u8>();
     }
-    otfcc_handle_dispose(&raw mut (*g).fdSelect);
+    otfcc_handle_dispose(&raw mut (*g).fd_select);
     (*g).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
     free(g as *mut ::core::ffi::c_void);
     g = ::core::ptr::null_mut::<Glyph>();
@@ -2657,7 +2657,7 @@ pub static GLYF_I_GLYPH_PTR: GlyphPtrElementInterface = {
         move_0: None,
         dispose: Some(dispose_glyf_ptr as unsafe extern "C" fn(*mut GlyphPtr) -> ()),
         replace: None,
-        copyReplace: None,
+        copy_replace: None,
     }
 };
 #[inline]
@@ -2883,23 +2883,23 @@ pub static TABLE_I_GLYF: GlyfTableVectorInterface = {
         replace: Some(
             table_glyf_replace as unsafe extern "C" fn(*mut GlyfTable, GlyfTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_glyf_copy_replace as unsafe extern "C" fn(*mut GlyfTable, GlyfTable) -> (),
         ),
         create: Some(table_glyf_create),
         free: Some(table_glyf_free as unsafe extern "C" fn(*mut GlyfTable) -> ()),
-        initN: Some(table_glyf_init_n as unsafe extern "C" fn(*mut GlyfTable, usize) -> ()),
-        initCapN: Some(table_glyf_init_cap_n as unsafe extern "C" fn(*mut GlyfTable, usize) -> ()),
-        createN: Some(table_glyf_create_n as unsafe extern "C" fn(usize) -> *mut GlyfTable),
+        init_n: Some(table_glyf_init_n as unsafe extern "C" fn(*mut GlyfTable, usize) -> ()),
+        init_cap_n: Some(table_glyf_init_cap_n as unsafe extern "C" fn(*mut GlyfTable, usize) -> ()),
+        create_n: Some(table_glyf_create_n as unsafe extern "C" fn(usize) -> *mut GlyfTable),
         fill: Some(table_glyf_fill as unsafe extern "C" fn(*mut GlyfTable, usize) -> ()),
         clear: Some(table_glyf_dispose as unsafe extern "C" fn(*mut GlyfTable) -> ()),
         push: Some(table_glyf_push as unsafe extern "C" fn(*mut GlyfTable, GlyphPtr) -> ()),
-        shrinkToFit: Some(table_glyf_shrink_to_fit as unsafe extern "C" fn(*mut GlyfTable) -> ()),
+        shrink_to_fit: Some(table_glyf_shrink_to_fit as unsafe extern "C" fn(*mut GlyfTable) -> ()),
         pop: Some(table_glyf_pop as unsafe extern "C" fn(*mut GlyfTable) -> GlyphPtr),
-        disposeItem: Some(
+        dispose_item: Some(
             table_glyf_dispose_item as unsafe extern "C" fn(*mut GlyfTable, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             table_glyf_filter_env
                 as unsafe extern "C" fn(
                     *mut GlyfTable,
@@ -2956,7 +2956,7 @@ unsafe extern "C" fn glyf_glyph_dump_contours(
                 point,
                 b"on\0" as *const u8 as *const ::core::ffi::c_char,
                 json_boolean_new(
-                    ((*(*c).items.offset(m as isize)).onCurve & MASK_ON_CURVE)
+                    ((*(*c).items.offset(m as isize)).on_curve & MASK_ON_CURVE)
                         as ::core::ffi::c_int,
                 ),
             );
@@ -3024,7 +3024,7 @@ unsafe extern "C" fn glyf_glyph_dump_references(
             b"d\0" as *const u8 as *const ::core::ffi::c_char,
             json_new_position((*r).d as Pos),
         );
-        if (*r).isAnchored != RefAnchorStatus::Xy
+        if (*r).is_anchored != RefAnchorStatus::Xy
         {
             json_object_push(
                 ref_0,
@@ -3042,14 +3042,14 @@ unsafe extern "C" fn glyf_glyph_dump_references(
                 json_integer_new((*r).outer as i64),
             );
         }
-        if (*r).roundToGrid {
+        if (*r).round_to_grid {
             json_object_push(
                 ref_0,
                 b"roundToGrid\0" as *const u8 as *const ::core::ffi::c_char,
                 json_boolean_new(TRUE_0),
             );
         }
-        if (*r).useMyMetrics {
+        if (*r).use_my_metrics {
             json_object_push(
                 ref_0,
                 b"useMyMetrics\0" as *const u8 as *const ::core::ffi::c_char,
@@ -3097,12 +3097,12 @@ unsafe extern "C" fn glyf_glyph_dump_maskdefs(
         json_object_push(
             mask,
             b"contoursBefore\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*(*masks).items.offset(j as isize)).contoursBefore as i64),
+            json_integer_new((*(*masks).items.offset(j as isize)).contours_before as i64),
         );
         json_object_push(
             mask,
             b"pointsBefore\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*(*masks).items.offset(j as isize)).pointsBefore as i64),
+            json_integer_new((*(*masks).items.offset(j as isize)).points_before as i64),
         );
         let mut h: *mut JsonValue = json_array_new((*hh).length);
         let mut k: ShapeId = 0 as ShapeId;
@@ -3110,7 +3110,7 @@ unsafe extern "C" fn glyf_glyph_dump_maskdefs(
             json_array_push(
                 h,
                 json_boolean_new(
-                    (*(*masks).items.offset(j as isize)).maskH[k as usize] as ::core::ffi::c_int,
+                    (*(*masks).items.offset(j as isize)).mask_h[k as usize] as ::core::ffi::c_int,
                 ),
             );
             k = k.wrapping_add(1);
@@ -3126,7 +3126,7 @@ unsafe extern "C" fn glyf_glyph_dump_maskdefs(
             json_array_push(
                 v,
                 json_boolean_new(
-                    (*(*masks).items.offset(j as isize)).maskV[k_0 as usize] as ::core::ffi::c_int,
+                    (*(*masks).items.offset(j as isize)).mask_v[k_0 as usize] as ::core::ffi::c_int,
                 ),
             );
             k_0 = k_0.wrapping_add(1);
@@ -3150,40 +3150,40 @@ unsafe extern "C" fn glyf_dump_glyph(
     json_object_push(
         glyph,
         b"advanceWidth\0" as *const u8 as *const ::core::ffi::c_char,
-        json_new_vq((*g).advanceWidth, (*ctx).fvar),
+        json_new_vq((*g).advance_width, (*ctx).fvar),
     );
-    if I_VQ.isStill.expect("non-null function pointer")((*g).horizontalOrigin) as ::core::ffi::c_int
+    if I_VQ.is_still.expect("non-null function pointer")((*g).horizontal_origin) as ::core::ffi::c_int
         != 0
         && fabs(
-            I_VQ.getStill.expect("non-null function pointer")((*g).horizontalOrigin)
+            I_VQ.get_still.expect("non-null function pointer")((*g).horizontal_origin)
                 as ::core::ffi::c_double,
         ) > 1.0f64 / 1000.0f64
     {
         json_object_push(
             glyph,
             b"horizontalOrigin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).horizontalOrigin, (*ctx).fvar),
+            json_new_vq((*g).horizontal_origin, (*ctx).fvar),
         );
     }
-    if (*ctx).hasVerticalMetrics {
+    if (*ctx).has_vertical_metrics {
         json_object_push(
             glyph,
             b"advanceHeight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).advanceHeight, (*ctx).fvar),
+            json_new_vq((*g).advance_height, (*ctx).fvar),
         );
         json_object_push(
             glyph,
             b"verticalOrigin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).verticalOrigin, (*ctx).fvar),
+            json_new_vq((*g).vertical_origin, (*ctx).fvar),
         );
     }
     glyf_glyph_dump_contours(g, glyph, ctx);
     glyf_glyph_dump_references(g, glyph, ctx);
-    if (*ctx).exportFDSelect {
+    if (*ctx).export_fd_select {
         json_object_push(
             glyph,
             b"CFF_fdSelect\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new((*g).fdSelect.name as *const ::core::ffi::c_char),
+            json_string_new((*g).fd_select.name as *const ::core::ffi::c_char),
         );
         json_object_push(
             glyph,
@@ -3192,58 +3192,58 @@ unsafe extern "C" fn glyf_dump_glyph(
         );
     }
     if !(*options).ignore_hints {
-        if !(*g).instructions.is_null() && (*g).instructionsLength as ::core::ffi::c_int != 0 {
+        if !(*g).instructions.is_null() && (*g).instructions_length as ::core::ffi::c_int != 0 {
             json_object_push(
                 glyph,
                 b"instructions\0" as *const u8 as *const ::core::ffi::c_char,
                 dump_ttinstr(
                     (*g).instructions,
-                    (*g).instructionsLength as u32,
+                    (*g).instructions_length as u32,
                     options,
                 ),
             );
         }
-        if (*g).stemH.length != 0 {
+        if (*g).stem_h.length != 0 {
             json_object_push(
                 glyph,
                 b"stemH\0" as *const u8 as *const ::core::ffi::c_char,
-                preserialize(glyf_glyph_dump_stemdefs(&raw mut (*g).stemH)),
+                preserialize(glyf_glyph_dump_stemdefs(&raw mut (*g).stem_h)),
             );
         }
-        if (*g).stemV.length != 0 {
+        if (*g).stem_v.length != 0 {
             json_object_push(
                 glyph,
                 b"stemV\0" as *const u8 as *const ::core::ffi::c_char,
-                preserialize(glyf_glyph_dump_stemdefs(&raw mut (*g).stemV)),
+                preserialize(glyf_glyph_dump_stemdefs(&raw mut (*g).stem_v)),
             );
         }
-        if (*g).hintMasks.length != 0 {
+        if (*g).hint_masks.length != 0 {
             json_object_push(
                 glyph,
                 b"hintMasks\0" as *const u8 as *const ::core::ffi::c_char,
                 preserialize(glyf_glyph_dump_maskdefs(
-                    &raw mut (*g).hintMasks,
-                    &raw mut (*g).stemH,
-                    &raw mut (*g).stemV,
+                    &raw mut (*g).hint_masks,
+                    &raw mut (*g).stem_h,
+                    &raw mut (*g).stem_v,
                 )),
             );
         }
-        if (*g).contourMasks.length != 0 {
+        if (*g).contour_masks.length != 0 {
             json_object_push(
                 glyph,
                 b"contourMasks\0" as *const u8 as *const ::core::ffi::c_char,
                 preserialize(glyf_glyph_dump_maskdefs(
-                    &raw mut (*g).contourMasks,
-                    &raw mut (*g).stemH,
-                    &raw mut (*g).stemV,
+                    &raw mut (*g).contour_masks,
+                    &raw mut (*g).stem_h,
+                    &raw mut (*g).stem_v,
                 )),
             );
         }
-        if (*g).yPel != 0 {
+        if (*g).y_pel != 0 {
             json_object_push(
                 glyph,
                 b"LTSH_yPel\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*g).yPel as i64),
+                json_integer_new((*g).y_pel as i64),
             );
         }
     }
@@ -3284,7 +3284,7 @@ pub unsafe extern "C" fn otfcc_dump_glyf(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"glyf"),
@@ -3334,7 +3334,7 @@ unsafe extern "C" fn glyf_parse_point(mut pointdump: *mut JsonValue) -> Point {
                 items: ::core::ptr::null_mut::<VqSegment>(),
             },
         },
-        onCurve: 0,
+        on_curve: 0,
     };
     GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut point);
     if pointdump.is_null()
@@ -3364,7 +3364,7 @@ unsafe extern "C" fn glyf_parse_point(mut pointdump: *mut JsonValue) -> Point {
         } else if strcmp(ck, b"on\0" as *const u8 as *const ::core::ffi::c_char)
             == 0 as ::core::ffi::c_int
         {
-            point.onCurve = json_boolof(cv) as i8;
+            point.on_curve = json_boolof(cv) as i8;
         }
         _k = _k.wrapping_add(1);
     }
@@ -3374,9 +3374,9 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut JsonValue, mut g: *mut Gl
     if col.is_null() {
         return;
     }
-    let mut nContours: ShapeId = (*col).u.array.length as ShapeId;
+    let mut n_contours: ShapeId = (*col).u.array.length as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
-    while (j as ::core::ffi::c_int) < nContours as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < n_contours as ::core::ffi::c_int {
         let mut contourdump: *mut JsonValue =
             *(*col).u.array.values.offset(j as isize) as *mut JsonValue;
         let mut contour: Contour = Contour {
@@ -3384,7 +3384,7 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut JsonValue, mut g: *mut Gl
             capacity: 0,
             items: ::core::ptr::null_mut::<Point>(),
         };
-        GLYF_I_CONTOUR.initCapN.expect("non-null function pointer")(
+        GLYF_I_CONTOUR.init_cap_n.expect("non-null function pointer")(
             &raw mut contour,
             (if !contourdump.is_null()
                 && (*contourdump).type_0 == JsonType::Array
@@ -3462,11 +3462,11 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *mut JsonValue) -> Compon
             b"d\0" as *const u8 as *const ::core::ffi::c_char,
             1.0f64,
         ) as Scale;
-        ref_0.roundToGrid = json_obj_getbool(
+        ref_0.round_to_grid = json_obj_getbool(
             refdump,
             b"roundToGrid\0" as *const u8 as *const ::core::ffi::c_char,
         );
-        ref_0.useMyMetrics = json_obj_getbool(
+        ref_0.use_my_metrics = json_obj_getbool(
             refdump,
             b"useMyMetrics\0" as *const u8 as *const ::core::ffi::c_char,
         );
@@ -3474,7 +3474,7 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *mut JsonValue) -> Compon
             refdump,
             b"isAnchored\0" as *const u8 as *const ::core::ffi::c_char,
         ) {
-            ref_0.isAnchored = RefAnchorStatus::AnchorXy;
+            ref_0.is_anchored = RefAnchorStatus::AnchorXy;
             ref_0.inner = json_obj_getint(
                 refdump,
                 b"inner\0" as *const u8 as *const ::core::ffi::c_char,
@@ -3488,20 +3488,20 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *mut JsonValue) -> Compon
         ref_0.glyph.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
         I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.x,
-            I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)
+            I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)
                 as VQ,
         );
         I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.y,
-            I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)
+            I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)
                 as VQ,
         );
         ref_0.a = 1.0f64 as Scale;
         ref_0.b = 0.0f64 as Scale;
         ref_0.c = 0.0f64 as Scale;
         ref_0.d = 1.0f64 as Scale;
-        ref_0.roundToGrid = false;
-        ref_0.useMyMetrics = false;
+        ref_0.round_to_grid = false;
+        ref_0.use_my_metrics = false;
     }
     return ref_0;
 }
@@ -3524,7 +3524,7 @@ unsafe extern "C" fn make_instrs_for_glyph(
     mut len: u32,
 ) {
     let mut g: *mut Glyph = _g as *mut Glyph;
-    (*g).instructionsLength = len as u16;
+    (*g).instructions_length = len as u16;
     (*g).instructions = instrs;
 }
 unsafe extern "C" fn wrong_instrs_for_glyph(
@@ -3609,21 +3609,21 @@ unsafe extern "C" fn parse_masks(mut md: *mut JsonValue, mut masks: *mut MaskLis
         if !((*m).type_0 != JsonType::Object)
         {
             let mut mask: PostscriptHintMask = PostscriptHintMask {
-                pointsBefore: 0,
-                contoursBefore: 0,
-                maskH: [false; 256],
-                maskV: [false; 256],
+                points_before: 0,
+                contours_before: 0,
+                mask_h: [false; 256],
+                mask_v: [false; 256],
             };
-            mask.pointsBefore = json_obj_getint(
+            mask.points_before = json_obj_getint(
                 m,
                 b"pointsBefore\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
-            mask.contoursBefore = json_obj_getint(
+            mask.contours_before = json_obj_getint(
                 m,
                 b"contoursBefore\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
             parse_maskbits(
-                (&raw mut mask.maskH as *mut bool).offset(0 as ::core::ffi::c_int as isize)
+                (&raw mut mask.mask_h as *mut bool).offset(0 as ::core::ffi::c_int as isize)
                     as *mut bool,
                 json_obj_get_type(
                     m,
@@ -3632,7 +3632,7 @@ unsafe extern "C" fn parse_masks(mut md: *mut JsonValue, mut masks: *mut MaskLis
                 ),
             );
             parse_maskbits(
-                (&raw mut mask.maskV as *mut bool).offset(0 as ::core::ffi::c_int as isize)
+                (&raw mut mask.mask_v as *mut bool).offset(0 as ::core::ffi::c_int as isize)
                     as *mut bool,
                 json_obj_get_type(
                     m,
@@ -3653,7 +3653,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
     let mut g: *mut Glyph = otfcc_new_glyf_glyph();
     (*g).name = sdsdup((*order_entry).name);
     I_VQ.replace.expect("non-null function pointer")(
-        &raw mut (*g).advanceWidth,
+        &raw mut (*g).advance_width,
         json_vq_of(
             json_obj_get(
                 glyphdump,
@@ -3663,7 +3663,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
         ) as VQ,
     );
     I_VQ.replace.expect("non-null function pointer")(
-        &raw mut (*g).horizontalOrigin,
+        &raw mut (*g).horizontal_origin,
         json_vq_of(
             json_obj_get(
                 glyphdump,
@@ -3673,7 +3673,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
         ) as VQ,
     );
     I_VQ.replace.expect("non-null function pointer")(
-        &raw mut (*g).advanceHeight,
+        &raw mut (*g).advance_height,
         json_vq_of(
             json_obj_get(
                 glyphdump,
@@ -3683,7 +3683,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
         ) as VQ,
     );
     I_VQ.replace.expect("non-null function pointer")(
-        &raw mut (*g).verticalOrigin,
+        &raw mut (*g).vertical_origin,
         json_vq_of(
             json_obj_get(
                 glyphdump,
@@ -3734,7 +3734,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
                 b"stemH\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Array,
             ),
-            &raw mut (*g).stemH,
+            &raw mut (*g).stem_h,
         );
         parse_stems(
             json_obj_get_type(
@@ -3742,7 +3742,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
                 b"stemV\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Array,
             ),
-            &raw mut (*g).stemV,
+            &raw mut (*g).stem_v,
         );
         parse_masks(
             json_obj_get_type(
@@ -3750,7 +3750,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
                 b"hintMasks\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Array,
             ),
-            &raw mut (*g).hintMasks,
+            &raw mut (*g).hint_masks,
         );
         parse_masks(
             json_obj_get_type(
@@ -3758,19 +3758,19 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
                 b"contourMasks\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Array,
             ),
-            &raw mut (*g).contourMasks,
+            &raw mut (*g).contour_masks,
         );
-        (*g).yPel = json_obj_getint(
+        (*g).y_pel = json_obj_getint(
             glyphdump,
             b"LTSH_yPel\0" as *const u8 as *const ::core::ffi::c_char,
         ) as u8;
     }
-    (*g).fdSelect = handle_from_name(json_obj_getsds(
+    (*g).fd_select = handle_from_name(json_obj_getsds(
         glyphdump,
         b"CFF_fdSelect\0" as *const u8 as *const ::core::ffi::c_char,
     )) as FdHandle;
-    if (*g).yPel == 0 {
-        (*g).yPel = json_obj_getint(
+    if (*g).y_pel == 0 {
+        (*g).y_pel = json_obj_getint(
             glyphdump,
             b"yPel\0" as *const u8 as *const ::core::ffi::c_char,
         ) as u8;
@@ -3796,17 +3796,17 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
     );
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"glyf"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            let mut numGlyphs: GlyphId = (*table).u.object.length as GlyphId;
-            glyf = TABLE_I_GLYF.createN.expect("non-null function pointer")(numGlyphs as usize);
+            let mut num_glyphs: GlyphId = (*table).u.object.length as GlyphId;
+            glyf = TABLE_I_GLYF.create_n.expect("non-null function pointer")(num_glyphs as usize);
             let mut j: GlyphId = 0 as GlyphId;
-            while (j as ::core::ffi::c_int) < numGlyphs as ::core::ffi::c_int {
+            while (j as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int {
                 let mut gname: SdsRaw = sdsnewlen(
                     (*(*table).u.object.values.offset(j as isize)).name
                         as *const ::core::ffi::c_void,
@@ -4088,25 +4088,25 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
                 _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
                 _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
                 order_entry = ::core::ptr::null_mut::<GlyphOrderEntry>();
-                if !(*glyph_order).byName.is_null() {
+                if !(*glyph_order).by_name.is_null() {
                     let mut _hf_bkt: ::core::ffi::c_uint = 0;
                     _hf_bkt = _hf_hashv
-                        & (*(*(*glyph_order).byName).hhName.tbl)
+                        & (*(*(*glyph_order).by_name).hh_name.tbl)
                             .num_buckets
                             .wrapping_sub(1 as ::core::ffi::c_uint);
                     if 1 as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-                        if !(*(*(*(*glyph_order).byName).hhName.tbl)
+                        if !(*(*(*(*glyph_order).by_name).hh_name.tbl)
                             .buckets
                             .offset(_hf_bkt as isize))
                         .hh_head
                         .is_null()
                         {
-                            order_entry = ((*(*(*(*glyph_order).byName).hhName.tbl)
+                            order_entry = ((*(*(*(*glyph_order).by_name).hh_name.tbl)
                                 .buckets
                                 .offset(_hf_bkt as isize))
                             .hh_head
                                 as *mut ::core::ffi::c_char)
-                                .offset(-(*(*(*glyph_order).byName).hhName.tbl).hho)
+                                .offset(-(*(*(*glyph_order).by_name).hh_name.tbl).hho)
                                 as *mut ::core::ffi::c_void
                                 as *mut GlyphOrderEntry
                                 as *mut GlyphOrderEntry;
@@ -4114,11 +4114,11 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
                             order_entry = ::core::ptr::null_mut::<GlyphOrderEntry>();
                         }
                         while !order_entry.is_null() {
-                            if (*order_entry).hhName.hashv == _hf_hashv
-                                && (*order_entry).hhName.keylen as usize == sdslen(gname)
+                            if (*order_entry).hh_name.hashv == _hf_hashv
+                                && (*order_entry).hh_name.keylen as usize == sdslen(gname)
                             {
                                 if memcmp(
-                                    (*order_entry).hhName.key,
+                                    (*order_entry).hh_name.key,
                                     gname as *const ::core::ffi::c_void,
                                     sdslen(gname),
                                 ) == 0 as ::core::ffi::c_int
@@ -4126,10 +4126,10 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
                                     break;
                                 }
                             }
-                            if !(*order_entry).hhName.hh_next.is_null() {
-                                order_entry = ((*order_entry).hhName.hh_next
+                            if !(*order_entry).hh_name.hh_next.is_null() {
+                                order_entry = ((*order_entry).hh_name.hh_next
                                     as *mut ::core::ffi::c_char)
-                                    .offset(-(*(*(*glyph_order).byName).hhName.tbl).hho)
+                                    .offset(-(*(*(*glyph_order).by_name).hh_name.tbl).hho)
                                     as *mut ::core::ffi::c_void
                                     as *mut GlyphOrderEntry
                                     as *mut GlyphOrderEntry;
@@ -4227,7 +4227,7 @@ mod tests {
     use super::*;
 
     // `glyf/build.rs` writes a component's flags based on
-    // `isAnchored == RefAnchorStatus::AnchorConsolidated`, so these values pick which branch
+    // `is_anchored == RefAnchorStatus::AnchorConsolidated`, so these values pick which branch
     // of the composite-glyph encoding runs. They come from otfcc's own
     // consolidation pass, never off the wire, but they are still load-bearing for
     // the bytes that come out.

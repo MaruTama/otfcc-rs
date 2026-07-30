@@ -67,13 +67,13 @@ pub unsafe extern "C" fn consolidate_gsub_single(
     let mut k: usize = 0 as usize;
     while k < (*subtable).length {
         if !OTFCC_PKG_GLYPH_ORDER
-            .consolidateHandle
+            .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
             &raw mut (*(*subtable).items.offset(k as isize)).from,
         ) {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -86,13 +86,13 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 ),
             );
         } else if !OTFCC_PKG_GLYPH_ORDER
-            .consolidateHandle
+            .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
             &raw mut (*(*subtable).items.offset(k as isize)).to,
         ) {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -421,7 +421,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             }
             if !s.is_null() {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -1035,7 +1035,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         != (*subtable).length
     {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,

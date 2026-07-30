@@ -48,7 +48,7 @@ pub unsafe extern "C" fn single_coverage(
         ::core::mem::size_of::<Coverage>() as usize,
         14 as ::core::ffi::c_ulong,
     ) as *mut Coverage;
-    (*cov).numGlyphs = 1 as GlyphId;
+    (*cov).num_glyphs = 1 as GlyphId;
     (*cov).glyphs = __caryll_allocate_clean(
         ::core::mem::size_of::<GlyphHandle>() as usize,
         16 as ::core::ffi::c_ulong,
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn class_coverage(
         ::core::mem::size_of::<Coverage>() as usize,
         26 as ::core::ffi::c_ulong,
     ) as *mut Coverage;
-    (*cov).numGlyphs = 0 as GlyphId;
+    (*cov).num_glyphs = 0 as GlyphId;
     (*cov).glyphs = ::core::ptr::null_mut::<GlyphHandle>();
     let mut count: GlyphId = 0 as GlyphId;
     if cls as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
@@ -87,7 +87,7 @@ pub unsafe extern "C" fn class_coverage(
         while (k as ::core::ffi::c_int) < max_glyphs as ::core::ffi::c_int {
             let mut found: bool = false;
             let mut j: GlyphId = 0 as GlyphId;
-            while (j as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
+            while (j as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
                 if *(*cd).classes.offset(j as isize) as ::core::ffi::c_int > 0 as ::core::ffi::c_int
                     && (*(*cd).glyphs.offset(j as isize)).index as ::core::ffi::c_int
                         == k as ::core::ffi::c_int
@@ -105,7 +105,7 @@ pub unsafe extern "C" fn class_coverage(
         }
     } else {
         let mut j_0: GlyphId = 0 as GlyphId;
-        while (j_0 as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
+        while (j_0 as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
             if *(*cd).classes.offset(j_0 as isize) as ::core::ffi::c_int
                 == cls as ::core::ffi::c_int
             {
@@ -117,7 +117,7 @@ pub unsafe extern "C" fn class_coverage(
     if count == 0 {
         return cov;
     }
-    (*cov).numGlyphs = count;
+    (*cov).num_glyphs = count;
     (*cov).glyphs = __caryll_allocate_clean(
         (::core::mem::size_of::<GlyphHandle>() as usize).wrapping_mul(count as usize),
         49 as ::core::ffi::c_ulong,
@@ -128,7 +128,7 @@ pub unsafe extern "C" fn class_coverage(
         while (k_0 as ::core::ffi::c_int) < max_glyphs as ::core::ffi::c_int {
             let mut found_0: bool = false;
             let mut j_1: GlyphId = 0 as GlyphId;
-            while (j_1 as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
+            while (j_1 as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
                 if *(*cd).classes.offset(j_1 as isize) as ::core::ffi::c_int
                     > 0 as ::core::ffi::c_int
                     && (*(*cd).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int
@@ -151,7 +151,7 @@ pub unsafe extern "C" fn class_coverage(
         }
     } else {
         let mut j_2: GlyphId = 0 as GlyphId;
-        while (j_2 as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
+        while (j_2 as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
             if *(*cd).classes.offset(j_2 as isize) as ::core::ffi::c_int
                 == cls as ::core::ffi::c_int
             {
@@ -221,12 +221,12 @@ pub unsafe extern "C" fn general_read_contextual_rule(
                 .wrapping_add((2 as ::core::ffi::c_int * n_input as ::core::ffi::c_int) as u32)
                 .wrapping_add((4 as ::core::ffi::c_int * n_apply as ::core::ffi::c_int) as u32))
         {
-            (*rule).matchCount = n_input as TableId;
-            (*rule).inputBegins = 0 as TableId;
-            (*rule).inputEnds = n_input as TableId;
+            (*rule).match_count = n_input as TableId;
+            (*rule).input_begins = 0 as TableId;
+            (*rule).input_ends = n_input as TableId;
             (*rule).match_0 = __caryll_allocate_clean(
                 (::core::mem::size_of::<*mut Coverage>() as usize)
-                    .wrapping_mul((*rule).matchCount as usize),
+                    .wrapping_mul((*rule).match_count as usize),
                 98 as ::core::ffi::c_ulong,
             ) as *mut *mut Coverage;
             jj = 0 as u16;
@@ -268,22 +268,22 @@ pub unsafe extern "C" fn general_read_contextual_rule(
                 );
                 j = j.wrapping_add(1);
             }
-            (*rule).applyCount = n_apply as TableId;
+            (*rule).apply_count = n_apply as TableId;
             (*rule).apply = __caryll_allocate_clean(
                 (::core::mem::size_of::<ChainLookupApplication>() as usize)
-                    .wrapping_mul((*rule).applyCount as usize),
+                    .wrapping_mul((*rule).apply_count as usize),
                 108 as ::core::ffi::c_ulong,
             ) as *mut ChainLookupApplication;
             let mut j_0: TableId = 0 as TableId;
             while (j_0 as ::core::ffi::c_int) < n_apply as ::core::ffi::c_int {
-                (*(*rule).apply.offset(j_0 as isize)).index = ((*rule).inputBegins
+                (*(*rule).apply.offset(j_0 as isize)).index = ((*rule).input_begins
                     as ::core::ffi::c_int
                     + read_16u(
                         data.offset(offset as isize)
                             .offset(4 as ::core::ffi::c_int as isize)
                             .offset(
                                 (2 as ::core::ffi::c_int
-                                    * ((*rule).matchCount as ::core::ffi::c_int
+                                    * ((*rule).match_count as ::core::ffi::c_int
                                         - minus_one_q as ::core::ffi::c_int))
                                     as isize,
                             )
@@ -297,7 +297,7 @@ pub unsafe extern "C" fn general_read_contextual_rule(
                             .offset(4 as ::core::ffi::c_int as isize)
                             .offset(
                                 (2 as ::core::ffi::c_int
-                                    * ((*rule).matchCount as ::core::ffi::c_int
+                                    * ((*rule).match_count as ::core::ffi::c_int
                                         - minus_one_q as ::core::ffi::c_int))
                                     as isize,
                             )
@@ -326,7 +326,7 @@ unsafe extern "C" fn read_contextual_format1(
     let mut cov_offset: u16 = 0;
     let mut first_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let mut chain_sub_rule_set_count: TableId = 0;
-    let mut totalRules: TableId = 0;
+    let mut total_rules: TableId = 0;
     let mut jj: TableId = 0;
     let mut current_block: u64;
     if !(table_length < offset.wrapping_add(6 as u32)) {
@@ -344,7 +344,7 @@ unsafe extern "C" fn read_contextual_format1(
                 .offset(4 as ::core::ffi::c_int as isize) as *const u8,
         ) as TableId;
         if !(chain_sub_rule_set_count as ::core::ffi::c_int
-            != (*first_coverage).numGlyphs as ::core::ffi::c_int)
+            != (*first_coverage).num_glyphs as ::core::ffi::c_int)
         {
             if !(table_length
                 < offset.wrapping_add(6 as u32).wrapping_add(
@@ -352,7 +352,7 @@ unsafe extern "C" fn read_contextual_format1(
                         as u32,
                 ))
             {
-                totalRules = 0 as TableId;
+                total_rules = 0 as TableId;
                 let mut j: TableId = 0 as TableId;
                 loop {
                     if !((j as ::core::ffi::c_int) < chain_sub_rule_set_count as ::core::ffi::c_int) {
@@ -370,7 +370,7 @@ unsafe extern "C" fn read_contextual_format1(
                         current_block = 10321976752019472029;
                         break;
                     }
-                    totalRules = (totalRules as ::core::ffi::c_int
+                    total_rules = (total_rules as ::core::ffi::c_int
                         + read_16u(data.offset(srs_offset as isize) as *const u8)
                             as ::core::ffi::c_int) as TableId;
                     if table_length
@@ -388,10 +388,10 @@ unsafe extern "C" fn read_contextual_format1(
                 match current_block {
                     10321976752019472029 => {}
                     _ => {
-                        (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount = totalRules;
+                        (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = total_rules;
                         (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
                             (::core::mem::size_of::<*mut ChainingRule>() as usize)
-                                .wrapping_mul(totalRules as usize),
+                                .wrapping_mul(total_rules as usize),
                             144 as ::core::ffi::c_ulong,
                         )
                             as *mut *mut ChainingRule;
@@ -476,7 +476,7 @@ unsafe extern "C" fn read_contextual_format2(
 ) -> *mut ChainingSubtable {
     let mut cds: *mut ClassDefs = ::core::ptr::null_mut::<ClassDefs>();
     let mut chain_sub_class_set_cnt: TableId = 0;
-    let mut totalRules: TableId = 0;
+    let mut total_rules: TableId = 0;
     let mut jj: TableId = 0;
     if !(table_length < offset.wrapping_add(8 as u32)) {
         cds = ::core::ptr::null_mut::<ClassDefs>();
@@ -503,7 +503,7 @@ unsafe extern "C" fn read_contextual_format2(
                 (2 as ::core::ffi::c_int * chain_sub_class_set_cnt as ::core::ffi::c_int) as u32,
             ))
         {
-            totalRules = 0 as TableId;
+            total_rules = 0 as TableId;
             let mut j: TableId = 0 as TableId;
             while (j as ::core::ffi::c_int) < chain_sub_class_set_cnt as ::core::ffi::c_int {
                 let mut src_offset: u32 = read_16u(
@@ -513,17 +513,17 @@ unsafe extern "C" fn read_contextual_format2(
                         as *const u8,
                 ) as u32;
                 if src_offset != 0 {
-                    totalRules = (totalRules as ::core::ffi::c_int
+                    total_rules = (total_rules as ::core::ffi::c_int
                         + read_16u(data.offset(offset as isize).offset(src_offset as isize)
                             as *const u8) as ::core::ffi::c_int)
                         as TableId;
                 }
                 j = j.wrapping_add(1);
             }
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount = totalRules;
+            (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = total_rules;
             (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
                 (::core::mem::size_of::<*mut ChainingRule>() as usize)
-                    .wrapping_mul(totalRules as usize),
+                    .wrapping_mul(total_rules as usize),
                 186 as ::core::ffi::c_ulong,
             )
                 as *mut *mut ChainingRule;
@@ -628,7 +628,7 @@ pub unsafe extern "C" fn otl_read_contextual(
             return read_contextual_format2(subtable, data, table_length, offset, max_glyphs)
                 as *mut Subtable;
         } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount = 1 as TableId;
+            (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = 1 as TableId;
             (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
                 (::core::mem::size_of::<*mut ChainingRule>() as usize)
                     .wrapping_mul(1 as usize),
@@ -665,7 +665,7 @@ pub unsafe extern "C" fn otl_read_contextual(
         }
     }
     (*(*options).logger)
-        .logSDS
+        .log_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         LOG_VL_IMPORTANT,
@@ -775,17 +775,17 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                     as u32,
                             ))
                     {
-                        (*rule).matchCount = (n_back as ::core::ffi::c_int
+                        (*rule).match_count = (n_back as ::core::ffi::c_int
                             + n_input as ::core::ffi::c_int
                             + n_lookaround as ::core::ffi::c_int)
                             as TableId;
-                        (*rule).inputBegins = n_back;
-                        (*rule).inputEnds = (n_back as ::core::ffi::c_int
+                        (*rule).input_begins = n_back;
+                        (*rule).input_ends = (n_back as ::core::ffi::c_int
                             + n_input as ::core::ffi::c_int)
                             as TableId;
                         (*rule).match_0 = __caryll_allocate_clean(
                             (::core::mem::size_of::<*mut Coverage>() as usize)
-                                .wrapping_mul((*rule).matchCount as usize),
+                                .wrapping_mul((*rule).match_count as usize),
                             267 as ::core::ffi::c_ulong,
                         ) as *mut *mut Coverage;
                         jj = 0 as TableId;
@@ -836,7 +836,7 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                     .offset(4 as ::core::ffi::c_int as isize)
                                     .offset(
                                         (2 as ::core::ffi::c_int
-                                            * (*rule).inputBegins as ::core::ffi::c_int)
+                                            * (*rule).input_begins as ::core::ffi::c_int)
                                             as isize,
                                     )
                                     .offset(
@@ -865,7 +865,7 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                     .offset(6 as ::core::ffi::c_int as isize)
                                     .offset(
                                         (2 as ::core::ffi::c_int
-                                            * ((*rule).inputEnds as ::core::ffi::c_int
+                                            * ((*rule).input_ends as ::core::ffi::c_int
                                                 - minus_one_q as ::core::ffi::c_int))
                                             as isize,
                                     )
@@ -888,23 +888,23 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                             );
                             j_1 = j_1.wrapping_add(1);
                         }
-                        (*rule).applyCount = n_apply;
+                        (*rule).apply_count = n_apply;
                         (*rule).apply = __caryll_allocate_clean(
                             (::core::mem::size_of::<ChainLookupApplication>() as usize)
-                                .wrapping_mul((*rule).applyCount as usize),
+                                .wrapping_mul((*rule).apply_count as usize),
                             285 as ::core::ffi::c_ulong,
                         )
                             as *mut ChainLookupApplication;
                         let mut j_2: TableId = 0 as TableId;
                         while (j_2 as ::core::ffi::c_int) < n_apply as ::core::ffi::c_int {
-                            (*(*rule).apply.offset(j_2 as isize)).index = ((*rule).inputBegins
+                            (*(*rule).apply.offset(j_2 as isize)).index = ((*rule).input_begins
                                 as ::core::ffi::c_int
                                 + read_16u(
                                     data.offset(offset as isize)
                                         .offset(8 as ::core::ffi::c_int as isize)
                                         .offset(
                                             (2 as ::core::ffi::c_int
-                                                * ((*rule).matchCount as ::core::ffi::c_int
+                                                * ((*rule).match_count as ::core::ffi::c_int
                                                     - minus_one_q as ::core::ffi::c_int))
                                                 as isize,
                                         )
@@ -921,7 +921,7 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                             .offset(8 as ::core::ffi::c_int as isize)
                                             .offset(
                                                 (2 as ::core::ffi::c_int
-                                                    * ((*rule).matchCount as ::core::ffi::c_int
+                                                    * ((*rule).match_count as ::core::ffi::c_int
                                                         - minus_one_q as ::core::ffi::c_int))
                                                     as isize,
                                             )
@@ -957,7 +957,7 @@ unsafe extern "C" fn read_chaining_format1(
     let mut cov_offset: u16 = 0;
     let mut first_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let mut chain_sub_rule_set_count: TableId = 0;
-    let mut totalRules: TableId = 0;
+    let mut total_rules: TableId = 0;
     let mut jj: TableId = 0;
     let mut current_block: u64;
     if !(table_length < offset.wrapping_add(6 as u32)) {
@@ -975,7 +975,7 @@ unsafe extern "C" fn read_chaining_format1(
                 .offset(4 as ::core::ffi::c_int as isize) as *const u8,
         ) as TableId;
         if !(chain_sub_rule_set_count as ::core::ffi::c_int
-            != (*first_coverage).numGlyphs as ::core::ffi::c_int)
+            != (*first_coverage).num_glyphs as ::core::ffi::c_int)
         {
             if !(table_length
                 < offset.wrapping_add(6 as u32).wrapping_add(
@@ -983,7 +983,7 @@ unsafe extern "C" fn read_chaining_format1(
                         as u32,
                 ))
             {
-                totalRules = 0 as TableId;
+                total_rules = 0 as TableId;
                 let mut j: TableId = 0 as TableId;
                 loop {
                     if !((j as ::core::ffi::c_int) < chain_sub_rule_set_count as ::core::ffi::c_int) {
@@ -1001,7 +1001,7 @@ unsafe extern "C" fn read_chaining_format1(
                         current_block = 17398460390698728049;
                         break;
                     }
-                    totalRules = (totalRules as ::core::ffi::c_int
+                    total_rules = (total_rules as ::core::ffi::c_int
                         + read_16u(data.offset(srs_offset as isize) as *const u8)
                             as ::core::ffi::c_int) as TableId;
                     if table_length
@@ -1019,10 +1019,10 @@ unsafe extern "C" fn read_chaining_format1(
                 match current_block {
                     17398460390698728049 => {}
                     _ => {
-                        (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount = totalRules;
+                        (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = total_rules;
                         (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
                             (::core::mem::size_of::<*mut ChainingRule>() as usize)
-                                .wrapping_mul(totalRules as usize),
+                                .wrapping_mul(total_rules as usize),
                             321 as ::core::ffi::c_ulong,
                         )
                             as *mut *mut ChainingRule;
@@ -1107,7 +1107,7 @@ unsafe extern "C" fn read_chaining_format2(
 ) -> *mut ChainingSubtable {
     let mut cds: *mut ClassDefs = ::core::ptr::null_mut::<ClassDefs>();
     let mut chain_sub_class_set_cnt: TableId = 0;
-    let mut totalRules: TableId = 0;
+    let mut total_rules: TableId = 0;
     let mut jj: TableId = 0;
     if !(table_length < offset.wrapping_add(12 as u32)) {
         cds = ::core::ptr::null_mut::<ClassDefs>();
@@ -1148,7 +1148,7 @@ unsafe extern "C" fn read_chaining_format2(
                 (2 as ::core::ffi::c_int * chain_sub_class_set_cnt as ::core::ffi::c_int) as u32,
             ))
         {
-            totalRules = 0 as TableId;
+            total_rules = 0 as TableId;
             let mut j: TableId = 0 as TableId;
             while (j as ::core::ffi::c_int) < chain_sub_class_set_cnt as ::core::ffi::c_int {
                 let mut src_offset: u32 = read_16u(
@@ -1158,17 +1158,17 @@ unsafe extern "C" fn read_chaining_format2(
                         as *const u8,
                 ) as u32;
                 if src_offset != 0 {
-                    totalRules = (totalRules as ::core::ffi::c_int
+                    total_rules = (total_rules as ::core::ffi::c_int
                         + read_16u(data.offset(offset as isize).offset(src_offset as isize)
                             as *const u8) as ::core::ffi::c_int)
                         as TableId;
                 }
                 j = j.wrapping_add(1);
             }
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount = totalRules;
+            (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = total_rules;
             (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
                 (::core::mem::size_of::<*mut ChainingRule>() as usize)
-                    .wrapping_mul(totalRules as usize),
+                    .wrapping_mul(total_rules as usize),
                 363 as ::core::ffi::c_ulong,
             )
                 as *mut *mut ChainingRule;
@@ -1272,7 +1272,7 @@ pub unsafe extern "C" fn otl_read_chaining(
             return read_chaining_format2(subtable, data, table_length, offset, max_glyphs)
                 as *mut Subtable;
         } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount = 1 as TableId;
+            (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = 1 as TableId;
             (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
                 (::core::mem::size_of::<*mut ChainingRule>() as usize)
                     .wrapping_mul(1 as usize),
@@ -1309,7 +1309,7 @@ pub unsafe extern "C" fn otl_read_chaining(
         }
     }
     (*(*options).logger)
-        .logSDS
+        .log_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         LOG_VL_IMPORTANT,
@@ -1323,10 +1323,10 @@ pub unsafe extern "C" fn otl_read_chaining(
 unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
     if !rule.is_null()
         && !(*rule).match_0.is_null()
-        && (*rule).matchCount as ::core::ffi::c_int != 0
+        && (*rule).match_count as ::core::ffi::c_int != 0
     {
         let mut k: TableId = 0 as TableId;
-        while (k as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
+        while (k as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
             otl_coverage_free(
                 *(*rule).match_0.offset(k as isize),
             );
@@ -1337,7 +1337,7 @@ unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
     }
     if !rule.is_null() && !(*rule).apply.is_null() {
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
+        while (j as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
             otfcc_handle_dispose(
                 &raw mut (*(*rule).apply.offset(j as isize)).lookup,
             );
@@ -1358,10 +1358,10 @@ unsafe extern "C" fn delete_rule(mut rule: *mut ChainingRule) {
 }
 #[inline]
 unsafe extern "C" fn reverse_backtracks(mut rule: *mut ChainingRule) {
-    if (*rule).inputBegins as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+    if (*rule).input_begins as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
         let mut start: TableId = 0 as TableId;
         let mut end: TableId =
-            ((*rule).inputBegins as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
+            ((*rule).input_begins as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
         while end as ::core::ffi::c_int > start as ::core::ffi::c_int {
             let mut tmp: *mut Coverage = *(*rule).match_0.offset(start as isize);
             let ref mut fresh9 = *(*rule).match_0.offset(start as isize);

@@ -16,9 +16,9 @@ pub enum CffIndexCountType {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffIndex {
-    pub countType: CffIndexCountType,
+    pub count_type: CffIndexCountType,
     pub count: Arity,
-    pub offSize: u8,
+    pub off_size: u8,
     pub offset: *mut u32,
     pub data: *mut u8,
 }
@@ -30,13 +30,13 @@ pub struct CffIndexElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut CffIndex, *mut CffIndex) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut CffIndex, CffIndex) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut CffIndex, CffIndex) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut CffIndex, CffIndex) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CffIndex>,
     pub free: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
     pub empty: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
-    pub getLength: Option<unsafe extern "C" fn(*const CffIndex) -> u32>,
+    pub get_length: Option<unsafe extern "C" fn(*const CffIndex) -> u32>,
     pub parse: Option<unsafe extern "C" fn(*mut u8, u32, *mut CffIndex) -> ()>,
-    pub fromCallback: Option<
+    pub from_callback: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             u32,
@@ -165,7 +165,7 @@ unsafe extern "C" fn get_index_length(mut i: *const CffIndex) -> u32 {
             .wrapping_add(
                 ((*i).count as u32)
                     .wrapping_add(1 as u32)
-                    .wrapping_mul((*i).offSize as u32),
+                    .wrapping_mul((*i).off_size as u32),
             );
     } else {
         return 3 as u32;
@@ -185,7 +185,7 @@ unsafe extern "C" fn extract_index(
     mut in_0: *mut CffIndex,
 ) {
     (*in_0).count = gu2(data, pos) as Arity;
-    (*in_0).offSize = gu1(data, pos.wrapping_add(2 as u32)) as u8;
+    (*in_0).off_size = gu1(data, pos.wrapping_add(2 as u32)) as u8;
     if (*in_0).count > 0 as Arity {
         (*in_0).offset = __caryll_allocate_clean(
             (::core::mem::size_of::<u32>() as usize)
@@ -194,12 +194,12 @@ unsafe extern "C" fn extract_index(
         ) as *mut u32;
         let mut i: Arity = 0 as Arity;
         while i <= (*in_0).count {
-            match (*in_0).offSize as ::core::ffi::c_int {
+            match (*in_0).off_size as ::core::ffi::c_int {
                 1 => {
                     *(*in_0).offset.offset(i as isize) = gu1(
                         data,
                         pos.wrapping_add(3 as u32).wrapping_add(
-                            (i as u32).wrapping_mul((*in_0).offSize as u32),
+                            (i as u32).wrapping_mul((*in_0).off_size as u32),
                         ),
                     );
                 }
@@ -207,7 +207,7 @@ unsafe extern "C" fn extract_index(
                     *(*in_0).offset.offset(i as isize) = gu2(
                         data,
                         pos.wrapping_add(3 as u32).wrapping_add(
-                            (i as u32).wrapping_mul((*in_0).offSize as u32),
+                            (i as u32).wrapping_mul((*in_0).off_size as u32),
                         ),
                     );
                 }
@@ -215,7 +215,7 @@ unsafe extern "C" fn extract_index(
                     *(*in_0).offset.offset(i as isize) = gu3(
                         data,
                         pos.wrapping_add(3 as u32).wrapping_add(
-                            (i as u32).wrapping_mul((*in_0).offSize as u32),
+                            (i as u32).wrapping_mul((*in_0).off_size as u32),
                         ),
                     );
                 }
@@ -223,7 +223,7 @@ unsafe extern "C" fn extract_index(
                     *(*in_0).offset.offset(i as isize) = gu4(
                         data,
                         pos.wrapping_add(3 as u32).wrapping_add(
-                            (i as u32).wrapping_mul((*in_0).offSize as u32),
+                            (i as u32).wrapping_mul((*in_0).off_size as u32),
                         ),
                     );
                 }
@@ -246,7 +246,7 @@ unsafe extern "C" fn extract_index(
                     (*in_0)
                         .count
                         .wrapping_add(1 as Arity)
-                        .wrapping_mul((*in_0).offSize as Arity) as isize,
+                        .wrapping_mul((*in_0).off_size as Arity) as isize,
                 ) as *const ::core::ffi::c_void,
             (*(*in_0).offset.offset((*in_0).count as isize)).wrapping_sub(1 as u32) as usize,
         );
@@ -307,7 +307,7 @@ unsafe extern "C" fn new_index_by_callback(
         buffree(blob);
         i = i.wrapping_add(1);
     }
-    (*idx).offSize = 4 as u8;
+    (*idx).off_size = 4 as u8;
     return idx;
 }
 unsafe extern "C" fn build_index(mut index: *const CffIndex) -> *mut Buffer {
@@ -319,15 +319,15 @@ unsafe extern "C" fn build_index(mut index: *const CffIndex) -> *mut Buffer {
         return blob;
     }
     let mut last_offset: u32 = *(*index).offset.offset((*index).count as isize);
-    let mut offSize: u8 = 4 as u8;
+    let mut off_size: u8 = 4 as u8;
     if last_offset < 0x100 as u32 {
-        offSize = 1 as u8;
+        off_size = 1 as u8;
     } else if last_offset < 0x10000 as u32 {
-        offSize = 2 as u8;
+        off_size = 2 as u8;
     } else if last_offset < 0x1000000 as u32 {
-        offSize = 3 as u8;
+        off_size = 3 as u8;
     } else {
-        offSize = 4 as u8;
+        off_size = 4 as u8;
     }
     if (*index).count != 0 as Arity {
         (*blob).size = (3 as u32)
@@ -337,7 +337,7 @@ unsafe extern "C" fn build_index(mut index: *const CffIndex) -> *mut Buffer {
             .wrapping_add(
                 ((*index).count as u32)
                     .wrapping_add(1 as u32)
-                    .wrapping_mul(offSize as u32),
+                    .wrapping_mul(off_size as u32),
             ) as usize;
     } else {
         (*blob).size = 3 as usize;
@@ -350,11 +350,11 @@ unsafe extern "C" fn build_index(mut index: *const CffIndex) -> *mut Buffer {
         (*index).count.wrapping_div(256 as Arity) as u8;
     *(*blob).data.offset(1 as ::core::ffi::c_int as isize) =
         (*index).count.wrapping_rem(256 as Arity) as u8;
-    *(*blob).data.offset(2 as ::core::ffi::c_int as isize) = offSize;
+    *(*blob).data.offset(2 as ::core::ffi::c_int as isize) = off_size;
     if (*index).count > 0 as Arity {
         let mut i: Arity = 0 as Arity;
         while i <= (*index).count {
-            match offSize as ::core::ffi::c_int {
+            match off_size as ::core::ffi::c_int {
                 1 => {
                     *(*blob).data.offset((3 as Arity).wrapping_add(i) as isize) =
                         *(*index).offset.offset(i as isize) as u8;
@@ -420,7 +420,7 @@ unsafe extern "C" fn build_index(mut index: *const CffIndex) -> *mut Buffer {
                         (*index)
                             .count
                             .wrapping_add(1 as Arity)
-                            .wrapping_mul(offSize as Arity) as isize,
+                            .wrapping_mul(off_size as Arity) as isize,
                     ) as *mut ::core::ffi::c_void,
                 (*index).data as *const ::core::ffi::c_void,
                 (*(*index).offset.offset((*index).count as isize)).wrapping_sub(1 as u32)
@@ -438,17 +438,17 @@ pub static CFF_I_INDEX: CffIndexElementInterface = {
         move_0: Some(cff_index_move as unsafe extern "C" fn(*mut CffIndex, *mut CffIndex) -> ()),
         dispose: Some(cff_index_dispose as unsafe extern "C" fn(*mut CffIndex) -> ()),
         replace: Some(cff_index_replace as unsafe extern "C" fn(*mut CffIndex, CffIndex) -> ()),
-        copyReplace: Some(
+        copy_replace: Some(
             cff_index_copy_replace as unsafe extern "C" fn(*mut CffIndex, CffIndex) -> (),
         ),
         create: Some(cff_index_create),
         free: Some(cff_index_free as unsafe extern "C" fn(*mut CffIndex) -> ()),
         empty: Some(empty_index as unsafe extern "C" fn(*mut CffIndex) -> ()),
-        getLength: Some(get_index_length as unsafe extern "C" fn(*const CffIndex) -> u32),
+        get_length: Some(get_index_length as unsafe extern "C" fn(*const CffIndex) -> u32),
         parse: Some(
             extract_index as unsafe extern "C" fn(*mut u8, u32, *mut CffIndex) -> (),
         ),
-        fromCallback: Some(
+        from_callback: Some(
             new_index_by_callback
                 as unsafe extern "C" fn(
                     *mut ::core::ffi::c_void,
