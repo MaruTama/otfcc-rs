@@ -29,7 +29,7 @@ pub unsafe extern "C" fn otfcc_read_tsi5(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -94,20 +94,20 @@ pub unsafe extern "C" fn otfcc_parse_tsi5(
 pub unsafe extern "C" fn otfcc_build_tsi5(
     mut tsi5: *const Tsi5Table,
     mut _options: *const Options,
-    mut numGlyphs: GlyphId,
+    mut num_glyphs: GlyphId,
 ) -> *mut Buffer {
     if tsi5.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
     let mut tsi5cls: *mut u16 = ::core::ptr::null_mut::<u16>();
     tsi5cls = __caryll_allocate_clean(
-        (::core::mem::size_of::<u16>() as usize).wrapping_mul(numGlyphs as usize),
+        (::core::mem::size_of::<u16>() as usize).wrapping_mul(num_glyphs as usize),
         27 as ::core::ffi::c_ulong,
     ) as *mut u16;
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*tsi5).numGlyphs as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*tsi5).num_glyphs as ::core::ffi::c_int {
         if ((*(*tsi5).glyphs.offset(j as isize)).index as ::core::ffi::c_int)
-            < numGlyphs as ::core::ffi::c_int
+            < num_glyphs as ::core::ffi::c_int
         {
             *tsi5cls.offset((*(*tsi5).glyphs.offset(j as isize)).index as isize) =
                 *(*tsi5).classes.offset(j as isize) as u16;
@@ -116,7 +116,7 @@ pub unsafe extern "C" fn otfcc_build_tsi5(
     }
     let mut buf: *mut Buffer = bufnew();
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as ::core::ffi::c_int) < numGlyphs as ::core::ffi::c_int {
+    while (j_0 as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int {
         bufwrite16b(buf, *tsi5cls.offset(j_0 as isize));
         j_0 = j_0.wrapping_add(1);
     }

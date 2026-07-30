@@ -9,7 +9,7 @@ use crate::support::binio::{EndianProbe16, EndianProbe32};
 #[repr(C)]
 pub struct PacketPiece {
     pub tag: u32,
-    pub checkSum: u32,
+    pub check_sum: u32,
     pub offset: u32,
     pub length: u32,
     pub data: *mut u8,
@@ -18,10 +18,10 @@ pub struct PacketPiece {
 #[repr(C)]
 pub struct Packet {
     pub sfnt_version: u32,
-    pub numTables: u16,
-    pub searchRange: u16,
-    pub entrySelector: u16,
-    pub rangeShift: u16,
+    pub num_tables: u16,
+    pub search_range: u16,
+    pub entry_selector: u16,
+    pub range_shift: u16,
     pub pieces: *mut PacketPiece,
 }
 #[derive(Copy, Clone)]
@@ -44,18 +44,18 @@ unsafe extern "C" fn otfcc_read_packets(
             SEEK_SET,
         );
         (*(*font).packets.offset(count as isize)).sfnt_version = otfcc_get32u(file);
-        (*(*font).packets.offset(count as isize)).numTables = otfcc_get16u(file);
-        (*(*font).packets.offset(count as isize)).searchRange = otfcc_get16u(file);
-        (*(*font).packets.offset(count as isize)).entrySelector = otfcc_get16u(file);
-        (*(*font).packets.offset(count as isize)).rangeShift = otfcc_get16u(file);
+        (*(*font).packets.offset(count as isize)).num_tables = otfcc_get16u(file);
+        (*(*font).packets.offset(count as isize)).search_range = otfcc_get16u(file);
+        (*(*font).packets.offset(count as isize)).entry_selector = otfcc_get16u(file);
+        (*(*font).packets.offset(count as isize)).range_shift = otfcc_get16u(file);
         let ref mut fresh0 = (*(*font).packets.offset(count as isize)).pieces;
         *fresh0 = __caryll_allocate_clean(
             (::core::mem::size_of::<PacketPiece>() as usize)
-                .wrapping_mul((*(*font).packets.offset(count as isize)).numTables as usize),
+                .wrapping_mul((*(*font).packets.offset(count as isize)).num_tables as usize),
             13 as ::core::ffi::c_ulong,
         ) as *mut PacketPiece;
         let mut i: u32 = 0 as u32;
-        while i < (*(*font).packets.offset(count as isize)).numTables as u32 {
+        while i < (*(*font).packets.offset(count as isize)).num_tables as u32 {
             (*(*(*font).packets.offset(count as isize))
                 .pieces
                 .offset(i as isize))
@@ -63,7 +63,7 @@ unsafe extern "C" fn otfcc_read_packets(
             (*(*(*font).packets.offset(count as isize))
                 .pieces
                 .offset(i as isize))
-            .checkSum = otfcc_get32u(file);
+            .check_sum = otfcc_get32u(file);
             (*(*(*font).packets.offset(count as isize))
                 .pieces
                 .offset(i as isize))
@@ -89,7 +89,7 @@ unsafe extern "C" fn otfcc_read_packets(
         }
         let mut i_0: u32 = 0 as u32;
         while i_0
-            < (*(*font).packets.offset(0 as ::core::ffi::c_int as isize)).numTables as u32
+            < (*(*font).packets.offset(0 as ::core::ffi::c_int as isize)).num_tables as u32
         {
             fseek(
                 file,
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn otfcc_delete_sfnt(mut font: *mut SplineFontContainer) {
         let mut count: u32 = 0 as u32;
         while count < (*font).count {
             let mut i: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-            while i < (*(*font).packets.offset(count as isize)).numTables as ::core::ffi::c_int {
+            while i < (*(*font).packets.offset(count as isize)).num_tables as ::core::ffi::c_int {
                 free(
                     (*(*(*font).packets.offset(count as isize))
                         .pieces

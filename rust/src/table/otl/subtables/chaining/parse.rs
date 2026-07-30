@@ -40,30 +40,30 @@ pub unsafe extern "C" fn otl_parse_chaining(
                 .expect("non-null function pointer"))();
     (*subtable).type_0 = ChainingType::Canonical;
     let mut rule: *mut ChainingRule = &raw mut (*subtable).c2rust_unnamed.rule;
-    (*rule).matchCount = (*_match).u.array.length as TableId;
+    (*rule).match_count = (*_match).u.array.length as TableId;
     (*rule).match_0 = __caryll_allocate_clean(
         (::core::mem::size_of::<*mut Coverage>() as usize)
-            .wrapping_mul((*rule).matchCount as usize),
+            .wrapping_mul((*rule).match_count as usize),
         14 as ::core::ffi::c_ulong,
     ) as *mut *mut Coverage;
-    (*rule).applyCount = (*_apply).u.array.length as TableId;
+    (*rule).apply_count = (*_apply).u.array.length as TableId;
     (*rule).apply = __caryll_allocate_clean(
         (::core::mem::size_of::<ChainLookupApplication>() as usize)
-            .wrapping_mul((*rule).applyCount as usize),
+            .wrapping_mul((*rule).apply_count as usize),
         16 as ::core::ffi::c_ulong,
     ) as *mut ChainLookupApplication;
-    (*rule).inputBegins = json_obj_getnum_fallback(
+    (*rule).input_begins = json_obj_getnum_fallback(
         _subtable,
         b"inputBegins\0" as *const u8 as *const ::core::ffi::c_char,
         0 as ::core::ffi::c_int as ::core::ffi::c_double,
     ) as TableId;
-    (*rule).inputEnds = json_obj_getnum_fallback(
+    (*rule).input_ends = json_obj_getnum_fallback(
         _subtable,
         b"inputEnds\0" as *const u8 as *const ::core::ffi::c_char,
-        (*rule).matchCount as ::core::ffi::c_double,
+        (*rule).match_count as ::core::ffi::c_double,
     ) as TableId;
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
         let ref mut fresh0 = *(*rule).match_0.offset(j as isize);
         *fresh0 = OTL_I_COVERAGE.parse.expect("non-null function pointer")(
             *(*_match).u.array.values.offset(j as isize),
@@ -71,7 +71,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
         j = j.wrapping_add(1);
     }
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
+    while (j_0 as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
         (*(*rule).apply.offset(j_0 as isize)).index = 0 as TableId;
         (*(*rule).apply.offset(j_0 as isize)).lookup =
             otfcc_handle_empty() as LookupHandle;

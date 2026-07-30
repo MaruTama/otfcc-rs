@@ -88,7 +88,7 @@ pub struct Font {
     pub vhea: *mut VheaTable,
     pub vmtx: *mut VmtxTable,
     pub VORG: *mut VorgTable,
-    pub CFF_: *mut CffTable,
+    pub cff: *mut CffTable,
     pub glyf: *mut GlyfTable,
     pub cmap: *mut CmapTable,
     pub name: *mut NameTable,
@@ -97,17 +97,17 @@ pub struct Font {
     pub prep: *mut FpgmPrepTable,
     pub cvt_: *mut CvtTable,
     pub gasp: *mut GaspTable,
-    pub VDMX: *mut VdmxTable,
+    pub vdmx: *mut VdmxTable,
     pub LTSH: *mut LtshTable,
-    pub GSUB: *mut OtlTable,
-    pub GPOS: *mut OtlTable,
+    pub gsub: *mut OtlTable,
+    pub gpos: *mut OtlTable,
     pub GDEF: *mut GdefTable,
     pub BASE: *mut BaseTable,
     pub CPAL: *mut CpalTable,
     pub COLR: *mut ColrTable,
-    pub SVG_: *mut SvgTable,
-    pub TSI_01: *mut TsiTable,
-    pub TSI_23: *mut TsiTable,
+    pub svg: *mut SvgTable,
+    pub tsi_01: *mut TsiTable,
+    pub tsi_23: *mut TsiTable,
     pub TSI5: *mut Tsi5Table,
     pub glyph_order: *mut GlyphOrder,
 }
@@ -125,13 +125,13 @@ pub struct FontElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut Font, *mut Font) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Font) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut Font, Font) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut Font, Font) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut Font, Font) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut Font>,
     pub free: Option<unsafe extern "C" fn(*mut Font) -> ()>,
     pub consolidate: Option<unsafe extern "C" fn(*mut Font, *const Options) -> ()>,
-    pub createTable:
+    pub create_table:
         Option<unsafe extern "C" fn(*mut Font, u32) -> *mut ::core::ffi::c_void>,
-    pub deleteTable: Option<unsafe extern "C" fn(*mut Font, u32) -> ()>,
+    pub delete_table: Option<unsafe extern "C" fn(*mut Font, u32) -> ()>,
 }
 unsafe extern "C" fn create_font_table(
     mut _font: *mut Font,
@@ -250,9 +250,9 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1128679007 | 1128678944 => {
-            if !(*font).CFF_.is_null() {
-                TABLE_I_CFF.free.expect("non-null function pointer")((*font).CFF_);
-                (*font).CFF_ = ::core::ptr::null_mut::<CffTable>();
+            if !(*font).cff.is_null() {
+                TABLE_I_CFF.free.expect("non-null function pointer")((*font).cff);
+                (*font).cff = ::core::ptr::null_mut::<CffTable>();
             }
             return;
         }
@@ -278,16 +278,16 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1196643650 => {
-            if !(*font).GSUB.is_null() {
-                TABLE_I_OTL.free.expect("non-null function pointer")((*font).GSUB);
-                (*font).GSUB = ::core::ptr::null_mut::<OtlTable>();
+            if !(*font).gsub.is_null() {
+                TABLE_I_OTL.free.expect("non-null function pointer")((*font).gsub);
+                (*font).gsub = ::core::ptr::null_mut::<OtlTable>();
             }
             return;
         }
         1196445523 => {
-            if !(*font).GPOS.is_null() {
-                TABLE_I_OTL.free.expect("non-null function pointer")((*font).GPOS);
-                (*font).GPOS = ::core::ptr::null_mut::<OtlTable>();
+            if !(*font).gpos.is_null() {
+                TABLE_I_OTL.free.expect("non-null function pointer")((*font).gpos);
+                (*font).gpos = ::core::ptr::null_mut::<OtlTable>();
             }
             return;
         }
@@ -327,23 +327,23 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1398163232 | 1398163295 => {
-            if !(*font).SVG_.is_null() {
-                TABLE_I_SVG.free.expect("non-null function pointer")((*font).SVG_);
-                (*font).SVG_ = ::core::ptr::null_mut::<SvgTable>();
+            if !(*font).svg.is_null() {
+                TABLE_I_SVG.free.expect("non-null function pointer")((*font).svg);
+                (*font).svg = ::core::ptr::null_mut::<SvgTable>();
             }
             return;
         }
         1414744368 | 1414744369 => {
-            if !(*font).TSI_01.is_null() {
-                TABLE_I_TSI.free.expect("non-null function pointer")((*font).TSI_01);
-                (*font).TSI_01 = ::core::ptr::null_mut::<TsiTable>();
+            if !(*font).tsi_01.is_null() {
+                TABLE_I_TSI.free.expect("non-null function pointer")((*font).tsi_01);
+                (*font).tsi_01 = ::core::ptr::null_mut::<TsiTable>();
             }
             return;
         }
         1414744370 | 1414744371 => {
-            if !(*font).TSI_23.is_null() {
-                TABLE_I_TSI.free.expect("non-null function pointer")((*font).TSI_23);
-                (*font).TSI_23 = ::core::ptr::null_mut::<TsiTable>();
+            if !(*font).tsi_23.is_null() {
+                TABLE_I_TSI.free.expect("non-null function pointer")((*font).tsi_23);
+                (*font).tsi_23 = ::core::ptr::null_mut::<TsiTable>();
             }
             return;
         }
@@ -468,7 +468,7 @@ pub static OTFCC_I_FONT: FontElementInterface = {
         replace: Some(
             otfcc_font_replace as unsafe extern "C" fn(*mut Font, Font) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otfcc_font_copy_replace as unsafe extern "C" fn(*mut Font, Font) -> (),
         ),
         create: Some(otfcc_font_create),
@@ -477,11 +477,11 @@ pub static OTFCC_I_FONT: FontElementInterface = {
             otfcc_consolidate_font
                 as unsafe extern "C" fn(*mut Font, *const Options) -> (),
         ),
-        createTable: Some(
+        create_table: Some(
             create_font_table
                 as unsafe extern "C" fn(*mut Font, u32) -> *mut ::core::ffi::c_void,
         ),
-        deleteTable: Some(delete_font_table as unsafe extern "C" fn(*mut Font, u32) -> ()),
+        delete_table: Some(delete_font_table as unsafe extern "C" fn(*mut Font, u32) -> ()),
     }
 };
 

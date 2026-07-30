@@ -41,13 +41,13 @@ pub struct HandlePackage {
     pub move_0: Option<unsafe extern "C" fn(*mut Handle, *mut Handle) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Handle) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut Handle, Handle) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut Handle, Handle) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut Handle, Handle) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> Handle>,
     pub dup: Option<unsafe extern "C" fn(Handle) -> Handle>,
-    pub fromIndex: Option<unsafe extern "C" fn(GlyphId) -> Handle>,
-    pub fromName: Option<unsafe extern "C" fn(SdsRaw) -> Handle>,
-    pub fromConsolidated: Option<unsafe extern "C" fn(GlyphId, SdsRaw) -> Handle>,
-    pub consolidateTo: Option<unsafe extern "C" fn(*mut Handle, GlyphId, SdsRaw) -> ()>,
+    pub from_index: Option<unsafe extern "C" fn(GlyphId) -> Handle>,
+    pub from_name: Option<unsafe extern "C" fn(SdsRaw) -> Handle>,
+    pub from_consolidated: Option<unsafe extern "C" fn(GlyphId, SdsRaw) -> Handle>,
+    pub consolidate_to: Option<unsafe extern "C" fn(*mut Handle, GlyphId, SdsRaw) -> ()>,
 }
 #[inline]
 unsafe extern "C" fn init_handle(mut h: *mut Handle) {
@@ -179,17 +179,17 @@ pub static OTFCC_I_HANDLE: HandlePackage = {
         replace: Some(
             otfcc_handle_replace as unsafe extern "C" fn(*mut Handle, Handle) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otfcc_handle_copy_replace as unsafe extern "C" fn(*mut Handle, Handle) -> (),
         ),
         empty: Some(otfcc_handle_empty),
         dup: Some(otfcc_handle_dup as unsafe extern "C" fn(Handle) -> Handle),
-        fromIndex: Some(handle_from_index as unsafe extern "C" fn(GlyphId) -> Handle),
-        fromName: Some(handle_from_name as unsafe extern "C" fn(SdsRaw) -> Handle),
-        fromConsolidated: Some(
+        from_index: Some(handle_from_index as unsafe extern "C" fn(GlyphId) -> Handle),
+        from_name: Some(handle_from_name as unsafe extern "C" fn(SdsRaw) -> Handle),
+        from_consolidated: Some(
             handle_from_consolidated as unsafe extern "C" fn(GlyphId, SdsRaw) -> Handle,
         ),
-        consolidateTo: Some(
+        consolidate_to: Some(
             handle_consolidate_to as unsafe extern "C" fn(*mut Handle, GlyphId, SdsRaw) -> (),
         ),
     }

@@ -406,7 +406,7 @@ unsafe fn main_0(
         getchar();
     }
     (*(*options).logger)
-        .setVerbosity
+        .set_verbosity
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         (if (*options).quiet as ::core::ffi::c_int != 0 {
@@ -428,7 +428,7 @@ unsafe fn main_0(
     }
     if optind >= argc {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_CRITICAL,
@@ -448,7 +448,7 @@ unsafe fn main_0(
     let mut sfnt: *mut SplineFontContainer =
         ::core::ptr::null_mut::<SplineFontContainer>();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Read SFNT"),
@@ -456,7 +456,7 @@ unsafe fn main_0(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -470,7 +470,7 @@ unsafe fn main_0(
         sfnt = otfcc_read_sfnt(file);
         if sfnt.is_null() || (*sfnt).count == 0 as u32 {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
@@ -486,7 +486,7 @@ unsafe fn main_0(
         }
         if ttcindex >= (*sfnt).count {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
@@ -505,7 +505,7 @@ unsafe fn main_0(
             exit(EXIT_FAILURE);
         }
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -519,7 +519,7 @@ unsafe fn main_0(
     }
     let mut font: *mut Font = ::core::ptr::null_mut::<Font>();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Read Font"),
@@ -534,7 +534,7 @@ unsafe fn main_0(
         );
         if font.is_null() {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
@@ -553,7 +553,7 @@ unsafe fn main_0(
             otfcc_delete_sfnt(sfnt);
         }
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -566,7 +566,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Consolidate"),
@@ -575,7 +575,7 @@ unsafe fn main_0(
     while ___loggedstep_v_1 {
         OTFCC_I_FONT.consolidate.expect("non-null function pointer")(font, options);
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -589,7 +589,7 @@ unsafe fn main_0(
     }
     let mut root: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Dump"),
@@ -601,7 +601,7 @@ unsafe fn main_0(
             as *mut JsonValue;
         if root.is_null() {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
@@ -616,7 +616,7 @@ unsafe fn main_0(
             exit(EXIT_FAILURE);
         }
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -632,7 +632,7 @@ unsafe fn main_0(
     let mut buf: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut buflen: usize = 0;
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Serialize to JSON"),
@@ -659,7 +659,7 @@ unsafe fn main_0(
         buf = calloc(1 as usize, buflen) as *mut ::core::ffi::c_char;
         json_serialize_ex(buf, root, jsonOptions);
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -672,7 +672,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Output"),
@@ -686,7 +686,7 @@ unsafe fn main_0(
             ) as *mut FILE;
             if outputFile.is_null() {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_CRITICAL,
@@ -725,7 +725,7 @@ unsafe fn main_0(
             fputs(buf, stdout);
         }
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
@@ -738,7 +738,7 @@ unsafe fn main_0(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         otfcc_rust::sdsbuild!(sdsempty(), b"Finalize"),
@@ -759,7 +759,7 @@ unsafe fn main_0(
             sdsfree(outputPath);
         }
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,

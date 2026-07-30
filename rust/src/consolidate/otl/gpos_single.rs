@@ -75,13 +75,13 @@ pub unsafe extern "C" fn consolidate_gpos_single(
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).length {
         if !OTFCC_PKG_GLYPH_ORDER
-            .consolidateHandle
+            .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
             &raw mut (*(*subtable).items.offset(k as isize)).target,
         ) {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -410,7 +410,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
             }
             if !s.is_null() {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,

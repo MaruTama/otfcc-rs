@@ -47,32 +47,32 @@ pub struct IndividualGposPair {
 unsafe extern "C" fn init_gpos_pair(mut subtable: *mut GposPairSubtable) {
     (*subtable).first = ::core::ptr::null_mut::<ClassDef>();
     (*subtable).second = ::core::ptr::null_mut::<ClassDef>();
-    (*subtable).firstValues = ::core::ptr::null_mut::<*mut PositionValue>();
-    (*subtable).secondValues = ::core::ptr::null_mut::<*mut PositionValue>();
+    (*subtable).first_values = ::core::ptr::null_mut::<*mut PositionValue>();
+    (*subtable).second_values = ::core::ptr::null_mut::<*mut PositionValue>();
 }
 #[inline]
 unsafe extern "C" fn dispose_gpos_pair(mut subtable: *mut GposPairSubtable) {
-    if !(*subtable).firstValues.is_null() {
+    if !(*subtable).first_values.is_null() {
         let mut j: GlyphClass = 0 as GlyphClass;
         while j as ::core::ffi::c_int <= (*(*subtable).first).maxclass as ::core::ffi::c_int {
-            free(*(*subtable).firstValues.offset(j as isize) as *mut ::core::ffi::c_void);
-            let ref mut fresh0 = *(*subtable).firstValues.offset(j as isize);
+            free(*(*subtable).first_values.offset(j as isize) as *mut ::core::ffi::c_void);
+            let ref mut fresh0 = *(*subtable).first_values.offset(j as isize);
             *fresh0 = ::core::ptr::null_mut::<PositionValue>();
             j = j.wrapping_add(1);
         }
-        free((*subtable).firstValues as *mut ::core::ffi::c_void);
-        (*subtable).firstValues = ::core::ptr::null_mut::<*mut PositionValue>();
+        free((*subtable).first_values as *mut ::core::ffi::c_void);
+        (*subtable).first_values = ::core::ptr::null_mut::<*mut PositionValue>();
     }
-    if !(*subtable).secondValues.is_null() {
+    if !(*subtable).second_values.is_null() {
         let mut j_0: GlyphClass = 0 as GlyphClass;
         while j_0 as ::core::ffi::c_int <= (*(*subtable).first).maxclass as ::core::ffi::c_int {
-            free(*(*subtable).secondValues.offset(j_0 as isize) as *mut ::core::ffi::c_void);
-            let ref mut fresh1 = *(*subtable).secondValues.offset(j_0 as isize);
+            free(*(*subtable).second_values.offset(j_0 as isize) as *mut ::core::ffi::c_void);
+            let ref mut fresh1 = *(*subtable).second_values.offset(j_0 as isize);
             *fresh1 = ::core::ptr::null_mut::<PositionValue>();
             j_0 = j_0.wrapping_add(1);
         }
-        free((*subtable).secondValues as *mut ::core::ffi::c_void);
-        (*subtable).secondValues = ::core::ptr::null_mut::<*mut PositionValue>();
+        free((*subtable).second_values as *mut ::core::ffi::c_void);
+        (*subtable).second_values = ::core::ptr::null_mut::<*mut PositionValue>();
     }
     otl_class_def_free((*subtable).first);
     (*subtable).first = ::core::ptr::null_mut::<ClassDef>();
@@ -155,7 +155,7 @@ pub static I_SUBTABLE_GPOS_PAIR: GposPairSubtableElementInterface = {
             subtable_gpos_pair_replace
                 as unsafe extern "C" fn(*mut GposPairSubtable, GposPairSubtable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             subtable_gpos_pair_copy_replace
                 as unsafe extern "C" fn(*mut GposPairSubtable, GposPairSubtable) -> (),
         ),
@@ -201,17 +201,17 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                 ::core::mem::size_of::<ClassDef>() as usize,
                 45 as ::core::ffi::c_ulong,
             ) as *mut ClassDef;
-            (*(*subtable).first).numGlyphs = (*cov).numGlyphs;
+            (*(*subtable).first).num_glyphs = (*cov).num_glyphs;
             (*(*subtable).first).maxclass =
-                ((*cov).numGlyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as GlyphClass;
+                ((*cov).num_glyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as GlyphClass;
             (*(*subtable).first).glyphs = (*cov).glyphs;
             (*(*subtable).first).classes = __caryll_allocate_clean(
                 (::core::mem::size_of::<GlyphClass>() as usize)
-                    .wrapping_mul((*cov).numGlyphs as usize),
+                    .wrapping_mul((*cov).num_glyphs as usize),
                 49 as ::core::ffi::c_ulong,
             ) as *mut GlyphClass;
             let mut j: GlyphId = 0 as GlyphId;
-            while (j as ::core::ffi::c_int) < (*cov).numGlyphs as ::core::ffi::c_int {
+            while (j as ::core::ffi::c_int) < (*cov).num_glyphs as ::core::ffi::c_int {
                 *(*(*subtable).first).classes.offset(j as isize) = j as GlyphClass;
                 j = j.wrapping_add(1);
             }
@@ -232,7 +232,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                     .offset(8 as ::core::ffi::c_int as isize) as *const u8,
             ) as GlyphId;
             if !(pair_set_count as ::core::ffi::c_int
-                != (*(*subtable).first).numGlyphs as ::core::ffi::c_int)
+                != (*(*subtable).first).num_glyphs as ::core::ffi::c_int)
             {
                 if !(table_length
                     < offset.wrapping_add(10 as u32).wrapping_add(
@@ -1238,7 +1238,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                 ::core::mem::size_of::<ClassDef>() as usize,
                                 89 as ::core::ffi::c_ulong,
                             ) as *mut ClassDef;
-                            (*(*subtable).second).numGlyphs = (if !h.is_null() {
+                            (*(*subtable).second).num_glyphs = (if !h.is_null() {
                                 (*(*h).hh.tbl).num_items
                             } else {
                                 0 as ::core::ffi::c_uint
@@ -1252,13 +1252,13 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                 as GlyphClass;
                             (*(*subtable).second).classes = __caryll_allocate_clean(
                                 (::core::mem::size_of::<GlyphClass>() as usize)
-                                    .wrapping_mul((*(*subtable).second).numGlyphs as usize),
+                                    .wrapping_mul((*(*subtable).second).num_glyphs as usize),
                                 92 as ::core::ffi::c_ulong,
                             )
                                 as *mut GlyphClass;
                             (*(*subtable).second).glyphs = __caryll_allocate_clean(
                                 (::core::mem::size_of::<GlyphHandle>() as usize)
-                                    .wrapping_mul((*(*subtable).second).numGlyphs as usize),
+                                    .wrapping_mul((*(*subtable).second).num_glyphs as usize),
                                 93 as ::core::ffi::c_ulong,
                             )
                                 as *mut GlyphHandle;
@@ -1266,7 +1266,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                 as ::core::ffi::c_int
                                 + 1 as ::core::ffi::c_int)
                                 as GlyphClass;
-                            (*subtable).firstValues = __caryll_allocate_clean(
+                            (*subtable).first_values = __caryll_allocate_clean(
                                 (::core::mem::size_of::<*mut PositionValue>() as usize)
                                     .wrapping_mul(
                                         ((*(*subtable).first).maxclass as ::core::ffi::c_int
@@ -1276,7 +1276,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                 96 as ::core::ffi::c_ulong,
                             )
                                 as *mut *mut PositionValue;
-                            (*subtable).secondValues = __caryll_allocate_clean(
+                            (*subtable).second_values = __caryll_allocate_clean(
                                 (::core::mem::size_of::<*mut PositionValue>() as usize)
                                     .wrapping_mul(
                                         ((*(*subtable).first).maxclass as ::core::ffi::c_int
@@ -1290,14 +1290,14 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                             while j_2 as ::core::ffi::c_int
                                 <= (*(*subtable).first).maxclass as ::core::ffi::c_int
                             {
-                                let ref mut fresh2 = *(*subtable).firstValues.offset(j_2 as isize);
+                                let ref mut fresh2 = *(*subtable).first_values.offset(j_2 as isize);
                                 *fresh2 = __caryll_allocate_clean(
                                     (::core::mem::size_of::<PositionValue>() as usize)
                                         .wrapping_mul(class2_count as usize),
                                     99 as ::core::ffi::c_ulong,
                                 )
                                     as *mut PositionValue;
-                                let ref mut fresh3 = *(*subtable).secondValues.offset(j_2 as isize);
+                                let ref mut fresh3 = *(*subtable).second_values.offset(j_2 as isize);
                                 *fresh3 = __caryll_allocate_clean(
                                     (::core::mem::size_of::<PositionValue>() as usize)
                                         .wrapping_mul(class2_count as usize),
@@ -1308,9 +1308,9 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                 while (k_0 as ::core::ffi::c_int)
                                     < class2_count as ::core::ffi::c_int
                                 {
-                                    *(*(*subtable).firstValues.offset(j_2 as isize))
+                                    *(*(*subtable).first_values.offset(j_2 as isize))
                                         .offset(k_0 as isize) = position_zero();
-                                    *(*(*subtable).secondValues.offset(j_2 as isize))
+                                    *(*(*subtable).second_values.offset(j_2 as isize))
                                         .offset(k_0 as isize) = position_zero();
                                     k_0 = k_0.wrapping_add(1);
                                 }
@@ -1704,7 +1704,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                         }
                                     }
                                     if !s_0.is_null() {
-                                        *(*(*subtable).firstValues.offset(j_3 as isize))
+                                        *(*(*subtable).first_values.offset(j_3 as isize))
                                             .offset((*s_0).cid as isize) = read_gpos_value(
                                             data,
                                             table_length,
@@ -1720,7 +1720,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                                 .wrapping_add(2 as u32),
                                             format1,
                                         );
-                                        *(*(*subtable).secondValues.offset(j_3 as isize))
+                                        *(*(*subtable).second_values.offset(j_3 as isize))
                                             .offset((*s_0).cid as isize) = read_gpos_value(
                                             data,
                                             table_length,
@@ -1901,13 +1901,13 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                         as u32,
                                 ))
                             {
-                                (*subtable).firstValues = __caryll_allocate_clean(
+                                (*subtable).first_values = __caryll_allocate_clean(
                                     (::core::mem::size_of::<*mut PositionValue>() as usize)
                                         .wrapping_mul(class1_count as usize),
                                     153 as ::core::ffi::c_ulong,
                                 )
                                     as *mut *mut PositionValue;
-                                (*subtable).secondValues = __caryll_allocate_clean(
+                                (*subtable).second_values = __caryll_allocate_clean(
                                     (::core::mem::size_of::<*mut PositionValue>() as usize)
                                         .wrapping_mul(class1_count as usize),
                                     154 as ::core::ffi::c_ulong,
@@ -1918,7 +1918,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                     < class1_count as ::core::ffi::c_int
                                 {
                                     let ref mut fresh6 =
-                                        *(*subtable).firstValues.offset(j_4 as isize);
+                                        *(*subtable).first_values.offset(j_4 as isize);
                                     *fresh6 = __caryll_allocate_clean(
                                         (::core::mem::size_of::<PositionValue>() as usize)
                                             .wrapping_mul(class2_count_0 as usize),
@@ -1926,7 +1926,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                     )
                                         as *mut PositionValue;
                                     let ref mut fresh7 =
-                                        *(*subtable).secondValues.offset(j_4 as isize);
+                                        *(*subtable).second_values.offset(j_4 as isize);
                                     *fresh7 = __caryll_allocate_clean(
                                         (::core::mem::size_of::<PositionValue>() as usize)
                                             .wrapping_mul(class2_count_0 as usize),
@@ -1937,7 +1937,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                     while (k_2 as ::core::ffi::c_int)
                                         < class2_count_0 as ::core::ffi::c_int
                                     {
-                                        *(*(*subtable).firstValues.offset(j_4 as isize))
+                                        *(*(*subtable).first_values.offset(j_4 as isize))
                                             .offset(k_2 as isize) = read_gpos_value(
                                             data,
                                             table_length,
@@ -1951,7 +1951,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                             ),
                                             format1_0,
                                         );
-                                        *(*(*subtable).secondValues.offset(j_4 as isize))
+                                        *(*(*subtable).second_values.offset(j_4 as isize))
                                             .offset(k_2 as isize) = read_gpos_value(
                                             data,
                                             table_length,
@@ -2008,10 +2008,10 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *
         let mut k: GlyphClass = 0 as GlyphClass;
         while k as ::core::ffi::c_int <= (*(*subtable).second).maxclass as ::core::ffi::c_int {
             let mut f1: u8 = required_position_format(
-                *(*(*subtable).firstValues.offset(j as isize)).offset(k as isize),
+                *(*(*subtable).first_values.offset(j as isize)).offset(k as isize),
             );
             let mut f2: u8 = required_position_format(
-                *(*(*subtable).secondValues.offset(j as isize)).offset(k as isize),
+                *(*(*subtable).second_values.offset(j as isize)).offset(k as isize),
             );
             if f1 as ::core::ffi::c_int | f2 as ::core::ffi::c_int != 0 {
                 if f1 as ::core::ffi::c_int == FORMAT_DWIDTH as ::core::ffi::c_int
@@ -2020,8 +2020,8 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *
                     json_array_push(
                         row,
                         json_new_position(
-                            (*(*(*subtable).firstValues.offset(j as isize)).offset(k as isize))
-                                .dWidth,
+                            (*(*(*subtable).first_values.offset(j as isize)).offset(k as isize))
+                                .d_width,
                         ),
                     );
                 } else {
@@ -2031,7 +2031,7 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *
                             pair,
                             b"first\0" as *const u8 as *const ::core::ffi::c_char,
                             gpos_dump_value(
-                                *(*(*subtable).firstValues.offset(j as isize)).offset(k as isize),
+                                *(*(*subtable).first_values.offset(j as isize)).offset(k as isize),
                             ),
                         );
                     }
@@ -2040,7 +2040,7 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *
                             pair,
                             b"second\0" as *const u8 as *const ::core::ffi::c_char,
                             gpos_dump_value(
-                                *(*(*subtable).secondValues.offset(j as isize)).offset(k as isize),
+                                *(*(*subtable).second_values.offset(j as isize)).offset(k as isize),
                             ),
                         );
                     }
@@ -2096,25 +2096,25 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
             + 1 as ::core::ffi::c_int) as GlyphClass;
         class2_count = ((*(*subtable).second).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as GlyphClass;
-        (*subtable).firstValues = __caryll_allocate_clean(
+        (*subtable).first_values = __caryll_allocate_clean(
             (::core::mem::size_of::<*mut PositionValue>() as usize)
                 .wrapping_mul(class1_count as usize),
             224 as ::core::ffi::c_ulong,
         ) as *mut *mut PositionValue;
-        (*subtable).secondValues = __caryll_allocate_clean(
+        (*subtable).second_values = __caryll_allocate_clean(
             (::core::mem::size_of::<*mut PositionValue>() as usize)
                 .wrapping_mul(class1_count as usize),
             225 as ::core::ffi::c_ulong,
         ) as *mut *mut PositionValue;
         let mut j: GlyphClass = 0 as GlyphClass;
         while (j as ::core::ffi::c_int) < class1_count as ::core::ffi::c_int {
-            let ref mut fresh8 = *(*subtable).firstValues.offset(j as isize);
+            let ref mut fresh8 = *(*subtable).first_values.offset(j as isize);
             *fresh8 = __caryll_allocate_clean(
                 (::core::mem::size_of::<PositionValue>() as usize)
                     .wrapping_mul(class2_count as usize),
                 228 as ::core::ffi::c_ulong,
             ) as *mut PositionValue;
-            let ref mut fresh9 = *(*subtable).secondValues.offset(j as isize);
+            let ref mut fresh9 = *(*subtable).second_values.offset(j as isize);
             *fresh9 = __caryll_allocate_clean(
                 (::core::mem::size_of::<PositionValue>() as usize)
                     .wrapping_mul(class2_count as usize),
@@ -2122,8 +2122,8 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
             ) as *mut PositionValue;
             let mut k: GlyphClass = 0 as GlyphClass;
             while (k as ::core::ffi::c_int) < class2_count as ::core::ffi::c_int {
-                *(*(*subtable).firstValues.offset(j as isize)).offset(k as isize) = position_zero();
-                *(*(*subtable).secondValues.offset(j as isize)).offset(k as isize) =
+                *(*(*subtable).first_values.offset(j as isize)).offset(k as isize) = position_zero();
+                *(*(*subtable).second_values.offset(j as isize)).offset(k as isize) =
                     position_zero();
                 k = k.wrapping_add(1);
             }
@@ -2146,20 +2146,20 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
                         *(*_row).u.array.values.offset(k_0 as isize) as *mut JsonValue;
                     if (*_item).type_0 == JsonType::Integer
                     {
-                        (*(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize))
-                            .dWidth = (*_item).u.integer as Pos;
+                        (*(*(*subtable).first_values.offset(j_0 as isize)).offset(k_0 as isize))
+                            .d_width = (*_item).u.integer as Pos;
                     } else if (*_item).type_0 == JsonType::Double
                     {
-                        (*(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize))
-                            .dWidth = (*_item).u.dbl as Pos;
+                        (*(*(*subtable).first_values.offset(j_0 as isize)).offset(k_0 as isize))
+                            .d_width = (*_item).u.dbl as Pos;
                     } else if (*_item).type_0 == JsonType::Object
                     {
-                        *(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize) =
+                        *(*(*subtable).first_values.offset(j_0 as isize)).offset(k_0 as isize) =
                             gpos_parse_value(json_obj_get(
                                 _item,
                                 b"first\0" as *const u8 as *const ::core::ffi::c_char,
                             ));
-                        *(*(*subtable).secondValues.offset(j_0 as isize)).offset(k_0 as isize) =
+                        *(*(*subtable).second_values.offset(j_0 as isize)).offset(k_0 as isize) =
                             gpos_parse_value(json_obj_get(
                                 _item,
                                 b"second\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2179,14 +2179,14 @@ unsafe extern "C" fn cov_from_cd(mut cd: *mut ClassDef) -> *mut Coverage {
         ::core::mem::size_of::<Coverage>() as usize,
         257 as ::core::ffi::c_ulong,
     ) as *mut Coverage;
-    (*cov).numGlyphs = (*cd).numGlyphs;
+    (*cov).num_glyphs = (*cd).num_glyphs;
     (*cov).glyphs = __caryll_allocate_clean(
         (::core::mem::size_of::<GlyphHandle>() as usize)
-            .wrapping_mul((*cd).numGlyphs as usize),
+            .wrapping_mul((*cd).num_glyphs as usize),
         259 as ::core::ffi::c_ulong,
     ) as *mut GlyphHandle;
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
         *(*cov).glyphs.offset(j as isize) = otfcc_handle_dup(
             *(*cd).glyphs.offset(j as isize) as Handle,
         ) as GlyphHandle;
@@ -2217,11 +2217,11 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
         while (k as ::core::ffi::c_int) < class2_count as ::core::ffi::c_int {
             format1 = (format1 as ::core::ffi::c_int
                 | required_position_format(
-                    *(*(*subtable).firstValues.offset(j as isize)).offset(k as isize),
+                    *(*(*subtable).first_values.offset(j as isize)).offset(k as isize),
                 ) as ::core::ffi::c_int) as u16;
             format2 = (format2 as ::core::ffi::c_int
                 | required_position_format(
-                    *(*(*subtable).secondValues.offset(j as isize)).offset(k as isize),
+                    *(*(*subtable).second_values.offset(j as isize)).offset(k as isize),
                 ) as ::core::ffi::c_int) as u16;
             k = k.wrapping_add(1);
         }
@@ -2230,21 +2230,21 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     let mut pair_counts: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
     pair_counts = __caryll_allocate_clean(
         (::core::mem::size_of::<GlyphId>() as usize)
-            .wrapping_mul((*(*subtable).first).numGlyphs as usize),
+            .wrapping_mul((*(*subtable).first).num_glyphs as usize),
         290 as ::core::ffi::c_ulong,
     ) as *mut GlyphId;
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as ::core::ffi::c_int) < (*(*subtable).first).numGlyphs as ::core::ffi::c_int {
+    while (j_0 as ::core::ffi::c_int) < (*(*subtable).first).num_glyphs as ::core::ffi::c_int {
         *pair_counts.offset(j_0 as isize) = 0 as GlyphId;
         let mut k_0: GlyphId = 0 as GlyphId;
-        while (k_0 as ::core::ffi::c_int) < (*(*subtable).second).numGlyphs as ::core::ffi::c_int {
+        while (k_0 as ::core::ffi::c_int) < (*(*subtable).second).num_glyphs as ::core::ffi::c_int {
             let mut c1: GlyphClass = *(*(*subtable).first).classes.offset(j_0 as isize);
             let mut c2: GlyphClass = *(*(*subtable).second).classes.offset(k_0 as isize);
             if required_position_format(
-                *(*(*subtable).firstValues.offset(c1 as isize)).offset(c2 as isize),
+                *(*(*subtable).first_values.offset(c1 as isize)).offset(c2 as isize),
             ) as ::core::ffi::c_int
                 | required_position_format(
-                    *(*(*subtable).secondValues.offset(c1 as isize)).offset(c2 as isize),
+                    *(*(*subtable).second_values.offset(c1 as isize)).offset(c2 as isize),
                 ) as ::core::ffi::c_int
                 != 0
             {
@@ -2257,13 +2257,13 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     }
     let mut cov: *mut Coverage = cov_from_cd((*subtable).first);
     shrink_coverage(cov, true);
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*subtable).first).numGlyphs as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*subtable).first).num_glyphs as ::core::ffi::c_int) as u32)]);
     let mut j_1: GlyphId = 0 as GlyphId;
-    while (j_1 as ::core::ffi::c_int) < (*cov).numGlyphs as ::core::ffi::c_int {
+    while (j_1 as ::core::ffi::c_int) < (*cov).num_glyphs as ::core::ffi::c_int {
         let mut current_pair_count: TableId = 0 as TableId;
         let mut c1_0: GlyphClass = 0 as GlyphClass;
         let mut k_1: GlyphId = 0 as GlyphId;
-        while (k_1 as ::core::ffi::c_int) < (*(*subtable).first).numGlyphs as ::core::ffi::c_int {
+        while (k_1 as ::core::ffi::c_int) < (*(*subtable).first).num_glyphs as ::core::ffi::c_int {
             if (*(*(*subtable).first).glyphs.offset(k_1 as isize)).index as ::core::ffi::c_int
                 == (*(*cov).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int
             {
@@ -2281,23 +2281,23 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
         ) as *mut IndividualGposPair;
         let mut n: usize = 0 as usize;
         let mut k_2: GlyphId = 0 as GlyphId;
-        while (k_2 as ::core::ffi::c_int) < (*(*subtable).second).numGlyphs as ::core::ffi::c_int {
+        while (k_2 as ::core::ffi::c_int) < (*(*subtable).second).num_glyphs as ::core::ffi::c_int {
             let mut c2_0: GlyphClass = *(*(*subtable).second).classes.offset(k_2 as isize);
             if required_position_format(
-                *(*(*subtable).firstValues.offset(c1_0 as isize)).offset(c2_0 as isize),
+                *(*(*subtable).first_values.offset(c1_0 as isize)).offset(c2_0 as isize),
             ) as ::core::ffi::c_int
                 | required_position_format(
-                    *(*(*subtable).secondValues.offset(c1_0 as isize)).offset(c2_0 as isize),
+                    *(*(*subtable).second_values.offset(c1_0 as isize)).offset(c2_0 as isize),
                 ) as ::core::ffi::c_int
                 != 0
             {
                 (*pairs.offset(n as isize)).gid =
                     (*(*(*subtable).second).glyphs.offset(k_2 as isize)).index;
                 let ref mut fresh11 = (*pairs.offset(n as isize)).fv;
-                *fresh11 = (*(*subtable).firstValues.offset(c1_0 as isize)).offset(c2_0 as isize)
+                *fresh11 = (*(*subtable).first_values.offset(c1_0 as isize)).offset(c2_0 as isize)
                     as *mut PositionValue;
                 let ref mut fresh12 = (*pairs.offset(n as isize)).sv;
-                *fresh12 = (*(*subtable).secondValues.offset(c1_0 as isize)).offset(c2_0 as isize)
+                *fresh12 = (*(*subtable).second_values.offset(c1_0 as isize)).offset(c2_0 as isize)
                     as *mut PositionValue;
                 n = n.wrapping_add(1);
             }
@@ -2347,11 +2347,11 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
         while (k as ::core::ffi::c_int) < class2_count as ::core::ffi::c_int {
             format1 = (format1 as ::core::ffi::c_int
                 | required_position_format(
-                    *(*(*subtable).firstValues.offset(j as isize)).offset(k as isize),
+                    *(*(*subtable).first_values.offset(j as isize)).offset(k as isize),
                 ) as ::core::ffi::c_int) as u16;
             format2 = (format2 as ::core::ffi::c_int
                 | required_position_format(
-                    *(*(*subtable).secondValues.offset(j as isize)).offset(k as isize),
+                    *(*(*subtable).second_values.offset(j as isize)).offset(k as isize),
                 ) as ::core::ffi::c_int) as u16;
             k = k.wrapping_add(1);
         }
@@ -2368,10 +2368,10 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
         let mut k_0: GlyphClass = 0 as GlyphClass;
         while (k_0 as ::core::ffi::c_int) < class2_count as ::core::ffi::c_int {
             bk_push(root, &[bk_ptr(BkCellType::Embed, bk_gpos_value(
-                    *(*(*subtable).firstValues.offset(j_0 as isize)).offset(k_0 as isize),
+                    *(*(*subtable).first_values.offset(j_0 as isize)).offset(k_0 as isize),
                     format1,
                 )), bk_ptr(BkCellType::Embed, bk_gpos_value(
-                    *(*(*subtable).secondValues.offset(j_0 as isize)).offset(k_0 as isize),
+                    *(*(*subtable).second_values.offset(j_0 as isize)).offset(k_0 as isize),
                     format2,
                 ))]);
             k_0 = k_0.wrapping_add(1);

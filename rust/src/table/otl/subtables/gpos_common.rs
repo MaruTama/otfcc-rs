@@ -32,13 +32,13 @@ pub struct MarkRecordElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut MarkRecord, *mut MarkRecord) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MarkRecord) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut MarkRecord, MarkRecord) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut MarkRecord, MarkRecord) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut MarkRecord, MarkRecord) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ClassNameHash {
-    pub className: SdsRaw,
-    pub classID: GlyphClass,
+    pub class_name: SdsRaw,
+    pub class_id: GlyphClass,
     pub hh: UtHashHandle,
 }
 unsafe extern "C" fn delete_mark_array_item(mut entry: *mut MarkRecord) {
@@ -51,7 +51,7 @@ static GSS_TYPEINFO: MarkRecordElementInterface = {
         move_0: None,
         dispose: Some(delete_mark_array_item as unsafe extern "C" fn(*mut MarkRecord) -> ()),
         replace: None,
-        copyReplace: None,
+        copy_replace: None,
     }
 };
 #[inline]
@@ -226,30 +226,30 @@ pub static OTL_I_MARK_ARRAY: MarkArrayVectorInterface = {
         replace: Some(
             otl_mark_array_replace as unsafe extern "C" fn(*mut MarkArray, MarkArray) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_mark_array_copy_replace
                 as unsafe extern "C" fn(*mut MarkArray, MarkArray) -> (),
         ),
         create: Some(otl_mark_array_create),
         free: Some(otl_mark_array_free as unsafe extern "C" fn(*mut MarkArray) -> ()),
-        initN: Some(otl_mark_array_init_n as unsafe extern "C" fn(*mut MarkArray, usize) -> ()),
-        initCapN: Some(
+        init_n: Some(otl_mark_array_init_n as unsafe extern "C" fn(*mut MarkArray, usize) -> ()),
+        init_cap_n: Some(
             otl_mark_array_init_cap_n as unsafe extern "C" fn(*mut MarkArray, usize) -> (),
         ),
-        createN: Some(otl_mark_array_create_n as unsafe extern "C" fn(usize) -> *mut MarkArray),
+        create_n: Some(otl_mark_array_create_n as unsafe extern "C" fn(usize) -> *mut MarkArray),
         fill: Some(otl_mark_array_fill as unsafe extern "C" fn(*mut MarkArray, usize) -> ()),
         clear: Some(otl_mark_array_dispose as unsafe extern "C" fn(*mut MarkArray) -> ()),
         push: Some(
             otl_mark_array_push as unsafe extern "C" fn(*mut MarkArray, MarkRecord) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             otl_mark_array_shrink_to_fit as unsafe extern "C" fn(*mut MarkArray) -> (),
         ),
         pop: Some(otl_mark_array_pop as unsafe extern "C" fn(*mut MarkArray) -> MarkRecord),
-        disposeItem: Some(
+        dispose_item: Some(
             otl_mark_array_dispose_item as unsafe extern "C" fn(*mut MarkArray, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             otl_mark_array_filter_env
                 as unsafe extern "C" fn(
                     *mut MarkArray,
@@ -315,7 +315,7 @@ unsafe extern "C" fn otl_mark_array_fill(mut arr: *mut MarkArray, mut n: usize) 
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
-            markClass: 0,
+            mark_class: 0,
             anchor: Anchor {
                 present: false,
                 x: 0.,
@@ -354,7 +354,7 @@ pub unsafe extern "C" fn otl_read_mark_array(
         mark_count = read_16u(data.offset(offset as isize) as *const u8) as GlyphId;
         let mut j: GlyphId = 0 as GlyphId;
         while (j as ::core::ffi::c_int) < mark_count as ::core::ffi::c_int {
-            let mut markClass: GlyphClass = read_16u(
+            let mut mark_class: GlyphClass = read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize)
                     .offset((j as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
@@ -373,7 +373,7 @@ pub unsafe extern "C" fn otl_read_mark_array(
                         glyph: otfcc_handle_dup(
                             *(*cov).glyphs.offset(j as isize) as Handle,
                         ) as GlyphHandle,
-                        markClass: markClass,
+                        mark_class: mark_class,
                         anchor: otl_read_anchor(
                             data,
                             table_length,
@@ -388,7 +388,7 @@ pub unsafe extern "C" fn otl_read_mark_array(
                         glyph: otfcc_handle_dup(
                             *(*cov).glyphs.offset(j as isize) as Handle,
                         ) as GlyphHandle,
-                        markClass: markClass,
+                        mark_class: mark_class,
                         anchor: otl_anchor_absent(),
                     },
                 );
@@ -402,8 +402,8 @@ unsafe extern "C" fn compare_class_hash(
     mut b: *mut ClassNameHash,
 ) -> ::core::ffi::c_int {
     return strcmp(
-        (*a).className as *const ::core::ffi::c_char,
-        (*b).className as *const ::core::ffi::c_char,
+        (*a).class_name as *const ::core::ffi::c_char,
+        (*b).class_name as *const ::core::ffi::c_char,
     );
 }
 pub unsafe extern "C" fn otl_parse_mark_array(
@@ -420,7 +420,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
-            markClass: 0,
+            mark_class: 0,
             anchor: Anchor {
                 present: false,
                 x: 0.,
@@ -435,24 +435,24 @@ pub unsafe extern "C" fn otl_parse_mark_array(
             gname as *const ::core::ffi::c_void,
             (*(*_marks).u.object.values.offset(j as isize)).name_length as usize,
         )) as GlyphHandle;
-        mark.markClass = 0 as GlyphClass;
+        mark.mark_class = 0 as GlyphClass;
         mark.anchor = otl_anchor_absent();
         if anchor_record.is_null()
             || (*anchor_record).type_0 != JsonType::Object
         {
             OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(array, mark);
         } else {
-            let mut _className: *mut JsonValue = json_obj_get_type(
+            let mut _class_name: *mut JsonValue = json_obj_get_type(
                 anchor_record,
                 b"class\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,
             );
-            if _className.is_null() {
+            if _class_name.is_null() {
                 OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(array, mark);
             } else {
-                let mut className: SdsRaw = sdsnewlen(
-                    (*_className).u.string.ptr as *const ::core::ffi::c_void,
-                    (*_className).u.string.length as usize,
+                let mut class_name: SdsRaw = sdsnewlen(
+                    (*_class_name).u.string.ptr as *const ::core::ffi::c_void,
+                    (*_class_name).u.string.length as usize,
                 );
                 let mut s: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
                 let mut _hf_hashv: ::core::ffi::c_uint = 0;
@@ -460,11 +460,11 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                 let mut _hj_j: ::core::ffi::c_uint = 0;
                 let mut _hj_k: ::core::ffi::c_uint = 0;
                 let mut _hj_key: *const ::core::ffi::c_uchar =
-                    className as *const ::core::ffi::c_uchar;
+                    class_name as *const ::core::ffi::c_uchar;
                 _hf_hashv = 0xfeedbeef as ::core::ffi::c_uint;
                 _hj_j = 0x9e3779b9 as ::core::ffi::c_uint;
                 _hj_i = _hj_j;
-                _hj_k = strlen(className as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
+                _hj_k = strlen(class_name as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
                 while _hj_k >= 12 as ::core::ffi::c_uint {
                     _hj_i = _hj_i.wrapping_add(
                         (*_hj_key.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
@@ -551,7 +551,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                     _hj_k = _hj_k.wrapping_sub(12 as ::core::ffi::c_uint);
                 }
                 _hf_hashv = _hf_hashv.wrapping_add(
-                    strlen(className as *const ::core::ffi::c_char) as ::core::ffi::c_uint
+                    strlen(class_name as *const ::core::ffi::c_char) as ::core::ffi::c_uint
                 );
                 let mut current_block_55: u64;
                 match _hj_k {
@@ -753,13 +753,13 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                         while !s.is_null() {
                             if (*s).hh.hashv == _hf_hashv
                                 && (*s).hh.keylen
-                                    == strlen(className as *const ::core::ffi::c_char)
+                                    == strlen(class_name as *const ::core::ffi::c_char)
                                         as ::core::ffi::c_uint
                             {
                                 if memcmp(
                                     (*s).hh.key,
-                                    className as *const ::core::ffi::c_void,
-                                    strlen(className as *const ::core::ffi::c_char)
+                                    class_name as *const ::core::ffi::c_void,
+                                    strlen(class_name as *const ::core::ffi::c_char)
                                         as ::core::ffi::c_uint
                                         as usize,
                                 ) == 0 as ::core::ffi::c_int
@@ -784,8 +784,8 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                         ::core::mem::size_of::<ClassNameHash>() as usize,
                         61 as ::core::ffi::c_ulong,
                     ) as *mut ClassNameHash;
-                    (*s).className = className;
-                    (*s).classID = (if !(*h).is_null() {
+                    (*s).class_name = class_name;
+                    (*s).class_id = (if !(*h).is_null() {
                         (*(**h).hh.tbl).num_items
                     } else {
                         0 as ::core::ffi::c_uint
@@ -795,14 +795,14 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                     let mut _hj_j_0: ::core::ffi::c_uint = 0;
                     let mut _hj_k_0: ::core::ffi::c_uint = 0;
                     let mut _hj_key_0: *const ::core::ffi::c_uchar =
-                        (*s).className.offset(0 as ::core::ffi::c_int as isize)
+                        (*s).class_name.offset(0 as ::core::ffi::c_int as isize)
                             as *mut ::core::ffi::c_char
                             as *const ::core::ffi::c_uchar;
                     _ha_hashv = 0xfeedbeef as ::core::ffi::c_uint;
                     _hj_j_0 = 0x9e3779b9 as ::core::ffi::c_uint;
                     _hj_i_0 = _hj_j_0;
                     _hj_k_0 =
-                        strlen((*s).className as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
+                        strlen((*s).class_name as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
                     while _hj_k_0 >= 12 as ::core::ffi::c_uint {
                         _hj_i_0 = _hj_i_0.wrapping_add(
                             (*_hj_key_0.offset(0 as ::core::ffi::c_int as isize)
@@ -892,7 +892,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                         _hj_k_0 = _hj_k_0.wrapping_sub(12 as ::core::ffi::c_uint);
                     }
                     _ha_hashv = _ha_hashv
-                        .wrapping_add(strlen((*s).className as *const ::core::ffi::c_char)
+                        .wrapping_add(strlen((*s).class_name as *const ::core::ffi::c_char)
                             as ::core::ffi::c_uint);
                     let mut current_block_172: u64;
                     match _hj_k_0 {
@@ -1071,11 +1071,11 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                     _ha_hashv = _ha_hashv.wrapping_sub(_hj_j_0);
                     _ha_hashv ^= _hj_j_0 >> 15 as ::core::ffi::c_int;
                     (*s).hh.hashv = _ha_hashv;
-                    (*s).hh.key = (*s).className.offset(0 as ::core::ffi::c_int as isize)
+                    (*s).hh.key = (*s).class_name.offset(0 as ::core::ffi::c_int as isize)
                         as *mut ::core::ffi::c_char
                         as *mut ::core::ffi::c_void;
                     (*s).hh.keylen =
-                        strlen((*s).className as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
+                        strlen((*s).class_name as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
                     if (*h).is_null() {
                         (*s).hh.next = NULL;
                         (*s).hh.prev = NULL;
@@ -1249,9 +1249,9 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                         }
                     }
                 } else {
-                    sdsfree(className);
+                    sdsfree(class_name);
                 }
-                mark.markClass = (*s).classID;
+                mark.mark_class = (*s).class_id;
                 mark.anchor.present = true;
                 mark.anchor.x = json_obj_getnum(
                     anchor_record,
@@ -1403,7 +1403,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
     let mut s_0: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
     s_0 = *h;
     while !s_0.is_null() {
-        (*s_0).classID = j_anchor_index as GlyphClass;
+        (*s_0).class_id = j_anchor_index as GlyphClass;
         j_anchor_index = j_anchor_index.wrapping_add(1);
         s_0 = (*s_0).hh.next as *mut ClassNameHash;
     }
@@ -1412,14 +1412,14 @@ pub unsafe extern "C" fn otl_parse_mark_array(
         if (*(*array).items.offset(j_0 as isize)).anchor.present {
             let mut anchor_record_0: *mut JsonValue =
                 (*(*_marks).u.object.values.offset(j_0 as isize)).value as *mut JsonValue;
-            let mut _className_0: *mut JsonValue = json_obj_get_type(
+            let mut _class_name_0: *mut JsonValue = json_obj_get_type(
                 anchor_record_0,
                 b"class\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,
             );
-            let mut className_0: SdsRaw = sdsnewlen(
-                (*_className_0).u.string.ptr as *const ::core::ffi::c_void,
-                (*_className_0).u.string.length as usize,
+            let mut class_name_0: SdsRaw = sdsnewlen(
+                (*_class_name_0).u.string.ptr as *const ::core::ffi::c_void,
+                (*_class_name_0).u.string.length as usize,
             );
             let mut s_1: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
             let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
@@ -1427,11 +1427,11 @@ pub unsafe extern "C" fn otl_parse_mark_array(
             let mut _hj_j_1: ::core::ffi::c_uint = 0;
             let mut _hj_k_1: ::core::ffi::c_uint = 0;
             let mut _hj_key_1: *const ::core::ffi::c_uchar =
-                className_0 as *const ::core::ffi::c_uchar;
+                class_name_0 as *const ::core::ffi::c_uchar;
             _hf_hashv_0 = 0xfeedbeef as ::core::ffi::c_uint;
             _hj_j_1 = 0x9e3779b9 as ::core::ffi::c_uint;
             _hj_i_1 = _hj_j_1;
-            _hj_k_1 = strlen(className_0 as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
+            _hj_k_1 = strlen(class_name_0 as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
             while _hj_k_1 >= 12 as ::core::ffi::c_uint {
                 _hj_i_1 = _hj_i_1.wrapping_add(
                     (*_hj_key_1.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
@@ -1518,7 +1518,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                 _hj_k_1 = _hj_k_1.wrapping_sub(12 as ::core::ffi::c_uint);
             }
             _hf_hashv_0 = _hf_hashv_0.wrapping_add(
-                strlen(className_0 as *const ::core::ffi::c_char) as ::core::ffi::c_uint,
+                strlen(class_name_0 as *const ::core::ffi::c_char) as ::core::ffi::c_uint,
             );
             let mut current_block_445: u64;
             match _hj_k_1 {
@@ -1720,13 +1720,13 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                     while !s_1.is_null() {
                         if (*s_1).hh.hashv == _hf_hashv_0
                             && (*s_1).hh.keylen
-                                == strlen(className_0 as *const ::core::ffi::c_char)
+                                == strlen(class_name_0 as *const ::core::ffi::c_char)
                                     as ::core::ffi::c_uint
                         {
                             if memcmp(
                                 (*s_1).hh.key,
-                                className_0 as *const ::core::ffi::c_void,
-                                strlen(className_0 as *const ::core::ffi::c_char)
+                                class_name_0 as *const ::core::ffi::c_void,
+                                strlen(class_name_0 as *const ::core::ffi::c_char)
                                     as ::core::ffi::c_uint
                                     as usize,
                             ) == 0 as ::core::ffi::c_int
@@ -1747,11 +1747,11 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                 }
             }
             if !s_1.is_null() {
-                (*(*array).items.offset(j_0 as isize)).markClass = (*s_1).classID;
+                (*(*array).items.offset(j_0 as isize)).mark_class = (*s_1).class_id;
             } else {
-                (*(*array).items.offset(j_0 as isize)).markClass = 0 as GlyphClass;
+                (*(*array).items.offset(j_0 as isize)).mark_class = 0 as GlyphClass;
             }
-            sdsfree(className_0);
+            sdsfree(class_name_0);
         }
         j_0 = j_0.wrapping_add(1);
     }
@@ -3135,8 +3135,8 @@ pub unsafe extern "C" fn position_zero() -> PositionValue {
     let mut v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
-        dWidth: 0.0f64,
-        dHeight: 0.0f64,
+        d_width: 0.0f64,
+        d_height: 0.0f64,
     };
     return v;
 }
@@ -3149,8 +3149,8 @@ pub unsafe extern "C" fn read_gpos_value(
     let mut v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
-        dWidth: 0.0f64,
-        dHeight: 0.0f64,
+        d_width: 0.0f64,
+        d_height: 0.0f64,
     };
     if table_length < offset.wrapping_add(position_format_length(format) as u32) {
         return v;
@@ -3164,11 +3164,11 @@ pub unsafe extern "C" fn read_gpos_value(
         offset = offset.wrapping_add(2 as u32);
     }
     if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
-        v.dWidth = read_16s(data.offset(offset as isize) as *const u8) as Pos;
+        v.d_width = read_16s(data.offset(offset as isize) as *const u8) as Pos;
         offset = offset.wrapping_add(2 as u32);
     }
     if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
-        v.dHeight = read_16s(data.offset(offset as isize) as *const u8) as Pos;
+        v.d_height = read_16s(data.offset(offset as isize) as *const u8) as Pos;
         offset = offset.wrapping_add(2 as u32);
     }
     return v;
@@ -3189,18 +3189,18 @@ pub unsafe extern "C" fn gpos_dump_value(mut value: PositionValue) -> *mut JsonV
             json_new_position(value.dy),
         );
     }
-    if value.dWidth != 0. {
+    if value.d_width != 0. {
         json_object_push(
             v,
             b"dWidth\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position(value.dWidth),
+            json_new_position(value.d_width),
         );
     }
-    if value.dHeight != 0. {
+    if value.d_height != 0. {
         json_object_push(
             v,
             b"dHeight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position(value.dHeight),
+            json_new_position(value.d_height),
         );
     }
     return preserialize(v);
@@ -3209,8 +3209,8 @@ pub unsafe extern "C" fn gpos_parse_value(mut pos: *mut JsonValue) -> PositionVa
     let mut v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
-        dWidth: 0.0f64,
-        dHeight: 0.0f64,
+        d_width: 0.0f64,
+        d_height: 0.0f64,
     };
     if pos.is_null()
         || (*pos).type_0 != JsonType::Object
@@ -3219,9 +3219,9 @@ pub unsafe extern "C" fn gpos_parse_value(mut pos: *mut JsonValue) -> PositionVa
     }
     v.dx = json_obj_getnum(pos, b"dx\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
     v.dy = json_obj_getnum(pos, b"dy\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
-    v.dWidth =
+    v.d_width =
         json_obj_getnum(pos, b"dWidth\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
-    v.dHeight =
+    v.d_height =
         json_obj_getnum(pos, b"dHeight\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
     return v;
 }
@@ -3234,11 +3234,11 @@ pub unsafe extern "C" fn required_position_format(mut v: PositionValue) -> u8 {
         FORMAT_DY as ::core::ffi::c_int
     } else {
         0 as ::core::ffi::c_int
-    }) | (if v.dWidth != 0. {
+    }) | (if v.d_width != 0. {
         FORMAT_DWIDTH as ::core::ffi::c_int
     } else {
         0 as ::core::ffi::c_int
-    }) | (if v.dHeight != 0. {
+    }) | (if v.d_height != 0. {
         FORMAT_DHEIGHT as ::core::ffi::c_int
     } else {
         0 as ::core::ffi::c_int
@@ -3256,10 +3256,10 @@ pub unsafe extern "C" fn write_gpos_value(
         bufwrite16b(buf, pos_to_u16(v.dy));
     }
     if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
-        bufwrite16b(buf, pos_to_u16(v.dWidth));
+        bufwrite16b(buf, pos_to_u16(v.d_width));
     }
     if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
-        bufwrite16b(buf, pos_to_u16(v.dHeight));
+        bufwrite16b(buf, pos_to_u16(v.d_height));
     }
 }
 pub unsafe extern "C" fn bk_gpos_value(
@@ -3274,10 +3274,10 @@ pub unsafe extern "C" fn bk_gpos_value(
         bk_push(b, &[bk_int(BkCellType::B16, (v.dy as i16 as ::core::ffi::c_int) as u32)]);
     }
     if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
-        bk_push(b, &[bk_int(BkCellType::B16, (v.dWidth as i16 as ::core::ffi::c_int) as u32)]);
+        bk_push(b, &[bk_int(BkCellType::B16, (v.d_width as i16 as ::core::ffi::c_int) as u32)]);
     }
     if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
-        bk_push(b, &[bk_int(BkCellType::B16, (v.dHeight as i16 as ::core::ffi::c_int) as u32)]);
+        bk_push(b, &[bk_int(BkCellType::B16, (v.d_height as i16 as ::core::ffi::c_int) as u32)]);
     }
     return b;
 }

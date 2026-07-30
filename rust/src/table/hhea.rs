@@ -22,17 +22,17 @@ pub struct HheaTable {
     pub version: F16Dot16,
     pub ascender: i16,
     pub descender: i16,
-    pub lineGap: i16,
-    pub advanceWidthMax: u16,
-    pub minLeftSideBearing: i16,
-    pub minRightSideBearing: i16,
-    pub xMaxExtent: i16,
-    pub caretSlopeRise: i16,
-    pub caretSlopeRun: i16,
-    pub caretOffset: i16,
+    pub line_gap: i16,
+    pub advance_width_max: u16,
+    pub min_left_side_bearing: i16,
+    pub min_right_side_bearing: i16,
+    pub x_max_extent: i16,
+    pub caret_slope_rise: i16,
+    pub caret_slope_run: i16,
+    pub caret_offset: i16,
     pub reserved: [i16; 4],
-    pub metricDataFormat: i16,
-    pub numberOfMetrics: u16,
+    pub metric_data_format: i16,
+    pub number_of_metrics: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -42,7 +42,7 @@ pub struct HheaTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut HheaTable, *mut HheaTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut HheaTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut HheaTable, HheaTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut HheaTable, HheaTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut HheaTable, HheaTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut HheaTable>,
     pub free: Option<unsafe extern "C" fn(*mut HheaTable) -> ()>,
 }
@@ -78,7 +78,7 @@ pub static TABLE_I_HHEA: HheaTableElementInterface = {
         replace: Some(
             table_hhea_replace as unsafe extern "C" fn(*mut HheaTable, HheaTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_hhea_copy_replace as unsafe extern "C" fn(*mut HheaTable, HheaTable) -> (),
         ),
         create: Some(table_hhea_create),
@@ -140,7 +140,7 @@ pub unsafe extern "C" fn otfcc_read_hhea(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -151,7 +151,7 @@ pub unsafe extern "C" fn otfcc_read_hhea(
                     let mut length: u32 = table.length;
                     if length < 36 as u32 {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -171,28 +171,28 @@ pub unsafe extern "C" fn otfcc_read_hhea(
                         (*hhea).descender = read_16u(
                             data.offset(6 as ::core::ffi::c_int as isize) as *const u8
                         ) as i16;
-                        (*hhea).lineGap = read_16u(
+                        (*hhea).line_gap = read_16u(
                             data.offset(8 as ::core::ffi::c_int as isize) as *const u8
                         ) as i16;
-                        (*hhea).advanceWidthMax = read_16u(
+                        (*hhea).advance_width_max = read_16u(
                             data.offset(10 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        (*hhea).minLeftSideBearing = read_16u(
+                        (*hhea).min_left_side_bearing = read_16u(
                             data.offset(12 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
-                        (*hhea).minRightSideBearing = read_16u(
+                        (*hhea).min_right_side_bearing = read_16u(
                             data.offset(14 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
-                        (*hhea).xMaxExtent = read_16u(
+                        (*hhea).x_max_extent = read_16u(
                             data.offset(16 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
-                        (*hhea).caretSlopeRise = read_16u(
+                        (*hhea).caret_slope_rise = read_16u(
                             data.offset(18 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
-                        (*hhea).caretSlopeRun = read_16u(
+                        (*hhea).caret_slope_run = read_16u(
                             data.offset(20 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
-                        (*hhea).caretOffset = read_16u(
+                        (*hhea).caret_offset = read_16u(
                             data.offset(22 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
                         (*hhea).reserved[0 as ::core::ffi::c_int as usize] = read_16u(
@@ -211,10 +211,10 @@ pub unsafe extern "C" fn otfcc_read_hhea(
                             data.offset(30 as ::core::ffi::c_int as isize) as *const u8,
                         )
                             as i16;
-                        (*hhea).metricDataFormat = read_16u(
+                        (*hhea).metric_data_format = read_16u(
                             data.offset(32 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
-                        (*hhea).numberOfMetrics = read_16u(
+                        (*hhea).number_of_metrics = read_16u(
                             data.offset(34 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         return hhea;
@@ -239,7 +239,7 @@ pub unsafe extern "C" fn otfcc_dump_hhea(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"hhea"),
@@ -265,42 +265,42 @@ pub unsafe extern "C" fn otfcc_dump_hhea(
         json_object_push(
             hhea,
             b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).lineGap as i64),
+            json_integer_new((*table).line_gap as i64),
         );
         json_object_push(
             hhea,
             b"advanceWidthMax\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).advanceWidthMax as i64),
+            json_integer_new((*table).advance_width_max as i64),
         );
         json_object_push(
             hhea,
             b"minLeftSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).minLeftSideBearing as i64),
+            json_integer_new((*table).min_left_side_bearing as i64),
         );
         json_object_push(
             hhea,
             b"minRightSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).minRightSideBearing as i64),
+            json_integer_new((*table).min_right_side_bearing as i64),
         );
         json_object_push(
             hhea,
             b"xMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).xMaxExtent as i64),
+            json_integer_new((*table).x_max_extent as i64),
         );
         json_object_push(
             hhea,
             b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caretSlopeRise as i64),
+            json_integer_new((*table).caret_slope_rise as i64),
         );
         json_object_push(
             hhea,
             b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caretSlopeRun as i64),
+            json_integer_new((*table).caret_slope_run as i64),
         );
         json_object_push(
             hhea,
             b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caretOffset as i64),
+            json_integer_new((*table).caret_offset as i64),
         );
         json_object_push(
             root,
@@ -327,7 +327,7 @@ pub unsafe extern "C" fn otfcc_parse_hhea(
     );
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"hhea"),
@@ -349,42 +349,42 @@ pub unsafe extern "C" fn otfcc_parse_hhea(
                 b"descender\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*hhea).lineGap = json_obj_getnum_fallback(
+            (*hhea).line_gap = json_obj_getnum_fallback(
                 table,
                 b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*hhea).advanceWidthMax = json_obj_getnum_fallback(
+            (*hhea).advance_width_max = json_obj_getnum_fallback(
                 table,
                 b"advanceWidthMax\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            (*hhea).minLeftSideBearing = json_obj_getnum_fallback(
+            (*hhea).min_left_side_bearing = json_obj_getnum_fallback(
                 table,
                 b"minLeftSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*hhea).minRightSideBearing = json_obj_getnum_fallback(
+            (*hhea).min_right_side_bearing = json_obj_getnum_fallback(
                 table,
                 b"minRightSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*hhea).xMaxExtent = json_obj_getnum_fallback(
+            (*hhea).x_max_extent = json_obj_getnum_fallback(
                 table,
                 b"xMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*hhea).caretSlopeRise = json_obj_getnum_fallback(
+            (*hhea).caret_slope_rise = json_obj_getnum_fallback(
                 table,
                 b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*hhea).caretSlopeRun = json_obj_getnum_fallback(
+            (*hhea).caret_slope_run = json_obj_getnum_fallback(
                 table,
                 b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*hhea).caretOffset = json_obj_getnum_fallback(
+            (*hhea).caret_offset = json_obj_getnum_fallback(
                 table,
                 b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
@@ -410,14 +410,14 @@ pub unsafe extern "C" fn otfcc_build_hhea(
     bufwrite32b(buf, (*hhea).version as u32);
     bufwrite16b(buf, (*hhea).ascender as u16);
     bufwrite16b(buf, (*hhea).descender as u16);
-    bufwrite16b(buf, (*hhea).lineGap as u16);
-    bufwrite16b(buf, (*hhea).advanceWidthMax);
-    bufwrite16b(buf, (*hhea).minLeftSideBearing as u16);
-    bufwrite16b(buf, (*hhea).minRightSideBearing as u16);
-    bufwrite16b(buf, (*hhea).xMaxExtent as u16);
-    bufwrite16b(buf, (*hhea).caretSlopeRise as u16);
-    bufwrite16b(buf, (*hhea).caretSlopeRun as u16);
-    bufwrite16b(buf, (*hhea).caretOffset as u16);
+    bufwrite16b(buf, (*hhea).line_gap as u16);
+    bufwrite16b(buf, (*hhea).advance_width_max);
+    bufwrite16b(buf, (*hhea).min_left_side_bearing as u16);
+    bufwrite16b(buf, (*hhea).min_right_side_bearing as u16);
+    bufwrite16b(buf, (*hhea).x_max_extent as u16);
+    bufwrite16b(buf, (*hhea).caret_slope_rise as u16);
+    bufwrite16b(buf, (*hhea).caret_slope_run as u16);
+    bufwrite16b(buf, (*hhea).caret_offset as u16);
     bufwrite16b(
         buf,
         (*hhea).reserved[0 as ::core::ffi::c_int as usize] as u16,
@@ -435,6 +435,6 @@ pub unsafe extern "C" fn otfcc_build_hhea(
         (*hhea).reserved[3 as ::core::ffi::c_int as usize] as u16,
     );
     bufwrite16b(buf, 0 as u16);
-    bufwrite16b(buf, (*hhea).numberOfMetrics);
+    bufwrite16b(buf, (*hhea).number_of_metrics);
     return buf;
 }

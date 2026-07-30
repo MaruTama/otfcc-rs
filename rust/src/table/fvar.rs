@@ -29,10 +29,10 @@ use crate::vf::vq::{I_VQ, I_VV};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct FvarInstance {
-    pub subfamilyNameID: u16,
+    pub subfamily_name_id: u16,
     pub flags: u16,
     pub coordinates: VV,
-    pub postScriptNameID: u16,
+    pub post_script_name_id: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -42,7 +42,7 @@ pub struct FvarInstanceElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut FvarInstance, *mut FvarInstance) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FvarInstance) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut FvarInstance, FvarInstance) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut FvarInstance, FvarInstance) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut FvarInstance, FvarInstance) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -59,19 +59,19 @@ pub struct FvarInstanceListVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut FvarInstanceList, *mut FvarInstanceList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut FvarInstanceList, FvarInstanceList) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut FvarInstanceList, FvarInstanceList) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut FvarInstanceList, FvarInstanceList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FvarInstanceList>,
     pub free: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut FvarInstanceList>,
+    pub init_n: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut FvarInstanceList>,
     pub fill: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut FvarInstanceList, FvarInstance) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> FvarInstance>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut FvarInstanceList,
             Option<unsafe extern "C" fn(*const FvarInstance, *mut ::core::ffi::c_void) -> bool>,
@@ -100,8 +100,8 @@ pub struct FvarMaster {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct FvarTable {
-    pub majorVersion: u16,
-    pub minorVersion: u16,
+    pub major_version: u16,
+    pub minor_version: u16,
     pub axes: VfAxes,
     pub instances: FvarInstanceList,
     pub masters: *mut FvarMaster,
@@ -114,42 +114,42 @@ pub struct FvarTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut FvarTable, *mut FvarTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FvarTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut FvarTable, FvarTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut FvarTable, FvarTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut FvarTable, FvarTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FvarTable>,
     pub free: Option<unsafe extern "C" fn(*mut FvarTable) -> ()>,
-    pub registerRegion:
+    pub register_region:
         Option<unsafe extern "C" fn(*mut FvarTable, *mut VqRegion) -> *const VqRegion>,
-    pub findMasterByRegion:
+    pub find_master_by_region:
         Option<unsafe extern "C" fn(*const FvarTable, *const VqRegion) -> *const FvarMaster>,
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct InstanceRecord {
-    pub subfamilyNameID: u16,
+    pub subfamily_name_id: u16,
     pub flags: u16,
     pub coordinates: [F16Dot16; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct FVARHeader {
-    pub majorVersion: u16,
-    pub minorVersion: u16,
-    pub axesArrayOffset: u16,
+    pub major_version: u16,
+    pub minor_version: u16,
+    pub axes_array_offset: u16,
     pub reserved1: u16,
-    pub axisCount: u16,
-    pub axisSize: u16,
-    pub instanceCount: u16,
-    pub instanceSize: u16,
+    pub axis_count: u16,
+    pub axis_size: u16,
+    pub instance_count: u16,
+    pub instance_size: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct VariationAxisRecord {
-    pub axisTag: u32,
-    pub minValue: F16Dot16,
-    pub defaultValue: F16Dot16,
-    pub maxValue: F16Dot16,
+    pub axis_tag: u32,
+    pub min_value: F16Dot16,
+    pub default_value: F16Dot16,
+    pub max_value: F16Dot16,
     pub flags: u16,
-    pub axisNameID: u16,
+    pub axis_name_id: u16,
 }
 #[inline]
 unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
@@ -209,7 +209,7 @@ pub static FVAR_I_INSTANCE: FvarInstanceElementInterface = {
         replace: Some(
             fvar_instance_replace as unsafe extern "C" fn(*mut FvarInstance, FvarInstance) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             fvar_instance_copy_replace
                 as unsafe extern "C" fn(*mut FvarInstance, FvarInstance) -> (),
         ),
@@ -359,14 +359,14 @@ unsafe extern "C" fn fvar_instance_list_sort(
 unsafe extern "C" fn fvar_instance_list_fill(mut arr: *mut FvarInstanceList, mut n: usize) {
     while (*arr).length < n {
         let mut x: FvarInstance = FvarInstance {
-            subfamilyNameID: 0,
+            subfamily_name_id: 0,
             flags: 0,
             coordinates: VV {
                 length: 0,
                 capacity: 0,
                 items: ::core::ptr::null_mut::<Pos>(),
             },
-            postScriptNameID: 0,
+            post_script_name_id: 0,
         };
         if FVAR_I_INSTANCE.init.is_some() {
             FVAR_I_INSTANCE.init.expect("non-null function pointer")(&raw mut x);
@@ -491,20 +491,20 @@ pub static FVAR_I_INSTANCE_LIST: FvarInstanceListVectorInterface = {
             fvar_instance_list_replace
                 as unsafe extern "C" fn(*mut FvarInstanceList, FvarInstanceList) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             fvar_instance_list_copy_replace
                 as unsafe extern "C" fn(*mut FvarInstanceList, FvarInstanceList) -> (),
         ),
         create: Some(fvar_instance_list_create),
         free: Some(fvar_instance_list_free as unsafe extern "C" fn(*mut FvarInstanceList) -> ()),
-        initN: Some(
+        init_n: Some(
             fvar_instance_list_init_n as unsafe extern "C" fn(*mut FvarInstanceList, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             fvar_instance_list_init_cap_n
                 as unsafe extern "C" fn(*mut FvarInstanceList, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             fvar_instance_list_create_n as unsafe extern "C" fn(usize) -> *mut FvarInstanceList,
         ),
         fill: Some(
@@ -517,17 +517,17 @@ pub static FVAR_I_INSTANCE_LIST: FvarInstanceListVectorInterface = {
             fvar_instance_list_push
                 as unsafe extern "C" fn(*mut FvarInstanceList, FvarInstance) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             fvar_instance_list_shrink_to_fit as unsafe extern "C" fn(*mut FvarInstanceList) -> (),
         ),
         pop: Some(
             fvar_instance_list_pop as unsafe extern "C" fn(*mut FvarInstanceList) -> FvarInstance,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             fvar_instance_list_dispose_item
                 as unsafe extern "C" fn(*mut FvarInstanceList, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             fvar_instance_list_filter_env
                 as unsafe extern "C" fn(
                     *mut FvarInstanceList,
@@ -1825,16 +1825,16 @@ pub static TABLE_I_FVAR: FvarTableElementInterface = {
         replace: Some(
             table_fvar_replace as unsafe extern "C" fn(*mut FvarTable, FvarTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_fvar_copy_replace as unsafe extern "C" fn(*mut FvarTable, FvarTable) -> (),
         ),
         create: Some(table_fvar_create),
         free: Some(table_fvar_free as unsafe extern "C" fn(*mut FvarTable) -> ()),
-        registerRegion: Some(
+        register_region: Some(
             fvar_register_region
                 as unsafe extern "C" fn(*mut FvarTable, *mut VqRegion) -> *const VqRegion,
         ),
-        findMasterByRegion: Some(
+        find_master_by_region: Some(
             fvar_find_master_by_region
                 as unsafe extern "C" fn(*const FvarTable, *const VqRegion) -> *const FvarMaster,
         ),
@@ -1858,7 +1858,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -1868,22 +1868,22 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     if !((table.length as usize) < ::core::mem::size_of::<FVARHeader>()) {
                         header = data as *mut FVARHeader;
-                        if !(be16((*header).majorVersion) as ::core::ffi::c_int
+                        if !(be16((*header).major_version) as ::core::ffi::c_int
                             != 1 as ::core::ffi::c_int)
                         {
-                            if !(be16((*header).minorVersion) as ::core::ffi::c_int
+                            if !(be16((*header).minor_version) as ::core::ffi::c_int
                                 != 0 as ::core::ffi::c_int)
                             {
-                                if !(be16((*header).axesArrayOffset) as ::core::ffi::c_int
+                                if !(be16((*header).axes_array_offset) as ::core::ffi::c_int
                                     == 0 as ::core::ffi::c_int)
                                 {
-                                    if !(be16((*header).axisCount) as ::core::ffi::c_int
+                                    if !(be16((*header).axis_count) as ::core::ffi::c_int
                                         == 0 as ::core::ffi::c_int)
                                     {
-                                        if !(be16((*header).axisSize) as usize
+                                        if !(be16((*header).axis_size) as usize
                                             != ::core::mem::size_of::<VariationAxisRecord>())
                                         {
-                                            n_axes = be16((*header).axisCount);
+                                            n_axes = be16((*header).axis_count);
                                             instance_size_without_psnid = 4_usize.wrapping_add(
                                                 (n_axes as usize).wrapping_mul(
                                                     ::core::mem::size_of::<F16Dot16>(),
@@ -1893,14 +1893,14 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                             instance_size_with_psnid = (2 as ::core::ffi::c_int
                                                 + instance_size_without_psnid as ::core::ffi::c_int)
                                                 as u16;
-                                            if !(be16((*header).instanceSize) as ::core::ffi::c_int
+                                            if !(be16((*header).instance_size) as ::core::ffi::c_int
                                                 != instance_size_without_psnid as ::core::ffi::c_int
-                                                && be16((*header).instanceSize)
+                                                && be16((*header).instance_size)
                                                     as ::core::ffi::c_int
                                                     != instance_size_with_psnid as ::core::ffi::c_int)
                                             {
                                                 if !((table.length as usize)
-                                                    < (be16((*header).axesArrayOffset) as usize)
+                                                    < (be16((*header).axes_array_offset) as usize)
                                                         .wrapping_add(
                                                             ::core::mem::size_of::<
                                                                 VariationAxisRecord,
@@ -1909,9 +1909,9 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                                 .wrapping_mul(n_axes as usize),
                                                         )
                                                         .wrapping_add(
-                                                            (be16((*header).instanceSize)
+                                                            (be16((*header).instance_size)
                                                                 as ::core::ffi::c_int
-                                                                * be16((*header).instanceCount)
+                                                                * be16((*header).instance_count)
                                                                     as ::core::ffi::c_int)
                                                                 as usize,
                                                         ))
@@ -1926,7 +1926,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                     )(
                                                     );
                                                     axis_record =
-                                                        data.offset(be16((*header).axesArrayOffset)
+                                                        data.offset(be16((*header).axes_array_offset)
                                                             as ::core::ffi::c_int
                                                             as isize)
                                                             as *mut VariationAxisRecord;
@@ -1935,26 +1935,26 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                         < n_axes as ::core::ffi::c_int
                                                     {
                                                         let mut axis: VfAxis = VfAxis {
-                                                            tag: be32((*axis_record).axisTag),
-                                                            minValue: otfcc_from_fixed(be32(
-                                                                (*axis_record).minValue as u32,
+                                                            tag: be32((*axis_record).axis_tag),
+                                                            min_value: otfcc_from_fixed(be32(
+                                                                (*axis_record).min_value as u32,
                                                             )
                                                                 as F16Dot16)
                                                                 as Pos,
-                                                            defaultValue: otfcc_from_fixed(be32(
-                                                                (*axis_record).defaultValue
+                                                            default_value: otfcc_from_fixed(be32(
+                                                                (*axis_record).default_value
                                                                     as u32,
                                                             )
                                                                 as F16Dot16)
                                                                 as Pos,
-                                                            maxValue: otfcc_from_fixed(be32(
-                                                                (*axis_record).maxValue as u32,
+                                                            max_value: otfcc_from_fixed(be32(
+                                                                (*axis_record).max_value as u32,
                                                             )
                                                                 as F16Dot16)
                                                                 as Pos,
                                                             flags: be16((*axis_record).flags),
-                                                            axisNameID: be16(
-                                                                (*axis_record).axisNameID,
+                                                            axis_name_id: be16(
+                                                                (*axis_record).axis_name_id,
                                                             ),
                                                         };
                                                         VF_I_AXES
@@ -1966,9 +1966,9 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                         axis_record = axis_record.offset(1);
                                                         j = j.wrapping_add(1);
                                                     }
-                                                    n_instances = be16((*header).instanceCount);
+                                                    n_instances = be16((*header).instance_count);
                                                     has_postscript_name_id =
-                                                        be16((*header).instanceSize)
+                                                        be16((*header).instance_size)
                                                             as ::core::ffi::c_int
                                                             == instance_size_with_psnid
                                                                 as ::core::ffi::c_int;
@@ -1979,7 +1979,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                     {
                                                         let mut inst: FvarInstance =
                                                             FvarInstance {
-                                                                subfamilyNameID: 0,
+                                                                subfamily_name_id: 0,
                                                                 flags: 0,
                                                                 coordinates: VV {
                                                                     length: 0,
@@ -1989,15 +1989,15 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                                     >(
                                                                     ),
                                                                 },
-                                                                postScriptNameID: 0,
+                                                                post_script_name_id: 0,
                                                             };
                                                         FVAR_I_INSTANCE
                                                             .init
                                                             .expect("non-null function pointer")(
                                                             &raw mut inst,
                                                         );
-                                                        inst.subfamilyNameID =
-                                                            be16((*instance).subfamilyNameID);
+                                                        inst.subfamily_name_id =
+                                                            be16((*instance).subfamily_name_id);
                                                         inst.flags = be16((*instance).flags);
                                                         let mut k: u16 = 0 as u16;
                                                         while (k as ::core::ffi::c_int)
@@ -2019,12 +2019,12 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                             );
                                                             k = k.wrapping_add(1);
                                                         }
-                                                        I_VV.shrinkToFit
+                                                        I_VV.shrink_to_fit
                                                             .expect("non-null function pointer")(
                                                             &raw mut inst.coordinates,
                                                         );
                                                         if has_postscript_name_id {
-                                                            inst.postScriptNameID = be16(
+                                                            inst.post_script_name_id = be16(
                                                                 *((instance as FontFilePointer)
                                                                     .offset(
                                                                         instance_size_without_psnid
@@ -2041,19 +2041,19 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                             inst,
                                                         );
                                                         instance = (instance as FontFilePointer)
-                                                            .offset(be16((*header).instanceSize)
+                                                            .offset(be16((*header).instance_size)
                                                                 as ::core::ffi::c_int
                                                                 as isize)
                                                             as *mut InstanceRecord;
                                                         j_0 = j_0.wrapping_add(1);
                                                     }
                                                     VF_I_AXES
-                                                        .shrinkToFit
+                                                        .shrink_to_fit
                                                         .expect("non-null function pointer")(
                                                         &raw mut (*fvar).axes,
                                                     );
                                                     FVAR_I_INSTANCE_LIST
-                                                        .shrinkToFit
+                                                        .shrink_to_fit
                                                         .expect("non-null function pointer")(
                                                         &raw mut (*fvar).instances,
                                                     );
@@ -2067,7 +2067,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                         }
                     }
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -2096,7 +2096,7 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"fvar"),
@@ -2114,17 +2114,17 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
                 json_object_push(
                     _axis,
                     b"minValue\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_double_new((*axis).minValue as ::core::ffi::c_double),
+                    json_double_new((*axis).min_value as ::core::ffi::c_double),
                 );
                 json_object_push(
                     _axis,
                     b"defaultValue\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_double_new((*axis).defaultValue as ::core::ffi::c_double),
+                    json_double_new((*axis).default_value as ::core::ffi::c_double),
                 );
                 json_object_push(
                     _axis,
                     b"maxValue\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_double_new((*axis).maxValue as ::core::ffi::c_double),
+                    json_double_new((*axis).max_value as ::core::ffi::c_double),
                 );
                 json_object_push(
                     _axis,
@@ -2134,7 +2134,7 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
                 json_object_push(
                     _axis,
                     b"axisNameID\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*axis).axisNameID as i64),
+                    json_integer_new((*axis).axis_name_id as i64),
                 );
                 json_object_push_tag(_axes, (*axis).tag, _axis);
                 keep = (keep == 0) as ::core::ffi::c_int as usize;
@@ -2158,13 +2158,13 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
                 json_object_push(
                     _instance,
                     b"subfamilyNameID\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*instance).subfamilyNameID as i64),
+                    json_integer_new((*instance).subfamily_name_id as i64),
                 );
-                if (*instance).postScriptNameID != 0 {
+                if (*instance).post_script_name_id != 0 {
                     json_object_push(
                         _instance,
                         b"postScriptNameID\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_integer_new((*instance).postScriptNameID as i64),
+                        json_integer_new((*instance).post_script_name_id as i64),
                     );
                 }
                 json_object_push(
@@ -2263,7 +2263,7 @@ pub unsafe extern "C" fn json_new_vq_segment(
 pub unsafe extern "C" fn json_new_vq(z: VQ, mut fvar: *const FvarTable) -> *mut JsonValue {
     if z.shift.length == 0 {
         return preserialize(json_new_position(I_VQ
-            .getStill
+            .get_still
             .expect("non-null function pointer")(
             z
         )));
@@ -2358,7 +2358,7 @@ pub unsafe extern "C" fn json_new_v_vp(
     };
 }
 pub unsafe extern "C" fn json_vq_of(mut cv: *const JsonValue, mut _fvar: *const FvarTable) -> VQ {
-    return I_VQ.createStill.expect("non-null function pointer")(json_numof(cv) as Pos);
+    return I_VQ.create_still.expect("non-null function pointer")(json_numof(cv) as Pos);
 }
 pub unsafe extern "C" fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut JsonValue {
     if vq_axis_span_is_one(s) {
@@ -2424,7 +2424,7 @@ pub unsafe extern "C" fn json_new_vq_region(
     mut fvar: *const FvarTable,
 ) -> *mut JsonValue {
     let mut m: *const FvarMaster = TABLE_I_FVAR
-        .findMasterByRegion
+        .find_master_by_region
         .expect("non-null function pointer")(fvar, rs);
     if !m.is_null() && !(*m).name.is_null() {
         return json_string_new_length(

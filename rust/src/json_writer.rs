@@ -74,14 +74,14 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_name((*font).name, root, options);
     otfcc_dump_meta((*font).meta, root, options);
     otfcc_dump_cmap((*font).cmap, root, options);
-    otfcc_dump_cff((*font).CFF_, root, options);
+    otfcc_dump_cff((*font).cff, root, options);
     let mut ctx: GlyfIOContext = GlyfIOContext {
-        locaIsLong: (*(*font).head).indexToLocFormat != 0,
-        numGlyphs: (*(*font).maxp).numGlyphs as GlyphId,
-        nPhantomPoints: 4 as ShapeId,
+        loca_is_long: (*(*font).head).index_to_loc_format != 0,
+        num_glyphs: (*(*font).maxp).num_glyphs as GlyphId,
+        n_phantom_points: 4 as ShapeId,
         fvar: (*font).fvar,
-        hasVerticalMetrics: !(*font).vhea.is_null(),
-        exportFDSelect: !(*font).CFF_.is_null() && (*(*font).CFF_).isCID as ::core::ffi::c_int != 0,
+        has_vertical_metrics: !(*font).vhea.is_null(),
+        export_fd_select: !(*font).cff.is_null() && (*(*font).cff).is_cid as ::core::ffi::c_int != 0,
     };
     otfcc_dump_glyf((*font).glyf, root, options, &raw mut ctx);
     if !(*options).ignore_hints {
@@ -105,15 +105,15 @@ impl FontSerializer for JsonSerializer {
         );
         otfcc_dump_gasp((*font).gasp, root, options);
     }
-    otfcc_dump_vdmx((*font).VDMX, root, options);
+    otfcc_dump_vdmx((*font).vdmx, root, options);
     otfcc_dump_otl(
-        (*font).GSUB,
+        (*font).gsub,
         root,
         options,
         b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
     );
     otfcc_dump_otl(
-        (*font).GPOS,
+        (*font).gpos,
         root,
         options,
         b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
@@ -122,15 +122,15 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_base((*font).BASE, root, options);
     otfcc_dump_cpal((*font).CPAL, root, options);
     otfcc_dump_colr((*font).COLR, root, options);
-    otfcc_dump_svg((*font).SVG_, root, options);
+    otfcc_dump_svg((*font).svg, root, options);
     otfcc_dump_tsi(
-        (*font).TSI_01,
+        (*font).tsi_01,
         root,
         options,
         b"TSI_01\0" as *const u8 as *const ::core::ffi::c_char,
     );
     otfcc_dump_tsi(
-        (*font).TSI_23,
+        (*font).tsi_23,
         root,
         options,
         b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,

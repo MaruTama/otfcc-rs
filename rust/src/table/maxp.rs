@@ -17,20 +17,20 @@ use crate::vendor::sds::{sdsempty};
 #[repr(C)]
 pub struct MaxpTable {
     pub version: F16Dot16,
-    pub numGlyphs: u16,
-    pub maxPoints: u16,
-    pub maxContours: u16,
-    pub maxCompositePoints: u16,
-    pub maxCompositeContours: u16,
-    pub maxZones: u16,
-    pub maxTwilightPoints: u16,
-    pub maxStorage: u16,
-    pub maxFunctionDefs: u16,
-    pub maxInstructionDefs: u16,
-    pub maxStackElements: u16,
-    pub maxSizeOfInstructions: u16,
-    pub maxComponentElements: u16,
-    pub maxComponentDepth: u16,
+    pub num_glyphs: u16,
+    pub max_points: u16,
+    pub max_contours: u16,
+    pub max_composite_points: u16,
+    pub max_composite_contours: u16,
+    pub max_zones: u16,
+    pub max_twilight_points: u16,
+    pub max_storage: u16,
+    pub max_function_defs: u16,
+    pub max_instruction_defs: u16,
+    pub max_stack_elements: u16,
+    pub max_size_of_instructions: u16,
+    pub max_component_elements: u16,
+    pub max_component_depth: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -40,7 +40,7 @@ pub struct MaxpTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut MaxpTable, *mut MaxpTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MaxpTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut MaxpTable>,
     pub free: Option<unsafe extern "C" fn(*mut MaxpTable) -> ()>,
 }
@@ -77,7 +77,7 @@ pub static TABLE_I_MAXP: MaxpTableElementInterface = {
         replace: Some(
             table_maxp_replace as unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_maxp_copy_replace as unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> (),
         ),
         create: Some(table_maxp_create),
@@ -138,7 +138,7 @@ pub unsafe extern "C" fn otfcc_read_maxp(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -149,7 +149,7 @@ pub unsafe extern "C" fn otfcc_read_maxp(
                     let mut length: u32 = table.length;
                     if length != 32 as u32 && length != 6 as u32 {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -161,63 +161,63 @@ pub unsafe extern "C" fn otfcc_read_maxp(
                             (
                                 TABLE_I_MAXP.create.expect("non-null function pointer"))();
                         (*maxp).version = read_32s(data as *const u8) as F16Dot16;
-                        (*maxp).numGlyphs = read_16u(
+                        (*maxp).num_glyphs = read_16u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
                         if (*maxp).version == 0x10000 as F16Dot16 {
-                            (*maxp).maxPoints = read_16u(
+                            (*maxp).max_points = read_16u(
                                 data.offset(6 as ::core::ffi::c_int as isize) as *const u8,
                             );
-                            (*maxp).maxContours = read_16u(
+                            (*maxp).max_contours = read_16u(
                                 data.offset(8 as ::core::ffi::c_int as isize) as *const u8,
                             );
-                            (*maxp).maxCompositePoints =
+                            (*maxp).max_composite_points =
                                 read_16u(data.offset(10 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*maxp).maxCompositeContours =
+                            (*maxp).max_composite_contours =
                                 read_16u(data.offset(12 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*maxp).maxZones =
+                            (*maxp).max_zones =
                                 read_16u(data.offset(14 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*maxp).maxTwilightPoints =
+                            (*maxp).max_twilight_points =
                                 read_16u(data.offset(16 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*maxp).maxStorage =
+                            (*maxp).max_storage =
                                 read_16u(data.offset(18 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*maxp).maxFunctionDefs =
+                            (*maxp).max_function_defs =
                                 read_16u(data.offset(20 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*maxp).maxInstructionDefs =
+                            (*maxp).max_instruction_defs =
                                 read_16u(data.offset(22 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*maxp).maxStackElements =
+                            (*maxp).max_stack_elements =
                                 read_16u(data.offset(24 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*maxp).maxSizeOfInstructions =
+                            (*maxp).max_size_of_instructions =
                                 read_16u(data.offset(26 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*maxp).maxComponentElements =
+                            (*maxp).max_component_elements =
                                 read_16u(data.offset(28 as ::core::ffi::c_int as isize)
                                     as *const u8);
-                            (*maxp).maxComponentDepth =
+                            (*maxp).max_component_depth =
                                 read_16u(data.offset(30 as ::core::ffi::c_int as isize)
                                     as *const u8);
                         } else {
-                            (*maxp).maxPoints = 0 as u16;
-                            (*maxp).maxContours = 0 as u16;
-                            (*maxp).maxCompositePoints = 0 as u16;
-                            (*maxp).maxCompositeContours = 0 as u16;
-                            (*maxp).maxZones = 0 as u16;
-                            (*maxp).maxTwilightPoints = 0 as u16;
-                            (*maxp).maxStorage = 0 as u16;
-                            (*maxp).maxFunctionDefs = 0 as u16;
-                            (*maxp).maxInstructionDefs = 0 as u16;
-                            (*maxp).maxStackElements = 0 as u16;
-                            (*maxp).maxSizeOfInstructions = 0 as u16;
-                            (*maxp).maxComponentElements = 0 as u16;
-                            (*maxp).maxComponentDepth = 0 as u16;
+                            (*maxp).max_points = 0 as u16;
+                            (*maxp).max_contours = 0 as u16;
+                            (*maxp).max_composite_points = 0 as u16;
+                            (*maxp).max_composite_contours = 0 as u16;
+                            (*maxp).max_zones = 0 as u16;
+                            (*maxp).max_twilight_points = 0 as u16;
+                            (*maxp).max_storage = 0 as u16;
+                            (*maxp).max_function_defs = 0 as u16;
+                            (*maxp).max_instruction_defs = 0 as u16;
+                            (*maxp).max_stack_elements = 0 as u16;
+                            (*maxp).max_size_of_instructions = 0 as u16;
+                            (*maxp).max_component_elements = 0 as u16;
+                            (*maxp).max_component_depth = 0 as u16;
                         }
                         return maxp;
                     }
@@ -241,7 +241,7 @@ pub unsafe extern "C" fn otfcc_dump_maxp(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"maxp"),
@@ -257,72 +257,72 @@ pub unsafe extern "C" fn otfcc_dump_maxp(
         json_object_push(
             maxp,
             b"numGlyphs\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).numGlyphs as i64),
+            json_integer_new((*table).num_glyphs as i64),
         );
         json_object_push(
             maxp,
             b"maxPoints\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxPoints as i64),
+            json_integer_new((*table).max_points as i64),
         );
         json_object_push(
             maxp,
             b"maxContours\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxContours as i64),
+            json_integer_new((*table).max_contours as i64),
         );
         json_object_push(
             maxp,
             b"maxCompositePoints\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxCompositePoints as i64),
+            json_integer_new((*table).max_composite_points as i64),
         );
         json_object_push(
             maxp,
             b"maxCompositeContours\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxCompositeContours as i64),
+            json_integer_new((*table).max_composite_contours as i64),
         );
         json_object_push(
             maxp,
             b"maxZones\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxZones as i64),
+            json_integer_new((*table).max_zones as i64),
         );
         json_object_push(
             maxp,
             b"maxTwilightPoints\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxTwilightPoints as i64),
+            json_integer_new((*table).max_twilight_points as i64),
         );
         json_object_push(
             maxp,
             b"maxStorage\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxStorage as i64),
+            json_integer_new((*table).max_storage as i64),
         );
         json_object_push(
             maxp,
             b"maxFunctionDefs\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxFunctionDefs as i64),
+            json_integer_new((*table).max_function_defs as i64),
         );
         json_object_push(
             maxp,
             b"maxInstructionDefs\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxInstructionDefs as i64),
+            json_integer_new((*table).max_instruction_defs as i64),
         );
         json_object_push(
             maxp,
             b"maxStackElements\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxStackElements as i64),
+            json_integer_new((*table).max_stack_elements as i64),
         );
         json_object_push(
             maxp,
             b"maxSizeOfInstructions\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxSizeOfInstructions as i64),
+            json_integer_new((*table).max_size_of_instructions as i64),
         );
         json_object_push(
             maxp,
             b"maxComponentElements\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxComponentElements as i64),
+            json_integer_new((*table).max_component_elements as i64),
         );
         json_object_push(
             maxp,
             b"maxComponentDepth\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxComponentDepth as i64),
+            json_integer_new((*table).max_component_depth as i64),
         );
         json_object_push(
             root,
@@ -349,7 +349,7 @@ pub unsafe extern "C" fn otfcc_parse_maxp(
     );
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"maxp"),
@@ -360,31 +360,31 @@ pub unsafe extern "C" fn otfcc_parse_maxp(
                 table,
                 b"version\0" as *const u8 as *const ::core::ffi::c_char,
             ));
-            (*maxp).numGlyphs = json_obj_getnum(
+            (*maxp).num_glyphs = json_obj_getnum(
                 table,
                 b"numGlyphs\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
-            (*maxp).maxZones = json_obj_getnum(
+            (*maxp).max_zones = json_obj_getnum(
                 table,
                 b"maxZones\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
-            (*maxp).maxTwilightPoints = json_obj_getnum(
+            (*maxp).max_twilight_points = json_obj_getnum(
                 table,
                 b"maxTwilightPoints\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
-            (*maxp).maxStorage = json_obj_getnum(
+            (*maxp).max_storage = json_obj_getnum(
                 table,
                 b"maxStorage\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
-            (*maxp).maxFunctionDefs = json_obj_getnum(
+            (*maxp).max_function_defs = json_obj_getnum(
                 table,
                 b"maxFunctionDefs\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
-            (*maxp).maxInstructionDefs = json_obj_getnum(
+            (*maxp).max_instruction_defs = json_obj_getnum(
                 table,
                 b"maxInstructionDefs\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
-            (*maxp).maxStackElements = json_obj_getnum(
+            (*maxp).max_stack_elements = json_obj_getnum(
                 table,
                 b"maxStackElements\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
@@ -407,21 +407,21 @@ pub unsafe extern "C" fn otfcc_build_maxp(
     }
     let mut buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*maxp).version as u32);
-    bufwrite16b(buf, (*maxp).numGlyphs);
+    bufwrite16b(buf, (*maxp).num_glyphs);
     if (*maxp).version > 0x5000 as F16Dot16 {
-        bufwrite16b(buf, (*maxp).maxPoints);
-        bufwrite16b(buf, (*maxp).maxContours);
-        bufwrite16b(buf, (*maxp).maxCompositePoints);
-        bufwrite16b(buf, (*maxp).maxCompositeContours);
-        bufwrite16b(buf, (*maxp).maxZones);
-        bufwrite16b(buf, (*maxp).maxTwilightPoints);
-        bufwrite16b(buf, (*maxp).maxStorage);
-        bufwrite16b(buf, (*maxp).maxFunctionDefs);
-        bufwrite16b(buf, (*maxp).maxInstructionDefs);
-        bufwrite16b(buf, (*maxp).maxStackElements);
-        bufwrite16b(buf, (*maxp).maxSizeOfInstructions);
-        bufwrite16b(buf, (*maxp).maxComponentElements);
-        bufwrite16b(buf, (*maxp).maxComponentDepth);
+        bufwrite16b(buf, (*maxp).max_points);
+        bufwrite16b(buf, (*maxp).max_contours);
+        bufwrite16b(buf, (*maxp).max_composite_points);
+        bufwrite16b(buf, (*maxp).max_composite_contours);
+        bufwrite16b(buf, (*maxp).max_zones);
+        bufwrite16b(buf, (*maxp).max_twilight_points);
+        bufwrite16b(buf, (*maxp).max_storage);
+        bufwrite16b(buf, (*maxp).max_function_defs);
+        bufwrite16b(buf, (*maxp).max_instruction_defs);
+        bufwrite16b(buf, (*maxp).max_stack_elements);
+        bufwrite16b(buf, (*maxp).max_size_of_instructions);
+        bufwrite16b(buf, (*maxp).max_component_elements);
+        bufwrite16b(buf, (*maxp).max_component_depth);
     }
     return buf;
 }

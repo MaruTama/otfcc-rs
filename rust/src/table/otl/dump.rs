@@ -175,7 +175,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), tag),
@@ -184,7 +184,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
     while ___loggedstep_v {
         let mut otl: *mut JsonValue = json_object_new(3 as usize);
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"Languages"),
@@ -197,12 +197,12 @@ pub unsafe extern "C" fn otfcc_dump_otl(
                 let mut _lang: *mut JsonValue = json_object_new(5 as usize);
                 let mut lang: *mut LanguageSystem =
                     *(*table).languages.items.offset(j as isize) as *mut LanguageSystem;
-                if !(*lang).requiredFeature.is_null() {
+                if !(*lang).required_feature.is_null() {
                     json_object_push(
                         _lang,
                         b"requiredFeature\0" as *const u8 as *const ::core::ffi::c_char,
                         json_string_new(
-                            (*(*lang).requiredFeature).name as *const ::core::ffi::c_char,
+                            (*(*lang).required_feature).name as *const ::core::ffi::c_char,
                         ),
                     );
                 }
@@ -241,7 +241,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
             );
         }
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"Features"),
@@ -287,7 +287,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
             );
         }
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"Lookups"),

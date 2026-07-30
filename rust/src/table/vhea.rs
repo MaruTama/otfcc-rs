@@ -22,20 +22,20 @@ pub struct VheaTable {
     pub version: F16Dot16,
     pub ascent: i16,
     pub descent: i16,
-    pub lineGap: i16,
-    pub advanceHeightMax: i16,
-    pub minTop: i16,
-    pub minBottom: i16,
-    pub yMaxExtent: i16,
-    pub caretSlopeRise: i16,
-    pub caretSlopeRun: i16,
-    pub caretOffset: i16,
+    pub line_gap: i16,
+    pub advance_height_max: i16,
+    pub min_top: i16,
+    pub min_bottom: i16,
+    pub y_max_extent: i16,
+    pub caret_slope_rise: i16,
+    pub caret_slope_run: i16,
+    pub caret_offset: i16,
     pub dummy0: i16,
     pub dummy1: i16,
     pub dummy2: i16,
     pub dummy3: i16,
-    pub metricDataFormat: i16,
-    pub numOfLongVerMetrics: u16,
+    pub metric_data_format: i16,
+    pub num_of_long_ver_metrics: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -45,7 +45,7 @@ pub struct VheaTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut VheaTable, *mut VheaTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VheaTable, VheaTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VheaTable, VheaTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut VheaTable, VheaTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VheaTable>,
     pub free: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
 }
@@ -96,7 +96,7 @@ pub static TABLE_I_VHEA: VheaTableElementInterface = {
         replace: Some(
             table_vhea_replace as unsafe extern "C" fn(*mut VheaTable, VheaTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_vhea_copy_replace as unsafe extern "C" fn(*mut VheaTable, VheaTable) -> (),
         ),
         create: Some(table_vhea_create),
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn otfcc_read_vhea(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -165,42 +165,42 @@ pub unsafe extern "C" fn otfcc_read_vhea(
                         (*vhea).descent = read_16s(
                             data.offset(6 as ::core::ffi::c_int as isize) as *const u8
                         );
-                        (*vhea).lineGap = read_16s(
+                        (*vhea).line_gap = read_16s(
                             data.offset(8 as ::core::ffi::c_int as isize) as *const u8
                         );
-                        (*vhea).advanceHeightMax = read_16s(
+                        (*vhea).advance_height_max = read_16s(
                             data.offset(10 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        (*vhea).minTop = read_16s(
+                        (*vhea).min_top = read_16s(
                             data.offset(12 as ::core::ffi::c_int as isize) as *const u8
                         );
-                        (*vhea).minBottom = read_16s(
+                        (*vhea).min_bottom = read_16s(
                             data.offset(14 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        (*vhea).yMaxExtent = read_16s(
+                        (*vhea).y_max_extent = read_16s(
                             data.offset(16 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        (*vhea).caretSlopeRise = read_16s(
+                        (*vhea).caret_slope_rise = read_16s(
                             data.offset(18 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        (*vhea).caretSlopeRun = read_16s(
+                        (*vhea).caret_slope_run = read_16s(
                             data.offset(20 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        (*vhea).caretOffset = read_16s(
+                        (*vhea).caret_offset = read_16s(
                             data.offset(22 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         (*vhea).dummy0 = 0 as i16;
                         (*vhea).dummy1 = 0 as i16;
                         (*vhea).dummy2 = 0 as i16;
                         (*vhea).dummy3 = 0 as i16;
-                        (*vhea).metricDataFormat = 0 as i16;
-                        (*vhea).numOfLongVerMetrics = read_16u(
+                        (*vhea).metric_data_format = 0 as i16;
+                        (*vhea).num_of_long_ver_metrics = read_16u(
                             data.offset(34 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         return vhea;
                     } else {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -229,7 +229,7 @@ pub unsafe extern "C" fn otfcc_dump_vhea(
     }
     let mut vhea: *mut JsonValue = json_object_new(11 as usize);
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"vhea"),
@@ -254,42 +254,42 @@ pub unsafe extern "C" fn otfcc_dump_vhea(
         json_object_push(
             vhea,
             b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).lineGap as i64),
+            json_integer_new((*table).line_gap as i64),
         );
         json_object_push(
             vhea,
             b"advanceHeightMax\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).advanceHeightMax as i64),
+            json_integer_new((*table).advance_height_max as i64),
         );
         json_object_push(
             vhea,
             b"minTop\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).minTop as i64),
+            json_integer_new((*table).min_top as i64),
         );
         json_object_push(
             vhea,
             b"minBottom\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).minBottom as i64),
+            json_integer_new((*table).min_bottom as i64),
         );
         json_object_push(
             vhea,
             b"yMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).yMaxExtent as i64),
+            json_integer_new((*table).y_max_extent as i64),
         );
         json_object_push(
             vhea,
             b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caretSlopeRise as i64),
+            json_integer_new((*table).caret_slope_rise as i64),
         );
         json_object_push(
             vhea,
             b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caretSlopeRun as i64),
+            json_integer_new((*table).caret_slope_run as i64),
         );
         json_object_push(
             vhea,
             b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caretOffset as i64),
+            json_integer_new((*table).caret_offset as i64),
         );
         json_object_push(
             root,
@@ -320,7 +320,7 @@ pub unsafe extern "C" fn otfcc_parse_vhea(
             return ::core::ptr::null_mut::<VheaTable>();
         }
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"vhea"),
@@ -341,42 +341,42 @@ pub unsafe extern "C" fn otfcc_parse_vhea(
                 b"descent\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*vhea).lineGap = json_obj_getnum_fallback(
+            (*vhea).line_gap = json_obj_getnum_fallback(
                 table,
                 b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*vhea).advanceHeightMax = json_obj_getnum_fallback(
+            (*vhea).advance_height_max = json_obj_getnum_fallback(
                 table,
                 b"advanceHeightMax\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*vhea).minTop = json_obj_getnum_fallback(
+            (*vhea).min_top = json_obj_getnum_fallback(
                 table,
                 b"minTop\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*vhea).minBottom = json_obj_getnum_fallback(
+            (*vhea).min_bottom = json_obj_getnum_fallback(
                 table,
                 b"minBottom\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*vhea).yMaxExtent = json_obj_getnum_fallback(
+            (*vhea).y_max_extent = json_obj_getnum_fallback(
                 table,
                 b"yMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*vhea).caretSlopeRise = json_obj_getnum_fallback(
+            (*vhea).caret_slope_rise = json_obj_getnum_fallback(
                 table,
                 b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*vhea).caretSlopeRun = json_obj_getnum_fallback(
+            (*vhea).caret_slope_run = json_obj_getnum_fallback(
                 table,
                 b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
-            (*vhea).caretOffset = json_obj_getnum_fallback(
+            (*vhea).caret_offset = json_obj_getnum_fallback(
                 table,
                 b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
@@ -402,19 +402,19 @@ pub unsafe extern "C" fn otfcc_build_vhea(
     bufwrite32b(buf, (*vhea).version as u32);
     bufwrite16b(buf, (*vhea).ascent as u16);
     bufwrite16b(buf, (*vhea).descent as u16);
-    bufwrite16b(buf, (*vhea).lineGap as u16);
-    bufwrite16b(buf, (*vhea).advanceHeightMax as u16);
-    bufwrite16b(buf, (*vhea).minTop as u16);
-    bufwrite16b(buf, (*vhea).minBottom as u16);
-    bufwrite16b(buf, (*vhea).yMaxExtent as u16);
-    bufwrite16b(buf, (*vhea).caretSlopeRise as u16);
-    bufwrite16b(buf, (*vhea).caretSlopeRun as u16);
-    bufwrite16b(buf, (*vhea).caretOffset as u16);
+    bufwrite16b(buf, (*vhea).line_gap as u16);
+    bufwrite16b(buf, (*vhea).advance_height_max as u16);
+    bufwrite16b(buf, (*vhea).min_top as u16);
+    bufwrite16b(buf, (*vhea).min_bottom as u16);
+    bufwrite16b(buf, (*vhea).y_max_extent as u16);
+    bufwrite16b(buf, (*vhea).caret_slope_rise as u16);
+    bufwrite16b(buf, (*vhea).caret_slope_run as u16);
+    bufwrite16b(buf, (*vhea).caret_offset as u16);
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, 0 as u16);
-    bufwrite16b(buf, (*vhea).numOfLongVerMetrics);
+    bufwrite16b(buf, (*vhea).num_of_long_ver_metrics);
     return buf;
 }

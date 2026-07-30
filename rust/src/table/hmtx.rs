@@ -17,14 +17,14 @@ use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct HorizontalMetric {
-    pub advanceWidth: Length,
+    pub advance_width: Length,
     pub lsb: Pos,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct HmtxTable {
     pub metrics: *mut HorizontalMetric,
-    pub leftSideBearing: *mut Pos,
+    pub left_side_bearing: *mut Pos,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -34,7 +34,7 @@ pub struct HmtxTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut HmtxTable, *mut HmtxTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut HmtxTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut HmtxTable, HmtxTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut HmtxTable, HmtxTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut HmtxTable, HmtxTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut HmtxTable>,
     pub free: Option<unsafe extern "C" fn(*mut HmtxTable) -> ()>,
 }
@@ -44,9 +44,9 @@ unsafe extern "C" fn dispose_hmtx(mut table: *mut HmtxTable) {
         free((*table).metrics as *mut ::core::ffi::c_void);
         (*table).metrics = ::core::ptr::null_mut::<HorizontalMetric>();
     }
-    if !(*table).leftSideBearing.is_null() {
-        free((*table).leftSideBearing as *mut ::core::ffi::c_void);
-        (*table).leftSideBearing = ::core::ptr::null_mut::<Pos>();
+    if !(*table).left_side_bearing.is_null() {
+        free((*table).left_side_bearing as *mut ::core::ffi::c_void);
+        (*table).left_side_bearing = ::core::ptr::null_mut::<Pos>();
     }
 }
 #[inline]
@@ -112,7 +112,7 @@ pub static TABLE_I_HMTX: HmtxTableElementInterface = {
         replace: Some(
             table_hmtx_replace as unsafe extern "C" fn(*mut HmtxTable, HmtxTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_hmtx_copy_replace as unsafe extern "C" fn(*mut HmtxTable, HmtxTable) -> (),
         ),
         create: Some(table_hmtx_create),
@@ -135,8 +135,8 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
 ) -> *mut HmtxTable {
     if hhea.is_null()
         || maxp.is_null()
-        || (*hhea).numberOfMetrics == 0
-        || ((*maxp).numGlyphs as ::core::ffi::c_int) < (*hhea).numberOfMetrics as ::core::ffi::c_int
+        || (*hhea).number_of_metrics == 0
+        || ((*maxp).num_glyphs as ::core::ffi::c_int) < (*hhea).number_of_metrics as ::core::ffi::c_int
     {
         return ::core::ptr::null_mut::<HmtxTable>();
     }
@@ -145,7 +145,7 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -155,9 +155,9 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     let mut hmtx: *mut HmtxTable = ::core::ptr::null_mut::<HmtxTable>();
-                    let mut count_a: GlyphId = (*hhea).numberOfMetrics as GlyphId;
-                    let mut count_k: GlyphId = ((*maxp).numGlyphs as ::core::ffi::c_int
-                        - (*hhea).numberOfMetrics as ::core::ffi::c_int)
+                    let mut count_a: GlyphId = (*hhea).number_of_metrics as GlyphId;
+                    let mut count_k: GlyphId = ((*maxp).num_glyphs as ::core::ffi::c_int
+                        - (*hhea).number_of_metrics as ::core::ffi::c_int)
                         as GlyphId;
                     if length
                         < (count_a as ::core::ffi::c_int * 4 as ::core::ffi::c_int
@@ -165,7 +165,7 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
                             as u32
                     {
                         (*(*options).logger)
-                            .logSDS
+                            .log_sds
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
@@ -186,14 +186,14 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
                                 .wrapping_mul(count_a as usize),
                             28 as ::core::ffi::c_ulong,
                         ) as *mut HorizontalMetric;
-                        (*hmtx).leftSideBearing = __caryll_allocate_clean(
+                        (*hmtx).left_side_bearing = __caryll_allocate_clean(
                             (::core::mem::size_of::<Pos>() as usize)
                                 .wrapping_mul(count_k as usize),
                             29 as ::core::ffi::c_ulong,
                         ) as *mut Pos;
                         let mut ia: GlyphId = 0 as GlyphId;
                         while (ia as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-                            (*(*hmtx).metrics.offset(ia as isize)).advanceWidth =
+                            (*(*hmtx).metrics.offset(ia as isize)).advance_width =
                                 read_16u(data.offset(
                                     (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
                                 ) as *const u8) as Length;
@@ -209,7 +209,7 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
                         }
                         let mut ik: GlyphId = 0 as GlyphId;
                         while (ik as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
-                            *(*hmtx).leftSideBearing.offset(ik as isize) = read_16s(
+                            *(*hmtx).left_side_bearing.offset(ik as isize) = read_16s(
                                 data.offset(
                                     (count_a as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
                                         as isize,
@@ -249,18 +249,18 @@ pub unsafe extern "C" fn otfcc_build_hmtx(
         while (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
             bufwrite16b(
                 buf,
-                (*(*hmtx).metrics.offset(j as isize)).advanceWidth as u16,
+                (*(*hmtx).metrics.offset(j as isize)).advance_width as u16,
             );
             bufwrite16b(buf, pos_to_u16((*(*hmtx).metrics.offset(j as isize)).lsb));
             j = j.wrapping_add(1);
         }
     }
-    if !(*hmtx).leftSideBearing.is_null() {
+    if !(*hmtx).left_side_bearing.is_null() {
         let mut j_0: GlyphId = 0 as GlyphId;
         while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
             bufwrite16b(
                 buf,
-                pos_to_u16(*(*hmtx).leftSideBearing.offset(j_0 as isize)),
+                pos_to_u16(*(*hmtx).left_side_bearing.offset(j_0 as isize)),
             );
             j_0 = j_0.wrapping_add(1);
         }

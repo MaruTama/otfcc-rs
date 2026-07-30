@@ -22,14 +22,14 @@ use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
 #[repr(C)]
 pub struct PostTable {
     pub version: F16Dot16,
-    pub italicAngle: F16Dot16,
-    pub underlinePosition: i16,
-    pub underlineThickness: i16,
-    pub isFixedPitch: u32,
-    pub minMemType42: u32,
-    pub maxMemType42: u32,
-    pub minMemType1: u32,
-    pub maxMemType1: u32,
+    pub italic_angle: F16Dot16,
+    pub underline_position: i16,
+    pub underline_thickness: i16,
+    pub is_fixed_pitch: u32,
+    pub min_mem_type42: u32,
+    pub max_mem_type42: u32,
+    pub min_mem_type1: u32,
+    pub max_mem_type1: u32,
     pub post_name_map: *mut GlyphOrder,
 }
 #[derive(Copy, Clone)]
@@ -40,7 +40,7 @@ pub struct PostTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut PostTable, *mut PostTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut PostTable, PostTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut PostTable, PostTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut PostTable, PostTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut PostTable>,
     pub free: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
 }
@@ -416,7 +416,7 @@ pub static I_TABLE_POST: PostTableElementInterface = {
         replace: Some(
             table_post_replace as unsafe extern "C" fn(*mut PostTable, PostTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_post_copy_replace as unsafe extern "C" fn(*mut PostTable, PostTable) -> (),
         ),
         create: Some(table_post_create),
@@ -432,7 +432,7 @@ pub unsafe extern "C" fn otfcc_read_post(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -444,24 +444,24 @@ pub unsafe extern "C" fn otfcc_read_post(
                         (
                             I_TABLE_POST.create.expect("non-null function pointer"))();
                     (*post).version = read_32s(data as *const u8) as F16Dot16;
-                    (*post).italicAngle =
+                    (*post).italic_angle =
                         read_32u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8)
                             as F16Dot16;
-                    (*post).underlinePosition =
+                    (*post).underline_position =
                         read_16u(data.offset(8 as ::core::ffi::c_int as isize) as *const u8)
                             as i16;
-                    (*post).underlineThickness =
+                    (*post).underline_thickness =
                         read_16u(data.offset(10 as ::core::ffi::c_int as isize) as *const u8)
                             as i16;
-                    (*post).isFixedPitch =
+                    (*post).is_fixed_pitch =
                         read_32u(data.offset(12 as ::core::ffi::c_int as isize) as *const u8);
-                    (*post).minMemType42 =
+                    (*post).min_mem_type42 =
                         read_32u(data.offset(16 as ::core::ffi::c_int as isize) as *const u8);
-                    (*post).maxMemType42 =
+                    (*post).max_mem_type42 =
                         read_32u(data.offset(20 as ::core::ffi::c_int as isize) as *const u8);
-                    (*post).minMemType1 =
+                    (*post).min_mem_type1 =
                         read_32u(data.offset(24 as ::core::ffi::c_int as isize) as *const u8);
-                    (*post).maxMemType1 =
+                    (*post).max_mem_type1 =
                         read_32u(data.offset(28 as ::core::ffi::c_int as isize) as *const u8);
                     (*post).post_name_map = ::core::ptr::null_mut::<GlyphOrder>();
                     if (*post).version == 0x20000 as F16Dot16 {
@@ -515,7 +515,7 @@ pub unsafe extern "C" fn otfcc_read_post(
                                 ) as *const u8);
                             if name_map as ::core::ffi::c_int >= 258 as ::core::ffi::c_int {
                                 OTFCC_PKG_GLYPH_ORDER
-                                    .setByGID
+                                    .set_by_gid
                                     .expect("non-null function pointer")(
                                     map,
                                     j as GlyphId,
@@ -527,7 +527,7 @@ pub unsafe extern "C" fn otfcc_read_post(
                                 );
                             } else {
                                 OTFCC_PKG_GLYPH_ORDER
-                                    .setByGID
+                                    .set_by_gid
                                     .expect("non-null function pointer")(
                                     map,
                                     j as GlyphId,
@@ -562,7 +562,7 @@ pub unsafe extern "C" fn otfcc_dump_post(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"post"),
@@ -578,42 +578,42 @@ pub unsafe extern "C" fn otfcc_dump_post(
         json_object_push(
             post,
             b"italicAngle\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new(otfcc_from_fixed((*table).italicAngle) as i64),
+            json_integer_new(otfcc_from_fixed((*table).italic_angle) as i64),
         );
         json_object_push(
             post,
             b"underlinePosition\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).underlinePosition as i64),
+            json_integer_new((*table).underline_position as i64),
         );
         json_object_push(
             post,
             b"underlineThickness\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).underlineThickness as i64),
+            json_integer_new((*table).underline_thickness as i64),
         );
         json_object_push(
             post,
             b"isFixedPitch\0" as *const u8 as *const ::core::ffi::c_char,
-            json_boolean_new((*table).isFixedPitch as ::core::ffi::c_int),
+            json_boolean_new((*table).is_fixed_pitch as ::core::ffi::c_int),
         );
         json_object_push(
             post,
             b"minMemType42\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).minMemType42 as i64),
+            json_integer_new((*table).min_mem_type42 as i64),
         );
         json_object_push(
             post,
             b"maxMemType42\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxMemType42 as i64),
+            json_integer_new((*table).max_mem_type42 as i64),
         );
         json_object_push(
             post,
             b"minMemType1\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).minMemType1 as i64),
+            json_integer_new((*table).min_mem_type1 as i64),
         );
         json_object_push(
             post,
             b"maxMemType1\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).maxMemType1 as i64),
+            json_integer_new((*table).max_mem_type1 as i64),
         );
         json_object_push(
             root,
@@ -640,7 +640,7 @@ pub unsafe extern "C" fn otfcc_parse_post(
     );
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"post"),
@@ -655,35 +655,35 @@ pub unsafe extern "C" fn otfcc_parse_post(
                     b"version\0" as *const u8 as *const ::core::ffi::c_char,
                 ));
             }
-            (*post).italicAngle = otfcc_to_fixed(json_obj_getnum(
+            (*post).italic_angle = otfcc_to_fixed(json_obj_getnum(
                 table,
                 b"italicAngle\0" as *const u8 as *const ::core::ffi::c_char,
             ));
-            (*post).underlinePosition = json_obj_getnum(
+            (*post).underline_position = json_obj_getnum(
                 table,
                 b"underlinePosition\0" as *const u8 as *const ::core::ffi::c_char,
             ) as i16;
-            (*post).underlineThickness = json_obj_getnum(
+            (*post).underline_thickness = json_obj_getnum(
                 table,
                 b"underlineThickness\0" as *const u8 as *const ::core::ffi::c_char,
             ) as i16;
-            (*post).isFixedPitch = json_obj_getbool(
+            (*post).is_fixed_pitch = json_obj_getbool(
                 table,
                 b"isFixedPitch\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u32;
-            (*post).minMemType42 = json_obj_getnum(
+            (*post).min_mem_type42 = json_obj_getnum(
                 table,
                 b"minMemType42\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u32;
-            (*post).maxMemType42 = json_obj_getnum(
+            (*post).max_mem_type42 = json_obj_getnum(
                 table,
                 b"maxMemType42\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u32;
-            (*post).minMemType1 = json_obj_getnum(
+            (*post).min_mem_type1 = json_obj_getnum(
                 table,
                 b"minMemType1\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u32;
-            (*post).maxMemType1 = json_obj_getnum(
+            (*post).max_mem_type1 = json_obj_getnum(
                 table,
                 b"maxMemType1\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u32;
@@ -707,28 +707,28 @@ pub unsafe extern "C" fn otfcc_build_post(
     }
     let mut buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*post).version as u32);
-    bufwrite32b(buf, (*post).italicAngle as u32);
-    bufwrite16b(buf, (*post).underlinePosition as u16);
-    bufwrite16b(buf, (*post).underlineThickness as u16);
-    bufwrite32b(buf, (*post).isFixedPitch);
-    bufwrite32b(buf, (*post).minMemType42);
-    bufwrite32b(buf, (*post).maxMemType42);
-    bufwrite32b(buf, (*post).minMemType1);
-    bufwrite32b(buf, (*post).maxMemType1);
+    bufwrite32b(buf, (*post).italic_angle as u32);
+    bufwrite16b(buf, (*post).underline_position as u16);
+    bufwrite16b(buf, (*post).underline_thickness as u16);
+    bufwrite32b(buf, (*post).is_fixed_pitch);
+    bufwrite32b(buf, (*post).min_mem_type42);
+    bufwrite32b(buf, (*post).max_mem_type42);
+    bufwrite32b(buf, (*post).min_mem_type1);
+    bufwrite32b(buf, (*post).max_mem_type1);
     if (*post).version == 0x20000 as F16Dot16 {
         bufwrite16b(
             buf,
-            (if !(*glyphorder).byName.is_null() {
-                (*(*(*glyphorder).byName).hhName.tbl).num_items
+            (if !(*glyphorder).by_name.is_null() {
+                (*(*(*glyphorder).by_name).hh_name.tbl).num_items
             } else {
                 0 as ::core::ffi::c_uint
             }) as u16,
         );
         let mut s: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
         let mut tmp: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
-        s = (*glyphorder).byName;
-        tmp = (if !(*glyphorder).byName.is_null() {
-            (*(*glyphorder).byName).hhName.next
+        s = (*glyphorder).by_name;
+        tmp = (if !(*glyphorder).by_name.is_null() {
+            (*(*glyphorder).by_name).hh_name.next
         } else {
             NULL
         }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
@@ -739,14 +739,14 @@ pub unsafe extern "C" fn otfcc_build_post(
             );
             s = tmp;
             tmp = (if !tmp.is_null() {
-                (*tmp).hhName.next
+                (*tmp).hh_name.next
             } else {
                 NULL
             }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
         }
-        s = (*glyphorder).byName;
-        tmp = (if !(*glyphorder).byName.is_null() {
-            (*(*glyphorder).byName).hhName.next
+        s = (*glyphorder).by_name;
+        tmp = (if !(*glyphorder).by_name.is_null() {
+            (*(*glyphorder).by_name).hh_name.next
         } else {
             NULL
         }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
@@ -755,7 +755,7 @@ pub unsafe extern "C" fn otfcc_build_post(
             bufwrite_sds(buf, (*s).name);
             s = tmp;
             tmp = (if !tmp.is_null() {
-                (*tmp).hhName.next
+                (*tmp).hh_name.next
             } else {
                 NULL
             }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;

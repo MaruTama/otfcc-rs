@@ -30,7 +30,7 @@ pub struct CvtTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut CvtTable, *mut CvtTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CvtTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut CvtTable, CvtTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut CvtTable, CvtTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut CvtTable, CvtTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CvtTable>,
     pub free: Option<unsafe extern "C" fn(*mut CvtTable) -> ()>,
 }
@@ -106,7 +106,7 @@ pub static TABLE_I_CVT: CvtTableElementInterface = {
         move_0: Some(table_cvt_move as unsafe extern "C" fn(*mut CvtTable, *mut CvtTable) -> ()),
         dispose: Some(table_cvt_dispose as unsafe extern "C" fn(*mut CvtTable) -> ()),
         replace: Some(table_cvt_replace as unsafe extern "C" fn(*mut CvtTable, CvtTable) -> ()),
-        copyReplace: Some(
+        copy_replace: Some(
             table_cvt_copy_replace as unsafe extern "C" fn(*mut CvtTable, CvtTable) -> (),
         ),
         create: Some(table_cvt_create),
@@ -124,7 +124,7 @@ pub unsafe extern "C" fn otfcc_read_cvt(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -171,7 +171,7 @@ pub unsafe extern "C" fn otfcc_dump_cvt(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"cvt"),
@@ -204,7 +204,7 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
     table = json_obj_get_type(root, tag, JsonType::Array);
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"cvt"),
@@ -247,7 +247,7 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
         table = json_obj_get_type(root, tag, JsonType::String);
         if !table.is_null() {
             (*(*options).logger)
-                .startSDS
+                .start_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 crate::sdsbuild!(sdsempty(), b"cvt"),

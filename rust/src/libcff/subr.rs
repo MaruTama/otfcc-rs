@@ -23,10 +23,10 @@ pub struct CffSubrRule {
     pub numbered: bool,
     pub number: u32,
     pub height: u32,
-    pub uniqueIndex: u32,
-    pub cffIndex: u16,
+    pub unique_index: u32,
+    pub cff_index: u16,
     pub refcount: u32,
-    pub effectiveLength: u32,
+    pub effective_length: u32,
     pub guard: *mut CffSubrNode,
     pub next: *mut CffSubrRule,
 }
@@ -54,10 +54,10 @@ pub struct CffSubrDiagramIndex {
 pub struct CffSubrGraph {
     pub root: *mut CffSubrRule,
     pub last: *mut CffSubrRule,
-    pub diagramIndex: *mut CffSubrDiagramIndex,
-    pub totalRules: u32,
-    pub totalCharStrings: u32,
-    pub doSubroutinize: bool,
+    pub diagram_index: *mut CffSubrDiagramIndex,
+    pub total_rules: u32,
+    pub total_char_strings: u32,
+    pub do_subroutinize: bool,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -67,7 +67,7 @@ pub struct CffSubrGraphElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut CffSubrGraph, *mut CffSubrGraph) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CffSubrGraph) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut CffSubrGraph, CffSubrGraph) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut CffSubrGraph, CffSubrGraph) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut CffSubrGraph, CffSubrGraph) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CffSubrGraph>,
     pub free: Option<unsafe extern "C" fn(*mut CffSubrGraph) -> ()>,
 }
@@ -104,10 +104,10 @@ unsafe extern "C" fn cff_new_rule() -> *mut CffSubrRule {
 unsafe extern "C" fn init_subr_graph(mut g: *mut CffSubrGraph) {
     (*g).root = cff_new_rule();
     (*g).last = (*g).root;
-    (*g).diagramIndex = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
-    (*g).totalRules = 0 as u32;
-    (*g).totalCharStrings = 0 as u32;
-    (*g).doSubroutinize = false;
+    (*g).diagram_index = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
+    (*g).total_rules = 0 as u32;
+    (*g).total_char_strings = 0 as u32;
+    (*g).do_subroutinize = false;
 }
 unsafe extern "C" fn clean_node(mut x: *mut CffSubrNode) {
     if !(*x).rule.is_null() {
@@ -152,48 +152,48 @@ unsafe extern "C" fn dispose_subr_graph(mut g: *mut CffSubrGraph) {
     }
     let mut s: *mut CffSubrDiagramIndex = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
     let mut tmp: *mut CffSubrDiagramIndex = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
-    s = (*g).diagramIndex;
-    tmp = (if !(*g).diagramIndex.is_null() {
-        (*(*g).diagramIndex).hh.next
+    s = (*g).diagram_index;
+    tmp = (if !(*g).diagram_index.is_null() {
+        (*(*g).diagram_index).hh.next
     } else {
         NULL
     }) as *mut CffSubrDiagramIndex as *mut CffSubrDiagramIndex;
     while !s.is_null() {
         let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
-            free((*(*(*g).diagramIndex).hh.tbl).buckets as *mut ::core::ffi::c_void);
-            free((*(*g).diagramIndex).hh.tbl as *mut ::core::ffi::c_void);
-            (*g).diagramIndex = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
+            free((*(*(*g).diagram_index).hh.tbl).buckets as *mut ::core::ffi::c_void);
+            free((*(*g).diagram_index).hh.tbl as *mut ::core::ffi::c_void);
+            (*g).diagram_index = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
         } else {
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
-            if _hd_hh_del == (*(*(*g).diagramIndex).hh.tbl).tail {
-                (*(*(*g).diagramIndex).hh.tbl).tail =
+            if _hd_hh_del == (*(*(*g).diagram_index).hh.tbl).tail {
+                (*(*(*g).diagram_index).hh.tbl).tail =
                     ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                        .offset((*(*(*g).diagramIndex).hh.tbl).hho)
+                        .offset((*(*(*g).diagram_index).hh.tbl).hho)
                         as *mut UtHashHandle as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh0 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset((*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut UtHashHandle))
                     .next;
                 *fresh0 = (*_hd_hh_del).next;
             } else {
-                (*g).diagramIndex =
+                (*g).diagram_index =
                     (*_hd_hh_del).next as *mut CffSubrDiagramIndex as *mut CffSubrDiagramIndex;
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh1 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset((*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut UtHashHandle))
                     .prev;
                 *fresh1 = (*_hd_hh_del).prev;
             }
             _hd_bkt = (*_hd_hh_del).hashv
-                & (*(*(*g).diagramIndex).hh.tbl)
+                & (*(*(*g).diagram_index).hh.tbl)
                     .num_buckets
                     .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _hd_head: *mut UtHashBucket = (*(*(*g).diagramIndex).hh.tbl)
+            let mut _hd_head: *mut UtHashBucket = (*(*(*g).diagram_index).hh.tbl)
                 .buckets
                 .offset(_hd_bkt as isize)
                 as *mut UtHashBucket;
@@ -207,8 +207,8 @@ unsafe extern "C" fn dispose_subr_graph(mut g: *mut CffSubrGraph) {
             if !(*_hd_hh_del).hh_next.is_null() {
                 (*(*_hd_hh_del).hh_next).hh_prev = (*_hd_hh_del).hh_prev;
             }
-            (*(*(*g).diagramIndex).hh.tbl).num_items =
-                (*(*(*g).diagramIndex).hh.tbl).num_items.wrapping_sub(1);
+            (*(*(*g).diagram_index).hh.tbl).num_items =
+                (*(*(*g).diagram_index).hh.tbl).num_items.wrapping_sub(1);
         }
         free((*s).key as *mut ::core::ffi::c_void);
         (*s).key = ::core::ptr::null_mut::<u8>();
@@ -234,7 +234,7 @@ pub static CFF_I_SUBR_GRAPH: CffSubrGraphElementInterface = {
         replace: Some(
             cff_subr_graph_replace as unsafe extern "C" fn(*mut CffSubrGraph, CffSubrGraph) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             cff_subr_graph_copy_replace
                 as unsafe extern "C" fn(*mut CffSubrGraph, CffSubrGraph) -> (),
         ),
@@ -326,7 +326,7 @@ unsafe extern "C" fn get_singlet_hash_key(
     if !(*n).rule.is_null() {
         memcpy(
             key.offset(3 as ::core::ffi::c_int as isize) as *mut ::core::ffi::c_void,
-            &raw mut (*(*n).rule).uniqueIndex as *const ::core::ffi::c_void,
+            &raw mut (*(*n).rule).unique_index as *const ::core::ffi::c_void,
             l1,
         );
     } else {
@@ -379,7 +379,7 @@ unsafe extern "C" fn get_doublet_hash_key(
     if !(*n).rule.is_null() {
         memcpy(
             key.offset(3 as ::core::ffi::c_int as isize) as *mut ::core::ffi::c_void,
-            &raw mut (*(*n).rule).uniqueIndex as *const ::core::ffi::c_void,
+            &raw mut (*(*n).rule).unique_index as *const ::core::ffi::c_void,
             l1,
         );
     } else {
@@ -393,7 +393,7 @@ unsafe extern "C" fn get_doublet_hash_key(
         memcpy(
             key.offset(3 as ::core::ffi::c_int as isize)
                 .offset(l1 as isize) as *mut ::core::ffi::c_void,
-            &raw mut (*(*(*n).next).rule).uniqueIndex as *const ::core::ffi::c_void,
+            &raw mut (*(*(*n).next).rule).unique_index as *const ::core::ffi::c_void,
             l2,
         );
     } else {
@@ -682,24 +682,24 @@ unsafe extern "C" fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNo
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
     _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
     di = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
-    if !(*g).diagramIndex.is_null() {
+    if !(*g).diagram_index.is_null() {
         let mut _hf_bkt: ::core::ffi::c_uint = 0;
         _hf_bkt = _hf_hashv
-            & (*(*(*g).diagramIndex).hh.tbl)
+            & (*(*(*g).diagram_index).hh.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
         if 1 as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-            if !(*(*(*(*g).diagramIndex).hh.tbl)
+            if !(*(*(*(*g).diagram_index).hh.tbl)
                 .buckets
                 .offset(_hf_bkt as isize))
             .hh_head
             .is_null()
             {
-                di = ((*(*(*(*g).diagramIndex).hh.tbl)
+                di = ((*(*(*(*g).diagram_index).hh.tbl)
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut CffSubrDiagramIndex
                     as *mut CffSubrDiagramIndex;
             } else {
@@ -715,7 +715,7 @@ unsafe extern "C" fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNo
                 }
                 if !(*di).hh.hh_next.is_null() {
                     di = ((*di).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                        .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut CffSubrDiagramIndex
                         as *mut CffSubrDiagramIndex;
@@ -728,39 +728,39 @@ unsafe extern "C" fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNo
     if !di.is_null() && (*di).start == a {
         let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*di).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
-            free((*(*(*g).diagramIndex).hh.tbl).buckets as *mut ::core::ffi::c_void);
-            free((*(*g).diagramIndex).hh.tbl as *mut ::core::ffi::c_void);
-            (*g).diagramIndex = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
+            free((*(*(*g).diagram_index).hh.tbl).buckets as *mut ::core::ffi::c_void);
+            free((*(*g).diagram_index).hh.tbl as *mut ::core::ffi::c_void);
+            (*g).diagram_index = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
         } else {
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
-            if _hd_hh_del == (*(*(*g).diagramIndex).hh.tbl).tail {
-                (*(*(*g).diagramIndex).hh.tbl).tail =
+            if _hd_hh_del == (*(*(*g).diagram_index).hh.tbl).tail {
+                (*(*(*g).diagram_index).hh.tbl).tail =
                     ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                        .offset((*(*(*g).diagramIndex).hh.tbl).hho)
+                        .offset((*(*(*g).diagram_index).hh.tbl).hho)
                         as *mut UtHashHandle as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh2 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset((*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut UtHashHandle))
                     .next;
                 *fresh2 = (*_hd_hh_del).next;
             } else {
-                (*g).diagramIndex =
+                (*g).diagram_index =
                     (*_hd_hh_del).next as *mut CffSubrDiagramIndex as *mut CffSubrDiagramIndex;
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh3 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset((*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut UtHashHandle))
                     .prev;
                 *fresh3 = (*_hd_hh_del).prev;
             }
             _hd_bkt = (*_hd_hh_del).hashv
-                & (*(*(*g).diagramIndex).hh.tbl)
+                & (*(*(*g).diagram_index).hh.tbl)
                     .num_buckets
                     .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _hd_head: *mut UtHashBucket = (*(*(*g).diagramIndex).hh.tbl)
+            let mut _hd_head: *mut UtHashBucket = (*(*(*g).diagram_index).hh.tbl)
                 .buckets
                 .offset(_hd_bkt as isize)
                 as *mut UtHashBucket;
@@ -774,8 +774,8 @@ unsafe extern "C" fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNo
             if !(*_hd_hh_del).hh_next.is_null() {
                 (*(*_hd_hh_del).hh_next).hh_prev = (*_hd_hh_del).hh_prev;
             }
-            (*(*(*g).diagramIndex).hh.tbl).num_items =
-                (*(*(*g).diagramIndex).hh.tbl).num_items.wrapping_sub(1);
+            (*(*(*g).diagram_index).hh.tbl).num_items =
+                (*(*(*g).diagram_index).hh.tbl).num_items.wrapping_sub(1);
         }
         free((*di).key as *mut ::core::ffi::c_void);
         (*di).key = ::core::ptr::null_mut::<u8>();
@@ -1040,24 +1040,24 @@ unsafe extern "C" fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNo
     _hf_hashv_0 = _hf_hashv_0.wrapping_sub(_hj_j_0);
     _hf_hashv_0 ^= _hj_j_0 >> 15 as ::core::ffi::c_int;
     di = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
-    if !(*g).diagramIndex.is_null() {
+    if !(*g).diagram_index.is_null() {
         let mut _hf_bkt_0: ::core::ffi::c_uint = 0;
         _hf_bkt_0 = _hf_hashv_0
-            & (*(*(*g).diagramIndex).hh.tbl)
+            & (*(*(*g).diagram_index).hh.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
         if 1 as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-            if !(*(*(*(*g).diagramIndex).hh.tbl)
+            if !(*(*(*(*g).diagram_index).hh.tbl)
                 .buckets
                 .offset(_hf_bkt_0 as isize))
             .hh_head
             .is_null()
             {
-                di = ((*(*(*(*g).diagramIndex).hh.tbl)
+                di = ((*(*(*(*g).diagram_index).hh.tbl)
                     .buckets
                     .offset(_hf_bkt_0 as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut CffSubrDiagramIndex
                     as *mut CffSubrDiagramIndex;
             } else {
@@ -1073,7 +1073,7 @@ unsafe extern "C" fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNo
                 }
                 if !(*di).hh.hh_next.is_null() {
                     di = ((*di).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                        .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut CffSubrDiagramIndex
                         as *mut CffSubrDiagramIndex;
@@ -1086,39 +1086,39 @@ unsafe extern "C" fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNo
     if !di.is_null() && (*di).start == a {
         let mut _hd_hh_del_0: *mut UtHashHandle = &raw mut (*di).hh;
         if (*_hd_hh_del_0).prev.is_null() && (*_hd_hh_del_0).next.is_null() {
-            free((*(*(*g).diagramIndex).hh.tbl).buckets as *mut ::core::ffi::c_void);
-            free((*(*g).diagramIndex).hh.tbl as *mut ::core::ffi::c_void);
-            (*g).diagramIndex = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
+            free((*(*(*g).diagram_index).hh.tbl).buckets as *mut ::core::ffi::c_void);
+            free((*(*g).diagram_index).hh.tbl as *mut ::core::ffi::c_void);
+            (*g).diagram_index = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
         } else {
             let mut _hd_bkt_0: ::core::ffi::c_uint = 0;
-            if _hd_hh_del_0 == (*(*(*g).diagramIndex).hh.tbl).tail {
-                (*(*(*g).diagramIndex).hh.tbl).tail =
+            if _hd_hh_del_0 == (*(*(*g).diagram_index).hh.tbl).tail {
+                (*(*(*g).diagram_index).hh.tbl).tail =
                     ((*_hd_hh_del_0).prev as *mut ::core::ffi::c_char)
-                        .offset((*(*(*g).diagramIndex).hh.tbl).hho)
+                        .offset((*(*(*g).diagram_index).hh.tbl).hho)
                         as *mut UtHashHandle as *mut UtHashHandle;
             }
             if !(*_hd_hh_del_0).prev.is_null() {
                 let ref mut fresh4 = (*(((*_hd_hh_del_0).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset((*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut UtHashHandle))
                     .next;
                 *fresh4 = (*_hd_hh_del_0).next;
             } else {
-                (*g).diagramIndex =
+                (*g).diagram_index =
                     (*_hd_hh_del_0).next as *mut CffSubrDiagramIndex as *mut CffSubrDiagramIndex;
             }
             if !(*_hd_hh_del_0).next.is_null() {
                 let ref mut fresh5 = (*(((*_hd_hh_del_0).next as *mut ::core::ffi::c_char)
-                    .offset((*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset((*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut UtHashHandle))
                     .prev;
                 *fresh5 = (*_hd_hh_del_0).prev;
             }
             _hd_bkt_0 = (*_hd_hh_del_0).hashv
-                & (*(*(*g).diagramIndex).hh.tbl)
+                & (*(*(*g).diagram_index).hh.tbl)
                     .num_buckets
                     .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _hd_head_0: *mut UtHashBucket = (*(*(*g).diagramIndex).hh.tbl)
+            let mut _hd_head_0: *mut UtHashBucket = (*(*(*g).diagram_index).hh.tbl)
                 .buckets
                 .offset(_hd_bkt_0 as isize)
                 as *mut UtHashBucket;
@@ -1132,8 +1132,8 @@ unsafe extern "C" fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNo
             if !(*_hd_hh_del_0).hh_next.is_null() {
                 (*(*_hd_hh_del_0).hh_next).hh_prev = (*_hd_hh_del_0).hh_prev;
             }
-            (*(*(*g).diagramIndex).hh.tbl).num_items =
-                (*(*(*g).diagramIndex).hh.tbl).num_items.wrapping_sub(1);
+            (*(*(*g).diagram_index).hh.tbl).num_items =
+                (*(*(*g).diagram_index).hh.tbl).num_items.wrapping_sub(1);
         }
         free((*di).key as *mut ::core::ffi::c_void);
         (*di).key = ::core::ptr::null_mut::<u8>();
@@ -1410,24 +1410,24 @@ unsafe extern "C" fn add_doublet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNo
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
     _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
     di = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
-    if !(*g).diagramIndex.is_null() {
+    if !(*g).diagram_index.is_null() {
         let mut _hf_bkt: ::core::ffi::c_uint = 0;
         _hf_bkt = _hf_hashv
-            & (*(*(*g).diagramIndex).hh.tbl)
+            & (*(*(*g).diagram_index).hh.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
         if 1 as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-            if !(*(*(*(*g).diagramIndex).hh.tbl)
+            if !(*(*(*(*g).diagram_index).hh.tbl)
                 .buckets
                 .offset(_hf_bkt as isize))
             .hh_head
             .is_null()
             {
-                di = ((*(*(*(*g).diagramIndex).hh.tbl)
+                di = ((*(*(*(*g).diagram_index).hh.tbl)
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut CffSubrDiagramIndex
                     as *mut CffSubrDiagramIndex;
             } else {
@@ -1443,7 +1443,7 @@ unsafe extern "C" fn add_doublet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNo
                 }
                 if !(*di).hh.hh_next.is_null() {
                     di = ((*di).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                        .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut CffSubrDiagramIndex
                         as *mut CffSubrDiagramIndex;
@@ -1728,7 +1728,7 @@ unsafe extern "C" fn add_doublet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNo
         (*di).hh.hashv = _ha_hashv;
         (*di).hh.key = key as *mut ::core::ffi::c_char as *mut ::core::ffi::c_void;
         (*di).hh.keylen = len as ::core::ffi::c_uint;
-        if (*g).diagramIndex.is_null() {
+        if (*g).diagram_index.is_null() {
             (*di).hh.next = NULL;
             (*di).hh.prev = NULL;
             (*di).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
@@ -1762,24 +1762,24 @@ unsafe extern "C" fn add_doublet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNo
                     );
                 }
             }
-            (*g).diagramIndex = di;
+            (*g).diagram_index = di;
         } else {
-            (*di).hh.tbl = (*(*g).diagramIndex).hh.tbl;
+            (*di).hh.tbl = (*(*g).diagram_index).hh.tbl;
             (*di).hh.next = NULL;
-            (*di).hh.prev = ((*(*(*g).diagramIndex).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+            (*di).hh.prev = ((*(*(*g).diagram_index).hh.tbl).tail as *mut ::core::ffi::c_char)
+                .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
-            (*(*(*(*g).diagramIndex).hh.tbl).tail).next = di as *mut ::core::ffi::c_void;
-            (*(*(*g).diagramIndex).hh.tbl).tail = &raw mut (*di).hh as *mut UtHashHandle;
+            (*(*(*(*g).diagram_index).hh.tbl).tail).next = di as *mut ::core::ffi::c_void;
+            (*(*(*g).diagram_index).hh.tbl).tail = &raw mut (*di).hh as *mut UtHashHandle;
         }
         let mut _ha_bkt: ::core::ffi::c_uint = 0;
-        (*(*(*g).diagramIndex).hh.tbl).num_items =
-            (*(*(*g).diagramIndex).hh.tbl).num_items.wrapping_add(1);
+        (*(*(*g).diagram_index).hh.tbl).num_items =
+            (*(*(*g).diagram_index).hh.tbl).num_items.wrapping_add(1);
         _ha_bkt = _ha_hashv
-            & (*(*(*g).diagramIndex).hh.tbl)
+            & (*(*(*g).diagram_index).hh.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
-        let mut _ha_head: *mut UtHashBucket = (*(*(*g).diagramIndex).hh.tbl)
+        let mut _ha_head: *mut UtHashBucket = (*(*(*g).diagram_index).hh.tbl)
             .buckets
             .offset(_ha_bkt as isize)
             as *mut UtHashBucket;
@@ -2156,24 +2156,24 @@ unsafe extern "C" fn add_singlet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNo
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
     _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
     di = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
-    if !(*g).diagramIndex.is_null() {
+    if !(*g).diagram_index.is_null() {
         let mut _hf_bkt: ::core::ffi::c_uint = 0;
         _hf_bkt = _hf_hashv
-            & (*(*(*g).diagramIndex).hh.tbl)
+            & (*(*(*g).diagram_index).hh.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
         if 1 as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-            if !(*(*(*(*g).diagramIndex).hh.tbl)
+            if !(*(*(*(*g).diagram_index).hh.tbl)
                 .buckets
                 .offset(_hf_bkt as isize))
             .hh_head
             .is_null()
             {
-                di = ((*(*(*(*g).diagramIndex).hh.tbl)
+                di = ((*(*(*(*g).diagram_index).hh.tbl)
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut CffSubrDiagramIndex
                     as *mut CffSubrDiagramIndex;
             } else {
@@ -2189,7 +2189,7 @@ unsafe extern "C" fn add_singlet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNo
                 }
                 if !(*di).hh.hh_next.is_null() {
                     di = ((*di).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                        .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut CffSubrDiagramIndex
                         as *mut CffSubrDiagramIndex;
@@ -2474,7 +2474,7 @@ unsafe extern "C" fn add_singlet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNo
         (*di).hh.hashv = _ha_hashv;
         (*di).hh.key = key as *mut ::core::ffi::c_char as *mut ::core::ffi::c_void;
         (*di).hh.keylen = len as ::core::ffi::c_uint;
-        if (*g).diagramIndex.is_null() {
+        if (*g).diagram_index.is_null() {
             (*di).hh.next = NULL;
             (*di).hh.prev = NULL;
             (*di).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
@@ -2508,24 +2508,24 @@ unsafe extern "C" fn add_singlet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNo
                     );
                 }
             }
-            (*g).diagramIndex = di;
+            (*g).diagram_index = di;
         } else {
-            (*di).hh.tbl = (*(*g).diagramIndex).hh.tbl;
+            (*di).hh.tbl = (*(*g).diagram_index).hh.tbl;
             (*di).hh.next = NULL;
-            (*di).hh.prev = ((*(*(*g).diagramIndex).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+            (*di).hh.prev = ((*(*(*g).diagram_index).hh.tbl).tail as *mut ::core::ffi::c_char)
+                .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
-            (*(*(*(*g).diagramIndex).hh.tbl).tail).next = di as *mut ::core::ffi::c_void;
-            (*(*(*g).diagramIndex).hh.tbl).tail = &raw mut (*di).hh as *mut UtHashHandle;
+            (*(*(*(*g).diagram_index).hh.tbl).tail).next = di as *mut ::core::ffi::c_void;
+            (*(*(*g).diagram_index).hh.tbl).tail = &raw mut (*di).hh as *mut UtHashHandle;
         }
         let mut _ha_bkt: ::core::ffi::c_uint = 0;
-        (*(*(*g).diagramIndex).hh.tbl).num_items =
-            (*(*(*g).diagramIndex).hh.tbl).num_items.wrapping_add(1);
+        (*(*(*g).diagram_index).hh.tbl).num_items =
+            (*(*(*g).diagram_index).hh.tbl).num_items.wrapping_add(1);
         _ha_bkt = _ha_hashv
-            & (*(*(*g).diagramIndex).hh.tbl)
+            & (*(*(*g).diagram_index).hh.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
-        let mut _ha_head: *mut UtHashBucket = (*(*(*g).diagramIndex).hh.tbl)
+        let mut _ha_head: *mut UtHashBucket = (*(*(*g).diagram_index).hh.tbl)
             .buckets
             .offset(_ha_bkt as isize)
             as *mut UtHashBucket;
@@ -2756,8 +2756,8 @@ unsafe extern "C" fn process_match_doublet(
         substitute_doublet_with_rule(g, n, rule);
     } else {
         rule = cff_new_rule();
-        (*rule).uniqueIndex = (*g).totalRules;
-        (*g).totalRules = (*g).totalRules.wrapping_add(1 as u32);
+        (*rule).unique_index = (*g).total_rules;
+        (*g).total_rules = (*g).total_rules.wrapping_add(1 as u32);
         (*(*g).last).next = rule;
         (*g).last = rule;
         x_insert_node_after(g, last_node_of(rule), copy_node(m));
@@ -2787,8 +2787,8 @@ unsafe extern "C" fn process_match_singlet(
         substitute_singlet_with_rule(g, n, rule);
     } else {
         rule = cff_new_rule();
-        (*rule).uniqueIndex = (*g).totalRules;
-        (*g).totalRules = (*g).totalRules.wrapping_add(1 as u32);
+        (*rule).unique_index = (*g).total_rules;
+        (*g).total_rules = (*g).total_rules.wrapping_add(1 as u32);
         (*(*g).last).next = rule;
         (*g).last = rule;
         x_insert_node_after(g, last_node_of(rule), copy_node(m));
@@ -3065,24 +3065,24 @@ unsafe extern "C" fn check_doublet_match(
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
     _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
     di = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
-    if !(*g).diagramIndex.is_null() {
+    if !(*g).diagram_index.is_null() {
         let mut _hf_bkt: ::core::ffi::c_uint = 0;
         _hf_bkt = _hf_hashv
-            & (*(*(*g).diagramIndex).hh.tbl)
+            & (*(*(*g).diagram_index).hh.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
         if 1 as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-            if !(*(*(*(*g).diagramIndex).hh.tbl)
+            if !(*(*(*(*g).diagram_index).hh.tbl)
                 .buckets
                 .offset(_hf_bkt as isize))
             .hh_head
             .is_null()
             {
-                di = ((*(*(*(*g).diagramIndex).hh.tbl)
+                di = ((*(*(*(*g).diagram_index).hh.tbl)
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut CffSubrDiagramIndex
                     as *mut CffSubrDiagramIndex;
             } else {
@@ -3098,7 +3098,7 @@ unsafe extern "C" fn check_doublet_match(
                 }
                 if !(*di).hh.hh_next.is_null() {
                     di = ((*di).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                        .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut CffSubrDiagramIndex
                         as *mut CffSubrDiagramIndex;
@@ -3383,7 +3383,7 @@ unsafe extern "C" fn check_doublet_match(
         (*di).hh.hashv = _ha_hashv;
         (*di).hh.key = key as *mut ::core::ffi::c_char as *mut ::core::ffi::c_void;
         (*di).hh.keylen = len as ::core::ffi::c_uint;
-        if (*g).diagramIndex.is_null() {
+        if (*g).diagram_index.is_null() {
             (*di).hh.next = NULL;
             (*di).hh.prev = NULL;
             (*di).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
@@ -3417,24 +3417,24 @@ unsafe extern "C" fn check_doublet_match(
                     );
                 }
             }
-            (*g).diagramIndex = di;
+            (*g).diagram_index = di;
         } else {
-            (*di).hh.tbl = (*(*g).diagramIndex).hh.tbl;
+            (*di).hh.tbl = (*(*g).diagram_index).hh.tbl;
             (*di).hh.next = NULL;
-            (*di).hh.prev = ((*(*(*g).diagramIndex).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+            (*di).hh.prev = ((*(*(*g).diagram_index).hh.tbl).tail as *mut ::core::ffi::c_char)
+                .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
-            (*(*(*(*g).diagramIndex).hh.tbl).tail).next = di as *mut ::core::ffi::c_void;
-            (*(*(*g).diagramIndex).hh.tbl).tail = &raw mut (*di).hh as *mut UtHashHandle;
+            (*(*(*(*g).diagram_index).hh.tbl).tail).next = di as *mut ::core::ffi::c_void;
+            (*(*(*g).diagram_index).hh.tbl).tail = &raw mut (*di).hh as *mut UtHashHandle;
         }
         let mut _ha_bkt: ::core::ffi::c_uint = 0;
-        (*(*(*g).diagramIndex).hh.tbl).num_items =
-            (*(*(*g).diagramIndex).hh.tbl).num_items.wrapping_add(1);
+        (*(*(*g).diagram_index).hh.tbl).num_items =
+            (*(*(*g).diagram_index).hh.tbl).num_items.wrapping_add(1);
         _ha_bkt = _ha_hashv
-            & (*(*(*g).diagramIndex).hh.tbl)
+            & (*(*(*g).diagram_index).hh.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
-        let mut _ha_head: *mut UtHashBucket = (*(*(*g).diagramIndex).hh.tbl)
+        let mut _ha_head: *mut UtHashBucket = (*(*(*g).diagram_index).hh.tbl)
             .buckets
             .offset(_ha_bkt as isize)
             as *mut UtHashBucket;
@@ -3823,24 +3823,24 @@ unsafe extern "C" fn check_singlet_match(
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
     _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
     di = ::core::ptr::null_mut::<CffSubrDiagramIndex>();
-    if !(*g).diagramIndex.is_null() {
+    if !(*g).diagram_index.is_null() {
         let mut _hf_bkt: ::core::ffi::c_uint = 0;
         _hf_bkt = _hf_hashv
-            & (*(*(*g).diagramIndex).hh.tbl)
+            & (*(*(*g).diagram_index).hh.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
         if 1 as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-            if !(*(*(*(*g).diagramIndex).hh.tbl)
+            if !(*(*(*(*g).diagram_index).hh.tbl)
                 .buckets
                 .offset(_hf_bkt as isize))
             .hh_head
             .is_null()
             {
-                di = ((*(*(*(*g).diagramIndex).hh.tbl)
+                di = ((*(*(*(*g).diagram_index).hh.tbl)
                     .buckets
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
-                    .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                    .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                     as *mut ::core::ffi::c_void as *mut CffSubrDiagramIndex
                     as *mut CffSubrDiagramIndex;
             } else {
@@ -3856,7 +3856,7 @@ unsafe extern "C" fn check_singlet_match(
                 }
                 if !(*di).hh.hh_next.is_null() {
                     di = ((*di).hh.hh_next as *mut ::core::ffi::c_char)
-                        .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+                        .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                         as *mut ::core::ffi::c_void
                         as *mut CffSubrDiagramIndex
                         as *mut CffSubrDiagramIndex;
@@ -4141,7 +4141,7 @@ unsafe extern "C" fn check_singlet_match(
         (*di).hh.hashv = _ha_hashv;
         (*di).hh.key = key as *mut ::core::ffi::c_char as *mut ::core::ffi::c_void;
         (*di).hh.keylen = len as ::core::ffi::c_uint;
-        if (*g).diagramIndex.is_null() {
+        if (*g).diagram_index.is_null() {
             (*di).hh.next = NULL;
             (*di).hh.prev = NULL;
             (*di).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
@@ -4175,24 +4175,24 @@ unsafe extern "C" fn check_singlet_match(
                     );
                 }
             }
-            (*g).diagramIndex = di;
+            (*g).diagram_index = di;
         } else {
-            (*di).hh.tbl = (*(*g).diagramIndex).hh.tbl;
+            (*di).hh.tbl = (*(*g).diagram_index).hh.tbl;
             (*di).hh.next = NULL;
-            (*di).hh.prev = ((*(*(*g).diagramIndex).hh.tbl).tail as *mut ::core::ffi::c_char)
-                .offset(-(*(*(*g).diagramIndex).hh.tbl).hho)
+            (*di).hh.prev = ((*(*(*g).diagram_index).hh.tbl).tail as *mut ::core::ffi::c_char)
+                .offset(-(*(*(*g).diagram_index).hh.tbl).hho)
                 as *mut ::core::ffi::c_void;
-            (*(*(*(*g).diagramIndex).hh.tbl).tail).next = di as *mut ::core::ffi::c_void;
-            (*(*(*g).diagramIndex).hh.tbl).tail = &raw mut (*di).hh as *mut UtHashHandle;
+            (*(*(*(*g).diagram_index).hh.tbl).tail).next = di as *mut ::core::ffi::c_void;
+            (*(*(*g).diagram_index).hh.tbl).tail = &raw mut (*di).hh as *mut UtHashHandle;
         }
         let mut _ha_bkt: ::core::ffi::c_uint = 0;
-        (*(*(*g).diagramIndex).hh.tbl).num_items =
-            (*(*(*g).diagramIndex).hh.tbl).num_items.wrapping_add(1);
+        (*(*(*g).diagram_index).hh.tbl).num_items =
+            (*(*(*g).diagram_index).hh.tbl).num_items.wrapping_add(1);
         _ha_bkt = _ha_hashv
-            & (*(*(*g).diagramIndex).hh.tbl)
+            & (*(*(*g).diagram_index).hh.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
-        let mut _ha_head: *mut UtHashBucket = (*(*(*g).diagramIndex).hh.tbl)
+        let mut _ha_head: *mut UtHashBucket = (*(*(*g).diagram_index).hh.tbl)
             .buckets
             .offset(_ha_bkt as isize)
             as *mut UtHashBucket;
@@ -4319,7 +4319,7 @@ unsafe extern "C" fn check_singlet_match(
 unsafe extern "C" fn append_node_to_graph(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) {
     let mut last: *mut CffSubrNode = last_node_of((*g).root);
     x_insert_node_after(g, last, n);
-    if (*g).doSubroutinize {
+    if (*g).do_subroutinize {
         if !check_doublet_match(g, last) {
             if buflen((*n).terminal) > 15 as usize {
                 check_singlet_match(g, n);
@@ -4382,25 +4382,25 @@ pub unsafe extern "C" fn cff_insert_il_to_graph(
     (*n_1).terminal = blob;
     (*n_1).hard = true;
     append_node_to_graph(g, n_1);
-    (*g).totalCharStrings = (*g).totalCharStrings.wrapping_add(1 as u32);
+    (*g).total_char_strings = (*g).total_char_strings.wrapping_add(1 as u32);
 }
 unsafe extern "C" fn cff_stat_height(mut r: *mut CffSubrRule, mut height: u32) {
     if height > (*r).height {
         (*r).height = height;
     }
-    let mut effectiveLength: u32 = 0 as u32;
+    let mut effective_length: u32 = 0 as u32;
     let mut e: *mut CffSubrNode = (*(*r).guard).next;
     while e != (*r).guard {
         if !(*e).rule.is_null() {
             cff_stat_height((*e).rule, height.wrapping_add(1 as u32));
-            effectiveLength = effectiveLength.wrapping_add(4 as u32);
+            effective_length = effective_length.wrapping_add(4 as u32);
         } else {
-            effectiveLength = (effectiveLength as usize).wrapping_add((*(*e).terminal).size)
+            effective_length = (effective_length as usize).wrapping_add((*(*e).terminal).size)
                 as u32 as u32;
         }
         e = (*e).next;
     }
-    (*r).effectiveLength = effectiveLength;
+    (*r).effective_length = effective_length;
 }
 unsafe extern "C" fn number_a_subroutine(mut r: *mut CffSubrRule, mut current: *mut u32) {
     if (*r).numbered {
@@ -4410,7 +4410,7 @@ unsafe extern "C" fn number_a_subroutine(mut r: *mut CffSubrRule, mut current: *
         return;
     }
     if (*r)
-        .effectiveLength
+        .effective_length
         .wrapping_sub(4 as u32)
         .wrapping_mul((*r).refcount.wrapping_sub(1 as u32))
         .wrapping_sub(4 as u32)
@@ -4533,7 +4533,7 @@ pub unsafe extern "C" fn cff_il_graph_to_buffers(
     cff_stat_height((*g).root, 0 as u32);
     let mut max_subroutines: u32 = cff_number_subroutines(g);
     (*(*options).logger)
-        .logSDS
+        .log_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         LOG_VL_PROGRESS,
@@ -4557,7 +4557,7 @@ pub unsafe extern "C" fn cff_il_graph_to_buffers(
     let mut lsubrs: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     char_strings = __caryll_allocate_clean(
         (::core::mem::size_of::<Buffer>() as usize)
-            .wrapping_mul((*g).totalCharStrings.wrapping_add(1 as u32) as usize),
+            .wrapping_mul((*g).total_char_strings.wrapping_add(1 as u32) as usize),
         608 as ::core::ffi::c_ulong,
     ) as *mut Buffer;
     lsubrs = __caryll_allocate_clean(
@@ -4587,15 +4587,15 @@ pub unsafe extern "C" fn cff_il_graph_to_buffers(
         }
         e = (*e).next;
     }
-    let mut is: *mut CffIndex = CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
+    let mut is: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
         char_strings as *mut ::core::ffi::c_void,
-        (*g).totalCharStrings,
+        (*g).total_char_strings,
         Some(
             from_array
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
         ),
     );
-    let mut igs: *mut CffIndex = CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
+    let mut igs: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
         gsubrs as *mut ::core::ffi::c_void,
         max_g_subrs,
         Some(
@@ -4603,7 +4603,7 @@ pub unsafe extern "C" fn cff_il_graph_to_buffers(
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
         ),
     );
-    let mut ils: *mut CffIndex = CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
+    let mut ils: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
         lsubrs as *mut ::core::ffi::c_void,
         max_l_subrs,
         Some(
@@ -4612,7 +4612,7 @@ pub unsafe extern "C" fn cff_il_graph_to_buffers(
         ),
     );
     let mut j_0: u32 = 0 as u32;
-    while j_0 < (*g).totalCharStrings {
+    while j_0 < (*g).total_char_strings {
         free((*char_strings.offset(j_0 as isize)).data as *mut ::core::ffi::c_void);
         let ref mut fresh6 = (*char_strings.offset(j_0 as isize)).data;
         *fresh6 = ::core::ptr::null_mut::<u8>();

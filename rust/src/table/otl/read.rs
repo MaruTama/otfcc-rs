@@ -131,7 +131,7 @@ unsafe extern "C" fn parse_language(
         OTL_I_FEATURE_REF_LIST
             .dispose
             .expect("non-null function pointer")(&raw mut (*lang).features);
-        (*lang).requiredFeature = ::core::ptr::null::<Feature>();
+        (*lang).required_feature = ::core::ptr::null::<Feature>();
         return;
     } else {
         rid = read_16u(
@@ -139,9 +139,9 @@ unsafe extern "C" fn parse_language(
                 .offset(2 as ::core::ffi::c_int as isize) as *const u8,
         ) as TableId;
         if (rid as usize) < (*features).length {
-            (*lang).requiredFeature = *(*features).items.offset(rid as isize) as FeatureRef;
+            (*lang).required_feature = *(*features).items.offset(rid as isize) as FeatureRef;
         } else {
-            (*lang).requiredFeature = ::core::ptr::null::<Feature>();
+            (*lang).required_feature = ::core::ptr::null::<Feature>();
         }
         feature_count = read_16u(
             data.offset(base as isize)
@@ -422,7 +422,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                         match current_block {
                                             2510049428056405458 => {}
                                             _ => {
-                                                let mut scriptCount: TableId =
+                                                let mut script_count: TableId =
                                                     read_16u(data.offset(script_list_offset as isize)
                                                         as *const u8)
                                                         as TableId;
@@ -431,7 +431,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                         .wrapping_add(2 as u32)
                                                         .wrapping_add(
                                                             (6 as ::core::ffi::c_int
-                                                                * scriptCount as ::core::ffi::c_int)
+                                                                * script_count as ::core::ffi::c_int)
                                                                 as u32,
                                                         ))
                                                 {
@@ -440,7 +440,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                     let mut j_1: TableId = 0 as TableId;
                                                     loop {
                                                         if !((j_1 as ::core::ffi::c_int)
-                                                            < scriptCount as ::core::ffi::c_int)
+                                                            < script_count as ::core::ffi::c_int)
                                                         {
                                                             current_block = 6528285054092551010;
                                                             break;
@@ -509,7 +509,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                         _ => {
                                                             let mut j_2: TableId = 0 as TableId;
                                                             while (j_2 as ::core::ffi::c_int)
-                                                                < scriptCount as ::core::ffi::c_int
+                                                                < script_count as ::core::ffi::c_int
                                                             {
                                                                 let mut tag_0: u32 = read_32u(
                                                                     data
@@ -834,7 +834,7 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
             }
         } else {
             OTL_I_SUBTABLE_LIST
-                .disposeDependent
+                .dispose_dependent
                 .expect("non-null function pointer")(
                 &raw mut (*lookup).subtables, lookup
             );
@@ -862,7 +862,7 @@ pub unsafe extern "C" fn otfcc_read_otl(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {

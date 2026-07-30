@@ -16,13 +16,13 @@ use crate::vendor::sds::{sdsempty};
 #[repr(C)]
 pub struct VorgEntry {
     pub gid: GlyphId,
-    pub verticalOrigin: i16,
+    pub vertical_origin: i16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VorgTable {
-    pub numVertOriginYMetrics: GlyphId,
-    pub defaultVerticalOrigin: Pos,
+    pub num_vert_origin_y_metrics: GlyphId,
+    pub default_vertical_origin: Pos,
     pub entries: *mut VorgEntry,
 }
 #[derive(Copy, Clone)]
@@ -33,7 +33,7 @@ pub struct VorgTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut VorgTable, *mut VorgTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VorgTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VorgTable, VorgTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut VorgTable, VorgTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut VorgTable, VorgTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VorgTable>,
     pub free: Option<unsafe extern "C" fn(*mut VorgTable) -> ()>,
 }
@@ -55,7 +55,7 @@ pub static TABLE_I_VORG: VorgTableElementInterface = {
         replace: Some(
             table_vorg_replace as unsafe extern "C" fn(*mut VorgTable, VorgTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_vorg_copy_replace as unsafe extern "C" fn(*mut VorgTable, VorgTable) -> (),
         ),
         create: Some(table_vorg_create),
@@ -124,14 +124,14 @@ pub unsafe extern "C" fn otfcc_read_vorg(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut VorgTable {
-    let mut numVertOriginYMetrics: u16 = 0;
+    let mut num_vert_origin_y_metrics: u16 = 0;
     let mut vorg: *mut VorgTable = ::core::ptr::null_mut::<VorgTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -141,29 +141,29 @@ pub unsafe extern "C" fn otfcc_read_vorg(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 8 as u32) {
-                        numVertOriginYMetrics = read_16u(
+                        num_vert_origin_y_metrics = read_16u(
                             data.offset(6 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         if !(length
                             < (8 as ::core::ffi::c_int
                                 + 4 as ::core::ffi::c_int
-                                    * numVertOriginYMetrics as ::core::ffi::c_int)
+                                    * num_vert_origin_y_metrics as ::core::ffi::c_int)
                                 as u32)
                         {
                             vorg = (
                                 TABLE_I_VORG.create.expect("non-null function pointer"))();
-                            (*vorg).defaultVerticalOrigin = read_16s(
+                            (*vorg).default_vertical_origin = read_16s(
                                 data.offset(4 as ::core::ffi::c_int as isize) as *const u8,
                             ) as Pos;
-                            (*vorg).numVertOriginYMetrics = numVertOriginYMetrics as GlyphId;
+                            (*vorg).num_vert_origin_y_metrics = num_vert_origin_y_metrics as GlyphId;
                             (*vorg).entries = __caryll_allocate_clean(
                                 (::core::mem::size_of::<VorgEntry>() as usize)
-                                    .wrapping_mul(numVertOriginYMetrics as usize),
+                                    .wrapping_mul(num_vert_origin_y_metrics as usize),
                                 22 as ::core::ffi::c_ulong,
                             ) as *mut VorgEntry;
                             let mut j: u16 = 0 as u16;
                             while (j as ::core::ffi::c_int)
-                                < numVertOriginYMetrics as ::core::ffi::c_int
+                                < num_vert_origin_y_metrics as ::core::ffi::c_int
                             {
                                 (*(*vorg).entries.offset(j as isize)).gid = read_16u(
                                     data.offset(8 as ::core::ffi::c_int as isize).offset(
@@ -172,7 +172,7 @@ pub unsafe extern "C" fn otfcc_read_vorg(
                                     ) as *const u8,
                                 )
                                     as GlyphId;
-                                (*(*vorg).entries.offset(j as isize)).verticalOrigin = read_16s(
+                                (*(*vorg).entries.offset(j as isize)).vertical_origin = read_16s(
                                     data.offset(8 as ::core::ffi::c_int as isize)
                                         .offset(
                                             (4 as ::core::ffi::c_int * j as ::core::ffi::c_int)
@@ -187,7 +187,7 @@ pub unsafe extern "C" fn otfcc_read_vorg(
                         }
                     }
                     (*(*options).logger)
-                        .logSDS
+                        .log_sds
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
@@ -215,14 +215,14 @@ pub unsafe extern "C" fn otfcc_build_vorg(
     let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 1 as u16);
     bufwrite16b(buf, 0 as u16);
-    bufwrite16b(buf, pos_to_u16((*table).defaultVerticalOrigin));
-    bufwrite16b(buf, (*table).numVertOriginYMetrics as u16);
+    bufwrite16b(buf, pos_to_u16((*table).default_vertical_origin));
+    bufwrite16b(buf, (*table).num_vert_origin_y_metrics as u16);
     let mut j: u16 = 0 as u16;
-    while (j as ::core::ffi::c_int) < (*table).numVertOriginYMetrics as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*table).num_vert_origin_y_metrics as ::core::ffi::c_int {
         bufwrite16b(buf, (*(*table).entries.offset(j as isize)).gid as u16);
         bufwrite16b(
             buf,
-            (*(*table).entries.offset(j as isize)).verticalOrigin as u16,
+            (*(*table).entries.offset(j as isize)).vertical_origin as u16,
         );
         j = j.wrapping_add(1);
     }

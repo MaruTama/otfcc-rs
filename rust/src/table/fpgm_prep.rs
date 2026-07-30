@@ -31,7 +31,7 @@ pub struct FpgmPrepTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut FpgmPrepTable, *mut FpgmPrepTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FpgmPrepTable>,
     pub free: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
 }
@@ -128,7 +128,7 @@ pub static TABLE_I_FPGM_PREP: FpgmPrepTableElementInterface = {
             table_fpgm_prep_replace
                 as unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_fpgm_prep_copy_replace
                 as unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> (),
         ),
@@ -147,7 +147,7 @@ pub unsafe extern "C" fn otfcc_read_fpgm_prep(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn table_dump_table_fpgm_prep(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), tag),
@@ -240,7 +240,7 @@ pub unsafe extern "C" fn otfcc_parse_fpgm_prep(
     table = json_obj_get(root, tag);
     if !table.is_null() {
         (*(*options).logger)
-            .startSDS
+            .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), tag),

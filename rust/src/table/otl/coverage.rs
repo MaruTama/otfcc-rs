@@ -17,7 +17,7 @@ use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Coverage {
-    pub numGlyphs: GlyphId,
+    pub num_glyphs: GlyphId,
     pub capacity: u32,
     pub glyphs: *mut GlyphHandle,
 }
@@ -29,7 +29,7 @@ pub struct ICoverage {
     pub move_0: Option<unsafe extern "C" fn(*mut Coverage, *mut Coverage) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Coverage) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut Coverage, Coverage) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut Coverage, Coverage) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut Coverage, Coverage) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut Coverage>,
     pub free: Option<unsafe extern "C" fn(*mut Coverage) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut Coverage, u32) -> ()>,
@@ -37,7 +37,7 @@ pub struct ICoverage {
     pub dump: Option<unsafe extern "C" fn(*const Coverage) -> *mut JsonValue>,
     pub parse: Option<unsafe extern "C" fn(*const JsonValue) -> *mut Coverage>,
     pub build: Option<unsafe extern "C" fn(*const Coverage) -> *mut Buffer>,
-    pub buildFormat:
+    pub build_format:
         Option<unsafe extern "C" fn(*const Coverage, u16) -> *mut Buffer>,
     pub shrink: Option<unsafe extern "C" fn(*mut Coverage, bool) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut Coverage, GlyphHandle) -> ()>,
@@ -46,13 +46,13 @@ pub struct ICoverage {
 #[repr(C)]
 pub struct CoverageEntry {
     pub gid: ::core::ffi::c_int,
-    pub covIndex: ::core::ffi::c_int,
+    pub cov_index: ::core::ffi::c_int,
     pub hh: UtHashHandle,
 }
 #[inline]
 unsafe extern "C" fn dispose_coverage(mut coverage: *mut Coverage) {
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).numGlyphs as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
         otfcc_handle_dispose(
             (*coverage).glyphs.offset(j as isize) as *mut Handle,
         );
@@ -145,28 +145,28 @@ pub(crate) unsafe extern "C" fn clear_coverage(mut coverage: *mut Coverage, mut 
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).numGlyphs as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
         otfcc_handle_dispose(
             (*coverage).glyphs.offset(j as isize) as *mut Handle,
         );
         j = j.wrapping_add(1);
     }
     grow_coverage(coverage, n);
-    (*coverage).numGlyphs = n as GlyphId;
+    (*coverage).num_glyphs = n as GlyphId;
 }
 unsafe extern "C" fn by_cov_index(
     mut a: *mut CoverageEntry,
     mut b: *mut CoverageEntry,
 ) -> ::core::ffi::c_int {
-    return (*a).covIndex - (*b).covIndex;
+    return (*a).cov_index - (*b).cov_index;
 }
 pub(crate) unsafe extern "C" fn push_to_coverage(mut coverage: *mut Coverage, mut h: GlyphHandle) {
-    (*coverage).numGlyphs =
-        ((*coverage).numGlyphs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
-    grow_coverage(coverage, (*coverage).numGlyphs as u32);
+    (*coverage).num_glyphs =
+        ((*coverage).num_glyphs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+    grow_coverage(coverage, (*coverage).num_glyphs as u32);
     *(*coverage)
         .glyphs
-        .offset(((*coverage).numGlyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize) =
+        .offset(((*coverage).num_glyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize) =
         h;
 }
 pub(crate) unsafe extern "C" fn read_coverage(
@@ -181,20 +181,20 @@ pub(crate) unsafe extern "C" fn read_coverage(
     let mut format: u16 = read_16u(data.offset(offset as isize));
     match format as ::core::ffi::c_int {
         1 => {
-            let mut glyphCount: u16 = read_16u(
+            let mut glyph_count: u16 = read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize),
             );
             if table_length
                 < offset.wrapping_add(4 as u32).wrapping_add(
-                    (glyphCount as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
+                    (glyph_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
                 )
             {
                 return coverage;
             }
             let mut hash: *mut CoverageEntry = ::core::ptr::null_mut::<CoverageEntry>();
             let mut j: u16 = 0 as u16;
-            while (j as ::core::ffi::c_int) < glyphCount as ::core::ffi::c_int {
+            while (j as ::core::ffi::c_int) < glyph_count as ::core::ffi::c_int {
                 let mut item: *mut CoverageEntry = ::core::ptr::null_mut::<CoverageEntry>();
                 let mut gid: ::core::ffi::c_int = read_16u(
                     data.offset(offset as isize)
@@ -528,7 +528,7 @@ pub(crate) unsafe extern "C" fn read_coverage(
                         60 as ::core::ffi::c_ulong,
                     ) as *mut CoverageEntry;
                     (*item).gid = gid;
-                    (*item).covIndex = j as ::core::ffi::c_int;
+                    (*item).cov_index = j as ::core::ffi::c_int;
                     let mut _ha_hashv: ::core::ffi::c_uint = 0;
                     let mut _hj_i_0: ::core::ffi::c_uint = 0;
                     let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -1561,7 +1561,7 @@ pub(crate) unsafe extern "C" fn read_coverage(
                             87 as ::core::ffi::c_ulong,
                         ) as *mut CoverageEntry;
                         (*item_0).gid = k;
-                        (*item_0).covIndex = start_coverage_index as ::core::ffi::c_int + k;
+                        (*item_0).cov_index = start_coverage_index as ::core::ffi::c_int + k;
                         let mut _ha_hashv_0: ::core::ffi::c_uint = 0;
                         let mut _hj_i_2: ::core::ffi::c_uint = 0;
                         let mut _hj_j_2: ::core::ffi::c_uint = 0;
@@ -2264,9 +2264,9 @@ pub(crate) unsafe extern "C" fn read_coverage(
     return coverage;
 }
 pub(crate) unsafe extern "C" fn dump_coverage(mut coverage: *const Coverage) -> *mut JsonValue {
-    let mut a: *mut JsonValue = json_array_new((*coverage).numGlyphs as usize);
+    let mut a: *mut JsonValue = json_array_new((*coverage).num_glyphs as usize);
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).numGlyphs as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
         json_array_push(
             a,
             json_string_new(
@@ -2312,7 +2312,7 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
     mut coverage: *const Coverage,
     mut format: u16,
 ) -> *mut Buffer {
-    if (*coverage).numGlyphs == 0 {
+    if (*coverage).num_glyphs == 0 {
         let mut buf: *mut Buffer = bufnew();
         bufwrite16b(buf, 2 as u16);
         bufwrite16b(buf, 0 as u16);
@@ -2321,12 +2321,12 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
     let mut r: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
     r = __caryll_allocate_clean(
         (::core::mem::size_of::<GlyphId>() as usize)
-            .wrapping_mul((*coverage).numGlyphs as usize),
+            .wrapping_mul((*coverage).num_glyphs as usize),
         144 as ::core::ffi::c_ulong,
     ) as *mut GlyphId;
     let mut jj: GlyphId = 0 as GlyphId;
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).numGlyphs as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
         *r.offset(jj as isize) = (*(*coverage).glyphs.offset(j as isize)).index;
         jj = jj.wrapping_add(1);
         j = j.wrapping_add(1);
@@ -2437,7 +2437,7 @@ pub(crate) unsafe extern "C" fn shrink_coverage(mut coverage: *mut Coverage, mut
     }
     let mut k: GlyphId = 0 as GlyphId;
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).numGlyphs as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
         if !(*(*coverage).glyphs.offset(j as isize)).name.is_null() {
             let fresh0 = k;
             k = k.wrapping_add(1);
@@ -2487,7 +2487,7 @@ pub(crate) unsafe extern "C" fn shrink_coverage(mut coverage: *mut Coverage, mut
         }
         k = (k as ::core::ffi::c_int - skip as ::core::ffi::c_int) as GlyphId;
     }
-    (*coverage).numGlyphs = k;
+    (*coverage).num_glyphs = k;
 }
 pub static OTL_I_COVERAGE: ICoverage = {
     ICoverage {
@@ -2502,7 +2502,7 @@ pub static OTL_I_COVERAGE: ICoverage = {
         replace: Some(
             otl_coverage_replace as unsafe extern "C" fn(*mut Coverage, Coverage) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             otl_coverage_copy_replace as unsafe extern "C" fn(*mut Coverage, Coverage) -> (),
         ),
         create: Some(otl_coverage_create),
@@ -2517,7 +2517,7 @@ pub static OTL_I_COVERAGE: ICoverage = {
         build: Some(
             build_coverage as unsafe extern "C" fn(*const Coverage) -> *mut Buffer,
         ),
-        buildFormat: Some(
+        build_format: Some(
             build_coverage_format
                 as unsafe extern "C" fn(*const Coverage, u16) -> *mut Buffer,
         ),

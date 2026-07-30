@@ -65,7 +65,7 @@ pub struct BaseHash {
 pub struct MarkHash {
     pub gid: ::core::ffi::c_int,
     pub name: SdsRaw,
-    pub markClass: GlyphClass,
+    pub mark_class: GlyphClass,
     pub anchor: Anchor,
     pub hh: UtHashHandle,
 }
@@ -74,7 +74,7 @@ pub struct MarkHash {
 pub struct LigHash {
     pub gid: ::core::ffi::c_int,
     pub name: SdsRaw,
-    pub componentCount: GlyphId,
+    pub component_count: GlyphId,
     pub anchors: *mut *mut Anchor,
     pub hh: UtHashHandle,
 }
@@ -97,20 +97,20 @@ unsafe extern "C" fn consolidate_mark_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut options: *const Options,
-    mut markArray: *mut MarkArray,
-    mut classCount: GlyphClass,
+    mut mark_array: *mut MarkArray,
+    mut class_count: GlyphClass,
 ) {
     let mut hm: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
     let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < (*markArray).length {
+    while (k as usize) < (*mark_array).length {
         if !OTFCC_PKG_GLYPH_ORDER
-            .consolidateHandle
+            .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
-            &raw mut (*(*markArray).items.offset(k as isize)).glyph,
+            &raw mut (*(*mark_array).items.offset(k as isize)).glyph,
         ) {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -118,14 +118,14 @@ unsafe extern "C" fn consolidate_mark_array(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored unknown glyph name ",
-                    (*(*markArray).items.offset(k as isize)).glyph.name,
+                    (*(*mark_array).items.offset(k as isize)).glyph.name,
                     b".",
                 ),
             );
         } else {
             let mut s: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
             let mut gid: ::core::ffi::c_int =
-                (*(*markArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
+                (*(*mark_array).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
             let mut _hj_i: ::core::ffi::c_uint = 0;
             let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -436,20 +436,20 @@ unsafe extern "C" fn consolidate_mark_array(
                 }
             }
             if s.is_null()
-                && (*(*markArray).items.offset(k as isize)).anchor.present as ::core::ffi::c_int
+                && (*(*mark_array).items.offset(k as isize)).anchor.present as ::core::ffi::c_int
                     != 0
-                && ((*(*markArray).items.offset(k as isize)).markClass as ::core::ffi::c_int)
-                    < classCount as ::core::ffi::c_int
+                && ((*(*mark_array).items.offset(k as isize)).mark_class as ::core::ffi::c_int)
+                    < class_count as ::core::ffi::c_int
             {
                 s = __caryll_allocate_clean(
                     ::core::mem::size_of::<MarkHash>() as usize,
                     47 as ::core::ffi::c_ulong,
                 ) as *mut MarkHash;
                 (*s).gid =
-                    (*(*markArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
-                (*s).name = sdsdup((*(*markArray).items.offset(k as isize)).glyph.name);
-                (*s).markClass = (*(*markArray).items.offset(k as isize)).markClass;
-                (*s).anchor = (*(*markArray).items.offset(k as isize)).anchor;
+                    (*(*mark_array).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
+                (*s).name = sdsdup((*(*mark_array).items.offset(k as isize)).glyph.name);
+                (*s).mark_class = (*(*mark_array).items.offset(k as isize)).mark_class;
+                (*s).anchor = (*(*mark_array).items.offset(k as isize)).anchor;
                 let mut _ha_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i_0: ::core::ffi::c_uint = 0;
                 let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -899,7 +899,7 @@ unsafe extern "C" fn consolidate_mark_array(
                 }
             } else {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect(
                         "non-null function pointer",
                     )(
@@ -909,7 +909,7 @@ unsafe extern "C" fn consolidate_mark_array(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
-                        (*(*markArray).items.offset(k as isize)).glyph.name,
+                        (*(*mark_array).items.offset(k as isize)).glyph.name,
                         b".",
                     ),
                 );
@@ -1048,19 +1048,19 @@ unsafe extern "C" fn consolidate_mark_array(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    OTL_I_MARK_ARRAY.clear.expect("non-null function pointer")(markArray);
+    OTL_I_MARK_ARRAY.clear.expect("non-null function pointer")(mark_array);
     let mut s_0: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
     let mut tmp: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
     s_0 = hm;
     tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut MarkHash as *mut MarkHash;
     while !s_0.is_null() {
         OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(
-            markArray,
+            mark_array,
             MarkRecord {
                 glyph: handle_from_consolidated(
                     (*s_0).gid as GlyphId, (*s_0).name
                 ) as GlyphHandle,
-                markClass: (*s_0).markClass,
+                mark_class: (*s_0).mark_class,
                 anchor: (*s_0).anchor,
             },
         );
@@ -1123,19 +1123,19 @@ unsafe extern "C" fn consolidate_base_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut options: *const Options,
-    mut baseArray: *mut BaseArray,
+    mut base_array: *mut BaseArray,
 ) {
     let mut hm: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
     let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < (*baseArray).length {
+    while (k as usize) < (*base_array).length {
         if !OTFCC_PKG_GLYPH_ORDER
-            .consolidateHandle
+            .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
-            &raw mut (*(*baseArray).items.offset(k as isize)).glyph,
+            &raw mut (*(*base_array).items.offset(k as isize)).glyph,
         ) {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -1143,14 +1143,14 @@ unsafe extern "C" fn consolidate_base_array(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored unknown glyph name ",
-                    (*(*baseArray).items.offset(k as isize)).glyph.name,
+                    (*(*base_array).items.offset(k as isize)).glyph.name,
                     b".",
                 ),
             );
         } else {
             let mut s: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
             let mut gid: ::core::ffi::c_int =
-                (*(*baseArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
+                (*(*base_array).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
             let mut _hj_i: ::core::ffi::c_uint = 0;
             let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -1466,10 +1466,10 @@ unsafe extern "C" fn consolidate_base_array(
                     87 as ::core::ffi::c_ulong,
                 ) as *mut BaseHash;
                 (*s).gid =
-                    (*(*baseArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
-                (*s).name = sdsdup((*(*baseArray).items.offset(k as isize)).glyph.name);
-                (*s).anchors = (*(*baseArray).items.offset(k as isize)).anchors;
-                let ref mut fresh0 = (*(*baseArray).items.offset(k as isize)).anchors;
+                    (*(*base_array).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
+                (*s).name = sdsdup((*(*base_array).items.offset(k as isize)).glyph.name);
+                (*s).anchors = (*(*base_array).items.offset(k as isize)).anchors;
+                let ref mut fresh0 = (*(*base_array).items.offset(k as isize)).anchors;
                 *fresh0 = ::core::ptr::null_mut::<Anchor>();
                 let mut _ha_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i_0: ::core::ffi::c_uint = 0;
@@ -1920,7 +1920,7 @@ unsafe extern "C" fn consolidate_base_array(
                 }
             } else {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -1928,7 +1928,7 @@ unsafe extern "C" fn consolidate_base_array(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored anchor double-definition for /",
-                        (*(*baseArray).items.offset(k as isize)).glyph.name,
+                        (*(*base_array).items.offset(k as isize)).glyph.name,
                         b".",
                     ),
                 );
@@ -2067,14 +2067,14 @@ unsafe extern "C" fn consolidate_base_array(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    OTL_I_BASE_ARRAY.clear.expect("non-null function pointer")(baseArray);
+    OTL_I_BASE_ARRAY.clear.expect("non-null function pointer")(base_array);
     let mut s_0: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
     let mut tmp: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
     s_0 = hm;
     tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut BaseHash as *mut BaseHash;
     while !s_0.is_null() {
         OTL_I_BASE_ARRAY.push.expect("non-null function pointer")(
-            baseArray,
+            base_array,
             BaseRecord {
                 glyph: handle_from_consolidated(
                     (*s_0).gid as GlyphId, (*s_0).name
@@ -2141,19 +2141,19 @@ unsafe extern "C" fn consolidate_lig_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut options: *const Options,
-    mut ligArray: *mut LigatureArray,
+    mut lig_array: *mut LigatureArray,
 ) {
     let mut hm: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
     let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < (*ligArray).length {
+    while (k as usize) < (*lig_array).length {
         if !OTFCC_PKG_GLYPH_ORDER
-            .consolidateHandle
+            .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
-            &raw mut (*(*ligArray).items.offset(k as isize)).glyph,
+            &raw mut (*(*lig_array).items.offset(k as isize)).glyph,
         ) {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -2161,14 +2161,14 @@ unsafe extern "C" fn consolidate_lig_array(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored unknown glyph name ",
-                    (*(*ligArray).items.offset(k as isize)).glyph.name,
+                    (*(*lig_array).items.offset(k as isize)).glyph.name,
                     b".",
                 ),
             );
         } else {
             let mut s: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
             let mut gid: ::core::ffi::c_int =
-                (*(*ligArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
+                (*(*lig_array).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
             let mut _hj_i: ::core::ffi::c_uint = 0;
             let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -2484,11 +2484,11 @@ unsafe extern "C" fn consolidate_lig_array(
                     125 as ::core::ffi::c_ulong,
                 ) as *mut LigHash;
                 (*s).gid =
-                    (*(*ligArray).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
-                (*s).name = sdsdup((*(*ligArray).items.offset(k as isize)).glyph.name);
-                (*s).componentCount = (*(*ligArray).items.offset(k as isize)).componentCount;
-                (*s).anchors = (*(*ligArray).items.offset(k as isize)).anchors;
-                let ref mut fresh5 = (*(*ligArray).items.offset(k as isize)).anchors;
+                    (*(*lig_array).items.offset(k as isize)).glyph.index as ::core::ffi::c_int;
+                (*s).name = sdsdup((*(*lig_array).items.offset(k as isize)).glyph.name);
+                (*s).component_count = (*(*lig_array).items.offset(k as isize)).component_count;
+                (*s).anchors = (*(*lig_array).items.offset(k as isize)).anchors;
+                let ref mut fresh5 = (*(*lig_array).items.offset(k as isize)).anchors;
                 *fresh5 = ::core::ptr::null_mut::<*mut Anchor>();
                 let mut _ha_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i_0: ::core::ffi::c_uint = 0;
@@ -2939,7 +2939,7 @@ unsafe extern "C" fn consolidate_lig_array(
                 }
             } else {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -2947,7 +2947,7 @@ unsafe extern "C" fn consolidate_lig_array(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored anchor double-definition for /",
-                        (*(*ligArray).items.offset(k as isize)).glyph.name,
+                        (*(*lig_array).items.offset(k as isize)).glyph.name,
                         b".",
                     ),
                 );
@@ -3086,19 +3086,19 @@ unsafe extern "C" fn consolidate_lig_array(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    OTL_I_LIGATURE_ARRAY.clear.expect("non-null function pointer")(ligArray);
+    OTL_I_LIGATURE_ARRAY.clear.expect("non-null function pointer")(lig_array);
     let mut s_0: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
     let mut tmp: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
     s_0 = hm;
     tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut LigHash as *mut LigHash;
     while !s_0.is_null() {
         OTL_I_LIGATURE_ARRAY.push.expect("non-null function pointer")(
-            ligArray,
+            lig_array,
             LigatureBaseRecord {
                 glyph: handle_from_consolidated(
                     (*s_0).gid as GlyphId, (*s_0).name
                 ) as GlyphHandle,
-                componentCount: (*s_0).componentCount,
+                component_count: (*s_0).component_count,
                 anchors: (*s_0).anchors,
             },
         );
@@ -3163,17 +3163,17 @@ pub unsafe extern "C" fn consolidate_mark_to_single(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GposMarkToSingleSubtable = &raw mut (*_subtable).gpos_markToSingle;
+    let mut subtable: *mut GposMarkToSingleSubtable = &raw mut (*_subtable).gpos_mark_to_single;
     consolidate_mark_array(
         font,
         table,
         options,
-        &raw mut (*subtable).markArray,
-        (*subtable).classCount,
+        &raw mut (*subtable).mark_array,
+        (*subtable).class_count,
     );
-    consolidate_base_array(font, table, options, &raw mut (*subtable).baseArray);
-    return (*subtable).markArray.length == 0 as usize
-        || (*subtable).baseArray.length == 0 as usize;
+    consolidate_base_array(font, table, options, &raw mut (*subtable).base_array);
+    return (*subtable).mark_array.length == 0 as usize
+        || (*subtable).base_array.length == 0 as usize;
 }
 pub unsafe extern "C" fn consolidate_mark_to_ligature(
     mut font: *mut Font,
@@ -3181,15 +3181,15 @@ pub unsafe extern "C" fn consolidate_mark_to_ligature(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GposMarkToLigatureSubtable = &raw mut (*_subtable).gpos_markToLigature;
+    let mut subtable: *mut GposMarkToLigatureSubtable = &raw mut (*_subtable).gpos_mark_to_ligature;
     consolidate_mark_array(
         font,
         table,
         options,
-        &raw mut (*subtable).markArray,
-        (*subtable).classCount,
+        &raw mut (*subtable).mark_array,
+        (*subtable).class_count,
     );
-    consolidate_lig_array(font, table, options, &raw mut (*subtable).ligArray);
-    return (*subtable).markArray.length == 0 as usize
-        || (*subtable).ligArray.length == 0 as usize;
+    consolidate_lig_array(font, table, options, &raw mut (*subtable).lig_array);
+    return (*subtable).mark_array.length == 0 as usize
+        || (*subtable).lig_array.length == 0 as usize;
 }

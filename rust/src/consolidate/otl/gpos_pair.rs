@@ -56,5 +56,5 @@ pub unsafe extern "C" fn consolidate_gpos_pair(
     fontop_consolidate_class_def(font, (*subtable).second, options);
     OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*subtable).first);
     OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*subtable).second);
-    return (*(*subtable).first).numGlyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int;
+    return (*(*subtable).first).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int;
 }

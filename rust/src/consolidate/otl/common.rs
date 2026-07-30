@@ -52,15 +52,15 @@ pub unsafe extern "C" fn fontop_consolidate_coverage(
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).numGlyphs as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
         let mut h: *mut GlyphHandle = (*coverage).glyphs.offset(j as isize) as *mut GlyphHandle;
         if !OTFCC_PKG_GLYPH_ORDER
-            .consolidateHandle
+            .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order, h as *mut GlyphHandle
         ) {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
@@ -86,15 +86,15 @@ pub unsafe extern "C" fn fontop_consolidate_class_def(
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
         let mut h: *mut GlyphHandle = (*cd).glyphs.offset(j as isize) as *mut GlyphHandle;
         if !OTFCC_PKG_GLYPH_ORDER
-            .consolidateHandle
+            .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order, h as *mut GlyphHandle
         ) {
             (*(*options).logger)
-                .logSDS
+                .log_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,

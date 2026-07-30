@@ -34,7 +34,7 @@ pub struct GposCursiveEntryElementInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GposCursiveEntry) -> ()>,
     pub replace:
         Option<unsafe extern "C" fn(*mut GposCursiveEntry, GposCursiveEntry) -> ()>,
-    pub copyReplace:
+    pub copy_replace:
         Option<unsafe extern "C" fn(*mut GposCursiveEntry, GposCursiveEntry) -> ()>,
 }
 unsafe extern "C" fn delete_gpos_cursive_entry(mut entry: *mut GposCursiveEntry) {
@@ -49,7 +49,7 @@ static GSS_TYPEINFO: GposCursiveEntryElementInterface = {
             delete_gpos_cursive_entry as unsafe extern "C" fn(*mut GposCursiveEntry) -> (),
         ),
         replace: None,
-        copyReplace: None,
+        copy_replace: None,
     }
 };
 #[inline]
@@ -327,7 +327,7 @@ pub static I_SUBTABLE_GPOS_CURSIVE: GposCursiveSubtableVectorInterface = {
             subtable_gpos_cursive_replace
                 as unsafe extern "C" fn(*mut GposCursiveSubtable, GposCursiveSubtable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             subtable_gpos_cursive_copy_replace
                 as unsafe extern "C" fn(*mut GposCursiveSubtable, GposCursiveSubtable) -> (),
         ),
@@ -335,15 +335,15 @@ pub static I_SUBTABLE_GPOS_CURSIVE: GposCursiveSubtableVectorInterface = {
         free: Some(
             subtable_gpos_cursive_free as unsafe extern "C" fn(*mut GposCursiveSubtable) -> (),
         ),
-        initN: Some(
+        init_n: Some(
             subtable_gpos_cursive_init_n
                 as unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> (),
         ),
-        initCapN: Some(
+        init_cap_n: Some(
             subtable_gpos_cursive_init_cap_n
                 as unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> (),
         ),
-        createN: Some(
+        create_n: Some(
             subtable_gpos_cursive_create_n
                 as unsafe extern "C" fn(usize) -> *mut GposCursiveSubtable,
         ),
@@ -358,7 +358,7 @@ pub static I_SUBTABLE_GPOS_CURSIVE: GposCursiveSubtableVectorInterface = {
             subtable_gpos_cursive_push
                 as unsafe extern "C" fn(*mut GposCursiveSubtable, GposCursiveEntry) -> (),
         ),
-        shrinkToFit: Some(
+        shrink_to_fit: Some(
             subtable_gpos_cursive_shrink_to_fit
                 as unsafe extern "C" fn(*mut GposCursiveSubtable) -> (),
         ),
@@ -366,11 +366,11 @@ pub static I_SUBTABLE_GPOS_CURSIVE: GposCursiveSubtableVectorInterface = {
             subtable_gpos_cursive_pop
                 as unsafe extern "C" fn(*mut GposCursiveSubtable) -> GposCursiveEntry,
         ),
-        disposeItem: Some(
+        dispose_item: Some(
             subtable_gpos_cursive_dispose_item
                 as unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             subtable_gpos_cursive_filter_env
                 as unsafe extern "C" fn(
                     *mut GposCursiveSubtable,
@@ -425,7 +425,7 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
             ) as u32),
         );
         if !(targets.is_null()
-            || (*targets).numGlyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
+            || (*targets).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
         {
             value_count = read_16u(
                 data.offset(offset as isize)
@@ -436,7 +436,7 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
                     (4 as ::core::ffi::c_int * value_count as ::core::ffi::c_int) as u32,
                 ))
             {
-                if !(value_count as ::core::ffi::c_int != (*targets).numGlyphs as ::core::ffi::c_int)
+                if !(value_count as ::core::ffi::c_int != (*targets).num_glyphs as ::core::ffi::c_int)
                 {
                     let mut j: GlyphId = 0 as GlyphId;
                     while (j as ::core::ffi::c_int) < value_count as ::core::ffi::c_int {

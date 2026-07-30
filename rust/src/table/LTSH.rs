@@ -16,8 +16,8 @@ use crate::support::buffer::{bufnew, bufwrite16b, bufwrite8};
 #[repr(C)]
 pub struct LtshTable {
     pub version: u16,
-    pub numGlyphs: GlyphId,
-    pub yPels: *mut u8,
+    pub num_glyphs: GlyphId,
+    pub y_pels: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -27,15 +27,15 @@ pub struct LtshTableElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut LtshTable, *mut LtshTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut LtshTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut LtshTable, LtshTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut LtshTable, LtshTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut LtshTable, LtshTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LtshTable>,
     pub free: Option<unsafe extern "C" fn(*mut LtshTable) -> ()>,
 }
 #[inline]
 unsafe extern "C" fn dispose_ltsh(mut ltsh: *mut LtshTable) {
     if !ltsh.is_null() {
-        free((*ltsh).yPels as *mut ::core::ffi::c_void);
-        (*ltsh).yPels = ::core::ptr::null_mut::<u8>();
+        free((*ltsh).y_pels as *mut ::core::ffi::c_void);
+        (*ltsh).y_pels = ::core::ptr::null_mut::<u8>();
     }
 }
 #[inline]
@@ -59,7 +59,7 @@ pub static TABLE_I_LTSH: LtshTableElementInterface = {
         replace: Some(
             table_ltsh_replace as unsafe extern "C" fn(*mut LtshTable, LtshTable) -> (),
         ),
-        copyReplace: Some(
+        copy_replace: Some(
             table_ltsh_copy_replace as unsafe extern "C" fn(*mut LtshTable, LtshTable) -> (),
         ),
         create: Some(table_ltsh_create),
@@ -125,7 +125,7 @@ pub unsafe extern "C" fn otfcc_read_ltsh(
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
@@ -139,18 +139,18 @@ pub unsafe extern "C" fn otfcc_read_ltsh(
                         15 as ::core::ffi::c_ulong,
                     ) as *mut LtshTable;
                     (*LTSH).version = read_16u(data as *const u8);
-                    (*LTSH).numGlyphs =
+                    (*LTSH).num_glyphs =
                         read_16u(data.offset(2 as ::core::ffi::c_int as isize) as *const u8)
                             as GlyphId;
-                    (*LTSH).yPels = __caryll_allocate_clean(
+                    (*LTSH).y_pels = __caryll_allocate_clean(
                         (::core::mem::size_of::<u8>() as usize)
-                            .wrapping_mul((*LTSH).numGlyphs as usize),
+                            .wrapping_mul((*LTSH).num_glyphs as usize),
                         18 as ::core::ffi::c_ulong,
                     ) as *mut u8;
                     memcpy(
-                        (*LTSH).yPels as *mut ::core::ffi::c_void,
+                        (*LTSH).y_pels as *mut ::core::ffi::c_void,
                         data.offset(4 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_void,
-                        (*LTSH).numGlyphs as usize,
+                        (*LTSH).num_glyphs as usize,
                     );
                     return LTSH;
                 }
@@ -171,10 +171,10 @@ pub unsafe extern "C" fn otfcc_build_ltsh(
     }
     let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 0 as u16);
-    bufwrite16b(buf, (*ltsh).numGlyphs as u16);
+    bufwrite16b(buf, (*ltsh).num_glyphs as u16);
     let mut j: u16 = 0 as u16;
-    while (j as ::core::ffi::c_int) < (*ltsh).numGlyphs as ::core::ffi::c_int {
-        bufwrite8(buf, *(*ltsh).yPels.offset(j as isize));
+    while (j as ::core::ffi::c_int) < (*ltsh).num_glyphs as ::core::ffi::c_int {
+        bufwrite8(buf, *(*ltsh).y_pels.offset(j as isize));
         j = j.wrapping_add(1);
     }
     return buf;

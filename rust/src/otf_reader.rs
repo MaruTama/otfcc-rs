@@ -65,7 +65,7 @@ unsafe extern "C" fn decide_font_subtype_otf(
     // break/continue target. Traced by hand: the whole thing reduces to
     // "return FontSubtype::Cff at the first 'CFF ' tag, else FontSubtype::Ttf".
     let packet: Packet = *(*sfnt).packets.offset(index as isize);
-    for i in 0..packet.numTables as ::core::ffi::c_int {
+    for i in 0..packet.num_tables as ::core::ffi::c_int {
         let table: PacketPiece = *packet.pieces.offset(i as isize);
         if table.tag == 1128678944i32 as u32 {
             return FontSubtype::Cff;
@@ -121,21 +121,21 @@ impl FontBuilder for OtfReader {
             (*font).prep = otfcc_read_fpgm_prep(packet, options, 1886545264i32 as u32);
             (*font).cvt_ = otfcc_read_cvt(packet, options, 1668707360i32 as u32);
             (*font).gasp = otfcc_read_gasp(packet, options);
-            (*font).VDMX = otfcc_read_vdmx(packet, options);
+            (*font).vdmx = otfcc_read_vdmx(packet, options);
             (*font).LTSH = otfcc_read_ltsh(packet, options);
             let mut ctx: GlyfIOContext = GlyfIOContext {
-                locaIsLong: (*(*font).head).indexToLocFormat != 0,
-                numGlyphs: (*(*font).maxp).numGlyphs as GlyphId,
-                nPhantomPoints: 4 as ShapeId,
+                loca_is_long: (*(*font).head).index_to_loc_format != 0,
+                num_glyphs: (*(*font).maxp).num_glyphs as GlyphId,
+                n_phantom_points: 4 as ShapeId,
                 fvar: (*font).fvar,
-                hasVerticalMetrics: false,
-                exportFDSelect: false,
+                has_vertical_metrics: false,
+                export_fd_select: false,
             };
             (*font).glyf = otfcc_read_glyf(packet, options, &raw mut ctx);
         } else {
             let mut cffpr: CffAndGlyf =
                 otfcc_read_cff_and_glyf_tables(packet, options, (*font).head);
-            (*font).CFF_ = cffpr.meta;
+            (*font).cff = cffpr.meta;
             (*font).glyf = cffpr.glyphs;
             (*font).vhea = otfcc_read_vhea(packet, options);
             if !(*font).vhea.is_null() {
@@ -144,13 +144,13 @@ impl FontBuilder for OtfReader {
             }
         }
         if !(*font).glyf.is_null() {
-            (*font).GSUB = otfcc_read_otl(
+            (*font).gsub = otfcc_read_otl(
                 packet,
                 options,
                 1196643650i32 as u32,
                 (*(*font).glyf).length as GlyphId,
             );
-            (*font).GPOS = otfcc_read_otl(
+            (*font).gpos = otfcc_read_otl(
                 packet,
                 options,
                 1196445523i32 as u32,
@@ -161,14 +161,14 @@ impl FontBuilder for OtfReader {
         (*font).BASE = otfcc_read_base(packet, options);
         (*font).CPAL = otfcc_read_cpal(packet, options);
         (*font).COLR = otfcc_read_colr(packet, options);
-        (*font).SVG_ = otfcc_read_svg(packet, options);
-        (*font).TSI_01 = otfcc_read_tsi(
+        (*font).svg = otfcc_read_svg(packet, options);
+        (*font).tsi_01 = otfcc_read_tsi(
             packet,
             options,
             1414744368i32 as u32,
             1414744369i32 as u32,
         );
-        (*font).TSI_23 = otfcc_read_tsi(
+        (*font).tsi_23 = otfcc_read_tsi(
             packet,
             options,
             1414744370i32 as u32,

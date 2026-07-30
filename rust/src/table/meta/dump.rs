@@ -52,7 +52,7 @@ pub unsafe extern "C" fn otfcc_dump_meta(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"meta"),

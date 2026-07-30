@@ -56,7 +56,7 @@ pub unsafe extern "C" fn consolidate_chaining(
     let mut subtable: *mut ChainingSubtable = &raw mut (*_subtable).chaining;
     if (*subtable).type_0 as u64 != 0 {
         (*(*options).logger)
-            .logSDS
+            .log_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
@@ -68,25 +68,25 @@ pub unsafe extern "C" fn consolidate_chaining(
     let mut rule: *mut ChainingRule = &raw mut (*subtable).c2rust_unnamed.rule;
     let mut possible: bool = true;
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
         fontop_consolidate_coverage(font, *(*rule).match_0.offset(j as isize), options);
         shrink_coverage(
             *(*rule).match_0.offset(j as isize),
             true,
         );
         possible = possible as ::core::ffi::c_int != 0
-            && (**(*rule).match_0.offset(j as isize)).numGlyphs as ::core::ffi::c_int
+            && (**(*rule).match_0.offset(j as isize)).num_glyphs as ::core::ffi::c_int
                 > 0 as ::core::ffi::c_int;
         j = j.wrapping_add(1);
     }
-    if (*rule).inputBegins as ::core::ffi::c_int > (*rule).matchCount as ::core::ffi::c_int {
-        (*rule).inputBegins = (*rule).matchCount;
+    if (*rule).input_begins as ::core::ffi::c_int > (*rule).match_count as ::core::ffi::c_int {
+        (*rule).input_begins = (*rule).match_count;
     }
-    if (*rule).inputEnds as ::core::ffi::c_int > (*rule).matchCount as ::core::ffi::c_int {
-        (*rule).inputEnds = (*rule).matchCount;
+    if (*rule).input_ends as ::core::ffi::c_int > (*rule).match_count as ::core::ffi::c_int {
+        (*rule).input_ends = (*rule).match_count;
     }
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
+    while (j_0 as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
         let mut found_lookup: bool = false;
         let mut h: *mut LookupHandle = &raw mut (*(*rule).apply.offset(j_0 as isize)).lookup;
         if !(*h).name.is_null() {
@@ -117,7 +117,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             }
             if !found_lookup && !(*(*rule).apply.offset(j_0 as isize)).lookup.name.is_null() {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect(
                         "non-null function pointer",
                     )(
@@ -139,7 +139,7 @@ pub unsafe extern "C" fn consolidate_chaining(
         {
             if (*h).index as usize >= (*table).lookups.length {
                 (*(*options).logger)
-                    .logSDS
+                    .log_sds
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
@@ -161,10 +161,10 @@ pub unsafe extern "C" fn consolidate_chaining(
         }
         j_0 = j_0.wrapping_add(1);
     }
-    if (*rule).applyCount != 0 {
+    if (*rule).apply_count != 0 {
         let mut k_0: TableId = 0 as TableId;
         let mut j_1: TableId = 0 as TableId;
-        while (j_1 as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
+        while (j_1 as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
             if !(*(*rule).apply.offset(j_1 as isize)).lookup.name.is_null() {
                 let fresh0 = k_0;
                 k_0 = k_0.wrapping_add(1);
@@ -172,8 +172,8 @@ pub unsafe extern "C" fn consolidate_chaining(
             }
             j_1 = j_1.wrapping_add(1);
         }
-        (*rule).applyCount = k_0;
-        if (*rule).applyCount == 0 {
+        (*rule).apply_count = k_0;
+        if (*rule).apply_count == 0 {
             return true;
         }
     }

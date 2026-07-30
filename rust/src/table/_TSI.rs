@@ -40,7 +40,7 @@ pub struct TsiEntryElementInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut TsiEntry, *mut TsiEntry) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut TsiEntry) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -57,19 +57,19 @@ pub struct TsiTableVectorInterface {
     pub move_0: Option<unsafe extern "C" fn(*mut TsiTable, *mut TsiTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut TsiTable, TsiTable) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut TsiTable, TsiTable) -> ()>,
+    pub copy_replace: Option<unsafe extern "C" fn(*mut TsiTable, TsiTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut TsiTable>,
     pub free: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut TsiTable>,
+    pub init_n: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
+    pub init_cap_n: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
+    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut TsiTable>,
     pub fill: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut TsiTable, TsiEntry) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
+    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
     pub pop: Option<unsafe extern "C" fn(*mut TsiTable) -> TsiEntry>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
-    pub filterEnv: Option<
+    pub dispose_item: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
+    pub filter_env: Option<
         unsafe extern "C" fn(
             *mut TsiTable,
             Option<unsafe extern "C" fn(*const TsiEntry, *mut ::core::ffi::c_void) -> bool>,
@@ -86,8 +86,8 @@ pub struct TsiTableVectorInterface {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct TsiBuildTarget {
-    pub indexPart: *mut Buffer,
-    pub textPart: *mut Buffer,
+    pub index_part: *mut Buffer,
+    pub text_part: *mut Buffer,
 }
 #[inline]
 unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
@@ -168,7 +168,7 @@ pub static TSI_I_ENTRY: TsiEntryElementInterface = {
         move_0: Some(tsi_entry_move as unsafe extern "C" fn(*mut TsiEntry, *mut TsiEntry) -> ()),
         dispose: Some(tsi_entry_dispose as unsafe extern "C" fn(*mut TsiEntry) -> ()),
         replace: Some(tsi_entry_replace as unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> ()),
-        copyReplace: Some(
+        copy_replace: Some(
             tsi_entry_copy_replace as unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> (),
         ),
     }
@@ -284,23 +284,23 @@ pub static TABLE_I_TSI: TsiTableVectorInterface = {
         move_0: Some(table_tsi_move as unsafe extern "C" fn(*mut TsiTable, *mut TsiTable) -> ()),
         dispose: Some(table_tsi_dispose as unsafe extern "C" fn(*mut TsiTable) -> ()),
         replace: Some(table_tsi_replace as unsafe extern "C" fn(*mut TsiTable, TsiTable) -> ()),
-        copyReplace: Some(
+        copy_replace: Some(
             table_tsi_copy_replace as unsafe extern "C" fn(*mut TsiTable, TsiTable) -> (),
         ),
         create: Some(table_tsi_create),
         free: Some(table_tsi_free as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        initN: Some(table_tsi_init_n as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
-        initCapN: Some(table_tsi_init_cap_n as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
-        createN: Some(table_tsi_create_n as unsafe extern "C" fn(usize) -> *mut TsiTable),
+        init_n: Some(table_tsi_init_n as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
+        init_cap_n: Some(table_tsi_init_cap_n as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
+        create_n: Some(table_tsi_create_n as unsafe extern "C" fn(usize) -> *mut TsiTable),
         fill: Some(table_tsi_fill as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
         clear: Some(table_tsi_dispose as unsafe extern "C" fn(*mut TsiTable) -> ()),
         push: Some(table_tsi_push as unsafe extern "C" fn(*mut TsiTable, TsiEntry) -> ()),
-        shrinkToFit: Some(table_tsi_shrink_to_fit as unsafe extern "C" fn(*mut TsiTable) -> ()),
+        shrink_to_fit: Some(table_tsi_shrink_to_fit as unsafe extern "C" fn(*mut TsiTable) -> ()),
         pop: Some(table_tsi_pop as unsafe extern "C" fn(*mut TsiTable) -> TsiEntry),
-        disposeItem: Some(
+        dispose_item: Some(
             table_tsi_dispose_item as unsafe extern "C" fn(*mut TsiTable, usize) -> (),
         ),
-        filterEnv: Some(
+        filter_env: Some(
             table_tsi_filter_env
                 as unsafe extern "C" fn(
                     *mut TsiTable,
@@ -457,35 +457,35 @@ pub unsafe extern "C" fn otfcc_read_tsi(
     mut tag_index: u32,
     mut tag_text: u32,
 ) -> *mut TsiTable {
-    let mut textPart: PacketPiece = PacketPiece {
+    let mut text_part: PacketPiece = PacketPiece {
         tag: 0,
-        checkSum: 0,
+        check_sum: 0,
         offset: 0,
         length: 0,
         data: ::core::ptr::null_mut::<u8>(),
     };
-    textPart.tag = 0 as u32;
-    let mut indexPart: PacketPiece = PacketPiece {
+    text_part.tag = 0 as u32;
+    let mut index_part: PacketPiece = PacketPiece {
         tag: 0,
-        checkSum: 0,
+        check_sum: 0,
         offset: 0,
         length: 0,
         data: ::core::ptr::null_mut::<u8>(),
     };
-    indexPart.tag = 0 as u32;
+    index_part.tag = 0 as u32;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound != 0
         && __fortable_keep != 0
-        && __fortable_count < packet.numTables as ::core::ffi::c_int
+        && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
         let mut table_ix: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table_ix.tag == tag_index {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    indexPart = table_ix;
+                    index_part = table_ix;
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -500,14 +500,14 @@ pub unsafe extern "C" fn otfcc_read_tsi(
     let mut __notfound_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     while __notfound_0 != 0
         && __fortable_keep_0 != 0
-        && __fortable_count_0 < packet.numTables as ::core::ffi::c_int
+        && __fortable_count_0 < packet.num_tables as ::core::ffi::c_int
     {
         let mut table_tx: PacketPiece = *packet.pieces.offset(__fortable_count_0 as isize);
         while __fortable_keep_0 != 0 {
             if table_tx.tag == tag_text {
                 let mut __fortable_k2_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2_0 != 0 {
-                    textPart = table_tx;
+                    text_part = table_tx;
                     __fortable_k2_0 = 0 as ::core::ffi::c_int;
                     __notfound_0 = 0 as ::core::ffi::c_int;
                 }
@@ -517,49 +517,49 @@ pub unsafe extern "C" fn otfcc_read_tsi(
         __fortable_keep_0 = (__fortable_keep_0 == 0) as ::core::ffi::c_int;
         __fortable_count_0 += 1;
     }
-    if textPart.tag == 0 || indexPart.tag == 0 {
+    if text_part.tag == 0 || index_part.tag == 0 {
         return ::core::ptr::null_mut::<TsiTable>();
     }
     let mut tsi: *mut TsiTable = (
         TABLE_I_TSI.create.expect("non-null function pointer"))();
     let mut j: u32 = 0 as u32;
-    while j.wrapping_mul(8 as u32) < indexPart.length {
+    while j.wrapping_mul(8 as u32) < index_part.length {
         let mut gid: u16 = read_16u(
-            indexPart
+            index_part
                 .data
                 .offset(j.wrapping_mul(8 as u32) as isize),
         );
         let mut text_length: u32 = read_16u(
-            indexPart
+            index_part
                 .data
                 .offset(j.wrapping_mul(8 as u32) as isize)
                 .offset(2 as ::core::ffi::c_int as isize),
         ) as u32;
         let mut text_offset: u32 = read_32u(
-            indexPart
+            index_part
                 .data
                 .offset(j.wrapping_mul(8 as u32) as isize)
                 .offset(4 as ::core::ffi::c_int as isize),
         );
-        if !(!is_valid_gid(gid, tag_index) || text_offset >= textPart.length || text_length == 0) {
-            let mut predicted_text_length: u32 = textPart.length.wrapping_sub(text_offset);
+        if !(!is_valid_gid(gid, tag_index) || text_offset >= text_part.length || text_length == 0) {
+            let mut predicted_text_length: u32 = text_part.length.wrapping_sub(text_offset);
             let mut k: GlyphId = j.wrapping_add(1 as u32) as GlyphId;
             while ((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as u32)
-                < indexPart.length
+                < index_part.length
             {
                 let mut gid_k: u16 = read_16u(
-                    indexPart
+                    index_part
                         .data
                         .offset((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as isize),
                 );
                 let mut text_offset_k: u32 = read_32u(
-                    indexPart
+                    index_part
                         .data
                         .offset((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as isize)
                         .offset(4 as ::core::ffi::c_int as isize),
                 );
                 if gid_k as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
-                    && text_offset_k < textPart.length
+                    && text_offset_k < text_part.length
                     && text_offset_k > text_offset
                 {
                     predicted_text_length = text_offset_k.wrapping_sub(text_offset);
@@ -601,7 +601,7 @@ pub unsafe extern "C" fn otfcc_read_tsi(
                 }
             }
             entry.content = sdsnewlen(
-                textPart.data.offset(text_offset as isize) as *const ::core::ffi::c_void,
+                text_part.data.offset(text_offset as isize) as *const ::core::ffi::c_void,
                 text_length as usize,
             );
             TABLE_I_TSI.push.expect("non-null function pointer")(tsi, entry);
@@ -620,7 +620,7 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
         return;
     }
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), tag),
@@ -724,7 +724,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
     let mut tsi: *mut TsiTable = (
         TABLE_I_TSI.create.expect("non-null function pointer"))();
     (*(*options).logger)
-        .startSDS
+        .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), tag),
@@ -858,19 +858,19 @@ unsafe extern "C" fn push_tsi_entries(
         let mut entry: *mut TsiEntry = (*tsi).items.offset(__caryll_index as isize);
         while keep != 0 {
             if !((*entry).type_0 as ::core::ffi::c_uint != type_0 as ::core::ffi::c_uint) {
-                let mut length_sofar: usize = (*(*target).textPart).cursor;
-                bufwrite_sds((*target).textPart, (*entry).content);
-                let mut length_after: usize = (*(*target).textPart).cursor;
-                bufwrite16b((*target).indexPart, propergid(entry, type_0) as u16);
+                let mut length_sofar: usize = (*(*target).text_part).cursor;
+                bufwrite_sds((*target).text_part, (*entry).content);
+                let mut length_after: usize = (*(*target).text_part).cursor;
+                bufwrite16b((*target).index_part, propergid(entry, type_0) as u16);
                 if length_after.wrapping_sub(length_sofar) < 0x8000 as usize {
                     bufwrite16b(
-                        (*target).indexPart,
+                        (*target).index_part,
                         length_after.wrapping_sub(length_sofar) as u16,
                     );
                 } else {
-                    bufwrite16b((*target).indexPart, 0x8000 as u16);
+                    bufwrite16b((*target).index_part, 0x8000 as u16);
                 }
-                bufwrite32b((*target).indexPart, length_sofar as u32);
+                bufwrite32b((*target).index_part, length_sofar as u32);
                 items_pushed =
                     (items_pushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
             }
@@ -881,13 +881,13 @@ unsafe extern "C" fn push_tsi_entries(
     }
     while (items_pushed as ::core::ffi::c_int) < min_n as ::core::ffi::c_int {
         bufwrite16b(
-            (*target).indexPart,
+            (*target).index_part,
             propergid(::core::ptr::null_mut::<TsiEntry>(), type_0) as u16,
         );
-        bufwrite16b((*target).indexPart, 0 as u16);
+        bufwrite16b((*target).index_part, 0 as u16);
         bufwrite32b(
-            (*target).indexPart,
-            (*(*target).textPart).cursor as u32,
+            (*target).index_part,
+            (*(*target).text_part).cursor as u32,
         );
         items_pushed = (items_pushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
     }
@@ -897,19 +897,19 @@ pub unsafe extern "C" fn otfcc_build_tsi(
     mut _options: *const Options,
 ) -> TsiBuildTarget {
     let mut target: TsiBuildTarget = TsiBuildTarget {
-        indexPart: ::core::ptr::null_mut::<Buffer>(),
-        textPart: ::core::ptr::null_mut::<Buffer>(),
+        index_part: ::core::ptr::null_mut::<Buffer>(),
+        text_part: ::core::ptr::null_mut::<Buffer>(),
     };
     if tsi.is_null() {
-        target.textPart = ::core::ptr::null_mut::<Buffer>();
-        target.indexPart = ::core::ptr::null_mut::<Buffer>();
+        target.text_part = ::core::ptr::null_mut::<Buffer>();
+        target.index_part = ::core::ptr::null_mut::<Buffer>();
     } else {
-        target.textPart = bufnew();
-        target.indexPart = bufnew();
+        target.text_part = bufnew();
+        target.index_part = bufnew();
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::Glyph, 0 as GlyphId);
-        bufwrite16b(target.indexPart, 0xfffe as u16);
-        bufwrite16b(target.indexPart, 0 as u16);
-        bufwrite32b(target.indexPart, 0xabfc1f34 as u32);
+        bufwrite16b(target.index_part, 0xfffe as u16);
+        bufwrite16b(target.index_part, 0 as u16);
+        bufwrite32b(target.index_part, 0xabfc1f34 as u32);
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::Prep, 1 as GlyphId);
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::Cvt, 1 as GlyphId);
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::ReservedFffc, 1 as GlyphId);
