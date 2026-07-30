@@ -7,21 +7,21 @@ unsafe extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{Arity};
 use crate::vendor::sds::Hex4;
-use crate::libcff::{CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, CffIOutlineBuilder, CffStack, op_CharStrings, op_Encoding, op_FDArray, op_FDSelect, op_Private, op_Subrs, op_abs, op_add, op_and, op_callgsubr, op_callsubr, op_charset, op_cntrmask, op_div, op_drop, op_dup, op_eq, op_exch, op_flex, op_flex1, op_get, op_hflex, op_hflex1, op_hmoveto, op_ifelse, op_index, op_mul, op_neg, op_not, op_or, op_put, op_rmoveto, op_roll, op_sqrt, op_sub, op_vmoveto, op_vstem, op_vstemhm, type2_transient_array};
-use crate::libcff::cff_charset::cff_CHARSET_UNSPECED;
+use crate::libcff::{CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, CffIOutlineBuilder, CffStack, OP_CHAR_STRINGS, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT, OP_PRIVATE, OP_SUBRS, OP_ABS, OP_ADD, OP_AND, OP_CALLGSUBR, OP_CALLSUBR, OP_CHARSET, OP_CNTRMASK, OP_DIV, OP_DROP, OP_DUP, OP_EQ, OP_EXCH, OP_FLEX, OP_FLEX1, OP_GET, OP_HFLEX, OP_HFLEX1, OP_HMOVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_RMOVETO, OP_ROLL, OP_SQRT, OP_SUB, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, TYPE2_TRANSIENT_ARRAY};
+use crate::libcff::cff_charset::CFF_CHARSET_UNSPECED;
 use crate::libcff::cff_fdselect::{CffFdSelectType, CffFdSelect};
 use crate::libcff::cff_index::CffIndex;
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::cff_charset::{cff_close_Charset, cff_extract_Charset};
 use crate::libcff::cff_codecs::{cff_decodeCS2Token};
-use crate::libcff::cff_dict::{cff_iDict};
+use crate::libcff::cff_dict::{CFF_I_DICT};
 use crate::libcff::cff_fdselect::{cff_close_FDSelect, cff_extract_FDSelect};
-use crate::libcff::cff_index::{cff_iIndex};
+use crate::libcff::cff_index::{CFF_I_INDEX};
 use crate::vendor::sds::{sdsempty};
 
 /// Which encoding a CFF font carries: one of the two predefined ones, or the
@@ -143,15 +143,15 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
     (*cff).head.hdrSize = gu1((*cff).raw_data, 2 as u32) as u8;
     (*cff).head.offSize = gu1((*cff).raw_data, 3 as u32) as u8;
     pos = (*cff).head.hdrSize as u32;
-    cff_iIndex.parse.expect("non-null function pointer")(
+    CFF_I_INDEX.parse.expect("non-null function pointer")(
         (*cff).raw_data,
         pos,
         &raw mut (*cff).name,
     );
-    pos = (4 as u32).wrapping_add(cff_iIndex.getLength.expect("non-null function pointer")(
+    pos = (4 as u32).wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
         &raw mut (*cff).name,
     ));
-    cff_iIndex.parse.expect("non-null function pointer")(
+    CFF_I_INDEX.parse.expect("non-null function pointer")(
         (*cff).raw_data,
         pos,
         &raw mut (*cff).top_dict,
@@ -161,7 +161,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -174,35 +174,35 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         );
     }
     pos = (4 as u32)
-        .wrapping_add(cff_iIndex.getLength.expect("non-null function pointer")(
+        .wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
             &raw mut (*cff).name,
         ))
-        .wrapping_add(cff_iIndex.getLength.expect("non-null function pointer")(
+        .wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
             &raw mut (*cff).top_dict,
         ));
-    cff_iIndex.parse.expect("non-null function pointer")(
+    CFF_I_INDEX.parse.expect("non-null function pointer")(
         (*cff).raw_data,
         pos,
         &raw mut (*cff).string,
     );
     pos = (4 as u32)
-        .wrapping_add(cff_iIndex.getLength.expect("non-null function pointer")(
+        .wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
             &raw mut (*cff).name,
         ))
-        .wrapping_add(cff_iIndex.getLength.expect("non-null function pointer")(
+        .wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
             &raw mut (*cff).top_dict,
         ))
-        .wrapping_add(cff_iIndex.getLength.expect("non-null function pointer")(
+        .wrapping_add(CFF_I_INDEX.getLength.expect("non-null function pointer")(
             &raw mut (*cff).string,
         ));
-    cff_iIndex.parse.expect("non-null function pointer")(
+    CFF_I_INDEX.parse.expect("non-null function pointer")(
         (*cff).raw_data,
         pos,
         &raw mut (*cff).global_subr,
     );
     if !(*cff).top_dict.data.is_null() {
         let mut offset_0: i32 = 0;
-        offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
+        offset_0 = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -214,30 +214,30 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_CharStrings as u32,
+            OP_CHAR_STRINGS as u32,
             0 as u32,
         )
         .c2rust_unnamed
         .i;
         if offset_0 != -(1 as i32) {
-            cff_iIndex.parse.expect("non-null function pointer")(
+            CFF_I_INDEX.parse.expect("non-null function pointer")(
                 (*cff).raw_data,
                 offset_0 as u32,
                 &raw mut (*cff).char_strings,
             );
             (*cff).cnt_glyph = (*cff).char_strings.count as u16;
         } else {
-            cff_iIndex.empty.expect("non-null function pointer")(&raw mut (*cff).char_strings);
+            CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).char_strings);
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(sdsempty(), b"[libcff] Bad CFF font: no any glyph data.\n"),
             );
         }
-        offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
+        offset_0 = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -249,7 +249,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_Encoding as u32,
+            OP_ENCODING as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -259,7 +259,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         } else {
             (*cff).encodings.t = CffEncodingType::Unspecified;
         }
-        offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
+        offset_0 = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -271,7 +271,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_charset as u32,
+            OP_CHARSET as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -284,9 +284,9 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                 &raw mut (*cff).charsets,
             );
         } else {
-            (*cff).charsets.t = cff_CHARSET_UNSPECED;
+            (*cff).charsets.t = CFF_CHARSET_UNSPECED;
         }
-        offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
+        offset_0 = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -298,7 +298,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_FDSelect as u32,
+            OP_FD_SELECT as u32,
             0 as u32,
         )
         .c2rust_unnamed
@@ -313,7 +313,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         } else {
             (*cff).fdselect.t = CffFdSelectType::Unspecified;
         }
-        offset_0 = cff_iDict.parseDictKey.expect("non-null function pointer")(
+        offset_0 = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -325,25 +325,25 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_FDArray as u32,
+            OP_FD_ARRAY as u32,
             0 as u32,
         )
         .c2rust_unnamed
         .i;
         if offset_0 != -(1 as i32) {
-            cff_iIndex.parse.expect("non-null function pointer")(
+            CFF_I_INDEX.parse.expect("non-null function pointer")(
                 (*cff).raw_data,
                 offset_0 as u32,
                 &raw mut (*cff).font_dict,
             );
         } else {
-            cff_iIndex.empty.expect("non-null function pointer")(&raw mut (*cff).font_dict);
+            CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).font_dict);
         }
     }
     let mut private_len: i32 = -(1 as i32);
     let mut private_off: i32 = -(1 as i32);
     if !(*cff).top_dict.data.is_null() {
-        private_len = cff_iDict.parseDictKey.expect("non-null function pointer")(
+        private_len = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -355,12 +355,12 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_Private as u32,
+            OP_PRIVATE as u32,
             0 as u32,
         )
         .c2rust_unnamed
         .i;
-        private_off = cff_iDict.parseDictKey.expect("non-null function pointer")(
+        private_off = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
             (*cff).top_dict.data,
             (*(*cff)
                 .top_dict
@@ -372,32 +372,32 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                     .offset
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
-            op_Private as u32,
+            OP_PRIVATE as u32,
             1 as u32,
         )
         .c2rust_unnamed
         .i;
     }
     if private_off != -(1 as i32) && private_len != -(1 as i32) {
-        offset = cff_iDict.parseDictKey.expect("non-null function pointer")(
+        offset = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
             (*cff).raw_data.offset(private_off as isize),
             private_len as u32,
-            op_Subrs as u32,
+            OP_SUBRS as u32,
             0 as u32,
         )
         .c2rust_unnamed
         .i;
         if offset != -(1 as i32) {
-            cff_iIndex.parse.expect("non-null function pointer")(
+            CFF_I_INDEX.parse.expect("non-null function pointer")(
                 (*cff).raw_data,
                 (private_off + offset) as u32,
                 &raw mut (*cff).local_subr,
             );
         } else {
-            cff_iIndex.empty.expect("non-null function pointer")(&raw mut (*cff).local_subr);
+            CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).local_subr);
         }
     } else {
-        cff_iIndex.empty.expect("non-null function pointer")(&raw mut (*cff).local_subr);
+        CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).local_subr);
     };
 }
 pub unsafe extern "C" fn cff_openStream(
@@ -430,13 +430,13 @@ pub unsafe extern "C" fn cff_close(mut file: *mut CffFile) {
             free((*file).raw_data as *mut ::core::ffi::c_void);
             (*file).raw_data = ::core::ptr::null_mut::<u8>();
         }
-        cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).name);
-        cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).top_dict);
-        cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).string);
-        cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).global_subr);
-        cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).char_strings);
-        cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).font_dict);
-        cff_iIndex.dispose.expect("non-null function pointer")(&raw mut (*file).local_subr);
+        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).name);
+        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).top_dict);
+        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).string);
+        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).global_subr);
+        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).char_strings);
+        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).font_dict);
+        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).local_subr);
         match (*file).encodings.t {
             CffEncodingType::Format0 => {
                 if !(*file).encodings.c2rust_unnamed.f0.code.is_null() {
@@ -523,7 +523,7 @@ pub unsafe extern "C" fn cff_parseSubr(
             fd = 0 as u8;
         }
     }
-    off_private = cff_iDict.parseDictKey.expect("non-null function pointer")(
+    off_private = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
         fdarray
             .data
             .offset(*fdarray.offset.offset(fd as isize) as isize)
@@ -532,12 +532,12 @@ pub unsafe extern "C" fn cff_parseSubr(
             .offset
             .offset((fd as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
         .wrapping_sub(*fdarray.offset.offset(fd as isize)),
-        op_Private as u32,
+        OP_PRIVATE as u32,
         1 as u32,
     )
     .c2rust_unnamed
     .i;
-    len_private = cff_iDict.parseDictKey.expect("non-null function pointer")(
+    len_private = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
         fdarray
             .data
             .offset(*fdarray.offset.offset(fd as isize) as isize)
@@ -546,31 +546,31 @@ pub unsafe extern "C" fn cff_parseSubr(
             .offset
             .offset((fd as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
         .wrapping_sub(*fdarray.offset.offset(fd as isize)),
-        op_Private as u32,
+        OP_PRIVATE as u32,
         0 as u32,
     )
     .c2rust_unnamed
     .i;
     if off_private != -(1 as i32) && len_private != -(1 as i32) {
-        off_subr = cff_iDict.parseDictKey.expect("non-null function pointer")(
+        off_subr = CFF_I_DICT.parseDictKey.expect("non-null function pointer")(
             raw.offset(off_private as isize),
             len_private as u32,
-            op_Subrs as u32,
+            OP_SUBRS as u32,
             0 as u32,
         )
         .c2rust_unnamed
         .i;
         if off_subr != -(1 as i32) {
-            cff_iIndex.parse.expect("non-null function pointer")(
+            CFF_I_INDEX.parse.expect("non-null function pointer")(
                 raw,
                 (off_private + off_subr) as u32,
                 subr,
             );
         } else {
-            cff_iIndex.empty.expect("non-null function pointer")(subr);
+            CFF_I_INDEX.empty.expect("non-null function pointer")(subr);
         }
     } else {
-        cff_iIndex.empty.expect("non-null function pointer")(subr);
+        CFF_I_INDEX.empty.expect("non-null function pointer")(subr);
     }
     return fd;
 }
@@ -814,9 +814,9 @@ pub unsafe extern "C" fn cff_parseOutline(
                             .d;
                             setHint.expect("non-null function pointer")(
                                 outline,
-                                val.c2rust_unnamed.i == op_vstem
+                                val.c2rust_unnamed.i == OP_VSTEM
                                     || val.c2rust_unnamed.i
-                                        == op_vstemhm,
+                                        == OP_VSTEMHM,
                                 pos + hintBase,
                                 width,
                             );
@@ -927,7 +927,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                         }
                         setMask.expect("non-null function pointer")(
                             outline,
-                            val.c2rust_unnamed.i == op_cntrmask,
+                            val.c2rust_unnamed.i == OP_CNTRMASK,
                             mask,
                         );
                         advance = advance.wrapping_add(maskLength);
@@ -941,14 +941,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_vmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_vmoveto) as u32),
+                                    Hex4((OP_VMOVETO) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -987,14 +987,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_rmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_rmoveto) as u32),
+                                    Hex4((OP_RMOVETO) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1037,14 +1037,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_hmoveto) as u32),
+                                    Hex4((OP_HMOVETO) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1743,14 +1743,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hflex\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_hflex) as u32),
+                                    Hex4((OP_HFLEX) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1800,14 +1800,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_flex\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_flex) as u32),
+                                    Hex4((OP_FLEX) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1865,14 +1865,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hflex1\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_hflex1) as u32),
+                                    Hex4((OP_HFLEX1) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -1932,14 +1932,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_flex1\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_flex1) as u32),
+                                    Hex4((OP_FLEX1) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2036,14 +2036,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_and\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_and) as u32),
+                                    Hex4((OP_AND) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2078,14 +2078,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_or\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_or) as u32),
+                                    Hex4((OP_OR) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2120,14 +2120,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_not\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_not) as u32),
+                                    Hex4((OP_NOT) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2152,14 +2152,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_abs\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_abs) as u32),
+                                    Hex4((OP_ABS) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2184,14 +2184,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_add\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_add) as u32),
+                                    Hex4((OP_ADD) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2222,14 +2222,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_sub\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_sub) as u32),
+                                    Hex4((OP_SUB) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2260,14 +2260,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_div\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_div) as u32),
+                                    Hex4((OP_DIV) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2298,14 +2298,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_neg\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_neg) as u32),
+                                    Hex4((OP_NEG) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2330,14 +2330,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_eq\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_eq) as u32),
+                                    Hex4((OP_EQ) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2368,14 +2368,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_drop\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_drop) as u32),
+                                    Hex4((OP_DROP) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2391,14 +2391,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_put\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_put) as u32),
+                                    Hex4((OP_PUT) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2414,7 +2414,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                             .c2rust_unnamed
                             .d as i32;
                             (*stack).transient[(i_0
-                                % type2_transient_array as i32)
+                                % TYPE2_TRANSIENT_ARRAY as i32)
                                 as usize]
                                 .c2rust_unnamed
                                 .d = val_0;
@@ -2429,14 +2429,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_get\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_get) as u32),
+                                    Hex4((OP_GET) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2451,7 +2451,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = (*stack).transient[(i_1
-                                % type2_transient_array as i32)
+                                % TYPE2_TRANSIENT_ARRAY as i32)
                                 as usize]
                                 .c2rust_unnamed
                                 .d;
@@ -2465,14 +2465,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_ifelse\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_ifelse) as u32),
+                                    Hex4((OP_IFELSE) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2520,14 +2520,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_mul\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_mul) as u32),
+                                    Hex4((OP_MUL) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2558,14 +2558,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_sqrt\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_sqrt) as u32),
+                                    Hex4((OP_SQRT) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2590,14 +2590,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_dup\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_dup) as u32),
+                                    Hex4((OP_DUP) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2616,14 +2616,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_exch\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_exch) as u32),
+                                    Hex4((OP_EXCH) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2658,14 +2658,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_index\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_index) as u32),
+                                    Hex4((OP_INDEX) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2690,14 +2690,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_roll\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_roll) as u32),
+                                    Hex4((OP_ROLL) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2719,14 +2719,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                         "non-null function pointer",
                                     )(
                                     (*options).logger as *mut ILogger,
-                                    log_vl_important,
+                                    LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::sdsbuild!(
                                         sdsempty(),
                                         b"[libcff] Stack cannot provide enough parameters for ",
                                         b"op_roll\0" as *const u8 as *const ::core::ffi::c_char,
                                         b" (",
-                                        Hex4((op_roll) as u32),
+                                        Hex4((OP_ROLL) as u32),
                                         b"). This operation is ignored.\n",
                                     ),
                                 );
@@ -2764,14 +2764,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_callsubr\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_callsubr) as u32),
+                                    Hex4((OP_CALLSUBR) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2820,14 +2820,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_callgsubr\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
-                                    Hex4((op_callgsubr) as u32),
+                                    Hex4((OP_CALLGSUBR) as u32),
                                     b"). This operation is ignored.\n",
                                 ),
                             );
@@ -2871,7 +2871,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 "non-null function pointer",
                             )(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),

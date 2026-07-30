@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::table::otl::coverage::{Coverage, shrinkCoverage};
 use crate::support::handle::{GlyphHandle, Handle, otfcc_Handle_dup};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -34,8 +34,8 @@ use crate::font::caryll_font::{Font};
 
 use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable, OtlTable};
 use crate::consolidate::otl::common::{fontop_consolidateCoverage};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
-use crate::table::otl::subtables::gsub_ligature::{iSubtable_gsub_ligature};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::table::otl::subtables::gsub_ligature::{I_SUBTABLE_GSUB_LIGATURE};
 use crate::vendor::sds::{sdsempty};
 
 
@@ -59,12 +59,12 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
         capacity: 0,
         items: ::core::ptr::null_mut::<GsubLigatureEntry>(),
     };
-    iSubtable_gsub_ligature
+    I_SUBTABLE_GSUB_LIGATURE
         .init
         .expect("non-null function pointer")(&raw mut nt);
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).length {
-        if !otfcc_pkgGlyphOrder
+        if !OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")(
             (*font).glyph_order,
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -104,7 +104,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                     ),
                 );
             } else {
-                iSubtable_gsub_ligature
+                I_SUBTABLE_GSUB_LIGATURE
                     .push
                     .expect("non-null function pointer")(
                     &raw mut nt,
@@ -121,7 +121,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
         }
         k = k.wrapping_add(1);
     }
-    iSubtable_gsub_ligature
+    I_SUBTABLE_GSUB_LIGATURE
         .replace
         .expect("non-null function pointer")(subtable, nt);
     return (*subtable).length == 0 as usize;

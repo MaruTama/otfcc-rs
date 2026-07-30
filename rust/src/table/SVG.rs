@@ -157,7 +157,7 @@ unsafe extern "C" fn svg_Assignment_replace(mut dst: *mut SvgAssignment, src: Sv
         ::core::mem::size_of::<SvgAssignment>() as usize,
     );
 }
-pub static svg_iAssignment: SvgAssignmentElementInterface = {
+pub static SVG_I_ASSIGNMENT: SvgAssignmentElementInterface = {
     SvgAssignmentElementInterface {
         init: Some(svg_Assignment_init as unsafe extern "C" fn(*mut SvgAssignment) -> ()),
         copy: Some(
@@ -240,7 +240,7 @@ unsafe fn table_SVG_as_cvec(arr: *mut SvgTable) -> *mut CVecRaw<SvgAssignment> {
 unsafe extern "C" fn table_SVG_init(arr: *mut SvgTable) {
     cvec_init(table_SVG_as_cvec(arr));
 }
-pub static table_iSVG: SvgTableVectorInterface = {
+pub static TABLE_I_SVG: SvgTableVectorInterface = {
     SvgTableVectorInterface {
         init: Some(table_SVG_init as unsafe extern "C" fn(*mut SvgTable) -> ()),
         copy: Some(table_SVG_copy as unsafe extern "C" fn(*mut SvgTable, *const SvgTable) -> ()),
@@ -308,8 +308,8 @@ unsafe extern "C" fn table_SVG_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if svg_iAssignment.dispose.is_some() {
-                svg_iAssignment.dispose.expect("non-null function pointer")(
+            if SVG_I_ASSIGNMENT.dispose.is_some() {
+                SVG_I_ASSIGNMENT.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut SvgAssignment,
                 );
             } else {
@@ -321,8 +321,8 @@ unsafe extern "C" fn table_SVG_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn table_SVG_disposeItem(mut arr: *mut SvgTable, mut n: usize) {
-    if svg_iAssignment.dispose.is_some() {
-        svg_iAssignment.dispose.expect("non-null function pointer")(
+    if SVG_I_ASSIGNMENT.dispose.is_some() {
+        SVG_I_ASSIGNMENT.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut SvgAssignment,
         );
     } else {
@@ -358,8 +358,8 @@ unsafe extern "C" fn table_SVG_fill(mut arr: *mut SvgTable, mut n: usize) {
             end: 0,
             document: ::core::ptr::null_mut::<Buffer>(),
         };
-        if svg_iAssignment.init.is_some() {
-            svg_iAssignment.init.expect("non-null function pointer")(&raw mut x);
+        if SVG_I_ASSIGNMENT.init.is_some() {
+            SVG_I_ASSIGNMENT.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -396,10 +396,10 @@ unsafe extern "C" fn table_SVG_copy(mut dst: *mut SvgTable, mut src: *const SvgT
     table_SVG_init(dst);
     table_SVG_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if svg_iAssignment.copy.is_some() {
+    if SVG_I_ASSIGNMENT.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            svg_iAssignment.copy.expect("non-null function pointer")(
+            SVG_I_ASSIGNMENT.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut SvgAssignment,
                 (*src).items.offset(j as isize) as *mut SvgAssignment as *const SvgAssignment,
             );
@@ -418,7 +418,7 @@ unsafe extern "C" fn table_SVG_dispose(mut arr: *mut SvgTable) {
     if arr.is_null() {
         return;
     }
-    if svg_iAssignment.dispose.is_some() {
+    if SVG_I_ASSIGNMENT.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -426,7 +426,7 @@ unsafe extern "C" fn table_SVG_dispose(mut arr: *mut SvgTable) {
             if !(fresh1 != 0) {
                 break;
             }
-            svg_iAssignment.dispose.expect("non-null function pointer")(
+            SVG_I_ASSIGNMENT.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut SvgAssignment,
             );
         }
@@ -517,7 +517,7 @@ pub unsafe extern "C" fn otfcc_readSVG(
                                     ))
                             {
                                 svg = (
-                                    table_iSVG.create.expect("non-null function pointer"))();
+                                    TABLE_I_SVG.create.expect("non-null function pointer"))();
                                 let mut j: GlyphId = 0 as GlyphId;
                                 while (j as ::core::ffi::c_int) < numEntries as ::core::ffi::c_int {
                                     let mut record: FontFilePointer = table
@@ -530,7 +530,7 @@ pub unsafe extern "C" fn otfcc_readSVG(
                                         );
                                     let mut asg: SvgAssignment =
                                         (
-                                            svg_iAssignment
+                                            SVG_I_ASSIGNMENT
                                                 .empty
                                                 .expect("non-null function pointer"))();
                                     asg.start = read_16u(record as *const u8) as GlyphId;
@@ -561,14 +561,14 @@ pub unsafe extern "C" fn otfcc_readSVG(
                                     } else {
                                         asg.document = bufnew();
                                     }
-                                    table_iSVG.push.expect("non-null function pointer")(svg, asg);
+                                    TABLE_I_SVG.push.expect("non-null function pointer")(svg, asg);
                                     j = j.wrapping_add(1);
                                 }
                                 return svg;
                             }
                         }
                     }
-                    table_iSVG.dispose.expect("non-null function pointer")(svg);
+                    TABLE_I_SVG.dispose.expect("non-null function pointer")(svg);
                     svg = ::core::ptr::null_mut::<SvgTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -701,7 +701,7 @@ pub unsafe extern "C" fn otfcc_parseSVG(
         return ::core::ptr::null_mut::<SvgTable>();
     }
     let mut svg: *mut SvgTable = (
-        table_iSVG.create.expect("non-null function pointer"))();
+        TABLE_I_SVG.create.expect("non-null function pointer"))();
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
@@ -725,7 +725,7 @@ pub unsafe extern "C" fn otfcc_parseSVG(
                     json_obj_getsds(_a, b"document\0" as *const u8 as *const ::core::ffi::c_char);
                 if !(format.is_null() || doc.is_null()) {
                     let mut asg: SvgAssignment = (
-                        svg_iAssignment.empty.expect("non-null function pointer"))();
+                        SVG_I_ASSIGNMENT.empty.expect("non-null function pointer"))();
                     asg.start =
                         json_obj_getint(_a, b"start\0" as *const u8 as *const ::core::ffi::c_char)
                             as GlyphId;
@@ -750,7 +750,7 @@ pub unsafe extern "C" fn otfcc_parseSVG(
                         buf = ::core::ptr::null_mut::<u8>();
                         sdsfree(doc);
                     }
-                    table_iSVG.push.expect("non-null function pointer")(svg, asg);
+                    TABLE_I_SVG.push.expect("non-null function pointer")(svg, asg);
                 }
             }
             j = j.wrapping_add(1);
@@ -780,8 +780,8 @@ pub unsafe extern "C" fn otfcc_buildSVG(
         capacity: 0,
         items: ::core::ptr::null_mut::<SvgAssignment>(),
     };
-    table_iSVG.copy.expect("non-null function pointer")(&raw mut svg, _svg);
-    table_iSVG.sort.expect("non-null function pointer")(
+    TABLE_I_SVG.copy.expect("non-null function pointer")(&raw mut svg, _svg);
+    TABLE_I_SVG.sort.expect("non-null function pointer")(
         &raw mut svg,
         Some(
             byStartGID
@@ -804,6 +804,6 @@ pub unsafe extern "C" fn otfcc_buildSVG(
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 0 as u32), bk_ptr(BkCellType::P32, major), bk_int(BkCellType::B32, 0 as u32)]);
-    table_iSVG.dispose.expect("non-null function pointer")(&raw mut svg);
+    TABLE_I_SVG.dispose.expect("non-null function pointer")(&raw mut svg);
     return bk_build_Block(root);
 }

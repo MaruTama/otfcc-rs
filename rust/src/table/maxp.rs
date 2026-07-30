@@ -2,7 +2,7 @@
 use libc::{free, malloc, memcpy, memset};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum};
 use crate::support::binio::{read_16u, read_32s};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer};
@@ -64,7 +64,7 @@ unsafe extern "C" fn table_maxp_replace(mut dst: *mut MaxpTable, src: MaxpTable)
         ::core::mem::size_of::<MaxpTable>() as usize,
     );
 }
-pub static table_iMaxp: MaxpTableElementInterface = {
+pub static TABLE_I_MAXP: MaxpTableElementInterface = {
     MaxpTableElementInterface {
         init: Some(table_maxp_init as unsafe extern "C" fn(*mut MaxpTable) -> ()),
         copy: Some(
@@ -152,14 +152,14 @@ pub unsafe extern "C" fn otfcc_readMaxp(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"table 'maxp' corrupted.\n"),
                         );
                     } else {
                         let mut maxp: *mut MaxpTable =
                             (
-                                table_iMaxp.create.expect("non-null function pointer"))();
+                                TABLE_I_MAXP.create.expect("non-null function pointer"))();
                         (*maxp).version = read_32s(data as *const u8) as F16Dot16;
                         (*maxp).numGlyphs = read_16u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
@@ -340,7 +340,7 @@ pub unsafe extern "C" fn otfcc_parseMaxp(
     mut options: *const Options,
 ) -> *mut MaxpTable {
     let mut maxp: *mut MaxpTable = (
-        table_iMaxp.create.expect("non-null function pointer"))();
+        TABLE_I_MAXP.create.expect("non-null function pointer"))();
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,

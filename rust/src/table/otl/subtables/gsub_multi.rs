@@ -20,7 +20,7 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::support::{ComparFn};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Block};
-use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_object_new, json_object_push};
 use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
@@ -41,7 +41,7 @@ unsafe extern "C" fn deleteGsubMultiEntry(mut entry: *mut GsubMultiEntry) {
     otl_Coverage_free((*entry).to);
     (*entry).to = ::core::ptr::null_mut::<Coverage>();
 }
-static gsm_typeinfo: GsubMultiEntryElementInterface = {
+static GSM_TYPEINFO: GsubMultiEntryElementInterface = {
     GsubMultiEntryElementInterface {
         init: None,
         copy: None,
@@ -59,7 +59,7 @@ unsafe fn as_cvec(arr: *mut GsubMultiSubtable) -> *mut CVecRaw<GsubMultiEntry> {
 unsafe extern "C" fn subtable_gsub_multi_growTo(arr: *mut GsubMultiSubtable, target: usize) {
     cvec_grow_to(as_cvec(arr), target);
 }
-pub static iSubtable_gsub_multi: GsubMultiSubtableVectorInterface = {
+pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
     GsubMultiSubtableVectorInterface {
         init: Some(
             subtable_gsub_multi_init as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
@@ -167,8 +167,8 @@ unsafe extern "C" fn subtable_gsub_multi_disposeItem(
     mut arr: *mut GsubMultiSubtable,
     mut n: usize,
 ) {
-    if gsm_typeinfo.dispose.is_some() {
-        gsm_typeinfo.dispose.expect("non-null function pointer")(
+    if GSM_TYPEINFO.dispose.is_some() {
+        GSM_TYPEINFO.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut GsubMultiEntry
         );
     } else {
@@ -210,8 +210,8 @@ unsafe extern "C" fn subtable_gsub_multi_fill(mut arr: *mut GsubMultiSubtable, m
             },
             to: ::core::ptr::null_mut::<Coverage>(),
         };
-        if gsm_typeinfo.init.is_some() {
-            gsm_typeinfo.init.expect("non-null function pointer")(&raw mut x);
+        if GSM_TYPEINFO.init.is_some() {
+            GSM_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -254,10 +254,10 @@ unsafe extern "C" fn subtable_gsub_multi_copy(
     subtable_gsub_multi_init(dst);
     subtable_gsub_multi_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if gsm_typeinfo.copy.is_some() {
+    if GSM_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            gsm_typeinfo.copy.expect("non-null function pointer")(
+            GSM_TYPEINFO.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut GsubMultiEntry,
                 (*src).items.offset(j as isize) as *mut GsubMultiEntry
                     as *const GsubMultiEntry,
@@ -277,7 +277,7 @@ unsafe extern "C" fn subtable_gsub_multi_dispose(mut arr: *mut GsubMultiSubtable
     if arr.is_null() {
         return;
     }
-    if gsm_typeinfo.dispose.is_some() {
+    if GSM_TYPEINFO.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -285,7 +285,7 @@ unsafe extern "C" fn subtable_gsub_multi_dispose(mut arr: *mut GsubMultiSubtable
             if !(fresh1 != 0) {
                 break;
             }
-            gsm_typeinfo.dispose.expect("non-null function pointer")(
+            GSM_TYPEINFO.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut GsubMultiEntry,
             );
         }
@@ -367,8 +367,8 @@ unsafe extern "C" fn subtable_gsub_multi_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if gsm_typeinfo.dispose.is_some() {
-                gsm_typeinfo.dispose.expect("non-null function pointer")(
+            if GSM_TYPEINFO.dispose.is_some() {
+                GSM_TYPEINFO.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut GsubMultiEntry,
                 );
             } else {
@@ -388,7 +388,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
     let mut seqCount: GlyphId = 0;
     let subtable: *mut GsubMultiSubtable =
         (
-            iSubtable_gsub_multi
+            I_SUBTABLE_GSUB_MULTI
                 .create
                 .expect("non-null function pointer"))();
     let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -437,7 +437,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
                                 as GlyphId) as GlyphHandle,
                         );
                     }
-                    iSubtable_gsub_multi
+                    I_SUBTABLE_GSUB_MULTI
                         .push
                         .expect("non-null function pointer")(
                         subtable,
@@ -457,7 +457,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
     if !from.is_null() {
         otl_Coverage_free(from);
     }
-    iSubtable_gsub_multi
+    I_SUBTABLE_GSUB_MULTI
         .free
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
@@ -472,7 +472,7 @@ pub unsafe extern "C" fn otl_gsub_dump_multi(
         json_object_push(
             st,
             (*entry).from.name as *const ::core::ffi::c_char,
-            otl_iCoverage.dump.expect("non-null function pointer")((*entry).to),
+            OTL_I_COVERAGE.dump.expect("non-null function pointer")((*entry).to),
         );
     }
     return st;
@@ -483,14 +483,14 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
 ) -> *mut Subtable {
     let st: *mut GsubMultiSubtable =
         (
-            iSubtable_gsub_multi
+            I_SUBTABLE_GSUB_MULTI
                 .create
                 .expect("non-null function pointer"))();
     for k in 0..(*_subtable).u.object.length as GlyphId {
         let entry = (*_subtable).u.object.values.offset(k as isize);
         let _to: *mut JsonValue = (*entry).value as *mut JsonValue;
         if !_to.is_null() && (*_to).type_0 == JsonType::Array {
-            iSubtable_gsub_multi
+            I_SUBTABLE_GSUB_MULTI
                 .push
                 .expect("non-null function pointer")(
                 st,
@@ -499,7 +499,7 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
                         (*entry).name as *const ::core::ffi::c_void,
                         (*entry).name_length as usize,
                     )) as GlyphHandle,
-                    to: otl_iCoverage.parse.expect("non-null function pointer")(_to),
+                    to: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to),
                 },
             );
         }
@@ -520,7 +520,7 @@ unsafe extern "C" fn buildGsubMultiSubtableRange(
             ) as GlyphHandle,
         );
     }
-    let root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
+    let root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
     for j_0 in start..end {
         let to = (*(*subtable).items.offset(j_0 as isize)).to;
         let b: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*to).numGlyphs as ::core::ffi::c_int) as u32)]);

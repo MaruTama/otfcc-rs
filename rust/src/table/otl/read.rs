@@ -10,8 +10,8 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::sds::{Byte, Dec5, Hex2};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
-use crate::table::otl::{Feature, FeatureList, FeaturePtr, FeatureRef, LanguageSystem, LanguageSystemPtr, Lookup, LookupPtr, LookupRef, LookupType, Subtable, SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_context, otl_type_gpos_cursive, otl_type_gpos_extend, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gpos_unknown, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_context, otl_type_gsub_extend, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, otl_type_gsub_unknown, otl_type_unknown, OtlTable};
-use crate::table::otl::{otfcc_delete_lookup, otl_iFeatureList, otl_iFeaturePtr, otl_iFeatureRefList, otl_iLangSystemList, otl_iLanguageSystem, otl_iLookupList, otl_iLookupPtr, otl_iLookupRefList, otl_iSubtableList, table_iOTL};
+use crate::table::otl::{Feature, FeatureList, FeaturePtr, FeatureRef, LanguageSystem, LanguageSystemPtr, Lookup, LookupPtr, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
+use crate::table::otl::{otfcc_delete_lookup, OTL_I_FEATURE_LIST, OTL_I_FEATURE_PTR, OTL_I_FEATURE_REF_LIST, OTL_I_LANG_SYSTEM_LIST, OTL_I_LANGUAGE_SYSTEM, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_PTR, OTL_I_LOOKUP_REF_LIST, OTL_I_SUBTABLE_LIST, TABLE_I_OTL};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
 use crate::table::otl::subtables::extend::{otfcc_readOtl_gpos_extend, otfcc_readOtl_gsub_extend};
@@ -34,43 +34,43 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
     mut options: *const Options,
 ) -> *mut Subtable {
     match lookupType {
-        otl_type_gsub_single => {
+        OTL_TYPE_GSUB_SINGLE => {
             return otl_read_gsub_single(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gsub_multiple => {
+        OTL_TYPE_GSUB_MULTIPLE => {
             return otl_read_gsub_multi(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gsub_alternate => {
+        OTL_TYPE_GSUB_ALTERNATE => {
             return otl_read_gsub_multi(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gsub_ligature => {
+        OTL_TYPE_GSUB_LIGATURE => {
             return otl_read_gsub_ligature(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gsub_chaining => {
+        OTL_TYPE_GSUB_CHAINING => {
             return otl_read_chaining(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gsub_reverse => {
+        OTL_TYPE_GSUB_REVERSE => {
             return otl_read_gsub_reverse(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gpos_chaining => {
+        OTL_TYPE_GPOS_CHAINING => {
             return otl_read_chaining(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gsub_context => {
+        OTL_TYPE_GSUB_CONTEXT => {
             return otl_read_contextual(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gpos_context => {
+        OTL_TYPE_GPOS_CONTEXT => {
             return otl_read_contextual(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gpos_single => {
+        OTL_TYPE_GPOS_SINGLE => {
             return otl_read_gpos_single(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gpos_pair => {
+        OTL_TYPE_GPOS_PAIR => {
             return otl_read_gpos_pair(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gpos_cursive => {
+        OTL_TYPE_GPOS_CURSIVE => {
             return otl_read_gpos_cursive(data, tableLength, subtableOffset, maxGlyphs, options);
         }
-        otl_type_gpos_markToBase => {
+        OTL_TYPE_GPOS_MARK_TO_BASE => {
             return otl_read_gpos_markToSingle(
                 data,
                 tableLength,
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
                 options,
             );
         }
-        otl_type_gpos_markToMark => {
+        OTL_TYPE_GPOS_MARK_TO_MARK => {
             return otl_read_gpos_markToSingle(
                 data,
                 tableLength,
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
                 options,
             );
         }
-        otl_type_gpos_markToLigature => {
+        OTL_TYPE_GPOS_MARK_TO_LIGATURE => {
             return otl_read_gpos_markToLigature(
                 data,
                 tableLength,
@@ -97,7 +97,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
                 options,
             );
         }
-        otl_type_gsub_extend => {
+        OTL_TYPE_GSUB_EXTEND => {
             return otfcc_readOtl_gsub_extend(
                 data,
                 tableLength,
@@ -106,7 +106,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
                 options,
             );
         }
-        otl_type_gpos_extend => {
+        OTL_TYPE_GPOS_EXTEND => {
             return otfcc_readOtl_gpos_extend(
                 data,
                 tableLength,
@@ -128,7 +128,7 @@ unsafe extern "C" fn parseLanguage(
     let mut rid: TableId = 0;
     let mut featureCount: TableId = 0;
     if tableLength < base.wrapping_add(6 as u32) {
-        otl_iFeatureRefList
+        OTL_I_FEATURE_REF_LIST
             .dispose
             .expect("non-null function pointer")(&raw mut (*lang).features);
         (*lang).requiredFeature = ::core::ptr::null::<Feature>();
@@ -156,7 +156,7 @@ unsafe extern "C" fn parseLanguage(
                     as *const u8,
             ) as TableId;
             if (featureIndex as usize) < (*features).length {
-                otl_iFeatureRefList.push.expect("non-null function pointer")(
+                OTL_I_FEATURE_REF_LIST.push.expect("non-null function pointer")(
                     &raw mut (*lang).features,
                     *(*features).items.offset(featureIndex as isize) as FeatureRef,
                 );
@@ -177,7 +177,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
     let mut lookupListOffset: u32 = 0;
     let mut current_block: u64;
     let mut table: *mut OtlTable = (
-        table_iOTL.create.expect("non-null function pointer"))();
+        TABLE_I_OTL.create.expect("non-null function pointer"))();
     if !table.is_null() {
         if !(tableLength < 10 as u32) {
             scriptListOffset =
@@ -210,7 +210,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                 }
                                 let mut lookup: *mut Lookup =
                                     ::core::ptr::null_mut::<Lookup>();
-                                otl_iLookupPtr.init.expect("non-null function pointer")(
+                                OTL_I_LOOKUP_PTR.init.expect("non-null function pointer")(
                                     &raw mut lookup,
                                 );
                                 (*lookup)._offset = lookupListOffset.wrapping_add(read_16u(
@@ -230,7 +230,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                     lookup_type_base,
                                     read_16u(data.offset((*lookup)._offset as isize) as *const u8),
                                 );
-                                otl_iLookupList.push.expect("non-null function pointer")(
+                                OTL_I_LOOKUP_LIST.push.expect("non-null function pointer")(
                                     &raw mut (*table).lookups,
                                     lookup as LookupPtr,
                                 );
@@ -263,7 +263,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                             }
                                             let mut feature: *mut Feature =
                                                 ::core::ptr::null_mut::<Feature>();
-                                            otl_iFeaturePtr
+                                            OTL_I_FEATURE_PTR
                                                 .init
                                                 .expect("non-null function pointer")(
                                                 &raw mut feature,
@@ -402,7 +402,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                             );
                                                         }
                                                     }
-                                                    otl_iLookupRefList
+                                                    OTL_I_LOOKUP_REF_LIST
                                                         .push
                                                         .expect("non-null function pointer")(
                                                         &raw mut (*feature).lookups,
@@ -411,7 +411,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                 }
                                                 k = k.wrapping_add(1);
                                             }
-                                            otl_iFeatureList
+                                            OTL_I_FEATURE_LIST
                                                 .push
                                                 .expect("non-null function pointer")(
                                                 &raw mut (*table).features,
@@ -540,7 +540,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                     let mut lang: *mut LanguageSystem = ::core::ptr::null_mut::<
                                                                         LanguageSystem,
                                                                     >();
-                                                                    otl_iLanguageSystem
+                                                                    OTL_I_LANGUAGE_SYSTEM
                                                                         .init
                                                                         .expect(
                                                                         "non-null function pointer",
@@ -567,7 +567,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                         lang,
                                                                         &raw mut (*table).features,
                                                                     );
-                                                                    otl_iLangSystemList
+                                                                    OTL_I_LANG_SYSTEM_LIST
                                                                         .push
                                                                         .expect(
                                                                             "non-null function pointer",
@@ -616,7 +616,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                     let mut lang_0: *mut LanguageSystem = ::core::ptr::null_mut::<
                                                                         LanguageSystem,
                                                                     >();
-                                                                    otl_iLanguageSystem
+                                                                    OTL_I_LANGUAGE_SYSTEM
                                                                         .init
                                                                         .expect(
                                                                         "non-null function pointer",
@@ -645,7 +645,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                         lang_0,
                                                                         &raw mut (*table).features,
                                                                     );
-                                                                    otl_iLangSystemList
+                                                                    OTL_I_LANG_SYSTEM_LIST
                                                                         .push
                                                                         .expect(
                                                                             "non-null function pointer",
@@ -725,7 +725,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
         }
     }
     if !table.is_null() {
-        table_iOTL.free.expect("non-null function pointer")(table);
+        TABLE_I_OTL.free.expect("non-null function pointer")(table);
     }
     return ::core::ptr::null_mut::<OtlTable>();
 }
@@ -750,7 +750,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
                 (2 as ::core::ffi::c_int * subtableCount as ::core::ffi::c_int) as u32,
             )
     {
-        (*lookup).type_0 = otl_type_unknown;
+        (*lookup).type_0 = OTL_TYPE_UNKNOWN;
         return;
     }
     let mut j: TableId = 0 as TableId;
@@ -769,16 +769,16 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
             maxGlyphs,
             options,
         );
-        otl_iSubtableList.push.expect("non-null function pointer")(
+        OTL_I_SUBTABLE_LIST.push.expect("non-null function pointer")(
             &raw mut (*lookup).subtables,
             subtable as SubtablePtr,
         );
         j = j.wrapping_add(1);
     }
-    if (*lookup).type_0 == otl_type_gsub_extend
-        || (*lookup).type_0 == otl_type_gpos_extend
+    if (*lookup).type_0 == OTL_TYPE_GSUB_EXTEND
+        || (*lookup).type_0 == OTL_TYPE_GPOS_EXTEND
     {
-        (*lookup).type_0 = otl_type_unknown;
+        (*lookup).type_0 = OTL_TYPE_UNKNOWN;
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*lookup).subtables.length {
             if !(*(*lookup).subtables.items.offset(j_0 as isize)).is_null() {
@@ -790,7 +790,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
                 j_0 = j_0.wrapping_add(1);
             }
         }
-        if (*lookup).type_0 != otl_type_unknown {
+        if (*lookup).type_0 != OTL_TYPE_UNKNOWN {
             let mut j_1: TableId = 0 as TableId;
             while (j_1 as usize) < (*lookup).subtables.length {
                 if !(*(*lookup).subtables.items.offset(j_1 as isize)).is_null()
@@ -812,11 +812,11 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
                     *fresh1 = st as SubtablePtr;
                 } else if !(*(*lookup).subtables.items.offset(j_1 as isize)).is_null() {
                     let mut temp: *mut Lookup = ::core::ptr::null_mut::<Lookup>();
-                    otl_iLookupPtr.init.expect("non-null function pointer")(&raw mut temp);
+                    OTL_I_LOOKUP_PTR.init.expect("non-null function pointer")(&raw mut temp);
                     (*temp).type_0 = (**(*lookup).subtables.items.offset(j_1 as isize))
                         .extend
                         .type_0;
-                    otl_iSubtableList.push.expect("non-null function pointer")(
+                    OTL_I_SUBTABLE_LIST.push.expect("non-null function pointer")(
                         &raw mut (*temp).subtables,
                         (**(*lookup).subtables.items.offset(j_1 as isize))
                             .extend
@@ -833,7 +833,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
                 j_1 = j_1.wrapping_add(1);
             }
         } else {
-            otl_iSubtableList
+            OTL_I_SUBTABLE_LIST
                 .disposeDependent
                 .expect("non-null function pointer")(
                 &raw mut (*lookup).subtables, lookup
@@ -841,13 +841,13 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
             return;
         }
     }
-    if (*lookup).type_0 == otl_type_gsub_context
+    if (*lookup).type_0 == OTL_TYPE_GSUB_CONTEXT
     {
-        (*lookup).type_0 = otl_type_gsub_chaining;
+        (*lookup).type_0 = OTL_TYPE_GSUB_CHAINING;
     }
-    if (*lookup).type_0 == otl_type_gpos_context
+    if (*lookup).type_0 == OTL_TYPE_GPOS_CONTEXT
     {
-        (*lookup).type_0 = otl_type_gpos_chaining;
+        (*lookup).type_0 = OTL_TYPE_GPOS_CHAINING;
     }
 }
 pub unsafe extern "C" fn otfcc_readOtl(
@@ -875,17 +875,17 @@ pub unsafe extern "C" fn otfcc_readOtl(
                         data,
                         length,
                         if tag == 1196643650i32 as u32 {
-                            otl_type_gsub_unknown
+                            OTL_TYPE_GSUB_UNKNOWN
                         } else if tag == 1196445523i32 as u32 {
-                            otl_type_gpos_unknown
+                            OTL_TYPE_GPOS_UNKNOWN
                         } else {
-                            otl_type_unknown
+                            OTL_TYPE_UNKNOWN
                         },
                         options,
                     );
                     if otl.is_null() {
                         if !otl.is_null() {
-                            table_iOTL.free.expect("non-null function pointer")(otl);
+                            TABLE_I_OTL.free.expect("non-null function pointer")(otl);
                         }
                         otl = ::core::ptr::null_mut::<OtlTable>();
                     } else {

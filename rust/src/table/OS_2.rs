@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
 use crate::support::binio::{read_16u, read_16s, read_32u};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
@@ -98,7 +98,7 @@ unsafe extern "C" fn table_OS_2_copyReplace(mut dst: *mut Os2Table, src: Os2Tabl
 unsafe extern "C" fn table_OS_2_init(mut x: *mut Os2Table) {
     initOS2(x);
 }
-pub static table_iOS_2: Os2TableElementInterface = {
+pub static TABLE_I_OS_2: Os2TableElementInterface = {
     Os2TableElementInterface {
         init: Some(table_OS_2_init as unsafe extern "C" fn(*mut Os2Table) -> ()),
         copy: Some(
@@ -173,7 +173,7 @@ pub unsafe extern "C" fn otfcc_readOS_2(
                     let mut length: u32 = table.length;
                     if !(length < 2 as u32) {
                         os_2 = (
-                            table_iOS_2.create.expect("non-null function pointer"))();
+                            TABLE_I_OS_2.create.expect("non-null function pointer"))();
                         (*os_2).version = read_16u(data as *const u8);
                         if !(length < 68 as u32) {
                             (*os_2).xAvgCharWidth = read_16u(
@@ -338,7 +338,7 @@ pub unsafe extern "C" fn otfcc_readOS_2(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'OS/2' corrupted.\n"),
                     );
@@ -357,7 +357,7 @@ pub unsafe extern "C" fn otfcc_readOS_2(
     }
     return ::core::ptr::null_mut::<Os2Table>();
 }
-pub static fsTypeLabels: [&::core::ffi::CStr; 10] = [
+pub static FS_TYPE_LABELS: [&::core::ffi::CStr; 10] = [
     c"_reserved1",
     c"restrictedLicense",
     c"previewPrintLicense",
@@ -369,7 +369,7 @@ pub static fsTypeLabels: [&::core::ffi::CStr; 10] = [
     c"noSubsetting",
     c"bitmapEmbeddingOnly",
 ];
-pub static fsSelectionLabels: [&::core::ffi::CStr; 10] = [
+pub static FS_SELECTION_LABELS: [&::core::ffi::CStr; 10] = [
     c"italic",
     c"underscore",
     c"negative",
@@ -381,7 +381,7 @@ pub static fsSelectionLabels: [&::core::ffi::CStr; 10] = [
     c"wws",
     c"oblique",
 ];
-pub static codePageLabels1: [&::core::ffi::CStr; 32] = [
+pub static CODE_PAGE_LABELS1: [&::core::ffi::CStr; 32] = [
     c"latin1",
     c"latin2",
     c"cyrillic",
@@ -415,7 +415,7 @@ pub static codePageLabels1: [&::core::ffi::CStr; 32] = [
     c"oem",
     c"symbol",
 ];
-pub static codePageLabels2: [&::core::ffi::CStr; 32] = [
+pub static CODE_PAGE_LABELS2: [&::core::ffi::CStr; 32] = [
     c"oem8",
     c"oem9",
     c"oem10",
@@ -449,7 +449,7 @@ pub static codePageLabels2: [&::core::ffi::CStr; 32] = [
     c"cp850",
     c"ascii",
 ];
-pub static unicodeRangeLabels1: [&::core::ffi::CStr; 32] = [
+pub static UNICODE_RANGE_LABELS1: [&::core::ffi::CStr; 32] = [
     c"Basic_Latin",
     c"Latin_1_Supplement",
     c"Latin_Extended_A",
@@ -483,7 +483,7 @@ pub static unicodeRangeLabels1: [&::core::ffi::CStr; 32] = [
     c"Greek_Extended",
     c"Punctuations",
 ];
-pub static unicodeRangeLabels2: [&::core::ffi::CStr; 32] = [
+pub static UNICODE_RANGE_LABELS2: [&::core::ffi::CStr; 32] = [
     c"Superscripts_And_Subscripts",
     c"Currency_Symbols",
     c"Combining_Diacritical_Marks_For_Symbols",
@@ -517,7 +517,7 @@ pub static unicodeRangeLabels2: [&::core::ffi::CStr; 32] = [
     c"Alphabetic_Presentation_Forms",
     c"Arabic_Presentation_Forms_A",
 ];
-pub static unicodeRangeLabels3: [&::core::ffi::CStr; 32] = [
+pub static UNICODE_RANGE_LABELS3: [&::core::ffi::CStr; 32] = [
     c"Combining_Half_Marks",
     c"Vertical_Forms_and_CJK_Compatibility_Forms",
     c"Small_Form_Variants",
@@ -551,7 +551,7 @@ pub static unicodeRangeLabels3: [&::core::ffi::CStr; 32] = [
     c"Tai_Le",
     c"New_Tai_Lue",
 ];
-pub static unicodeRangeLabels4: [&::core::ffi::CStr; 27] = [
+pub static UNICODE_RANGE_LABELS4: [&::core::ffi::CStr; 27] = [
     c"Buginese",
     c"Glagolitic",
     c"Tifinagh",
@@ -622,7 +622,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"fsType\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).fsType as ::core::ffi::c_int,
-                &fsTypeLabels,
+                &FS_TYPE_LABELS,
             ),
         );
         json_object_push(
@@ -699,7 +699,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulUnicodeRange1\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulUnicodeRange1 as ::core::ffi::c_int,
-                &unicodeRangeLabels1,
+                &UNICODE_RANGE_LABELS1,
             ),
         );
         json_object_push(
@@ -707,7 +707,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulUnicodeRange2\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulUnicodeRange2 as ::core::ffi::c_int,
-                &unicodeRangeLabels2,
+                &UNICODE_RANGE_LABELS2,
             ),
         );
         json_object_push(
@@ -715,7 +715,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulUnicodeRange3\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulUnicodeRange3 as ::core::ffi::c_int,
-                &unicodeRangeLabels3,
+                &UNICODE_RANGE_LABELS3,
             ),
         );
         json_object_push(
@@ -723,7 +723,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulUnicodeRange4\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulUnicodeRange4 as ::core::ffi::c_int,
-                &unicodeRangeLabels4,
+                &UNICODE_RANGE_LABELS4,
             ),
         );
         let mut vendorid: SdsRaw = sdsnewlen(
@@ -741,7 +741,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"fsSelection\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).fsSelection as ::core::ffi::c_int,
-                &fsSelectionLabels,
+                &FS_SELECTION_LABELS,
             ),
         );
         json_object_push(
@@ -784,7 +784,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulCodePageRange1\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulCodePageRange1 as ::core::ffi::c_int,
-                &codePageLabels1,
+                &CODE_PAGE_LABELS1,
             ),
         );
         json_object_push(
@@ -792,7 +792,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             b"ulCodePageRange2\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).ulCodePageRange2 as ::core::ffi::c_int,
-                &codePageLabels2,
+                &CODE_PAGE_LABELS2,
             ),
         );
         json_object_push(
@@ -846,7 +846,7 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
     mut options: *const Options,
 ) -> *mut Os2Table {
     let mut os_2: *mut Os2Table = (
-        table_iOS_2.create.expect("non-null function pointer"))();
+        TABLE_I_OS_2.create.expect("non-null function pointer"))();
     if os_2.is_null() {
         return ::core::ptr::null_mut::<Os2Table>();
     }
@@ -890,7 +890,7 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
                     table,
                     b"fsType\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &fsTypeLabels,
+                &FS_TYPE_LABELS,
             ) as u16;
             (*os_2).ySubscriptXSize = json_obj_getnum_fallback(
                 table,
@@ -952,7 +952,7 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
                     table,
                     b"fsSelection\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &fsSelectionLabels,
+                &FS_SELECTION_LABELS,
             ) as u16;
             (*os_2).usFirstCharIndex = json_obj_getnum_fallback(
                 table,
@@ -994,42 +994,42 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
                     table,
                     b"ulCodePageRange1\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &codePageLabels1,
+                &CODE_PAGE_LABELS1,
             );
             (*os_2).ulCodePageRange2 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulCodePageRange2\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &codePageLabels2,
+                &CODE_PAGE_LABELS2,
             );
             (*os_2).ulUnicodeRange1 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange1\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &unicodeRangeLabels1,
+                &UNICODE_RANGE_LABELS1,
             );
             (*os_2).ulUnicodeRange2 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange2\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &unicodeRangeLabels2,
+                &UNICODE_RANGE_LABELS2,
             );
             (*os_2).ulUnicodeRange3 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange3\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &unicodeRangeLabels3,
+                &UNICODE_RANGE_LABELS3,
             );
             (*os_2).ulUnicodeRange4 = otfcc_parse_flags(
                 json_obj_get(
                     table,
                     b"ulUnicodeRange4\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &unicodeRangeLabels4,
+                &UNICODE_RANGE_LABELS4,
             );
             (*os_2).sxHeight = json_obj_getnum_fallback(
                 table,

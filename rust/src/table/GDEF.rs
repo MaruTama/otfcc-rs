@@ -18,8 +18,8 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{ComparFn};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Block};
-use crate::table::otl::classdef::{otl_iClassDef};
-use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 #[derive(Copy, Clone)]
@@ -175,7 +175,7 @@ pub struct GdefTableElementInterface {
     pub create: Option<unsafe extern "C" fn() -> *mut GdefTable>,
     pub free: Option<unsafe extern "C" fn(*mut GdefTable) -> ()>,
 }
-pub static otl_iCaretValue: CaretValueElementInterface =
+pub static OTL_I_CARET_VALUE: CaretValueElementInterface =
     CaretValueElementInterface {
         init: None,
         copy: None,
@@ -212,10 +212,10 @@ unsafe extern "C" fn otl_CaretValueList_copy(
     otl_CaretValueList_init(dst);
     otl_CaretValueList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if otl_iCaretValue.copy.is_some() {
+    if OTL_I_CARET_VALUE.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            otl_iCaretValue.copy.expect("non-null function pointer")(
+            OTL_I_CARET_VALUE.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut CaretValue,
                 (*src).items.offset(j as isize) as *mut CaretValue as *const CaretValue,
             );
@@ -234,7 +234,7 @@ unsafe extern "C" fn otl_CaretValueList_dispose(mut arr: *mut CaretValueList) {
     if arr.is_null() {
         return;
     }
-    if otl_iCaretValue.dispose.is_some() {
+    if OTL_I_CARET_VALUE.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -242,7 +242,7 @@ unsafe extern "C" fn otl_CaretValueList_dispose(mut arr: *mut CaretValueList) {
             if !(fresh1 != 0) {
                 break;
             }
-            otl_iCaretValue.dispose.expect("non-null function pointer")(
+            OTL_I_CARET_VALUE.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut CaretValue,
             );
         }
@@ -331,8 +331,8 @@ unsafe extern "C" fn otl_CaretValueList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if otl_iCaretValue.dispose.is_some() {
-                otl_iCaretValue.dispose.expect("non-null function pointer")(
+            if OTL_I_CARET_VALUE.dispose.is_some() {
+                OTL_I_CARET_VALUE.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut CaretValue,
                 );
             } else {
@@ -354,7 +354,7 @@ unsafe extern "C" fn otl_CaretValueList_init(arr: *mut CaretValueList) {
 unsafe extern "C" fn otl_CaretValueList_push(arr: *mut CaretValueList, elem: CaretValue) {
     cvec_push(otl_CaretValueList_as_cvec(arr), elem);
 }
-pub static otl_iCaretValueList: CaretValueListVectorInterface = {
+pub static OTL_I_CARET_VALUE_LIST: CaretValueListVectorInterface = {
     CaretValueListVectorInterface {
         init: Some(otl_CaretValueList_init as unsafe extern "C" fn(*mut CaretValueList) -> ()),
         copy: Some(
@@ -463,8 +463,8 @@ unsafe extern "C" fn otl_CaretValueList_disposeItem(
     mut arr: *mut CaretValueList,
     mut n: usize,
 ) {
-    if otl_iCaretValue.dispose.is_some() {
-        otl_iCaretValue.dispose.expect("non-null function pointer")(
+    if OTL_I_CARET_VALUE.dispose.is_some() {
+        OTL_I_CARET_VALUE.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut CaretValue,
         );
     } else {
@@ -478,8 +478,8 @@ unsafe extern "C" fn otl_CaretValueList_fill(mut arr: *mut CaretValueList, mut n
             coordiante: 0.,
             pointIndex: 0,
         };
-        if otl_iCaretValue.init.is_some() {
-            otl_iCaretValue.init.expect("non-null function pointer")(&raw mut x);
+        if OTL_I_CARET_VALUE.init.is_some() {
+            OTL_I_CARET_VALUE.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -493,15 +493,15 @@ unsafe extern "C" fn otl_CaretValueList_fill(mut arr: *mut CaretValueList, mut n
 #[inline]
 unsafe extern "C" fn initGdefLigCaretRec(mut v: *mut CaretValueRecord) {
     (*v).glyph = otfcc_Handle_empty() as GlyphHandle;
-    otl_iCaretValueList.init.expect("non-null function pointer")(&raw mut (*v).carets);
+    OTL_I_CARET_VALUE_LIST.init.expect("non-null function pointer")(&raw mut (*v).carets);
 }
 unsafe extern "C" fn deleteGdefLigCaretRec(mut v: *mut CaretValueRecord) {
     otfcc_Handle_dispose(&raw mut (*v).glyph);
-    otl_iCaretValueList
+    OTL_I_CARET_VALUE_LIST
         .dispose
         .expect("non-null function pointer")(&raw mut (*v).carets);
 }
-pub static otl_iCaretValueRecord: CaretValueRecordElementInterface = {
+pub static OTL_I_CARET_VALUE_RECORD: CaretValueRecordElementInterface = {
     CaretValueRecordElementInterface {
         init: Some(initGdefLigCaretRec as unsafe extern "C" fn(*mut CaretValueRecord) -> ()),
         copy: None,
@@ -521,7 +521,7 @@ unsafe fn otl_LigCaretTable_as_cvec(arr: *mut LigCaretTable) -> *mut CVecRaw<Car
 unsafe extern "C" fn otl_LigCaretTable_init(arr: *mut LigCaretTable) {
     cvec_init(otl_LigCaretTable_as_cvec(arr));
 }
-pub static otl_iLigCaretTable: LigCaretTableVectorInterface = {
+pub static OTL_I_LIG_CARET_TABLE: LigCaretTableVectorInterface = {
     LigCaretTableVectorInterface {
         init: Some(otl_LigCaretTable_init as unsafe extern "C" fn(*mut LigCaretTable) -> ()),
         copy: Some(
@@ -635,8 +635,8 @@ unsafe extern "C" fn otl_LigCaretTable_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if otl_iCaretValueRecord.dispose.is_some() {
-                otl_iCaretValueRecord
+            if OTL_I_CARET_VALUE_RECORD.dispose.is_some() {
+                OTL_I_CARET_VALUE_RECORD
                     .dispose
                     .expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut CaretValueRecord,
@@ -650,8 +650,8 @@ unsafe extern "C" fn otl_LigCaretTable_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn otl_LigCaretTable_disposeItem(mut arr: *mut LigCaretTable, mut n: usize) {
-    if otl_iCaretValueRecord.dispose.is_some() {
-        otl_iCaretValueRecord
+    if OTL_I_CARET_VALUE_RECORD.dispose.is_some() {
+        OTL_I_CARET_VALUE_RECORD
             .dispose
             .expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut CaretValueRecord
@@ -699,8 +699,8 @@ unsafe extern "C" fn otl_LigCaretTable_fill(mut arr: *mut LigCaretTable, mut n: 
                 items: ::core::ptr::null_mut::<CaretValue>(),
             },
         };
-        if otl_iCaretValueRecord.init.is_some() {
-            otl_iCaretValueRecord
+        if OTL_I_CARET_VALUE_RECORD.init.is_some() {
+            OTL_I_CARET_VALUE_RECORD
                 .init
                 .expect("non-null function pointer")(&raw mut x);
         } else {
@@ -745,10 +745,10 @@ unsafe extern "C" fn otl_LigCaretTable_copy(
     otl_LigCaretTable_init(dst);
     otl_LigCaretTable_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if otl_iCaretValueRecord.copy.is_some() {
+    if OTL_I_CARET_VALUE_RECORD.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            otl_iCaretValueRecord
+            OTL_I_CARET_VALUE_RECORD
                 .copy
                 .expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut CaretValueRecord,
@@ -770,7 +770,7 @@ unsafe extern "C" fn otl_LigCaretTable_dispose(mut arr: *mut LigCaretTable) {
     if arr.is_null() {
         return;
     }
-    if otl_iCaretValueRecord.dispose.is_some() {
+    if OTL_I_CARET_VALUE_RECORD.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh3 = j;
@@ -778,7 +778,7 @@ unsafe extern "C" fn otl_LigCaretTable_dispose(mut arr: *mut LigCaretTable) {
             if !(fresh3 != 0) {
                 break;
             }
-            otl_iCaretValueRecord
+            OTL_I_CARET_VALUE_RECORD
                 .dispose
                 .expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut CaretValueRecord
@@ -843,7 +843,7 @@ unsafe extern "C" fn otl_LigCaretTable_create() -> *mut LigCaretTable {
 unsafe extern "C" fn initGDEF(mut gdef: *mut GdefTable) {
     (*gdef).glyphClassDef = ::core::ptr::null_mut::<ClassDef>();
     (*gdef).markAttachClassDef = ::core::ptr::null_mut::<ClassDef>();
-    otl_iLigCaretTable.init.expect("non-null function pointer")(&raw mut (*gdef).ligCarets);
+    OTL_I_LIG_CARET_TABLE.init.expect("non-null function pointer")(&raw mut (*gdef).ligCarets);
 }
 #[inline]
 unsafe extern "C" fn disposeGDEF(mut gdef: *mut GdefTable) {
@@ -856,7 +856,7 @@ unsafe extern "C" fn disposeGDEF(mut gdef: *mut GdefTable) {
     if !(*gdef).markAttachClassDef.is_null() {
         otl_ClassDef_free((*gdef).markAttachClassDef);
     }
-    otl_iLigCaretTable
+    OTL_I_LIG_CARET_TABLE
         .dispose
         .expect("non-null function pointer")(&raw mut (*gdef).ligCarets);
 }
@@ -868,7 +868,7 @@ unsafe extern "C" fn table_GDEF_init(mut x: *mut GdefTable) {
 unsafe extern "C" fn table_GDEF_dispose(mut x: *mut GdefTable) {
     disposeGDEF(x);
 }
-pub static table_iGDEF: GdefTableElementInterface = {
+pub static TABLE_I_GDEF: GdefTableElementInterface = {
     GdefTableElementInterface {
         init: Some(table_GDEF_init as unsafe extern "C" fn(*mut GdefTable) -> ()),
         copy: Some(
@@ -981,7 +981,7 @@ unsafe extern "C" fn readLigCaretRecord(
             items: ::core::ptr::null_mut::<CaretValue>(),
         },
     };
-    otl_iCaretValueRecord
+    OTL_I_CARET_VALUE_RECORD
         .init
         .expect("non-null function pointer")(&raw mut g);
     if !(tableLength < offset.wrapping_add(2 as u32)) {
@@ -993,7 +993,7 @@ unsafe extern "C" fn readLigCaretRecord(
         {
             let mut j: GlyphId = 0 as GlyphId;
             while (j as ::core::ffi::c_int) < caretCount as ::core::ffi::c_int {
-                otl_iCaretValueList.push.expect("non-null function pointer")(
+                OTL_I_CARET_VALUE_LIST.push.expect("non-null function pointer")(
                     &raw mut g.carets,
                     readCaretValue(
                         data,
@@ -1038,7 +1038,7 @@ pub unsafe extern "C" fn otfcc_readGDEF(
                     let mut tableLength: u32 = table.length;
                     if !(tableLength < 12 as u32) {
                         gdef = (
-                            table_iGDEF.create.expect("non-null function pointer"))();
+                            TABLE_I_GDEF.create.expect("non-null function pointer"))();
                         classdefOffset = read_16u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
@@ -1122,7 +1122,7 @@ pub unsafe extern "C" fn otfcc_readGDEF(
                                                 *(*cov).glyphs.offset(j as isize) as Handle,
                                             )
                                                 as GlyphHandle;
-                                        otl_iLigCaretTable.push.expect("non-null function pointer")(
+                                        OTL_I_LIG_CARET_TABLE.push.expect("non-null function pointer")(
                                             &raw mut (*gdef).ligCarets,
                                             v,
                                         );
@@ -1153,7 +1153,7 @@ pub unsafe extern "C" fn otfcc_readGDEF(
                             }
                         }
                     }
-                    table_iGDEF.free.expect("non-null function pointer")(gdef);
+                    TABLE_I_GDEF.free.expect("non-null function pointer")(gdef);
                     gdef = ::core::ptr::null_mut::<GdefTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -1240,14 +1240,14 @@ pub unsafe extern "C" fn otfcc_dumpGDEF(
             json_object_push(
                 _gdef,
                 b"glyphClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                otl_iClassDef.dump.expect("non-null function pointer")((*gdef).glyphClassDef),
+                OTL_I_CLASS_DEF.dump.expect("non-null function pointer")((*gdef).glyphClassDef),
             );
         }
         if !(*gdef).markAttachClassDef.is_null() {
             json_object_push(
                 _gdef,
                 b"markAttachClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                otl_iClassDef.dump.expect("non-null function pointer")((*gdef).markAttachClassDef),
+                OTL_I_CLASS_DEF.dump.expect("non-null function pointer")((*gdef).markAttachClassDef),
             );
         }
         if (*gdef).ligCarets.length != 0 {
@@ -1296,7 +1296,7 @@ unsafe extern "C" fn ligCaretFromJson(
                     items: ::core::ptr::null_mut::<CaretValue>(),
                 },
             };
-            otl_iCaretValueRecord
+            OTL_I_CARET_VALUE_RECORD
                 .init
                 .expect("non-null function pointer")(&raw mut v);
             v.glyph = handle_fromName(sdsnewlen(
@@ -1338,13 +1338,13 @@ unsafe extern "C" fn ligCaretFromJson(
                         ) as Pos;
                     }
                 }
-                otl_iCaretValueList.push.expect("non-null function pointer")(
+                OTL_I_CARET_VALUE_LIST.push.expect("non-null function pointer")(
                     &raw mut v.carets,
                     caret,
                 );
                 k = k.wrapping_add(1);
             }
-            otl_iLigCaretTable.push.expect("non-null function pointer")(lc, v);
+            OTL_I_LIG_CARET_TABLE.push.expect("non-null function pointer")(lc, v);
         }
         j = j.wrapping_add(1);
     }
@@ -1370,14 +1370,14 @@ pub unsafe extern "C" fn otfcc_parseGDEF(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             gdef = (
-                table_iGDEF.create.expect("non-null function pointer"))();
+                TABLE_I_GDEF.create.expect("non-null function pointer"))();
             (*gdef).glyphClassDef =
-                otl_iClassDef.parse.expect("non-null function pointer")(json_obj_get(
+                OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(json_obj_get(
                     table,
                     b"glyphClassDef\0" as *const u8 as *const ::core::ffi::c_char,
                 ));
             (*gdef).markAttachClassDef =
-                otl_iClassDef.parse.expect("non-null function pointer")(json_obj_get(
+                OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(json_obj_get(
                     table,
                     b"markAttachClassDef\0" as *const u8 as *const ::core::ffi::c_char,
                 ));
@@ -1426,7 +1426,7 @@ unsafe extern "C" fn writeLigCarets(mut lc: *const LigCaretTable) -> *mut BkBloc
         );
         j = j.wrapping_add(1);
     }
-    let mut lct: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, ((*lc).length) as u32)]);
+    let mut lct: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, ((*lc).length) as u32)]);
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*lc).length {
         bk_push(lct, &[bk_ptr(BkCellType::P16, writeLigCaretRec((*lc).items.offset(j_0 as isize) as *mut CaretValueRecord))]);
@@ -1448,7 +1448,7 @@ pub unsafe extern "C" fn otfcc_buildGDEF(
     let mut bMarkAttachClassDef: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     if !(*gdef).glyphClassDef.is_null() {
         bGlyphClassDef =
-            bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+            bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
                 (*gdef).glyphClassDef,
             ));
     }
@@ -1457,7 +1457,7 @@ pub unsafe extern "C" fn otfcc_buildGDEF(
     }
     if !(*gdef).markAttachClassDef.is_null() {
         bMarkAttachClassDef =
-            bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+            bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
                 (*gdef).markAttachClassDef,
             ));
     }

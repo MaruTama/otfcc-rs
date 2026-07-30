@@ -18,7 +18,7 @@ use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_
 use crate::vendor::json::{JsonValue, JsonType};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::support::buffer::{Buffer};
-use crate::support::{ComparFn, true_0};
+use crate::support::{ComparFn, TRUE_0};
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
 use crate::table::fvar::{FvarTable};
 
@@ -31,7 +31,7 @@ use crate::table::fvar::{json_new_VQ, json_vqOf};
 use crate::vendor::json::{json_value_free};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnewlen};
-use crate::vf::vq::{iVQ};
+use crate::vf::vq::{I_VQ};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -525,18 +525,18 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     return 0 as usize;
 }
 unsafe extern "C" fn createPoint(mut p: *mut Point) {
-    (*p).x = iVQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
-    (*p).y = iVQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
-    (*p).onCurve = true_0 as i8;
+    (*p).x = I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+    (*p).y = I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+    (*p).onCurve = TRUE_0 as i8;
 }
 unsafe extern "C" fn copyPoint(mut dst: *mut Point, mut src: *const Point) {
-    iVQ.copy.expect("non-null function pointer")(&raw mut (*dst).x, &raw const (*src).x);
-    iVQ.copy.expect("non-null function pointer")(&raw mut (*dst).y, &raw const (*src).y);
+    I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).x, &raw const (*src).x);
+    I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).y, &raw const (*src).y);
     (*dst).onCurve = (*src).onCurve;
 }
 unsafe extern "C" fn disposePoint(mut p: *mut Point) {
-    iVQ.dispose.expect("non-null function pointer")(&raw mut (*p).x);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut (*p).y);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*p).x);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*p).y);
 }
 #[inline]
 unsafe extern "C" fn glyf_Point_copyReplace(mut dst: *mut Point, src: Point) {
@@ -584,7 +584,7 @@ unsafe extern "C" fn glyf_Point_replace(mut dst: *mut Point, src: Point) {
 unsafe extern "C" fn glyf_Point_init(mut x: *mut Point) {
     createPoint(x);
 }
-pub static glyf_iPoint: PointElementInterface = {
+pub static GLYF_I_POINT: PointElementInterface = {
     PointElementInterface {
         init: Some(glyf_Point_init as unsafe extern "C" fn(*mut Point) -> ()),
         copy: Some(
@@ -669,7 +669,7 @@ unsafe extern "C" fn glyf_Contour_create() -> *mut Contour {
     glyf_Contour_init(x);
     return x;
 }
-pub static glyf_iContour: ContourVectorInterface = {
+pub static GLYF_I_CONTOUR: ContourVectorInterface = {
     ContourVectorInterface {
         init: Some(glyf_Contour_init as unsafe extern "C" fn(*mut Contour) -> ()),
         copy: Some(
@@ -764,8 +764,8 @@ unsafe extern "C" fn glyf_Contour_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if glyf_iPoint.dispose.is_some() {
-                glyf_iPoint.dispose.expect("non-null function pointer")(
+            if GLYF_I_POINT.dispose.is_some() {
+                GLYF_I_POINT.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut Point,
                 );
             } else {
@@ -777,8 +777,8 @@ unsafe extern "C" fn glyf_Contour_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn glyf_Contour_disposeItem(mut arr: *mut Contour, mut n: usize) {
-    if glyf_iPoint.dispose.is_some() {
-        glyf_iPoint.dispose.expect("non-null function pointer")(
+    if GLYF_I_POINT.dispose.is_some() {
+        GLYF_I_POINT.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut Point
         );
     } else {
@@ -825,8 +825,8 @@ unsafe extern "C" fn glyf_Contour_fill(mut arr: *mut Contour, mut n: usize) {
             },
             onCurve: 0,
         };
-        if glyf_iPoint.init.is_some() {
-            glyf_iPoint.init.expect("non-null function pointer")(&raw mut x);
+        if GLYF_I_POINT.init.is_some() {
+            GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -863,10 +863,10 @@ unsafe extern "C" fn glyf_Contour_copy(mut dst: *mut Contour, mut src: *const Co
     glyf_Contour_init(dst);
     glyf_Contour_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if glyf_iPoint.copy.is_some() {
+    if GLYF_I_POINT.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            glyf_iPoint.copy.expect("non-null function pointer")(
+            GLYF_I_POINT.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut Point,
                 (*src).items.offset(j as isize) as *mut Point as *const Point,
             );
@@ -885,7 +885,7 @@ unsafe extern "C" fn glyf_Contour_dispose(mut arr: *mut Contour) {
     if arr.is_null() {
         return;
     }
-    if glyf_iPoint.dispose.is_some() {
+    if GLYF_I_POINT.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -893,7 +893,7 @@ unsafe extern "C" fn glyf_Contour_dispose(mut arr: *mut Contour) {
             if !(fresh1 != 0) {
                 break;
             }
-            glyf_iPoint.dispose.expect("non-null function pointer")(
+            GLYF_I_POINT.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut Point,
             );
         }
@@ -945,8 +945,8 @@ unsafe extern "C" fn glyf_ContourList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if glyf_iContour.dispose.is_some() {
-                glyf_iContour.dispose.expect("non-null function pointer")(
+            if GLYF_I_CONTOUR.dispose.is_some() {
+                GLYF_I_CONTOUR.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut Contour,
                 );
             } else {
@@ -958,8 +958,8 @@ unsafe extern "C" fn glyf_ContourList_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn glyf_ContourList_disposeItem(mut arr: *mut ContourList, mut n: usize) {
-    if glyf_iContour.dispose.is_some() {
-        glyf_iContour.dispose.expect("non-null function pointer")(
+    if GLYF_I_CONTOUR.dispose.is_some() {
+        GLYF_I_CONTOUR.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut Contour
         );
     } else {
@@ -997,10 +997,10 @@ unsafe extern "C" fn glyf_ContourList_copy(
     glyf_ContourList_init(dst);
     glyf_ContourList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if glyf_iContour.copy.is_some() {
+    if GLYF_I_CONTOUR.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            glyf_iContour.copy.expect("non-null function pointer")(
+            GLYF_I_CONTOUR.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut Contour,
                 (*src).items.offset(j as isize) as *mut Contour as *const Contour,
             );
@@ -1063,7 +1063,7 @@ unsafe extern "C" fn glyf_ContourList_dispose(mut arr: *mut ContourList) {
     if arr.is_null() {
         return;
     }
-    if glyf_iContour.dispose.is_some() {
+    if GLYF_I_CONTOUR.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh3 = j;
@@ -1071,7 +1071,7 @@ unsafe extern "C" fn glyf_ContourList_dispose(mut arr: *mut ContourList) {
             if !(fresh3 != 0) {
                 break;
             }
-            glyf_iContour.dispose.expect("non-null function pointer")(
+            GLYF_I_CONTOUR.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut Contour,
             );
         }
@@ -1081,7 +1081,7 @@ unsafe extern "C" fn glyf_ContourList_dispose(mut arr: *mut ContourList) {
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
 }
-pub static glyf_iContourList: ContourListVectorInterface = {
+pub static GLYF_I_CONTOUR_LIST: ContourListVectorInterface = {
     ContourListVectorInterface {
         init: Some(glyf_ContourList_init as unsafe extern "C" fn(*mut ContourList) -> ()),
         copy: Some(
@@ -1168,8 +1168,8 @@ unsafe extern "C" fn glyf_ContourList_fill(mut arr: *mut ContourList, mut n: usi
             capacity: 0,
             items: ::core::ptr::null_mut::<Point>(),
         };
-        if glyf_iContour.init.is_some() {
-            glyf_iContour.init.expect("non-null function pointer")(&raw mut x);
+        if GLYF_I_CONTOUR.init.is_some() {
+            GLYF_I_CONTOUR.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -1221,9 +1221,9 @@ unsafe extern "C" fn glyf_ContourList_initCapN(mut arr: *mut ContourList, mut n:
 unsafe extern "C" fn initGlyfReference(mut ref_0: *mut ComponentReference) {
     (*ref_0).glyph = otfcc_Handle_empty() as GlyphHandle;
     (*ref_0).x =
-        iVQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+        I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
     (*ref_0).y =
-        iVQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+        I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
     (*ref_0).a = 1 as ::core::ffi::c_int as Scale;
     (*ref_0).b = 0 as ::core::ffi::c_int as Scale;
     (*ref_0).c = 0 as ::core::ffi::c_int as Scale;
@@ -1238,8 +1238,8 @@ unsafe extern "C" fn copyGlyfReference(
     mut dst: *mut ComponentReference,
     mut src: *const ComponentReference,
 ) {
-    iVQ.copy.expect("non-null function pointer")(&raw mut (*dst).x, &raw const (*src).x);
-    iVQ.copy.expect("non-null function pointer")(&raw mut (*dst).y, &raw const (*src).y);
+    I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).x, &raw const (*src).x);
+    I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).y, &raw const (*src).y);
     otfcc_Handle_copy(
         &raw mut (*dst).glyph,
         &raw const (*src).glyph,
@@ -1256,8 +1256,8 @@ unsafe extern "C" fn copyGlyfReference(
 }
 #[inline]
 unsafe extern "C" fn disposeGlyfReference(mut ref_0: *mut ComponentReference) {
-    iVQ.dispose.expect("non-null function pointer")(&raw mut (*ref_0).x);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut (*ref_0).y);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*ref_0).x);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*ref_0).y);
     otfcc_Handle_dispose(&raw mut (*ref_0).glyph);
 }
 #[inline]
@@ -1375,7 +1375,7 @@ unsafe extern "C" fn glyf_ComponentReference_empty() -> ComponentReference {
 unsafe extern "C" fn glyf_ComponentReference_init(mut x: *mut ComponentReference) {
     initGlyfReference(x);
 }
-pub static glyf_iComponentReference: ComponentReferenceElementInterface = {
+pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
     ComponentReferenceElementInterface {
         init: Some(
             glyf_ComponentReference_init
@@ -1477,8 +1477,8 @@ unsafe extern "C" fn glyf_ReferenceList_fill(mut arr: *mut ReferenceList, mut n:
             inner: 0,
             outer: 0,
         };
-        if glyf_iComponentReference.init.is_some() {
-            glyf_iComponentReference
+        if GLYF_I_COMPONENT_REFERENCE.init.is_some() {
+            GLYF_I_COMPONENT_REFERENCE
                 .init
                 .expect("non-null function pointer")(&raw mut x);
         } else {
@@ -1512,7 +1512,7 @@ unsafe extern "C" fn glyf_ReferenceList_dispose(mut arr: *mut ReferenceList) {
     if arr.is_null() {
         return;
     }
-    if glyf_iComponentReference.dispose.is_some() {
+    if GLYF_I_COMPONENT_REFERENCE.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh9 = j;
@@ -1520,7 +1520,7 @@ unsafe extern "C" fn glyf_ReferenceList_dispose(mut arr: *mut ReferenceList) {
             if !(fresh9 != 0) {
                 break;
             }
-            glyf_iComponentReference
+            GLYF_I_COMPONENT_REFERENCE
                 .dispose
                 .expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut ComponentReference
@@ -1540,10 +1540,10 @@ unsafe extern "C" fn glyf_ReferenceList_copy(
     glyf_ReferenceList_init(dst);
     glyf_ReferenceList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if glyf_iComponentReference.copy.is_some() {
+    if GLYF_I_COMPONENT_REFERENCE.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            glyf_iComponentReference
+            GLYF_I_COMPONENT_REFERENCE
                 .copy
                 .expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut ComponentReference,
@@ -1611,7 +1611,7 @@ unsafe extern "C" fn glyf_ReferenceList_move(dst: *mut ReferenceList, src: *mut 
 unsafe extern "C" fn glyf_ReferenceList_shrinkToFit(mut arr: *mut ReferenceList) {
     glyf_ReferenceList_resizeTo(arr, (*arr).length);
 }
-pub static glyf_iReferenceList: ReferenceListVectorInterface = {
+pub static GLYF_I_REFERENCE_LIST: ReferenceListVectorInterface = {
     ReferenceListVectorInterface {
         init: Some(glyf_ReferenceList_init as unsafe extern "C" fn(*mut ReferenceList) -> ()),
         copy: Some(
@@ -1721,8 +1721,8 @@ unsafe extern "C" fn glyf_ReferenceList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if glyf_iComponentReference.dispose.is_some() {
-                glyf_iComponentReference
+            if GLYF_I_COMPONENT_REFERENCE.dispose.is_some() {
+                GLYF_I_COMPONENT_REFERENCE
                     .dispose
                     .expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut ComponentReference,
@@ -1743,8 +1743,8 @@ unsafe extern "C" fn glyf_ReferenceList_disposeItem(
     mut arr: *mut ReferenceList,
     mut n: usize,
 ) {
-    if glyf_iComponentReference.dispose.is_some() {
-        glyf_iComponentReference
+    if GLYF_I_COMPONENT_REFERENCE.dispose.is_some() {
+        GLYF_I_COMPONENT_REFERENCE
             .dispose
             .expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut ComponentReference
@@ -1785,7 +1785,7 @@ unsafe extern "C" fn glyf_PostscriptStemDef_copyReplace(
     glyf_PostscriptStemDef_dispose(dst);
     glyf_PostscriptStemDef_copy(dst, &raw const src);
 }
-pub static glyf_iPostscriptStemDef: PostscriptStemDefElementInterface = {
+pub static GLYF_I_POSTSCRIPT_STEM_DEF: PostscriptStemDefElementInterface = {
     PostscriptStemDefElementInterface {
         init: Some(
             glyf_PostscriptStemDef_init as unsafe extern "C" fn(*mut PostscriptStemDef) -> (),
@@ -1910,8 +1910,8 @@ unsafe extern "C" fn glyf_StemDefList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if glyf_iPostscriptStemDef.dispose.is_some() {
-                glyf_iPostscriptStemDef
+            if GLYF_I_POSTSCRIPT_STEM_DEF.dispose.is_some() {
+                GLYF_I_POSTSCRIPT_STEM_DEF
                     .dispose
                     .expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut PostscriptStemDef,
@@ -1925,8 +1925,8 @@ unsafe extern "C" fn glyf_StemDefList_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn glyf_StemDefList_disposeItem(mut arr: *mut StemDefList, mut n: usize) {
-    if glyf_iPostscriptStemDef.dispose.is_some() {
-        glyf_iPostscriptStemDef
+    if GLYF_I_POSTSCRIPT_STEM_DEF.dispose.is_some() {
+        GLYF_I_POSTSCRIPT_STEM_DEF
             .dispose
             .expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut PostscriptStemDef
@@ -1967,8 +1967,8 @@ unsafe extern "C" fn glyf_StemDefList_fill(mut arr: *mut StemDefList, mut n: usi
             width: 0.,
             map: 0,
         };
-        if glyf_iPostscriptStemDef.init.is_some() {
-            glyf_iPostscriptStemDef
+        if GLYF_I_POSTSCRIPT_STEM_DEF.init.is_some() {
+            GLYF_I_POSTSCRIPT_STEM_DEF
                 .init
                 .expect("non-null function pointer")(&raw mut x);
         } else {
@@ -2013,10 +2013,10 @@ unsafe extern "C" fn glyf_StemDefList_copy(
     glyf_StemDefList_init(dst);
     glyf_StemDefList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if glyf_iPostscriptStemDef.copy.is_some() {
+    if GLYF_I_POSTSCRIPT_STEM_DEF.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            glyf_iPostscriptStemDef
+            GLYF_I_POSTSCRIPT_STEM_DEF
                 .copy
                 .expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut PostscriptStemDef,
@@ -2038,7 +2038,7 @@ unsafe extern "C" fn glyf_StemDefList_dispose(mut arr: *mut StemDefList) {
     if arr.is_null() {
         return;
     }
-    if glyf_iPostscriptStemDef.dispose.is_some() {
+    if GLYF_I_POSTSCRIPT_STEM_DEF.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh5 = j;
@@ -2046,7 +2046,7 @@ unsafe extern "C" fn glyf_StemDefList_dispose(mut arr: *mut StemDefList) {
             if !(fresh5 != 0) {
                 break;
             }
-            glyf_iPostscriptStemDef
+            GLYF_I_POSTSCRIPT_STEM_DEF
                 .dispose
                 .expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut PostscriptStemDef
@@ -2100,7 +2100,7 @@ unsafe extern "C" fn glyf_StemDefList_create() -> *mut StemDefList {
     glyf_StemDefList_init(x);
     return x;
 }
-pub static glyf_iStemDefList: StemDefListVectorInterface = {
+pub static GLYF_I_STEM_DEF_LIST: StemDefListVectorInterface = {
     StemDefListVectorInterface {
         init: Some(glyf_StemDefList_init as unsafe extern "C" fn(*mut StemDefList) -> ()),
         copy: Some(
@@ -2179,7 +2179,7 @@ pub static glyf_iStemDefList: StemDefListVectorInterface = {
         ),
     }
 };
-pub static glyf_iPostscriptHintMask: PostscriptHintMaskElementInterface = {
+pub static GLYF_I_POSTSCRIPT_HINT_MASK: PostscriptHintMaskElementInterface = {
     PostscriptHintMaskElementInterface {
         init: Some(
             glyf_PostscriptHintMask_init
@@ -2280,10 +2280,10 @@ unsafe extern "C" fn glyf_MaskList_copy(
     glyf_MaskList_init(dst);
     glyf_MaskList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if glyf_iPostscriptHintMask.copy.is_some() {
+    if GLYF_I_POSTSCRIPT_HINT_MASK.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            glyf_iPostscriptHintMask
+            GLYF_I_POSTSCRIPT_HINT_MASK
                 .copy
                 .expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut PostscriptHintMask,
@@ -2300,7 +2300,7 @@ unsafe extern "C" fn glyf_MaskList_copy(
         }
     };
 }
-pub static glyf_iMaskList: MaskListVectorInterface = {
+pub static GLYF_I_MASK_LIST: MaskListVectorInterface = {
     MaskListVectorInterface {
         init: Some(glyf_MaskList_init as unsafe extern "C" fn(*mut MaskList) -> ()),
         copy: Some(
@@ -2409,8 +2409,8 @@ unsafe extern "C" fn glyf_MaskList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if glyf_iPostscriptHintMask.dispose.is_some() {
-                glyf_iPostscriptHintMask
+            if GLYF_I_POSTSCRIPT_HINT_MASK.dispose.is_some() {
+                GLYF_I_POSTSCRIPT_HINT_MASK
                     .dispose
                     .expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut PostscriptHintMask,
@@ -2424,8 +2424,8 @@ unsafe extern "C" fn glyf_MaskList_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn glyf_MaskList_disposeItem(mut arr: *mut MaskList, mut n: usize) {
-    if glyf_iPostscriptHintMask.dispose.is_some() {
-        glyf_iPostscriptHintMask
+    if GLYF_I_POSTSCRIPT_HINT_MASK.dispose.is_some() {
+        GLYF_I_POSTSCRIPT_HINT_MASK
             .dispose
             .expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut PostscriptHintMask
@@ -2467,8 +2467,8 @@ unsafe extern "C" fn glyf_MaskList_fill(mut arr: *mut MaskList, mut n: usize) {
             maskH: [false; 256],
             maskV: [false; 256],
         };
-        if glyf_iPostscriptHintMask.init.is_some() {
-            glyf_iPostscriptHintMask
+        if GLYF_I_POSTSCRIPT_HINT_MASK.init.is_some() {
+            GLYF_I_POSTSCRIPT_HINT_MASK
                 .init
                 .expect("non-null function pointer")(&raw mut x);
         } else {
@@ -2527,7 +2527,7 @@ unsafe extern "C" fn glyf_MaskList_dispose(mut arr: *mut MaskList) {
     if arr.is_null() {
         return;
     }
-    if glyf_iPostscriptHintMask.dispose.is_some() {
+    if GLYF_I_POSTSCRIPT_HINT_MASK.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh7 = j;
@@ -2535,7 +2535,7 @@ unsafe extern "C" fn glyf_MaskList_dispose(mut arr: *mut MaskList) {
             if !(fresh7 != 0) {
                 break;
             }
-            glyf_iPostscriptHintMask
+            GLYF_I_POSTSCRIPT_HINT_MASK
                 .dispose
                 .expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut PostscriptHintMask
@@ -2580,16 +2580,16 @@ pub unsafe extern "C" fn otfcc_newGlyf_glyph() -> *mut Glyph {
         78 as ::core::ffi::c_ulong,
     ) as *mut Glyph;
     (*g).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    iVQ.init.expect("non-null function pointer")(&raw mut (*g).horizontalOrigin);
-    iVQ.init.expect("non-null function pointer")(&raw mut (*g).advanceWidth);
-    iVQ.init.expect("non-null function pointer")(&raw mut (*g).verticalOrigin);
-    iVQ.init.expect("non-null function pointer")(&raw mut (*g).advanceHeight);
-    glyf_iContourList.init.expect("non-null function pointer")(&raw mut (*g).contours);
-    glyf_iReferenceList.init.expect("non-null function pointer")(&raw mut (*g).references);
-    glyf_iStemDefList.init.expect("non-null function pointer")(&raw mut (*g).stemH);
-    glyf_iStemDefList.init.expect("non-null function pointer")(&raw mut (*g).stemV);
-    glyf_iMaskList.init.expect("non-null function pointer")(&raw mut (*g).hintMasks);
-    glyf_iMaskList.init.expect("non-null function pointer")(&raw mut (*g).contourMasks);
+    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).horizontalOrigin);
+    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).advanceWidth);
+    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).verticalOrigin);
+    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).advanceHeight);
+    GLYF_I_CONTOUR_LIST.init.expect("non-null function pointer")(&raw mut (*g).contours);
+    GLYF_I_REFERENCE_LIST.init.expect("non-null function pointer")(&raw mut (*g).references);
+    GLYF_I_STEM_DEF_LIST.init.expect("non-null function pointer")(&raw mut (*g).stemH);
+    GLYF_I_STEM_DEF_LIST.init.expect("non-null function pointer")(&raw mut (*g).stemV);
+    GLYF_I_MASK_LIST.init.expect("non-null function pointer")(&raw mut (*g).hintMasks);
+    GLYF_I_MASK_LIST.init.expect("non-null function pointer")(&raw mut (*g).contourMasks);
     (*g).instructionsLength = 0 as u16;
     (*g).instructions = ::core::ptr::null_mut::<u8>();
     (*g).fdSelect = otfcc_Handle_empty() as FdHandle;
@@ -2609,25 +2609,25 @@ unsafe extern "C" fn otfcc_deleteGlyf_glyph(mut g: *mut Glyph) {
     if g.is_null() {
         return;
     }
-    iVQ.dispose.expect("non-null function pointer")(&raw mut (*g).horizontalOrigin);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut (*g).advanceWidth);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut (*g).verticalOrigin);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut (*g).advanceHeight);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).horizontalOrigin);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).advanceWidth);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).verticalOrigin);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).advanceHeight);
     sdsfree((*g).name);
-    glyf_iContourList
+    GLYF_I_CONTOUR_LIST
         .dispose
         .expect("non-null function pointer")(&raw mut (*g).contours);
-    glyf_iReferenceList
+    GLYF_I_REFERENCE_LIST
         .dispose
         .expect("non-null function pointer")(&raw mut (*g).references);
-    glyf_iStemDefList
+    GLYF_I_STEM_DEF_LIST
         .dispose
         .expect("non-null function pointer")(&raw mut (*g).stemH);
-    glyf_iStemDefList
+    GLYF_I_STEM_DEF_LIST
         .dispose
         .expect("non-null function pointer")(&raw mut (*g).stemV);
-    glyf_iMaskList.dispose.expect("non-null function pointer")(&raw mut (*g).hintMasks);
-    glyf_iMaskList.dispose.expect("non-null function pointer")(&raw mut (*g).contourMasks);
+    GLYF_I_MASK_LIST.dispose.expect("non-null function pointer")(&raw mut (*g).hintMasks);
+    GLYF_I_MASK_LIST.dispose.expect("non-null function pointer")(&raw mut (*g).contourMasks);
     if !(*g).instructions.is_null() {
         free((*g).instructions as *mut ::core::ffi::c_void);
         (*g).instructions = ::core::ptr::null_mut::<u8>();
@@ -2648,7 +2648,7 @@ unsafe extern "C" fn copyGlyfPtr(mut dst: *mut GlyphPtr, mut src: *const GlyphPt
 unsafe extern "C" fn disposeGlyfPtr(mut g: *mut GlyphPtr) {
     otfcc_deleteGlyf_glyph(*g);
 }
-pub static glyf_iGlyphPtr: GlyphPtrElementInterface = {
+pub static GLYF_I_GLYPH_PTR: GlyphPtrElementInterface = {
     GlyphPtrElementInterface {
         init: Some(initGlyfPtr as unsafe extern "C" fn(*mut GlyphPtr) -> ()),
         copy: Some(
@@ -2705,8 +2705,8 @@ unsafe extern "C" fn table_glyf_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if glyf_iGlyphPtr.dispose.is_some() {
-                glyf_iGlyphPtr.dispose.expect("non-null function pointer")(
+            if GLYF_I_GLYPH_PTR.dispose.is_some() {
+                GLYF_I_GLYPH_PTR.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut GlyphPtr,
                 );
             } else {
@@ -2718,8 +2718,8 @@ unsafe extern "C" fn table_glyf_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn table_glyf_disposeItem(mut arr: *mut GlyfTable, mut n: usize) {
-    if glyf_iGlyphPtr.dispose.is_some() {
-        glyf_iGlyphPtr.dispose.expect("non-null function pointer")(
+    if GLYF_I_GLYPH_PTR.dispose.is_some() {
+        GLYF_I_GLYPH_PTR.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut GlyphPtr
         );
     } else {
@@ -2751,8 +2751,8 @@ unsafe extern "C" fn table_glyf_sort(
 unsafe extern "C" fn table_glyf_fill(mut arr: *mut GlyfTable, mut n: usize) {
     while (*arr).length < n {
         let mut x: GlyphPtr = ::core::ptr::null_mut::<Glyph>();
-        if glyf_iGlyphPtr.init.is_some() {
-            glyf_iGlyphPtr.init.expect("non-null function pointer")(&raw mut x);
+        if GLYF_I_GLYPH_PTR.init.is_some() {
+            GLYF_I_GLYPH_PTR.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -2789,10 +2789,10 @@ unsafe extern "C" fn table_glyf_copy(mut dst: *mut GlyfTable, mut src: *const Gl
     table_glyf_init(dst);
     table_glyf_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if glyf_iGlyphPtr.copy.is_some() {
+    if GLYF_I_GLYPH_PTR.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            glyf_iGlyphPtr.copy.expect("non-null function pointer")(
+            GLYF_I_GLYPH_PTR.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut GlyphPtr,
                 (*src).items.offset(j as isize) as *mut GlyphPtr as *const GlyphPtr,
             );
@@ -2812,7 +2812,7 @@ unsafe extern "C" fn table_glyf_dispose(mut arr: *mut GlyfTable) {
     if arr.is_null() {
         return;
     }
-    if glyf_iGlyphPtr.dispose.is_some() {
+    if GLYF_I_GLYPH_PTR.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh14 = j;
@@ -2820,7 +2820,7 @@ unsafe extern "C" fn table_glyf_dispose(mut arr: *mut GlyfTable) {
             if !(fresh14 != 0) {
                 break;
             }
-            glyf_iGlyphPtr.dispose.expect("non-null function pointer")(
+            GLYF_I_GLYPH_PTR.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut GlyphPtr,
             );
         }
@@ -2870,7 +2870,7 @@ unsafe extern "C" fn table_glyf_create() -> *mut GlyfTable {
     table_glyf_init(x);
     return x;
 }
-pub static table_iGlyf: GlyfTableVectorInterface = {
+pub static TABLE_I_GLYF: GlyfTableVectorInterface = {
     GlyfTableVectorInterface {
         init: Some(table_glyf_init as unsafe extern "C" fn(*mut GlyfTable) -> ()),
         copy: Some(
@@ -3029,7 +3029,7 @@ unsafe extern "C" fn glyf_glyph_dump_references(
             json_object_push(
                 ref_0,
                 b"isAnchored\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(true_0),
+                json_boolean_new(TRUE_0),
             );
             json_object_push(
                 ref_0,
@@ -3046,14 +3046,14 @@ unsafe extern "C" fn glyf_glyph_dump_references(
             json_object_push(
                 ref_0,
                 b"roundToGrid\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(true_0),
+                json_boolean_new(TRUE_0),
             );
         }
         if (*r).useMyMetrics {
             json_object_push(
                 ref_0,
                 b"useMyMetrics\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(true_0),
+                json_boolean_new(TRUE_0),
             );
         }
         json_array_push(references, preserialize(ref_0));
@@ -3152,10 +3152,10 @@ unsafe extern "C" fn glyf_dump_glyph(
         b"advanceWidth\0" as *const u8 as *const ::core::ffi::c_char,
         json_new_VQ((*g).advanceWidth, (*ctx).fvar),
     );
-    if iVQ.isStill.expect("non-null function pointer")((*g).horizontalOrigin) as ::core::ffi::c_int
+    if I_VQ.isStill.expect("non-null function pointer")((*g).horizontalOrigin) as ::core::ffi::c_int
         != 0
         && fabs(
-            iVQ.getStill.expect("non-null function pointer")((*g).horizontalOrigin)
+            I_VQ.getStill.expect("non-null function pointer")((*g).horizontalOrigin)
                 as ::core::ffi::c_double,
         ) > 1.0f64 / 1000.0f64
     {
@@ -3336,7 +3336,7 @@ unsafe extern "C" fn glyf_parse_point(mut pointdump: *mut JsonValue) -> Point {
         },
         onCurve: 0,
     };
-    glyf_iPoint.init.expect("non-null function pointer")(&raw mut point);
+    GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut point);
     if pointdump.is_null()
         || (*pointdump).type_0 != JsonType::Object
     {
@@ -3350,14 +3350,14 @@ unsafe extern "C" fn glyf_parse_point(mut pointdump: *mut JsonValue) -> Point {
             (*(*pointdump).u.object.values.offset(_k as isize)).value as *mut JsonValue;
         if strcmp(ck, b"x\0" as *const u8 as *const ::core::ffi::c_char) == 0 as ::core::ffi::c_int
         {
-            iVQ.replace.expect("non-null function pointer")(
+            I_VQ.replace.expect("non-null function pointer")(
                 &raw mut point.x,
                 json_vqOf(cv, ::core::ptr::null::<FvarTable>()) as VQ,
             );
         } else if strcmp(ck, b"y\0" as *const u8 as *const ::core::ffi::c_char)
             == 0 as ::core::ffi::c_int
         {
-            iVQ.replace.expect("non-null function pointer")(
+            I_VQ.replace.expect("non-null function pointer")(
                 &raw mut point.y,
                 json_vqOf(cv, ::core::ptr::null::<FvarTable>()) as VQ,
             );
@@ -3384,7 +3384,7 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut JsonValue, mut g: *mut Gl
             capacity: 0,
             items: ::core::ptr::null_mut::<Point>(),
         };
-        glyf_iContour.initCapN.expect("non-null function pointer")(
+        GLYF_I_CONTOUR.initCapN.expect("non-null function pointer")(
             &raw mut contour,
             (if !contourdump.is_null()
                 && (*contourdump).type_0 == JsonType::Array
@@ -3399,7 +3399,7 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut JsonValue, mut g: *mut Gl
         {
             let mut k: ShapeId = 0 as ShapeId;
             while (k as ::core::ffi::c_uint) < (*contourdump).u.array.length {
-                glyf_iContour.push.expect("non-null function pointer")(
+                GLYF_I_CONTOUR.push.expect("non-null function pointer")(
                     &raw mut contour,
                     glyf_parse_point(
                         *(*contourdump).u.array.values.offset(k as isize) as *mut JsonValue
@@ -3408,7 +3408,7 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut JsonValue, mut g: *mut Gl
                 k = k.wrapping_add(1);
             }
         }
-        glyf_iContourList.push.expect("non-null function pointer")(&raw mut (*g).contours, contour);
+        GLYF_I_CONTOUR_LIST.push.expect("non-null function pointer")(&raw mut (*g).contours, contour);
         j = j.wrapping_add(1);
     }
 }
@@ -3420,7 +3420,7 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *mut JsonValue) -> Compon
     );
     let mut ref_0: ComponentReference =
         (
-            glyf_iComponentReference
+            GLYF_I_COMPONENT_REFERENCE
                 .empty
                 .expect("non-null function pointer"))();
     if !_gname.is_null() {
@@ -3428,14 +3428,14 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *mut JsonValue) -> Compon
             (*_gname).u.string.ptr as *const ::core::ffi::c_void,
             (*_gname).u.string.length as usize,
         )) as GlyphHandle;
-        iVQ.replace.expect("non-null function pointer")(
+        I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.x,
             json_vqOf(
                 json_obj_get(refdump, b"x\0" as *const u8 as *const ::core::ffi::c_char),
                 ::core::ptr::null::<FvarTable>(),
             ) as VQ,
         );
-        iVQ.replace.expect("non-null function pointer")(
+        I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.y,
             json_vqOf(
                 json_obj_get(refdump, b"y\0" as *const u8 as *const ::core::ffi::c_char),
@@ -3486,14 +3486,14 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *mut JsonValue) -> Compon
         }
     } else {
         ref_0.glyph.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-        iVQ.replace.expect("non-null function pointer")(
+        I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.x,
-            iVQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)
+            I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)
                 as VQ,
         );
-        iVQ.replace.expect("non-null function pointer")(
+        I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.y,
-            iVQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)
+            I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)
                 as VQ,
         );
         ref_0.a = 1.0f64 as Scale;
@@ -3511,7 +3511,7 @@ unsafe extern "C" fn glyf_parse_references(mut col: *mut JsonValue, mut g: *mut 
     }
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_uint) < (*col).u.array.length {
-        glyf_iReferenceList.push.expect("non-null function pointer")(
+        GLYF_I_REFERENCE_LIST.push.expect("non-null function pointer")(
             &raw mut (*g).references,
             glyf_parse_reference(*(*col).u.array.values.offset(j as isize) as *mut JsonValue),
         );
@@ -3562,7 +3562,7 @@ unsafe extern "C" fn parse_stems(mut sd: *mut JsonValue, mut stems: *mut StemDef
                     as Pos;
             sdef.width =
                 json_obj_getnum(s, b"width\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
-            glyf_iStemDefList.push.expect("non-null function pointer")(stems, sdef);
+            GLYF_I_STEM_DEF_LIST.push.expect("non-null function pointer")(stems, sdef);
         }
         j = j.wrapping_add(1);
     }
@@ -3640,7 +3640,7 @@ unsafe extern "C" fn parse_masks(mut md: *mut JsonValue, mut masks: *mut MaskLis
                     JsonType::Array,
                 ),
             );
-            glyf_iMaskList.push.expect("non-null function pointer")(masks, mask);
+            GLYF_I_MASK_LIST.push.expect("non-null function pointer")(masks, mask);
         }
         j = j.wrapping_add(1);
     }
@@ -3652,7 +3652,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
 ) -> *mut Glyph {
     let mut g: *mut Glyph = otfcc_newGlyf_glyph();
     (*g).name = sdsdup((*order_entry).name);
-    iVQ.replace.expect("non-null function pointer")(
+    I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*g).advanceWidth,
         json_vqOf(
             json_obj_get(
@@ -3662,7 +3662,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
             ::core::ptr::null::<FvarTable>(),
         ) as VQ,
     );
-    iVQ.replace.expect("non-null function pointer")(
+    I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*g).horizontalOrigin,
         json_vqOf(
             json_obj_get(
@@ -3672,7 +3672,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
             ::core::ptr::null::<FvarTable>(),
         ) as VQ,
     );
-    iVQ.replace.expect("non-null function pointer")(
+    I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*g).advanceHeight,
         json_vqOf(
             json_obj_get(
@@ -3682,7 +3682,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
             ::core::ptr::null::<FvarTable>(),
         ) as VQ,
     );
-    iVQ.replace.expect("non-null function pointer")(
+    I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*g).verticalOrigin,
         json_vqOf(
             json_obj_get(
@@ -3804,7 +3804,7 @@ pub unsafe extern "C" fn otfcc_parseGlyf(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             let mut numGlyphs: GlyphId = (*table).u.object.length as GlyphId;
-            glyf = table_iGlyf.createN.expect("non-null function pointer")(numGlyphs as usize);
+            glyf = TABLE_I_GLYF.createN.expect("non-null function pointer")(numGlyphs as usize);
             let mut j: GlyphId = 0 as GlyphId;
             while (j as ::core::ffi::c_int) < numGlyphs as ::core::ffi::c_int {
                 let mut gname: SdsRaw = sdsnewlen(

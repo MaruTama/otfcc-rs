@@ -6,9 +6,9 @@ use crate::logger::{ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::json::JsonValue;
-use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupType, Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, OtlTable};
+use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
 use crate::support::json_funcs::{otfcc_dump_flags, preserialize};
-use crate::table::otl::constants::{lookupFlagsLabels};
+use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::table::otl::subtables::chaining::dump::{otl_dump_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_dump_cursive};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_gpos_dump_markToLigature};
@@ -38,7 +38,7 @@ unsafe extern "C" fn _declare_lookup_dumper(
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*lookup).flags as ::core::ffi::c_int,
-                &lookupFlagsLabels,
+                &LOOKUP_FLAGS_LABELS,
             ),
         );
         if (*lookup).flags as ::core::ffi::c_int >> 8 as ::core::ffi::c_int != 0 {
@@ -72,25 +72,25 @@ unsafe extern "C" fn _declare_lookup_dumper(
 }
 unsafe extern "C" fn _dump_lookup(mut lookup: *mut Lookup, mut dump: *mut JsonValue) {
     _declare_lookup_dumper(
-        otl_type_gsub_single,
+        OTL_TYPE_GSUB_SINGLE,
         Some(otl_gsub_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gsub_multiple,
+        OTL_TYPE_GSUB_MULTIPLE,
         Some(otl_gsub_dump_multi as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gsub_alternate,
+        OTL_TYPE_GSUB_ALTERNATE,
         Some(otl_gsub_dump_multi as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gsub_ligature,
+        OTL_TYPE_GSUB_LIGATURE,
         Some(
             otl_gsub_dump_ligature as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,
         ),
@@ -98,43 +98,43 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut Lookup, mut dump: *mut JsonVa
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gsub_chaining,
+        OTL_TYPE_GSUB_CHAINING,
         Some(otl_dump_chaining as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gsub_reverse,
+        OTL_TYPE_GSUB_REVERSE,
         Some(otl_gsub_dump_reverse as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gpos_chaining,
+        OTL_TYPE_GPOS_CHAINING,
         Some(otl_dump_chaining as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gpos_single,
+        OTL_TYPE_GPOS_SINGLE,
         Some(otl_gpos_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gpos_pair,
+        OTL_TYPE_GPOS_PAIR,
         Some(otl_gpos_dump_pair as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gpos_cursive,
+        OTL_TYPE_GPOS_CURSIVE,
         Some(otl_gpos_dump_cursive as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gpos_markToBase,
+        OTL_TYPE_GPOS_MARK_TO_BASE,
         Some(
             otl_gpos_dump_markToSingle
                 as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,
@@ -143,7 +143,7 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut Lookup, mut dump: *mut JsonVa
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gpos_markToMark,
+        OTL_TYPE_GPOS_MARK_TO_MARK,
         Some(
             otl_gpos_dump_markToSingle
                 as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,
@@ -152,7 +152,7 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut Lookup, mut dump: *mut JsonVa
         dump,
     );
     _declare_lookup_dumper(
-        otl_type_gpos_markToLigature,
+        OTL_TYPE_GPOS_MARK_TO_LIGATURE,
         Some(
             otl_gpos_dump_markToLigature
                 as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,

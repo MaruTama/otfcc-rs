@@ -24,8 +24,8 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Graph, bk_delete_Graph, bk_estimateSizeOfGraph, bk_minimizeGraph, bk_newGraphFromRootBlock, bk_untangleGraph};
-use crate::table::otl::classdef::{otl_iClassDef};
-use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{FORMAT_DWIDTH, bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, position_zero, read_gpos_value, required_position_format};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_object_new, json_object_push};
 
@@ -137,7 +137,7 @@ unsafe extern "C" fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
 unsafe extern "C" fn subtable_gpos_pair_init(mut x: *mut GposPairSubtable) {
     initGposPair(x);
 }
-pub static iSubtable_gpos_pair: GposPairSubtableElementInterface = {
+pub static I_SUBTABLE_GPOS_PAIR: GposPairSubtableElementInterface = {
     GposPairSubtableElementInterface {
         init: Some(subtable_gpos_pair_init as unsafe extern "C" fn(*mut GposPairSubtable) -> ()),
         copy: Some(
@@ -182,7 +182,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
     let mut current_block: u64;
     let mut subtable: *mut GposPairSubtable =
         (
-            iSubtable_gpos_pair
+            I_SUBTABLE_GPOS_PAIR
                 .create
                 .expect("non-null function pointer"))();
     if !(tableLength < offset.wrapping_add(2 as u32)) {
@@ -1980,7 +1980,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
             }
         }
     }
-    iSubtable_gpos_pair.free.expect("non-null function pointer")(subtable);
+    I_SUBTABLE_GPOS_PAIR.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut JsonValue {
@@ -1989,12 +1989,12 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *
     json_object_push(
         st,
         b"first\0" as *const u8 as *const ::core::ffi::c_char,
-        otl_iClassDef.dump.expect("non-null function pointer")((*subtable).first),
+        OTL_I_CLASS_DEF.dump.expect("non-null function pointer")((*subtable).first),
     );
     json_object_push(
         st,
         b"second\0" as *const u8 as *const ::core::ffi::c_char,
-        otl_iClassDef.dump.expect("non-null function pointer")((*subtable).second),
+        OTL_I_CLASS_DEF.dump.expect("non-null function pointer")((*subtable).second),
     );
     let mut mat: *mut JsonValue = json_array_new(
         ((*(*subtable).first).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
@@ -2069,7 +2069,7 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
     let mut class2Count: GlyphClass = 0;
     let mut subtable: *mut GposPairSubtable =
         (
-            iSubtable_gpos_pair
+            I_SUBTABLE_GPOS_PAIR
                 .create
                 .expect("non-null function pointer"))();
     let mut _mat: *mut JsonValue = json_obj_get_type(
@@ -2077,19 +2077,19 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
         b"matrix\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Array,
     );
-    (*subtable).first = otl_iClassDef.parse.expect("non-null function pointer")(json_obj_get_type(
+    (*subtable).first = OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(json_obj_get_type(
         _subtable,
         b"first\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,
     ));
     (*subtable).second =
-        otl_iClassDef.parse.expect("non-null function pointer")(json_obj_get_type(
+        OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(json_obj_get_type(
             _subtable,
             b"second\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Object,
         ));
     if _mat.is_null() || (*subtable).first.is_null() || (*subtable).second.is_null() {
-        iSubtable_gpos_pair.free.expect("non-null function pointer")(subtable);
+        I_SUBTABLE_GPOS_PAIR.free.expect("non-null function pointer")(subtable);
         return ::core::ptr::null_mut::<Subtable>();
     } else {
         class1Count = ((*(*subtable).first).maxclass as ::core::ffi::c_int
@@ -2257,7 +2257,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     }
     let mut cov: *mut Coverage = covFromCD((*subtable).first);
     shrinkCoverage(cov, true);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*subtable).first).numGlyphs as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*subtable).first).numGlyphs as ::core::ffi::c_int) as u32)]);
     let mut j_1: GlyphId = 0 as GlyphId;
     while (j_1 as ::core::ffi::c_int) < (*cov).numGlyphs as ::core::ffi::c_int {
         let mut currentPairCount: TableId = 0 as TableId;
@@ -2358,9 +2358,9 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
         j = j.wrapping_add(1);
     }
     let mut cov: *mut Coverage = covFromCD((*subtable).first);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).first,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).second,
         ))), bk_int(BkCellType::B16, (class1Count as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (class2Count as ::core::ffi::c_int) as u32)]);
     let mut j_0: GlyphClass = 0 as GlyphClass;

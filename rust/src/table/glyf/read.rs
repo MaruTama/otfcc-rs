@@ -5,7 +5,7 @@ use crate::support::handle::{handle_fromIndex, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_8s, read_16u, read_16s, read_32u};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, F2Dot14, FontFilePointer, GlyphId, Pos, Scale, ShapeId};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
@@ -17,11 +17,11 @@ use crate::table::glyf::{GlyfIOContext, RefAnchorStatus, ComponentFlags, PointFl
 use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VQSegType, VqSegment};
 use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed};
-use crate::table::fvar::{table_iFvar};
-use crate::table::glyf::{glyf_iComponentReference, glyf_iContour, glyf_iContourList, glyf_iReferenceList, otfcc_newGlyf_glyph, table_iGlyf};
+use crate::table::fvar::{TABLE_I_FVAR};
+use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_REFERENCE_LIST, otfcc_newGlyf_glyph, TABLE_I_GLYF};
 use crate::vendor::sds::{sdsempty};
 use crate::vf::region::{vq_createRegion};
-use crate::vf::vq::{iVQ, vq_iSegList};
+use crate::vf::vq::{I_VQ, VQ_I_SEG_LIST};
 
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
@@ -107,13 +107,13 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             capacity: 0,
             items: ::core::ptr::null_mut::<Point>(),
         };
-        glyf_iContour.init.expect("non-null function pointer")(&raw mut contour);
-        glyf_iContour.fill.expect("non-null function pointer")(
+        GLYF_I_CONTOUR.init.expect("non-null function pointer")(&raw mut contour);
+        GLYF_I_CONTOUR.fill.expect("non-null function pointer")(
             &raw mut contour,
             (lastPointInCurrentContour as ::core::ffi::c_int - pointsInGlyph as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as usize,
         );
-        glyf_iContourList.push.expect("non-null function pointer")(contours, contour);
+        GLYF_I_CONTOUR_LIST.push.expect("non-null function pointer")(contours, contour);
         pointsInGlyph = (lastPointInCurrentContour as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
             as ShapeId;
         j = j.wrapping_add(1);
@@ -210,7 +210,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             x = read_16s(coordinatesStart.offset(coordinatesOffset as isize) as *const u8);
             coordinatesOffset = coordinatesOffset.wrapping_add(2 as u32);
         }
-        iVQ.replace.expect("non-null function pointer")(
+        I_VQ.replace.expect("non-null function pointer")(
             &raw mut (*(next_point
                 as unsafe extern "C" fn(
                     *mut ContourList,
@@ -222,7 +222,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
                 &raw mut currentContourPointIndex,
             ))
             .x,
-            iVQ.createStill.expect("non-null function pointer")(x as Pos) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(x as Pos) as VQ,
         );
         coordinatesRead =
             (coordinatesRead as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
@@ -248,7 +248,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             y = read_16s(coordinatesStart.offset(coordinatesOffset as isize) as *const u8);
             coordinatesOffset = coordinatesOffset.wrapping_add(2 as u32);
         }
-        iVQ.replace.expect("non-null function pointer")(
+        I_VQ.replace.expect("non-null function pointer")(
             &raw mut (*(next_point
                 as unsafe extern "C" fn(
                     *mut ContourList,
@@ -260,7 +260,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
                 &raw mut currentContourPointIndex,
             ))
             .y,
-            iVQ.createStill.expect("non-null function pointer")(y as Pos) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(y as Pos) as VQ,
         );
         coordinatesRead =
             (coordinatesRead as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
@@ -268,9 +268,9 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
     free(flags as *mut ::core::ffi::c_void);
     flags = ::core::ptr::null_mut::<u8>();
     let mut cx: VQ =
-        (iVQ.neutral.expect("non-null function pointer"))();
+        (I_VQ.neutral.expect("non-null function pointer"))();
     let mut cy: VQ =
-        (iVQ.neutral.expect("non-null function pointer"))();
+        (I_VQ.neutral.expect("non-null function pointer"))();
     let mut j_1: ShapeId = 0 as ShapeId;
     while (j_1 as ::core::ffi::c_int) < numberOfContours as ::core::ffi::c_int {
         let mut k: ShapeId = 0 as ShapeId;
@@ -278,24 +278,24 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             let mut z: *mut Point = (*(*contours).items.offset(j_1 as isize))
                 .items
                 .offset(k as isize) as *mut Point;
-            iVQ.inplacePlus.expect("non-null function pointer")(&raw mut cx, (*z).x);
-            iVQ.inplacePlus.expect("non-null function pointer")(&raw mut cy, (*z).y);
-            iVQ.copyReplace.expect("non-null function pointer")(&raw mut (*z).x, cx);
-            iVQ.copyReplace.expect("non-null function pointer")(&raw mut (*z).y, cy);
+            I_VQ.inplacePlus.expect("non-null function pointer")(&raw mut cx, (*z).x);
+            I_VQ.inplacePlus.expect("non-null function pointer")(&raw mut cy, (*z).y);
+            I_VQ.copyReplace.expect("non-null function pointer")(&raw mut (*z).x, cx);
+            I_VQ.copyReplace.expect("non-null function pointer")(&raw mut (*z).y, cy);
             k = k.wrapping_add(1);
         }
-        glyf_iContour
+        GLYF_I_CONTOUR
             .shrinkToFit
             .expect("non-null function pointer")(
             (*contours).items.offset(j_1 as isize) as *mut Contour
         );
         j_1 = j_1.wrapping_add(1);
     }
-    glyf_iContourList
+    GLYF_I_CONTOUR_LIST
         .shrinkToFit
         .expect("non-null function pointer")(contours);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut cx);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut cy);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut cx);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut cy);
     return g;
 }
 unsafe extern "C" fn otfcc_read_composite_glyph(
@@ -317,7 +317,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
         ) as GlyphId;
         let mut ref_0: ComponentReference =
             (
-                glyf_iComponentReference
+                GLYF_I_COMPONENT_REFERENCE
                     .empty
                     .expect("non-null function pointer"))();
         ref_0.glyph =
@@ -326,11 +326,11 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
         if flags.contains(ComponentFlags::ARGS_ARE_XY_VALUES) {
             ref_0.isAnchored = RefAnchorStatus::Xy;
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-                ref_0.x = iVQ.createStill.expect("non-null function pointer")(read_16s(
+                ref_0.x = I_VQ.createStill.expect("non-null function pointer")(read_16s(
                     start.offset(offset as isize) as *const u8,
                 )
                     as Pos);
-                ref_0.y = iVQ.createStill.expect("non-null function pointer")(read_16s(
+                ref_0.y = I_VQ.createStill.expect("non-null function pointer")(read_16s(
                     start
                         .offset(offset as isize)
                         .offset(2 as ::core::ffi::c_int as isize)
@@ -339,11 +339,11 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                     as Pos);
                 offset = offset.wrapping_add(4 as u32);
             } else {
-                ref_0.x = iVQ.createStill.expect("non-null function pointer")(read_8s(
+                ref_0.x = I_VQ.createStill.expect("non-null function pointer")(read_8s(
                     start.offset(offset as isize) as *const u8,
                 )
                     as Pos);
-                ref_0.y = iVQ.createStill.expect("non-null function pointer")(read_8s(
+                ref_0.y = I_VQ.createStill.expect("non-null function pointer")(read_8s(
                     start
                         .offset(offset as isize)
                         .offset(1 as ::core::ffi::c_int as isize)
@@ -425,7 +425,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(sdsempty(), b"glyf: SCALED_COMPONENT_OFFSET is not supported."),
             );
@@ -433,7 +433,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
         if flags.contains(ComponentFlags::WE_HAVE_INSTRUCTIONS) {
             glyphHasInstruction = true;
         }
-        glyf_iReferenceList.push.expect("non-null function pointer")(
+        GLYF_I_REFERENCE_LIST.push.expect("non-null function pointer")(
             &raw mut (*g).references,
             ref_0,
         );
@@ -795,7 +795,7 @@ unsafe extern "C" fn applyCoords(
         {
             let mut coordinatePart: *mut VQ =
                 getter.expect("non-null function pointer")(*glyphRefs.offset(j_1 as isize));
-            vq_iSegList.push.expect("non-null function pointer")(
+            VQ_I_SEG_LIST.push.expect("non-null function pointer")(
                 &raw mut (*coordinatePart).shift,
                 *nudges.offset(j_1 as isize),
             );
@@ -883,13 +883,13 @@ unsafe extern "C" fn applyPolymorphism(
     if (totalPoints as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
         < nTouchedPoints as ::core::ffi::c_int
     {
-        iVQ.addDelta.expect("non-null function pointer")(
+        I_VQ.addDelta.expect("non-null function pointer")(
             &raw mut (*glyph).horizontalOrigin,
             true,
             r,
             *deltaX.offset(totalPoints as isize),
         );
-        iVQ.addDelta.expect("non-null function pointer")(
+        I_VQ.addDelta.expect("non-null function pointer")(
             &raw mut (*glyph).advanceWidth,
             true,
             r,
@@ -900,13 +900,13 @@ unsafe extern "C" fn applyPolymorphism(
     if (totalPoints as ::core::ffi::c_int + 3 as ::core::ffi::c_int)
         < nTouchedPoints as ::core::ffi::c_int
     {
-        iVQ.addDelta.expect("non-null function pointer")(
+        I_VQ.addDelta.expect("non-null function pointer")(
             &raw mut (*glyph).verticalOrigin,
             true,
             r,
             *deltaY.offset((totalPoints as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize),
         );
-        iVQ.addDelta.expect("non-null function pointer")(
+        I_VQ.addDelta.expect("non-null function pointer")(
             &raw mut (*glyph).advanceHeight,
             true,
             r,
@@ -1041,7 +1041,7 @@ unsafe extern "C" fn polymorphizeGlyph(
                         * (*ctx).dimensions as ::core::ffi::c_int) as isize,
                 ) as *mut F2Dot14;
         }
-        let mut r: *const VqRegion = table_iFvar
+        let mut r: *const VqRegion = TABLE_I_FVAR
             .registerRegion
             .expect("non-null function pointer")(
             (*ctx).fvar,
@@ -1124,7 +1124,7 @@ unsafe extern "C" fn polymorphize(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
@@ -1269,7 +1269,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"table 'loca' corrupted.\n"),
                         );
@@ -1312,12 +1312,12 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                                     .logSDS
                                     .expect("non-null function pointer")(
                                     (*options).logger as *mut ILogger,
-                                    log_vl_important,
+                                    LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::sdsbuild!(sdsempty(), b"table 'glyf' corrupted.\n"),
                                 );
                                 if !glyf.is_null() {
-                                    table_iGlyf.free.expect("non-null function pointer")(glyf);
+                                    TABLE_I_GLYF.free.expect("non-null function pointer")(glyf);
                                     glyf = ::core::ptr::null_mut::<GlyfTable>();
                                     glyf = ::core::ptr::null_mut::<GlyfTable>();
                                 }
@@ -1325,7 +1325,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                                 __notfound_0 = 0 as ::core::ffi::c_int;
                             } else {
                                 glyf = (
-                                    table_iGlyf.create.expect("non-null function pointer"))();
+                                    TABLE_I_GLYF.create.expect("non-null function pointer"))();
                                 let mut j_0: GlyphId = 0 as GlyphId;
                                 while (j_0 as ::core::ffi::c_int)
                                     < (*ctx).numGlyphs as ::core::ffi::c_int
@@ -1336,7 +1336,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                                                 as isize,
                                         )
                                     {
-                                        table_iGlyf.push.expect("non-null function pointer")(
+                                        TABLE_I_GLYF.push.expect("non-null function pointer")(
                                             glyf,
                                             otfcc_read_glyph(
                                                 data_0,
@@ -1346,7 +1346,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                                                 as GlyphPtr,
                                         );
                                     } else {
-                                        table_iGlyf.push.expect("non-null function pointer")(
+                                        TABLE_I_GLYF.push.expect("non-null function pointer")(
                                             glyf,
                                             otfcc_newGlyf_glyph() as GlyphPtr,
                                         );

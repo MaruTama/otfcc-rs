@@ -18,7 +18,7 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::support::{ComparFn};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Block};
-use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value, required_position_format};
 use crate::vendor::json_builder::{json_object_new, json_object_push};
 use crate::vendor::sds::{sdsnewlen};
@@ -38,7 +38,7 @@ pub struct GposSingleEntryElementInterface {
 unsafe extern "C" fn deleteGposSingleEntry(mut entry: *mut GposSingleEntry) {
     otfcc_Handle_dispose(&raw mut (*entry).target);
 }
-static gss_typeinfo: GposSingleEntryElementInterface = {
+static GSS_TYPEINFO: GposSingleEntryElementInterface = {
     GposSingleEntryElementInterface {
         init: None,
         copy: None,
@@ -78,8 +78,8 @@ unsafe extern "C" fn subtable_gpos_single_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if gss_typeinfo.dispose.is_some() {
-                gss_typeinfo.dispose.expect("non-null function pointer")(
+            if GSS_TYPEINFO.dispose.is_some() {
+                GSS_TYPEINFO.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut GposSingleEntry,
                 );
             } else {
@@ -102,8 +102,8 @@ unsafe extern "C" fn subtable_gpos_single_disposeItem(
     mut arr: *mut GposSingleSubtable,
     mut n: usize,
 ) {
-    if gss_typeinfo.dispose.is_some() {
-        gss_typeinfo.dispose.expect("non-null function pointer")(
+    if GSS_TYPEINFO.dispose.is_some() {
+        GSS_TYPEINFO.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut GposSingleEntry
         );
     } else {
@@ -150,8 +150,8 @@ unsafe extern "C" fn subtable_gpos_single_fill(mut arr: *mut GposSingleSubtable,
                 dHeight: 0.,
             },
         };
-        if gss_typeinfo.init.is_some() {
-            gss_typeinfo.init.expect("non-null function pointer")(&raw mut x);
+        if GSS_TYPEINFO.init.is_some() {
+            GSS_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -194,10 +194,10 @@ unsafe extern "C" fn subtable_gpos_single_copy(
     subtable_gpos_single_init(dst);
     subtable_gpos_single_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if gss_typeinfo.copy.is_some() {
+    if GSS_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            gss_typeinfo.copy.expect("non-null function pointer")(
+            GSS_TYPEINFO.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut GposSingleEntry,
                 (*src).items.offset(j as isize) as *mut GposSingleEntry
                     as *const GposSingleEntry,
@@ -217,7 +217,7 @@ unsafe extern "C" fn subtable_gpos_single_dispose(mut arr: *mut GposSingleSubtab
     if arr.is_null() {
         return;
     }
-    if gss_typeinfo.dispose.is_some() {
+    if GSS_TYPEINFO.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -225,7 +225,7 @@ unsafe extern "C" fn subtable_gpos_single_dispose(mut arr: *mut GposSingleSubtab
             if !(fresh1 != 0) {
                 break;
             }
-            gss_typeinfo.dispose.expect("non-null function pointer")(
+            GSS_TYPEINFO.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut GposSingleEntry,
             );
         }
@@ -289,7 +289,7 @@ unsafe extern "C" fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
     subtable_gpos_single_init(x);
     return x;
 }
-pub static iSubtable_gpos_single: GposSingleSubtableVectorInterface = {
+pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
     GposSingleSubtableVectorInterface {
         init: Some(
             subtable_gpos_single_init as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
@@ -397,7 +397,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
     let mut current_block: u64;
     let mut subtable: *mut GposSingleSubtable =
         (
-            iSubtable_gpos_single
+            I_SUBTABLE_GPOS_SINGLE
                 .create
                 .expect("non-null function pointer"))();
     let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -427,7 +427,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                 );
                 let mut j: GlyphId = 0 as GlyphId;
                 while (j as ::core::ffi::c_int) < (*targets).numGlyphs as ::core::ffi::c_int {
-                    iSubtable_gpos_single
+                    I_SUBTABLE_GPOS_SINGLE
                         .push
                         .expect("non-null function pointer")(
                         subtable,
@@ -466,7 +466,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                 } else {
                     let mut j_0: GlyphId = 0 as GlyphId;
                     while (j_0 as ::core::ffi::c_int) < (*targets).numGlyphs as ::core::ffi::c_int {
-                        iSubtable_gpos_single
+                        I_SUBTABLE_GPOS_SINGLE
                             .push
                             .expect("non-null function pointer")(
                             subtable,
@@ -506,7 +506,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
     if !targets.is_null() {
         otl_Coverage_free(targets);
     }
-    iSubtable_gpos_single
+    I_SUBTABLE_GPOS_SINGLE
         .free
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
@@ -533,7 +533,7 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
 ) -> *mut Subtable {
     let mut subtable: *mut GposSingleSubtable =
         (
-            iSubtable_gpos_single
+            I_SUBTABLE_GPOS_SINGLE
                 .create
                 .expect("non-null function pointer"))();
     let mut j: GlyphId = 0 as GlyphId;
@@ -550,7 +550,7 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
                     as *const ::core::ffi::c_void,
                 (*(*_subtable).u.object.values.offset(j as isize)).name_length as usize,
             );
-            iSubtable_gpos_single
+            I_SUBTABLE_GPOS_SINGLE
                 .push
                 .expect("non-null function pointer")(
                 subtable,
@@ -612,7 +612,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
         j_0 = j_0.wrapping_add(1);
     }
     let mut coverageBuf: *mut Buffer =
-        otl_iCoverage.build.expect("non-null function pointer")(cov);
+        OTL_I_COVERAGE.build.expect("non-null function pointer")(cov);
     if isConst {
         let mut b: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverageBuf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(
                 (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize)).value,

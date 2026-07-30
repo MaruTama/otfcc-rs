@@ -11,16 +11,16 @@ use crate::support::primitives::{GlyphClass, TableId};
 
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 
-use crate::table::otl::{ChainingRule, Lookup, Subtable, ChainingType, otl_type_gpos_chaining, otl_type_gsub_chaining, ChainingSubtable};
+use crate::table::otl::{ChainingRule, Lookup, Subtable, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, ChainingSubtable};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Block};
-use crate::table::otl::classdef::{otl_iClassDef};
-use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
 pub unsafe extern "C" fn otfcc_chainingLookupIsContextualLookup(
     mut lookup: *const Lookup,
 ) -> bool {
-    if !((*lookup).type_0 == otl_type_gpos_chaining
-        || (*lookup).type_0 == otl_type_gsub_chaining)
+    if !((*lookup).type_0 == OTL_TYPE_GPOS_CHAINING
+        || (*lookup).type_0 == OTL_TYPE_GSUB_CHAINING)
     {
         return false;
     }
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
     bk_push(root, &[bk_int(BkCellType::B16, (nBacktrack as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).inputBegins as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j as isize),
             )))]);
         j = j.wrapping_add(1);
@@ -87,7 +87,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
     bk_push(root, &[bk_int(BkCellType::B16, (nInput as ::core::ffi::c_int) as u32)]);
     let mut j_0: TableId = (*rule).inputBegins;
     while (j_0 as ::core::ffi::c_int) < (*rule).inputEnds as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j_0 as isize),
             )))]);
         j_0 = j_0.wrapping_add(1);
@@ -95,7 +95,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
     bk_push(root, &[bk_int(BkCellType::B16, (nLookahead as ::core::ffi::c_int) as u32)]);
     let mut j_1: TableId = (*rule).inputEnds;
     while (j_1 as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j_1 as isize),
             )))]);
         j_1 = j_1.wrapping_add(1);
@@ -120,13 +120,13 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     ) as *mut Coverage;
     (*coverage).numGlyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).numGlyphs;
     (*coverage).glyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).glyphs;
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             coverage,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.bc,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.ic,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.fc,
         ))), bk_int(BkCellType::B16, ((*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as u32)]);
@@ -282,7 +282,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_coverage(
     bk_push(root, &[bk_int(BkCellType::B16, (nSubst as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = (*rule).inputBegins;
     while (j as ::core::ffi::c_int) < (*rule).inputEnds as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j as isize),
             )))]);
         j = j.wrapping_add(1);
@@ -305,9 +305,9 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     ) as *mut Coverage;
     (*coverage).numGlyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).numGlyphs;
     (*coverage).glyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).glyphs;
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             coverage,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iClassDef.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.ic,
         ))), bk_int(BkCellType::B16, ((*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as u32)]);

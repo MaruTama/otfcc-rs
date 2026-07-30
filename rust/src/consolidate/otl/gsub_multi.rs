@@ -5,7 +5,7 @@ use crate::table::otl::coverage::{Coverage, shrinkCoverage};
 use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -45,8 +45,8 @@ use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable, OtlTable};
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::consolidate::otl::common::{fontop_consolidateCoverage};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
-use crate::table::otl::subtables::gsub_multi::{iSubtable_gsub_multi};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::table::otl::subtables::gsub_multi::{I_SUBTABLE_GSUB_MULTI};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     let mut h: *mut GsubMultiHash = ::core::ptr::null_mut::<GsubMultiHash>();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).length {
-        if !otfcc_pkgGlyphOrder
+        if !OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")(
             (*font).glyph_order,
@@ -86,7 +86,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -108,7 +108,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                         "non-null function pointer",
                     )(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1045,7 +1045,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    iSubtable_gsub_multi
+    I_SUBTABLE_GSUB_MULTI
         .clear
         .expect("non-null function pointer")(subtable);
     let mut s_0: *mut GsubMultiHash = ::core::ptr::null_mut::<GsubMultiHash>();
@@ -1054,7 +1054,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut GsubMultiHash
         as *mut GsubMultiHash;
     while !s_0.is_null() {
-        iSubtable_gsub_multi
+        I_SUBTABLE_GSUB_MULTI
             .push
             .expect("non-null function pointer")(
             subtable,

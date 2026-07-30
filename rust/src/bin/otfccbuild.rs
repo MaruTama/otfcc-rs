@@ -31,12 +31,12 @@ use otfcc_rust::support::options::{Options};
 use otfcc_rust::vendor::sds::{SdsRaw};
 use otfcc_rust::vendor::json::{JsonValue};
 use otfcc_rust::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
-use otfcc_rust::logger::{log_vl_critical, log_vl_progress};
+use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::support::{EXIT_FAILURE, NULL};
 use libc::timespec;
-use otfcc_rust::support::getopt::{no_argument, LongOption, required_argument};
+use otfcc_rust::support::getopt::{NO_ARGUMENT, LongOption, REQUIRED_ARGUMENT};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
-use otfcc_rust::font::caryll_font::{otfcc_iFont};
+use otfcc_rust::font::caryll_font::{OTFCC_I_FONT};
 use otfcc_rust::json_reader::{otfcc_newJsonReader};
 use otfcc_rust::logger::{otfcc_newLogger, otfcc_newStdErrTarget};
 use otfcc_rust::otf_writer::{otfcc_newOTFWriter};
@@ -207,145 +207,145 @@ unsafe fn main_0(
     let mut longopts: [LongOption; 25] = [
         LongOption {
             name: b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 'v' as i32,
         },
         LongOption {
             name: b"help\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 'h' as i32,
         },
         LongOption {
             name: b"time\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"ignore-glyph-order\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"keep-glyph-order\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"dont-ignore-glyph-order\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"ignore-hints\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"keep-average-char-width\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"keep-unicode-ranges\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"keep-modified-time\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"merge-lookups\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"merge-features\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"dont-merge-lookups\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"dont-merge-features\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"short-post\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"force-cid\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"subroutinize\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"stub-cmap4\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"dummy-dsig\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 's' as i32,
         },
         LongOption {
             name: b"ship\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"verbose\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"quiet\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: no_argument,
+            has_arg: NO_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 0 as ::core::ffi::c_int,
         },
         LongOption {
             name: b"optimize\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: required_argument,
+            has_arg: REQUIRED_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 'O' as i32,
         },
         LongOption {
             name: b"output\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: required_argument,
+            has_arg: REQUIRED_ARGUMENT,
             flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
             val: 'o' as i32,
         },
@@ -547,7 +547,7 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_critical,
+            LOG_VL_CRITICAL,
             LoggerType::Error,
             otfcc_rust::sdsbuild!(
                 sdsempty(),
@@ -611,7 +611,7 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_progress,
+            LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
@@ -635,7 +635,7 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_progress,
+            LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
@@ -644,7 +644,7 @@ unsafe fn main_0(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_critical,
+                LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::sdsbuild!(
                     sdsempty(),
@@ -680,7 +680,7 @@ unsafe fn main_0(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_critical,
+                LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::sdsbuild!(
                     sdsempty(),
@@ -697,7 +697,7 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_progress,
+            LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
@@ -714,12 +714,12 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
-        otfcc_iFont.consolidate.expect("non-null function pointer")(font, options);
+        OTFCC_I_FONT.consolidate.expect("non-null function pointer")(font, options);
         (*(*options).logger)
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_progress,
+            LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
@@ -757,7 +757,7 @@ unsafe fn main_0(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_critical,
+                    LOG_VL_CRITICAL,
                     LoggerType::Error,
                     otfcc_rust::sdsbuild!(
                         sdsempty(),
@@ -786,13 +786,13 @@ unsafe fn main_0(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_progress,
+            LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         buffree(otf);
         (*writer).free.expect("non-null function pointer")(writer as *mut IFontSerializer);
-        otfcc_iFont.free.expect("non-null function pointer")(font);
+        OTFCC_I_FONT.free.expect("non-null function pointer")(font);
         sdsfree(outputPath);
         ___loggedstep_v_5 = false;
         (*(*options).logger)

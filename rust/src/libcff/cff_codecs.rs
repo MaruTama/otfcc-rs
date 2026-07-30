@@ -333,7 +333,7 @@ unsafe extern "C" fn cff_dec_i(mut start: *const u8, mut val: *mut CffValue) -> 
     (*val).t = CffValueType::Integer;
     return len;
 }
-static nibble_attr: [::core::ffi::c_int; 15] = [
+static NIBBLE_ATTR: [::core::ffi::c_int; 15] = [
     1 as ::core::ffi::c_int,
     1 as ::core::ffi::c_int,
     1 as ::core::ffi::c_int,
@@ -350,7 +350,7 @@ static nibble_attr: [::core::ffi::c_int; 15] = [
     0 as ::core::ffi::c_int,
     1 as ::core::ffi::c_int,
 ];
-static nibble_symb: [&::core::ffi::CStr; 15] = [
+static NIBBLE_SYMB: [&::core::ffi::CStr; 15] = [
     c"0",
     c"1",
     c"2",
@@ -453,11 +453,11 @@ unsafe extern "C" fn cff_dec_r(mut start: *const u8, mut val: *mut CffValue) -> 
         if !(a as ::core::ffi::c_int != 15 as ::core::ffi::c_int) {
             break;
         }
-        str_len = str_len.wrapping_add(nibble_attr[a as usize] as usize);
+        str_len = str_len.wrapping_add(NIBBLE_ATTR[a as usize] as usize);
         if !(b as ::core::ffi::c_int != 15 as ::core::ffi::c_int) {
             break;
         }
-        str_len = str_len.wrapping_add(nibble_attr[b as usize] as usize);
+        str_len = str_len.wrapping_add(NIBBLE_ATTR[b as usize] as usize);
         nibst = nibst.offset(1);
     }
     len = (nibst.offset_from(start) as ::core::ffi::c_long + 1 as ::core::ffi::c_long) as u32;
@@ -470,14 +470,14 @@ unsafe extern "C" fn cff_dec_r(mut start: *const u8, mut val: *mut CffValue) -> 
         }
         strcat(
             &raw mut restr as *mut u8 as *mut ::core::ffi::c_char,
-            nibble_symb[a as usize].as_ptr(),
+            NIBBLE_SYMB[a as usize].as_ptr(),
         );
         if !(b as ::core::ffi::c_int != 0xf as ::core::ffi::c_int) {
             break;
         }
         strcat(
             &raw mut restr as *mut u8 as *mut ::core::ffi::c_char,
-            nibble_symb[b as usize].as_ptr(),
+            NIBBLE_SYMB[b as usize].as_ptr(),
         );
         nibst = nibst.offset(1);
     }
@@ -512,7 +512,7 @@ unsafe extern "C" fn cff_dec_e(mut start: *const u8, mut val: *mut CffValue) -> 
     (*val).t = CffValueType::Integer;
     return 1 as u32;
 }
-static _de_t2: [Option<unsafe extern "C" fn(*const u8, *mut CffValue) -> u32>; 256] = {
+static DE_T2: [Option<unsafe extern "C" fn(*const u8, *mut CffValue) -> u32>; 256] = {
     [
         Some(cff_dec_o as unsafe extern "C" fn(*const u8, *mut CffValue) -> u32),
         Some(cff_dec_o as unsafe extern "C" fn(*const u8, *mut CffValue) -> u32),
@@ -776,5 +776,5 @@ pub unsafe extern "C" fn cff_decodeCffToken(
     mut start: *const u8,
     mut val: *mut CffValue,
 ) -> u32 {
-    return _de_t2[*start as usize].expect("non-null function pointer")(start, val);
+    return DE_T2[*start as usize].expect("non-null function pointer")(start, val);
 }

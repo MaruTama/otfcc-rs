@@ -55,7 +55,7 @@ unsafe extern "C" fn disposeHdmx(mut table: *mut HdmxTable) {
     free((*table).records as *mut ::core::ffi::c_void);
     (*table).records = ::core::ptr::null_mut::<DeviceRecord>();
 }
-pub static table_iHdmx: HdmxTableElementInterface = {
+pub static TABLE_I_HDMX: HdmxTableElementInterface = {
     HdmxTableElementInterface {
         init: Some(table_hdmx_init as unsafe extern "C" fn(*mut HdmxTable) -> ()),
         copy: Some(

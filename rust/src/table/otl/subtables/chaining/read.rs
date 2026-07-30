@@ -7,14 +7,14 @@ use crate::support::handle::{handle_fromIndex, otfcc_Handle_dispose, otfcc_Handl
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 
 use crate::support::{NULL};
 use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable};
-use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
+use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::vendor::sds::{sdsempty};
 pub type CoverageReaderHandler = Option<
     unsafe extern "C" fn(
@@ -464,7 +464,7 @@ unsafe extern "C" fn readContextualFormat1(
             }
         }
     }
-    iSubtable_chaining.free.expect("non-null function pointer")(subtable);
+    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
 unsafe extern "C" fn readContextualFormat2(
@@ -602,7 +602,7 @@ unsafe extern "C" fn readContextualFormat2(
             return subtable;
         }
     }
-    iSubtable_chaining.free.expect("non-null function pointer")(subtable);
+    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
 pub unsafe extern "C" fn otl_read_contextual(
@@ -615,7 +615,7 @@ pub unsafe extern "C" fn otl_read_contextual(
     let mut format: u16 = 0 as u16;
     let mut subtable: *mut ChainingSubtable =
         (
-            iSubtable_chaining
+            I_SUBTABLE_CHAINING
                 .create
                 .expect("non-null function pointer"))();
     (*subtable).type_0 = ChainingType::Poly;
@@ -668,11 +668,11 @@ pub unsafe extern "C" fn otl_read_contextual(
         .logSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        log_vl_important,
+        LOG_VL_IMPORTANT,
         LoggerType::Warning,
         crate::sdsbuild!(sdsempty(), b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
-    iSubtable_chaining.free.expect("non-null function pointer")(subtable);
+    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe extern "C" fn GeneralReadChainingRule(
@@ -1095,7 +1095,7 @@ unsafe extern "C" fn readChainingFormat1(
             }
         }
     }
-    iSubtable_chaining.free.expect("non-null function pointer")(subtable);
+    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
 unsafe extern "C" fn readChainingFormat2(
@@ -1246,7 +1246,7 @@ unsafe extern "C" fn readChainingFormat2(
             return subtable;
         }
     }
-    iSubtable_chaining.free.expect("non-null function pointer")(subtable);
+    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
 pub unsafe extern "C" fn otl_read_chaining(
@@ -1259,7 +1259,7 @@ pub unsafe extern "C" fn otl_read_chaining(
     let mut format: u16 = 0 as u16;
     let mut subtable: *mut ChainingSubtable =
         (
-            iSubtable_chaining
+            I_SUBTABLE_CHAINING
                 .create
                 .expect("non-null function pointer"))();
     (*subtable).type_0 = ChainingType::Poly;
@@ -1312,11 +1312,11 @@ pub unsafe extern "C" fn otl_read_chaining(
         .logSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        log_vl_important,
+        LOG_VL_IMPORTANT,
         LoggerType::Warning,
         crate::sdsbuild!(sdsempty(), b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
-    iSubtable_chaining.free.expect("non-null function pointer")(subtable);
+    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
 #[inline]

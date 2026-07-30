@@ -19,7 +19,7 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::support::{ComparFn};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Block};
-use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bkFromAnchor, otl_anchor_absent, otl_dump_anchor, otl_parse_anchor, otl_read_anchor};
 use crate::vendor::json_builder::{json_object_new, json_object_push};
 use crate::vendor::sds::{sdsnewlen};
@@ -40,7 +40,7 @@ pub struct GposCursiveEntryElementInterface {
 unsafe extern "C" fn deleteGposCursiveEntry(mut entry: *mut GposCursiveEntry) {
     otfcc_Handle_dispose(&raw mut (*entry).target);
 }
-static gss_typeinfo: GposCursiveEntryElementInterface = {
+static GSS_TYPEINFO: GposCursiveEntryElementInterface = {
     GposCursiveEntryElementInterface {
         init: None,
         copy: None,
@@ -80,8 +80,8 @@ unsafe extern "C" fn subtable_gpos_cursive_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if gss_typeinfo.dispose.is_some() {
-                gss_typeinfo.dispose.expect("non-null function pointer")(
+            if GSS_TYPEINFO.dispose.is_some() {
+                GSS_TYPEINFO.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut GposCursiveEntry,
                 );
             } else {
@@ -104,8 +104,8 @@ unsafe extern "C" fn subtable_gpos_cursive_disposeItem(
     mut arr: *mut GposCursiveSubtable,
     mut n: usize,
 ) {
-    if gss_typeinfo.dispose.is_some() {
-        gss_typeinfo.dispose.expect("non-null function pointer")(
+    if GSS_TYPEINFO.dispose.is_some() {
+        GSS_TYPEINFO.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut GposCursiveEntry
         );
     } else {
@@ -159,8 +159,8 @@ unsafe extern "C" fn subtable_gpos_cursive_fill(
                 y: 0.,
             },
         };
-        if gss_typeinfo.init.is_some() {
-            gss_typeinfo.init.expect("non-null function pointer")(&raw mut x);
+        if GSS_TYPEINFO.init.is_some() {
+            GSS_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -203,10 +203,10 @@ unsafe extern "C" fn subtable_gpos_cursive_copy(
     subtable_gpos_cursive_init(dst);
     subtable_gpos_cursive_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if gss_typeinfo.copy.is_some() {
+    if GSS_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            gss_typeinfo.copy.expect("non-null function pointer")(
+            GSS_TYPEINFO.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut GposCursiveEntry,
                 (*src).items.offset(j as isize) as *mut GposCursiveEntry
                     as *const GposCursiveEntry,
@@ -226,7 +226,7 @@ unsafe extern "C" fn subtable_gpos_cursive_dispose(mut arr: *mut GposCursiveSubt
     if arr.is_null() {
         return;
     }
-    if gss_typeinfo.dispose.is_some() {
+    if GSS_TYPEINFO.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -234,7 +234,7 @@ unsafe extern "C" fn subtable_gpos_cursive_dispose(mut arr: *mut GposCursiveSubt
             if !(fresh1 != 0) {
                 break;
             }
-            gss_typeinfo.dispose.expect("non-null function pointer")(
+            GSS_TYPEINFO.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut GposCursiveEntry,
             );
         }
@@ -301,7 +301,7 @@ unsafe extern "C" fn subtable_gpos_cursive_create() -> *mut GposCursiveSubtable 
     subtable_gpos_cursive_init(x);
     return x;
 }
-pub static iSubtable_gpos_cursive: GposCursiveSubtableVectorInterface = {
+pub static I_SUBTABLE_GPOS_CURSIVE: GposCursiveSubtableVectorInterface = {
     GposCursiveSubtableVectorInterface {
         init: Some(
             subtable_gpos_cursive_init as unsafe extern "C" fn(*mut GposCursiveSubtable) -> (),
@@ -411,7 +411,7 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
     let mut valueCount: GlyphId = 0;
     let mut subtable: *mut GposCursiveSubtable =
         (
-            iSubtable_gpos_cursive
+            I_SUBTABLE_GPOS_CURSIVE
                 .create
                 .expect("non-null function pointer"))();
     let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -472,7 +472,7 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
                                 offset.wrapping_add(exitOffset as u32),
                             );
                         }
-                        iSubtable_gpos_cursive
+                        I_SUBTABLE_GPOS_CURSIVE
                             .push
                             .expect("non-null function pointer")(
                             subtable,
@@ -497,7 +497,7 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
     if !targets.is_null() {
         otl_Coverage_free(targets);
     }
-    iSubtable_gpos_cursive
+    I_SUBTABLE_GPOS_CURSIVE
         .free
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
@@ -535,7 +535,7 @@ pub unsafe extern "C" fn otl_gpos_parse_cursive(
 ) -> *mut Subtable {
     let mut subtable: *mut GposCursiveSubtable =
         (
-            iSubtable_gpos_cursive
+            I_SUBTABLE_GPOS_CURSIVE
                 .create
                 .expect("non-null function pointer"))();
     let mut j: GlyphId = 0 as GlyphId;
@@ -552,7 +552,7 @@ pub unsafe extern "C" fn otl_gpos_parse_cursive(
                     as *const ::core::ffi::c_void,
                 (*(*_subtable).u.object.values.offset(j as isize)).name_length as usize,
             );
-            iSubtable_gpos_cursive
+            I_SUBTABLE_GPOS_CURSIVE
                 .push
                 .expect("non-null function pointer")(
                 subtable,
@@ -590,7 +590,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_cursive(
         );
         j = j.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, ((*subtable).length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, ((*subtable).length) as u32)]);
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).length {
         bk_push(root, &[bk_ptr(BkCellType::P16, bkFromAnchor((*(*subtable).items.offset(j_0 as isize)).enter)), bk_ptr(BkCellType::P16, bkFromAnchor((*(*subtable).items.offset(j_0 as isize)).exit))]);

@@ -22,7 +22,7 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Block};
-use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
@@ -81,7 +81,7 @@ unsafe extern "C" fn deleteGsubLigatureEntry(mut entry: *mut GsubLigatureEntry) 
     otl_Coverage_free((*entry).from);
     (*entry).from = ::core::ptr::null_mut::<Coverage>();
 }
-static gss_typeinfo: GsubLigatureEntryElementInterface = {
+static GSS_TYPEINFO: GsubLigatureEntryElementInterface = {
     GsubLigatureEntryElementInterface {
         init: None,
         copy: None,
@@ -129,10 +129,10 @@ unsafe extern "C" fn subtable_gsub_ligature_copy(
     subtable_gsub_ligature_init(dst);
     subtable_gsub_ligature_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if gss_typeinfo.copy.is_some() {
+    if GSS_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            gss_typeinfo.copy.expect("non-null function pointer")(
+            GSS_TYPEINFO.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut GsubLigatureEntry,
                 (*src).items.offset(j as isize) as *mut GsubLigatureEntry
                     as *const GsubLigatureEntry,
@@ -152,7 +152,7 @@ unsafe extern "C" fn subtable_gsub_ligature_dispose(mut arr: *mut GsubLigatureSu
     if arr.is_null() {
         return;
     }
-    if gss_typeinfo.dispose.is_some() {
+    if GSS_TYPEINFO.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -160,7 +160,7 @@ unsafe extern "C" fn subtable_gsub_ligature_dispose(mut arr: *mut GsubLigatureSu
             if !(fresh1 != 0) {
                 break;
             }
-            gss_typeinfo.dispose.expect("non-null function pointer")(
+            GSS_TYPEINFO.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut GsubLigatureEntry,
             );
         }
@@ -239,8 +239,8 @@ unsafe extern "C" fn subtable_gsub_ligature_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if gss_typeinfo.dispose.is_some() {
-                gss_typeinfo.dispose.expect("non-null function pointer")(
+            if GSS_TYPEINFO.dispose.is_some() {
+                GSS_TYPEINFO.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut GsubLigatureEntry,
                 );
             } else {
@@ -258,7 +258,7 @@ unsafe fn as_cvec(arr: *mut GsubLigatureSubtable) -> *mut CVecRaw<GsubLigatureEn
 unsafe extern "C" fn subtable_gsub_ligature_init(arr: *mut GsubLigatureSubtable) {
     cvec_init(as_cvec(arr));
 }
-pub static iSubtable_gsub_ligature: GsubLigatureSubtableVectorInterface = {
+pub static I_SUBTABLE_GSUB_LIGATURE: GsubLigatureSubtableVectorInterface = {
     GsubLigatureSubtableVectorInterface {
         init: Some(
             subtable_gsub_ligature_init as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> (),
@@ -369,8 +369,8 @@ unsafe extern "C" fn subtable_gsub_ligature_disposeItem(
     mut arr: *mut GsubLigatureSubtable,
     mut n: usize,
 ) {
-    if gss_typeinfo.dispose.is_some() {
-        gss_typeinfo.dispose.expect("non-null function pointer")(
+    if GSS_TYPEINFO.dispose.is_some() {
+        GSS_TYPEINFO.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut GsubLigatureEntry
         );
     } else {
@@ -415,8 +415,8 @@ unsafe extern "C" fn subtable_gsub_ligature_fill(
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
         };
-        if gss_typeinfo.init.is_some() {
-            gss_typeinfo.init.expect("non-null function pointer")(&raw mut x);
+        if GSS_TYPEINFO.init.is_some() {
+            GSS_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -448,7 +448,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
     let mut current_block: u64;
     let mut subtable: *mut GsubLigatureSubtable =
         (
-            iSubtable_gsub_ligature
+            I_SUBTABLE_GSUB_LIGATURE
                 .create
                 .expect("non-null function pointer"))();
     if !(tableLength < offset.wrapping_add(6 as u32)) {
@@ -595,7 +595,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                         );
                                         m = m.wrapping_add(1);
                                     }
-                                    iSubtable_gsub_ligature
+                                    I_SUBTABLE_GSUB_LIGATURE
                                         .push
                                         .expect("non-null function pointer")(
                                         subtable,
@@ -628,7 +628,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
             }
         }
     }
-    iSubtable_gsub_ligature
+    I_SUBTABLE_GSUB_LIGATURE
         .free
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
@@ -644,7 +644,7 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(
         json_object_push(
             entry,
             b"from\0" as *const u8 as *const ::core::ffi::c_char,
-            otl_iCoverage.dump.expect("non-null function pointer")(
+            OTL_I_COVERAGE.dump.expect("non-null function pointer")(
                 (*(*subtable).items.offset(j as isize)).from,
             ),
         );
@@ -685,7 +685,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
         );
         let mut st: *mut GsubLigatureSubtable =
             (
-                iSubtable_gsub_ligature
+                I_SUBTABLE_GSUB_LIGATURE
                     .create
                     .expect("non-null function pointer"))();
         let mut n: GlyphId = (*_subtable).u.array.length as GlyphId;
@@ -704,12 +704,12 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
                 JsonType::String,
             );
             if !(_from.is_null() || _to.is_null()) {
-                iSubtable_gsub_ligature
+                I_SUBTABLE_GSUB_LIGATURE
                     .push
                     .expect("non-null function pointer")(
                     st,
                     GsubLigatureEntry {
-                        from: otl_iCoverage.parse.expect("non-null function pointer")(_from),
+                        from: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from),
                         to: handle_fromName(sdsnewlen(
                             (*_to).u.string.ptr as *const ::core::ffi::c_void,
                             (*_to).u.string.length as usize,
@@ -723,7 +723,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
     } else {
         let mut st_0: *mut GsubLigatureSubtable =
             (
-                iSubtable_gsub_ligature
+                I_SUBTABLE_GSUB_LIGATURE
                     .create
                     .expect("non-null function pointer"))();
         let mut n_0: GlyphId = (*_subtable).u.array.length as GlyphId;
@@ -734,12 +734,12 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             if !(_from_0.is_null()
                 || (*_from_0).type_0 != JsonType::Array)
             {
-                iSubtable_gsub_ligature
+                I_SUBTABLE_GSUB_LIGATURE
                     .push
                     .expect("non-null function pointer")(
                     st_0,
                     GsubLigatureEntry {
-                        from: otl_iCoverage.parse.expect("non-null function pointer")(_from_0),
+                        from: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from_0),
                         to: handle_fromName(sdsnewlen(
                             (*(*_subtable).u.object.values.offset(k_0 as isize)).name
                                 as *const ::core::ffi::c_void,
@@ -1666,7 +1666,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
         );
         s = (*s).hh.next as *mut LigatureAggregator;
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             startcov,
         ))), bk_int(BkCellType::B16, ((*startcov).numGlyphs as ::core::ffi::c_int) as u32)]);
     s = h;

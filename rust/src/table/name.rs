@@ -2,7 +2,7 @@
 use libc::{free, malloc, memcpy, memset, qsort};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint};
 use crate::support::binio::{read_16u};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
@@ -158,7 +158,7 @@ unsafe extern "C" fn otfcc_NameRecord_copyReplace(
     otfcc_NameRecord_dispose(dst);
     otfcc_NameRecord_copy(dst, &raw const src);
 }
-pub static otfcc_iNameRecord: NameRecordElementInterface = {
+pub static OTFCC_I_NAME_RECORD: NameRecordElementInterface = {
     NameRecordElementInterface {
         init: Some(otfcc_NameRecord_init as unsafe extern "C" fn(*mut NameRecord) -> ()),
         copy: Some(
@@ -229,8 +229,8 @@ unsafe extern "C" fn table_name_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if otfcc_iNameRecord.dispose.is_some() {
-                otfcc_iNameRecord
+            if OTFCC_I_NAME_RECORD.dispose.is_some() {
+                OTFCC_I_NAME_RECORD
                     .dispose
                     .expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut NameRecord,
@@ -244,8 +244,8 @@ unsafe extern "C" fn table_name_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn table_name_disposeItem(mut arr: *mut NameTable, mut n: usize) {
-    if otfcc_iNameRecord.dispose.is_some() {
-        otfcc_iNameRecord
+    if OTFCC_I_NAME_RECORD.dispose.is_some() {
+        OTFCC_I_NAME_RECORD
             .dispose
             .expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut NameRecord
@@ -288,8 +288,8 @@ unsafe extern "C" fn table_name_fill(mut arr: *mut NameTable, mut n: usize) {
             nameID: 0,
             nameString: ::core::ptr::null_mut::<::core::ffi::c_char>(),
         };
-        if otfcc_iNameRecord.init.is_some() {
-            otfcc_iNameRecord.init.expect("non-null function pointer")(&raw mut x);
+        if OTFCC_I_NAME_RECORD.init.is_some() {
+            OTFCC_I_NAME_RECORD.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -308,7 +308,7 @@ unsafe extern "C" fn table_name_push(arr: *mut NameTable, elem: NameRecord) {
 unsafe extern "C" fn table_name_grow(arr: *mut NameTable) {
     cvec_grow(table_name_as_cvec(arr));
 }
-pub static table_iName: NameTableVectorInterface = {
+pub static TABLE_I_NAME: NameTableVectorInterface = {
     NameTableVectorInterface {
         init: Some(table_name_init as unsafe extern "C" fn(*mut NameTable) -> ()),
         copy: Some(
@@ -380,10 +380,10 @@ unsafe extern "C" fn table_name_copy(mut dst: *mut NameTable, mut src: *const Na
     table_name_init(dst);
     table_name_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if otfcc_iNameRecord.copy.is_some() {
+    if OTFCC_I_NAME_RECORD.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            otfcc_iNameRecord.copy.expect("non-null function pointer")(
+            OTFCC_I_NAME_RECORD.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut NameRecord,
                 (*src).items.offset(j as isize) as *mut NameRecord as *const NameRecord,
             );
@@ -402,7 +402,7 @@ unsafe extern "C" fn table_name_dispose(mut arr: *mut NameTable) {
     if arr.is_null() {
         return;
     }
-    if otfcc_iNameRecord.dispose.is_some() {
+    if OTFCC_I_NAME_RECORD.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -410,7 +410,7 @@ unsafe extern "C" fn table_name_dispose(mut arr: *mut NameTable) {
             if !(fresh1 != 0) {
                 break;
             }
-            otfcc_iNameRecord
+            OTFCC_I_NAME_RECORD
                 .dispose
                 .expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut NameRecord
@@ -526,7 +526,7 @@ pub unsafe extern "C" fn otfcc_readName(
                             < (6 as u32).wrapping_add((12 as u32).wrapping_mul(count)))
                         {
                             name = (
-                                table_iName.create.expect("non-null function pointer"))();
+                                TABLE_I_NAME.create.expect("non-null function pointer"))();
                             let mut j: u16 = 0 as u16;
                             while (j as u32) < count {
                                 let mut record: NameRecord = NameRecord {
@@ -618,7 +618,7 @@ pub unsafe extern "C" fn otfcc_readName(
                                     free(buf as *mut ::core::ffi::c_void);
                                     buf = ::core::ptr::null_mut::<u8>();
                                 }
-                                table_iName.push.expect("non-null function pointer")(name, record);
+                                TABLE_I_NAME.push.expect("non-null function pointer")(name, record);
                                 j = j.wrapping_add(1);
                             }
                             return name;
@@ -628,12 +628,12 @@ pub unsafe extern "C" fn otfcc_readName(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'name' corrupted.\n"),
                     );
                     if !name.is_null() {
-                        table_iName.free.expect("non-null function pointer")(name);
+                        TABLE_I_NAME.free.expect("non-null function pointer")(name);
                         name = ::core::ptr::null_mut::<NameTable>();
                     }
                     __fortable_k2 = 0 as ::core::ffi::c_int;
@@ -731,7 +731,7 @@ pub unsafe extern "C" fn otfcc_parseName(
     mut options: *const Options,
 ) -> *mut NameTable {
     let mut name: *mut NameTable = (
-        table_iName.create.expect("non-null function pointer"))();
+        TABLE_I_NAME.create.expect("non-null function pointer"))();
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -765,7 +765,7 @@ pub unsafe extern "C" fn otfcc_parseName(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
@@ -785,7 +785,7 @@ pub unsafe extern "C" fn otfcc_parseName(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
@@ -805,7 +805,7 @@ pub unsafe extern "C" fn otfcc_parseName(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
@@ -825,7 +825,7 @@ pub unsafe extern "C" fn otfcc_parseName(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
@@ -845,7 +845,7 @@ pub unsafe extern "C" fn otfcc_parseName(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
@@ -887,12 +887,12 @@ pub unsafe extern "C" fn otfcc_parseName(
                             (*str).u.string.ptr as *const ::core::ffi::c_void,
                             (*str).u.string.length as usize,
                         );
-                        table_iName.push.expect("non-null function pointer")(name, record);
+                        TABLE_I_NAME.push.expect("non-null function pointer")(name, record);
                     }
                 }
                 j = j.wrapping_add(1);
             }
-            table_iName.sort.expect("non-null function pointer")(
+            TABLE_I_NAME.sort.expect("non-null function pointer")(
                 name,
                 Some(
                     name_record_sort

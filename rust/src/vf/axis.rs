@@ -121,7 +121,7 @@ unsafe extern "C" fn vf_Axis_move(mut dst: *mut VfAxis, mut src: *mut VfAxis) {
     );
     vf_Axis_init(src);
 }
-pub static vf_iAxis: VfAxisElementInterface = {
+pub static VF_I_AXIS: VfAxisElementInterface = {
     VfAxisElementInterface {
         init: Some(vf_Axis_init as unsafe extern "C" fn(*mut VfAxis) -> ()),
         copy: Some(vf_Axis_copy as unsafe extern "C" fn(*mut VfAxis, *const VfAxis) -> ()),
@@ -166,7 +166,7 @@ unsafe fn vf_Axes_as_cvec(arr: *mut VfAxes) -> *mut CVecRaw<VfAxis> {
 unsafe extern "C" fn vf_Axes_init(arr: *mut VfAxes) {
     cvec_init(vf_Axes_as_cvec(arr));
 }
-pub static vf_iAxes: VfAxesVectorInterface = {
+pub static VF_I_AXES: VfAxesVectorInterface = {
     VfAxesVectorInterface {
         init: Some(vf_Axes_init as unsafe extern "C" fn(*mut VfAxes) -> ()),
         copy: Some(vf_Axes_copy as unsafe extern "C" fn(*mut VfAxes, *const VfAxes) -> ()),
@@ -222,8 +222,8 @@ unsafe extern "C" fn vf_Axes_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if vf_iAxis.dispose.is_some() {
-                vf_iAxis.dispose.expect("non-null function pointer")(
+            if VF_I_AXIS.dispose.is_some() {
+                VF_I_AXIS.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut VfAxis,
                 );
             } else {
@@ -235,8 +235,8 @@ unsafe extern "C" fn vf_Axes_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn vf_Axes_disposeItem(mut arr: *mut VfAxes, mut n: usize) {
-    if vf_iAxis.dispose.is_some() {
-        vf_iAxis.dispose.expect("non-null function pointer")(
+    if VF_I_AXIS.dispose.is_some() {
+        VF_I_AXIS.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut VfAxis
         );
     } else {
@@ -268,8 +268,8 @@ unsafe extern "C" fn vf_Axes_fill(mut arr: *mut VfAxes, mut n: usize) {
             flags: 0,
             axisNameID: 0,
         };
-        if vf_iAxis.init.is_some() {
-            vf_iAxis.init.expect("non-null function pointer")(&raw mut x);
+        if VF_I_AXIS.init.is_some() {
+            VF_I_AXIS.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -302,10 +302,10 @@ unsafe extern "C" fn vf_Axes_copy(mut dst: *mut VfAxes, mut src: *const VfAxes) 
     vf_Axes_init(dst);
     vf_Axes_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if vf_iAxis.copy.is_some() {
+    if VF_I_AXIS.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            vf_iAxis.copy.expect("non-null function pointer")(
+            VF_I_AXIS.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut VfAxis,
                 (*src).items.offset(j as isize) as *mut VfAxis as *const VfAxis,
             );
@@ -324,7 +324,7 @@ unsafe extern "C" fn vf_Axes_dispose(mut arr: *mut VfAxes) {
     if arr.is_null() {
         return;
     }
-    if vf_iAxis.dispose.is_some() {
+    if VF_I_AXIS.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -332,7 +332,7 @@ unsafe extern "C" fn vf_Axes_dispose(mut arr: *mut VfAxes) {
             if !(fresh1 != 0) {
                 break;
             }
-            vf_iAxis.dispose.expect("non-null function pointer")(
+            VF_I_AXIS.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut VfAxis
             );
         }

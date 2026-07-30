@@ -5,7 +5,7 @@ use libc::{exit, free, malloc, memcmp, memset};
 use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -43,8 +43,8 @@ use crate::table::otl::{GposSingleEntry, PositionValue, Subtable, GposSingleSubt
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
-use crate::table::otl::subtables::gpos_single::{iSubtable_gpos_single};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::table::otl::subtables::gpos_single::{I_SUBTABLE_GPOS_SINGLE};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
     let mut h: *mut GposSingleHash = ::core::ptr::null_mut::<GposSingleHash>();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).length {
-        if !otfcc_pkgGlyphOrder
+        if !OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")(
             (*font).glyph_order,
@@ -84,7 +84,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -413,7 +413,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1015,7 +1015,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    iSubtable_gpos_single
+    I_SUBTABLE_GPOS_SINGLE
         .clear
         .expect("non-null function pointer")(subtable);
     let mut s_0: *mut GposSingleHash = ::core::ptr::null_mut::<GposSingleHash>();
@@ -1024,7 +1024,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut GposSingleHash
         as *mut GposSingleHash;
     while !s_0.is_null() {
-        iSubtable_gpos_single
+        I_SUBTABLE_GPOS_SINGLE
             .push
             .expect("non-null function pointer")(
             subtable,

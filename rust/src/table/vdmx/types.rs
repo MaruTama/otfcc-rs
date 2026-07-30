@@ -212,7 +212,7 @@ unsafe extern "C" fn vdmx_Record_copyReplace(mut dst: *mut VdmxRecord, src: Vdmx
     vdmx_Record_dispose(dst);
     vdmx_Record_copy(dst, &raw const src);
 }
-pub static vdmx_iRecord: VdmxRecordElementInterface = {
+pub static VDMX_I_RECORD: VdmxRecordElementInterface = {
     VdmxRecordElementInterface {
         init: Some(vdmx_Record_init as unsafe extern "C" fn(*mut VdmxRecord) -> ()),
         copy: Some(
@@ -265,10 +265,10 @@ unsafe extern "C" fn vdmx_Group_copy(mut dst: *mut VdmxGroup, mut src: *const Vd
     vdmx_Group_init(dst);
     vdmx_Group_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if vdmx_iRecord.copy.is_some() {
+    if VDMX_I_RECORD.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            vdmx_iRecord.copy.expect("non-null function pointer")(
+            VDMX_I_RECORD.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut VdmxRecord,
                 (*src).items.offset(j as isize) as *mut VdmxRecord as *const VdmxRecord,
             );
@@ -287,7 +287,7 @@ unsafe extern "C" fn vdmx_Group_dispose(mut arr: *mut VdmxGroup) {
     if arr.is_null() {
         return;
     }
-    if vdmx_iRecord.dispose.is_some() {
+    if VDMX_I_RECORD.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -295,7 +295,7 @@ unsafe extern "C" fn vdmx_Group_dispose(mut arr: *mut VdmxGroup) {
             if !(fresh1 != 0) {
                 break;
             }
-            vdmx_iRecord.dispose.expect("non-null function pointer")(
+            VDMX_I_RECORD.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut VdmxRecord,
             );
         }
@@ -360,8 +360,8 @@ unsafe extern "C" fn vdmx_Group_fill(mut arr: *mut VdmxGroup, mut n: usize) {
             yMax: 0,
             yMin: 0,
         };
-        if vdmx_iRecord.init.is_some() {
-            vdmx_iRecord.init.expect("non-null function pointer")(&raw mut x);
+        if VDMX_I_RECORD.init.is_some() {
+            VDMX_I_RECORD.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -384,7 +384,7 @@ unsafe extern "C" fn vdmx_Group_init(arr: *mut VdmxGroup) {
 unsafe extern "C" fn vdmx_Group_move(dst: *mut VdmxGroup, src: *mut VdmxGroup) {
     cvec_move(vdmx_Group_as_cvec(dst), vdmx_Group_as_cvec(src));
 }
-pub static vdmx_iGroup: VdmxGroupVectorInterface = {
+pub static VDMX_I_GROUP: VdmxGroupVectorInterface = {
     VdmxGroupVectorInterface {
         init: Some(vdmx_Group_init as unsafe extern "C" fn(*mut VdmxGroup) -> ()),
         copy: Some(
@@ -455,8 +455,8 @@ unsafe extern "C" fn vdmx_Group_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if vdmx_iRecord.dispose.is_some() {
-                vdmx_iRecord.dispose.expect("non-null function pointer")(
+            if VDMX_I_RECORD.dispose.is_some() {
+                VDMX_I_RECORD.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut VdmxRecord,
                 );
             } else {
@@ -468,8 +468,8 @@ unsafe extern "C" fn vdmx_Group_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn vdmx_Group_disposeItem(mut arr: *mut VdmxGroup, mut n: usize) {
-    if vdmx_iRecord.dispose.is_some() {
-        vdmx_iRecord.dispose.expect("non-null function pointer")(
+    if VDMX_I_RECORD.dispose.is_some() {
+        VDMX_I_RECORD.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut VdmxRecord
         );
     } else {
@@ -500,10 +500,10 @@ unsafe extern "C" fn initRR(mut rr: *mut VdmxRatioRange) {
         0 as ::core::ffi::c_int,
         ::core::mem::size_of::<VdmxRatioRange>() as usize,
     );
-    vdmx_iGroup.init.expect("non-null function pointer")(&raw mut (*rr).records);
+    VDMX_I_GROUP.init.expect("non-null function pointer")(&raw mut (*rr).records);
 }
 unsafe extern "C" fn disposeRR(mut rr: *mut VdmxRatioRange) {
-    vdmx_iGroup.dispose.expect("non-null function pointer")(&raw mut (*rr).records);
+    VDMX_I_GROUP.dispose.expect("non-null function pointer")(&raw mut (*rr).records);
 }
 #[inline]
 unsafe extern "C" fn vdmx_RatioRange_dispose(mut x: *mut VdmxRatioRange) {
@@ -553,7 +553,7 @@ unsafe extern "C" fn vdmx_RatioRange_replace(mut dst: *mut VdmxRatioRange, src: 
         ::core::mem::size_of::<VdmxRatioRange>() as usize,
     );
 }
-pub static vdmx_iRatioRange: VdmxRatioRangeElementInterface = {
+pub static VDMX_I_RATIO_RANGE: VdmxRatioRangeElementInterface = {
     VdmxRatioRangeElementInterface {
         init: Some(vdmx_RatioRange_init as unsafe extern "C" fn(*mut VdmxRatioRange) -> ()),
         copy: Some(
@@ -580,14 +580,14 @@ unsafe extern "C" fn vdmx_RatioRagneList_disposeItem(
     mut arr: *mut VdmxRatioRangeList,
     mut n: usize,
 ) {
-    if vdmx_iRatioRange.dispose.is_some() {
-        vdmx_iRatioRange.dispose.expect("non-null function pointer")(
+    if VDMX_I_RATIO_RANGE.dispose.is_some() {
+        VDMX_I_RATIO_RANGE.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut VdmxRatioRange,
         );
     } else {
     };
 }
-pub static vdmx_iRatioRangeList: VdmxRatioRangeListVectorInterface = {
+pub static VDMX_I_RATIO_RANGE_LIST: VdmxRatioRangeListVectorInterface = {
     VdmxRatioRangeListVectorInterface {
         init: Some(
             vdmx_RatioRagneList_init as unsafe extern "C" fn(*mut VdmxRatioRangeList) -> (),
@@ -715,8 +715,8 @@ unsafe extern "C" fn vdmx_RatioRagneList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if vdmx_iRatioRange.dispose.is_some() {
-                vdmx_iRatioRange.dispose.expect("non-null function pointer")(
+            if VDMX_I_RATIO_RANGE.dispose.is_some() {
+                VDMX_I_RATIO_RANGE.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut VdmxRatioRange,
                 );
             } else {
@@ -762,8 +762,8 @@ unsafe extern "C" fn vdmx_RatioRagneList_fill(mut arr: *mut VdmxRatioRangeList, 
                 items: ::core::ptr::null_mut::<VdmxRecord>(),
             },
         };
-        if vdmx_iRatioRange.init.is_some() {
-            vdmx_iRatioRange.init.expect("non-null function pointer")(&raw mut x);
+        if VDMX_I_RATIO_RANGE.init.is_some() {
+            VDMX_I_RATIO_RANGE.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -806,10 +806,10 @@ unsafe extern "C" fn vdmx_RatioRagneList_copy(
     vdmx_RatioRagneList_init(dst);
     vdmx_RatioRagneList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if vdmx_iRatioRange.copy.is_some() {
+    if VDMX_I_RATIO_RANGE.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            vdmx_iRatioRange.copy.expect("non-null function pointer")(
+            VDMX_I_RATIO_RANGE.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut VdmxRatioRange,
                 (*src).items.offset(j as isize) as *mut VdmxRatioRange as *const VdmxRatioRange,
             );
@@ -828,7 +828,7 @@ unsafe extern "C" fn vdmx_RatioRagneList_dispose(mut arr: *mut VdmxRatioRangeLis
     if arr.is_null() {
         return;
     }
-    if vdmx_iRatioRange.dispose.is_some() {
+    if VDMX_I_RATIO_RANGE.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh3 = j;
@@ -836,7 +836,7 @@ unsafe extern "C" fn vdmx_RatioRagneList_dispose(mut arr: *mut VdmxRatioRangeLis
             if !(fresh3 != 0) {
                 break;
             }
-            vdmx_iRatioRange.dispose.expect("non-null function pointer")(
+            VDMX_I_RATIO_RANGE.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut VdmxRatioRange,
             );
         }
@@ -899,12 +899,12 @@ unsafe extern "C" fn vdmx_RatioRagneList_create() -> *mut VdmxRatioRangeList {
     return x;
 }
 unsafe extern "C" fn initVDMX(mut t: *mut VdmxTable) {
-    vdmx_iRatioRangeList
+    VDMX_I_RATIO_RANGE_LIST
         .init
         .expect("non-null function pointer")(&raw mut (*t).ratios);
 }
 unsafe extern "C" fn disposeVDMX(mut t: *mut VdmxTable) {
-    vdmx_iRatioRangeList
+    VDMX_I_RATIO_RANGE_LIST
         .dispose
         .expect("non-null function pointer")(&raw mut (*t).ratios);
 }
@@ -933,7 +933,7 @@ unsafe extern "C" fn table_VDMX_copy(mut dst: *mut VdmxTable, mut src: *const Vd
         ::core::mem::size_of::<VdmxTable>() as usize,
     );
 }
-pub static table_iVDMX: VdmxTableElementInterface = {
+pub static TABLE_I_VDMX: VdmxTableElementInterface = {
     VdmxTableElementInterface {
         init: Some(table_VDMX_init as unsafe extern "C" fn(*mut VdmxTable) -> ()),
         copy: Some(

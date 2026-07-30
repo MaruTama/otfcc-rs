@@ -3,16 +3,16 @@ use libc::{exit, free, malloc, memcmp, memcpy, memset, strncmp};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_progress, ILogger};
+use crate::logger::{LoggerType, LOG_VL_PROGRESS, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 
-use crate::libcff::{op_callgsubr, op_callsubr, op_endchar, op_return, type2_max_subrs, type2_subr_nesting};
+use crate::libcff::{OP_CALLGSUBR, OP_CALLSUBR, OP_ENDCHAR, OP_RETURN, TYPE2_MAX_SUBRS, TYPE2_SUBR_NESTING};
 use crate::libcff::cff_index::CffIndex;
 use crate::libcff::charstring_il::{CffCharstringIl};
 use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::libcff::cff_index::{cff_iIndex};
+use crate::libcff::cff_index::{CFF_I_INDEX};
 use crate::libcff::cff_writer::{cff_mergeCS2Int, cff_mergeCS2Operand, cff_mergeCS2Operator, cff_mergeCS2Special};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite_buf};
 use crate::vendor::sds::{sdsempty};
@@ -219,7 +219,7 @@ unsafe extern "C" fn disposeSubrGraph(mut g: *mut CffSubrGraph) {
             as *mut CffSubrDiagramIndex;
     }
 }
-pub static cff_iSubrGraph: CffSubrGraphElementInterface = {
+pub static CFF_I_SUBR_GRAPH: CffSubrGraphElementInterface = {
     CffSubrGraphElementInterface {
         init: Some(cff_SubrGraph_init as unsafe extern "C" fn(*mut CffSubrGraph) -> ()),
         copy: Some(
@@ -4352,7 +4352,7 @@ pub unsafe extern "C" fn cff_insertILToGraph(
             1 => {
                 cff_mergeCS2Operator(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.i);
                 if (*(*il).instr.offset(j as isize)).c2rust_unnamed.i
-                    == op_endchar
+                    == OP_ENDCHAR
                 {
                     last = true;
                 }
@@ -4406,7 +4406,7 @@ unsafe extern "C" fn numberASubroutine(mut r: *mut CffSubrRule, mut current: *mu
     if (*r).numbered {
         return;
     }
-    if (*r).height >= type2_subr_nesting {
+    if (*r).height >= TYPE2_SUBR_NESTING {
         return;
     }
     if (*r)
@@ -4469,7 +4469,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
     if !(*node).rule.is_null() {
         if (*(*node).rule).numbered as ::core::ffi::c_int != 0
             && (*(*node).rule).number < maxLSubrs.wrapping_add(maxGSubrs)
-            && (*(*node).rule).height < type2_subr_nesting
+            && (*(*node).rule).height < TYPE2_SUBR_NESTING
         {
             let mut target: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
             if (*(*node).rule).number < maxLSubrs {
@@ -4479,7 +4479,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
                     as i32;
                 target = lsubrs.offset((*(*node).rule).number as isize);
                 cff_mergeCS2Int(buf, stacknum);
-                cff_mergeCS2Operator(buf, op_callsubr);
+                cff_mergeCS2Operator(buf, OP_CALLSUBR);
             } else {
                 let mut stacknum_0: i32 = (*(*node).rule)
                     .number
@@ -4488,7 +4488,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
                     as i32;
                 target = gsubrs.offset((*(*node).rule).number.wrapping_sub(maxLSubrs) as isize);
                 cff_mergeCS2Int(buf, stacknum_0);
-                cff_mergeCS2Operator(buf, op_callgsubr);
+                cff_mergeCS2Operator(buf, OP_CALLGSUBR);
             }
             let mut r: *mut CffSubrRule = (*node).rule;
             if !(*r).printed {
@@ -4499,7 +4499,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
                     e = (*e).next;
                 }
                 if !endsWithEndChar(r) {
-                    cff_mergeCS2Operator(target, op_return);
+                    cff_mergeCS2Operator(target, OP_RETURN);
                 }
             }
         } else {
@@ -4536,18 +4536,18 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
         .logSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        log_vl_progress,
+        LOG_VL_PROGRESS,
         LoggerType::Progress,
         crate::sdsbuild!(sdsempty(), b"[libcff] Total ", maxSubroutines, b" subroutines extracted."),
     );
     let mut maxLSubrs: u32 = maxSubroutines;
     let mut maxGSubrs: u32 = 0 as u32;
-    if maxLSubrs > type2_max_subrs {
-        maxLSubrs = type2_max_subrs;
+    if maxLSubrs > TYPE2_MAX_SUBRS {
+        maxLSubrs = TYPE2_MAX_SUBRS;
         maxGSubrs = maxSubroutines.wrapping_sub(maxLSubrs);
     }
-    if maxGSubrs > type2_max_subrs {
-        maxGSubrs = type2_max_subrs;
+    if maxGSubrs > TYPE2_MAX_SUBRS {
+        maxGSubrs = TYPE2_MAX_SUBRS;
     }
     let mut total: u32 = maxLSubrs.wrapping_add(maxGSubrs);
     maxLSubrs = total.wrapping_div(2 as u32);
@@ -4587,7 +4587,7 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
         }
         e = (*e).next;
     }
-    let mut is: *mut CffIndex = cff_iIndex.fromCallback.expect("non-null function pointer")(
+    let mut is: *mut CffIndex = CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
         charStrings as *mut ::core::ffi::c_void,
         (*g).totalCharStrings,
         Some(
@@ -4595,7 +4595,7 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
         ),
     );
-    let mut igs: *mut CffIndex = cff_iIndex.fromCallback.expect("non-null function pointer")(
+    let mut igs: *mut CffIndex = CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
         gsubrs as *mut ::core::ffi::c_void,
         maxGSubrs,
         Some(
@@ -4603,7 +4603,7 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
         ),
     );
-    let mut ils: *mut CffIndex = cff_iIndex.fromCallback.expect("non-null function pointer")(
+    let mut ils: *mut CffIndex = CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
         lsubrs as *mut ::core::ffi::c_void,
         maxLSubrs,
         Some(
@@ -4638,10 +4638,10 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
     gsubrs = ::core::ptr::null_mut::<Buffer>();
     free(lsubrs as *mut ::core::ffi::c_void);
     lsubrs = ::core::ptr::null_mut::<Buffer>();
-    *s = cff_iIndex.build.expect("non-null function pointer")(is);
-    *gs = cff_iIndex.build.expect("non-null function pointer")(igs);
-    *ls = cff_iIndex.build.expect("non-null function pointer")(ils);
-    cff_iIndex.free.expect("non-null function pointer")(is);
-    cff_iIndex.free.expect("non-null function pointer")(igs);
-    cff_iIndex.free.expect("non-null function pointer")(ils);
+    *s = CFF_I_INDEX.build.expect("non-null function pointer")(is);
+    *gs = CFF_I_INDEX.build.expect("non-null function pointer")(igs);
+    *ls = CFF_I_INDEX.build.expect("non-null function pointer")(ils);
+    CFF_I_INDEX.free.expect("non-null function pointer")(is);
+    CFF_I_INDEX.free.expect("non-null function pointer")(igs);
+    CFF_I_INDEX.free.expect("non-null function pointer")(ils);
 }

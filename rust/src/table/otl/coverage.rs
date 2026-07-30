@@ -2489,7 +2489,7 @@ pub(crate) unsafe extern "C" fn shrinkCoverage(mut coverage: *mut Coverage, mut 
     }
     (*coverage).numGlyphs = k;
 }
-pub static otl_iCoverage: ICoverage = {
+pub static OTL_I_COVERAGE: ICoverage = {
     ICoverage {
         init: Some(otl_Coverage_init as unsafe extern "C" fn(*mut Coverage) -> ()),
         copy: Some(

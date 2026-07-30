@@ -10,7 +10,7 @@ unsafe extern "C" {
 use crate::support::handle::{HandleState, handle_consolidateTo, handle_fromIndex, FdHandle, GlyphHandle, Handle, otfcc_Handle_copy, otfcc_Handle_dispose};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
@@ -41,7 +41,7 @@ use crate::table::glyf::{RefAnchorStatus, ComponentReference, Glyph, GlyphPtr, P
 
 
 
-use crate::table::otl::{Feature, FeaturePtr, FeatureRef, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupType, Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, ChainingSubtable, GposCursiveSubtable, GposMarkToLigatureSubtable, GposMarkToSingleSubtable, GposPairSubtable, GposSingleSubtable, GsubLigatureSubtable, GsubMultiSubtable, GsubReverseSubtable, GsubSingleSubtable, OtlTable};
+use crate::table::otl::{Feature, FeaturePtr, FeatureRef, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, ChainingSubtable, GposCursiveSubtable, GposMarkToLigatureSubtable, GposMarkToSingleSubtable, GposPairSubtable, GposSingleSubtable, GsubLigatureSubtable, GsubMultiSubtable, GsubReverseSubtable, GsubSingleSubtable, OtlTable};
 use crate::table::otl::classdef::{ClassDef};
 
 
@@ -62,23 +62,23 @@ use crate::consolidate::otl::gsub_multi::{consolidate_gsub_alternative, consolid
 use crate::consolidate::otl::gsub_reverse::{consolidate_gsub_reverse};
 use crate::consolidate::otl::gsub_single::{consolidate_gsub_single};
 use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
-use crate::table::COLR::{colr_iLayer, colr_iLayerList, colr_iMapping, table_iCOLR};
-use crate::table::_TSI::{table_iTSI, tsi_iEntry};
-use crate::table::glyf::{glyf_iComponentReference, glyf_iContourList, glyf_iMaskList, glyf_iReferenceList, glyf_iStemDefList, otfcc_newGlyf_glyph};
-use crate::table::otl::{otl_iFeatureList, otl_iFeatureRefList, otl_iLookupList, otl_iLookupRefList};
-use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
-use crate::table::otl::subtables::gpos_cursive::{iSubtable_gpos_cursive};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{iSubtable_gpos_markToLigature};
-use crate::table::otl::subtables::gpos_mark_to_single::{iSubtable_gpos_markToSingle};
-use crate::table::otl::subtables::gpos_pair::{iSubtable_gpos_pair};
-use crate::table::otl::subtables::gpos_single::{iSubtable_gpos_single};
-use crate::table::otl::subtables::gsub_ligature::{iSubtable_gsub_ligature};
-use crate::table::otl::subtables::gsub_multi::{iSubtable_gsub_multi};
-use crate::table::otl::subtables::gsub_reverse::{iSubtable_gsub_reverse};
-use crate::table::otl::subtables::gsub_single::{iSubtable_gsub_single};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::table::COLR::{COLR_I_LAYER, COLR_I_LAYER_LIST, COLR_I_MAPPING, TABLE_I_COLR};
+use crate::table::_TSI::{TABLE_I_TSI, TSI_I_ENTRY};
+use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR_LIST, GLYF_I_MASK_LIST, GLYF_I_REFERENCE_LIST, GLYF_I_STEM_DEF_LIST, otfcc_newGlyf_glyph};
+use crate::table::otl::{OTL_I_FEATURE_LIST, OTL_I_FEATURE_REF_LIST, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_REF_LIST};
+use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
+use crate::table::otl::subtables::gpos_cursive::{I_SUBTABLE_GPOS_CURSIVE};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{I_SUBTABLE_GPOS_MARK_TO_LIGATURE};
+use crate::table::otl::subtables::gpos_mark_to_single::{I_SUBTABLE_GPOS_MARK_TO_SINGLE};
+use crate::table::otl::subtables::gpos_pair::{I_SUBTABLE_GPOS_PAIR};
+use crate::table::otl::subtables::gpos_single::{I_SUBTABLE_GPOS_SINGLE};
+use crate::table::otl::subtables::gsub_ligature::{I_SUBTABLE_GSUB_LIGATURE};
+use crate::table::otl::subtables::gsub_multi::{I_SUBTABLE_GSUB_MULTI};
+use crate::table::otl::subtables::gsub_reverse::{I_SUBTABLE_GSUB_REVERSE};
+use crate::table::otl::subtables::gsub_single::{I_SUBTABLE_GSUB_SINGLE};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
-use crate::vf::vq::{iVQ};
+use crate::vf::vq::{I_VQ};
 
 pub type SubtableRemover = Option<unsafe extern "C" fn(*mut Subtable) -> ()>;
 pub type OtlConsolidationFunction = Option<
@@ -129,7 +129,7 @@ unsafe extern "C" fn consolidateGlyphContours(
             nContoursConsolidated = (nContoursConsolidated as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as ShapeId;
         } else {
-            glyf_iContourList
+            GLYF_I_CONTOUR_LIST
                 .disposeItem
                 .expect("non-null function pointer")(
                 &raw mut (*g).contours, j as usize
@@ -138,7 +138,7 @@ unsafe extern "C" fn consolidateGlyphContours(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -164,7 +164,7 @@ unsafe extern "C" fn consolidateGlyphReferences(
     let mut skip: ShapeId = 0 as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < (*g).references.length {
-        if !otfcc_pkgGlyphOrder
+        if !OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")(
             (*font).glyph_order,
@@ -174,7 +174,7 @@ unsafe extern "C" fn consolidateGlyphReferences(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -185,7 +185,7 @@ unsafe extern "C" fn consolidateGlyphReferences(
                     b".\n",
                 ),
             );
-            glyf_iReferenceList
+            GLYF_I_REFERENCE_LIST
                 .disposeItem
                 .expect("non-null function pointer")(
                 &raw mut (*g).references, j as usize
@@ -214,7 +214,7 @@ unsafe extern "C" fn consolidateGlyphHints(
             (*(*g).stemH.items.offset(j as isize)).map = j as u16;
             j = j.wrapping_add(1);
         }
-        glyf_iStemDefList.sort.expect("non-null function pointer")(
+        GLYF_I_STEM_DEF_LIST.sort.expect("non-null function pointer")(
             &raw mut (*g).stemH,
             Some(
                 by_stem_pos
@@ -231,7 +231,7 @@ unsafe extern "C" fn consolidateGlyphHints(
             (*(*g).stemV.items.offset(j_0 as isize)).map = j_0 as u16;
             j_0 = j_0.wrapping_add(1);
         }
-        glyf_iStemDefList.sort.expect("non-null function pointer")(
+        GLYF_I_STEM_DEF_LIST.sort.expect("non-null function pointer")(
             &raw mut (*g).stemV,
             Some(
                 by_stem_pos
@@ -263,7 +263,7 @@ unsafe extern "C" fn consolidateGlyphHints(
         j_2 = j_2.wrapping_add(1);
     }
     if (*g).hintMasks.length != 0 {
-        glyf_iMaskList.sort.expect("non-null function pointer")(
+        GLYF_I_MASK_LIST.sort.expect("non-null function pointer")(
             &raw mut (*g).hintMasks,
             Some(
                 by_mask_pointindex
@@ -292,7 +292,7 @@ unsafe extern "C" fn consolidateGlyphHints(
         }
     }
     if (*g).contourMasks.length != 0 {
-        glyf_iMaskList.sort.expect("non-null function pointer")(
+        GLYF_I_MASK_LIST.sort.expect("non-null function pointer")(
             &raw mut (*g).contourMasks,
             Some(
                 by_mask_pointindex
@@ -370,7 +370,7 @@ unsafe extern "C" fn consolidateFDSelect(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -417,9 +417,9 @@ pub unsafe extern "C" fn getPointCoordinates(
                     .items
                     .offset(pj as isize)
                     as *mut Point;
-                iVQ.replace.expect("non-null function pointer")(
+                I_VQ.replace.expect("non-null function pointer")(
                     x,
-                    iVQ.pointLinearTfm.expect("non-null function pointer")(
+                    I_VQ.pointLinearTfm.expect("non-null function pointer")(
                         (*gr).x,
                         (*gr).a as Pos,
                         (*p).x,
@@ -427,9 +427,9 @@ pub unsafe extern "C" fn getPointCoordinates(
                         (*p).y,
                     ) as VQ,
                 );
-                iVQ.replace.expect("non-null function pointer")(
+                I_VQ.replace.expect("non-null function pointer")(
                     y,
-                    iVQ.pointLinearTfm.expect("non-null function pointer")(
+                    I_VQ.pointLinearTfm.expect("non-null function pointer")(
                         (*gr).y,
                         (*gr).c as Pos,
                         (*p).x,
@@ -451,7 +451,7 @@ pub unsafe extern "C" fn getPointCoordinates(
         consolidateAnchorRef(table, gr, rr, options);
         let mut ref_0: ComponentReference =
             (
-                glyf_iComponentReference
+                GLYF_I_COMPONENT_REFERENCE
                     .empty
                     .expect("non-null function pointer"))();
         ref_0.glyph = handle_fromIndex(
@@ -461,9 +461,9 @@ pub unsafe extern "C" fn getPointCoordinates(
         ref_0.b = (*rr).a * (*gr).b + (*rr).b * (*gr).d;
         ref_0.c = (*gr).a * (*rr).c + (*gr).c * (*rr).d;
         ref_0.d = (*gr).b * (*rr).c + (*rr).d * (*gr).d;
-        iVQ.replace.expect("non-null function pointer")(
+        I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.x,
-            iVQ.pointLinearTfm.expect("non-null function pointer")(
+            I_VQ.pointLinearTfm.expect("non-null function pointer")(
                 (*rr).x,
                 (*rr).a as Pos,
                 (*gr).x,
@@ -471,9 +471,9 @@ pub unsafe extern "C" fn getPointCoordinates(
                 (*gr).y,
             ) as VQ,
         );
-        iVQ.replace.expect("non-null function pointer")(
+        I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.y,
-            iVQ.pointLinearTfm.expect("non-null function pointer")(
+            I_VQ.pointLinearTfm.expect("non-null function pointer")(
                 (*rr).y,
                 (*rr).c as Pos,
                 (*gr).x,
@@ -483,7 +483,7 @@ pub unsafe extern "C" fn getPointCoordinates(
         );
         let mut success: bool =
             getPointCoordinates(table, &raw mut ref_0, n, stated, x, y, options);
-        glyf_iComponentReference
+        GLYF_I_COMPONENT_REFERENCE
             .dispose
             .expect("non-null function pointer")(&raw mut ref_0);
         if success {
@@ -511,7 +511,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -528,18 +528,18 @@ pub unsafe extern "C" fn consolidateAnchorRef(
         (*rr).isAnchored = RefAnchorStatus::AnchorConsolidatingXy;
     }
     let mut innerX: VQ =
-        (iVQ.neutral.expect("non-null function pointer"))();
+        (I_VQ.neutral.expect("non-null function pointer"))();
     let mut outerX: VQ =
-        (iVQ.neutral.expect("non-null function pointer"))();
+        (I_VQ.neutral.expect("non-null function pointer"))();
     let mut innerY: VQ =
-        (iVQ.neutral.expect("non-null function pointer"))();
+        (I_VQ.neutral.expect("non-null function pointer"))();
     let mut outerY: VQ =
-        (iVQ.neutral.expect("non-null function pointer"))();
+        (I_VQ.neutral.expect("non-null function pointer"))();
     let mut innerCounter: ShapeId = 0 as ShapeId;
     let mut outerCounter: ShapeId = 0 as ShapeId;
     let mut rr1: ComponentReference =
         (
-            glyf_iComponentReference
+            GLYF_I_COMPONENT_REFERENCE
                 .empty
                 .expect("non-null function pointer"))();
     rr1.glyph = handle_fromIndex((*rr).glyph.index)
@@ -567,7 +567,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -582,7 +582,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -594,14 +594,14 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             ),
         );
     }
-    let mut rrx: VQ = iVQ.pointLinearTfm.expect("non-null function pointer")(
+    let mut rrx: VQ = I_VQ.pointLinearTfm.expect("non-null function pointer")(
         outerX,
         -((*rr).a as Pos),
         innerX,
         -((*rr).b as Pos),
         innerY,
     );
-    let mut rry: VQ = iVQ.pointLinearTfm.expect("non-null function pointer")(
+    let mut rry: VQ = I_VQ.pointLinearTfm.expect("non-null function pointer")(
         outerY,
         -((*rr).c as Pos),
         innerX,
@@ -610,17 +610,17 @@ pub unsafe extern "C" fn consolidateAnchorRef(
     );
     if (*rr).isAnchored == RefAnchorStatus::AnchorConsolidatingAnchor
     {
-        iVQ.replace.expect("non-null function pointer")(&raw mut (*rr).x, rrx);
-        iVQ.replace.expect("non-null function pointer")(&raw mut (*rr).y, rry);
+        I_VQ.replace.expect("non-null function pointer")(&raw mut (*rr).x, rrx);
+        I_VQ.replace.expect("non-null function pointer")(&raw mut (*rr).y, rry);
         (*rr).isAnchored = RefAnchorStatus::AnchorConsolidated;
     } else {
         if fabs(
-            iVQ.getStill.expect("non-null function pointer")((*rr).x) as ::core::ffi::c_double
-                - iVQ.getStill.expect("non-null function pointer")(rrx) as ::core::ffi::c_double,
+            I_VQ.getStill.expect("non-null function pointer")((*rr).x) as ::core::ffi::c_double
+                - I_VQ.getStill.expect("non-null function pointer")(rrx) as ::core::ffi::c_double,
         ) > 0.5f64
             && fabs(
-                iVQ.getStill.expect("non-null function pointer")((*rr).y) as ::core::ffi::c_double
-                    - iVQ.getStill.expect("non-null function pointer")(rry)
+                I_VQ.getStill.expect("non-null function pointer")((*rr).y) as ::core::ffi::c_double
+                    - I_VQ.getStill.expect("non-null function pointer")(rry)
                         as ::core::ffi::c_double,
             ) > 0.5f64
         {
@@ -628,7 +628,7 @@ pub unsafe extern "C" fn consolidateAnchorRef(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -639,16 +639,16 @@ pub unsafe extern "C" fn consolidateAnchorRef(
             );
         }
         (*rr).isAnchored = RefAnchorStatus::AnchorConsolidated;
-        iVQ.dispose.expect("non-null function pointer")(&raw mut rrx);
-        iVQ.dispose.expect("non-null function pointer")(&raw mut rry);
+        I_VQ.dispose.expect("non-null function pointer")(&raw mut rrx);
+        I_VQ.dispose.expect("non-null function pointer")(&raw mut rry);
     }
-    glyf_iComponentReference
+    GLYF_I_COMPONENT_REFERENCE
         .dispose
         .expect("non-null function pointer")(&raw mut rr1);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut innerX);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut innerY);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut outerX);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut outerY);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut innerX);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut innerY);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut outerX);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut outerY);
     return false;
 }
 pub unsafe extern "C" fn consolidateGlyf(
@@ -685,7 +685,7 @@ pub unsafe extern "C" fn consolidateGlyf(
         while ___loggedstep_v {
             let mut gr: ComponentReference =
                 (
-                    glyf_iComponentReference
+                    GLYF_I_COMPONENT_REFERENCE
                         .empty
                         .expect("non-null function pointer"))();
             gr.glyph = handle_fromIndex(j_0)
@@ -697,7 +697,7 @@ pub unsafe extern "C" fn consolidateGlyf(
                 consolidateAnchorRef((*font).glyf, &raw mut gr, rr, options);
                 r = r.wrapping_add(1);
             }
-            glyf_iComponentReference
+            GLYF_I_COMPONENT_REFERENCE
                 .dispose
                 .expect("non-null function pointer")(&raw mut gr);
             ___loggedstep_v = false;
@@ -718,7 +718,7 @@ pub unsafe extern "C" fn consolidateCmap(
         let mut item: *mut CmapEntry = ::core::ptr::null_mut::<CmapEntry>();
         item = (*(*font).cmap).unicodes;
         while !item.is_null() {
-            if !otfcc_pkgGlyphOrder
+            if !OTFCC_PKG_GLYPH_ORDER
                 .consolidateHandle
                 .expect("non-null function pointer")(
                 (*font).glyph_order, &raw mut (*item).glyph
@@ -727,7 +727,7 @@ pub unsafe extern "C" fn consolidateCmap(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -747,7 +747,7 @@ pub unsafe extern "C" fn consolidateCmap(
         let mut item_0: *mut CmapUvsEntry = ::core::ptr::null_mut::<CmapUvsEntry>();
         item_0 = (*(*font).cmap).uvs;
         while !item_0.is_null() {
-            if !otfcc_pkgGlyphOrder
+            if !OTFCC_PKG_GLYPH_ORDER
                 .consolidateHandle
                 .expect("non-null function pointer")(
                 (*font).glyph_order, &raw mut (*item_0).glyph
@@ -758,7 +758,7 @@ pub unsafe extern "C" fn consolidateCmap(
                         "non-null function pointer",
                     )(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -807,7 +807,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -836,7 +836,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -868,7 +868,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -891,7 +891,7 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
     mut options: *const Options,
 ) {
     __declare_otl_consolidation(
-        otl_type_gsub_single,
+        OTL_TYPE_GSUB_SINGLE,
         Some(
             consolidate_gsub_single
                 as unsafe extern "C" fn(
@@ -904,14 +904,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gsub_single.free),
+        >(I_SUBTABLE_GSUB_SINGLE.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gsub_multiple,
+        OTL_TYPE_GSUB_MULTIPLE,
         Some(
             consolidate_gsub_multi
                 as unsafe extern "C" fn(
@@ -924,14 +924,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gsub_multi.free),
+        >(I_SUBTABLE_GSUB_MULTI.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gsub_alternate,
+        OTL_TYPE_GSUB_ALTERNATE,
         Some(
             consolidate_gsub_alternative
                 as unsafe extern "C" fn(
@@ -944,14 +944,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gsub_multi.free),
+        >(I_SUBTABLE_GSUB_MULTI.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gsub_ligature,
+        OTL_TYPE_GSUB_LIGATURE,
         Some(
             consolidate_gsub_ligature
                 as unsafe extern "C" fn(
@@ -964,14 +964,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gsub_ligature.free),
+        >(I_SUBTABLE_GSUB_LIGATURE.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gsub_chaining,
+        OTL_TYPE_GSUB_CHAINING,
         Some(
             consolidate_chaining
                 as unsafe extern "C" fn(
@@ -984,14 +984,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_chaining.free),
+        >(I_SUBTABLE_CHAINING.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gsub_reverse,
+        OTL_TYPE_GSUB_REVERSE,
         Some(
             consolidate_gsub_reverse
                 as unsafe extern "C" fn(
@@ -1004,14 +1004,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GsubReverseSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gsub_reverse.free),
+        >(I_SUBTABLE_GSUB_REVERSE.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gpos_single,
+        OTL_TYPE_GPOS_SINGLE,
         Some(
             consolidate_gpos_single
                 as unsafe extern "C" fn(
@@ -1024,14 +1024,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gpos_single.free),
+        >(I_SUBTABLE_GPOS_SINGLE.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gpos_pair,
+        OTL_TYPE_GPOS_PAIR,
         Some(
             consolidate_gpos_pair
                 as unsafe extern "C" fn(
@@ -1044,14 +1044,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gpos_pair.free),
+        >(I_SUBTABLE_GPOS_PAIR.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gpos_cursive,
+        OTL_TYPE_GPOS_CURSIVE,
         Some(
             consolidate_gpos_cursive
                 as unsafe extern "C" fn(
@@ -1064,14 +1064,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gpos_cursive.free),
+        >(I_SUBTABLE_GPOS_CURSIVE.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gpos_chaining,
+        OTL_TYPE_GPOS_CHAINING,
         Some(
             consolidate_chaining
                 as unsafe extern "C" fn(
@@ -1084,14 +1084,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_chaining.free),
+        >(I_SUBTABLE_CHAINING.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gpos_markToBase,
+        OTL_TYPE_GPOS_MARK_TO_BASE,
         Some(
             consolidate_mark_to_single
                 as unsafe extern "C" fn(
@@ -1104,14 +1104,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gpos_markToSingle.free),
+        >(I_SUBTABLE_GPOS_MARK_TO_SINGLE.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gpos_markToMark,
+        OTL_TYPE_GPOS_MARK_TO_MARK,
         Some(
             consolidate_mark_to_single
                 as unsafe extern "C" fn(
@@ -1124,14 +1124,14 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gpos_markToSingle.free),
+        >(I_SUBTABLE_GPOS_MARK_TO_SINGLE.free),
         font,
         table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
-        otl_type_gpos_markToLigature,
+        OTL_TYPE_GPOS_MARK_TO_LIGATURE,
         Some(
             consolidate_mark_to_ligature
                 as unsafe extern "C" fn(
@@ -1144,7 +1144,7 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
         ::core::mem::transmute::<
             Option<unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> ()>,
             SubtableRemover,
-        >(iSubtable_gpos_markToLigature.free),
+        >(I_SUBTABLE_GPOS_MARK_TO_LIGATURE.free),
         font,
         table,
         lookup,
@@ -1200,7 +1200,7 @@ unsafe extern "C" fn consolidateOTLTable(
         while (j_0 as usize) < (*table).features.length {
             let mut feature: *mut Feature =
                 *(*table).features.items.offset(j_0 as isize) as *mut Feature;
-            otl_iLookupRefList
+            OTL_I_LOOKUP_REF_LIST
                 .filterEnv
                 .expect("non-null function pointer")(
                 &raw mut (*feature).lookups,
@@ -1219,7 +1219,7 @@ unsafe extern "C" fn consolidateOTLTable(
         while (j_1 as usize) < (*table).languages.length {
             let mut lang: *mut LanguageSystem =
                 *(*table).languages.items.offset(j_1 as isize) as *mut LanguageSystem;
-            otl_iFeatureRefList
+            OTL_I_FEATURE_REF_LIST
                 .filterEnv
                 .expect("non-null function pointer")(
                 &raw mut (*lang).features,
@@ -1234,7 +1234,7 @@ unsafe extern "C" fn consolidateOTLTable(
             );
             j_1 = j_1.wrapping_add(1);
         }
-        otl_iLookupList
+        OTL_I_LOOKUP_LIST
             .filterEnv
             .expect("non-null function pointer")(
             &raw mut (*table).lookups,
@@ -1244,7 +1244,7 @@ unsafe extern "C" fn consolidateOTLTable(
             ),
             NULL,
         );
-        otl_iFeatureList
+        OTL_I_FEATURE_LIST
             .filterEnv
             .expect("non-null function pointer")(
             &raw mut (*table).features,
@@ -1315,13 +1315,13 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
         return;
     }
     let mut consolidated: *mut ColrTable = (
-        table_iCOLR.create.expect("non-null function pointer"))();
+        TABLE_I_COLR.create.expect("non-null function pointer"))();
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < (*(*font).COLR).length {
         let mut mapping: *mut ColrMapping = (*(*font).COLR).items.offset(__caryll_index as isize);
         while keep != 0 {
-            if !otfcc_pkgGlyphOrder
+            if !OTFCC_PKG_GLYPH_ORDER
                 .consolidateHandle
                 .expect("non-null function pointer")(
                 (*font).glyph_order, &raw mut (*mapping).glyph
@@ -1330,7 +1330,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1355,14 +1355,14 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
                     &raw mut m.glyph,
                     &raw mut (*mapping).glyph,
                 );
-                colr_iLayerList.init.expect("non-null function pointer")(&raw mut m.layers);
+                COLR_I_LAYER_LIST.init.expect("non-null function pointer")(&raw mut m.layers);
                 let mut __caryll_index_0: usize = 0 as usize;
                 let mut keep_0: usize = 1 as usize;
                 while keep_0 != 0 && __caryll_index_0 < (*mapping).layers.length {
                     let mut layer: *mut ColrLayer =
                         (*mapping).layers.items.offset(__caryll_index_0 as isize);
                     while keep_0 != 0 {
-                        if !otfcc_pkgGlyphOrder
+                        if !OTFCC_PKG_GLYPH_ORDER
                             .consolidateHandle
                             .expect("non-null function pointer")(
                             (*font).glyph_order,
@@ -1372,7 +1372,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
                                 .logSDS
                                 .expect("non-null function pointer")(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -1389,11 +1389,11 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
                                 },
                                 paletteIndex: 0,
                             };
-                            colr_iLayer.copy.expect("non-null function pointer")(
+                            COLR_I_LAYER.copy.expect("non-null function pointer")(
                                 &raw mut layer1,
                                 layer,
                             );
-                            colr_iLayerList.push.expect("non-null function pointer")(
+                            COLR_I_LAYER_LIST.push.expect("non-null function pointer")(
                                 &raw mut m.layers,
                                 layer1,
                             );
@@ -1404,13 +1404,13 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
                     __caryll_index_0 = __caryll_index_0.wrapping_add(1);
                 }
                 if (*mapping).layers.length != 0 {
-                    table_iCOLR.push.expect("non-null function pointer")(consolidated, m);
+                    TABLE_I_COLR.push.expect("non-null function pointer")(consolidated, m);
                 } else {
                     (*(*options).logger)
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -1419,7 +1419,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
                             b" is empth",
                         ),
                     );
-                    colr_iMapping.dispose.expect("non-null function pointer")(&raw mut m);
+                    COLR_I_MAPPING.dispose.expect("non-null function pointer")(&raw mut m);
                 }
             }
             keep = (keep == 0) as ::core::ffi::c_int as usize;
@@ -1427,7 +1427,7 @@ unsafe extern "C" fn consolidateCOLR(mut font: *mut Font, mut options: *const Op
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    table_iCOLR.free.expect("non-null function pointer")((*font).COLR);
+    TABLE_I_COLR.free.expect("non-null function pointer")((*font).COLR);
     (*font).COLR = consolidated;
 }
 unsafe extern "C" fn compareTSIEntry(
@@ -1450,7 +1450,7 @@ unsafe extern "C" fn consolidateTSI(
         return;
     }
     let mut consolidated: *mut TsiTable = (
-        table_iTSI.create.expect("non-null function pointer"))();
+        TABLE_I_TSI.create.expect("non-null function pointer"))();
     let mut gidEntries: *mut SdsRaw = ::core::ptr::null_mut::<SdsRaw>();
     gidEntries = __caryll_allocate_clean(
         (::core::mem::size_of::<SdsRaw>() as usize).wrapping_mul((*(*font).glyf).length),
@@ -1464,7 +1464,7 @@ unsafe extern "C" fn consolidateTSI(
             if (*entry).type_0 as ::core::ffi::c_uint
                 == TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint
             {
-                if otfcc_pkgGlyphOrder
+                if OTFCC_PKG_GLYPH_ORDER
                     .consolidateHandle
                     .expect("non-null function pointer")(
                     (*font).glyph_order,
@@ -1481,7 +1481,7 @@ unsafe extern "C" fn consolidateTSI(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -1500,8 +1500,8 @@ unsafe extern "C" fn consolidateTSI(
                     },
                     content: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                 };
-                tsi_iEntry.copy.expect("non-null function pointer")(&raw mut e, entry);
-                table_iTSI.push.expect("non-null function pointer")(consolidated, e);
+                TSI_I_ENTRY.copy.expect("non-null function pointer")(&raw mut e, entry);
+                TABLE_I_TSI.push.expect("non-null function pointer")(consolidated, e);
             }
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
@@ -1522,7 +1522,7 @@ unsafe extern "C" fn consolidateTSI(
         e_0.type_0 = TsiEntryType::Glyph;
         e_0.glyph =
             handle_fromIndex(j) as GlyphHandle;
-        otfcc_pkgGlyphOrder
+        OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")((*font).glyph_order, &raw mut e_0.glyph);
         e_0.content = if !(*gidEntries.offset(j as isize)).is_null() {
@@ -1530,13 +1530,13 @@ unsafe extern "C" fn consolidateTSI(
         } else {
             sdsempty()
         };
-        table_iTSI.push.expect("non-null function pointer")(consolidated, e_0);
+        TABLE_I_TSI.push.expect("non-null function pointer")(consolidated, e_0);
         j = j.wrapping_add(1);
     }
-    table_iTSI.free.expect("non-null function pointer")(tsi);
+    TABLE_I_TSI.free.expect("non-null function pointer")(tsi);
     free(gidEntries as *mut ::core::ffi::c_void);
     gidEntries = ::core::ptr::null_mut::<SdsRaw>();
-    table_iTSI.sort.expect("non-null function pointer")(
+    TABLE_I_TSI.sort.expect("non-null function pointer")(
         consolidated,
         Some(
             compareTSIEntry
@@ -1552,7 +1552,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
     if !(*font).glyf.is_null() && (*font).glyph_order.is_null() {
         let mut go: *mut GlyphOrder =
             (
-                otfcc_pkgGlyphOrder
+                OTFCC_PKG_GLYPH_ORDER
                     .create
                     .expect("non-null function pointer"))();
         let mut j: GlyphId = 0 as GlyphId;
@@ -1566,7 +1566,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
                 let ref mut fresh0 = (**(*(*font).glyf).items.offset(j as isize)).name;
                 *fresh0 = sdsdup(name);
             }
-            if !otfcc_pkgGlyphOrder
+            if !OTFCC_PKG_GLYPH_ORDER
                 .setByName
                 .expect("non-null function pointer")(go, name, j)
             {
@@ -1574,7 +1574,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1587,7 +1587,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
                 let mut success: bool = false;
                 loop {
                     let mut newname: SdsRaw = crate::sdsbuild!(sdsempty(), name, b"_", suffix);
-                    success = otfcc_pkgGlyphOrder
+                    success = OTFCC_PKG_GLYPH_ORDER
                         .setByName
                         .expect("non-null function pointer")(
                         go, newname, j
@@ -1600,7 +1600,7 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),

@@ -28,7 +28,7 @@ pub enum CffCharsetType {
 /// two are the same state and only ever differ in what the reader was trying to
 /// say. A const rather than a variant, since Rust cannot give one value two
 /// variant names; it still works in a pattern.
-pub const cff_CHARSET_UNSPECED: CffCharsetType = CffCharsetType::IsoAdobe;
+pub const CFF_CHARSET_UNSPECED: CffCharsetType = CffCharsetType::IsoAdobe;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffCharsetFormat0 {
@@ -328,7 +328,7 @@ pub unsafe extern "C" fn cff_close_Charset(mut cset: CffCharset) {
 mod tests {
     use super::*;
 
-    // `cff_CHARSET_UNSPECED` and `CffCharsetType::IsoAdobe` are the same state, not
+    // `CFF_CHARSET_UNSPECED` and `CffCharsetType::IsoAdobe` are the same state, not
     // two states that happen to share a number: a CFF font whose Top DICT has no
     // charset entry *is* ISOAdobe by the spec's default, and otfcc uses whichever
     // name reads better at each site (`cff_close_CFF` says UNSPECED, the reader
@@ -337,9 +337,9 @@ mod tests {
     // in patterns, which is what the reader and the builder rely on.
     #[test]
     fn unspeced_and_isoadobe_are_one_state() {
-        assert_eq!(cff_CHARSET_UNSPECED, CffCharsetType::IsoAdobe);
+        assert_eq!(CFF_CHARSET_UNSPECED, CffCharsetType::IsoAdobe);
         assert_eq!(CffCharsetType::IsoAdobe as u32, 0);
-        assert!(matches!(cff_CHARSET_UNSPECED, CffCharsetType::IsoAdobe));
+        assert!(matches!(CFF_CHARSET_UNSPECED, CffCharsetType::IsoAdobe));
         // A `CffCharset` arrives from `__caryll_allocate_clean`, so all-zero has
         // to be a legal value of the field.
         assert_eq!(::core::mem::size_of::<CffCharsetType>(), 4);

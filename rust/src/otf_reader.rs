@@ -20,7 +20,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
 use crate::table::CFF::{CffAndGlyf};
 use crate::table::glyf::GlyfIOContext;
 
-use crate::font::caryll_font::{otfcc_iFont};
+use crate::font::caryll_font::{OTFCC_I_FONT};
 use crate::otf_reader::unconsolidate::{otfcc_unconsolidateFont};
 use crate::table::BASE::{otfcc_readBASE};
 use crate::table::CFF::{otfcc_readCFFAndGlyfTables};
@@ -99,7 +99,7 @@ impl FontBuilder for OtfReader {
         return ::core::ptr::null_mut::<::core::ffi::c_void>();
     } else {
         let font: *mut Font = (
-            otfcc_iFont.create.expect("non-null function pointer"))();
+            OTFCC_I_FONT.create.expect("non-null function pointer"))();
         let packet: Packet = *(*sfnt).packets.offset(index as isize);
         (*font).subtype = decideFontSubtypeOTF(sfnt, index);
         (*font).fvar = otfcc_readFvar(packet, options);

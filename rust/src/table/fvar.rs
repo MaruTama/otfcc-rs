@@ -7,7 +7,7 @@ unsafe extern "C" {
 
 use crate::support::json_funcs::{json_new_position, json_numof, json_object_push_tag, preserialize};
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
@@ -23,9 +23,9 @@ use crate::vf::vv::VV;
 use crate::support::primitives::{otfcc_from_fixed};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_length, json_string_new, json_string_new_length};
 use crate::vendor::sds::{sdscatsds, sdsempty, sdsfree, sdsfromlonglong, sdsnew};
-use crate::vf::axis::{vf_iAxes};
+use crate::vf::axis::{VF_I_AXES};
 use crate::vf::region::{vq_AxisSpanIsOne, vq_deleteRegion};
-use crate::vf::vq::{iVQ, iVV};
+use crate::vf::vq::{I_VQ, I_VV};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct FvarInstance {
@@ -188,13 +188,13 @@ unsafe extern "C" fn initFvarInstance(mut inst: *mut FvarInstance) {
         0 as ::core::ffi::c_int,
         ::core::mem::size_of::<FvarInstance>() as usize,
     );
-    iVV.init.expect("non-null function pointer")(&raw mut (*inst).coordinates);
+    I_VV.init.expect("non-null function pointer")(&raw mut (*inst).coordinates);
 }
 #[inline]
 unsafe extern "C" fn disposeFvarInstance(mut inst: *mut FvarInstance) {
-    iVV.dispose.expect("non-null function pointer")(&raw mut (*inst).coordinates);
+    I_VV.dispose.expect("non-null function pointer")(&raw mut (*inst).coordinates);
 }
-pub static fvar_iInstance: FvarInstanceElementInterface = {
+pub static FVAR_I_INSTANCE: FvarInstanceElementInterface = {
     FvarInstanceElementInterface {
         init: Some(fvar_Instance_init as unsafe extern "C" fn(*mut FvarInstance) -> ()),
         copy: Some(
@@ -313,8 +313,8 @@ unsafe extern "C" fn fvar_InstanceList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if fvar_iInstance.dispose.is_some() {
-                fvar_iInstance.dispose.expect("non-null function pointer")(
+            if FVAR_I_INSTANCE.dispose.is_some() {
+                FVAR_I_INSTANCE.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut FvarInstance,
                 );
             } else {
@@ -326,8 +326,8 @@ unsafe extern "C" fn fvar_InstanceList_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn fvar_InstanceList_disposeItem(mut arr: *mut FvarInstanceList, mut n: usize) {
-    if fvar_iInstance.dispose.is_some() {
-        fvar_iInstance.dispose.expect("non-null function pointer")(
+    if FVAR_I_INSTANCE.dispose.is_some() {
+        FVAR_I_INSTANCE.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut FvarInstance
         );
     } else {
@@ -368,8 +368,8 @@ unsafe extern "C" fn fvar_InstanceList_fill(mut arr: *mut FvarInstanceList, mut 
             },
             postScriptNameID: 0,
         };
-        if fvar_iInstance.init.is_some() {
-            fvar_iInstance.init.expect("non-null function pointer")(&raw mut x);
+        if FVAR_I_INSTANCE.init.is_some() {
+            FVAR_I_INSTANCE.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -412,10 +412,10 @@ unsafe extern "C" fn fvar_InstanceList_copy(
     fvar_InstanceList_init(dst);
     fvar_InstanceList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if fvar_iInstance.copy.is_some() {
+    if FVAR_I_INSTANCE.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            fvar_iInstance.copy.expect("non-null function pointer")(
+            FVAR_I_INSTANCE.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut FvarInstance,
                 (*src).items.offset(j as isize) as *mut FvarInstance as *const FvarInstance,
             );
@@ -434,7 +434,7 @@ unsafe extern "C" fn fvar_InstanceList_dispose(mut arr: *mut FvarInstanceList) {
     if arr.is_null() {
         return;
     }
-    if fvar_iInstance.dispose.is_some() {
+    if FVAR_I_INSTANCE.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -442,7 +442,7 @@ unsafe extern "C" fn fvar_InstanceList_dispose(mut arr: *mut FvarInstanceList) {
             if !(fresh1 != 0) {
                 break;
             }
-            fvar_iInstance.dispose.expect("non-null function pointer")(
+            FVAR_I_INSTANCE.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut FvarInstance,
             );
         }
@@ -473,7 +473,7 @@ unsafe extern "C" fn fvar_InstanceList_initCapN(mut arr: *mut FvarInstanceList, 
 unsafe extern "C" fn fvar_InstanceList_growToN(arr: *mut FvarInstanceList, target: usize) {
     cvec_grow_to_n(fvar_InstanceList_as_cvec(arr), target);
 }
-pub static fvar_iInstanceList: FvarInstanceListVectorInterface = {
+pub static FVAR_I_INSTANCE_LIST: FvarInstanceListVectorInterface = {
     FvarInstanceListVectorInterface {
         init: Some(fvar_InstanceList_init as unsafe extern "C" fn(*mut FvarInstanceList) -> ()),
         copy: Some(
@@ -576,13 +576,13 @@ unsafe extern "C" fn initFvar(mut fvar: *mut FvarTable) {
         0 as ::core::ffi::c_int,
         ::core::mem::size_of::<FvarTable>() as usize,
     );
-    vf_iAxes.init.expect("non-null function pointer")(&raw mut (*fvar).axes);
-    fvar_iInstanceList.init.expect("non-null function pointer")(&raw mut (*fvar).instances);
+    VF_I_AXES.init.expect("non-null function pointer")(&raw mut (*fvar).axes);
+    FVAR_I_INSTANCE_LIST.init.expect("non-null function pointer")(&raw mut (*fvar).instances);
 }
 #[inline]
 unsafe extern "C" fn disposeFvar(mut fvar: *mut FvarTable) {
-    vf_iAxes.dispose.expect("non-null function pointer")(&raw mut (*fvar).axes);
-    fvar_iInstanceList
+    VF_I_AXES.dispose.expect("non-null function pointer")(&raw mut (*fvar).axes);
+    FVAR_I_INSTANCE_LIST
         .dispose
         .expect("non-null function pointer")(&raw mut (*fvar).instances);
     let mut current: *mut FvarMaster = ::core::ptr::null_mut::<FvarMaster>();
@@ -1812,7 +1812,7 @@ unsafe extern "C" fn table_fvar_move(mut dst: *mut FvarTable, mut src: *mut Fvar
     );
     table_fvar_init(src);
 }
-pub static table_iFvar: FvarTableElementInterface = {
+pub static TABLE_I_FVAR: FvarTableElementInterface = {
     FvarTableElementInterface {
         init: Some(table_fvar_init as unsafe extern "C" fn(*mut FvarTable) -> ()),
         copy: Some(
@@ -1920,7 +1920,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                         _,
                                                         fn() -> *mut FvarTable,
                                                     >(
-                                                        table_iFvar
+                                                        TABLE_I_FVAR
                                                             .create
                                                             .expect("non-null function pointer"),
                                                     )(
@@ -1957,7 +1957,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                                 (*axisRecord).axisNameID,
                                                             ),
                                                         };
-                                                        vf_iAxes
+                                                        VF_I_AXES
                                                             .push
                                                             .expect("non-null function pointer")(
                                                             &raw mut (*fvar).axes,
@@ -1991,7 +1991,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                                 },
                                                                 postScriptNameID: 0,
                                                             };
-                                                        fvar_iInstance
+                                                        FVAR_I_INSTANCE
                                                             .init
                                                             .expect("non-null function pointer")(
                                                             &raw mut inst,
@@ -2003,7 +2003,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                         while (k as ::core::ffi::c_int)
                                                             < nAxes as ::core::ffi::c_int
                                                         {
-                                                            iVV.push.expect(
+                                                            I_VV.push.expect(
                                                                 "non-null function pointer",
                                                             )(
                                                                 &raw mut inst.coordinates,
@@ -2019,7 +2019,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                             );
                                                             k = k.wrapping_add(1);
                                                         }
-                                                        iVV.shrinkToFit
+                                                        I_VV.shrinkToFit
                                                             .expect("non-null function pointer")(
                                                             &raw mut inst.coordinates,
                                                         );
@@ -2034,7 +2034,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                                     as *mut u16),
                                                             );
                                                         }
-                                                        fvar_iInstanceList
+                                                        FVAR_I_INSTANCE_LIST
                                                             .push
                                                             .expect("non-null function pointer")(
                                                             &raw mut (*fvar).instances,
@@ -2047,12 +2047,12 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                             as *mut InstanceRecord;
                                                         j_0 = j_0.wrapping_add(1);
                                                     }
-                                                    vf_iAxes
+                                                    VF_I_AXES
                                                         .shrinkToFit
                                                         .expect("non-null function pointer")(
                                                         &raw mut (*fvar).axes,
                                                     );
-                                                    fvar_iInstanceList
+                                                    FVAR_I_INSTANCE_LIST
                                                         .shrinkToFit
                                                         .expect("non-null function pointer")(
                                                         &raw mut (*fvar).instances,
@@ -2070,11 +2070,11 @@ pub unsafe extern "C" fn otfcc_readFvar(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'fvar' corrupted.\n"),
                     );
-                    table_iFvar.free.expect("non-null function pointer")(fvar);
+                    TABLE_I_FVAR.free.expect("non-null function pointer")(fvar);
                     fvar = ::core::ptr::null_mut::<FvarTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -2262,7 +2262,7 @@ pub unsafe extern "C" fn json_new_VQSegment(
 }
 pub unsafe extern "C" fn json_new_VQ(z: VQ, mut fvar: *const FvarTable) -> *mut JsonValue {
     if z.shift.length == 0 {
-        return preserialize(json_new_position(iVQ
+        return preserialize(json_new_position(I_VQ
             .getStill
             .expect("non-null function pointer")(
             z
@@ -2358,7 +2358,7 @@ pub unsafe extern "C" fn json_new_VVp(
     };
 }
 pub unsafe extern "C" fn json_vqOf(mut cv: *const JsonValue, mut _fvar: *const FvarTable) -> VQ {
-    return iVQ.createStill.expect("non-null function pointer")(json_numof(cv) as Pos);
+    return I_VQ.createStill.expect("non-null function pointer")(json_numof(cv) as Pos);
 }
 pub unsafe extern "C" fn json_new_VQAxisSpan(mut s: *const VqAxisSpan) -> *mut JsonValue {
     if vq_AxisSpanIsOne(s) {
@@ -2423,7 +2423,7 @@ pub unsafe extern "C" fn json_new_VQRegion(
     mut rs: *const VqRegion,
     mut fvar: *const FvarTable,
 ) -> *mut JsonValue {
-    let mut m: *const FvarMaster = table_iFvar
+    let mut m: *const FvarMaster = TABLE_I_FVAR
         .findMasterByRegion
         .expect("non-null function pointer")(fvar, rs);
     if !m.is_null() && !(*m).name.is_null() {

@@ -48,11 +48,11 @@ pub type Length = ::core::ffi::c_double;
 
 /// A cursor into the raw bytes of a font file.
 pub type FontFilePointer = *mut u8;
-pub const f16dot16_precision: ::core::ffi::c_int = 16 as ::core::ffi::c_int;
-pub const f16dot16_k: ::core::ffi::c_int =
-    (1 as ::core::ffi::c_int) << f16dot16_precision - 1 as ::core::ffi::c_int;
-pub const f16dot16_infinity: F16Dot16 = 0x7fffffff as ::core::ffi::c_int as F16Dot16;
-pub const f16dot16_negativeIntinity: F16Dot16 = 0x80000000 as ::core::ffi::c_uint as F16Dot16;
+pub const F16DOT16_PRECISION: ::core::ffi::c_int = 16 as ::core::ffi::c_int;
+pub const F16DOT16_K: ::core::ffi::c_int =
+    (1 as ::core::ffi::c_int) << F16DOT16_PRECISION - 1 as ::core::ffi::c_int;
+pub const F16DOT16_INFINITY: F16Dot16 = 0x7fffffff as ::core::ffi::c_int as F16Dot16;
+pub const F16DOT16_NEGATIVE_INFINITY: F16Dot16 = 0x80000000 as ::core::ffi::c_uint as F16Dot16;
 pub unsafe extern "C" fn otfcc_from_f2dot14(x: F2Dot14) -> ::core::ffi::c_double {
     return x as ::core::ffi::c_int as ::core::ffi::c_double / 16384.0f64;
 }
@@ -67,7 +67,7 @@ pub unsafe extern "C" fn otfcc_to_fixed(x: ::core::ffi::c_double) -> F16Dot16 {
 }
 #[inline]
 unsafe extern "C" fn clamp(value: i64) -> F16Dot16 {
-    value.clamp(f16dot16_negativeIntinity as i64, f16dot16_infinity as i64) as F16Dot16
+    value.clamp(F16DOT16_NEGATIVE_INFINITY as i64, F16DOT16_INFINITY as i64) as F16Dot16
 }
 pub unsafe extern "C" fn otfcc_f1616_add(mut a: F16Dot16, mut b: F16Dot16) -> F16Dot16 {
     return a + b;
@@ -76,17 +76,17 @@ pub unsafe extern "C" fn otfcc_f1616_minus(mut a: F16Dot16, mut b: F16Dot16) -> 
     return a - b;
 }
 pub unsafe extern "C" fn otfcc_f1616_multiply(mut a: F16Dot16, mut b: F16Dot16) -> F16Dot16 {
-    let mut tmp: i64 = a as i64 * b as i64 + f16dot16_k as i64;
-    let mut product: F16Dot16 = clamp(tmp >> f16dot16_precision);
+    let mut tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
+    let mut product: F16Dot16 = clamp(tmp >> F16DOT16_PRECISION);
     return product;
 }
 #[inline]
 unsafe extern "C" fn divide(mut a: i64, b: i32) -> F16Dot16 {
     if b == 0 {
         return if a < 0 {
-            f16dot16_negativeIntinity
+            F16DOT16_NEGATIVE_INFINITY
         } else {
-            f16dot16_infinity
+            F16DOT16_INFINITY
         };
     }
     if (a < 0) != (b < 0) {
@@ -101,9 +101,9 @@ pub unsafe extern "C" fn otfcc_f1616_muldiv(
     mut b: F16Dot16,
     mut c: F16Dot16,
 ) -> F16Dot16 {
-    let mut tmp: i64 = a as i64 * b as i64 + f16dot16_k as i64;
+    let mut tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
     return divide(tmp, c as i32);
 }
 pub unsafe extern "C" fn otfcc_f1616_divide(mut a: F16Dot16, mut b: F16Dot16) -> F16Dot16 {
-    return divide((a as i64) << f16dot16_precision, b as i32);
+    return divide((a as i64) << F16DOT16_PRECISION, b as i32);
 }

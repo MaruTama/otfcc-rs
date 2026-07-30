@@ -23,15 +23,15 @@ pub enum LoggerType {
 // How noisy a message is: `loggerLogSDS` prints it when
 // `verbosity <= self->verbosityLimit`, so these are thresholds on a scale, not
 // members of a set -- and `loggerStart`/`loggerFinish` do arithmetic on one
-// (`log_vl_progress + level`, deeper nesting being more verbose), which an enum
+// (`LOG_VL_PROGRESS + level`, deeper nesting being more verbose), which an enum
 // could not express. So they stay plain integers, typed as the `u8` every
 // logging entry point takes; that is what drops the `as c_int as u8` pair from
 // the 149 call sites.
-pub const log_vl_critical: u8 = 0;
-pub const log_vl_important: u8 = 1;
-pub const log_vl_notice: u8 = 2;
-pub const log_vl_info: u8 = 5;
-pub const log_vl_progress: u8 = 10;
+pub const LOG_VL_CRITICAL: u8 = 0;
+pub const LOG_VL_IMPORTANT: u8 = 1;
+pub const LOG_VL_NOTICE: u8 = 2;
+pub const LOG_VL_INFO: u8 = 5;
+pub const LOG_VL_PROGRESS: u8 = 10;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ILogger {
@@ -102,7 +102,7 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     }
     return 0 as usize;
 }
-pub static otfcc_LoggerTypeNames: [&::core::ffi::CStr; 3] = [
+pub static OTFCC_LOGGER_TYPE_NAMES: [&::core::ffi::CStr; 3] = [
     c"[ERROR]",
     c"[WARNING]",
     c"[NOTE]",
@@ -154,7 +154,7 @@ unsafe extern "C" fn loggerDedent(mut _self: *mut ILogger) {
 unsafe extern "C" fn loggerFinish(mut self_0: *mut ILogger) {
     (*self_0).logSDS.expect("non-null function pointer")(
         self_0 as *mut ILogger,
-        (log_vl_progress as ::core::ffi::c_int
+        (LOG_VL_PROGRESS as ::core::ffi::c_int
             + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
         LoggerType::Progress,
         sdsnew(b"Finish\0" as *const u8 as *const ::core::ffi::c_char),
@@ -171,7 +171,7 @@ unsafe extern "C" fn loggerStart(
     );
     (*self_0).logSDS.expect("non-null function pointer")(
         self_0 as *mut ILogger,
-        (log_vl_progress as ::core::ffi::c_int
+        (LOG_VL_PROGRESS as ::core::ffi::c_int
             + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
         LoggerType::Progress,
         sdsnew(b"Begin\0" as *const u8 as *const ::core::ffi::c_char),
@@ -181,7 +181,7 @@ unsafe extern "C" fn loggerStartSDS(mut self_0: *mut ILogger, mut segment: SdsRa
     (*self_0).indentSDS.expect("non-null function pointer")(self_0 as *mut ILogger, segment);
     (*self_0).logSDS.expect("non-null function pointer")(
         self_0 as *mut ILogger,
-        (log_vl_progress as ::core::ffi::c_int
+        (LOG_VL_PROGRESS as ::core::ffi::c_int
             + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
         LoggerType::Progress,
         sdsnew(b"Begin\0" as *const u8 as *const ::core::ffi::c_char),
@@ -231,7 +231,7 @@ unsafe extern "C" fn loggerLogSDS(
         level = level.wrapping_add(1);
     }
     if (type_0 as ::core::ffi::c_uint) < 3 as ::core::ffi::c_uint {
-        demand = crate::sdsbuild!(demand, otfcc_LoggerTypeNames[type_0 as usize], b" ", Sds(data));
+        demand = crate::sdsbuild!(demand, OTFCC_LOGGER_TYPE_NAMES[type_0 as usize], b" ", Sds(data));
     } else {
         demand = crate::sdsbuild!(demand, Sds(data));
     }

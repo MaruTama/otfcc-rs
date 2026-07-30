@@ -6,14 +6,14 @@ use libc::{exit, free, malloc, memcmp, memset, strlen, strncmp};
 
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-use crate::logger::{LoggerType, log_vl_notice, log_vl_progress, ILogger};
+use crate::logger::{LoggerType, LOG_VL_NOTICE, LOG_VL_PROGRESS, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
 use crate::support::{NULL};
-use crate::table::otl::{Feature, FeaturePtr, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_extend, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gpos_unknown, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_extend, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, otl_type_gsub_unknown, OtlTable};
+use crate::table::otl::{Feature, FeaturePtr, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
@@ -212,15 +212,15 @@ unsafe extern "C" fn _build_lookup(
     mut preferExtensionForThisLUT: *mut bool,
     mut heuristics: BuildHeuristics,
 ) -> TableId {
-    if (*lookup).type_0 == otl_type_gpos_chaining
-        || (*lookup).type_0 == otl_type_gsub_chaining
+    if (*lookup).type_0 == OTL_TYPE_GPOS_CHAINING
+        || (*lookup).type_0 == OTL_TYPE_GSUB_CHAINING
     {
         return otfcc_classifiedBuildChaining(lookup, subtables, lastOffset);
     }
     let mut written: TableId = 0 as TableId;
     if written == 0 {
         written = _declare_lookup_writer(
-            otl_type_gsub_single,
+            OTL_TYPE_GSUB_SINGLE,
             Some(
                 otfcc_build_gsub_single_subtable
                     as unsafe extern "C" fn(
@@ -237,7 +237,7 @@ unsafe extern "C" fn _build_lookup(
     }
     if written == 0 {
         written = _declare_lookup_writer_split(
-            otl_type_gsub_multiple,
+            OTL_TYPE_GSUB_MULTIPLE,
             Some(
                 otfcc_build_gsub_multi_subtable_split
                     as unsafe extern "C" fn(
@@ -255,7 +255,7 @@ unsafe extern "C" fn _build_lookup(
     }
     if written == 0 {
         written = _declare_lookup_writer_split(
-            otl_type_gsub_alternate,
+            OTL_TYPE_GSUB_ALTERNATE,
             Some(
                 otfcc_build_gsub_multi_subtable_split
                     as unsafe extern "C" fn(
@@ -273,7 +273,7 @@ unsafe extern "C" fn _build_lookup(
     }
     if written == 0 {
         written = _declare_lookup_writer(
-            otl_type_gsub_ligature,
+            OTL_TYPE_GSUB_LIGATURE,
             Some(
                 otfcc_build_gsub_ligature_subtable
                     as unsafe extern "C" fn(
@@ -290,7 +290,7 @@ unsafe extern "C" fn _build_lookup(
     }
     if written == 0 {
         written = _declare_lookup_writer(
-            otl_type_gsub_reverse,
+            OTL_TYPE_GSUB_REVERSE,
             Some(
                 otfcc_build_gsub_reverse
                     as unsafe extern "C" fn(
@@ -307,7 +307,7 @@ unsafe extern "C" fn _build_lookup(
     }
     if written == 0 {
         written = _declare_lookup_writer(
-            otl_type_gpos_single,
+            OTL_TYPE_GPOS_SINGLE,
             Some(
                 otfcc_build_gpos_single
                     as unsafe extern "C" fn(
@@ -324,7 +324,7 @@ unsafe extern "C" fn _build_lookup(
     }
     if written == 0 {
         written = _declare_lookup_writer(
-            otl_type_gpos_pair,
+            OTL_TYPE_GPOS_PAIR,
             Some(
                 otfcc_build_gpos_pair
                     as unsafe extern "C" fn(
@@ -341,7 +341,7 @@ unsafe extern "C" fn _build_lookup(
     }
     if written == 0 {
         written = _declare_lookup_writer(
-            otl_type_gpos_cursive,
+            OTL_TYPE_GPOS_CURSIVE,
             Some(
                 otfcc_build_gpos_cursive
                     as unsafe extern "C" fn(
@@ -358,7 +358,7 @@ unsafe extern "C" fn _build_lookup(
     }
     if written == 0 {
         written = _declare_lookup_writer(
-            otl_type_gpos_markToBase,
+            OTL_TYPE_GPOS_MARK_TO_BASE,
             Some(
                 otfcc_build_gpos_markToSingle
                     as unsafe extern "C" fn(
@@ -375,7 +375,7 @@ unsafe extern "C" fn _build_lookup(
     }
     if written == 0 {
         written = _declare_lookup_writer(
-            otl_type_gpos_markToMark,
+            OTL_TYPE_GPOS_MARK_TO_MARK,
             Some(
                 otfcc_build_gpos_markToSingle
                     as unsafe extern "C" fn(
@@ -392,7 +392,7 @@ unsafe extern "C" fn _build_lookup(
     }
     if written == 0 {
         written = _declare_lookup_writer(
-            otl_type_gpos_markToLigature,
+            OTL_TYPE_GPOS_MARK_TO_LIGATURE,
             Some(
                 otfcc_build_gpos_markToLigature
                     as unsafe extern "C" fn(
@@ -414,7 +414,7 @@ unsafe extern "C" fn getLookupHeuristics(
     mut lut: *const Lookup,
 ) -> BuildHeuristics {
     let mut heu: BuildHeuristics = BuildHeuristics::empty();
-    if (*lut).type_0 == otl_type_gsub_single
+    if (*lut).type_0 == OTL_TYPE_GSUB_SINGLE
     {
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*table).features.length {
@@ -466,7 +466,7 @@ unsafe extern "C" fn writeOTLLookups(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_progress,
+            LOG_VL_PROGRESS,
             LoggerType::Progress,
             crate::sdsbuild!(
                 sdsempty(),
@@ -511,7 +511,7 @@ unsafe extern "C" fn writeOTLLookups(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_notice,
+                LOG_VL_NOTICE,
                 LoggerType::Info,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -531,7 +531,7 @@ unsafe extern "C" fn writeOTLLookups(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_notice,
+                LOG_VL_NOTICE,
                 LoggerType::Info,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -547,10 +547,10 @@ unsafe extern "C" fn writeOTLLookups(
         // table's base taken back off -- `LookupType::file_format`, the
         // same nested comparison C spelled out here and again below.
         let mut lookupType: u16 = (if useExtendedForIt {
-            if (*lookup_0).type_0 > otl_type_gpos_unknown {
-                otl_type_gpos_extend.file_format()
-            } else if (*lookup_0).type_0 > otl_type_gsub_unknown {
-                otl_type_gsub_extend.file_format()
+            if (*lookup_0).type_0 > OTL_TYPE_GPOS_UNKNOWN {
+                OTL_TYPE_GPOS_EXTEND.file_format()
+            } else if (*lookup_0).type_0 > OTL_TYPE_GSUB_UNKNOWN {
+                OTL_TYPE_GSUB_EXTEND.file_format()
             } else {
                 0
             }

@@ -193,7 +193,7 @@ unsafe extern "C" fn pos_t_init(mut x: *mut Pos) {
         ::core::mem::size_of::<Pos>() as usize,
     );
 }
-pub static vq_iPosT: PosElementInterface = {
+pub static VQ_I_POS_T: PosElementInterface = {
     PosElementInterface {
         init: Some(pos_t_init as unsafe extern "C" fn(*mut Pos) -> ()),
         copy: Some(pos_t_copy as unsafe extern "C" fn(*mut Pos, *const Pos) -> ()),
@@ -252,8 +252,8 @@ unsafe extern "C" fn VV_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if vq_iPosT.dispose.is_some() {
-                vq_iPosT.dispose.expect("non-null function pointer")(
+            if VQ_I_POS_T.dispose.is_some() {
+                VQ_I_POS_T.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut Pos,
                 );
             } else {
@@ -265,8 +265,8 @@ unsafe extern "C" fn VV_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn VV_disposeItem(mut arr: *mut VV, mut n: usize) {
-    if vq_iPosT.dispose.is_some() {
-        vq_iPosT.dispose.expect("non-null function pointer")(
+    if VQ_I_POS_T.dispose.is_some() {
+        VQ_I_POS_T.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut Pos
         );
     } else {
@@ -291,8 +291,8 @@ unsafe extern "C" fn VV_sort(
 unsafe extern "C" fn VV_fill(mut arr: *mut VV, mut n: usize) {
     while (*arr).length < n {
         let mut x: Pos = 0.;
-        if vq_iPosT.init.is_some() {
-            vq_iPosT.init.expect("non-null function pointer")(&raw mut x);
+        if VQ_I_POS_T.init.is_some() {
+            VQ_I_POS_T.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -320,10 +320,10 @@ unsafe extern "C" fn VV_copy(mut dst: *mut VV, mut src: *const VV) {
     VV_init(dst);
     VV_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if vq_iPosT.copy.is_some() {
+    if VQ_I_POS_T.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            vq_iPosT.copy.expect("non-null function pointer")(
+            VQ_I_POS_T.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut Pos,
                 (*src).items.offset(j as isize) as *mut Pos as *const Pos,
             );
@@ -347,7 +347,7 @@ unsafe extern "C" fn VV_dispose(mut arr: *mut VV) {
     if arr.is_null() {
         return;
     }
-    if vq_iPosT.dispose.is_some() {
+    if VQ_I_POS_T.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -355,7 +355,7 @@ unsafe extern "C" fn VV_dispose(mut arr: *mut VV) {
             if !(fresh1 != 0) {
                 break;
             }
-            vq_iPosT.dispose.expect("non-null function pointer")(
+            VQ_I_POS_T.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut Pos
             );
         }
@@ -417,7 +417,7 @@ unsafe extern "C" fn createNeutralVV(mut dimensions: TableId) -> VV {
         capacity: 0,
         items: ::core::ptr::null_mut::<Pos>(),
     };
-    iVV.initN.expect("non-null function pointer")(&raw mut vv, dimensions as usize);
+    I_VV.initN.expect("non-null function pointer")(&raw mut vv, dimensions as usize);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < dimensions as ::core::ffi::c_int {
         *vv.items.offset(j as isize) = 0 as ::core::ffi::c_int as Pos;
@@ -425,7 +425,7 @@ unsafe extern "C" fn createNeutralVV(mut dimensions: TableId) -> VV {
     }
     return vv;
 }
-pub static iVV: VvVectorInterface = {
+pub static I_VV: VvVectorInterface = {
     VvVectorInterface {
         init: Some(VV_init as unsafe extern "C" fn(*mut VV) -> ()),
         copy: Some(VV_copy as unsafe extern "C" fn(*mut VV, *const VV) -> ()),
@@ -546,7 +546,7 @@ unsafe extern "C" fn vqsCreateStill(mut x: Pos) -> VqSegment {
         type_0: VQSegType::Still,
         val: VqSegmentValue { still: 0. },
     };
-    vq_iSegment.init.expect("non-null function pointer")(&raw mut vqs);
+    VQ_I_SEGMENT.init.expect("non-null function pointer")(&raw mut vqs);
     vqs.val.still = x;
     return vqs;
 }
@@ -555,7 +555,7 @@ unsafe extern "C" fn vqsCreateDelta(mut delta: Pos, mut region: *mut VqRegion) -
         type_0: VQSegType::Still,
         val: VqSegmentValue { still: 0. },
     };
-    vq_iSegment.init.expect("non-null function pointer")(&raw mut vqs);
+    VQ_I_SEGMENT.init.expect("non-null function pointer")(&raw mut vqs);
     vqs.type_0 = VQSegType::Delta;
     vqs.val.delta.quantity = delta;
     vqs.val.delta.region = region;
@@ -643,7 +643,7 @@ unsafe extern "C" fn showVQS(x: VqSegment) {
 unsafe extern "C" fn vq_Segment_show(a: VqSegment) {
     return showVQS(a);
 }
-pub static vq_iSegment: VqSegmentElementInterface = {
+pub static VQ_I_SEGMENT: VqSegmentElementInterface = {
     VqSegmentElementInterface {
         init: Some(vq_Segment_init as unsafe extern "C" fn(*mut VqSegment) -> ()),
         copy: Some(
@@ -721,8 +721,8 @@ unsafe extern "C" fn vq_SegList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if vq_iSegment.dispose.is_some() {
-                vq_iSegment.dispose.expect("non-null function pointer")(
+            if VQ_I_SEGMENT.dispose.is_some() {
+                VQ_I_SEGMENT.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut VqSegment,
                 );
             } else {
@@ -734,8 +734,8 @@ unsafe extern "C" fn vq_SegList_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn vq_SegList_disposeItem(mut arr: *mut VqSegList, mut n: usize) {
-    if vq_iSegment.dispose.is_some() {
-        vq_iSegment.dispose.expect("non-null function pointer")(
+    if VQ_I_SEGMENT.dispose.is_some() {
+        VQ_I_SEGMENT.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut VqSegment
         );
     } else {
@@ -767,8 +767,8 @@ unsafe extern "C" fn vq_SegList_fill(mut arr: *mut VqSegList, mut n: usize) {
             type_0: VQSegType::Still,
             val: VqSegmentValue { still: 0. },
         };
-        if vq_iSegment.init.is_some() {
-            vq_iSegment.init.expect("non-null function pointer")(&raw mut x);
+        if VQ_I_SEGMENT.init.is_some() {
+            VQ_I_SEGMENT.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -805,10 +805,10 @@ unsafe extern "C" fn vq_SegList_copy(mut dst: *mut VqSegList, mut src: *const Vq
     vq_SegList_init(dst);
     vq_SegList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if vq_iSegment.copy.is_some() {
+    if VQ_I_SEGMENT.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            vq_iSegment.copy.expect("non-null function pointer")(
+            VQ_I_SEGMENT.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut VqSegment,
                 (*src).items.offset(j as isize) as *mut VqSegment as *const VqSegment,
             );
@@ -827,7 +827,7 @@ unsafe extern "C" fn vq_SegList_dispose(mut arr: *mut VqSegList) {
     if arr.is_null() {
         return;
     }
-    if vq_iSegment.dispose.is_some() {
+    if VQ_I_SEGMENT.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh3 = j;
@@ -835,7 +835,7 @@ unsafe extern "C" fn vq_SegList_dispose(mut arr: *mut VqSegList) {
             if !(fresh3 != 0) {
                 break;
             }
-            vq_iSegment.dispose.expect("non-null function pointer")(
+            VQ_I_SEGMENT.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut VqSegment,
             );
         }
@@ -863,7 +863,7 @@ unsafe extern "C" fn vq_SegList_initCapN(mut arr: *mut VqSegList, mut n: usize) 
 unsafe extern "C" fn vq_SegList_growToN(arr: *mut VqSegList, target: usize) {
     cvec_grow_to_n(vq_SegList_as_cvec(arr), target);
 }
-pub static vq_iSegList: VqSegListVectorInterface = {
+pub static VQ_I_SEG_LIST: VqSegListVectorInterface = {
     VqSegListVectorInterface {
         init: Some(vq_SegList_init as unsafe extern "C" fn(*mut VqSegList) -> ()),
         copy: Some(
@@ -941,12 +941,12 @@ unsafe extern "C" fn vq_SegList_create() -> *mut VqSegList {
 #[inline]
 unsafe extern "C" fn vqInit(mut a: *mut VQ) {
     (*a).kernel = 0 as ::core::ffi::c_int as Pos;
-    vq_iSegList.init.expect("non-null function pointer")(&raw mut (*a).shift);
+    VQ_I_SEG_LIST.init.expect("non-null function pointer")(&raw mut (*a).shift);
 }
 #[inline]
 unsafe extern "C" fn vqCopy(mut a: *mut VQ, mut b: *const VQ) {
     (*a).kernel = (*b).kernel;
-    vq_iSegList.copy.expect("non-null function pointer")(
+    VQ_I_SEG_LIST.copy.expect("non-null function pointer")(
         &raw mut (*a).shift,
         &raw const (*b).shift,
     );
@@ -954,7 +954,7 @@ unsafe extern "C" fn vqCopy(mut a: *mut VQ, mut b: *const VQ) {
 #[inline]
 unsafe extern "C" fn vqDispose(mut a: *mut VQ) {
     (*a).kernel = 0 as ::core::ffi::c_int as Pos;
-    vq_iSegList.dispose.expect("non-null function pointer")(&raw mut (*a).shift);
+    VQ_I_SEG_LIST.dispose.expect("non-null function pointer")(&raw mut (*a).shift);
 }
 #[inline]
 unsafe extern "C" fn VQ_dispose(mut x: *mut VQ) {
@@ -1018,7 +1018,7 @@ unsafe extern "C" fn VQ_replace(mut dst: *mut VQ, src: VQ) {
     );
 }
 unsafe extern "C" fn vqNeutral() -> VQ {
-    return iVQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+    return I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
 }
 unsafe extern "C" fn vqsCompatible(a: VqSegment, b: VqSegment) -> bool {
     if a.type_0 as ::core::ffi::c_uint != b.type_0 as ::core::ffi::c_uint {
@@ -1038,9 +1038,9 @@ unsafe extern "C" fn simplifyVq(mut x: *mut VQ) {
     if (*x).shift.length == 0 {
         return;
     }
-    vq_iSegList.sort.expect("non-null function pointer")(
+    VQ_I_SEG_LIST.sort.expect("non-null function pointer")(
         &raw mut (*x).shift,
-        vq_iSegment.compareRef,
+        VQ_I_SEGMENT.compareRef,
     );
     let mut k: usize = 0 as usize;
     let mut j: usize = 1 as usize;
@@ -1060,7 +1060,7 @@ unsafe extern "C" fn simplifyVq(mut x: *mut VQ) {
                 }
                 _ => {}
             }
-            vq_iSegment.dispose.expect("non-null function pointer")(
+            VQ_I_SEGMENT.dispose.expect("non-null function pointer")(
                 (*x).shift.items.offset(j as isize) as *mut VqSegment,
             );
         } else {
@@ -1084,8 +1084,8 @@ unsafe extern "C" fn vqInplacePlus(mut a: *mut VQ, b: VQ) {
                 type_0: VQSegType::Still,
                 val: VqSegmentValue { still: 0. },
             };
-            vq_iSegment.copy.expect("non-null function pointer")(&raw mut s, k);
-            vq_iSegList.push.expect("non-null function pointer")(&raw mut (*a).shift, s);
+            VQ_I_SEGMENT.copy.expect("non-null function pointer")(&raw mut s, k);
+            VQ_I_SEG_LIST.push.expect("non-null function pointer")(&raw mut (*a).shift, s);
         }
         p = p.wrapping_add(1);
     }
@@ -1224,7 +1224,7 @@ unsafe extern "C" fn showVQ(x: VQ) {
         if j != 0 {
             fprintf(stderr, b" \0" as *const u8 as *const ::core::ffi::c_char);
         }
-        vq_iSegment.show.expect("non-null function pointer")(*x.shift.items.offset(j as isize));
+        VQ_I_SEGMENT.show.expect("non-null function pointer")(*x.shift.items.offset(j as isize));
         j = j.wrapping_add(1);
     }
     fprintf(stderr, b"}\n\0" as *const u8 as *const ::core::ffi::c_char);
@@ -1256,7 +1256,7 @@ unsafe extern "C" fn vqCreateStill(mut x: Pos) -> VQ {
             items: ::core::ptr::null_mut::<VqSegment>(),
         },
     };
-    iVQ.init.expect("non-null function pointer")(&raw mut vq);
+    I_VQ.init.expect("non-null function pointer")(&raw mut vq);
     vq.kernel = x;
     return vq;
 }
@@ -1292,15 +1292,15 @@ unsafe extern "C" fn vqAddDelta(
     nudge.val.delta.region = r;
     nudge.val.delta.touched = touched;
     nudge.val.delta.quantity = quantity;
-    vq_iSegList.push.expect("non-null function pointer")(&raw mut (*v).shift, nudge);
+    VQ_I_SEG_LIST.push.expect("non-null function pointer")(&raw mut (*v).shift, nudge);
 }
 unsafe extern "C" fn vqPointLinearTfm(ax: VQ, mut a: Pos, x: VQ, mut b: Pos, y: VQ) -> VQ {
-    let mut targetX: VQ = iVQ.dup.expect("non-null function pointer")(ax);
-    iVQ.inplacePlusScale.expect("non-null function pointer")(&raw mut targetX, a as Scale, x);
-    iVQ.inplacePlusScale.expect("non-null function pointer")(&raw mut targetX, b as Scale, y);
+    let mut targetX: VQ = I_VQ.dup.expect("non-null function pointer")(ax);
+    I_VQ.inplacePlusScale.expect("non-null function pointer")(&raw mut targetX, a as Scale, x);
+    I_VQ.inplacePlusScale.expect("non-null function pointer")(&raw mut targetX, b as Scale, y);
     return targetX;
 }
-pub static iVQ: VqVectorInterface = {
+pub static I_VQ: VqVectorInterface = {
     VqVectorInterface {
         init: Some(VQ_init as unsafe extern "C" fn(*mut VQ) -> ()),
         copy: Some(VQ_copy as unsafe extern "C" fn(*mut VQ, *const VQ) -> ()),

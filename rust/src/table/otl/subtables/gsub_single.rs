@@ -22,7 +22,7 @@ use crate::vendor::uthash::{UtHashHandle};
 use crate::support::{ComparFn};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Block};
-use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new};
 use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
@@ -55,7 +55,7 @@ unsafe extern "C" fn gss_entry_dtor(mut entry: *mut GsubSingleEntry) {
     otfcc_Handle_dispose(&raw mut (*entry).from);
     otfcc_Handle_dispose(&raw mut (*entry).to);
 }
-static gss_typeinfo: GsubSingleEntryElementInterface = {
+static GSS_TYPEINFO: GsubSingleEntryElementInterface = {
     GsubSingleEntryElementInterface {
         init: Some(gss_entry_ctor as unsafe extern "C" fn(*mut GsubSingleEntry) -> ()),
         copy: Some(
@@ -96,8 +96,8 @@ unsafe extern "C" fn subtable_gsub_single_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if gss_typeinfo.dispose.is_some() {
-                gss_typeinfo.dispose.expect("non-null function pointer")(
+            if GSS_TYPEINFO.dispose.is_some() {
+                GSS_TYPEINFO.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut GsubSingleEntry,
                 );
             } else {
@@ -107,7 +107,7 @@ unsafe extern "C" fn subtable_gsub_single_filterEnv(
     }
     (*arr).length = j;
 }
-pub static iSubtable_gsub_single: GsubSingleSubtableVectorInterface = {
+pub static I_SUBTABLE_GSUB_SINGLE: GsubSingleSubtableVectorInterface = {
     GsubSingleSubtableVectorInterface {
         init: Some(
             subtable_gsub_single_init as unsafe extern "C" fn(*mut GsubSingleSubtable) -> (),
@@ -213,8 +213,8 @@ unsafe extern "C" fn subtable_gsub_single_disposeItem(
     mut arr: *mut GsubSingleSubtable,
     mut n: usize,
 ) {
-    if gss_typeinfo.dispose.is_some() {
-        gss_typeinfo.dispose.expect("non-null function pointer")(
+    if GSS_TYPEINFO.dispose.is_some() {
+        GSS_TYPEINFO.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut GsubSingleEntry
         );
     } else {
@@ -260,8 +260,8 @@ unsafe extern "C" fn subtable_gsub_single_fill(mut arr: *mut GsubSingleSubtable,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
         };
-        if gss_typeinfo.init.is_some() {
-            gss_typeinfo.init.expect("non-null function pointer")(&raw mut x);
+        if GSS_TYPEINFO.init.is_some() {
+            GSS_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -304,10 +304,10 @@ unsafe extern "C" fn subtable_gsub_single_copy(
     subtable_gsub_single_init(dst);
     subtable_gsub_single_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if gss_typeinfo.copy.is_some() {
+    if GSS_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            gss_typeinfo.copy.expect("non-null function pointer")(
+            GSS_TYPEINFO.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut GsubSingleEntry,
                 (*src).items.offset(j as isize) as *mut GsubSingleEntry
                     as *const GsubSingleEntry,
@@ -327,7 +327,7 @@ unsafe extern "C" fn subtable_gsub_single_dispose(mut arr: *mut GsubSingleSubtab
     if arr.is_null() {
         return;
     }
-    if gss_typeinfo.dispose.is_some() {
+    if GSS_TYPEINFO.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -335,7 +335,7 @@ unsafe extern "C" fn subtable_gsub_single_dispose(mut arr: *mut GsubSingleSubtab
             if !(fresh1 != 0) {
                 break;
             }
-            gss_typeinfo.dispose.expect("non-null function pointer")(
+            GSS_TYPEINFO.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut GsubSingleEntry,
             );
         }
@@ -417,7 +417,7 @@ pub unsafe extern "C" fn otl_read_gsub_single(
     let mut current_block: u64;
     let mut subtable: *mut GsubSingleSubtable =
         (
-            iSubtable_gsub_single
+            I_SUBTABLE_GSUB_SINGLE
                 .create
                 .expect("non-null function pointer"))();
     let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -504,7 +504,7 @@ pub unsafe extern "C" fn otl_read_gsub_single(
                 _ => {
                     let mut j_1: GlyphId = 0 as GlyphId;
                     while (j_1 as ::core::ffi::c_int) < (*from).numGlyphs as ::core::ffi::c_int {
-                        iSubtable_gsub_single
+                        I_SUBTABLE_GSUB_SINGLE
                             .push
                             .expect("non-null function pointer")(
                             subtable,
@@ -530,7 +530,7 @@ pub unsafe extern "C" fn otl_read_gsub_single(
             }
         }
     }
-    iSubtable_gsub_single
+    I_SUBTABLE_GSUB_SINGLE
         .free
         .expect("non-null function pointer")(subtable);
     if !from.is_null() {
@@ -565,7 +565,7 @@ pub unsafe extern "C" fn otl_gsub_parse_single(
 ) -> *mut Subtable {
     let mut subtable: *mut GsubSingleSubtable =
         (
-            iSubtable_gsub_single
+            I_SUBTABLE_GSUB_SINGLE
                 .create
                 .expect("non-null function pointer"))();
     let mut j: GlyphId = 0 as GlyphId;
@@ -594,7 +594,7 @@ pub unsafe extern "C" fn otl_gsub_parse_single(
                         .string
                         .length as usize,
                 )) as GlyphHandle;
-            iSubtable_gsub_single
+            I_SUBTABLE_GSUB_SINGLE
                 .push
                 .expect("non-null function pointer")(
                 subtable,
@@ -646,7 +646,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut coverageBuf: *mut Buffer = otl_iCoverage
+    let mut coverageBuf: *mut Buffer = OTL_I_COVERAGE
         .buildFormat
         .expect("non-null function pointer")(
         cov,

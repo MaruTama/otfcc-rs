@@ -19,7 +19,7 @@ use crate::table::otl::{GsubReverseSubtableElementInterface, Subtable, GsubRever
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Block};
-use crate::table::otl::coverage::{otl_iCoverage};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 
 #[inline]
@@ -54,7 +54,7 @@ unsafe extern "C" fn subtable_gsub_reverse_free(mut x: *mut GsubReverseSubtable)
     subtable_gsub_reverse_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-pub static iSubtable_gsub_reverse: GsubReverseSubtableElementInterface = {
+pub static I_SUBTABLE_GSUB_REVERSE: GsubReverseSubtableElementInterface = {
     GsubReverseSubtableElementInterface {
         init: Some(
             subtable_gsub_reverse_init as unsafe extern "C" fn(*mut GsubReverseSubtable) -> (),
@@ -176,7 +176,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
     let mut nReplacement: TableId = 0;
     let mut subtable: *mut GsubReverseSubtable =
         (
-            iSubtable_gsub_reverse
+            I_SUBTABLE_GSUB_REVERSE
                 .create
                 .expect("non-null function pointer"))();
     if !(tableLength < offset.wrapping_add(6 as u32)) {
@@ -327,7 +327,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
             }
         }
     }
-    iSubtable_gsub_reverse
+    I_SUBTABLE_GSUB_REVERSE
         .free
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
@@ -342,7 +342,7 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
     while (j as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
         json_array_push(
             _match,
-            otl_iCoverage.dump.expect("non-null function pointer")(
+            OTL_I_COVERAGE.dump.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j as isize),
             ),
         );
@@ -356,7 +356,7 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
     json_object_push(
         _st,
         b"to\0" as *const u8 as *const ::core::ffi::c_char,
-        otl_iCoverage.dump.expect("non-null function pointer")((*subtable).to),
+        OTL_I_COVERAGE.dump.expect("non-null function pointer")((*subtable).to),
     );
     json_object_push(
         _st,
@@ -384,7 +384,7 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
     }
     let mut subtable: *mut GsubReverseSubtable =
         (
-            iSubtable_gsub_reverse
+            I_SUBTABLE_GSUB_REVERSE
                 .create
                 .expect("non-null function pointer"))();
     (*subtable).matchCount = (*_match).u.array.length as TableId;
@@ -401,12 +401,12 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
         let ref mut fresh5 = *(*subtable).match_0.offset(j as isize);
-        *fresh5 = otl_iCoverage.parse.expect("non-null function pointer")(
+        *fresh5 = OTL_I_COVERAGE.parse.expect("non-null function pointer")(
             *(*_match).u.array.values.offset(j as isize),
         );
         j = j.wrapping_add(1);
     }
-    (*subtable).to = otl_iCoverage.parse.expect("non-null function pointer")(_to);
+    (*subtable).to = OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to);
     return subtable as *mut Subtable;
 }
 pub unsafe extern "C" fn otfcc_build_gsub_reverse(
@@ -415,13 +415,13 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
 ) -> *mut Buffer {
     let mut subtable: *const GsubReverseSubtable = &raw const (*_subtable).gsub_reverse;
     reverseBacktracks((*subtable).match_0, (*subtable).inputIndex);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             *(*subtable).match_0.offset((*subtable).inputIndex as isize),
         )))]);
     bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).inputIndex as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).inputIndex as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j as isize),
             )))]);
         j = j.wrapping_add(1);
@@ -432,7 +432,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
     let mut j_0: TableId =
         ((*subtable).inputIndex as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
     while (j_0 as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j_0 as isize),
             )))]);
         j_0 = j_0.wrapping_add(1);

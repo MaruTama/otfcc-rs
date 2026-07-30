@@ -312,7 +312,7 @@ unsafe extern "C" fn buildDict(mut dict: *const CffDict) -> *mut Buffer {
     }
     return blob;
 }
-pub static cff_iDict: CffDictElementInterface = {
+pub static CFF_I_DICT: CffDictElementInterface = {
     CffDictElementInterface {
         init: Some(cff_Dict_init as unsafe extern "C" fn(*mut CffDict) -> ()),
         copy: Some(cff_Dict_copy as unsafe extern "C" fn(*mut CffDict, *const CffDict) -> ()),

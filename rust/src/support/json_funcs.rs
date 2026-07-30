@@ -17,7 +17,7 @@ use crate::vendor::json::{JsonType, JsonValue};
 use crate::vendor::json_builder::{
     json_boolean_new, json_builder_free, json_double_new, json_integer_new, json_measure_ex,
     json_object_new, json_object_push, json_object_push_length, json_serialize_ex,
-    json_serialize_mode_packed, JsonSerializeOpts, json_string_new_nocopy,
+    JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, json_string_new_nocopy,
 };
 use crate::vendor::sds::{SdsRaw, sdsnewlen};
 use libc::{malloc, strcmp};
@@ -290,7 +290,7 @@ pub unsafe fn json_obj_getint_fallback(
 /// serializer copies out as-is rather than descending into.
 pub unsafe fn preserialize(x: *mut JsonValue) -> *mut JsonValue {
     let opts: JsonSerializeOpts = JsonSerializeOpts {
-        mode: json_serialize_mode_packed,
+        mode: JSON_SERIALIZE_MODE_PACKED,
         opts: 0,
         indent_size: 0,
     };

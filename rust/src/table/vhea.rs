@@ -5,7 +5,7 @@ use libc::{free, malloc, memcpy, memset};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_16s, read_32s};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer};
@@ -83,7 +83,7 @@ unsafe extern "C" fn table_vhea_create() -> *mut VheaTable {
 unsafe extern "C" fn table_vhea_init(mut x: *mut VheaTable) {
     initVhea(x);
 }
-pub static table_iVhea: VheaTableElementInterface = {
+pub static TABLE_I_VHEA: VheaTableElementInterface = {
     VheaTableElementInterface {
         init: Some(table_vhea_init as unsafe extern "C" fn(*mut VheaTable) -> ()),
         copy: Some(
@@ -203,7 +203,7 @@ pub unsafe extern "C" fn otfcc_readVhea(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"Table 'vhea' corrupted."),
                         );
@@ -315,7 +315,7 @@ pub unsafe extern "C" fn otfcc_parseVhea(
     );
     if !table.is_null() {
         vhea = (
-            table_iVhea.create.expect("non-null function pointer"))();
+            TABLE_I_VHEA.create.expect("non-null function pointer"))();
         if vhea.is_null() {
             return ::core::ptr::null_mut::<VheaTable>();
         }

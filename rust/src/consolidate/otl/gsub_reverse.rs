@@ -5,7 +5,7 @@ use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, TableId};
@@ -392,7 +392,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -998,7 +998,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),

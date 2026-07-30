@@ -2,7 +2,7 @@
 use libc::{strcmp};
 use crate::table::otl::coverage::shrinkCoverage;
 use crate::support::handle::{HandleState, handle_consolidateTo, Handle, otfcc_Handle_dispose, LookupHandle};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, TableId};
@@ -59,7 +59,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(sdsempty(), b"[Consolidate] Ignoring non-canonical chaining subtable."),
         );
@@ -122,7 +122,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                         "non-null function pointer",
                     )(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -142,7 +142,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),

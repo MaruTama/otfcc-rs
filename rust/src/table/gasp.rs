@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
 use crate::support::binio::{read_16u};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphSize, TableId};
@@ -134,7 +134,7 @@ unsafe extern "C" fn gasp_Record_init(mut x: *mut GaspRecord) {
         ::core::mem::size_of::<GaspRecord>() as usize,
     );
 }
-pub static gasp_iRecord: GaspRecordElementInterface = {
+pub static GASP_I_RECORD: GaspRecordElementInterface = {
     GaspRecordElementInterface {
         init: Some(gasp_Record_init as unsafe extern "C" fn(*mut GaspRecord) -> ()),
         copy: Some(
@@ -193,10 +193,10 @@ unsafe extern "C" fn gasp_RecordList_copy(
     gasp_RecordList_init(dst);
     gasp_RecordList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if gasp_iRecord.copy.is_some() {
+    if GASP_I_RECORD.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            gasp_iRecord.copy.expect("non-null function pointer")(
+            GASP_I_RECORD.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut GaspRecord,
                 (*src).items.offset(j as isize) as *mut GaspRecord as *const GaspRecord,
             );
@@ -215,7 +215,7 @@ unsafe extern "C" fn gasp_RecordList_dispose(mut arr: *mut GaspRecordList) {
     if arr.is_null() {
         return;
     }
-    if gasp_iRecord.dispose.is_some() {
+    if GASP_I_RECORD.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -223,7 +223,7 @@ unsafe extern "C" fn gasp_RecordList_dispose(mut arr: *mut GaspRecordList) {
             if !(fresh1 != 0) {
                 break;
             }
-            gasp_iRecord.dispose.expect("non-null function pointer")(
+            GASP_I_RECORD.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut GaspRecord,
             );
         }
@@ -309,8 +309,8 @@ unsafe extern "C" fn gasp_RecordList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if gasp_iRecord.dispose.is_some() {
-                gasp_iRecord.dispose.expect("non-null function pointer")(
+            if GASP_I_RECORD.dispose.is_some() {
+                GASP_I_RECORD.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut GaspRecord,
                 );
             } else {
@@ -320,7 +320,7 @@ unsafe extern "C" fn gasp_RecordList_filterEnv(
     }
     (*arr).length = j;
 }
-pub static gasp_iRecordList: GaspRecordListVectorInterface = {
+pub static GASP_I_RECORD_LIST: GaspRecordListVectorInterface = {
     GaspRecordListVectorInterface {
         init: Some(gasp_RecordList_init as unsafe extern "C" fn(*mut GaspRecordList) -> ()),
         copy: Some(
@@ -391,8 +391,8 @@ pub static gasp_iRecordList: GaspRecordListVectorInterface = {
 };
 #[inline]
 unsafe extern "C" fn gasp_RecordList_disposeItem(mut arr: *mut GaspRecordList, mut n: usize) {
-    if gasp_iRecord.dispose.is_some() {
-        gasp_iRecord.dispose.expect("non-null function pointer")(
+    if GASP_I_RECORD.dispose.is_some() {
+        GASP_I_RECORD.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut GaspRecord
         );
     } else {
@@ -427,8 +427,8 @@ unsafe extern "C" fn gasp_RecordList_fill(mut arr: *mut GaspRecordList, mut n: u
             symmetric_smoothing: false,
             symmetric_gridfit: false,
         };
-        if gasp_iRecord.init.is_some() {
-            gasp_iRecord.init.expect("non-null function pointer")(&raw mut x);
+        if GASP_I_RECORD.init.is_some() {
+            GASP_I_RECORD.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -446,11 +446,11 @@ unsafe extern "C" fn gasp_RecordList_push(arr: *mut GaspRecordList, elem: GaspRe
 #[inline]
 unsafe extern "C" fn initGasp(mut gasp: *mut GaspTable) {
     (*gasp).version = 1 as u16;
-    gasp_iRecordList.init.expect("non-null function pointer")(&raw mut (*gasp).records);
+    GASP_I_RECORD_LIST.init.expect("non-null function pointer")(&raw mut (*gasp).records);
 }
 #[inline]
 unsafe extern "C" fn disposeGasp(mut gasp: *mut GaspTable) {
-    gasp_iRecordList.dispose.expect("non-null function pointer")(&raw mut (*gasp).records);
+    GASP_I_RECORD_LIST.dispose.expect("non-null function pointer")(&raw mut (*gasp).records);
 }
 #[inline]
 unsafe extern "C" fn table_gasp_create() -> *mut GaspTable {
@@ -498,7 +498,7 @@ unsafe extern "C" fn table_gasp_copyReplace(mut dst: *mut GaspTable, src: GaspTa
     table_gasp_dispose(dst);
     table_gasp_copy(dst, &raw const src);
 }
-pub static table_iGasp: GaspTableElementInterface = {
+pub static TABLE_I_GASP: GaspTableElementInterface = {
     GaspTableElementInterface {
         init: Some(table_gasp_init as unsafe extern "C" fn(*mut GaspTable) -> ()),
         copy: Some(
@@ -548,7 +548,7 @@ pub unsafe extern "C" fn otfcc_readGasp(
                     let mut length: u32 = table.length;
                     if !(length < 4 as u32) {
                         gasp = (
-                            table_iGasp.create.expect("non-null function pointer"))();
+                            TABLE_I_GASP.create.expect("non-null function pointer"))();
                         (*gasp).version = read_16u(data as *const u8);
                         numRanges = read_16u(
                             data.offset(2 as ::core::ffi::c_int as isize) as *const u8
@@ -590,7 +590,7 @@ pub unsafe extern "C" fn otfcc_readGasp(
                                 record.symmetric_gridfit = rangeGaspBehavior as ::core::ffi::c_int
                                     & GASP_SYMMETRIC_GRIDFIT
                                     != 0;
-                                gasp_iRecordList.push.expect("non-null function pointer")(
+                                GASP_I_RECORD_LIST.push.expect("non-null function pointer")(
                                     &raw mut (*gasp).records,
                                     record,
                                 );
@@ -603,11 +603,11 @@ pub unsafe extern "C" fn otfcc_readGasp(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'gasp' corrupted.\n"),
                     );
-                    table_iGasp.free.expect("non-null function pointer")(gasp);
+                    TABLE_I_GASP.free.expect("non-null function pointer")(gasp);
                     gasp = ::core::ptr::null_mut::<GaspTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -712,7 +712,7 @@ pub unsafe extern "C" fn otfcc_parseGasp(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             gasp = (
-                table_iGasp.create.expect("non-null function pointer"))();
+                TABLE_I_GASP.create.expect("non-null function pointer"))();
             let mut j: u16 = 0 as u16;
             while (j as ::core::ffi::c_uint) < (*table).u.array.length {
                 let mut r: *mut JsonValue =
@@ -746,7 +746,7 @@ pub unsafe extern "C" fn otfcc_parseGasp(
                         r,
                         b"symmetric_gridfit\0" as *const u8 as *const ::core::ffi::c_char,
                     );
-                    gasp_iRecordList.push.expect("non-null function pointer")(
+                    GASP_I_RECORD_LIST.push.expect("non-null function pointer")(
                         &raw mut (*gasp).records,
                         record,
                     );

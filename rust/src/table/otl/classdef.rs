@@ -2996,7 +2996,7 @@ pub(crate) unsafe extern "C" fn shrinkClassDef(mut cd: *mut ClassDef) {
     }
     (*cd).numGlyphs = k;
 }
-pub static otl_iClassDef: IClassDef = {
+pub static OTL_I_CLASS_DEF: IClassDef = {
     IClassDef {
         init: Some(otl_ClassDef_init as unsafe extern "C" fn(*mut ClassDef) -> ()),
         copy: Some(

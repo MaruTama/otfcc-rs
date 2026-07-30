@@ -5,7 +5,7 @@ use libc::{exit, free, malloc, memcmp, memset};
 use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -43,8 +43,8 @@ use crate::table::otl::subtables::gsub_single::{GsubSingleMapHash};
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
-use crate::table::otl::subtables::gsub_single::{iSubtable_gsub_single};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::table::otl::subtables::gsub_single::{I_SUBTABLE_GSUB_SINGLE};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
@@ -66,7 +66,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
     let mut h: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
     let mut k: usize = 0 as usize;
     while k < (*subtable).length {
-        if !otfcc_pkgGlyphOrder
+        if !OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")(
             (*font).glyph_order,
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                     b".\n",
                 ),
             );
-        } else if !otfcc_pkgGlyphOrder
+        } else if !OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")(
             (*font).glyph_order,
@@ -95,7 +95,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -424,7 +424,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1038,7 +1038,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -1046,7 +1046,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             ),
         );
     }
-    iSubtable_gsub_single
+    I_SUBTABLE_GSUB_SINGLE
         .clear
         .expect("non-null function pointer")(subtable);
     let mut s_0: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
@@ -1055,7 +1055,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut GsubSingleMapHash
         as *mut GsubSingleMapHash;
     while !s_0.is_null() {
-        iSubtable_gsub_single
+        I_SUBTABLE_GSUB_SINGLE
             .push
             .expect("non-null function pointer")(
             subtable,

@@ -8,7 +8,7 @@
 //! separately in each of the two binaries.
 //!
 //! The binaries are separate crates, so they reach this as
-//! `otfcc_rust::support::getopt::{LongOption, no_argument, required_argument}`.
+//! `otfcc_rust::support::getopt::{LongOption, NO_ARGUMENT, REQUIRED_ARGUMENT}`.
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -19,5 +19,5 @@ pub struct LongOption {
     pub val: ::core::ffi::c_int,
 }
 
-pub const no_argument: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const required_argument: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
+pub const NO_ARGUMENT: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+pub const REQUIRED_ARGUMENT: ::core::ffi::c_int = 1 as ::core::ffi::c_int;

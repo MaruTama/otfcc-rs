@@ -14,7 +14,7 @@ use crate::support::primitives::{Arity, CffSid, FontFilePointer, GlyphId, Pos, S
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::libcff::{CffFile, CffIOutlineBuilder, CffStack, op_BlueFuzz, op_BlueScale, op_BlueShift, op_BlueValues, op_CIDCount, op_CIDFontRevision, op_CIDFontVersion, op_CharStrings, op_Copyright, op_ExpansionFactor, op_FDArray, op_FDSelect, op_FamilyBlues, op_FamilyName, op_FamilyOtherBlues, op_FontBBox, op_FontMatrix, op_FontName, op_ForceBold, op_FullName, op_ItalicAngle, op_LanguageGroup, op_Notice, op_OtherBlues, op_Private, op_ROS, op_StdHW, op_StdVW, op_StemSnapH, op_StemSnapV, op_StrokeWidth, op_Subrs, op_UIDBase, op_UnderlinePosition, op_UnderlineThickness, op_Weight, op_charset, op_defaultWidthX, op_initialRandomSeed, op_isFixedPitch, op_nominalWidthX, op_version};
+use crate::libcff::{CffFile, CffIOutlineBuilder, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_CID_COUNT, OP_CID_FONT_REVISION, OP_CID_FONT_VERSION, OP_CHAR_STRINGS, OP_COPYRIGHT, OP_EXPANSION_FACTOR, OP_FD_ARRAY, OP_FD_SELECT, OP_FAMILY_BLUES, OP_FAMILY_NAME, OP_FAMILY_OTHER_BLUES, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME, OP_FORCE_BOLD, OP_FULL_NAME, OP_ITALIC_ANGLE, OP_LANGUAGE_GROUP, OP_NOTICE, OP_OTHER_BLUES, OP_PRIVATE, OP_ROS, OP_STD_HW, OP_STD_VW, OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH, OP_SUBRS, OP_UID_BASE, OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_WEIGHT, OP_CHARSET, OP_DEFAULT_WIDTH_X, OP_INITIAL_RANDOM_SEED, OP_IS_FIXED_PITCH, OP_NOMINAL_WIDTH_X, OP_VERSION};
 use crate::libcff::cff_charset::{CffCharsetType, CffCharset, CffCharsetRangeFormat2};
 use crate::libcff::cff_dict::{CffDict, CffDictEntry};
 use crate::libcff::cff_fdselect::{CffFdSelectType, CffFdSelect, CffFdSelectRangeFormat3};
@@ -22,7 +22,7 @@ use crate::libcff::cff_index::{CffIndexCountType, CffIndex};
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::charstring_il::{CffCharstringIl, CffCharstringInstruction};
 use crate::libcff::subr::{CffSubrDiagramIndex, CffSubrGraph, CffSubrRule};
-use crate::support::{NULL, false_0, true_0};
+use crate::support::{NULL, FALSE_0, TRUE_0};
 use crate::table::fvar::{FvarTable};
 use crate::table::glyf::{Contour, Glyph, GlyphPtr, MaskList, Point, PostscriptHintMask, PostscriptStemDef, GlyfTable};
 use crate::table::head::{HeadTable};
@@ -33,22 +33,22 @@ use crate::vf::vq::{VQ, VqSegList, VqSegment};
 use crate::support::json_funcs::{json_numof, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds};
 use crate::libcff::cff_charset::{cff_build_Charset};
 use crate::libcff::cff_codecs::{cff_encodeCffOperator};
-use crate::libcff::cff_dict::{cff_iDict};
+use crate::libcff::cff_dict::{CFF_I_DICT};
 use crate::libcff::cff_fdselect::{cff_build_FDSelect, cff_close_FDSelect};
-use crate::libcff::cff_index::{cff_iIndex};
+use crate::libcff::cff_index::{CFF_I_INDEX};
 use crate::libcff::cff_parser::{cff_close, cff_openStream, cff_parseOutline, cff_parseSubr};
 use crate::libcff::cff_string::{sdsget_cff_sid};
 use crate::libcff::cff_value::{cffnum};
 use crate::libcff::cff_writer::{cff_buildHeader, cff_buildOffset};
 use crate::libcff::charstring_il::{cff_compileGlyphToIL, cff_optimizeIL};
-use crate::libcff::subr::{cff_iSubrGraph, cff_ilGraphToBuffers, cff_insertILToGraph};
+use crate::libcff::subr::{CFF_I_SUBR_GRAPH, cff_ilGraphToBuffers, cff_insertILToGraph};
 use crate::support::buffer::{buffree, bufnew, bufwrite_bufdel, bufwrite_sds};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{json_new_VQ};
-use crate::table::glyf::{glyf_iContour, glyf_iContourList, glyf_iMaskList, glyf_iPoint, glyf_iStemDefList, otfcc_newGlyf_glyph, table_iGlyf};
+use crate::table::glyf::{GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_MASK_LIST, GLYF_I_POINT, GLYF_I_STEM_DEF_LIST, otfcc_newGlyf_glyph, TABLE_I_GLYF};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdscat, sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
-use crate::vf::vq::{iVQ};
+use crate::vf::vq::{I_VQ};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -270,8 +270,8 @@ unsafe extern "C" fn disposeFontMatrix(mut fm: *mut CffFontMatrix) {
     if fm.is_null() {
         return;
     }
-    iVQ.dispose.expect("non-null function pointer")(&raw mut (*fm).x);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut (*fm).y);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*fm).x);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*fm).y);
 }
 #[inline]
 unsafe extern "C" fn disposeFD(mut fd: *mut CffTable) {
@@ -291,7 +291,7 @@ unsafe extern "C" fn disposeFD(mut fd: *mut CffTable) {
     if !(*fd).fdArray.is_null() {
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*fd).fdArrayCount as ::core::ffi::c_int {
-            table_iCFF.free.expect("non-null function pointer")(*(*fd).fdArray.offset(j as isize));
+            TABLE_I_CFF.free.expect("non-null function pointer")(*(*fd).fdArray.offset(j as isize));
             j = j.wrapping_add(1);
         }
         free((*fd).fdArray as *mut ::core::ffi::c_void);
@@ -315,7 +315,7 @@ unsafe extern "C" fn table_CFF_replace(mut dst: *mut CffTable, src: CffTable) {
         ::core::mem::size_of::<CffTable>() as usize,
     );
 }
-pub static table_iCFF: CffTableElementInterface = {
+pub static TABLE_I_CFF: CffTableElementInterface = {
     CffTableElementInterface {
         init: Some(table_CFF_init as unsafe extern "C" fn(*mut CffTable) -> ()),
         copy: Some(table_CFF_copy as unsafe extern "C" fn(*mut CffTable, *const CffTable) -> ()),
@@ -658,13 +658,13 @@ unsafe extern "C" fn callback_extract_fd(
                 (*(*meta).fontMatrix).d = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 3 as ::core::ffi::c_int) as isize),
                 ) as Scale;
-                (*(*meta).fontMatrix).x = iVQ.createStill.expect("non-null function pointer")(
+                (*(*meta).fontMatrix).x = I_VQ.createStill.expect("non-null function pointer")(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
                     ) as Pos,
                 );
-                (*(*meta).fontMatrix).y = iVQ.createStill.expect("non-null function pointer")(
+                (*(*meta).fontMatrix).y = I_VQ.createStill.expect("non-null function pointer")(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -716,7 +716,7 @@ unsafe extern "C" fn callback_extract_fd(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) as u32;
                 (*meta).privateDict = otfcc_newCff_private();
-                cff_iDict
+                CFF_I_DICT
                     .parseToCallback
                     .expect("non-null function pointer")(
                     (*file).raw_data.offset(privateOffset as isize),
@@ -762,9 +762,9 @@ unsafe extern "C" fn callback_draw_setwidth(
     mut width: ::core::ffi::c_double,
 ) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    iVQ.replace.expect("non-null function pointer")(
+    I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*(*context).g).advanceWidth,
-        iVQ.createStill.expect("non-null function pointer")(
+        I_VQ.createStill.expect("non-null function pointer")(
             width as Pos + (*context).nominalWidthX as Pos,
         ) as VQ,
     );
@@ -776,8 +776,8 @@ unsafe extern "C" fn callback_draw_next_contour(mut _context: *mut ::core::ffi::
         capacity: 0,
         items: ::core::ptr::null_mut::<Point>(),
     };
-    glyf_iContour.init.expect("non-null function pointer")(&raw mut c);
-    glyf_iContourList.push.expect("non-null function pointer")(
+    GLYF_I_CONTOUR.init.expect("non-null function pointer")(&raw mut c);
+    GLYF_I_CONTOUR_LIST.push.expect("non-null function pointer")(
         &raw mut (*(*context).g).contours,
         c,
     );
@@ -814,17 +814,17 @@ unsafe extern "C" fn callback_draw_lineto(
             },
             onCurve: 0,
         };
-        glyf_iPoint.init.expect("non-null function pointer")(&raw mut z);
-        z.onCurve = true_0 as i8;
-        iVQ.copyReplace.expect("non-null function pointer")(
+        GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut z);
+        z.onCurve = TRUE_0 as i8;
+        I_VQ.copyReplace.expect("non-null function pointer")(
             &raw mut z.x,
-            iVQ.createStill.expect("non-null function pointer")(x1 as Pos) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(x1 as Pos) as VQ,
         );
-        iVQ.copyReplace.expect("non-null function pointer")(
+        I_VQ.copyReplace.expect("non-null function pointer")(
             &raw mut z.y,
-            iVQ.createStill.expect("non-null function pointer")(y1 as Pos) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(y1 as Pos) as VQ,
         );
-        glyf_iContour.push.expect("non-null function pointer")(contour, z);
+        GLYF_I_CONTOUR.push.expect("non-null function pointer")(contour, z);
         (*context).jPoint =
             ((*context).jPoint as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
     }
@@ -863,17 +863,17 @@ unsafe extern "C" fn callback_draw_curveto(
             },
             onCurve: 0,
         };
-        glyf_iPoint.init.expect("non-null function pointer")(&raw mut z);
-        z.onCurve = false_0 as i8;
-        iVQ.copyReplace.expect("non-null function pointer")(
+        GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut z);
+        z.onCurve = FALSE_0 as i8;
+        I_VQ.copyReplace.expect("non-null function pointer")(
             &raw mut z.x,
-            iVQ.createStill.expect("non-null function pointer")(x1 as Pos) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(x1 as Pos) as VQ,
         );
-        iVQ.copyReplace.expect("non-null function pointer")(
+        I_VQ.copyReplace.expect("non-null function pointer")(
             &raw mut z.y,
-            iVQ.createStill.expect("non-null function pointer")(y1 as Pos) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(y1 as Pos) as VQ,
         );
-        glyf_iContour.push.expect("non-null function pointer")(contour, z);
+        GLYF_I_CONTOUR.push.expect("non-null function pointer")(contour, z);
         let mut z_0: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -893,17 +893,17 @@ unsafe extern "C" fn callback_draw_curveto(
             },
             onCurve: 0,
         };
-        glyf_iPoint.init.expect("non-null function pointer")(&raw mut z_0);
-        z_0.onCurve = false_0 as i8;
-        iVQ.copyReplace.expect("non-null function pointer")(
+        GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut z_0);
+        z_0.onCurve = FALSE_0 as i8;
+        I_VQ.copyReplace.expect("non-null function pointer")(
             &raw mut z_0.x,
-            iVQ.createStill.expect("non-null function pointer")(x2 as Pos) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(x2 as Pos) as VQ,
         );
-        iVQ.copyReplace.expect("non-null function pointer")(
+        I_VQ.copyReplace.expect("non-null function pointer")(
             &raw mut z_0.y,
-            iVQ.createStill.expect("non-null function pointer")(y2 as Pos) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(y2 as Pos) as VQ,
         );
-        glyf_iContour.push.expect("non-null function pointer")(contour, z_0);
+        GLYF_I_CONTOUR.push.expect("non-null function pointer")(contour, z_0);
         let mut z_1: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -923,17 +923,17 @@ unsafe extern "C" fn callback_draw_curveto(
             },
             onCurve: 0,
         };
-        glyf_iPoint.init.expect("non-null function pointer")(&raw mut z_1);
-        z_1.onCurve = true_0 as i8;
-        iVQ.copyReplace.expect("non-null function pointer")(
+        GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut z_1);
+        z_1.onCurve = TRUE_0 as i8;
+        I_VQ.copyReplace.expect("non-null function pointer")(
             &raw mut z_1.x,
-            iVQ.createStill.expect("non-null function pointer")(x3 as Pos) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(x3 as Pos) as VQ,
         );
-        iVQ.copyReplace.expect("non-null function pointer")(
+        I_VQ.copyReplace.expect("non-null function pointer")(
             &raw mut z_1.y,
-            iVQ.createStill.expect("non-null function pointer")(y3 as Pos) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(y3 as Pos) as VQ,
         );
-        glyf_iContour.push.expect("non-null function pointer")(contour, z_1);
+        GLYF_I_CONTOUR.push.expect("non-null function pointer")(contour, z_1);
         (*context).jPoint =
             ((*context).jPoint as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as ShapeId;
     }
@@ -945,7 +945,7 @@ unsafe extern "C" fn callback_draw_sethint(
     mut width: ::core::ffi::c_double,
 ) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    glyf_iStemDefList.push.expect("non-null function pointer")(
+    GLYF_I_STEM_DEF_LIST.push.expect("non-null function pointer")(
         if isVertical as ::core::ffi::c_int != 0 {
             &raw mut (*(*context).g).stemV
         } else {
@@ -1024,7 +1024,7 @@ unsafe extern "C" fn callback_draw_setmask(
             j_0 = j_0.wrapping_add(1);
         }
     } else {
-        glyf_iMaskList.push.expect("non-null function pointer")(maskList, mask);
+        GLYF_I_MASK_LIST.push.expect("non-null function pointer")(maskList, mask);
         if isContourMask {
             (*context).definedContourMasks = ((*context).definedContourMasks as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as u8;
@@ -1053,7 +1053,7 @@ unsafe extern "C" fn callback_draw_getrand(
     };
     return a.d - q;
 }
-static drawPass: CffIOutlineBuilder = {
+static DRAW_PASS: CffIOutlineBuilder = {
     CffIOutlineBuilder {
         setWidth: Some(
             callback_draw_setwidth
@@ -1118,7 +1118,7 @@ unsafe extern "C" fn buildOutline(
         offset: ::core::ptr::null_mut::<u32>(),
         data: ::core::ptr::null_mut::<u8>(),
     };
-    cff_iIndex.init.expect("non-null function pointer")(&raw mut localSubrs);
+    CFF_I_INDEX.init.expect("non-null function pointer")(&raw mut localSubrs);
     let mut stack: CffStack = CffStack {
         stack: ::core::ptr::null_mut::<CffValue>(),
         transient: [CffValue {
@@ -1182,9 +1182,9 @@ unsafe extern "C" fn buildOutline(
         bc.defaultWidthX = (*(*(*context).meta).privateDict).defaultWidthX;
         bc.nominalWidthX = (*(*(*context).meta).privateDict).nominalWidthX;
     }
-    iVQ.replace.expect("non-null function pointer")(
+    I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*g).advanceWidth,
-        iVQ.createStill.expect("non-null function pointer")(bc.defaultWidthX as Pos) as VQ,
+        I_VQ.createStill.expect("non-null function pointer")(bc.defaultWidthX as Pos) as VQ,
     );
     let mut charStringPtr: *mut u8 = (*f)
         .char_strings
@@ -1208,13 +1208,13 @@ unsafe extern "C" fn buildOutline(
         localSubrs,
         &raw mut stack,
         &raw mut bc as *mut ::core::ffi::c_void,
-        drawPass,
+        DRAW_PASS,
         options,
     );
     let mut cx: VQ =
-        (iVQ.neutral.expect("non-null function pointer"))();
+        (I_VQ.neutral.expect("non-null function pointer"))();
     let mut cy: VQ =
-        (iVQ.neutral.expect("non-null function pointer"))();
+        (I_VQ.neutral.expect("non-null function pointer"))();
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < (*g).contours.length {
         let mut contour: *mut Contour =
@@ -1222,20 +1222,20 @@ unsafe extern "C" fn buildOutline(
         let mut k: ShapeId = 0 as ShapeId;
         while (k as usize) < (*contour).length {
             let mut z: *mut Point = (*contour).items.offset(k as isize) as *mut Point;
-            iVQ.inplacePlus.expect("non-null function pointer")(&raw mut cx, (*z).x);
-            iVQ.inplacePlus.expect("non-null function pointer")(&raw mut cy, (*z).y);
-            iVQ.copyReplace.expect("non-null function pointer")(&raw mut (*z).x, cx);
-            iVQ.copyReplace.expect("non-null function pointer")(&raw mut (*z).y, cy);
+            I_VQ.inplacePlus.expect("non-null function pointer")(&raw mut cx, (*z).x);
+            I_VQ.inplacePlus.expect("non-null function pointer")(&raw mut cy, (*z).y);
+            I_VQ.copyReplace.expect("non-null function pointer")(&raw mut (*z).x, cx);
+            I_VQ.copyReplace.expect("non-null function pointer")(&raw mut (*z).y, cy);
             k = k.wrapping_add(1);
         }
-        if iVQ.compare.expect("non-null function pointer")(
+        if I_VQ.compare.expect("non-null function pointer")(
             (*(*contour).items.offset(0 as ::core::ffi::c_int as isize)).x,
             (*(*contour)
                 .items
                 .offset((*contour).length.wrapping_sub(1 as usize) as isize))
             .x,
         ) == 0
-            && iVQ.compare.expect("non-null function pointer")(
+            && I_VQ.compare.expect("non-null function pointer")(
                 (*(*contour).items.offset(0 as ::core::ffi::c_int as isize)).y,
                 (*(*contour)
                     .items
@@ -1251,19 +1251,19 @@ unsafe extern "C" fn buildOutline(
                 .onCurve as ::core::ffi::c_int
                     != 0)
         {
-            glyf_iContour.pop.expect("non-null function pointer")(contour);
+            GLYF_I_CONTOUR.pop.expect("non-null function pointer")(contour);
         }
-        glyf_iContour
+        GLYF_I_CONTOUR
             .shrinkToFit
             .expect("non-null function pointer")(contour);
         j = j.wrapping_add(1);
     }
-    glyf_iContourList
+    GLYF_I_CONTOUR_LIST
         .shrinkToFit
         .expect("non-null function pointer")(&raw mut (*g).contours);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut cx);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut cy);
-    cff_iIndex.dispose.expect("non-null function pointer")(&raw mut localSubrs);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut cx);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut cy);
+    CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut localSubrs);
     free(stack.stack as *mut ::core::ffi::c_void);
     stack.stack = ::core::ptr::null_mut::<CffValue>();
     (*context).seed = bc.randx;
@@ -1476,12 +1476,12 @@ unsafe extern "C" fn applyCffMatrix(
                 (*head).unitsPerEm as ::core::ffi::c_int as ::core::ffi::c_double
                     * (*(*fd).fontMatrix).d as ::core::ffi::c_double,
             ) as Scale;
-            let mut x: VQ = iVQ.scale.expect("non-null function pointer")(
+            let mut x: VQ = I_VQ.scale.expect("non-null function pointer")(
                 (*(*fd).fontMatrix).x,
                 (*head).unitsPerEm as Scale,
             );
             x.kernel = qround(x.kernel as ::core::ffi::c_double) as Pos;
-            let mut y: VQ = iVQ.scale.expect("non-null function pointer")(
+            let mut y: VQ = I_VQ.scale.expect("non-null function pointer")(
                 (*(*fd).fontMatrix).y,
                 (*head).unitsPerEm as Scale,
             );
@@ -1492,32 +1492,32 @@ unsafe extern "C" fn applyCffMatrix(
                     (*g).contours.items.offset(j as isize) as *mut Contour;
                 let mut k: ShapeId = 0 as ShapeId;
                 while (k as usize) < (*contour).length {
-                    let mut zx: VQ = iVQ.dup.expect("non-null function pointer")(
+                    let mut zx: VQ = I_VQ.dup.expect("non-null function pointer")(
                         (*(*contour).items.offset(k as isize)).x,
                     );
-                    let mut zy: VQ = iVQ.dup.expect("non-null function pointer")(
+                    let mut zy: VQ = I_VQ.dup.expect("non-null function pointer")(
                         (*(*contour).items.offset(k as isize)).y,
                     );
-                    iVQ.replace.expect("non-null function pointer")(
+                    I_VQ.replace.expect("non-null function pointer")(
                         &raw mut (*(*contour).items.offset(k as isize)).x,
-                        iVQ.pointLinearTfm.expect("non-null function pointer")(
+                        I_VQ.pointLinearTfm.expect("non-null function pointer")(
                             x, a as Pos, zx, b as Pos, zy,
                         ) as VQ,
                     );
-                    iVQ.replace.expect("non-null function pointer")(
+                    I_VQ.replace.expect("non-null function pointer")(
                         &raw mut (*(*contour).items.offset(k as isize)).y,
-                        iVQ.pointLinearTfm.expect("non-null function pointer")(
+                        I_VQ.pointLinearTfm.expect("non-null function pointer")(
                             y, c as Pos, zx, d as Pos, zy,
                         ) as VQ,
                     );
-                    iVQ.dispose.expect("non-null function pointer")(&raw mut zx);
-                    iVQ.dispose.expect("non-null function pointer")(&raw mut zy);
+                    I_VQ.dispose.expect("non-null function pointer")(&raw mut zx);
+                    I_VQ.dispose.expect("non-null function pointer")(&raw mut zy);
                     k = k.wrapping_add(1);
                 }
                 j = j.wrapping_add(1);
             }
-            iVQ.dispose.expect("non-null function pointer")(&raw mut x);
-            iVQ.dispose.expect("non-null function pointer")(&raw mut y);
+            I_VQ.dispose.expect("non-null function pointer")(&raw mut x);
+            I_VQ.dispose.expect("non-null function pointer")(&raw mut y);
         }
         jj = jj.wrapping_add(1);
     }
@@ -1562,8 +1562,8 @@ pub unsafe extern "C" fn otfcc_readCFFAndGlyfTables(
                         cff_openStream(data as *mut u8, length, options);
                     context.cffFile = cffFile;
                     context.meta = (
-                        table_iCFF.create.expect("non-null function pointer"))();
-                    cff_iDict
+                        TABLE_I_CFF.create.expect("non-null function pointer"))();
+                    CFF_I_DICT
                         .parseToCallback
                         .expect("non-null function pointer")(
                         (*cffFile).top_dict.data,
@@ -1604,9 +1604,9 @@ pub unsafe extern "C" fn otfcc_readCFFAndGlyfTables(
                         {
                             let ref mut fresh0 = *(*context.meta).fdArray.offset(j as isize);
                             *fresh0 = (
-                                table_iCFF.create.expect("non-null function pointer"))();
+                                TABLE_I_CFF.create.expect("non-null function pointer"))();
                             context.fdArrayIndex = j as i32;
-                            cff_iDict
+                            CFF_I_DICT
                                 .parseToCallback
                                 .expect(
                                     "non-null function pointer",
@@ -1656,7 +1656,7 @@ pub unsafe extern "C" fn otfcc_readCFFAndGlyfTables(
                             ^ 0x1234567887654321 as u64;
                     }
                     let mut glyphs: *mut GlyfTable =
-                        table_iGlyf.createN.expect("non-null function pointer")(
+                        TABLE_I_GLYF.createN.expect("non-null function pointer")(
                             (*cffFile).char_strings.count as usize,
                         );
                     context.glyphs = glyphs;
@@ -2166,7 +2166,7 @@ unsafe extern "C" fn fdFromJson(
     mut topLevel: bool,
 ) -> *mut CffTable {
     let mut table: *mut CffTable = (
-        table_iCFF.create.expect("non-null function pointer"))();
+        TABLE_I_CFF.create.expect("non-null function pointer"))();
     if dump.is_null()
         || (*dump).type_0 != JsonType::Object
     {
@@ -2316,7 +2316,7 @@ unsafe extern "C" fn fdFromJson(
         ) as *mut *mut CffTable;
         let ref mut fresh13 = *(*table).fdArray.offset(0 as ::core::ffi::c_int as isize);
         *fresh13 = (
-            table_iCFF.create.expect("non-null function pointer"))();
+            TABLE_I_CFF.create.expect("non-null function pointer"))();
         let mut fd0: *mut CffTable = *(*table).fdArray.offset(0 as ::core::ffi::c_int as isize);
         (*fd0).privateDict = (*table).privateDict;
         (*table).privateDict = otfcc_newCff_private();
@@ -3235,51 +3235,51 @@ unsafe extern "C" fn cff_make_fd_dict(
     mut h: *mut *mut CffSidEntry,
 ) -> *mut CffDict {
     let mut dict: *mut CffDict = (
-        cff_iDict.create.expect("non-null function pointer"))();
+        CFF_I_DICT.create.expect("non-null function pointer"))();
     if !(*fd).cidRegistry.is_null() && !(*fd).cidOrdering.is_null() {
-        cffdict_input_ints(dict, op_ROS as u32, &[(sidof(h, (*fd).cidRegistry)) as i32, (sidof(h, (*fd).cidOrdering)) as i32, ((*fd).cidSupplement) as i32]);
+        cffdict_input_ints(dict, OP_ROS as u32, &[(sidof(h, (*fd).cidRegistry)) as i32, (sidof(h, (*fd).cidOrdering)) as i32, ((*fd).cidSupplement) as i32]);
     }
     if !(*fd).version.is_null() {
-        cffdict_input_ints(dict, op_version as u32, &[(sidof(h, (*fd).version)) as i32]);
+        cffdict_input_ints(dict, OP_VERSION as u32, &[(sidof(h, (*fd).version)) as i32]);
     }
     if !(*fd).notice.is_null() {
-        cffdict_input_ints(dict, op_Notice as u32, &[(sidof(h, (*fd).notice)) as i32]);
+        cffdict_input_ints(dict, OP_NOTICE as u32, &[(sidof(h, (*fd).notice)) as i32]);
     }
     if !(*fd).copyright.is_null() {
-        cffdict_input_ints(dict, op_Copyright as u32, &[(sidof(h, (*fd).copyright)) as i32]);
+        cffdict_input_ints(dict, OP_COPYRIGHT as u32, &[(sidof(h, (*fd).copyright)) as i32]);
     }
     if !(*fd).fullName.is_null() {
-        cffdict_input_ints(dict, op_FullName as u32, &[(sidof(h, (*fd).fullName)) as i32]);
+        cffdict_input_ints(dict, OP_FULL_NAME as u32, &[(sidof(h, (*fd).fullName)) as i32]);
     }
     if !(*fd).familyName.is_null() {
-        cffdict_input_ints(dict, op_FamilyName as u32, &[(sidof(h, (*fd).familyName)) as i32]);
+        cffdict_input_ints(dict, OP_FAMILY_NAME as u32, &[(sidof(h, (*fd).familyName)) as i32]);
     }
     if !(*fd).weight.is_null() {
-        cffdict_input_ints(dict, op_Weight as u32, &[(sidof(h, (*fd).weight)) as i32]);
+        cffdict_input_ints(dict, OP_WEIGHT as u32, &[(sidof(h, (*fd).weight)) as i32]);
     }
-    cffdict_input_doubles(dict, op_FontBBox as u32, &[((*fd).fontBBoxLeft) as f64, ((*fd).fontBBoxBottom) as f64, ((*fd).fontBBoxRight) as f64, ((*fd).fontBBoxTop) as f64]);
-    cffdict_input_ints(dict, op_isFixedPitch as u32, &[((*fd).isFixedPitch as ::core::ffi::c_int) as i32]);
-    cffdict_input_doubles(dict, op_ItalicAngle as u32, &[((*fd).italicAngle) as f64]);
-    cffdict_input_doubles(dict, op_UnderlinePosition as u32, &[((*fd).underlinePosition) as f64]);
-    cffdict_input_doubles(dict, op_UnderlineThickness as u32, &[((*fd).underlineThickness) as f64]);
-    cffdict_input_doubles(dict, op_StrokeWidth as u32, &[((*fd).strokeWidth) as f64]);
+    cffdict_input_doubles(dict, OP_FONT_BBOX as u32, &[((*fd).fontBBoxLeft) as f64, ((*fd).fontBBoxBottom) as f64, ((*fd).fontBBoxRight) as f64, ((*fd).fontBBoxTop) as f64]);
+    cffdict_input_ints(dict, OP_IS_FIXED_PITCH as u32, &[((*fd).isFixedPitch as ::core::ffi::c_int) as i32]);
+    cffdict_input_doubles(dict, OP_ITALIC_ANGLE as u32, &[((*fd).italicAngle) as f64]);
+    cffdict_input_doubles(dict, OP_UNDERLINE_POSITION as u32, &[((*fd).underlinePosition) as f64]);
+    cffdict_input_doubles(dict, OP_UNDERLINE_THICKNESS as u32, &[((*fd).underlineThickness) as f64]);
+    cffdict_input_doubles(dict, OP_STROKE_WIDTH as u32, &[((*fd).strokeWidth) as f64]);
     if !(*fd).fontMatrix.is_null() {
-        cffdict_input_doubles(dict, op_FontMatrix as u32, &[((*(*fd).fontMatrix).a) as f64, ((*(*fd).fontMatrix).b) as f64, ((*(*fd).fontMatrix).c) as f64, ((*(*fd).fontMatrix).d) as f64, (iVQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).x)) as f64, (iVQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).y)) as f64]);
+        cffdict_input_doubles(dict, OP_FONT_MATRIX as u32, &[((*(*fd).fontMatrix).a) as f64, ((*(*fd).fontMatrix).b) as f64, ((*(*fd).fontMatrix).c) as f64, ((*(*fd).fontMatrix).d) as f64, (I_VQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).x)) as f64, (I_VQ.getStill.expect("non-null function pointer")((*(*fd).fontMatrix).y)) as f64]);
     }
     if !(*fd).fontName.is_null() {
-        cffdict_input_ints(dict, op_FontName as u32, &[(sidof(h, (*fd).fontName)) as i32]);
+        cffdict_input_ints(dict, OP_FONT_NAME as u32, &[(sidof(h, (*fd).fontName)) as i32]);
     }
     if (*fd).cidFontVersion != 0. {
-        cffdict_input_doubles(dict, op_CIDFontVersion as u32, &[((*fd).cidFontVersion) as f64]);
+        cffdict_input_doubles(dict, OP_CID_FONT_VERSION as u32, &[((*fd).cidFontVersion) as f64]);
     }
     if (*fd).cidFontRevision != 0. {
-        cffdict_input_doubles(dict, op_CIDFontRevision as u32, &[((*fd).cidFontRevision) as f64]);
+        cffdict_input_doubles(dict, OP_CID_FONT_REVISION as u32, &[((*fd).cidFontRevision) as f64]);
     }
     if (*fd).cidCount != 0 {
-        cffdict_input_ints(dict, op_CIDCount as u32, &[((*fd).cidCount) as i32]);
+        cffdict_input_ints(dict, OP_CID_COUNT as u32, &[((*fd).cidCount) as i32]);
     }
     if (*fd).UIDBase != 0 {
-        cffdict_input_ints(dict, op_UIDBase as u32, &[((*fd).UIDBase) as i32]);
+        cffdict_input_ints(dict, OP_UID_BASE as u32, &[((*fd).UIDBase) as i32]);
     }
     return dict;
 }
@@ -3294,57 +3294,57 @@ unsafe extern "C" fn cff_make_private_dict(mut pd: *mut CffPrivateDict) -> *mut 
     }
     cffdict_input_array(
         dict,
-        op_BlueValues as u32,
+        OP_BLUE_VALUES as u32,
         CffValueType::Double,
         (*pd).blueValuesCount,
         (*pd).blueValues,
     );
     cffdict_input_array(
         dict,
-        op_OtherBlues as u32,
+        OP_OTHER_BLUES as u32,
         CffValueType::Double,
         (*pd).otherBluesCount,
         (*pd).otherBlues,
     );
     cffdict_input_array(
         dict,
-        op_FamilyBlues as u32,
+        OP_FAMILY_BLUES as u32,
         CffValueType::Double,
         (*pd).familyBluesCount,
         (*pd).familyBlues,
     );
     cffdict_input_array(
         dict,
-        op_FamilyOtherBlues as u32,
+        OP_FAMILY_OTHER_BLUES as u32,
         CffValueType::Double,
         (*pd).familyOtherBluesCount,
         (*pd).familyOtherBlues,
     );
     cffdict_input_array(
         dict,
-        op_StemSnapH as u32,
+        OP_STEM_SNAP_H as u32,
         CffValueType::Double,
         (*pd).stemSnapHCount,
         (*pd).stemSnapH,
     );
     cffdict_input_array(
         dict,
-        op_StemSnapV as u32,
+        OP_STEM_SNAP_V as u32,
         CffValueType::Double,
         (*pd).stemSnapVCount,
         (*pd).stemSnapV,
     );
-    cffdict_input_doubles(dict, op_BlueScale as u32, &[((*pd).blueScale) as f64]);
-    cffdict_input_doubles(dict, op_BlueShift as u32, &[((*pd).blueShift) as f64]);
-    cffdict_input_doubles(dict, op_BlueFuzz as u32, &[((*pd).blueFuzz) as f64]);
-    cffdict_input_doubles(dict, op_StdHW as u32, &[((*pd).stdHW) as f64]);
-    cffdict_input_doubles(dict, op_StdVW as u32, &[((*pd).stdVW) as f64]);
-    cffdict_input_ints(dict, op_ForceBold as u32, &[((*pd).forceBold as ::core::ffi::c_int) as i32]);
-    cffdict_input_ints(dict, op_LanguageGroup as u32, &[((*pd).languageGroup) as i32]);
-    cffdict_input_doubles(dict, op_ExpansionFactor as u32, &[((*pd).expansionFactor) as f64]);
-    cffdict_input_doubles(dict, op_initialRandomSeed as u32, &[((*pd).initialRandomSeed) as f64]);
-    cffdict_input_doubles(dict, op_defaultWidthX as u32, &[((*pd).defaultWidthX) as f64]);
-    cffdict_input_doubles(dict, op_nominalWidthX as u32, &[((*pd).nominalWidthX) as f64]);
+    cffdict_input_doubles(dict, OP_BLUE_SCALE as u32, &[((*pd).blueScale) as f64]);
+    cffdict_input_doubles(dict, OP_BLUE_SHIFT as u32, &[((*pd).blueShift) as f64]);
+    cffdict_input_doubles(dict, OP_BLUE_FUZZ as u32, &[((*pd).blueFuzz) as f64]);
+    cffdict_input_doubles(dict, OP_STD_HW as u32, &[((*pd).stdHW) as f64]);
+    cffdict_input_doubles(dict, OP_STD_VW as u32, &[((*pd).stdVW) as f64]);
+    cffdict_input_ints(dict, OP_FORCE_BOLD as u32, &[((*pd).forceBold as ::core::ffi::c_int) as i32]);
+    cffdict_input_ints(dict, OP_LANGUAGE_GROUP as u32, &[((*pd).languageGroup) as i32]);
+    cffdict_input_doubles(dict, OP_EXPANSION_FACTOR as u32, &[((*pd).expansionFactor) as f64]);
+    cffdict_input_doubles(dict, OP_INITIAL_RANDOM_SEED as u32, &[((*pd).initialRandomSeed) as f64]);
+    cffdict_input_doubles(dict, OP_DEFAULT_WIDTH_X as u32, &[((*pd).defaultWidthX) as f64]);
+    cffdict_input_doubles(dict, OP_NOMINAL_WIDTH_X as u32, &[((*pd).nominalWidthX) as f64]);
     return dict;
 }
 unsafe extern "C" fn by_sid(
@@ -3569,7 +3569,7 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut CffSidEntry) -> *m
         tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut CffSidEntry
             as *mut CffSidEntry;
     }
-    let mut strings: *mut CffIndex = cff_iIndex.fromCallback.expect("non-null function pointer")(
+    let mut strings: *mut CffIndex = CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
         blobs as *mut ::core::ffi::c_void,
         n,
         Some(
@@ -3580,14 +3580,14 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut CffSidEntry) -> *m
     free(blobs as *mut ::core::ffi::c_void);
     blobs = ::core::ptr::null_mut::<*mut Buffer>();
     let mut final_blob: *mut Buffer =
-        cff_iIndex.build.expect("non-null function pointer")(strings);
-    cff_iIndex.free.expect("non-null function pointer")(strings);
+        CFF_I_INDEX.build.expect("non-null function pointer")(strings);
+    CFF_I_INDEX.free.expect("non-null function pointer")(strings);
     (*final_blob).cursor = (*final_blob).size;
     return final_blob;
 }
 unsafe extern "C" fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffer {
     let mut nameIndex: *mut CffIndex = (
-        cff_iIndex.create.expect("non-null function pointer"))();
+        CFF_I_INDEX.create.expect("non-null function pointer"))();
     (*nameIndex).count = 1 as Arity;
     (*nameIndex).offSize = 4 as u8;
     (*nameIndex).offset = __caryll_allocate_clean(
@@ -3611,8 +3611,8 @@ unsafe extern "C" fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffe
         sdslen((*cff).fontName),
     );
     let mut buf: *mut Buffer =
-        cff_iIndex.build.expect("non-null function pointer")(nameIndex);
-    cff_iIndex.free.expect("non-null function pointer")(nameIndex);
+        CFF_I_INDEX.build.expect("non-null function pointer")(nameIndex);
+    CFF_I_INDEX.free.expect("non-null function pointer")(nameIndex);
     if !(*cff).fontName.is_null() {
         sdsfree((*cff).fontName);
         (*cff).fontName = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -3777,7 +3777,7 @@ unsafe extern "C" fn callback_makefd(
         *(*context).fdArray.offset(i as isize),
         (*context).stringHash,
     );
-    let mut blob: *mut Buffer = cff_iDict.build.expect("non-null function pointer")(fd);
+    let mut blob: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(fd);
     bufwrite_bufdel(
         blob,
         cff_buildOffset(0xeeeeeeee as ::core::ffi::c_uint as i32),
@@ -3788,9 +3788,9 @@ unsafe extern "C" fn callback_makefd(
     );
     bufwrite_bufdel(
         blob,
-        cff_encodeCffOperator(op_Private),
+        cff_encodeCffOperator(OP_PRIVATE),
     );
-    cff_iDict.build.expect("non-null function pointer")(fd);
+    CFF_I_DICT.build.expect("non-null function pointer")(fd);
     return blob;
 }
 unsafe extern "C" fn cff_make_fdarray(
@@ -3804,7 +3804,7 @@ unsafe extern "C" fn cff_make_fdarray(
     };
     context.fdArray = fdArray;
     context.stringHash = stringHash;
-    return cff_iIndex.fromCallback.expect("non-null function pointer")(
+    return CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
         &raw mut context as *mut ::core::ffi::c_void,
         fdArrayCount as u32,
         Some(
@@ -3823,25 +3823,25 @@ unsafe extern "C" fn writecff_CIDKeyed(
     let mut h: *mut Buffer = cff_buildHeader();
     let mut n: *mut Buffer = cff_compile_nameindex(cff);
     let mut top: *mut CffDict = cff_make_fd_dict(cff, &raw mut stringHash);
-    let mut t: *mut Buffer = cff_iDict.build.expect("non-null function pointer")(top);
-    cff_iDict.free.expect("non-null function pointer")(top);
+    let mut t: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(top);
+    CFF_I_DICT.free.expect("non-null function pointer")(top);
     let mut top_pd: *mut CffDict = cff_make_private_dict((*cff).privateDict);
-    let mut p: *mut Buffer = cff_iDict.build.expect("non-null function pointer")(top_pd);
+    let mut p: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(top_pd);
     bufwrite_bufdel(
         p,
         cff_buildOffset(0xffffffff as ::core::ffi::c_uint as i32),
     );
     bufwrite_bufdel(
         p,
-        cff_encodeCffOperator(op_Subrs),
+        cff_encodeCffOperator(OP_SUBRS),
     );
-    cff_iDict.free.expect("non-null function pointer")(top_pd);
+    CFF_I_DICT.free.expect("non-null function pointer")(top_pd);
     let mut e: *mut Buffer = cff_make_fdselect(cff, glyf);
     let mut fdArrayIndex: *mut CffIndex = ::core::ptr::null_mut::<CffIndex>();
     let mut r: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     if (*cff).isCID {
         fdArrayIndex = cff_make_fdarray((*cff).fdArrayCount, (*cff).fdArray, &raw mut stringHash);
-        r = cff_iIndex.build.expect("non-null function pointer")(fdArrayIndex);
+        r = CFF_I_INDEX.build.expect("non-null function pointer")(fdArrayIndex);
     } else {
         r = __caryll_allocate_clean(
             ::core::mem::size_of::<Buffer>() as usize,
@@ -3871,10 +3871,10 @@ unsafe extern "C" fn writecff_CIDKeyed(
     g2cContext.defaultWidth = (*(*cff).privateDict).defaultWidthX as u16;
     g2cContext.nominalWidthX = (*(*cff).privateDict).nominalWidthX as u16;
     g2cContext.options = options;
-    cff_iSubrGraph.init.expect("non-null function pointer")(&raw mut g2cContext.graph);
+    CFF_I_SUBR_GRAPH.init.expect("non-null function pointer")(&raw mut g2cContext.graph);
     g2cContext.graph.doSubroutinize = (*options).cff_doSubroutinize;
     cff_make_charstrings(&raw mut g2cContext, &raw mut s, &raw mut gs, &raw mut ls);
-    cff_iSubrGraph.dispose.expect("non-null function pointer")(&raw mut g2cContext.graph);
+    CFF_I_SUBR_GRAPH.dispose.expect("non-null function pointer")(&raw mut g2cContext.graph);
     let mut additionalTopDictOpsSize: u32 = 0 as u32;
     let mut off: u32 = (*h)
         .size
@@ -3916,7 +3916,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, cff_buildOffset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(op_charset),
+            cff_encodeCffOperator(OP_CHARSET),
         );
         off = (off as usize).wrapping_add((*c).size) as u32 as u32;
     }
@@ -3924,7 +3924,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, cff_buildOffset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(op_FDSelect),
+            cff_encodeCffOperator(OP_FD_SELECT),
         );
         off = (off as usize).wrapping_add((*e).size) as u32 as u32;
     }
@@ -3932,7 +3932,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, cff_buildOffset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(op_CharStrings),
+            cff_encodeCffOperator(OP_CHAR_STRINGS),
         );
         off = (off as usize).wrapping_add((*s).size) as u32 as u32;
     }
@@ -3941,7 +3941,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, cff_buildOffset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(op_Private),
+            cff_encodeCffOperator(OP_PRIVATE),
         );
         off = (off as usize).wrapping_add((*p).size) as u32 as u32;
     }
@@ -3949,7 +3949,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, cff_buildOffset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(op_FDArray),
+            cff_encodeCffOperator(OP_FD_ARRAY),
         );
         off = (off as usize).wrapping_add((*r).size) as u32 as u32;
     }
@@ -3989,16 +3989,16 @@ unsafe extern "C" fn writecff_CIDKeyed(
             let mut pd: *mut CffDict =
                 cff_make_private_dict((**(*cff).fdArray.offset(j as isize)).privateDict);
             let mut p_0: *mut Buffer =
-                cff_iDict.build.expect("non-null function pointer")(pd);
+                CFF_I_DICT.build.expect("non-null function pointer")(pd);
             bufwrite_bufdel(
                 p_0,
                 cff_buildOffset(0xffffffff as ::core::ffi::c_uint as i32),
             );
             bufwrite_bufdel(
                 p_0,
-                cff_encodeCffOperator(op_Subrs),
+                cff_encodeCffOperator(OP_SUBRS),
             );
-            cff_iDict.free.expect("non-null function pointer")(pd);
+            CFF_I_DICT.free.expect("non-null function pointer")(pd);
             let ref mut fresh14 = *fdArrayPrivates.offset(j as isize);
             *fresh14 = p_0;
             let mut privateLengthPtr: *mut u8 = (*fdArrayIndex).data.offset(
@@ -4039,8 +4039,8 @@ unsafe extern "C" fn writecff_CIDKeyed(
             j = j.wrapping_add(1);
         }
         buffree(r);
-        r = cff_iIndex.build.expect("non-null function pointer")(fdArrayIndex);
-        cff_iIndex.free.expect("non-null function pointer")(fdArrayIndex);
+        r = CFF_I_INDEX.build.expect("non-null function pointer")(fdArrayIndex);
+        CFF_I_INDEX.free.expect("non-null function pointer")(fdArrayIndex);
         bufwrite_bufdel(blob, r);
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as ::core::ffi::c_int) < (*cff).fdArrayCount as ::core::ffi::c_int {

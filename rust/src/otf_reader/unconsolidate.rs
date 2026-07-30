@@ -38,7 +38,7 @@ use crate::table::hmtx::HmtxTable;
 
 
 
-use crate::table::otl::{ChainingRule, Lookup, Subtable, SubtableList, SubtablePtr, ChainingType, otl_type_gpos_chaining, otl_type_gsub_chaining, OtlTable};
+use crate::table::otl::{ChainingRule, Lookup, Subtable, SubtableList, SubtablePtr, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, OtlTable};
 
 
 
@@ -50,15 +50,15 @@ use crate::vf::region::{VqAxisSpan};
 use crate::vf::vq::{VQ, VQSegType, VqSegment};
 use crate::support::aglfn::{aglfn_setupNames};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
 use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
-use crate::table::VORG::{table_iVORG};
-use crate::table::hmtx::{table_iHmtx};
-use crate::table::otl::{otl_iSubtableList};
-use crate::table::vmtx::{table_iVmtx};
+use crate::table::VORG::{TABLE_I_VORG};
+use crate::table::hmtx::{TABLE_I_HMTX};
+use crate::table::otl::{OTL_I_SUBTABLE_LIST};
+use crate::table::vmtx::{TABLE_I_VMTX};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew};
-use crate::vf::vq::{iVQ};
+use crate::vf::vq::{I_VQ};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -246,7 +246,7 @@ unsafe extern "C" fn createGlyphOrder(
 ) -> *mut GlyphOrder {
     let mut glyph_order: *mut GlyphOrder =
         (
-            otfcc_pkgGlyphOrder
+            OTFCC_PKG_GLYPH_ORDER
                 .create
                 .expect("non-null function pointer"))();
     let mut numGlyphs: GlyphId = (*(*font).glyf).length as GlyphId;
@@ -275,7 +275,7 @@ unsafe extern "C" fn createGlyphOrder(
                     );
                 }
             }
-            if otfcc_pkgGlyphOrder
+            if OTFCC_PKG_GLYPH_ORDER
                 .lookupName
                 .expect("non-null function pointer")(glyph_order, gname)
             {
@@ -286,7 +286,7 @@ unsafe extern "C" fn createGlyphOrder(
                         n = (n as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
                     }
                     let mut newname: SdsRaw = crate::sdsbuild!(sdsempty(), gname, b"-", prefix, n as ::core::ffi::c_int);
-                    stillIn = otfcc_pkgGlyphOrder
+                    stillIn = OTFCC_PKG_GLYPH_ORDER
                         .lookupName
                         .expect("non-null function pointer")(
                         glyph_order, newname
@@ -297,7 +297,7 @@ unsafe extern "C" fn createGlyphOrder(
                     }
                 }
                 let mut newname_0: SdsRaw = crate::sdsbuild!(sdsempty(), gname, b"-", prefix, n as ::core::ffi::c_int);
-                let mut sharedName: SdsRaw = otfcc_pkgGlyphOrder
+                let mut sharedName: SdsRaw = OTFCC_PKG_GLYPH_ORDER
                     .setByGID
                     .expect("non-null function pointer")(
                     glyph_order, j, newname_0
@@ -308,7 +308,7 @@ unsafe extern "C" fn createGlyphOrder(
                 (*g).name = sdsdup(sharedName);
                 sdsfree(gname);
             } else {
-                let mut sharedName_0: SdsRaw = otfcc_pkgGlyphOrder
+                let mut sharedName_0: SdsRaw = OTFCC_PKG_GLYPH_ORDER
                     .setByGID
                     .expect("non-null function pointer")(
                     glyph_order, j, gname
@@ -321,7 +321,7 @@ unsafe extern "C" fn createGlyphOrder(
         } else if !((*options).ignore_glyph_order || (*options).name_glyphs_by_gid) {
             if !(*g).name.is_null() {
                 let mut gname_0: SdsRaw = crate::sdsbuild!(sdsempty(), prefix, (*g).name);
-                let sharedName_1: SdsRaw = otfcc_pkgGlyphOrder
+                let sharedName_1: SdsRaw = OTFCC_PKG_GLYPH_ORDER
                     .setByGID
                     .expect("non-null function pointer")(
                     glyph_order, j, gname_0
@@ -348,7 +348,7 @@ unsafe extern "C" fn createGlyphOrder(
         }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
         while !s.is_null() {
             let mut gname_1: SdsRaw = crate::sdsbuild!(sdsempty(), prefix, (*s).name);
-            otfcc_pkgGlyphOrder
+            OTFCC_PKG_GLYPH_ORDER
                 .setByGID
                 .expect("non-null function pointer")(glyph_order, (*s).gid, gname_1);
             s = tmp;
@@ -362,7 +362,7 @@ unsafe extern "C" fn createGlyphOrder(
     if !(*font).cmap.is_null() && !(*options).name_glyphs_by_gid {
         let mut aglfn: *mut GlyphOrder =
             (
-                otfcc_pkgGlyphOrder
+                OTFCC_PKG_GLYPH_ORDER
                     .create
                     .expect("non-null function pointer"))();
         aglfn_setupNames(aglfn);
@@ -374,7 +374,7 @@ unsafe extern "C" fn createGlyphOrder(
                 if (*s_0).unicode > 0 as ::core::ffi::c_int
                     && (*s_0).unicode < 0xffff as ::core::ffi::c_int
                 {
-                    otfcc_pkgGlyphOrder
+                    OTFCC_PKG_GLYPH_ORDER
                         .nameAField_Shared
                         .expect("non-null function pointer")(
                         aglfn,
@@ -387,7 +387,7 @@ unsafe extern "C" fn createGlyphOrder(
                 } else {
                     name = crate::sdsbuild!(sdsempty(), prefix, name);
                 }
-                otfcc_pkgGlyphOrder
+                OTFCC_PKG_GLYPH_ORDER
                     .setByGID
                     .expect("non-null function pointer")(
                     glyph_order, (*s_0).glyph.index, name
@@ -395,7 +395,7 @@ unsafe extern "C" fn createGlyphOrder(
             }
             s_0 = (*s_0).hh.next as *mut CmapEntry;
         }
-        otfcc_pkgGlyphOrder.free.expect("non-null function pointer")(aglfn);
+        OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")(aglfn);
     }
     for j_1 in 0..numGlyphs {
         let mut name_0: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -426,7 +426,7 @@ unsafe extern "C" fn createGlyphOrder(
         } else {
             name_0 = crate::sdsbuild!(sdsempty(), prefix, b".notdef");
         }
-        otfcc_pkgGlyphOrder
+        OTFCC_PKG_GLYPH_ORDER
             .setByGID
             .expect("non-null function pointer")(glyph_order, j_1, name_0);
     }
@@ -440,7 +440,7 @@ unsafe extern "C" fn nameGlyphs(mut font: *mut Font, mut gord: *mut GlyphOrder) 
     for j in 0..(*(*font).glyf).length as GlyphId {
         let g: *mut Glyph = *(*(*font).glyf).items.offset(j as isize) as *mut Glyph;
         let mut glyphName: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-        otfcc_pkgGlyphOrder
+        OTFCC_PKG_GLYPH_ORDER
             .nameAField_Shared
             .expect("non-null function pointer")(gord, j, &raw mut glyphName);
         if !(*g).name.is_null() {
@@ -465,7 +465,7 @@ unsafe extern "C" fn unconsolidate_chaining(
         capacity: 0,
         items: ::core::ptr::null_mut::<SubtablePtr>(),
     };
-    otl_iSubtableList.init.expect("non-null function pointer")(&raw mut newsts);
+    OTL_I_SUBTABLE_LIST.init.expect("non-null function pointer")(&raw mut newsts);
     for j in 0..(*lookup).subtables.length as TableId {
         let slot = (*lookup).subtables.items.offset(j as isize);
         if (*slot).is_null() {
@@ -490,7 +490,7 @@ unsafe extern "C" fn unconsolidate_chaining(
                 (*st).chaining.c2rust_unnamed.rule = **rule_slot;
                 free(*rule_slot as *mut ::core::ffi::c_void);
                 *rule_slot = ::core::ptr::null_mut::<ChainingRule>();
-                otl_iSubtableList.push.expect("non-null function pointer")(
+                OTL_I_SUBTABLE_LIST.push.expect("non-null function pointer")(
                     &raw mut newsts,
                     st as SubtablePtr,
                 );
@@ -507,21 +507,21 @@ unsafe extern "C" fn unconsolidate_chaining(
             ) as *mut Subtable;
             (*st_0).chaining.type_0 = ChainingType::Canonical;
             (*st_0).chaining.c2rust_unnamed.rule = (*sub).chaining.c2rust_unnamed.rule;
-            otl_iSubtableList.push.expect("non-null function pointer")(
+            OTL_I_SUBTABLE_LIST.push.expect("non-null function pointer")(
                 &raw mut newsts,
                 st_0 as SubtablePtr,
             );
             *slot = ::core::ptr::null_mut::<Subtable>();
         }
     }
-    otl_iSubtableList
+    OTL_I_SUBTABLE_LIST
         .disposeDependent
         .expect("non-null function pointer")(&raw mut (*lookup).subtables, lookup);
     (*lookup).subtables = newsts;
 }
 unsafe extern "C" fn expandChain(font: *mut Font, lookup: *mut Lookup, table: *mut OtlTable) {
     match (*lookup).type_0 {
-        otl_type_gsub_chaining | otl_type_gpos_chaining => {
+        OTL_TYPE_GSUB_CHAINING | OTL_TYPE_GPOS_CHAINING => {
             unconsolidate_chaining(font, lookup, table);
         }
         _ => {}
@@ -563,16 +563,16 @@ unsafe extern "C" fn mergeHmtx(font: *mut Font) {
                 .leftSideBearing
                 .offset((j as u32).wrapping_sub(count_a) as isize)
         };
-        iVQ.inplacePlus.expect("non-null function pointer")(
+        I_VQ.inplacePlus.expect("non-null function pointer")(
             &raw mut (*g).advanceWidth,
-            iVQ.createStill.expect("non-null function pointer")(adw) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(adw) as VQ,
         );
-        iVQ.inplacePlus.expect("non-null function pointer")(
+        I_VQ.inplacePlus.expect("non-null function pointer")(
             &raw mut (*g).horizontalOrigin,
-            iVQ.createStill.expect("non-null function pointer")(-lsb + (*g).stat.xMin) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(-lsb + (*g).stat.xMin) as VQ,
         );
     }
-    table_iHmtx.free.expect("non-null function pointer")((*font).hmtx);
+    TABLE_I_HMTX.free.expect("non-null function pointer")((*font).hmtx);
     (*font).hmtx = ::core::ptr::null_mut::<HmtxTable>();
 }
 unsafe extern "C" fn mergeVmtx(font: *mut Font) {
@@ -597,7 +597,7 @@ unsafe extern "C" fn mergeVmtx(font: *mut Font) {
                     (*(*(*font).VORG).entries.offset(j_0 as isize)).verticalOrigin as Pos;
             }
         }
-        table_iVORG.free.expect("non-null function pointer")((*font).VORG);
+        TABLE_I_VORG.free.expect("non-null function pointer")((*font).VORG);
         (*font).VORG = ::core::ptr::null_mut::<VorgTable>();
     }
     for j_1 in 0..(*(*font).glyf).length as GlyphId {
@@ -617,13 +617,13 @@ unsafe extern "C" fn mergeVmtx(font: *mut Font) {
                 .topSideBearing
                 .offset((j_1 as u32).wrapping_sub(count_a) as isize)
         };
-        iVQ.inplacePlus.expect("non-null function pointer")(
+        I_VQ.inplacePlus.expect("non-null function pointer")(
             &raw mut (*g).advanceHeight,
-            iVQ.createStill.expect("non-null function pointer")(adh) as VQ,
+            I_VQ.createStill.expect("non-null function pointer")(adh) as VQ,
         );
-        iVQ.inplacePlus.expect("non-null function pointer")(
+        I_VQ.inplacePlus.expect("non-null function pointer")(
             &raw mut (*g).verticalOrigin,
-            iVQ.createStill.expect("non-null function pointer")(if !vorgs.is_null() {
+            I_VQ.createStill.expect("non-null function pointer")(if !vorgs.is_null() {
                 *vorgs.offset(j_1 as isize)
             } else {
                 tsb + (*g).stat.yMax
@@ -634,7 +634,7 @@ unsafe extern "C" fn mergeVmtx(font: *mut Font) {
         free(vorgs as *mut ::core::ffi::c_void);
         vorgs = ::core::ptr::null_mut::<Pos>();
     }
-    table_iVmtx.free.expect("non-null function pointer")((*font).vmtx);
+    TABLE_I_VMTX.free.expect("non-null function pointer")((*font).vmtx);
     (*font).vmtx = ::core::ptr::null_mut::<VmtxTable>();
 }
 unsafe extern "C" fn mergeLTSH(font: *mut Font) {
@@ -657,7 +657,7 @@ pub unsafe extern "C" fn otfcc_unconsolidateFont(
     if !(*font).glyf.is_null() {
         let mut gord: *mut GlyphOrder = createGlyphOrder(font, options);
         nameGlyphs(font, gord);
-        otfcc_pkgGlyphOrder.free.expect("non-null function pointer")(gord);
+        OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")(gord);
     }
 }
 pub const SHA1_BLOCK_SIZE: ::core::ffi::c_int = 20 as ::core::ffi::c_int;
