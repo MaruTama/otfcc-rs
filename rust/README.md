@@ -607,6 +607,27 @@ the CI-matching Linux container:
     can't tell a field access from a path segment — the same hazard as `sds`
     the type vs. `sds` the module in PR #44. Deferred to the module pass,
     which has to touch those files anyway.
+- **Modules are `snake_case`, and `#![allow(non_snake_case)]` is gone —
+  Stage 4 naming is complete.** 11 modules kept their C-tag spelling for
+  both the file and the `mod` declaration: `BASE`, `CFF`, `COLR`, `CPAL`,
+  `GDEF` (twice — `table::GDEF` and `consolidate::otl::GDEF` are two
+  different modules that happen to share a name, both renamed the same way
+  since they don't collide with each other), `LTSH`, `OS_2`, `SVG`, `TSI5`,
+  `VORG`, `_TSI`. 188 occurrences over 17 files — mod declarations, path
+  segments, `use` statements — plus the 8 fields and the 1 local variable
+  deferred from the fields pass, all sharing this exact spelling with the
+  module next to them, renamed together in the same commit so a field-only
+  rename never ran ahead of the file move that makes it safe. One holdout
+  needed a human: `emyg_dtoa.rs`'s `K` (a `*mut c_int` out-parameter for the
+  binary exponent, five function signatures) becomes `k_out` — plain `k` was
+  already the name of the decimal-digit-count local it coexists with in the
+  same function, the same shadowing risk the locals pass hit and worked
+  around the same way. With modules done, the third and last naming
+  `#![allow(...)]` comes off `lib.rs` — after `non_camel_case_types` (PR
+  #44) and `non_upper_case_globals` (PR #45) — and unlike the type lint,
+  `non_snake_case` has no `repr(C)` exemption, so this one really does mean
+  every variable, function, field and module in the crate is conformant,
+  checked by the compiler on every build from here on.
 - **Standard cargo layout**: `src/lib.rs` + `src/bin/` + `src/ffi/` +
   `src/vendor/`, replacing c2rust's `src::lib::` / `src::dep::r#extern::` /
   `src::src::` scaffolding. See "Crate layout" above.
@@ -896,18 +917,10 @@ on the other platform before a commit is trusted.
   inlines (`sdsavail`, `sdssetlen`, `sdsalloc`, …) are already single, so this is
   one name — but it needs a `pub sdslen` in `vendor/sds.rs`, which is also what
   `json_from_sds` is waiting for.
-- **Rust naming for the rest of the crate.** Types, enum variants, constants,
-  statics, local variables/parameters, functions and struct fields are done
-  (above); what is left is **12 modules** (`table::CFF` → `table::cff`,
-  which is also a file rename) plus **8 fields deferred from this pass**
-  (`BASE`, `COLR`, `CPAL`, `GDEF`, `LTSH`, `OS_2`, `TSI5`, `VORG` — each
-  spells the module it lives next to) and the matching **2 leftover
-  diagnostics** (`emyg_dtoa.rs`'s `K`, and the local variable `LTSH`). This
-  pass touches those same files anyway, so it should absorb all of them at
-  once rather than leave a residue. Then `allow(non_snake_case)` comes out
-  — the last of the three naming allows, after `non_camel_case_types` (PR
-  #44) and `non_upper_case_globals` (PR #45) — and "this crate is Rust-named"
-  stops being an opinion.
+- **Rust naming for the whole crate is done** (types, enum variants,
+  constants, statics, locals, functions, struct fields and modules — see
+  each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
+  is complete.
 - **Then safe Rust, type by type**: `CVecRaw<T>` → `Vec<T>` first (one
   implementation backs ~37 container types), then `sds` → `String`,
   `caryll_Buffer` → `Vec<u8>`, `malloc`/`dispose` → `Box` + `Drop`, and the
