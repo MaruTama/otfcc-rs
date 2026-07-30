@@ -102,17 +102,17 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
                         ),
                     );
                 } else {
-                    let mut outLen: usize = 0 as usize;
+                    let mut out_len: usize = 0 as usize;
                     let mut out: *mut u8 = base64_encode(
                         (*e).data as *mut u8,
                         sdslen((*e).data),
-                        &raw mut outLen,
+                        &raw mut out_len,
                     );
                     json_object_push(
                         _e,
                         b"base64\0" as *const u8 as *const ::core::ffi::c_char,
                         json_string_new_length(
-                            outLen as ::core::ffi::c_uint,
+                            out_len as ::core::ffi::c_uint,
                             out as *mut ::core::ffi::c_char,
                         ),
                     );

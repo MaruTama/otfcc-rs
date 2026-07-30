@@ -72,18 +72,18 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         (*options).ignore_glyph_order = true;
         (*options).force_cid = true;
     }
-    let mut jsonRoot: *mut JsonValue = json_parse(injson, inlen as usize);
-    if jsonRoot.is_null() {
+    let mut json_root: *mut JsonValue = json_parse(injson, inlen as usize);
+    if json_root.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
     let mut parser: *mut IFontBuilder = otfcc_newJsonReader();
     let mut font: *mut Font = (*parser).read.expect("non-null function pointer")(
-        jsonRoot as *mut ::core::ffi::c_void,
+        json_root as *mut ::core::ffi::c_void,
         0 as u32,
         options,
     );
     (*parser).free.expect("non-null function pointer")(parser as *mut IFontBuilder);
-    json_value_free(jsonRoot);
+    json_value_free(json_root);
     if font.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }

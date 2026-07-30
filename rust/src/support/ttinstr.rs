@@ -342,7 +342,7 @@ unsafe extern "C" fn parse_instrs(
     mut text: *mut ::core::ffi::c_char,
     mut len: *mut ::core::ffi::c_int,
     mut context: *mut ::core::ffi::c_void,
-    mut IVError: Option<
+    mut iv_error: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             *mut ::core::ffi::c_char,
@@ -384,7 +384,7 @@ unsafe extern "C" fn parse_instrs(
             }
             val = strtol(pt, &raw mut end, 0 as ::core::ffi::c_int) as ::core::ffi::c_int;
             if val > 32767 as ::core::ffi::c_int || val < -(32768 as ::core::ffi::c_int) {
-                IVError.expect("non-null function pointer")(
+                iv_error.expect("non-null function pointer")(
                     context,
                     b"A value must be between [-32768,32767]\0" as *const u8
                         as *const ::core::ffi::c_char
@@ -409,7 +409,7 @@ unsafe extern "C" fn parse_instrs(
             nread = 0 as ::core::ffi::c_int;
             if push_left == -(1 as ::core::ffi::c_int) {
                 if npos == 0 as ::core::ffi::c_int {
-                    IVError.expect("non-null function pointer")(
+                    iv_error.expect("non-null function pointer")(
                         context,
                         b"Expected a number for a push count\0" as *const u8
                             as *const ::core::ffi::c_char
@@ -421,7 +421,7 @@ unsafe extern "C" fn parse_instrs(
                     || numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
                         <= 0 as ::core::ffi::c_int
                 {
-                    IVError.expect("non-null function pointer")(
+                    iv_error.expect("non-null function pointer")(
                         context,
                         b"The push count must be a number between 0 and 255\0" as *const u8
                             as *const ::core::ffi::c_char
@@ -444,7 +444,7 @@ unsafe extern "C" fn parse_instrs(
                     || *pt as ::core::ffi::c_int == '\n' as i32
                     || *pt as ::core::ffi::c_int == '\0' as i32)
             {
-                IVError.expect("non-null function pointer")(
+                iv_error.expect("non-null function pointer")(
                     context,
                     b"More pushes specified than needed\0" as *const u8
                         as *const ::core::ffi::c_char
@@ -472,7 +472,7 @@ unsafe extern "C" fn parse_instrs(
                     || (numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
                         < 0 as ::core::ffi::c_int
                 {
-                    IVError.expect("non-null function pointer")(
+                    iv_error.expect("non-null function pointer")(
                         context,
                         b"A value to be pushed by a byte push must be between 0 and 255\0"
                             as *const u8 as *const ::core::ffi::c_char
@@ -495,7 +495,7 @@ unsafe extern "C" fn parse_instrs(
                     || *pt as ::core::ffi::c_int == '\n' as i32
                     || *pt as ::core::ffi::c_int == '\0' as i32)
             {
-                IVError.expect("non-null function pointer")(
+                iv_error.expect("non-null function pointer")(
                     context,
                     b"Unexpected number\0" as *const u8 as *const ::core::ffi::c_char
                         as *mut ::core::ffi::c_char,
@@ -508,7 +508,7 @@ unsafe extern "C" fn parse_instrs(
                 || *pt as ::core::ffi::c_int == '\0' as i32)
             {
                 if push_left > 0 as ::core::ffi::c_int {
-                    IVError.expect("non-null function pointer")(
+                    iv_error.expect("non-null function pointer")(
                         context,
                         b"Missing pushes\0" as *const u8 as *const ::core::ffi::c_char
                             as *mut ::core::ffi::c_char,
@@ -652,7 +652,7 @@ unsafe extern "C" fn parse_instrs(
                         bend = bend.offset(1);
                     }
                     if *bend as ::core::ffi::c_int != ']' as i32 {
-                        IVError.expect("non-null function pointer")(
+                        iv_error.expect("non-null function pointer")(
                             context,
                             b"Missing right bracket in command (or bad binary value in bracket)\0"
                                 as *const u8
@@ -663,7 +663,7 @@ unsafe extern "C" fn parse_instrs(
                         return ::core::ptr::null_mut::<u8>();
                     }
                     if val >= 32 as ::core::ffi::c_int {
-                        IVError.expect("non-null function pointer")(
+                        iv_error.expect("non-null function pointer")(
                             context,
                             b"Bracketted value is too large\0" as *const u8
                                 as *const ::core::ffi::c_char
@@ -863,8 +863,8 @@ pub unsafe extern "C" fn dump_ttinstr(
 pub unsafe extern "C" fn parse_ttinstr(
     mut col: *mut JsonValue,
     mut context: *mut ::core::ffi::c_void,
-    mut Make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> ()>,
-    mut Wrong: Option<
+    mut make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> ()>,
+    mut wrong: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             *mut ::core::ffi::c_char,
@@ -873,7 +873,7 @@ pub unsafe extern "C" fn parse_ttinstr(
     >,
 ) {
     if col.is_null() {
-        Make.expect("non-null function pointer")(
+        make.expect("non-null function pointer")(
             context,
             ::core::ptr::null_mut::<u8>(),
             0 as u32,
@@ -886,7 +886,7 @@ pub unsafe extern "C" fn parse_ttinstr(
             (*col).u.string.length as usize,
             &raw mut instrlen,
         );
-        Make.expect("non-null function pointer")(context, instructions, instrlen as u32);
+        make.expect("non-null function pointer")(context, instructions, instrlen as u32);
     } else if (*col).type_0 == JsonType::Array
     {
         let mut istrlen: usize = 0 as usize;
@@ -908,7 +908,7 @@ pub unsafe extern "C" fn parse_ttinstr(
                 istrlen = istrlen
                     .wrapping_add((1 as ::core::ffi::c_int + 20 as ::core::ffi::c_int) as usize);
             } else {
-                Make.expect("non-null function pointer")(
+                make.expect("non-null function pointer")(
                     context,
                     ::core::ptr::null_mut::<u8>(),
                     0 as u32,
@@ -917,11 +917,11 @@ pub unsafe extern "C" fn parse_ttinstr(
             }
             j = j.wrapping_add(1);
         }
-        let mut instrString: SdsRaw = sdsnewlen(
+        let mut instr_string: SdsRaw = sdsnewlen(
             ::core::ptr::null::<::core::ffi::c_void>(),
             istrlen.wrapping_add(1 as usize),
         );
-        let mut head: *mut ::core::ffi::c_char = instrString as *mut ::core::ffi::c_char;
+        let mut head: *mut ::core::ffi::c_char = instr_string as *mut ::core::ffi::c_char;
         let mut j_0: u32 = 0 as u32;
         while j_0 < (*col).u.array.length as u32 {
             let mut record_0: *mut JsonValue =
@@ -949,29 +949,29 @@ pub unsafe extern "C" fn parse_ttinstr(
             head = head.offset(1);
             j_0 = j_0.wrapping_add(1);
         }
-        let mut instrLength: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+        let mut instr_length: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
         let mut instructions_0: *mut u8 = parse_instrs(
-            instrString as *mut ::core::ffi::c_char,
-            &raw mut instrLength,
+            instr_string as *mut ::core::ffi::c_char,
+            &raw mut instr_length,
             context,
-            Wrong,
+            wrong,
         );
-        sdsfree(instrString);
-        if !instructions_0.is_null() && instrLength != 0 {
-            Make.expect("non-null function pointer")(
+        sdsfree(instr_string);
+        if !instructions_0.is_null() && instr_length != 0 {
+            make.expect("non-null function pointer")(
                 context,
                 instructions_0,
-                instrLength as u32,
+                instr_length as u32,
             );
         } else {
-            Make.expect("non-null function pointer")(
+            make.expect("non-null function pointer")(
                 context,
                 ::core::ptr::null_mut::<u8>(),
                 0 as u32,
             );
         }
     } else {
-        Make.expect("non-null function pointer")(
+        make.expect("non-null function pointer")(
             context,
             ::core::ptr::null_mut::<u8>(),
             0 as u32,

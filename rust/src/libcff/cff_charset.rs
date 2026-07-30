@@ -126,10 +126,10 @@ pub unsafe extern "C" fn cff_extract_Charset(
             1 => {
                 (*charsets).t = CffCharsetType::Format1;
                 let mut size: u32 = 0;
-                let mut glyphsEncodedSofar: u32 = 1 as u32;
+                let mut glyphs_encoded_sofar: u32 = 1 as u32;
                 i = 0 as u32;
-                while glyphsEncodedSofar < nchars as u32 {
-                    glyphsEncodedSofar = glyphsEncodedSofar.wrapping_add(
+                while glyphs_encoded_sofar < nchars as u32 {
+                    glyphs_encoded_sofar = glyphs_encoded_sofar.wrapping_add(
                         (1 as u32).wrapping_add(gu1(
                             data,
                             ((offset + 3 as i32) as u32)
@@ -166,10 +166,10 @@ pub unsafe extern "C" fn cff_extract_Charset(
             2 => {
                 (*charsets).t = CffCharsetType::Format2;
                 let mut size_0: u32 = 0;
-                let mut glyphsEncodedSofar_0: u32 = 1 as u32;
+                let mut glyphs_encoded_sofar_0: u32 = 1 as u32;
                 i = 0 as u32;
-                while glyphsEncodedSofar_0 < nchars as u32 {
-                    glyphsEncodedSofar_0 = glyphsEncodedSofar_0.wrapping_add(
+                while glyphs_encoded_sofar_0 < nchars as u32 {
+                    glyphs_encoded_sofar_0 = glyphs_encoded_sofar_0.wrapping_add(
                         (1 as u32).wrapping_add(gu2(
                             data,
                             ((offset + 3 as i32) as u32)

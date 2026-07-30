@@ -181,10 +181,10 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
             } else {
                 ComponentFlags::empty()
             };
-        let mut outputAnchor: bool = (*r).isAnchored == RefAnchorStatus::AnchorConsolidated;
+        let mut output_anchor: bool = (*r).isAnchored == RefAnchorStatus::AnchorConsolidated;
         let mut arg1: ComponentArg = ComponentArg { pointid: 0 };
         let mut arg2: ComponentArg = ComponentArg { pointid: 0 };
-        if outputAnchor {
+        if output_anchor {
             arg1.pointid = (*r).outer as u16;
             arg2.pointid = (*r).inner as u16;
             if !((arg1.pointid as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int

@@ -709,18 +709,18 @@ unsafe extern "C" fn callback_extract_fd(
         }
         18 => {
             if top as ::core::ffi::c_int >= 2 as ::core::ffi::c_int {
-                let mut privateLength: u32 = cffnum(
+                let mut private_length: u32 = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
                 ) as u32;
-                let mut privateOffset: u32 = cffnum(
+                let mut private_offset: u32 = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) as u32;
                 (*meta).privateDict = otfcc_newCff_private();
                 CFF_I_DICT
                     .parseToCallback
                     .expect("non-null function pointer")(
-                    (*file).raw_data.offset(privateOffset as isize),
-                    privateLength,
+                    (*file).raw_data.offset(private_offset as isize),
+                    private_length,
                     context as *mut ::core::ffi::c_void,
                     Some(
                         callback_extract_private
@@ -940,13 +940,13 @@ unsafe extern "C" fn callback_draw_curveto(
 }
 unsafe extern "C" fn callback_draw_sethint(
     mut _context: *mut ::core::ffi::c_void,
-    mut isVertical: bool,
+    mut is_vertical: bool,
     mut position: ::core::ffi::c_double,
     mut width: ::core::ffi::c_double,
 ) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     GLYF_I_STEM_DEF_LIST.push.expect("non-null function pointer")(
-        if isVertical as ::core::ffi::c_int != 0 {
+        if is_vertical as ::core::ffi::c_int != 0 {
             &raw mut (*(*context).g).stemV
         } else {
             &raw mut (*(*context).g).stemH
@@ -960,11 +960,11 @@ unsafe extern "C" fn callback_draw_sethint(
 }
 unsafe extern "C" fn callback_draw_setmask(
     mut _context: *mut ::core::ffi::c_void,
-    mut isContourMask: bool,
-    mut maskArray: *mut bool,
+    mut is_contour_mask: bool,
+    mut mask_array: *mut bool,
 ) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    let mut maskList: *mut MaskList = if isContourMask as ::core::ffi::c_int != 0 {
+    let mut mask_list: *mut MaskList = if is_contour_mask as ::core::ffi::c_int != 0 {
         &raw mut (*(*context).g).contourMasks
     } else {
         &raw mut (*(*context).g).hintMasks
@@ -985,47 +985,47 @@ unsafe extern "C" fn callback_draw_setmask(
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int {
         mask.maskH[j as usize] = if (j as usize) < (*(*context).g).stemH.length {
-            *maskArray.offset(j as isize) as ::core::ffi::c_int
+            *mask_array.offset(j as isize) as ::core::ffi::c_int
         } else {
             0 as ::core::ffi::c_int
         } != 0;
         mask.maskV[j as usize] = if (j as usize) < (*(*context).g).stemV.length {
-            *maskArray.offset((j as usize).wrapping_add((*(*context).g).stemH.length) as isize)
+            *mask_array.offset((j as usize).wrapping_add((*(*context).g).stemH.length) as isize)
                 as ::core::ffi::c_int
         } else {
             0 as ::core::ffi::c_int
         } != 0;
         j = j.wrapping_add(1);
     }
-    free(maskArray as *mut ::core::ffi::c_void);
-    maskArray = ::core::ptr::null_mut::<bool>();
-    if (*maskList).length > 0 as usize
-        && (*(*maskList)
+    free(mask_array as *mut ::core::ffi::c_void);
+    mask_array = ::core::ptr::null_mut::<bool>();
+    if (*mask_list).length > 0 as usize
+        && (*(*mask_list)
             .items
-            .offset((*maskList).length.wrapping_sub(1 as usize) as isize))
+            .offset((*mask_list).length.wrapping_sub(1 as usize) as isize))
         .contoursBefore as ::core::ffi::c_int
             == mask.contoursBefore as ::core::ffi::c_int
-        && (*(*maskList)
+        && (*(*mask_list)
             .items
-            .offset((*maskList).length.wrapping_sub(1 as usize) as isize))
+            .offset((*mask_list).length.wrapping_sub(1 as usize) as isize))
         .pointsBefore as ::core::ffi::c_int
             == mask.pointsBefore as ::core::ffi::c_int
     {
         let mut j_0: ShapeId = 0 as ShapeId;
         while (j_0 as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int {
-            (*(*maskList)
+            (*(*mask_list)
                 .items
-                .offset((*maskList).length.wrapping_sub(1 as usize) as isize))
+                .offset((*mask_list).length.wrapping_sub(1 as usize) as isize))
             .maskH[j_0 as usize] = mask.maskH[j_0 as usize];
-            (*(*maskList)
+            (*(*mask_list)
                 .items
-                .offset((*maskList).length.wrapping_sub(1 as usize) as isize))
+                .offset((*mask_list).length.wrapping_sub(1 as usize) as isize))
             .maskV[j_0 as usize] = mask.maskV[j_0 as usize];
             j_0 = j_0.wrapping_add(1);
         }
     } else {
-        GLYF_I_MASK_LIST.push.expect("non-null function pointer")(maskList, mask);
-        if isContourMask {
+        GLYF_I_MASK_LIST.push.expect("non-null function pointer")(mask_list, mask);
+        if is_contour_mask {
             (*context).definedContourMasks = ((*context).definedContourMasks as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as u8;
         } else {
@@ -1111,14 +1111,14 @@ unsafe extern "C" fn buildOutline(
     let ref mut fresh8 = *(*(*context).glyphs).items.offset(i as isize);
     *fresh8 = g as GlyphPtr;
     let mut seed: u64 = (*context).seed;
-    let mut localSubrs: CffIndex = CffIndex {
+    let mut local_subrs: CffIndex = CffIndex {
         countType: CffIndexCountType::U16,
         count: 0,
         offSize: 0,
         offset: ::core::ptr::null_mut::<u32>(),
         data: ::core::ptr::null_mut::<u8>(),
     };
-    CFF_I_INDEX.init.expect("non-null function pointer")(&raw mut localSubrs);
+    CFF_I_INDEX.init.expect("non-null function pointer")(&raw mut local_subrs);
     let mut stack: CffStack = CffStack {
         stack: ::core::ptr::null_mut::<CffValue>(),
         transient: [CffValue {
@@ -1155,7 +1155,7 @@ unsafe extern "C" fn buildOutline(
             (*f).raw_data,
             (*f).font_dict,
             (*f).fdselect,
-            &raw mut localSubrs,
+            &raw mut local_subrs,
         );
     } else {
         fd = cff_parseSubr(
@@ -1163,7 +1163,7 @@ unsafe extern "C" fn buildOutline(
             (*f).raw_data,
             (*f).top_dict,
             (*f).fdselect,
-            &raw mut localSubrs,
+            &raw mut local_subrs,
         );
     }
     (*g).fdSelect = handle_fromIndex(fd as GlyphId)
@@ -1186,12 +1186,12 @@ unsafe extern "C" fn buildOutline(
         &raw mut (*g).advanceWidth,
         I_VQ.createStill.expect("non-null function pointer")(bc.defaultWidthX as Pos) as VQ,
     );
-    let mut charStringPtr: *mut u8 = (*f)
+    let mut char_string_ptr: *mut u8 = (*f)
         .char_strings
         .data
         .offset(*(*f).char_strings.offset.offset(i as isize) as isize)
         .offset(-(1 as ::core::ffi::c_int as isize));
-    let mut charStringLength: u32 = (*(*f)
+    let mut char_string_length: u32 = (*(*f)
         .char_strings
         .offset
         .offset((i as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
@@ -1202,10 +1202,10 @@ unsafe extern "C" fn buildOutline(
     bc.jPoint = 0 as ShapeId;
     bc.randx = seed;
     cff_parseOutline(
-        charStringPtr,
-        charStringLength,
+        char_string_ptr,
+        char_string_length,
         (*f).global_subr,
-        localSubrs,
+        local_subrs,
         &raw mut stack,
         &raw mut bc as *mut ::core::ffi::c_void,
         DRAW_PASS,
@@ -1263,7 +1263,7 @@ unsafe extern "C" fn buildOutline(
         .expect("non-null function pointer")(&raw mut (*g).contours);
     I_VQ.dispose.expect("non-null function pointer")(&raw mut cx);
     I_VQ.dispose.expect("non-null function pointer")(&raw mut cy);
-    CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut localSubrs);
+    CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut local_subrs);
     free(stack.stack as *mut ::core::ffi::c_void);
     stack.stack = ::core::ptr::null_mut::<CffValue>();
     (*context).seed = bc.randx;
@@ -1301,7 +1301,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                 }
             }
             CffCharsetType::Format1 => {
-                let mut glyphsNamedSofar: u32 = 1 as u32;
+                let mut glyphs_named_sofar: u32 = 1 as u32;
                 let mut j_0: GlyphId = 0 as GlyphId;
                 while (j_0 as u32) < (*charset).s {
                     let mut first: CffSid =
@@ -1315,22 +1315,22 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                         let mut sid_0: CffSid =
                             (first as ::core::ffi::c_int + k as ::core::ffi::c_int) as CffSid;
                         let mut glyphname_0: SdsRaw = formCIDString(sid_0);
-                        if (glyphsNamedSofar as usize) < (*glyphs).length && !glyphname_0.is_null()
+                        if (glyphs_named_sofar as usize) < (*glyphs).length && !glyphname_0.is_null()
                         {
                             let ref mut fresh3 =
-                                (**(*glyphs).items.offset(glyphsNamedSofar as isize)).name;
+                                (**(*glyphs).items.offset(glyphs_named_sofar as isize)).name;
                             *fresh3 = glyphname_0;
-                            (**(*glyphs).items.offset(glyphsNamedSofar as isize)).cid =
+                            (**(*glyphs).items.offset(glyphs_named_sofar as isize)).cid =
                                 sid_0 as GlyphId;
                         }
-                        glyphsNamedSofar = glyphsNamedSofar.wrapping_add(1);
+                        glyphs_named_sofar = glyphs_named_sofar.wrapping_add(1);
                         k = k.wrapping_add(1);
                     }
                     j_0 = j_0.wrapping_add(1);
                 }
             }
             CffCharsetType::Format2 => {
-                let mut glyphsNamedSofar_0: u32 = 1 as u32;
+                let mut glyphs_named_sofar_0: u32 = 1 as u32;
                 let mut j_1: GlyphId = 0 as GlyphId;
                 while (j_1 as u32) < (*charset).s {
                     let mut first_0: CffSid =
@@ -1344,16 +1344,16 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                         let mut sid_1: CffSid =
                             (first_0 as ::core::ffi::c_int + k_0 as ::core::ffi::c_int) as CffSid;
                         let mut glyphname_1: SdsRaw = formCIDString(sid_1);
-                        if (glyphsNamedSofar_0 as usize) < (*glyphs).length
+                        if (glyphs_named_sofar_0 as usize) < (*glyphs).length
                             && !glyphname_1.is_null()
                         {
                             let ref mut fresh4 =
-                                (**(*glyphs).items.offset(glyphsNamedSofar_0 as isize)).name;
+                                (**(*glyphs).items.offset(glyphs_named_sofar_0 as isize)).name;
                             *fresh4 = glyphname_1;
-                            (**(*glyphs).items.offset(glyphsNamedSofar_0 as isize)).cid =
+                            (**(*glyphs).items.offset(glyphs_named_sofar_0 as isize)).cid =
                                 sid_1 as GlyphId;
                         }
-                        glyphsNamedSofar_0 = glyphsNamedSofar_0.wrapping_add(1);
+                        glyphs_named_sofar_0 = glyphs_named_sofar_0.wrapping_add(1);
                         k_0 = k_0.wrapping_add(1);
                     }
                     j_1 = j_1.wrapping_add(1);
@@ -1380,7 +1380,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                 }
             }
             CffCharsetType::Format1 => {
-                let mut glyphsNamedSofar_1: u32 = 1 as u32;
+                let mut glyphs_named_sofar_1: u32 = 1 as u32;
                 let mut j_3: GlyphId = 0 as GlyphId;
                 while (j_3 as u32) < (*charset).s {
                     let mut first_1: GlyphId =
@@ -1395,21 +1395,21 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                             (first_1 as ::core::ffi::c_int + k_1 as ::core::ffi::c_int) as CffSid;
                         let mut glyphname_3: SdsRaw =
                             sdsget_cff_sid(sid_3 as u16, (*cffFile).string);
-                        if (glyphsNamedSofar_1 as usize) < (*glyphs).length
+                        if (glyphs_named_sofar_1 as usize) < (*glyphs).length
                             && !glyphname_3.is_null()
                         {
                             let ref mut fresh6 =
-                                (**(*glyphs).items.offset(glyphsNamedSofar_1 as isize)).name;
+                                (**(*glyphs).items.offset(glyphs_named_sofar_1 as isize)).name;
                             *fresh6 = glyphname_3;
                         }
-                        glyphsNamedSofar_1 = glyphsNamedSofar_1.wrapping_add(1);
+                        glyphs_named_sofar_1 = glyphs_named_sofar_1.wrapping_add(1);
                         k_1 = k_1.wrapping_add(1);
                     }
                     j_3 = j_3.wrapping_add(1);
                 }
             }
             CffCharsetType::Format2 => {
-                let mut glyphsNamedSofar_2: u32 = 1 as u32;
+                let mut glyphs_named_sofar_2: u32 = 1 as u32;
                 let mut j_4: GlyphId = 0 as GlyphId;
                 while (j_4 as u32) < (*charset).s {
                     let mut first_2: GlyphId =
@@ -1424,14 +1424,14 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                             (first_2 as ::core::ffi::c_int + k_2 as ::core::ffi::c_int) as CffSid;
                         let mut glyphname_4: SdsRaw =
                             sdsget_cff_sid(sid_4 as u16, (*cffFile).string);
-                        if (glyphsNamedSofar_2 as usize) < (*glyphs).length
+                        if (glyphs_named_sofar_2 as usize) < (*glyphs).length
                             && !glyphname_4.is_null()
                         {
                             let ref mut fresh7 =
-                                (**(*glyphs).items.offset(glyphsNamedSofar_2 as isize)).name;
+                                (**(*glyphs).items.offset(glyphs_named_sofar_2 as isize)).name;
                             *fresh7 = glyphname_4;
                         }
-                        glyphsNamedSofar_2 = glyphsNamedSofar_2.wrapping_add(1);
+                        glyphs_named_sofar_2 = glyphs_named_sofar_2.wrapping_add(1);
                         k_2 = k_2.wrapping_add(1);
                     }
                     j_4 = j_4.wrapping_add(1);
@@ -2163,7 +2163,7 @@ unsafe extern "C" fn pdFromJson(mut dump: *mut JsonValue) -> *mut CffPrivateDict
 unsafe extern "C" fn fdFromJson(
     mut dump: *const JsonValue,
     mut options: *const Options,
-    mut topLevel: bool,
+    mut top_level: bool,
 ) -> *mut CffTable {
     let mut table: *mut CffTable = (
         TABLE_I_CFF.create.expect("non-null function pointer"))();
@@ -2304,7 +2304,7 @@ unsafe extern "C" fn fdFromJson(
     if (*table).privateDict.is_null() {
         (*table).privateDict = otfcc_newCff_private();
     }
-    if topLevel as ::core::ffi::c_int != 0
+    if top_level as ::core::ffi::c_int != 0
         && (*options).force_cid as ::core::ffi::c_int != 0
         && (*table).fdArray.is_null()
     {
@@ -3586,33 +3586,33 @@ unsafe extern "C" fn cffstrings_to_indexblob(mut h: *mut *mut CffSidEntry) -> *m
     return final_blob;
 }
 unsafe extern "C" fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffer {
-    let mut nameIndex: *mut CffIndex = (
+    let mut name_index: *mut CffIndex = (
         CFF_I_INDEX.create.expect("non-null function pointer"))();
-    (*nameIndex).count = 1 as Arity;
-    (*nameIndex).offSize = 4 as u8;
-    (*nameIndex).offset = __caryll_allocate_clean(
+    (*name_index).count = 1 as Arity;
+    (*name_index).offSize = 4 as u8;
+    (*name_index).offset = __caryll_allocate_clean(
         (::core::mem::size_of::<u32>() as usize).wrapping_mul(2 as usize),
         1121 as ::core::ffi::c_ulong,
     ) as *mut u32;
     if (*cff).fontName.is_null() {
         (*cff).fontName = sdsnew(b"Caryll-CFF-FONT\0" as *const u8 as *const ::core::ffi::c_char);
     }
-    *(*nameIndex).offset.offset(0 as ::core::ffi::c_int as isize) = 1 as u32;
-    *(*nameIndex).offset.offset(1 as ::core::ffi::c_int as isize) =
+    *(*name_index).offset.offset(0 as ::core::ffi::c_int as isize) = 1 as u32;
+    *(*name_index).offset.offset(1 as ::core::ffi::c_int as isize) =
         sdslen((*cff).fontName).wrapping_add(1 as usize) as u32;
-    (*nameIndex).data = __caryll_allocate_clean(
+    (*name_index).data = __caryll_allocate_clean(
         (::core::mem::size_of::<u8>() as usize)
             .wrapping_mul((1 as usize).wrapping_add(sdslen((*cff).fontName))),
         1125 as ::core::ffi::c_ulong,
     ) as *mut u8;
     memcpy(
-        (*nameIndex).data as *mut ::core::ffi::c_void,
+        (*name_index).data as *mut ::core::ffi::c_void,
         (*cff).fontName as *const ::core::ffi::c_void,
         sdslen((*cff).fontName),
     );
     let mut buf: *mut Buffer =
-        CFF_I_INDEX.build.expect("non-null function pointer")(nameIndex);
-    CFF_I_INDEX.free.expect("non-null function pointer")(nameIndex);
+        CFF_I_INDEX.build.expect("non-null function pointer")(name_index);
+    CFF_I_INDEX.free.expect("non-null function pointer")(name_index);
     if !(*cff).fontName.is_null() {
         sdsfree((*cff).fontName);
         (*cff).fontName = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -3853,7 +3853,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
     let mut s: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     let mut gs: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     let mut ls: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    let mut g2cContext: CffCharstringBuilderContext = CffCharstringBuilderContext {
+    let mut g2c_context: CffCharstringBuilderContext = CffCharstringBuilderContext {
         glyf: ::core::ptr::null_mut::<GlyfTable>(),
         defaultWidth: 0,
         nominalWidthX: 0,
@@ -3867,40 +3867,40 @@ unsafe extern "C" fn writecff_CIDKeyed(
             doSubroutinize: false,
         },
     };
-    g2cContext.glyf = glyf;
-    g2cContext.defaultWidth = (*(*cff).privateDict).defaultWidthX as u16;
-    g2cContext.nominalWidthX = (*(*cff).privateDict).nominalWidthX as u16;
-    g2cContext.options = options;
-    CFF_I_SUBR_GRAPH.init.expect("non-null function pointer")(&raw mut g2cContext.graph);
-    g2cContext.graph.doSubroutinize = (*options).cff_doSubroutinize;
-    cff_make_charstrings(&raw mut g2cContext, &raw mut s, &raw mut gs, &raw mut ls);
-    CFF_I_SUBR_GRAPH.dispose.expect("non-null function pointer")(&raw mut g2cContext.graph);
-    let mut additionalTopDictOpsSize: u32 = 0 as u32;
+    g2c_context.glyf = glyf;
+    g2c_context.defaultWidth = (*(*cff).privateDict).defaultWidthX as u16;
+    g2c_context.nominalWidthX = (*(*cff).privateDict).nominalWidthX as u16;
+    g2c_context.options = options;
+    CFF_I_SUBR_GRAPH.init.expect("non-null function pointer")(&raw mut g2c_context.graph);
+    g2c_context.graph.doSubroutinize = (*options).cff_doSubroutinize;
+    cff_make_charstrings(&raw mut g2c_context, &raw mut s, &raw mut gs, &raw mut ls);
+    CFF_I_SUBR_GRAPH.dispose.expect("non-null function pointer")(&raw mut g2c_context.graph);
+    let mut additional_top_dict_ops_size: u32 = 0 as u32;
     let mut off: u32 = (*h)
         .size
         .wrapping_add((*n).size)
         .wrapping_add(11 as usize)
         .wrapping_add((*t).size) as u32;
     if (*c).size != 0 as usize {
-        additionalTopDictOpsSize = additionalTopDictOpsSize.wrapping_add(6 as u32);
+        additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(6 as u32);
     }
     if (*e).size != 0 as usize {
-        additionalTopDictOpsSize = additionalTopDictOpsSize.wrapping_add(7 as u32);
+        additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(7 as u32);
     }
     if (*s).size != 0 as usize {
-        additionalTopDictOpsSize = additionalTopDictOpsSize.wrapping_add(6 as u32);
+        additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(6 as u32);
     }
     if (*p).size != 0 as usize {
-        additionalTopDictOpsSize = additionalTopDictOpsSize.wrapping_add(11 as u32);
+        additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(11 as u32);
     }
     if (*r).size != 0 as usize {
-        additionalTopDictOpsSize = additionalTopDictOpsSize.wrapping_add(7 as u32);
+        additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(7 as u32);
     }
     bufwrite_bufdel(blob, h);
     bufwrite_bufdel(blob, n);
     let mut delta_size: i32 = (*t)
         .size
-        .wrapping_add(additionalTopDictOpsSize as usize)
+        .wrapping_add(additional_top_dict_ops_size as usize)
         .wrapping_add(1 as usize) as u32 as i32;
     bufwrite_bufdel(
         blob,
@@ -3908,7 +3908,7 @@ unsafe extern "C" fn writecff_CIDKeyed(
     );
     bufwrite_bufdel(blob, t);
     off = (off as usize).wrapping_add(
-        (additionalTopDictOpsSize as usize)
+        (additional_top_dict_ops_size as usize)
             .wrapping_add((*i).size)
             .wrapping_add((*gs).size),
     ) as u32 as u32;
@@ -3958,28 +3958,28 @@ unsafe extern "C" fn writecff_CIDKeyed(
     bufwrite_bufdel(blob, c);
     bufwrite_bufdel(blob, e);
     bufwrite_bufdel(blob, s);
-    let mut startingPositionOfPrivates: *mut usize = ::core::ptr::null_mut::<usize>();
-    startingPositionOfPrivates = __caryll_allocate_clean(
+    let mut starting_position_of_privates: *mut usize = ::core::ptr::null_mut::<usize>();
+    starting_position_of_privates = __caryll_allocate_clean(
         (::core::mem::size_of::<usize>() as usize).wrapping_mul(
             (1 as ::core::ffi::c_int + (*cff).fdArrayCount as ::core::ffi::c_int) as usize,
         ),
         1350 as ::core::ffi::c_ulong,
     ) as *mut usize;
-    *startingPositionOfPrivates.offset(0 as ::core::ffi::c_int as isize) = (*blob).cursor;
+    *starting_position_of_privates.offset(0 as ::core::ffi::c_int as isize) = (*blob).cursor;
     bufwrite_bufdel(blob, p);
-    let mut endingPositionOfPrivates: *mut usize = ::core::ptr::null_mut::<usize>();
-    endingPositionOfPrivates = __caryll_allocate_clean(
+    let mut ending_position_of_privates: *mut usize = ::core::ptr::null_mut::<usize>();
+    ending_position_of_privates = __caryll_allocate_clean(
         (::core::mem::size_of::<usize>() as usize).wrapping_mul(
             (1 as ::core::ffi::c_int + (*cff).fdArrayCount as ::core::ffi::c_int) as usize,
         ),
         1354 as ::core::ffi::c_ulong,
     ) as *mut usize;
-    *endingPositionOfPrivates.offset(0 as ::core::ffi::c_int as isize) = (*blob).cursor;
+    *ending_position_of_privates.offset(0 as ::core::ffi::c_int as isize) = (*blob).cursor;
     if (*cff).isCID {
-        let mut fdArrayPrivatesStartOffset: u32 = off;
-        let mut fdArrayPrivates: *mut *mut Buffer =
+        let mut fd_array_privates_start_offset: u32 = off;
+        let mut fd_array_privates: *mut *mut Buffer =
             ::core::ptr::null_mut::<*mut Buffer>();
-        fdArrayPrivates = __caryll_allocate_clean(
+        fd_array_privates = __caryll_allocate_clean(
             (::core::mem::size_of::<*mut Buffer>() as usize)
                 .wrapping_mul((*cff).fdArrayCount as usize),
             1359 as ::core::ffi::c_ulong,
@@ -3999,41 +3999,41 @@ unsafe extern "C" fn writecff_CIDKeyed(
                 cff_encodeCffOperator(OP_SUBRS),
             );
             CFF_I_DICT.free.expect("non-null function pointer")(pd);
-            let ref mut fresh14 = *fdArrayPrivates.offset(j as isize);
+            let ref mut fresh14 = *fd_array_privates.offset(j as isize);
             *fresh14 = p_0;
-            let mut privateLengthPtr: *mut u8 = (*fdArrayIndex).data.offset(
+            let mut private_length_ptr: *mut u8 = (*fdArrayIndex).data.offset(
                 (*(*fdArrayIndex)
                     .offset
                     .offset((j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
                 .wrapping_sub(11 as u32) as isize,
             ) as *mut u8;
-            *privateLengthPtr.offset(0 as ::core::ffi::c_int as isize) =
+            *private_length_ptr.offset(0 as ::core::ffi::c_int as isize) =
                 ((*p_0).size >> 24 as ::core::ffi::c_int & 0xff as usize) as u8;
-            *privateLengthPtr.offset(1 as ::core::ffi::c_int as isize) =
+            *private_length_ptr.offset(1 as ::core::ffi::c_int as isize) =
                 ((*p_0).size >> 16 as ::core::ffi::c_int & 0xff as usize) as u8;
-            *privateLengthPtr.offset(2 as ::core::ffi::c_int as isize) =
+            *private_length_ptr.offset(2 as ::core::ffi::c_int as isize) =
                 ((*p_0).size >> 8 as ::core::ffi::c_int & 0xff as usize) as u8;
-            *privateLengthPtr.offset(3 as ::core::ffi::c_int as isize) =
+            *private_length_ptr.offset(3 as ::core::ffi::c_int as isize) =
                 ((*p_0).size >> 0 as ::core::ffi::c_int & 0xff as usize) as u8;
-            let mut privateOffsetPtr: *mut u8 = (*fdArrayIndex).data.offset(
+            let mut private_offset_ptr: *mut u8 = (*fdArrayIndex).data.offset(
                 (*(*fdArrayIndex)
                     .offset
                     .offset((j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
                 .wrapping_sub(6 as u32) as isize,
             ) as *mut u8;
-            *privateOffsetPtr.offset(0 as ::core::ffi::c_int as isize) =
-                (fdArrayPrivatesStartOffset >> 24 as ::core::ffi::c_int & 0xff as u32)
+            *private_offset_ptr.offset(0 as ::core::ffi::c_int as isize) =
+                (fd_array_privates_start_offset >> 24 as ::core::ffi::c_int & 0xff as u32)
                     as u8;
-            *privateOffsetPtr.offset(1 as ::core::ffi::c_int as isize) =
-                (fdArrayPrivatesStartOffset >> 16 as ::core::ffi::c_int & 0xff as u32)
+            *private_offset_ptr.offset(1 as ::core::ffi::c_int as isize) =
+                (fd_array_privates_start_offset >> 16 as ::core::ffi::c_int & 0xff as u32)
                     as u8;
-            *privateOffsetPtr.offset(2 as ::core::ffi::c_int as isize) =
-                (fdArrayPrivatesStartOffset >> 8 as ::core::ffi::c_int & 0xff as u32)
+            *private_offset_ptr.offset(2 as ::core::ffi::c_int as isize) =
+                (fd_array_privates_start_offset >> 8 as ::core::ffi::c_int & 0xff as u32)
                     as u8;
-            *privateOffsetPtr.offset(3 as ::core::ffi::c_int as isize) =
-                (fdArrayPrivatesStartOffset >> 0 as ::core::ffi::c_int & 0xff as u32)
+            *private_offset_ptr.offset(3 as ::core::ffi::c_int as isize) =
+                (fd_array_privates_start_offset >> 0 as ::core::ffi::c_int & 0xff as u32)
                     as u8;
-            fdArrayPrivatesStartOffset = (fdArrayPrivatesStartOffset as usize)
+            fd_array_privates_start_offset = (fd_array_privates_start_offset as usize)
                 .wrapping_add((*p_0).size) as u32
                 as u32;
             j = j.wrapping_add(1);
@@ -4044,52 +4044,52 @@ unsafe extern "C" fn writecff_CIDKeyed(
         bufwrite_bufdel(blob, r);
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as ::core::ffi::c_int) < (*cff).fdArrayCount as ::core::ffi::c_int {
-            *startingPositionOfPrivates
+            *starting_position_of_privates
                 .offset((j_0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize) =
                 (*blob).cursor;
-            bufwrite_bufdel(blob, *fdArrayPrivates.offset(j_0 as isize));
-            *endingPositionOfPrivates
+            bufwrite_bufdel(blob, *fd_array_privates.offset(j_0 as isize));
+            *ending_position_of_privates
                 .offset((j_0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize) =
                 (*blob).cursor;
             j_0 = j_0.wrapping_add(1);
         }
-        free(fdArrayPrivates as *mut ::core::ffi::c_void);
-        fdArrayPrivates = ::core::ptr::null_mut::<*mut Buffer>();
+        free(fd_array_privates as *mut ::core::ffi::c_void);
+        fd_array_privates = ::core::ptr::null_mut::<*mut Buffer>();
     } else {
         bufwrite_bufdel(blob, r);
     }
-    let mut positionOfLocalSubroutines: usize = (*blob).cursor;
+    let mut position_of_local_subroutines: usize = (*blob).cursor;
     bufwrite_bufdel(blob, ls);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as ::core::ffi::c_int)
         < (*cff).fdArrayCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int
     {
-        let mut lsOffset: usize = positionOfLocalSubroutines
-            .wrapping_sub(*startingPositionOfPrivates.offset(j_1 as isize));
+        let mut ls_offset: usize = position_of_local_subroutines
+            .wrapping_sub(*starting_position_of_privates.offset(j_1 as isize));
         let mut ptr: *mut u8 = (*blob).data.offset(
-            (*endingPositionOfPrivates.offset(j_1 as isize)).wrapping_sub(5 as usize) as isize,
+            (*ending_position_of_privates.offset(j_1 as isize)).wrapping_sub(5 as usize) as isize,
         ) as *mut u8;
         *ptr.offset(0 as ::core::ffi::c_int as isize) =
-            (lsOffset >> 24 as ::core::ffi::c_int & 0xff as usize) as u8;
+            (ls_offset >> 24 as ::core::ffi::c_int & 0xff as usize) as u8;
         *ptr.offset(1 as ::core::ffi::c_int as isize) =
-            (lsOffset >> 16 as ::core::ffi::c_int & 0xff as usize) as u8;
+            (ls_offset >> 16 as ::core::ffi::c_int & 0xff as usize) as u8;
         *ptr.offset(2 as ::core::ffi::c_int as isize) =
-            (lsOffset >> 8 as ::core::ffi::c_int & 0xff as usize) as u8;
+            (ls_offset >> 8 as ::core::ffi::c_int & 0xff as usize) as u8;
         *ptr.offset(3 as ::core::ffi::c_int as isize) =
-            (lsOffset >> 0 as ::core::ffi::c_int & 0xff as usize) as u8;
+            (ls_offset >> 0 as ::core::ffi::c_int & 0xff as usize) as u8;
         j_1 = j_1.wrapping_add(1);
     }
-    free(startingPositionOfPrivates as *mut ::core::ffi::c_void);
-    startingPositionOfPrivates = ::core::ptr::null_mut::<usize>();
-    free(endingPositionOfPrivates as *mut ::core::ffi::c_void);
-    endingPositionOfPrivates = ::core::ptr::null_mut::<usize>();
+    free(starting_position_of_privates as *mut ::core::ffi::c_void);
+    starting_position_of_privates = ::core::ptr::null_mut::<usize>();
+    free(ending_position_of_privates as *mut ::core::ffi::c_void);
+    ending_position_of_privates = ::core::ptr::null_mut::<usize>();
     return blob;
 }
 pub unsafe extern "C" fn otfcc_buildCFF(
-    cffAndGlyf: CffAndGlyf,
+    cff_and_glyf: CffAndGlyf,
     mut options: *const Options,
 ) -> *mut Buffer {
-    return writecff_CIDKeyed(cffAndGlyf.meta, cffAndGlyf.glyphs, options);
+    return writecff_CIDKeyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options);
 }
 #[inline]
 unsafe extern "C" fn json_from_sds(str: SdsRaw) -> *mut JsonValue {

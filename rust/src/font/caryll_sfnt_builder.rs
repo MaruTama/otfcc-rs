@@ -53,12 +53,12 @@ unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
     };
 }
 unsafe extern "C" fn buf_checksum(mut buffer: *mut Buffer) -> u32 {
-    let mut actualLength: u32 = buflen(buffer) as u32;
+    let mut actual_length: u32 = buflen(buffer) as u32;
     buflongalign(buffer);
     let mut sum: u32 = 0 as u32;
     let mut start: *mut u32 = (*buffer).data as *mut u32;
     let mut end: *mut u32 = start.offset(
-        ((actualLength.wrapping_add(3 as u32) & !(3 as ::core::ffi::c_int) as u32)
+        ((actual_length.wrapping_add(3 as u32) & !(3 as ::core::ffi::c_int) as u32)
             as usize)
             .wrapping_div(::core::mem::size_of::<u32>()) as isize,
     );
@@ -966,19 +966,19 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
     if builder.is_null() {
         return buffer;
     }
-    let mut nTables: u16 = (if !(*builder).tables.is_null() {
+    let mut n_tables: u16 = (if !(*builder).tables.is_null() {
         (*(*(*builder).tables).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
     }) as u16;
-    let mut searchRange: u16 = ((if (nTables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int
+    let mut searchRange: u16 = ((if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int
     {
         8 as ::core::ffi::c_int
     } else {
-        if (nTables as ::core::ffi::c_int) < 32 as ::core::ffi::c_int {
+        if (n_tables as ::core::ffi::c_int) < 32 as ::core::ffi::c_int {
             16 as ::core::ffi::c_int
         } else {
-            if (nTables as ::core::ffi::c_int) < 64 as ::core::ffi::c_int {
+            if (n_tables as ::core::ffi::c_int) < 64 as ::core::ffi::c_int {
                 32 as ::core::ffi::c_int
             } else {
                 64 as ::core::ffi::c_int
@@ -986,15 +986,15 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
         }
     }) * 16 as ::core::ffi::c_int) as u16;
     bufwrite32b(buffer, (*builder).header);
-    bufwrite16b(buffer, nTables);
+    bufwrite16b(buffer, n_tables);
     bufwrite16b(buffer, searchRange);
     bufwrite16b(
         buffer,
-        (if (nTables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int {
+        (if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int {
             3 as ::core::ffi::c_int
-        } else if (nTables as ::core::ffi::c_int) < 32 as ::core::ffi::c_int {
+        } else if (n_tables as ::core::ffi::c_int) < 32 as ::core::ffi::c_int {
             4 as ::core::ffi::c_int
-        } else if (nTables as ::core::ffi::c_int) < 64 as ::core::ffi::c_int {
+        } else if (n_tables as ::core::ffi::c_int) < 64 as ::core::ffi::c_int {
             5 as ::core::ffi::c_int
         } else {
             6 as ::core::ffi::c_int
@@ -1002,14 +1002,14 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
     );
     bufwrite16b(
         buffer,
-        (nTables as ::core::ffi::c_int * 16 as ::core::ffi::c_int
+        (n_tables as ::core::ffi::c_int * 16 as ::core::ffi::c_int
             - searchRange as ::core::ffi::c_int) as u16,
     );
     let mut table: *mut SfntTableEntry = ::core::ptr::null_mut::<SfntTableEntry>();
     let mut offset: usize = (12 as ::core::ffi::c_int
-        + nTables as ::core::ffi::c_int * 16 as ::core::ffi::c_int)
+        + n_tables as ::core::ffi::c_int * 16 as ::core::ffi::c_int)
         as usize;
-    let mut headOffset: usize = offset;
+    let mut head_offset: usize = offset;
     let mut _hs_i: ::core::ffi::c_uint = 0;
     let mut _hs_looping: ::core::ffi::c_uint = 0;
     let mut _hs_nmerges: ::core::ffi::c_uint = 0;
@@ -1158,13 +1158,13 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
         bufwrite_buf(buffer, (*table).buffer);
         bufseek(buffer, cp);
         if (*table).tag == 1751474532i32 {
-            headOffset = offset;
+            head_offset = offset;
         }
         offset = offset.wrapping_add(buflen((*table).buffer));
         table = (*table).hh.next as *mut SfntTableEntry;
     }
-    let mut wholeChecksum: u32 = buf_checksum(buffer);
-    bufseek(buffer, headOffset.wrapping_add(8 as usize));
-    bufwrite32b(buffer, (0xb1b0afba as u32).wrapping_sub(wholeChecksum));
+    let mut whole_checksum: u32 = buf_checksum(buffer);
+    bufseek(buffer, head_offset.wrapping_add(8 as usize));
+    bufwrite32b(buffer, (0xb1b0afba as u32).wrapping_sub(whole_checksum));
     return buffer;
 }

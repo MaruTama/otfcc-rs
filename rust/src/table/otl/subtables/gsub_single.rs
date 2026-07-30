@@ -408,12 +408,12 @@ unsafe extern "C" fn subtable_gsub_single_move(
 }
 pub unsafe extern "C" fn otl_read_gsub_single(
     data: FontFilePointer,
-    mut tableLength: u32,
-    mut subtableOffset: u32,
-    _maxGlyphs: GlyphId,
+    mut table_length: u32,
+    mut subtable_offset: u32,
+    _max_glyphs: GlyphId,
     mut _options: *const Options,
 ) -> *mut Subtable {
-    let mut subtableFormat: u16 = 0;
+    let mut subtable_format: u16 = 0;
     let mut current_block: u64;
     let mut subtable: *mut GsubSingleSubtable =
         (
@@ -422,18 +422,18 @@ pub unsafe extern "C" fn otl_read_gsub_single(
                 .expect("non-null function pointer"))();
     let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let mut to: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    if !(tableLength < subtableOffset.wrapping_add(6 as u32)) {
-        subtableFormat = read_16u(data.offset(subtableOffset as isize) as *const u8);
+    if !(table_length < subtable_offset.wrapping_add(6 as u32)) {
+        subtable_format = read_16u(data.offset(subtable_offset as isize) as *const u8);
         from = readCoverage(
             data as *const u8,
-            tableLength,
-            subtableOffset.wrapping_add(read_16u(
-                data.offset(subtableOffset as isize)
+            table_length,
+            subtable_offset.wrapping_add(read_16u(
+                data.offset(subtable_offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             ) as u32),
         );
         if !(from.is_null() || (*from).numGlyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int) {
-            if subtableFormat as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
+            if subtable_format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
                 to = __caryll_allocate_clean(
                     ::core::mem::size_of::<Coverage>() as usize,
                     36 as ::core::ffi::c_ulong,
@@ -445,7 +445,7 @@ pub unsafe extern "C" fn otl_read_gsub_single(
                     38 as ::core::ffi::c_ulong,
                 ) as *mut GlyphHandle;
                 let mut delta: u16 = read_16u(
-                    data.offset(subtableOffset as isize)
+                    data.offset(subtable_offset as isize)
                         .offset(4 as ::core::ffi::c_int as isize)
                         as *const u8,
                 );
@@ -460,12 +460,12 @@ pub unsafe extern "C" fn otl_read_gsub_single(
                 current_block = 126606456056746247;
             } else {
                 let mut toglyphs: GlyphId = read_16u(
-                    data.offset(subtableOffset as isize)
+                    data.offset(subtable_offset as isize)
                         .offset(4 as ::core::ffi::c_int as isize)
                         as *const u8,
                 ) as GlyphId;
-                if tableLength
-                    < subtableOffset.wrapping_add(6 as u32).wrapping_add(
+                if table_length
+                    < subtable_offset.wrapping_add(6 as u32).wrapping_add(
                         (toglyphs as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
                     )
                     || toglyphs as ::core::ffi::c_int != (*from).numGlyphs as ::core::ffi::c_int
@@ -486,7 +486,7 @@ pub unsafe extern "C" fn otl_read_gsub_single(
                     while (j_0 as ::core::ffi::c_int) < (*to).numGlyphs as ::core::ffi::c_int {
                         *(*to).glyphs.offset(j_0 as isize) =
                             handle_fromIndex(read_16u(
-                                data.offset(subtableOffset as isize)
+                                data.offset(subtable_offset as isize)
                                     .offset(6 as ::core::ffi::c_int as isize)
                                     .offset(
                                         (j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
@@ -613,25 +613,25 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
     mut heuristics: BuildHeuristics,
 ) -> *mut Buffer {
     let mut subtable: *const GsubSingleSubtable = &raw const (*_subtable).gsub_single;
-    let mut isConstantDifference: bool = (*subtable).length > 0 as usize;
-    if isConstantDifference {
+    let mut is_constant_difference: bool = (*subtable).length > 0 as usize;
+    if is_constant_difference {
         let mut difference: i32 = (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
             .to
             .index as i32
             - (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
                 .from
                 .index as i32;
-        isConstantDifference = isConstantDifference as ::core::ffi::c_int != 0
+        is_constant_difference = is_constant_difference as ::core::ffi::c_int != 0
             && difference < 0x8000 as i32
             && difference > -(0x8000 as i32);
         let mut j: GlyphId = 1 as GlyphId;
         while (j as usize) < (*subtable).length {
-            let mut diffJ: i32 = (*(*subtable).items.offset(j as isize)).to.index as i32
+            let mut diff_j: i32 = (*(*subtable).items.offset(j as isize)).to.index as i32
                 - (*(*subtable).items.offset(j as isize)).from.index as i32;
-            isConstantDifference = isConstantDifference as ::core::ffi::c_int != 0
-                && diffJ == difference
-                && diffJ < 0x8000 as i32
-                && diffJ > -(0x8000 as i32);
+            is_constant_difference = is_constant_difference as ::core::ffi::c_int != 0
+                && diff_j == difference
+                && diff_j < 0x8000 as i32
+                && diff_j > -(0x8000 as i32);
             j = j.wrapping_add(1);
         }
     }
@@ -646,16 +646,16 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut coverageBuf: *mut Buffer = OTL_I_COVERAGE
+    let mut coverage_buf: *mut Buffer = OTL_I_COVERAGE
         .buildFormat
         .expect("non-null function pointer")(
         cov,
         heuristics.contains(BuildHeuristics::GSUB_VERT) as u16,
     );
-    if isConstantDifference as ::core::ffi::c_int != 0
+    if is_constant_difference as ::core::ffi::c_int != 0
         && !heuristics.contains(BuildHeuristics::GSUB_VERT)
     {
-        let mut b: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverageBuf)), bk_int(BkCellType::B16, ((*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
+        let mut b: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverage_buf)), bk_int(BkCellType::B16, ((*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
                 .to
                 .index as ::core::ffi::c_int
                 - (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
@@ -664,7 +664,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
         otl_Coverage_free(cov);
         return bk_build_Block(b);
     } else {
-        let mut b_0: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverageBuf)), bk_int(BkCellType::B16, ((*subtable).length) as u32)]);
+        let mut b_0: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverage_buf)), bk_int(BkCellType::B16, ((*subtable).length) as u32)]);
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < (*subtable).length {
             bk_push(b_0, &[bk_int(BkCellType::B16, ((*(*subtable).items.offset(k as isize)).to.index as ::core::ffi::c_int) as u32)]);

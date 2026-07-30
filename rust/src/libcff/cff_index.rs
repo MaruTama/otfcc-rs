@@ -318,13 +318,13 @@ unsafe extern "C" fn buildIndex(mut index: *const CffIndex) -> *mut Buffer {
         bufwrite8(blob, 0 as u8);
         return blob;
     }
-    let mut lastOffset: u32 = *(*index).offset.offset((*index).count as isize);
+    let mut last_offset: u32 = *(*index).offset.offset((*index).count as isize);
     let mut offSize: u8 = 4 as u8;
-    if lastOffset < 0x100 as u32 {
+    if last_offset < 0x100 as u32 {
         offSize = 1 as u8;
-    } else if lastOffset < 0x10000 as u32 {
+    } else if last_offset < 0x10000 as u32 {
         offSize = 2 as u8;
-    } else if lastOffset < 0x1000000 as u32 {
+    } else if last_offset < 0x1000000 as u32 {
         offSize = 3 as u8;
     } else {
         offSize = 4 as u8;

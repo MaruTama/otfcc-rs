@@ -263,18 +263,18 @@ pub unsafe extern "C" fn cff_decodeCS2Token(
         }
     } else if *start as ::core::ffi::c_int == 255 as ::core::ffi::c_int {
         (*val).t = CS2_FRACTION;
-        let mut integerPart: i16 = ((*start.offset(1 as ::core::ffi::c_int as isize)
+        let mut integer_part: i16 = ((*start.offset(1 as ::core::ffi::c_int as isize)
             as ::core::ffi::c_int)
             << 8 as ::core::ffi::c_int
             | *start.offset(2 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
             as i16;
-        let mut fractionPart: u16 = ((*start.offset(3 as ::core::ffi::c_int as isize)
+        let mut fraction_part: u16 = ((*start.offset(3 as ::core::ffi::c_int as isize)
             as ::core::ffi::c_int)
             << 8 as ::core::ffi::c_int
             | *start.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
             as u16;
-        (*val).c2rust_unnamed.d = integerPart as ::core::ffi::c_int as ::core::ffi::c_double
-            + fractionPart as ::core::ffi::c_int as ::core::ffi::c_double / 65536.0f64;
+        (*val).c2rust_unnamed.d = integer_part as ::core::ffi::c_int as ::core::ffi::c_double
+            + fraction_part as ::core::ffi::c_int as ::core::ffi::c_double / 65536.0f64;
         advance = 5 as u32;
     }
     if (*val).t as ::core::ffi::c_uint == CS2_OPERAND as ::core::ffi::c_int as ::core::ffi::c_uint {

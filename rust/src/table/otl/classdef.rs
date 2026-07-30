@@ -178,18 +178,18 @@ unsafe extern "C" fn by_covIndex(
 }
 pub(crate) unsafe extern "C" fn readClassDef(
     mut data: *const u8,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
 ) -> *mut ClassDef {
     let mut cd: *mut ClassDef = otl_ClassDef_create();
-    if tableLength < offset.wrapping_add(4 as u32) {
+    if table_length < offset.wrapping_add(4 as u32) {
         return cd;
     }
     let mut format: u16 = read_16u(data.offset(offset as isize));
     if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int
-        && tableLength >= offset.wrapping_add(6 as u32)
+        && table_length >= offset.wrapping_add(6 as u32)
     {
-        let mut startGID: GlyphId = read_16u(
+        let mut start_gid: GlyphId = read_16u(
             data.offset(offset as isize)
                 .offset(2 as ::core::ffi::c_int as isize),
         ) as GlyphId;
@@ -198,7 +198,7 @@ pub(crate) unsafe extern "C" fn readClassDef(
                 .offset(4 as ::core::ffi::c_int as isize),
         ) as GlyphId;
         if count as ::core::ffi::c_int != 0
-            && tableLength
+            && table_length
                 >= offset.wrapping_add(6 as u32).wrapping_add(
                     (count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
                 )
@@ -208,7 +208,7 @@ pub(crate) unsafe extern "C" fn readClassDef(
                 pushClassDef(
                     cd,
                     handle_fromIndex(
-                        (startGID as ::core::ffi::c_int + j as ::core::ffi::c_int) as GlyphId,
+                        (start_gid as ::core::ffi::c_int + j as ::core::ffi::c_int) as GlyphId,
                     ) as GlyphHandle,
                     read_16u(
                         data.offset(offset as isize)
@@ -221,20 +221,20 @@ pub(crate) unsafe extern "C" fn readClassDef(
             return cd;
         }
     } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-        let mut rangeCount: u16 = read_16u(
+        let mut range_count: u16 = read_16u(
             data.offset(offset as isize)
                 .offset(2 as ::core::ffi::c_int as isize),
         );
-        if tableLength
+        if table_length
             < offset.wrapping_add(4 as u32).wrapping_add(
-                (rangeCount as ::core::ffi::c_int * 6 as ::core::ffi::c_int) as u32,
+                (range_count as ::core::ffi::c_int * 6 as ::core::ffi::c_int) as u32,
             )
         {
             return cd;
         }
         let mut hash: *mut CoverageEntry = ::core::ptr::null_mut::<CoverageEntry>();
         let mut j_0: u16 = 0 as u16;
-        while (j_0 as ::core::ffi::c_int) < rangeCount as ::core::ffi::c_int {
+        while (j_0 as ::core::ffi::c_int) < range_count as ::core::ffi::c_int {
             let mut start: u16 = read_16u(
                 data.offset(offset as isize)
                     .offset(4 as ::core::ffi::c_int as isize)
@@ -2940,40 +2940,40 @@ pub(crate) unsafe extern "C" fn buildClassDef(mut cd: *const ClassDef) -> *mut B
                 ) -> ::core::ffi::c_int,
         ),
     );
-    let mut startGID: GlyphId = (*r.offset(0 as ::core::ffi::c_int as isize)).gid;
-    let mut endGID: GlyphId = startGID;
-    let mut lastClass: GlyphClass = (*r.offset(0 as ::core::ffi::c_int as isize)).cid;
-    let mut nRanges: GlyphId = 0 as GlyphId;
-    let mut lastGID: GlyphId = startGID;
+    let mut start_gid: GlyphId = (*r.offset(0 as ::core::ffi::c_int as isize)).gid;
+    let mut end_gid: GlyphId = start_gid;
+    let mut last_class: GlyphClass = (*r.offset(0 as ::core::ffi::c_int as isize)).cid;
+    let mut n_ranges: GlyphId = 0 as GlyphId;
+    let mut last_gid: GlyphId = start_gid;
     let mut ranges: *mut Buffer = bufnew();
     let mut j_0: GlyphId = 1 as GlyphId;
     while (j_0 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
         let mut current: GlyphId = (*r.offset(j_0 as isize)).gid;
-        if !(current as ::core::ffi::c_int <= lastGID as ::core::ffi::c_int) {
+        if !(current as ::core::ffi::c_int <= last_gid as ::core::ffi::c_int) {
             if current as ::core::ffi::c_int
-                == endGID as ::core::ffi::c_int + 1 as ::core::ffi::c_int
+                == end_gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int
                 && (*r.offset(j_0 as isize)).cid as ::core::ffi::c_int
-                    == lastClass as ::core::ffi::c_int
+                    == last_class as ::core::ffi::c_int
             {
-                endGID = current;
+                end_gid = current;
             } else {
-                bufwrite16b(ranges, startGID as u16);
-                bufwrite16b(ranges, endGID as u16);
-                bufwrite16b(ranges, lastClass as u16);
-                nRanges = (nRanges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
-                endGID = current;
-                startGID = endGID;
-                lastClass = (*r.offset(j_0 as isize)).cid;
+                bufwrite16b(ranges, start_gid as u16);
+                bufwrite16b(ranges, end_gid as u16);
+                bufwrite16b(ranges, last_class as u16);
+                n_ranges = (n_ranges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+                end_gid = current;
+                start_gid = end_gid;
+                last_class = (*r.offset(j_0 as isize)).cid;
             }
-            lastGID = current;
+            last_gid = current;
         }
         j_0 = j_0.wrapping_add(1);
     }
-    bufwrite16b(ranges, startGID as u16);
-    bufwrite16b(ranges, endGID as u16);
-    bufwrite16b(ranges, lastClass as u16);
-    nRanges = (nRanges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
-    bufwrite16b(buf, nRanges as u16);
+    bufwrite16b(ranges, start_gid as u16);
+    bufwrite16b(ranges, end_gid as u16);
+    bufwrite16b(ranges, last_class as u16);
+    n_ranges = (n_ranges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+    bufwrite16b(buf, n_ranges as u16);
     bufwrite_bufdel(buf, ranges);
     free(r as *mut ::core::ffi::c_void);
     r = ::core::ptr::null_mut::<ClassDefSortRecord>();

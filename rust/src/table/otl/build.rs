@@ -116,8 +116,8 @@ unsafe extern "C" fn _declare_lookup_writer(
     mut fn_0: OtlBuilder,
     mut lookup: *const Lookup,
     mut subtables: *mut *mut *mut Buffer,
-    mut lastOffset: *mut usize,
-    mut preferExtensionForThisLUT: *mut bool,
+    mut last_offset: *mut usize,
+    mut prefer_extension_for_this_lut: *mut bool,
     mut heuristics: BuildHeuristics,
 ) -> TableId {
     if (*lookup).type_0 == type_0 {
@@ -126,8 +126,8 @@ unsafe extern "C" fn _declare_lookup_writer(
                 .wrapping_mul((*lookup).subtables.length),
             38 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
-        let mut totalBufSizeShort: usize = 0 as usize;
-        let mut totalBufSizeExt: usize = 0 as usize;
+        let mut total_buf_size_short: usize = 0 as usize;
+        let mut total_buf_size_ext: usize = 0 as usize;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.length {
             let mut buf: *mut Buffer = fn_0.expect("non-null function pointer")(
@@ -136,16 +136,16 @@ unsafe extern "C" fn _declare_lookup_writer(
             );
             let ref mut fresh1 = *(*subtables).offset(j as isize);
             *fresh1 = buf;
-            totalBufSizeShort = totalBufSizeShort.wrapping_add((*buf).size);
-            totalBufSizeExt = totalBufSizeExt.wrapping_add(8 as usize);
+            total_buf_size_short = total_buf_size_short.wrapping_add((*buf).size);
+            total_buf_size_ext = total_buf_size_ext.wrapping_add(8 as usize);
             j = j.wrapping_add(1);
         }
-        if totalBufSizeShort > LARGE_SUBTABLE_LIMIT as usize {
-            *lastOffset = (*lastOffset).wrapping_add(totalBufSizeExt);
-            *preferExtensionForThisLUT = true;
+        if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
+            *last_offset = (*last_offset).wrapping_add(total_buf_size_ext);
+            *prefer_extension_for_this_lut = true;
         } else {
-            *lastOffset = (*lastOffset).wrapping_add(totalBufSizeShort);
-            *preferExtensionForThisLUT = false;
+            *last_offset = (*last_offset).wrapping_add(total_buf_size_short);
+            *prefer_extension_for_this_lut = false;
         }
         return (*lookup).subtables.length as TableId;
     }
@@ -156,24 +156,24 @@ unsafe extern "C" fn _declare_lookup_writer_split(
     mut fn_0: OtlSplitBuilder,
     mut lookup: *const Lookup,
     mut subtables: *mut *mut *mut Buffer,
-    mut lastOffset: *mut usize,
-    mut preferExtensionForThisLUT: *mut bool,
+    mut last_offset: *mut usize,
+    mut prefer_extension_for_this_lut: *mut bool,
     mut heuristics: BuildHeuristics,
 ) -> TableId {
     if (*lookup).type_0 == type_0 {
         let mut buffers: *mut *mut Buffer = ::core::ptr::null_mut::<*mut Buffer>();
         let mut total: TableId = 0 as TableId;
-        let mut totalBufSizeShort: usize = 0 as usize;
+        let mut total_buf_size_short: usize = 0 as usize;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.length {
-            let mut nPart: TableId = 0 as TableId;
+            let mut n_part: TableId = 0 as TableId;
             let mut part: *mut *mut Buffer = fn_0.expect("non-null function pointer")(
                 *(*lookup).subtables.items.offset(j as isize) as *const Subtable,
                 heuristics,
-                &raw mut nPart,
+                &raw mut n_part,
             );
             let mut k: TableId = 0 as TableId;
-            while (k as ::core::ffi::c_int) < nPart as ::core::ffi::c_int {
+            while (k as ::core::ffi::c_int) < n_part as ::core::ffi::c_int {
                 buffers = __caryll_reallocate(
                     buffers as *mut ::core::ffi::c_void,
                     (::core::mem::size_of::<*mut Buffer>() as usize).wrapping_mul(
@@ -183,8 +183,8 @@ unsafe extern "C" fn _declare_lookup_writer_split(
                 ) as *mut *mut Buffer;
                 let ref mut fresh2 = *buffers.offset(total as isize);
                 *fresh2 = *part.offset(k as isize);
-                totalBufSizeShort =
-                    totalBufSizeShort.wrapping_add((**part.offset(k as isize)).size);
+                total_buf_size_short =
+                    total_buf_size_short.wrapping_add((**part.offset(k as isize)).size);
                 total = total.wrapping_add(1);
                 k = k.wrapping_add(1);
             }
@@ -193,13 +193,13 @@ unsafe extern "C" fn _declare_lookup_writer_split(
             j = j.wrapping_add(1);
         }
         *subtables = buffers;
-        if totalBufSizeShort > LARGE_SUBTABLE_LIMIT as usize {
-            *lastOffset = (*lastOffset)
+        if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
+            *last_offset = (*last_offset)
                 .wrapping_add((8 as ::core::ffi::c_int * total as ::core::ffi::c_int) as usize);
-            *preferExtensionForThisLUT = true;
+            *prefer_extension_for_this_lut = true;
         } else {
-            *lastOffset = (*lastOffset).wrapping_add(totalBufSizeShort);
-            *preferExtensionForThisLUT = false;
+            *last_offset = (*last_offset).wrapping_add(total_buf_size_short);
+            *prefer_extension_for_this_lut = false;
         }
         return total;
     }
@@ -208,14 +208,14 @@ unsafe extern "C" fn _declare_lookup_writer_split(
 unsafe extern "C" fn _build_lookup(
     mut lookup: *const Lookup,
     mut subtables: *mut *mut *mut Buffer,
-    mut lastOffset: *mut usize,
-    mut preferExtensionForThisLUT: *mut bool,
+    mut last_offset: *mut usize,
+    mut prefer_extension_for_this_lut: *mut bool,
     mut heuristics: BuildHeuristics,
 ) -> TableId {
     if (*lookup).type_0 == OTL_TYPE_GPOS_CHAINING
         || (*lookup).type_0 == OTL_TYPE_GSUB_CHAINING
     {
-        return otfcc_classifiedBuildChaining(lookup, subtables, lastOffset);
+        return otfcc_classifiedBuildChaining(lookup, subtables, last_offset);
     }
     let mut written: TableId = 0 as TableId;
     if written == 0 {
@@ -230,8 +230,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -248,8 +248,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -266,8 +266,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -283,8 +283,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -300,8 +300,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -317,8 +317,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -334,8 +334,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -351,8 +351,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -368,8 +368,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -385,8 +385,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -402,8 +402,8 @@ unsafe extern "C" fn _build_lookup(
             ),
             lookup,
             subtables,
-            lastOffset,
-            preferExtensionForThisLUT,
+            last_offset,
+            prefer_extension_for_this_lut,
             heuristics,
         );
     }
@@ -446,17 +446,17 @@ unsafe extern "C" fn writeOTLLookups(
             .wrapping_mul((*table).lookups.length),
         150 as ::core::ffi::c_ulong,
     ) as *mut *mut *mut Buffer;
-    let mut preferExtForThisLut: *mut bool = ::core::ptr::null_mut::<bool>();
-    let mut subtableQuantity: *mut TableId = ::core::ptr::null_mut::<TableId>();
-    subtableQuantity = __caryll_allocate_clean(
+    let mut prefer_ext_for_this_lut: *mut bool = ::core::ptr::null_mut::<bool>();
+    let mut subtable_quantity: *mut TableId = ::core::ptr::null_mut::<TableId>();
+    subtable_quantity = __caryll_allocate_clean(
         (::core::mem::size_of::<TableId>() as usize).wrapping_mul((*table).lookups.length),
         153 as ::core::ffi::c_ulong,
     ) as *mut TableId;
-    preferExtForThisLut = __caryll_allocate_clean(
+    prefer_ext_for_this_lut = __caryll_allocate_clean(
         (::core::mem::size_of::<bool>() as usize).wrapping_mul((*table).lookups.length),
         154 as ::core::ffi::c_ulong,
     ) as *mut bool;
-    let mut lastOffset: usize = 0 as usize;
+    let mut last_offset: usize = 0 as usize;
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).lookups.length {
         let mut lookup: *mut Lookup =
@@ -479,34 +479,34 @@ unsafe extern "C" fn writeOTLLookups(
                 b")\n",
             ),
         );
-        *subtableQuantity.offset(j as isize) = _build_lookup(
+        *subtable_quantity.offset(j as isize) = _build_lookup(
             lookup,
             subtables.offset(j as isize) as *mut *mut *mut Buffer,
-            &raw mut lastOffset,
-            preferExtForThisLut.offset(j as isize) as *mut bool,
+            &raw mut last_offset,
+            prefer_ext_for_this_lut.offset(j as isize) as *mut bool,
             heu,
         );
         j = j.wrapping_add(1);
     }
-    let mut headerSize: usize =
+    let mut header_size: usize =
         (2 as usize).wrapping_add((2 as usize).wrapping_mul((*table).lookups.length));
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < (*table).lookups.length {
-        if *subtableQuantity.offset(j_0 as isize) != 0 {
-            headerSize = headerSize.wrapping_add(
+        if *subtable_quantity.offset(j_0 as isize) != 0 {
+            header_size = header_size.wrapping_add(
                 (6 as ::core::ffi::c_int
                     + 2 as ::core::ffi::c_int
-                        * *subtableQuantity.offset(j_0 as isize) as ::core::ffi::c_int)
+                        * *subtable_quantity.offset(j_0 as isize) as ::core::ffi::c_int)
                     as usize,
             );
         }
         j_0 = j_0.wrapping_add(1);
     }
-    let mut useExtended: bool = lastOffset >= (0xff00 as usize).wrapping_sub(headerSize);
+    let mut use_extended: bool = last_offset >= (0xff00 as usize).wrapping_sub(header_size);
     let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*table).lookups.length) as u32)]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as usize) < (*table).lookups.length {
-        if *subtableQuantity.offset(j_1 as isize) == 0 {
+        if *subtable_quantity.offset(j_1 as isize) == 0 {
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
@@ -523,10 +523,10 @@ unsafe extern "C" fn writeOTLLookups(
         }
         let mut lookup_0: *mut Lookup =
             *(*table).lookups.items.offset(j_1 as isize) as *mut Lookup;
-        let canBeContextual: bool = otfcc_chainingLookupIsContextualLookup(lookup_0);
-        let useExtendedForIt: bool = useExtended as ::core::ffi::c_int != 0
-            || *preferExtForThisLut.offset(j_1 as isize) as ::core::ffi::c_int != 0;
-        if useExtendedForIt {
+        let can_be_contextual: bool = otfcc_chainingLookupIsContextualLookup(lookup_0);
+        let use_extended_for_it: bool = use_extended as ::core::ffi::c_int != 0
+            || *prefer_ext_for_this_lut.offset(j_1 as isize) as ::core::ffi::c_int != 0;
+        if use_extended_for_it {
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
@@ -546,7 +546,7 @@ unsafe extern "C" fn writeOTLLookups(
         // The format number the file wants, which is the lookup type with its
         // table's base taken back off -- `LookupType::file_format`, the
         // same nested comparison C spelled out here and again below.
-        let mut lookupType: u16 = (if useExtendedForIt {
+        let mut lookup_type: u16 = (if use_extended_for_it {
             if (*lookup_0).type_0 > OTL_TYPE_GPOS_UNKNOWN {
                 OTL_TYPE_GPOS_EXTEND.file_format()
             } else if (*lookup_0).type_0 > OTL_TYPE_GSUB_UNKNOWN {
@@ -558,19 +558,19 @@ unsafe extern "C" fn writeOTLLookups(
             (*lookup_0)
                 .type_0
                 .file_format()
-                .wrapping_sub(canBeContextual as u32)
+                .wrapping_sub(can_be_contextual as u32)
         }) as u16;
-        let mut blk: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (lookupType as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lookup_0).flags as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (*subtableQuantity.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
+        let mut blk: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (lookup_type as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lookup_0).flags as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (*subtable_quantity.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
         let mut k: TableId = 0 as TableId;
         while (k as ::core::ffi::c_int)
-            < *subtableQuantity.offset(j_1 as isize) as ::core::ffi::c_int
+            < *subtable_quantity.offset(j_1 as isize) as ::core::ffi::c_int
         {
-            if useExtendedForIt {
-                let mut extensionLookupType: u16 = (*lookup_0)
+            if use_extended_for_it {
+                let mut extension_lookup_type: u16 = (*lookup_0)
                     .type_0
                     .file_format()
-                    .wrapping_sub(canBeContextual as u32) as u16;
-                let mut stub: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, (extensionLookupType as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBuffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
+                    .wrapping_sub(can_be_contextual as u32) as u16;
+                let mut stub: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, (extension_lookup_type as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBuffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
                 bk_push(blk, &[bk_ptr(BkCellType::P16, stub)]);
             } else {
                 bk_push(blk, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
@@ -586,10 +586,10 @@ unsafe extern "C" fn writeOTLLookups(
     }
     free(subtables as *mut ::core::ffi::c_void);
     subtables = ::core::ptr::null_mut::<*mut *mut Buffer>();
-    free(subtableQuantity as *mut ::core::ffi::c_void);
-    subtableQuantity = ::core::ptr::null_mut::<TableId>();
-    free(preferExtForThisLut as *mut ::core::ffi::c_void);
-    preferExtForThisLut = ::core::ptr::null_mut::<bool>();
+    free(subtable_quantity as *mut ::core::ffi::c_void);
+    subtable_quantity = ::core::ptr::null_mut::<TableId>();
+    free(prefer_ext_for_this_lut as *mut ::core::ffi::c_void);
+    prefer_ext_for_this_lut = ::core::ptr::null_mut::<bool>();
     return root;
 }
 unsafe extern "C" fn writeOTLFeatures(
@@ -688,9 +688,9 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
     while (j as usize) < (*table).languages.length {
         let mut language: *mut LanguageSystem =
             *(*table).languages.items.offset(j as isize) as *mut LanguageSystem;
-        let mut scriptTag: SdsRaw =
+        let mut script_tag: SdsRaw =
             sdsnewlen((*language).name as *const ::core::ffi::c_void, 4 as usize);
-        let mut isDefault: bool = strncmp(
+        let mut is_default: bool = strncmp(
             (*language).name.offset(5 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_char,
             b"DFLT\0" as *const u8 as *const ::core::ffi::c_char,
             4 as usize,
@@ -706,11 +706,11 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
         let mut _hj_i: ::core::ffi::c_uint = 0;
         let mut _hj_j: ::core::ffi::c_uint = 0;
         let mut _hj_k: ::core::ffi::c_uint = 0;
-        let mut _hj_key: *const ::core::ffi::c_uchar = scriptTag as *const ::core::ffi::c_uchar;
+        let mut _hj_key: *const ::core::ffi::c_uchar = script_tag as *const ::core::ffi::c_uchar;
         _hf_hashv = 0xfeedbeef as ::core::ffi::c_uint;
         _hj_j = 0x9e3779b9 as ::core::ffi::c_uint;
         _hj_i = _hj_j;
-        _hj_k = strlen(scriptTag as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
+        _hj_k = strlen(script_tag as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
         while _hj_k >= 12 as ::core::ffi::c_uint {
             _hj_i = _hj_i.wrapping_add(
                 (*_hj_key.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
@@ -788,7 +788,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
             _hj_k = _hj_k.wrapping_sub(12 as ::core::ffi::c_uint);
         }
         _hf_hashv = _hf_hashv
-            .wrapping_add(strlen(scriptTag as *const ::core::ffi::c_char) as ::core::ffi::c_uint);
+            .wrapping_add(strlen(script_tag as *const ::core::ffi::c_char) as ::core::ffi::c_uint);
         let mut current_block_50: u64;
         match _hj_k {
             11 => {
@@ -981,13 +981,13 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
                 while !s.is_null() {
                     if (*s).hh.hashv == _hf_hashv
                         && (*s).hh.keylen
-                            == strlen(scriptTag as *const ::core::ffi::c_char)
+                            == strlen(script_tag as *const ::core::ffi::c_char)
                                 as ::core::ffi::c_uint
                     {
                         if memcmp(
                             (*s).hh.key,
-                            scriptTag as *const ::core::ffi::c_void,
-                            strlen(scriptTag as *const ::core::ffi::c_char) as ::core::ffi::c_uint
+                            script_tag as *const ::core::ffi::c_void,
+                            strlen(script_tag as *const ::core::ffi::c_char) as ::core::ffi::c_uint
                                 as usize,
                         ) == 0 as ::core::ffi::c_int
                         {
@@ -1007,7 +1007,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
             }
         }
         if !s.is_null() {
-            if isDefault {
+            if is_default {
                 (*s).dl = language;
             } else {
                 (*s).lc = ((*s).lc as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
@@ -1016,20 +1016,20 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
                     .offset(((*s).lc as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize);
                 *fresh3 = language;
             }
-            sdsfree(scriptTag);
+            sdsfree(script_tag);
         } else {
             s = __caryll_allocate_clean(
                 ::core::mem::size_of::<ScriptStatHash>() as usize,
                 316 as ::core::ffi::c_ulong,
             ) as *mut ScriptStatHash;
-            (*s).tag = scriptTag;
+            (*s).tag = script_tag;
             (*s).dl = ::core::ptr::null_mut::<LanguageSystem>();
             (*s).ll = __caryll_allocate_clean(
                 (::core::mem::size_of::<*mut LanguageSystem>() as usize)
                     .wrapping_mul((*table).languages.length),
                 319 as ::core::ffi::c_ulong,
             ) as *mut *mut LanguageSystem;
-            if isDefault {
+            if is_default {
                 (*s).dl = language;
                 (*s).lc = 0 as u16;
             } else {

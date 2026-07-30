@@ -79,10 +79,10 @@ pub unsafe extern "C" fn bufclear(mut buf: *mut Buffer) {
     (*buf).size = 0 as usize;
 }
 unsafe extern "C" fn bufbeforewrite(mut buf: *mut Buffer, mut towrite: usize) {
-    let mut currentSize: usize = (*buf).size;
+    let mut current_size: usize = (*buf).size;
     let mut allocated: usize = (*buf).size.wrapping_add((*buf).free);
     let mut required: usize = (*buf).cursor.wrapping_add(towrite);
-    if required < currentSize {
+    if required < current_size {
         return;
     } else if required <= allocated {
         (*buf).size = required;

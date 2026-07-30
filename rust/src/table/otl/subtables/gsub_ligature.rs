@@ -437,49 +437,49 @@ unsafe extern "C" fn subtable_gsub_ligature_grow(arr: *mut GsubLigatureSubtable)
 }
 pub unsafe extern "C" fn otl_read_gsub_ligature(
     data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
-    _maxGlyphs: GlyphId,
+    _max_glyphs: GlyphId,
     mut _options: *const Options,
 ) -> *mut Subtable {
-    let mut startCoverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let mut setCount: GlyphId = 0;
-    let mut ligatureCount: u32 = 0;
+    let mut start_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
+    let mut set_count: GlyphId = 0;
+    let mut ligature_count: u32 = 0;
     let mut current_block: u64;
     let mut subtable: *mut GsubLigatureSubtable =
         (
             I_SUBTABLE_GSUB_LIGATURE
                 .create
                 .expect("non-null function pointer"))();
-    if !(tableLength < offset.wrapping_add(6 as u32)) {
-        startCoverage = readCoverage(
+    if !(table_length < offset.wrapping_add(6 as u32)) {
+        start_coverage = readCoverage(
             data as *const u8,
-            tableLength,
+            table_length,
             offset.wrapping_add(read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             ) as u32),
         );
-        if !startCoverage.is_null() {
-            setCount = read_16u(
+        if !start_coverage.is_null() {
+            set_count = read_16u(
                 data.offset(offset as isize)
                     .offset(4 as ::core::ffi::c_int as isize) as *const u8,
             ) as GlyphId;
-            if !(setCount as ::core::ffi::c_int != (*startCoverage).numGlyphs as ::core::ffi::c_int)
+            if !(set_count as ::core::ffi::c_int != (*start_coverage).numGlyphs as ::core::ffi::c_int)
             {
-                if !(tableLength
+                if !(table_length
                     < offset.wrapping_add(6 as u32).wrapping_add(
-                        (setCount as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
+                        (set_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
                     ))
                 {
-                    ligatureCount = 0 as u32;
+                    ligature_count = 0 as u32;
                     let mut j: GlyphId = 0 as GlyphId;
                     loop {
-                        if !((j as ::core::ffi::c_int) < setCount as ::core::ffi::c_int) {
+                        if !((j as ::core::ffi::c_int) < set_count as ::core::ffi::c_int) {
                             current_block = 17860125682698302841;
                             break;
                         }
-                        let mut setOffset: u32 = offset.wrapping_add(read_16u(
+                        let mut set_offset: u32 = offset.wrapping_add(read_16u(
                             data.offset(offset as isize)
                                 .offset(6 as ::core::ffi::c_int as isize)
                                 .offset(
@@ -487,17 +487,17 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                 ) as *const u8,
                         )
                             as u32);
-                        if tableLength < setOffset.wrapping_add(2 as u32) {
+                        if table_length < set_offset.wrapping_add(2 as u32) {
                             current_block = 3443835632518673764;
                             break;
                         }
-                        ligatureCount = ligatureCount.wrapping_add(read_16u(
-                            data.offset(setOffset as isize) as *const u8,
+                        ligature_count = ligature_count.wrapping_add(read_16u(
+                            data.offset(set_offset as isize) as *const u8,
                         )
                             as u32);
-                        if tableLength
-                            < setOffset.wrapping_add(2 as u32).wrapping_add(
-                                (read_16u(data.offset(setOffset as isize) as *const u8)
+                        if table_length
+                            < set_offset.wrapping_add(2 as u32).wrapping_add(
+                                (read_16u(data.offset(set_offset as isize) as *const u8)
                                     as ::core::ffi::c_int
                                     * 2 as ::core::ffi::c_int)
                                     as u32,
@@ -513,11 +513,11 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                         _ => {
                             let mut j_0: GlyphId = 0 as GlyphId;
                             's_77: loop {
-                                if !((j_0 as ::core::ffi::c_int) < setCount as ::core::ffi::c_int) {
+                                if !((j_0 as ::core::ffi::c_int) < set_count as ::core::ffi::c_int) {
                                     current_block = 11932355480408055363;
                                     break;
                                 }
-                                let mut setOffset_0: u32 = offset.wrapping_add(read_16u(
+                                let mut set_offset_0: u32 = offset.wrapping_add(read_16u(
                                     data.offset(offset as isize)
                                         .offset(6 as ::core::ffi::c_int as isize)
                                         .offset(
@@ -527,13 +527,13 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                 )
                                     as u32);
                                 let mut lc: GlyphId =
-                                    read_16u(data.offset(setOffset_0 as isize) as *const u8)
+                                    read_16u(data.offset(set_offset_0 as isize) as *const u8)
                                         as GlyphId;
                                 let mut k: GlyphId = 0 as GlyphId;
                                 while (k as ::core::ffi::c_int) < lc as ::core::ffi::c_int {
-                                    let mut ligOffset: u32 = setOffset_0.wrapping_add(
+                                    let mut lig_offset: u32 = set_offset_0.wrapping_add(
                                         read_16u(
-                                            data.offset(setOffset_0 as isize)
+                                            data.offset(set_offset_0 as isize)
                                                 .offset(2 as ::core::ffi::c_int as isize)
                                                 .offset(
                                                     (k as ::core::ffi::c_int
@@ -543,19 +543,19 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                                 as *const u8,
                                         ) as u32,
                                     );
-                                    if tableLength < ligOffset.wrapping_add(4 as u32) {
+                                    if table_length < lig_offset.wrapping_add(4 as u32) {
                                         current_block = 3443835632518673764;
                                         break 's_77;
                                     }
-                                    let mut ligComponents: GlyphId = read_16u(
-                                        data.offset(ligOffset as isize)
+                                    let mut lig_components: GlyphId = read_16u(
+                                        data.offset(lig_offset as isize)
                                             .offset(2 as ::core::ffi::c_int as isize)
                                             as *const u8,
                                     )
                                         as GlyphId;
-                                    if tableLength
-                                        < ligOffset.wrapping_add(2 as u32).wrapping_add(
-                                            (ligComponents as ::core::ffi::c_int
+                                    if table_length
+                                        < lig_offset.wrapping_add(2 as u32).wrapping_add(
+                                            (lig_components as ::core::ffi::c_int
                                                 * 2 as ::core::ffi::c_int)
                                                 as u32,
                                         )
@@ -568,19 +568,19 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                     pushToCoverage(
                                         cov,
                                         handle_fromIndex(
-                                            (*(*startCoverage).glyphs.offset(j_0 as isize)).index,
+                                            (*(*start_coverage).glyphs.offset(j_0 as isize)).index,
                                         )
                                             as GlyphHandle,
                                     );
                                     let mut m: GlyphId = 1 as GlyphId;
                                     while (m as ::core::ffi::c_int)
-                                        < ligComponents as ::core::ffi::c_int
+                                        < lig_components as ::core::ffi::c_int
                                     {
                                         pushToCoverage(
                                             cov,
                                             handle_fromIndex(
                                                 read_16u(
-                                                    data.offset(ligOffset as isize)
+                                                    data.offset(lig_offset as isize)
                                                         .offset(2 as ::core::ffi::c_int as isize)
                                                         .offset(
                                                             (m as ::core::ffi::c_int
@@ -602,7 +602,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                         GsubLigatureEntry {
                                             from: cov,
                                             to: handle_fromIndex(
-                                                read_16u(data.offset(ligOffset as isize)
+                                                read_16u(data.offset(lig_offset as isize)
                                                     as *const u8)
                                                     as GlyphId,
                                             )
@@ -617,7 +617,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                 3443835632518673764 => {}
                                 _ => {
                                     otl_Coverage_free(
-                                        startCoverage,
+                                        start_coverage,
                                     );
                                     return subtable as *mut Subtable;
                                 }
@@ -768,9 +768,9 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     let mut h: *mut LigatureAggregator = ::core::ptr::null_mut::<LigatureAggregator>();
     let mut s: *mut LigatureAggregator = ::core::ptr::null_mut::<LigatureAggregator>();
     let mut tmp: *mut LigatureAggregator = ::core::ptr::null_mut::<LigatureAggregator>();
-    let mut nLigatures: GlyphId = (*subtable).length as GlyphId;
+    let mut n_ligatures: GlyphId = (*subtable).length as GlyphId;
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < nLigatures as ::core::ffi::c_int {
+    while (j as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
         let mut sgid: ::core::ffi::c_int = (*(*(*(*subtable).items.offset(j as isize)).from)
             .glyphs
             .offset(0 as ::core::ffi::c_int as isize))
@@ -1671,22 +1671,22 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
         ))), bk_int(BkCellType::B16, ((*startcov).numGlyphs as ::core::ffi::c_int) as u32)]);
     s = h;
     while !s.is_null() {
-        let mut nLigsHere: GlyphId = 0 as GlyphId;
+        let mut n_ligs_here: GlyphId = 0 as GlyphId;
         let mut j_0: GlyphId = 0 as GlyphId;
-        while (j_0 as ::core::ffi::c_int) < nLigatures as ::core::ffi::c_int {
+        while (j_0 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
             if (*(*(*(*subtable).items.offset(j_0 as isize)).from)
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize))
             .index as ::core::ffi::c_int
                 == (*s).gid
             {
-                nLigsHere = nLigsHere.wrapping_add(1);
+                n_ligs_here = n_ligs_here.wrapping_add(1);
             }
             j_0 = j_0.wrapping_add(1);
         }
-        let mut ligset: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (nLigsHere as ::core::ffi::c_int) as u32)]);
+        let mut ligset: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (n_ligs_here as ::core::ffi::c_int) as u32)]);
         let mut j_1: GlyphId = 0 as GlyphId;
-        while (j_1 as ::core::ffi::c_int) < nLigatures as ::core::ffi::c_int {
+        while (j_1 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
             if (*(*(*(*subtable).items.offset(j_1 as isize)).from)
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize))

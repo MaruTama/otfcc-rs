@@ -166,59 +166,59 @@ unsafe extern "C" fn reverseBacktracks(
 }
 pub unsafe extern "C" fn otl_read_gsub_reverse(
     data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
-    _maxGlyphs: GlyphId,
+    _max_glyphs: GlyphId,
     mut _options: *const Options,
 ) -> *mut Subtable {
-    let mut nBacktrack: TableId = 0;
-    let mut nForward: TableId = 0;
-    let mut nReplacement: TableId = 0;
+    let mut n_backtrack: TableId = 0;
+    let mut n_forward: TableId = 0;
+    let mut n_replacement: TableId = 0;
     let mut subtable: *mut GsubReverseSubtable =
         (
             I_SUBTABLE_GSUB_REVERSE
                 .create
                 .expect("non-null function pointer"))();
-    if !(tableLength < offset.wrapping_add(6 as u32)) {
-        nBacktrack = read_16u(
+    if !(table_length < offset.wrapping_add(6 as u32)) {
+        n_backtrack = read_16u(
             data.offset(offset as isize)
                 .offset(4 as ::core::ffi::c_int as isize) as *const u8,
         ) as TableId;
-        if !(tableLength
+        if !(table_length
             < offset.wrapping_add(6 as u32).wrapping_add(
-                (nBacktrack as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
+                (n_backtrack as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
             ))
         {
-            nForward = read_16u(
+            n_forward = read_16u(
                 data.offset(offset as isize)
                     .offset(6 as ::core::ffi::c_int as isize)
-                    .offset((nBacktrack as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
+                    .offset((n_backtrack as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
                     as *const u8,
             ) as TableId;
-            if !(tableLength
+            if !(table_length
                 < offset.wrapping_add(8 as u32).wrapping_add(
-                    ((nBacktrack as ::core::ffi::c_int + nForward as ::core::ffi::c_int)
+                    ((n_backtrack as ::core::ffi::c_int + n_forward as ::core::ffi::c_int)
                         * 2 as ::core::ffi::c_int) as u32,
                 ))
             {
-                nReplacement = read_16u(
+                n_replacement = read_16u(
                     data.offset(offset as isize)
                         .offset(8 as ::core::ffi::c_int as isize)
                         .offset(
-                            ((nBacktrack as ::core::ffi::c_int + nForward as ::core::ffi::c_int)
+                            ((n_backtrack as ::core::ffi::c_int + n_forward as ::core::ffi::c_int)
                                 * 2 as ::core::ffi::c_int) as isize,
                         ) as *const u8,
                 ) as TableId;
-                if !(tableLength
+                if !(table_length
                     < offset.wrapping_add(10 as u32).wrapping_add(
-                        ((nBacktrack as ::core::ffi::c_int
-                            + nForward as ::core::ffi::c_int
-                            + nReplacement as ::core::ffi::c_int)
+                        ((n_backtrack as ::core::ffi::c_int
+                            + n_forward as ::core::ffi::c_int
+                            + n_replacement as ::core::ffi::c_int)
                             * 2 as ::core::ffi::c_int) as u32,
                     ))
                 {
-                    (*subtable).matchCount = (nBacktrack as ::core::ffi::c_int
-                        + nForward as ::core::ffi::c_int
+                    (*subtable).matchCount = (n_backtrack as ::core::ffi::c_int
+                        + n_forward as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as TableId;
                     (*subtable).match_0 = __caryll_allocate_clean(
@@ -226,10 +226,10 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                             .wrapping_mul((*subtable).matchCount as usize),
                         47 as ::core::ffi::c_ulong,
                     ) as *mut *mut Coverage;
-                    (*subtable).inputIndex = nBacktrack;
+                    (*subtable).inputIndex = n_backtrack;
                     let mut j: TableId = 0 as TableId;
-                    while (j as ::core::ffi::c_int) < nBacktrack as ::core::ffi::c_int {
-                        let mut covOffset: u32 = offset.wrapping_add(read_16u(
+                    while (j as ::core::ffi::c_int) < n_backtrack as ::core::ffi::c_int {
+                        let mut cov_offset: u32 = offset.wrapping_add(read_16u(
                             data.offset(offset as isize)
                                 .offset(6 as ::core::ffi::c_int as isize)
                                 .offset(
@@ -240,12 +240,12 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                         let ref mut fresh0 = *(*subtable).match_0.offset(j as isize);
                         *fresh0 = readCoverage(
                             data as *const u8,
-                            tableLength,
-                            covOffset,
+                            table_length,
+                            cov_offset,
                         );
                         j = j.wrapping_add(1);
                     }
-                    let mut covOffset_0: u32 = offset.wrapping_add(read_16u(
+                    let mut cov_offset_0: u32 = offset.wrapping_add(read_16u(
                         data.offset(offset as isize)
                             .offset(2 as ::core::ffi::c_int as isize)
                             as *const u8,
@@ -255,20 +255,20 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                         *(*subtable).match_0.offset((*subtable).inputIndex as isize);
                     *fresh1 = readCoverage(
                         data as *const u8,
-                        tableLength,
-                        covOffset_0,
+                        table_length,
+                        cov_offset_0,
                     );
-                    if !(nReplacement as ::core::ffi::c_int
+                    if !(n_replacement as ::core::ffi::c_int
                         != (**(*subtable).match_0.offset((*subtable).inputIndex as isize)).numGlyphs
                             as ::core::ffi::c_int)
                     {
                         let mut j_0: TableId = 0 as TableId;
-                        while (j_0 as ::core::ffi::c_int) < nForward as ::core::ffi::c_int {
-                            let mut covOffset_1: u32 = offset.wrapping_add(read_16u(
+                        while (j_0 as ::core::ffi::c_int) < n_forward as ::core::ffi::c_int {
+                            let mut cov_offset_1: u32 = offset.wrapping_add(read_16u(
                                 data.offset(offset as isize)
                                     .offset(8 as ::core::ffi::c_int as isize)
                                     .offset(
-                                        (nBacktrack as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
+                                        (n_backtrack as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
                                             as isize,
                                     )
                                     .offset(
@@ -278,15 +278,15 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                             )
                                 as u32);
                             let ref mut fresh2 = *(*subtable).match_0.offset(
-                                (nBacktrack as ::core::ffi::c_int
+                                (n_backtrack as ::core::ffi::c_int
                                     + 1 as ::core::ffi::c_int
                                     + j_0 as ::core::ffi::c_int)
                                     as isize,
                             );
                             *fresh2 = readCoverage(
                                 data as *const u8,
-                                tableLength,
-                                covOffset_1,
+                                table_length,
+                                cov_offset_1,
                             );
                             j_0 = j_0.wrapping_add(1);
                         }
@@ -294,23 +294,23 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                             ::core::mem::size_of::<Coverage>() as usize,
                             64 as ::core::ffi::c_ulong,
                         ) as *mut Coverage;
-                        (*(*subtable).to).numGlyphs = nReplacement as GlyphId;
+                        (*(*subtable).to).numGlyphs = n_replacement as GlyphId;
                         (*(*subtable).to).glyphs = __caryll_allocate_clean(
                             (::core::mem::size_of::<GlyphHandle>() as usize)
-                                .wrapping_mul(nReplacement as usize),
+                                .wrapping_mul(n_replacement as usize),
                             66 as ::core::ffi::c_ulong,
                         )
                             as *mut GlyphHandle;
                         let mut j_1: TableId = 0 as TableId;
-                        while (j_1 as ::core::ffi::c_int) < nReplacement as ::core::ffi::c_int {
+                        while (j_1 as ::core::ffi::c_int) < n_replacement as ::core::ffi::c_int {
                             *(*(*subtable).to).glyphs.offset(j_1 as isize) =
                                 handle_fromIndex(
                                     read_16u(
                                         data.offset(offset as isize)
                                             .offset(10 as ::core::ffi::c_int as isize)
                                             .offset(
-                                                ((nBacktrack as ::core::ffi::c_int
-                                                    + nForward as ::core::ffi::c_int
+                                                ((n_backtrack as ::core::ffi::c_int
+                                                    + n_forward as ::core::ffi::c_int
                                                     + j_1 as ::core::ffi::c_int)
                                                     * 2 as ::core::ffi::c_int)
                                                     as isize,

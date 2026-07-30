@@ -841,10 +841,10 @@ pub unsafe extern "C" fn otfcc_readCOLR(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut ColrTable {
-    let mut numBaseGlyphRecords: u16 = 0;
-    let mut numLayerRecords: u16 = 0;
-    let mut offsetBaseGlyphRecord: u32 = 0;
-    let mut offsetLayerRecord: u32 = 0;
+    let mut num_base_glyph_records: u16 = 0;
+    let mut num_layer_records: u16 = 0;
+    let mut offset_base_glyph_record: u32 = 0;
+    let mut offset_layer_record: u32 = 0;
     let mut gids: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
     let mut colors: *mut ColorId = ::core::ptr::null_mut::<ColorId>();
     let mut colr: *mut ColrTable = ::core::ptr::null_mut::<ColrTable>();
@@ -861,42 +861,42 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     if !(table.length < 14 as u32) {
-                        numBaseGlyphRecords =
+                        num_base_glyph_records =
                             read_16u(table.data.offset(2 as ::core::ffi::c_int as isize));
-                        numLayerRecords =
+                        num_layer_records =
                             read_16u(table.data.offset(12 as ::core::ffi::c_int as isize));
-                        offsetBaseGlyphRecord =
+                        offset_base_glyph_record =
                             read_32u(table.data.offset(4 as ::core::ffi::c_int as isize));
-                        offsetLayerRecord =
+                        offset_layer_record =
                             read_32u(table.data.offset(8 as ::core::ffi::c_int as isize));
                         if !((table.length as usize)
-                            < (offsetBaseGlyphRecord as usize).wrapping_add(
-                                BASE_GLYPH_REC_LENGTH.wrapping_mul(numBaseGlyphRecords as usize),
+                            < (offset_base_glyph_record as usize).wrapping_add(
+                                BASE_GLYPH_REC_LENGTH.wrapping_mul(num_base_glyph_records as usize),
                             ))
                         {
                             if !((table.length as usize)
-                                < (offsetLayerRecord as usize).wrapping_add(
-                                    LAYER_REC_LENGTH.wrapping_mul(numLayerRecords as usize),
+                                < (offset_layer_record as usize).wrapping_add(
+                                    LAYER_REC_LENGTH.wrapping_mul(num_layer_records as usize),
                                 ))
                             {
                                 gids = ::core::ptr::null_mut::<GlyphId>();
                                 colors = ::core::ptr::null_mut::<ColorId>();
                                 gids = __caryll_allocate_clean(
                                     (::core::mem::size_of::<GlyphId>() as usize)
-                                        .wrapping_mul(numLayerRecords as usize),
+                                        .wrapping_mul(num_layer_records as usize),
                                     52 as ::core::ffi::c_ulong,
                                 ) as *mut GlyphId;
                                 colors = __caryll_allocate_clean(
                                     (::core::mem::size_of::<ColorId>() as usize)
-                                        .wrapping_mul(numLayerRecords as usize),
+                                        .wrapping_mul(num_layer_records as usize),
                                     53 as ::core::ffi::c_ulong,
                                 ) as *mut ColorId;
                                 let mut j: GlyphId = 0 as GlyphId;
                                 while (j as ::core::ffi::c_int)
-                                    < numLayerRecords as ::core::ffi::c_int
+                                    < num_layer_records as ::core::ffi::c_int
                                 {
                                     *gids.offset(j as isize) = read_16u(
-                                        table.data.offset(offsetLayerRecord as isize).offset(
+                                        table.data.offset(offset_layer_record as isize).offset(
                                             LAYER_REC_LENGTH.wrapping_mul(j as usize) as isize,
                                         ),
                                     )
@@ -905,7 +905,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                         read_16u(
                                             table
                                                 .data
-                                                .offset(offsetLayerRecord as isize)
+                                                .offset(offset_layer_record as isize)
                                                 .offset(LAYER_REC_LENGTH.wrapping_mul(j as usize)
                                                     as isize)
                                                 .offset(2 as ::core::ffi::c_int as isize),
@@ -916,7 +916,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                     TABLE_I_COLR.create.expect("non-null function pointer"))();
                                 let mut j_0: GlyphId = 0 as GlyphId;
                                 while (j_0 as ::core::ffi::c_int)
-                                    < numBaseGlyphRecords as ::core::ffi::c_int
+                                    < num_base_glyph_records as ::core::ffi::c_int
                                 {
                                     let mut mapping: ColrMapping = ColrMapping {
                                         glyph: Handle {
@@ -936,41 +936,41 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                     let mut gid: u16 = read_16u(
                                         table
                                             .data
-                                            .offset(offsetBaseGlyphRecord as isize)
+                                            .offset(offset_base_glyph_record as isize)
                                             .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
                                                 as isize),
                                     );
-                                    let mut firstLayerIndex: u16 = read_16u(
+                                    let mut first_layer_index: u16 = read_16u(
                                         table
                                             .data
-                                            .offset(offsetBaseGlyphRecord as isize)
+                                            .offset(offset_base_glyph_record as isize)
                                             .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
                                                 as isize)
                                             .offset(2 as ::core::ffi::c_int as isize),
                                     );
-                                    let mut numLayers: u16 = read_16u(
+                                    let mut num_layers: u16 = read_16u(
                                         table
                                             .data
-                                            .offset(offsetBaseGlyphRecord as isize)
+                                            .offset(offset_base_glyph_record as isize)
                                             .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
                                                 as isize)
                                             .offset(4 as ::core::ffi::c_int as isize),
                                     );
-                                    let mut baseGlyph: GlyphHandle = handle_fromIndex(
+                                    let mut base_glyph: GlyphHandle = handle_fromIndex(
                                         gid as GlyphId
                                     )
                                         as GlyphHandle;
                                     otfcc_Handle_move(
                                         &raw mut mapping.glyph,
-                                        &raw mut baseGlyph,
+                                        &raw mut base_glyph,
                                     );
                                     let mut k: GlyphId = 0 as GlyphId;
                                     while (k as ::core::ffi::c_int)
-                                        < numLayers as ::core::ffi::c_int
+                                        < num_layers as ::core::ffi::c_int
                                     {
                                         if (k as ::core::ffi::c_int
-                                            + firstLayerIndex as ::core::ffi::c_int)
-                                            < numLayerRecords as ::core::ffi::c_int
+                                            + first_layer_index as ::core::ffi::c_int)
+                                            < num_layer_records as ::core::ffi::c_int
                                         {
                                             COLR_I_LAYER_LIST
                                                 .push
@@ -980,7 +980,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                                     glyph: handle_fromIndex(
                                                         *gids.offset(
                                                             (k as ::core::ffi::c_int
-                                                                + firstLayerIndex
+                                                                + first_layer_index
                                                                     as ::core::ffi::c_int)
                                                                 as isize,
                                                         ),
@@ -988,7 +988,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                                         as GlyphHandle,
                                                     paletteIndex: *colors.offset(
                                                         (k as ::core::ffi::c_int
-                                                            + firstLayerIndex as ::core::ffi::c_int)
+                                                            + first_layer_index as ::core::ffi::c_int)
                                                             as isize,
                                                     ),
                                                 },
@@ -1236,23 +1236,23 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
                 ) -> ::core::ffi::c_int,
         ),
     );
-    let mut currentLayerIndex: GlyphId = 0 as GlyphId;
-    let mut layerRecords: *mut BkBlock = bk_new_Block(&[]);
-    let mut baseRecords: *mut BkBlock = bk_new_Block(&[]);
+    let mut current_layer_index: GlyphId = 0 as GlyphId;
+    let mut layer_records: *mut BkBlock = bk_new_Block(&[]);
+    let mut base_records: *mut BkBlock = bk_new_Block(&[]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < colr.length {
         let mut mapping: *mut ColrMapping = colr.items.offset(__caryll_index as isize);
         while keep != 0 {
-            bk_push(baseRecords, &[bk_int(BkCellType::B16, ((*mapping).glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (currentLayerIndex as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*mapping).layers.length) as u32)]);
+            bk_push(base_records, &[bk_int(BkCellType::B16, ((*mapping).glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (current_layer_index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*mapping).layers.length) as u32)]);
             let mut __caryll_index_0: usize = 0 as usize;
             let mut keep_0: usize = 1 as usize;
             while keep_0 != 0 && __caryll_index_0 < (*mapping).layers.length {
                 let mut layer: *mut ColrLayer =
                     (*mapping).layers.items.offset(__caryll_index_0 as isize);
                 while keep_0 != 0 {
-                    bk_push(layerRecords, &[bk_int(BkCellType::B16, ((*layer).glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*layer).paletteIndex as ::core::ffi::c_int) as u32)]);
-                    currentLayerIndex = (currentLayerIndex as ::core::ffi::c_int
+                    bk_push(layer_records, &[bk_int(BkCellType::B16, ((*layer).glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*layer).paletteIndex as ::core::ffi::c_int) as u32)]);
+                    current_layer_index = (current_layer_index as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as GlyphId;
                     keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
@@ -1265,7 +1265,7 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (colr.length) as u32), bk_ptr(BkCellType::P32, baseRecords), bk_ptr(BkCellType::P32, layerRecords), bk_int(BkCellType::B16, (currentLayerIndex as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (colr.length) as u32), bk_ptr(BkCellType::P32, base_records), bk_ptr(BkCellType::P32, layer_records), bk_int(BkCellType::B16, (current_layer_index as ::core::ffi::c_int) as u32)]);
     TABLE_I_COLR.dispose.expect("non-null function pointer")(&raw mut colr);
     return bk_build_Block(root);
 }

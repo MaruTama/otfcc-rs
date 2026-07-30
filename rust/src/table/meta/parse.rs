@@ -36,13 +36,13 @@ pub unsafe extern "C" fn parseMetaData(mut v: *const JsonValue) -> SdsRaw {
             JsonType::String,
         );
         if !_base64.is_null() {
-            let mut strLen: usize = 0 as usize;
+            let mut str_len: usize = 0 as usize;
             let mut str: *mut ::core::ffi::c_char = base64_decode(
                 (*_base64).u.string.ptr as *mut u8,
                 (*_base64).u.string.length as usize,
-                &raw mut strLen,
+                &raw mut str_len,
             ) as *mut ::core::ffi::c_char;
-            let mut s: SdsRaw = sdsnewlen(str as *const ::core::ffi::c_void, strLen);
+            let mut s: SdsRaw = sdsnewlen(str as *const ::core::ffi::c_void, str_len);
             free(str as *mut ::core::ffi::c_void);
             str = ::core::ptr::null_mut::<::core::ffi::c_char>();
             return s;

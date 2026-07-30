@@ -116,7 +116,7 @@ unsafe extern "C" fn consolidateGlyphContours(
     mut g: *mut Glyph,
     mut options: *const Options,
 ) {
-    let mut nContoursConsolidated: ShapeId = 0 as ShapeId;
+    let mut n_contours_consolidated: ShapeId = 0 as ShapeId;
     let mut skip: ShapeId = 0 as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < (*g).contours.length {
@@ -126,7 +126,7 @@ unsafe extern "C" fn consolidateGlyphContours(
                 .items
                 .offset((j as ::core::ffi::c_int - skip as ::core::ffi::c_int) as isize) =
                 *(*g).contours.items.offset(j as isize);
-            nContoursConsolidated = (nContoursConsolidated as ::core::ffi::c_int
+            n_contours_consolidated = (n_contours_consolidated as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as ShapeId;
         } else {
             GLYF_I_CONTOUR_LIST
@@ -153,14 +153,14 @@ unsafe extern "C" fn consolidateGlyphContours(
         }
         j = j.wrapping_add(1);
     }
-    (*g).contours.length = nContoursConsolidated as usize;
+    (*g).contours.length = n_contours_consolidated as usize;
 }
 unsafe extern "C" fn consolidateGlyphReferences(
     mut g: *mut Glyph,
     mut font: *mut Font,
     mut options: *const Options,
 ) {
-    let mut nReferencesConsolidated: ShapeId = 0 as ShapeId;
+    let mut n_references_consolidated: ShapeId = 0 as ShapeId;
     let mut skip: ShapeId = 0 as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < (*g).references.length {
@@ -197,12 +197,12 @@ unsafe extern "C" fn consolidateGlyphReferences(
                 .items
                 .offset((j as ::core::ffi::c_int - skip as ::core::ffi::c_int) as isize) =
                 *(*g).references.items.offset(j as isize);
-            nReferencesConsolidated = (nReferencesConsolidated as ::core::ffi::c_int
+            n_references_consolidated = (n_references_consolidated as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as ShapeId;
         }
         j = j.wrapping_add(1);
     }
-    (*g).references.length = nReferencesConsolidated as usize;
+    (*g).references.length = n_references_consolidated as usize;
 }
 unsafe extern "C" fn consolidateGlyphHints(
     mut g: *mut Glyph,
@@ -527,16 +527,16 @@ pub unsafe extern "C" fn consolidateAnchorRef(
     } else {
         (*rr).isAnchored = RefAnchorStatus::AnchorConsolidatingXy;
     }
-    let mut innerX: VQ =
+    let mut inner_x: VQ =
         (I_VQ.neutral.expect("non-null function pointer"))();
-    let mut outerX: VQ =
+    let mut outer_x: VQ =
         (I_VQ.neutral.expect("non-null function pointer"))();
-    let mut innerY: VQ =
+    let mut inner_y: VQ =
         (I_VQ.neutral.expect("non-null function pointer"))();
-    let mut outerY: VQ =
+    let mut outer_y: VQ =
         (I_VQ.neutral.expect("non-null function pointer"))();
-    let mut innerCounter: ShapeId = 0 as ShapeId;
-    let mut outerCounter: ShapeId = 0 as ShapeId;
+    let mut inner_counter: ShapeId = 0 as ShapeId;
+    let mut outer_counter: ShapeId = 0 as ShapeId;
     let mut rr1: ComponentReference =
         (
             GLYF_I_COMPONENT_REFERENCE
@@ -548,18 +548,18 @@ pub unsafe extern "C" fn consolidateAnchorRef(
         table,
         gr,
         (*rr).outer,
-        &raw mut outerCounter,
-        &raw mut outerX,
-        &raw mut outerY,
+        &raw mut outer_counter,
+        &raw mut outer_x,
+        &raw mut outer_y,
         options,
     );
     let mut s2: bool = getPointCoordinates(
         table,
         &raw mut rr1,
         (*rr).inner,
-        &raw mut innerCounter,
-        &raw mut innerX,
-        &raw mut innerY,
+        &raw mut inner_counter,
+        &raw mut inner_x,
+        &raw mut inner_y,
         options,
     );
     if !s1 {
@@ -595,18 +595,18 @@ pub unsafe extern "C" fn consolidateAnchorRef(
         );
     }
     let mut rrx: VQ = I_VQ.pointLinearTfm.expect("non-null function pointer")(
-        outerX,
+        outer_x,
         -((*rr).a as Pos),
-        innerX,
+        inner_x,
         -((*rr).b as Pos),
-        innerY,
+        inner_y,
     );
     let mut rry: VQ = I_VQ.pointLinearTfm.expect("non-null function pointer")(
-        outerY,
+        outer_y,
         -((*rr).c as Pos),
-        innerX,
+        inner_x,
         -((*rr).d as Pos),
-        innerY,
+        inner_y,
     );
     if (*rr).isAnchored == RefAnchorStatus::AnchorConsolidatingAnchor
     {
@@ -645,10 +645,10 @@ pub unsafe extern "C" fn consolidateAnchorRef(
     GLYF_I_COMPONENT_REFERENCE
         .dispose
         .expect("non-null function pointer")(&raw mut rr1);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut innerX);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut innerY);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut outerX);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut outerY);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut inner_x);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut inner_y);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut outer_x);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut outer_y);
     return false;
 }
 pub unsafe extern "C" fn consolidateGlyf(
@@ -819,14 +819,14 @@ unsafe extern "C" fn __declare_otl_consolidation(
                     ),
                 );
             } else {
-                let mut subtableRemoved: bool = false;
-                subtableRemoved = fn_0.expect("non-null function pointer")(
+                let mut subtable_removed: bool = false;
+                subtable_removed = fn_0.expect("non-null function pointer")(
                     font,
                     table,
                     *(*lookup).subtables.items.offset(j as isize) as *mut Subtable,
                     options,
                 );
-                if subtableRemoved {
+                if subtable_removed {
                     fndel.expect("non-null function pointer")(
                         *(*lookup).subtables.items.offset(j as isize) as *mut Subtable,
                     );
@@ -1152,28 +1152,28 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
     );
 }
 unsafe extern "C" fn lookupRefIsNotEmpty(
-    mut rLut: *const LookupRef,
+    mut r_lut: *const LookupRef,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
-    return !rLut.is_null() && !(*rLut).is_null() && (**rLut).subtables.length > 0 as usize;
+    return !r_lut.is_null() && !(*r_lut).is_null() && (**r_lut).subtables.length > 0 as usize;
 }
 unsafe extern "C" fn featureRefIsNotEmpty(
-    mut rFeat: *const FeatureRef,
+    mut r_feat: *const FeatureRef,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
-    return !rFeat.is_null() && !(*rFeat).is_null() && (**rFeat).lookups.length > 0 as usize;
+    return !r_feat.is_null() && !(*r_feat).is_null() && (**r_feat).lookups.length > 0 as usize;
 }
 unsafe extern "C" fn lookupIsNotEmpty(
-    mut rLut: *const LookupPtr,
+    mut r_lut: *const LookupPtr,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
-    return !rLut.is_null() && !(*rLut).is_null() && (**rLut).subtables.length > 0 as usize;
+    return !r_lut.is_null() && !(*r_lut).is_null() && (**r_lut).subtables.length > 0 as usize;
 }
 unsafe extern "C" fn featureIsNotEmpty(
-    mut rFeat: *const FeaturePtr,
+    mut r_feat: *const FeaturePtr,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
-    return !rFeat.is_null() && !(*rFeat).is_null() && (**rFeat).lookups.length > 0 as usize;
+    return !r_feat.is_null() && !(*r_feat).is_null() && (**r_feat).lookups.length > 0 as usize;
 }
 unsafe extern "C" fn consolidateOTLTable(
     mut font: *mut Font,
@@ -1184,8 +1184,8 @@ unsafe extern "C" fn consolidateOTLTable(
         return;
     }
     loop {
-        let mut featN: TableId = (*table).features.length as TableId;
-        let mut lutN: TableId = (*table).lookups.length as TableId;
+        let mut feat_n: TableId = (*table).features.length as TableId;
+        let mut lut_n: TableId = (*table).lookups.length as TableId;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*table).lookups.length {
             otfcc_consolidate_lookup(
@@ -1257,10 +1257,10 @@ unsafe extern "C" fn consolidateOTLTable(
             ),
             NULL,
         );
-        let mut featN1: TableId = (*table).features.length as TableId;
-        let mut lutN1: TableId = (*table).lookups.length as TableId;
-        if featN1 as ::core::ffi::c_int >= featN as ::core::ffi::c_int
-            && lutN1 as ::core::ffi::c_int >= lutN as ::core::ffi::c_int
+        let mut feat_n1: TableId = (*table).features.length as TableId;
+        let mut lut_n1: TableId = (*table).lookups.length as TableId;
+        if feat_n1 as ::core::ffi::c_int >= feat_n as ::core::ffi::c_int
+            && lut_n1 as ::core::ffi::c_int >= lut_n as ::core::ffi::c_int
         {
             break;
         }
@@ -1451,8 +1451,8 @@ unsafe extern "C" fn consolidateTSI(
     }
     let mut consolidated: *mut TsiTable = (
         TABLE_I_TSI.create.expect("non-null function pointer"))();
-    let mut gidEntries: *mut SdsRaw = ::core::ptr::null_mut::<SdsRaw>();
-    gidEntries = __caryll_allocate_clean(
+    let mut gid_entries: *mut SdsRaw = ::core::ptr::null_mut::<SdsRaw>();
+    gid_entries = __caryll_allocate_clean(
         (::core::mem::size_of::<SdsRaw>() as usize).wrapping_mul((*(*font).glyf).length),
         448 as ::core::ffi::c_ulong,
     ) as *mut SdsRaw;
@@ -1470,10 +1470,10 @@ unsafe extern "C" fn consolidateTSI(
                     (*font).glyph_order,
                     &raw mut (*entry).glyph,
                 ) {
-                    if !(*gidEntries.offset((*entry).glyph.index as isize)).is_null() {
-                        sdsfree(*gidEntries.offset((*entry).glyph.index as isize));
+                    if !(*gid_entries.offset((*entry).glyph.index as isize)).is_null() {
+                        sdsfree(*gid_entries.offset((*entry).glyph.index as isize));
                     }
-                    let ref mut fresh2 = *gidEntries.offset((*entry).glyph.index as isize);
+                    let ref mut fresh2 = *gid_entries.offset((*entry).glyph.index as isize);
                     *fresh2 = (*entry).content;
                     (*entry).content = ::core::ptr::null_mut::<::core::ffi::c_char>();
                 } else {
@@ -1525,8 +1525,8 @@ unsafe extern "C" fn consolidateTSI(
         OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")((*font).glyph_order, &raw mut e_0.glyph);
-        e_0.content = if !(*gidEntries.offset(j as isize)).is_null() {
-            *gidEntries.offset(j as isize)
+        e_0.content = if !(*gid_entries.offset(j as isize)).is_null() {
+            *gid_entries.offset(j as isize)
         } else {
             sdsempty()
         };
@@ -1534,8 +1534,8 @@ unsafe extern "C" fn consolidateTSI(
         j = j.wrapping_add(1);
     }
     TABLE_I_TSI.free.expect("non-null function pointer")(tsi);
-    free(gidEntries as *mut ::core::ffi::c_void);
-    gidEntries = ::core::ptr::null_mut::<SdsRaw>();
+    free(gid_entries as *mut ::core::ffi::c_void);
+    gid_entries = ::core::ptr::null_mut::<SdsRaw>();
     TABLE_I_TSI.sort.expect("non-null function pointer")(
         consolidated,
         Some(
@@ -1558,9 +1558,9 @@ pub unsafe extern "C" fn otfcc_consolidateFont(
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*(*font).glyf).length {
             let mut name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-            let mut glyfName: SdsRaw = (**(*(*font).glyf).items.offset(j as isize)).name;
-            if !glyfName.is_null() {
-                name = sdsdup(glyfName);
+            let mut glyf_name: SdsRaw = (**(*(*font).glyf).items.offset(j as isize)).name;
+            if !glyf_name.is_null() {
+                name = sdsdup(glyf_name);
             } else {
                 name = crate::sdsbuild!(sdsempty(), b"$$gid", j as ::core::ffi::c_int);
                 let ref mut fresh0 = (**(*(*font).glyf).items.offset(j as isize)).name;

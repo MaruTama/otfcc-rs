@@ -2983,28 +2983,28 @@ unsafe extern "C" fn buildRule(
     mut hi: *mut ClassifierHash,
     mut hf: *mut ClassifierHash,
 ) -> *mut ChainingRule {
-    let mut newRule: *mut ChainingRule = ::core::ptr::null_mut::<ChainingRule>();
-    newRule = __caryll_allocate_clean(
+    let mut new_rule: *mut ChainingRule = ::core::ptr::null_mut::<ChainingRule>();
+    new_rule = __caryll_allocate_clean(
         ::core::mem::size_of::<ChainingRule>() as usize,
         88 as ::core::ffi::c_ulong,
     ) as *mut ChainingRule;
-    (*newRule).matchCount = (*rule).matchCount;
-    (*newRule).inputBegins = (*rule).inputBegins;
-    (*newRule).inputEnds = (*rule).inputEnds;
-    (*newRule).match_0 = __caryll_allocate_clean(
+    (*new_rule).matchCount = (*rule).matchCount;
+    (*new_rule).inputBegins = (*rule).inputBegins;
+    (*new_rule).inputEnds = (*rule).inputEnds;
+    (*new_rule).match_0 = __caryll_allocate_clean(
         (::core::mem::size_of::<*mut Coverage>() as usize)
-            .wrapping_mul((*newRule).matchCount as usize),
+            .wrapping_mul((*new_rule).matchCount as usize),
         92 as ::core::ffi::c_ulong,
     ) as *mut *mut Coverage;
     let mut m: TableId = 0 as TableId;
     while (m as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
-        let ref mut fresh9 = *(*newRule).match_0.offset(m as isize);
+        let ref mut fresh9 = *(*new_rule).match_0.offset(m as isize);
         *fresh9 = __caryll_allocate_clean(
             ::core::mem::size_of::<Coverage>() as usize,
             94 as ::core::ffi::c_ulong,
         ) as *mut Coverage;
-        (**(*newRule).match_0.offset(m as isize)).numGlyphs = 1 as GlyphId;
-        let ref mut fresh10 = (**(*newRule).match_0.offset(m as isize)).glyphs;
+        (**(*new_rule).match_0.offset(m as isize)).numGlyphs = 1 as GlyphId;
+        let ref mut fresh10 = (**(*new_rule).match_0.offset(m as isize)).glyphs;
         *fresh10 = __caryll_allocate_clean(
             ::core::mem::size_of::<GlyphHandle>() as usize,
             96 as ::core::ffi::c_ulong,
@@ -3336,13 +3336,13 @@ unsafe extern "C" fn buildRule(
                     }
                 }
             }
-            *(**(*newRule).match_0.offset(m as isize))
+            *(**(*new_rule).match_0.offset(m as isize))
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize) =
                 handle_fromIndex((*s).cls as GlyphId)
                     as GlyphHandle;
         } else {
-            *(**(*newRule).match_0.offset(m as isize))
+            *(**(*new_rule).match_0.offset(m as isize))
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize) =
                 handle_fromIndex(0 as GlyphId)
@@ -3350,22 +3350,22 @@ unsafe extern "C" fn buildRule(
         }
         m = m.wrapping_add(1);
     }
-    (*newRule).applyCount = (*rule).applyCount;
-    (*newRule).apply = __caryll_allocate_clean(
+    (*new_rule).applyCount = (*rule).applyCount;
+    (*new_rule).apply = __caryll_allocate_clean(
         (::core::mem::size_of::<ChainLookupApplication>() as usize)
-            .wrapping_mul((*newRule).applyCount as usize),
+            .wrapping_mul((*new_rule).applyCount as usize),
         108 as ::core::ffi::c_ulong,
     ) as *mut ChainLookupApplication;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
-        (*(*newRule).apply.offset(j as isize)).index = (*(*rule).apply.offset(j as isize)).index;
-        (*(*newRule).apply.offset(j as isize)).lookup =
+        (*(*new_rule).apply.offset(j as isize)).index = (*(*rule).apply.offset(j as isize)).index;
+        (*(*new_rule).apply.offset(j as isize)).lookup =
             otfcc_Handle_dup(
                 (*(*rule).apply.offset(j as isize)).lookup as Handle,
             ) as LookupHandle;
         j = j.wrapping_add(1);
     }
-    return newRule;
+    return new_rule;
 }
 unsafe extern "C" fn toClass(mut h: *mut *mut ClassifierHash) -> *mut ClassDef {
     let mut cd: *mut ClassDef = otl_ClassDef_create();
@@ -3519,10 +3519,10 @@ unsafe extern "C" fn toClass(mut h: *mut *mut ClassifierHash) -> *mut ClassDef {
 pub unsafe extern "C" fn tryClassifyAround(
     mut lookup: *const Lookup,
     mut j: TableId,
-    mut classifiedST: *mut *mut ChainingSubtable,
+    mut classified_st: *mut *mut ChainingSubtable,
 ) -> TableId {
     let mut current_block: u64;
-    let mut compatibleCount: TableId = 0 as TableId;
+    let mut compatible_count: TableId = 0 as TableId;
     let mut hb: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
     let mut hi: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
     let mut hf: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
@@ -3605,22 +3605,22 @@ pub unsafe extern "C" fn tryClassifyAround(
                     }
                 }
                 if allcheck {
-                    compatibleCount = (compatibleCount as ::core::ffi::c_int
+                    compatible_count = (compatible_count as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as TableId;
                 }
                 k = k.wrapping_add(1);
             }
-            if compatibleCount as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
+            if compatible_count as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
                 subtable0 = __caryll_allocate_clean(
                     ::core::mem::size_of::<ChainingSubtable>() as usize,
                     170 as ::core::ffi::c_ulong,
                 ) as *mut ChainingSubtable;
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.rulesCount =
-                    (compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
+                    (compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
                     (::core::mem::size_of::<*mut ChainingRule>() as usize).wrapping_mul(
-                        (compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
+                        (compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
                     ),
                     172 as ::core::ffi::c_ulong,
                 )
@@ -3636,7 +3636,7 @@ pub unsafe extern "C" fn tryClassifyAround(
                     (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
                 while (k_0 as usize) < (*lookup).subtables.length
                     && (kk as ::core::ffi::c_int)
-                        < compatibleCount as ::core::ffi::c_int + 1 as ::core::ffi::c_int
+                        < compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int
                 {
                     let mut rule_0: *mut ChainingRule =
                         &raw mut (**(*lookup).subtables.items.offset(k_0 as isize))
@@ -3656,7 +3656,7 @@ pub unsafe extern "C" fn tryClassifyAround(
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.bc = toClass(&raw mut hb);
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.ic = toClass(&raw mut hi);
                 (*subtable0).c2rust_unnamed.c2rust_unnamed.fc = toClass(&raw mut hf);
-                *classifiedST = subtable0;
+                *classified_st = subtable0;
             }
         }
         _ => {}
@@ -3850,20 +3850,20 @@ pub unsafe extern "C" fn tryClassifyAround(
             }) as *mut ClassifierHash as *mut ClassifierHash;
         }
     }
-    if compatibleCount as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
-        return compatibleCount;
+    if compatible_count as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
+        return compatible_count;
     } else {
         return 0 as TableId;
     };
 }
 pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
     mut lookup: *const Lookup,
-    mut subtableBuffers: *mut *mut *mut Buffer,
-    mut lastOffset: *mut usize,
+    mut subtable_buffers: *mut *mut *mut Buffer,
+    mut last_offset: *mut usize,
 ) -> TableId {
-    let mut isContextual: bool = otfcc_chainingLookupIsContextualLookup(lookup);
-    let mut subtablesWritten: TableId = 0 as TableId;
-    *subtableBuffers = __caryll_allocate_clean(
+    let mut is_contextual: bool = otfcc_chainingLookupIsContextualLookup(lookup);
+    let mut subtables_written: TableId = 0 as TableId;
+    *subtable_buffers = __caryll_allocate_clean(
         (::core::mem::size_of::<*mut Buffer>() as usize)
             .wrapping_mul((*lookup).subtables.length),
         223 as ::core::ffi::c_ulong,
@@ -3877,7 +3877,7 @@ pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
             j = (j as ::core::ffi::c_int
                 + tryClassifyAround(lookup, j, &raw mut st) as ::core::ffi::c_int)
                 as TableId;
-            let mut buf: *mut Buffer = if isContextual as ::core::ffi::c_int != 0 {
+            let mut buf: *mut Buffer = if is_contextual as ::core::ffi::c_int != 0 {
                 otfcc_build_contextual(st as *mut Subtable)
             } else {
                 otfcc_build_chaining(st as *mut Subtable)
@@ -3885,13 +3885,13 @@ pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
             if st != st0 {
                 I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(st);
             }
-            let ref mut fresh0 = *(*subtableBuffers).offset(subtablesWritten as isize);
+            let ref mut fresh0 = *(*subtable_buffers).offset(subtables_written as isize);
             *fresh0 = buf;
-            *lastOffset = (*lastOffset).wrapping_add((*buf).size);
-            subtablesWritten =
-                (subtablesWritten as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
+            *last_offset = (*last_offset).wrapping_add((*buf).size);
+            subtables_written =
+                (subtables_written as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
         }
         j = j.wrapping_add(1);
     }
-    return subtablesWritten;
+    return subtables_written;
 }

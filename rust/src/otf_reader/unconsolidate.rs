@@ -280,24 +280,24 @@ unsafe extern "C" fn createGlyphOrder(
                 .expect("non-null function pointer")(glyph_order, gname)
             {
                 let mut n: GlyphId = 2 as GlyphId;
-                let mut stillIn: bool = false;
+                let mut still_in: bool = false;
                 loop {
-                    if stillIn {
+                    if still_in {
                         n = (n as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
                     }
                     let mut newname: SdsRaw = crate::sdsbuild!(sdsempty(), gname, b"-", prefix, n as ::core::ffi::c_int);
-                    stillIn = OTFCC_PKG_GLYPH_ORDER
+                    still_in = OTFCC_PKG_GLYPH_ORDER
                         .lookupName
                         .expect("non-null function pointer")(
                         glyph_order, newname
                     );
                     sdsfree(newname);
-                    if !stillIn {
+                    if !still_in {
                         break;
                     }
                 }
                 let mut newname_0: SdsRaw = crate::sdsbuild!(sdsempty(), gname, b"-", prefix, n as ::core::ffi::c_int);
-                let mut sharedName: SdsRaw = OTFCC_PKG_GLYPH_ORDER
+                let mut shared_name: SdsRaw = OTFCC_PKG_GLYPH_ORDER
                     .setByGID
                     .expect("non-null function pointer")(
                     glyph_order, j, newname_0
@@ -305,10 +305,10 @@ unsafe extern "C" fn createGlyphOrder(
                 if !(*g).name.is_null() {
                     sdsfree((*g).name);
                 }
-                (*g).name = sdsdup(sharedName);
+                (*g).name = sdsdup(shared_name);
                 sdsfree(gname);
             } else {
-                let mut sharedName_0: SdsRaw = OTFCC_PKG_GLYPH_ORDER
+                let mut shared_name_0: SdsRaw = OTFCC_PKG_GLYPH_ORDER
                     .setByGID
                     .expect("non-null function pointer")(
                     glyph_order, j, gname
@@ -316,12 +316,12 @@ unsafe extern "C" fn createGlyphOrder(
                 if !(*g).name.is_null() {
                     sdsfree((*g).name);
                 }
-                (*g).name = sdsdup(sharedName_0);
+                (*g).name = sdsdup(shared_name_0);
             }
         } else if !((*options).ignore_glyph_order || (*options).name_glyphs_by_gid) {
             if !(*g).name.is_null() {
                 let mut gname_0: SdsRaw = crate::sdsbuild!(sdsempty(), prefix, (*g).name);
-                let sharedName_1: SdsRaw = OTFCC_PKG_GLYPH_ORDER
+                let shared_name_1: SdsRaw = OTFCC_PKG_GLYPH_ORDER
                     .setByGID
                     .expect("non-null function pointer")(
                     glyph_order, j, gname_0
@@ -329,7 +329,7 @@ unsafe extern "C" fn createGlyphOrder(
                 if !(*g).name.is_null() {
                     sdsfree((*g).name);
                 }
-                (*g).name = sdsdup(sharedName_1);
+                (*g).name = sdsdup(shared_name_1);
             }
         }
     }
@@ -439,14 +439,14 @@ unsafe extern "C" fn nameGlyphs(mut font: *mut Font, mut gord: *mut GlyphOrder) 
     }
     for j in 0..(*(*font).glyf).length as GlyphId {
         let g: *mut Glyph = *(*(*font).glyf).items.offset(j as isize) as *mut Glyph;
-        let mut glyphName: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
+        let mut glyph_name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
         OTFCC_PKG_GLYPH_ORDER
             .nameAField_Shared
-            .expect("non-null function pointer")(gord, j, &raw mut glyphName);
+            .expect("non-null function pointer")(gord, j, &raw mut glyph_name);
         if !(*g).name.is_null() {
             sdsfree((*g).name);
         }
-        (*g).name = sdsdup(glyphName);
+        (*g).name = sdsdup(glyph_name);
     }
 }
 unsafe extern "C" fn unconsolidate_chaining(

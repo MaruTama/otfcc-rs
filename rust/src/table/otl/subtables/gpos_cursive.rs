@@ -403,22 +403,22 @@ unsafe extern "C" fn subtable_gpos_cursive_shrinkToFit(mut arr: *mut GposCursive
 }
 pub unsafe extern "C" fn otl_read_gpos_cursive(
     data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
-    _maxGlyphs: GlyphId,
+    _max_glyphs: GlyphId,
     mut _options: *const Options,
 ) -> *mut Subtable {
-    let mut valueCount: GlyphId = 0;
+    let mut value_count: GlyphId = 0;
     let mut subtable: *mut GposCursiveSubtable =
         (
             I_SUBTABLE_GPOS_CURSIVE
                 .create
                 .expect("non-null function pointer"))();
     let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    if !(tableLength < offset.wrapping_add(6 as u32)) {
+    if !(table_length < offset.wrapping_add(6 as u32)) {
         targets = readCoverage(
             data as *const u8,
-            tableLength,
+            table_length,
             offset.wrapping_add(read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
@@ -427,27 +427,27 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
         if !(targets.is_null()
             || (*targets).numGlyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
         {
-            valueCount = read_16u(
+            value_count = read_16u(
                 data.offset(offset as isize)
                     .offset(4 as ::core::ffi::c_int as isize) as *const u8,
             ) as GlyphId;
-            if !(tableLength
+            if !(table_length
                 < offset.wrapping_add(6 as u32).wrapping_add(
-                    (4 as ::core::ffi::c_int * valueCount as ::core::ffi::c_int) as u32,
+                    (4 as ::core::ffi::c_int * value_count as ::core::ffi::c_int) as u32,
                 ))
             {
-                if !(valueCount as ::core::ffi::c_int != (*targets).numGlyphs as ::core::ffi::c_int)
+                if !(value_count as ::core::ffi::c_int != (*targets).numGlyphs as ::core::ffi::c_int)
                 {
                     let mut j: GlyphId = 0 as GlyphId;
-                    while (j as ::core::ffi::c_int) < valueCount as ::core::ffi::c_int {
-                        let mut enterOffset: u16 = read_16u(
+                    while (j as ::core::ffi::c_int) < value_count as ::core::ffi::c_int {
+                        let mut enter_offset: u16 = read_16u(
                             data.offset(offset as isize)
                                 .offset(6 as ::core::ffi::c_int as isize)
                                 .offset(
                                     (4 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize,
                                 ) as *const u8,
                         );
-                        let mut exitOffset: u16 = read_16u(
+                        let mut exit_offset: u16 = read_16u(
                             data.offset(offset as isize)
                                 .offset(6 as ::core::ffi::c_int as isize)
                                 .offset(
@@ -458,18 +458,18 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
                         );
                         let mut enter: Anchor = otl_anchor_absent();
                         let mut exit: Anchor = otl_anchor_absent();
-                        if enterOffset != 0 {
+                        if enter_offset != 0 {
                             enter = otl_read_anchor(
                                 data,
-                                tableLength,
-                                offset.wrapping_add(enterOffset as u32),
+                                table_length,
+                                offset.wrapping_add(enter_offset as u32),
                             );
                         }
-                        if exitOffset != 0 {
+                        if exit_offset != 0 {
                             exit = otl_read_anchor(
                                 data,
-                                tableLength,
-                                offset.wrapping_add(exitOffset as u32),
+                                table_length,
+                                offset.wrapping_add(exit_offset as u32),
                             );
                         }
                         I_SUBTABLE_GPOS_CURSIVE

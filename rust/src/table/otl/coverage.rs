@@ -171,11 +171,11 @@ pub(crate) unsafe extern "C" fn pushToCoverage(mut coverage: *mut Coverage, mut 
 }
 pub(crate) unsafe extern "C" fn readCoverage(
     mut data: *const u8,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
 ) -> *mut Coverage {
     let mut coverage: *mut Coverage = otl_Coverage_create();
-    if tableLength < offset.wrapping_add(4 as u32) {
+    if table_length < offset.wrapping_add(4 as u32) {
         return coverage;
     }
     let mut format: u16 = read_16u(data.offset(offset as isize));
@@ -185,7 +185,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize),
             );
-            if tableLength
+            if table_length
                 < offset.wrapping_add(4 as u32).wrapping_add(
                     (glyphCount as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
                 )
@@ -1196,20 +1196,20 @@ pub(crate) unsafe extern "C" fn readCoverage(
             }
         }
         2 => {
-            let mut rangeCount: u16 = read_16u(
+            let mut range_count: u16 = read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize),
             );
-            if tableLength
+            if table_length
                 < offset.wrapping_add(4 as u32).wrapping_add(
-                    (rangeCount as ::core::ffi::c_int * 6 as ::core::ffi::c_int) as u32,
+                    (range_count as ::core::ffi::c_int * 6 as ::core::ffi::c_int) as u32,
                 )
             {
                 return coverage;
             }
             let mut hash_0: *mut CoverageEntry = ::core::ptr::null_mut::<CoverageEntry>();
             let mut j_0: u16 = 0 as u16;
-            while (j_0 as ::core::ffi::c_int) < rangeCount as ::core::ffi::c_int {
+            while (j_0 as ::core::ffi::c_int) < range_count as ::core::ffi::c_int {
                 let mut start: u16 = read_16u(
                     data.offset(offset as isize)
                         .offset(4 as ::core::ffi::c_int as isize)
@@ -1221,7 +1221,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                         .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize)
                         .offset(2 as ::core::ffi::c_int as isize),
                 );
-                let mut startCoverageIndex: u16 = read_16u(
+                let mut start_coverage_index: u16 = read_16u(
                     data.offset(offset as isize)
                         .offset(4 as ::core::ffi::c_int as isize)
                         .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize)
@@ -1561,7 +1561,7 @@ pub(crate) unsafe extern "C" fn readCoverage(
                             87 as ::core::ffi::c_ulong,
                         ) as *mut CoverageEntry;
                         (*item_0).gid = k;
-                        (*item_0).covIndex = startCoverageIndex as ::core::ffi::c_int + k;
+                        (*item_0).covIndex = start_coverage_index as ::core::ffi::c_int + k;
                         let mut _ha_hashv_0: ::core::ffi::c_uint = 0;
                         let mut _hj_i_2: ::core::ffi::c_uint = 0;
                         let mut _hj_j_2: ::core::ffi::c_uint = 0;
@@ -2359,45 +2359,45 @@ pub(crate) unsafe extern "C" fn buildCoverageFormat(
     let mut format2: *mut Buffer = bufnew();
     bufwrite16b(format2, 2 as u16);
     let mut ranges: *mut Buffer = bufnew();
-    let mut startGID: GlyphId = *r.offset(0 as ::core::ffi::c_int as isize);
-    let mut endGID: GlyphId = startGID;
-    let mut lastGID: GlyphId = startGID;
-    let mut nRanges: GlyphId = 0 as GlyphId;
+    let mut start_gid: GlyphId = *r.offset(0 as ::core::ffi::c_int as isize);
+    let mut end_gid: GlyphId = start_gid;
+    let mut last_gid: GlyphId = start_gid;
+    let mut n_ranges: GlyphId = 0 as GlyphId;
     let mut j_1: GlyphId = 1 as GlyphId;
     while (j_1 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
         let mut current: GlyphId = *r.offset(j_1 as isize);
-        if !(current as ::core::ffi::c_int <= lastGID as ::core::ffi::c_int) {
+        if !(current as ::core::ffi::c_int <= last_gid as ::core::ffi::c_int) {
             if current as ::core::ffi::c_int
-                == endGID as ::core::ffi::c_int + 1 as ::core::ffi::c_int
+                == end_gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int
             {
-                endGID = current;
+                end_gid = current;
             } else {
-                bufwrite16b(ranges, startGID as u16);
-                bufwrite16b(ranges, endGID as u16);
+                bufwrite16b(ranges, start_gid as u16);
+                bufwrite16b(ranges, end_gid as u16);
                 bufwrite16b(
                     ranges,
-                    (j_1 as ::core::ffi::c_int + startGID as ::core::ffi::c_int
-                        - endGID as ::core::ffi::c_int
+                    (j_1 as ::core::ffi::c_int + start_gid as ::core::ffi::c_int
+                        - end_gid as ::core::ffi::c_int
                         - 1 as ::core::ffi::c_int) as u16,
                 );
-                nRanges = (nRanges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
-                endGID = current;
-                startGID = endGID;
+                n_ranges = (n_ranges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+                end_gid = current;
+                start_gid = end_gid;
             }
-            lastGID = current;
+            last_gid = current;
         }
         j_1 = j_1.wrapping_add(1);
     }
-    bufwrite16b(ranges, startGID as u16);
-    bufwrite16b(ranges, endGID as u16);
+    bufwrite16b(ranges, start_gid as u16);
+    bufwrite16b(ranges, end_gid as u16);
     bufwrite16b(
         ranges,
-        (jj as ::core::ffi::c_int + startGID as ::core::ffi::c_int
-            - endGID as ::core::ffi::c_int
+        (jj as ::core::ffi::c_int + start_gid as ::core::ffi::c_int
+            - end_gid as ::core::ffi::c_int
             - 1 as ::core::ffi::c_int) as u16,
     );
-    nRanges = (nRanges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
-    bufwrite16b(format2, nRanges as u16);
+    n_ranges = (n_ranges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+    bufwrite16b(format2, n_ranges as u16);
     bufwrite_bufdel(format2, ranges);
     if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
         buffree(format2);

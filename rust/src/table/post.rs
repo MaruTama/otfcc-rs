@@ -470,21 +470,21 @@ pub unsafe extern "C" fn otfcc_readPost(
                                 OTFCC_PKG_GLYPH_ORDER
                                     .create
                                     .expect("non-null function pointer"))();
-                        let mut pendingNames: [SdsRaw; 65536] =
+                        let mut pending_names: [SdsRaw; 65536] =
                             [::core::ptr::null_mut::<::core::ffi::c_char>(); 65536];
                         memset(
-                            &raw mut pendingNames as *mut SdsRaw as *mut ::core::ffi::c_void,
+                            &raw mut pending_names as *mut SdsRaw as *mut ::core::ffi::c_void,
                             0 as ::core::ffi::c_int,
                             ::core::mem::size_of::<[SdsRaw; 65536]>() as usize,
                         );
-                        let mut numberGlyphs: u16 = read_16u(
+                        let mut number_glyphs: u16 = read_16u(
                             data.offset(32 as ::core::ffi::c_int as isize) as *const u8,
                         );
                         let mut offset: u32 = (34 as ::core::ffi::c_int
-                            + 2 as ::core::ffi::c_int * numberGlyphs as ::core::ffi::c_int)
+                            + 2 as ::core::ffi::c_int * number_glyphs as ::core::ffi::c_int)
                             as u32;
-                        let mut pendingNameIndex: u16 = 0 as u16;
-                        while pendingNameIndex as ::core::ffi::c_int <= 0xffff as ::core::ffi::c_int
+                        let mut pending_name_index: u16 = 0 as u16;
+                        while pending_name_index as ::core::ffi::c_int <= 0xffff as ::core::ffi::c_int
                             && offset < table.length
                         {
                             let mut len: u8 = *data.offset(offset as isize);
@@ -502,25 +502,25 @@ pub unsafe extern "C" fn otfcc_readPost(
                             offset = offset.wrapping_add(
                                 (len as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u32,
                             );
-                            pendingNames[pendingNameIndex as usize] = s;
-                            pendingNameIndex = (pendingNameIndex as ::core::ffi::c_int
+                            pending_names[pending_name_index as usize] = s;
+                            pending_name_index = (pending_name_index as ::core::ffi::c_int
                                 + 1 as ::core::ffi::c_int)
                                 as u16;
                         }
                         let mut j: u16 = 0 as u16;
-                        while (j as ::core::ffi::c_int) < numberGlyphs as ::core::ffi::c_int {
-                            let mut nameMap: u16 =
+                        while (j as ::core::ffi::c_int) < number_glyphs as ::core::ffi::c_int {
+                            let mut name_map: u16 =
                                 read_16u(data.offset(34 as ::core::ffi::c_int as isize).offset(
                                     (2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize,
                                 ) as *const u8);
-                            if nameMap as ::core::ffi::c_int >= 258 as ::core::ffi::c_int {
+                            if name_map as ::core::ffi::c_int >= 258 as ::core::ffi::c_int {
                                 OTFCC_PKG_GLYPH_ORDER
                                     .setByGID
                                     .expect("non-null function pointer")(
                                     map,
                                     j as GlyphId,
                                     sdsdup(
-                                        pendingNames[(nameMap as ::core::ffi::c_int
+                                        pending_names[(name_map as ::core::ffi::c_int
                                             - 258 as ::core::ffi::c_int)
                                             as usize],
                                     ),
@@ -531,14 +531,14 @@ pub unsafe extern "C" fn otfcc_readPost(
                                     .expect("non-null function pointer")(
                                     map,
                                     j as GlyphId,
-                                    sdsnew(STANDARD_MAC_NAMES[nameMap as usize].as_ptr()),
+                                    sdsnew(STANDARD_MAC_NAMES[name_map as usize].as_ptr()),
                                 );
                             }
                             j = j.wrapping_add(1);
                         }
                         let mut j_0: u32 = 0 as u32;
-                        while j_0 < pendingNameIndex as u32 {
-                            sdsfree(pendingNames[j_0 as usize]);
+                        while j_0 < pending_name_index as u32 {
+                            sdsfree(pending_names[j_0 as usize]);
                             j_0 = j_0.wrapping_add(1);
                         }
                         (*post).post_name_map = map;
