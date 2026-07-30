@@ -2,16 +2,16 @@
 use libc::{free, malloc, memcmp, memcpy, memmove, memset, realloc, strchr, strlen};
 
 use crate::support::ctype_compat::{c_isprint, c_isspace, c_tolower, c_toupper};
-pub type sds = *mut ::core::ffi::c_char;
+pub type SdsRaw = *mut ::core::ffi::c_char;
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
-pub struct sdshdr5 {
+pub struct SdsHdr5 {
     pub flags: ::core::ffi::c_uchar,
     pub buf: [::core::ffi::c_char; 0],
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
-pub struct sdshdr8 {
+pub struct SdsHdr8 {
     pub len: u8,
     pub alloc: u8,
     pub flags: ::core::ffi::c_uchar,
@@ -19,7 +19,7 @@ pub struct sdshdr8 {
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
-pub struct sdshdr16 {
+pub struct SdsHdr16 {
     pub len: u16,
     pub alloc: u16,
     pub flags: ::core::ffi::c_uchar,
@@ -27,7 +27,7 @@ pub struct sdshdr16 {
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
-pub struct sdshdr32 {
+pub struct SdsHdr32 {
     pub len: u32,
     pub alloc: u32,
     pub flags: ::core::ffi::c_uchar,
@@ -35,7 +35,7 @@ pub struct sdshdr32 {
 }
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
-pub struct sdshdr64 {
+pub struct SdsHdr64 {
     pub len: u64,
     pub alloc: u64,
     pub flags: ::core::ffi::c_uchar,
@@ -51,29 +51,29 @@ pub const SDS_TYPE_64: ::core::ffi::c_int = 4;
 pub const SDS_TYPE_MASK: ::core::ffi::c_int = 7 as ::core::ffi::c_int;
 pub const SDS_TYPE_BITS: ::core::ffi::c_int = 3 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> usize {
+unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut sdshdr8))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut SdsHdr8))
                 .len as usize;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .len as usize;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .len as usize;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .len as usize;
         }
         _ => {}
@@ -81,34 +81,34 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     return 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn sdsavail(s: sds) -> usize {
+unsafe extern "C" fn sdsavail(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return 0 as usize,
         SDS_TYPE_8 => {
-            let mut sh: *mut sdshdr8 = s
-                .offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut ::core::ffi::c_void as *mut sdshdr8;
+            let mut sh: *mut SdsHdr8 = s
+                .offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut ::core::ffi::c_void as *mut SdsHdr8;
             return ((*sh).alloc as ::core::ffi::c_int - (*sh).len as ::core::ffi::c_int) as usize;
         }
         SDS_TYPE_16 => {
-            let mut sh_0: *mut sdshdr16 =
-                s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                    as *mut ::core::ffi::c_void as *mut sdshdr16;
+            let mut sh_0: *mut SdsHdr16 =
+                s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                    as *mut ::core::ffi::c_void as *mut SdsHdr16;
             return ((*sh_0).alloc as ::core::ffi::c_int - (*sh_0).len as ::core::ffi::c_int)
                 as usize;
         }
         SDS_TYPE_32 => {
-            let mut sh_1: *mut sdshdr32 =
-                s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                    as *mut ::core::ffi::c_void as *mut sdshdr32;
+            let mut sh_1: *mut SdsHdr32 =
+                s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                    as *mut ::core::ffi::c_void as *mut SdsHdr32;
             return (*sh_1).alloc.wrapping_sub((*sh_1).len) as usize;
         }
         SDS_TYPE_64 => {
-            let mut sh_2: *mut sdshdr64 =
-                s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                    as *mut ::core::ffi::c_void as *mut sdshdr64;
+            let mut sh_2: *mut SdsHdr64 =
+                s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                    as *mut ::core::ffi::c_void as *mut SdsHdr64;
             return ((*sh_2).alloc as usize).wrapping_sub((*sh_2).len as usize);
         }
         _ => {}
@@ -116,7 +116,7 @@ unsafe extern "C" fn sdsavail(s: sds) -> usize {
     return 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn sdssetlen(mut s: sds, mut newlen: usize) {
+unsafe extern "C" fn sdssetlen(mut s: SdsRaw, mut newlen: usize) {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
@@ -126,29 +126,29 @@ unsafe extern "C" fn sdssetlen(mut s: sds, mut newlen: usize) {
             *fp = (SDS_TYPE_5 as usize | newlen << SDS_TYPE_BITS) as ::core::ffi::c_uchar;
         }
         SDS_TYPE_8 => {
-            (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize)) as *mut sdshdr8))
+            (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize)) as *mut SdsHdr8))
                 .len = newlen as u8;
         }
         SDS_TYPE_16 => {
-            (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .len = newlen as u16;
         }
         SDS_TYPE_32 => {
-            (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .len = newlen as u32;
         }
         SDS_TYPE_64 => {
-            (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .len = newlen as u64;
         }
         _ => {}
     };
 }
 #[inline]
-unsafe extern "C" fn sdsinclen(mut s: sds, mut inc: usize) {
+unsafe extern "C" fn sdsinclen(mut s: SdsRaw, mut inc: usize) {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
@@ -163,31 +163,31 @@ unsafe extern "C" fn sdsinclen(mut s: sds, mut inc: usize) {
         }
         SDS_TYPE_8 => {
             let fresh0 = &raw mut
-                (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                    as *mut sdshdr8))
+                (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                    as *mut SdsHdr8))
                     .len;
             *fresh0 =
                 (*fresh0 as ::core::ffi::c_int + inc as u8 as ::core::ffi::c_int) as u8;
         }
         SDS_TYPE_16 => {
             let fresh1 = &raw mut (*(s
-                .offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+                .offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .len;
             *fresh1 =
                 (*fresh1 as ::core::ffi::c_int + inc as u16 as ::core::ffi::c_int) as u16;
         }
         SDS_TYPE_32 => {
             let fresh2 = &raw mut (*(s
-                .offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+                .offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .len;
             *fresh2 = (*fresh2).wrapping_add(inc as u32);
         }
         SDS_TYPE_64 => {
             let fresh3 = &raw mut (*(s
-                .offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+                .offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .len;
             *fresh3 = (*fresh3 as ::core::ffi::c_ulong).wrapping_add(inc as ::core::ffi::c_ulong)
                 as u64 as u64;
@@ -196,29 +196,29 @@ unsafe extern "C" fn sdsinclen(mut s: sds, mut inc: usize) {
     };
 }
 #[inline]
-unsafe extern "C" fn sdsalloc(s: sds) -> usize {
+unsafe extern "C" fn sdsalloc(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut sdshdr8))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut SdsHdr8))
                 .alloc as usize;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .alloc as usize;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .alloc as usize;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .alloc as usize;
         }
         _ => {}
@@ -226,27 +226,27 @@ unsafe extern "C" fn sdsalloc(s: sds) -> usize {
     return 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn sdssetalloc(mut s: sds, mut newlen: usize) {
+unsafe extern "C" fn sdssetalloc(mut s: SdsRaw, mut newlen: usize) {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_8 => {
-            (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize)) as *mut sdshdr8))
+            (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize)) as *mut SdsHdr8))
                 .alloc = newlen as u8;
         }
         SDS_TYPE_16 => {
-            (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .alloc = newlen as u16;
         }
         SDS_TYPE_32 => {
-            (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .alloc = newlen as u32;
         }
         SDS_TYPE_64 => {
-            (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .alloc = newlen as u64;
         }
         SDS_TYPE_5 | _ => {}
@@ -255,11 +255,11 @@ unsafe extern "C" fn sdssetalloc(mut s: sds, mut newlen: usize) {
 #[inline]
 unsafe extern "C" fn sdsHdrSize(mut type_0: ::core::ffi::c_char) -> ::core::ffi::c_int {
     match type_0 as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return ::core::mem::size_of::<sdshdr5>() as ::core::ffi::c_int,
-        SDS_TYPE_8 => return ::core::mem::size_of::<sdshdr8>() as ::core::ffi::c_int,
-        SDS_TYPE_16 => return ::core::mem::size_of::<sdshdr16>() as ::core::ffi::c_int,
-        SDS_TYPE_32 => return ::core::mem::size_of::<sdshdr32>() as ::core::ffi::c_int,
-        SDS_TYPE_64 => return ::core::mem::size_of::<sdshdr64>() as ::core::ffi::c_int,
+        SDS_TYPE_5 => return ::core::mem::size_of::<SdsHdr5>() as ::core::ffi::c_int,
+        SDS_TYPE_8 => return ::core::mem::size_of::<SdsHdr8>() as ::core::ffi::c_int,
+        SDS_TYPE_16 => return ::core::mem::size_of::<SdsHdr16>() as ::core::ffi::c_int,
+        SDS_TYPE_32 => return ::core::mem::size_of::<SdsHdr32>() as ::core::ffi::c_int,
+        SDS_TYPE_64 => return ::core::mem::size_of::<SdsHdr64>() as ::core::ffi::c_int,
         _ => {}
     }
     return 0 as ::core::ffi::c_int;
@@ -283,9 +283,9 @@ unsafe extern "C" fn sdsReqType(mut string_size: usize) -> ::core::ffi::c_char {
 pub unsafe extern "C" fn sdsnewlen(
     mut init: *const ::core::ffi::c_void,
     mut initlen: usize,
-) -> sds {
+) -> SdsRaw {
     let mut sh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
-    let mut s: sds = ::core::ptr::null_mut::<::core::ffi::c_char>();
+    let mut s: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut type_0: ::core::ffi::c_char = sdsReqType(initlen);
     if type_0 as ::core::ffi::c_int == SDS_TYPE_5 && initlen == 0 as usize {
         type_0 = SDS_TYPE_8 as ::core::ffi::c_char;
@@ -309,40 +309,40 @@ pub unsafe extern "C" fn sdsnewlen(
     if sh.is_null() {
         return ::core::ptr::null_mut::<::core::ffi::c_char>();
     }
-    s = (sh as *mut ::core::ffi::c_char).offset(hdrlen as isize) as sds;
+    s = (sh as *mut ::core::ffi::c_char).offset(hdrlen as isize) as SdsRaw;
     fp = (s as *mut ::core::ffi::c_uchar).offset(-(1 as ::core::ffi::c_int as isize));
     match type_0 as ::core::ffi::c_int {
         SDS_TYPE_5 => {
             *fp = (type_0 as usize | initlen << SDS_TYPE_BITS) as ::core::ffi::c_uchar;
         }
         SDS_TYPE_8 => {
-            let mut sh_0: *mut sdshdr8 =
-                s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                    as *mut ::core::ffi::c_void as *mut sdshdr8;
+            let mut sh_0: *mut SdsHdr8 =
+                s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                    as *mut ::core::ffi::c_void as *mut SdsHdr8;
             (*sh_0).len = initlen as u8;
             (*sh_0).alloc = initlen as u8;
             *fp = type_0 as ::core::ffi::c_uchar;
         }
         SDS_TYPE_16 => {
-            let mut sh_1: *mut sdshdr16 =
-                s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                    as *mut ::core::ffi::c_void as *mut sdshdr16;
+            let mut sh_1: *mut SdsHdr16 =
+                s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                    as *mut ::core::ffi::c_void as *mut SdsHdr16;
             (*sh_1).len = initlen as u16;
             (*sh_1).alloc = initlen as u16;
             *fp = type_0 as ::core::ffi::c_uchar;
         }
         SDS_TYPE_32 => {
-            let mut sh_2: *mut sdshdr32 =
-                s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                    as *mut ::core::ffi::c_void as *mut sdshdr32;
+            let mut sh_2: *mut SdsHdr32 =
+                s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                    as *mut ::core::ffi::c_void as *mut SdsHdr32;
             (*sh_2).len = initlen as u32;
             (*sh_2).alloc = initlen as u32;
             *fp = type_0 as ::core::ffi::c_uchar;
         }
         SDS_TYPE_64 => {
-            let mut sh_3: *mut sdshdr64 =
-                s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                    as *mut ::core::ffi::c_void as *mut sdshdr64;
+            let mut sh_3: *mut SdsHdr64 =
+                s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                    as *mut ::core::ffi::c_void as *mut SdsHdr64;
             (*sh_3).len = initlen as u64;
             (*sh_3).alloc = initlen as u64;
             *fp = type_0 as ::core::ffi::c_uchar;
@@ -355,13 +355,13 @@ pub unsafe extern "C" fn sdsnewlen(
     *s.offset(initlen as isize) = '\0' as i32 as ::core::ffi::c_char;
     return s;
 }
-pub unsafe extern "C" fn sdsempty() -> sds {
+pub unsafe extern "C" fn sdsempty() -> SdsRaw {
     return sdsnewlen(
         b"\0" as *const u8 as *const ::core::ffi::c_char as *const ::core::ffi::c_void,
         0 as usize,
     );
 }
-pub unsafe extern "C" fn sdsnew(mut init: *const ::core::ffi::c_char) -> sds {
+pub unsafe extern "C" fn sdsnew(mut init: *const ::core::ffi::c_char) -> SdsRaw {
     let mut initlen: usize = if init.is_null() {
         0 as usize
     } else {
@@ -369,10 +369,10 @@ pub unsafe extern "C" fn sdsnew(mut init: *const ::core::ffi::c_char) -> sds {
     };
     return sdsnewlen(init as *const ::core::ffi::c_void, initlen);
 }
-pub unsafe extern "C" fn sdsdup(s: sds) -> sds {
+pub unsafe extern "C" fn sdsdup(s: SdsRaw) -> SdsRaw {
     return sdsnewlen(s as *const ::core::ffi::c_void, sdslen(s));
 }
-pub unsafe extern "C" fn sdsfree(mut s: sds) {
+pub unsafe extern "C" fn sdsfree(mut s: SdsRaw) {
     if s.is_null() {
         return;
     }
@@ -381,16 +381,16 @@ pub unsafe extern "C" fn sdsfree(mut s: sds) {
             as *mut ::core::ffi::c_void,
     );
 }
-pub unsafe extern "C" fn sdsupdatelen(mut s: sds) {
+pub unsafe extern "C" fn sdsupdatelen(mut s: SdsRaw) {
     let mut reallen: ::core::ffi::c_int =
         strlen(s as *const ::core::ffi::c_char) as ::core::ffi::c_int;
     sdssetlen(s, reallen as usize);
 }
-pub unsafe extern "C" fn sdsclear(mut s: sds) {
+pub unsafe extern "C" fn sdsclear(mut s: SdsRaw) {
     sdssetlen(s, 0 as usize);
     *s.offset(0 as ::core::ffi::c_int as isize) = '\0' as i32 as ::core::ffi::c_char;
 }
-pub unsafe extern "C" fn sdsMakeRoomFor(mut s: sds, mut addlen: usize) -> sds {
+pub unsafe extern "C" fn sdsMakeRoomFor(mut s: SdsRaw, mut addlen: usize) -> SdsRaw {
     let mut sh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut newsh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut avail: usize = sdsavail(s);
@@ -427,7 +427,7 @@ pub unsafe extern "C" fn sdsMakeRoomFor(mut s: sds, mut addlen: usize) -> sds {
         if newsh.is_null() {
             return ::core::ptr::null_mut::<::core::ffi::c_char>();
         }
-        s = (newsh as *mut ::core::ffi::c_char).offset(hdrlen as isize) as sds;
+        s = (newsh as *mut ::core::ffi::c_char).offset(hdrlen as isize) as SdsRaw;
     } else {
         newsh = malloc(
             (hdrlen as usize)
@@ -443,14 +443,14 @@ pub unsafe extern "C" fn sdsMakeRoomFor(mut s: sds, mut addlen: usize) -> sds {
             len.wrapping_add(1 as usize),
         );
         free(sh);
-        s = (newsh as *mut ::core::ffi::c_char).offset(hdrlen as isize) as sds;
+        s = (newsh as *mut ::core::ffi::c_char).offset(hdrlen as isize) as SdsRaw;
         *s.offset(-(1 as ::core::ffi::c_int) as isize) = type_0;
         sdssetlen(s, len);
     }
     sdssetalloc(s, newlen);
     return s;
 }
-pub unsafe extern "C" fn sdsRemoveFreeSpace(mut s: sds) -> sds {
+pub unsafe extern "C" fn sdsRemoveFreeSpace(mut s: SdsRaw) -> SdsRaw {
     let mut sh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut newsh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut type_0: ::core::ffi::c_char = 0;
@@ -472,7 +472,7 @@ pub unsafe extern "C" fn sdsRemoveFreeSpace(mut s: sds) -> sds {
         if newsh.is_null() {
             return ::core::ptr::null_mut::<::core::ffi::c_char>();
         }
-        s = (newsh as *mut ::core::ffi::c_char).offset(hdrlen as isize) as sds;
+        s = (newsh as *mut ::core::ffi::c_char).offset(hdrlen as isize) as SdsRaw;
     } else {
         newsh = malloc(
             (hdrlen as usize)
@@ -488,24 +488,24 @@ pub unsafe extern "C" fn sdsRemoveFreeSpace(mut s: sds) -> sds {
             len.wrapping_add(1 as usize),
         );
         free(sh);
-        s = (newsh as *mut ::core::ffi::c_char).offset(hdrlen as isize) as sds;
+        s = (newsh as *mut ::core::ffi::c_char).offset(hdrlen as isize) as SdsRaw;
         *s.offset(-(1 as ::core::ffi::c_int) as isize) = type_0;
         sdssetlen(s, len);
     }
     sdssetalloc(s, len);
     return s;
 }
-pub unsafe extern "C" fn sdsAllocSize(mut s: sds) -> usize {
+pub unsafe extern "C" fn sdsAllocSize(mut s: SdsRaw) -> usize {
     let mut alloc: usize = sdsalloc(s);
     return (sdsHdrSize(*s.offset(-(1 as ::core::ffi::c_int) as isize)) as usize)
         .wrapping_add(alloc)
         .wrapping_add(1 as usize);
 }
-pub unsafe extern "C" fn sdsAllocPtr(mut s: sds) -> *mut ::core::ffi::c_void {
+pub unsafe extern "C" fn sdsAllocPtr(mut s: SdsRaw) -> *mut ::core::ffi::c_void {
     return s.offset(-(sdsHdrSize(*s.offset(-(1 as ::core::ffi::c_int) as isize)) as isize))
         as *mut ::core::ffi::c_void;
 }
-pub unsafe extern "C" fn sdsIncrLen(mut s: sds, mut incr: ::core::ffi::c_int) {
+pub unsafe extern "C" fn sdsIncrLen(mut s: SdsRaw, mut incr: ::core::ffi::c_int) {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     let mut len: usize = 0;
@@ -520,30 +520,30 @@ pub unsafe extern "C" fn sdsIncrLen(mut s: sds, mut incr: ::core::ffi::c_int) {
             len = (oldlen as ::core::ffi::c_int + incr) as usize;
         }
         SDS_TYPE_8 => {
-            let mut sh: *mut sdshdr8 = s
-                .offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut ::core::ffi::c_void as *mut sdshdr8;
+            let mut sh: *mut SdsHdr8 = s
+                .offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut ::core::ffi::c_void as *mut SdsHdr8;
             (*sh).len = ((*sh).len as ::core::ffi::c_int + incr) as u8;
             len = (*sh).len as usize;
         }
         SDS_TYPE_16 => {
-            let mut sh_0: *mut sdshdr16 =
-                s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                    as *mut ::core::ffi::c_void as *mut sdshdr16;
+            let mut sh_0: *mut SdsHdr16 =
+                s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                    as *mut ::core::ffi::c_void as *mut SdsHdr16;
             (*sh_0).len = ((*sh_0).len as ::core::ffi::c_int + incr) as u16;
             len = (*sh_0).len as usize;
         }
         SDS_TYPE_32 => {
-            let mut sh_1: *mut sdshdr32 =
-                s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                    as *mut ::core::ffi::c_void as *mut sdshdr32;
+            let mut sh_1: *mut SdsHdr32 =
+                s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                    as *mut ::core::ffi::c_void as *mut SdsHdr32;
             (*sh_1).len = (*sh_1).len.wrapping_add(incr as u32);
             len = (*sh_1).len as usize;
         }
         SDS_TYPE_64 => {
-            let mut sh_2: *mut sdshdr64 =
-                s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                    as *mut ::core::ffi::c_void as *mut sdshdr64;
+            let mut sh_2: *mut SdsHdr64 =
+                s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                    as *mut ::core::ffi::c_void as *mut SdsHdr64;
             (*sh_2).len = (*sh_2).len.wrapping_add(incr as u64);
             len = (*sh_2).len as usize;
         }
@@ -553,7 +553,7 @@ pub unsafe extern "C" fn sdsIncrLen(mut s: sds, mut incr: ::core::ffi::c_int) {
     }
     *s.offset(len as isize) = '\0' as i32 as ::core::ffi::c_char;
 }
-pub unsafe extern "C" fn sdsgrowzero(mut s: sds, mut len: usize) -> sds {
+pub unsafe extern "C" fn sdsgrowzero(mut s: SdsRaw, mut len: usize) -> SdsRaw {
     let mut curlen: usize = sdslen(s);
     if len <= curlen {
         return s;
@@ -571,10 +571,10 @@ pub unsafe extern "C" fn sdsgrowzero(mut s: sds, mut len: usize) -> sds {
     return s;
 }
 pub unsafe extern "C" fn sdscatlen(
-    mut s: sds,
+    mut s: SdsRaw,
     mut t: *const ::core::ffi::c_void,
     mut len: usize,
-) -> sds {
+) -> SdsRaw {
     let mut curlen: usize = sdslen(s);
     s = sdsMakeRoomFor(s, len);
     if s.is_null() {
@@ -589,17 +589,17 @@ pub unsafe extern "C" fn sdscatlen(
     *s.offset(curlen.wrapping_add(len) as isize) = '\0' as i32 as ::core::ffi::c_char;
     return s;
 }
-pub unsafe extern "C" fn sdscat(mut s: sds, mut t: *const ::core::ffi::c_char) -> sds {
+pub unsafe extern "C" fn sdscat(mut s: SdsRaw, mut t: *const ::core::ffi::c_char) -> SdsRaw {
     return sdscatlen(s, t as *const ::core::ffi::c_void, strlen(t));
 }
-pub unsafe extern "C" fn sdscatsds(mut s: sds, t: sds) -> sds {
+pub unsafe extern "C" fn sdscatsds(mut s: SdsRaw, t: SdsRaw) -> SdsRaw {
     return sdscatlen(s, t as *const ::core::ffi::c_void, sdslen(t));
 }
 pub unsafe extern "C" fn sdscpylen(
-    mut s: sds,
+    mut s: SdsRaw,
     mut t: *const ::core::ffi::c_char,
     mut len: usize,
-) -> sds {
+) -> SdsRaw {
     if sdsalloc(s) < len {
         s = sdsMakeRoomFor(s, len.wrapping_sub(sdslen(s)));
         if s.is_null() {
@@ -615,7 +615,7 @@ pub unsafe extern "C" fn sdscpylen(
     sdssetlen(s, len);
     return s;
 }
-pub unsafe extern "C" fn sdscpy(mut s: sds, mut t: *const ::core::ffi::c_char) -> sds {
+pub unsafe extern "C" fn sdscpy(mut s: SdsRaw, mut t: *const ::core::ffi::c_char) -> SdsRaw {
     return sdscpylen(s, t, strlen(t));
 }
 pub unsafe extern "C" fn sdsll2str(
@@ -691,7 +691,7 @@ pub unsafe extern "C" fn sdsull2str(
     }
     return l as ::core::ffi::c_int;
 }
-pub unsafe extern "C" fn sdsfromlonglong(mut value: ::core::ffi::c_longlong) -> sds {
+pub unsafe extern "C" fn sdsfromlonglong(mut value: ::core::ffi::c_longlong) -> SdsRaw {
     let mut buf: [::core::ffi::c_char; 21] = [0; 21];
     let mut len: ::core::ffi::c_int = sdsll2str(&raw mut buf as *mut ::core::ffi::c_char, value);
     return sdsnewlen(
@@ -700,7 +700,7 @@ pub unsafe extern "C" fn sdsfromlonglong(mut value: ::core::ffi::c_longlong) -> 
     );
 }
 // ---------------------------------------------------------------------------
-// Building an sds from typed pieces
+// Building an SdsRaw from typed pieces
 // ---------------------------------------------------------------------------
 
 /// One piece of a string being assembled by [`sdsbuild!`].
@@ -720,17 +720,17 @@ pub unsafe extern "C" fn sdsfromlonglong(mut value: ::core::ffi::c_longlong) -> 
 /// the output is ASCII digits and no such hazard exists.
 pub trait SdsPart {
     /// Append this piece to `s`, returning the (possibly reallocated) string.
-    unsafe fn append_to(self, s: sds) -> sds;
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw;
 }
 
 impl SdsPart for &[u8] {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         sdscatlen(s, self.as_ptr() as *const ::core::ffi::c_void, self.len())
     }
 }
 
 impl<const N: usize> SdsPart for &[u8; N] {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         (&self[..]).append_to(s)
     }
 }
@@ -741,7 +741,7 @@ impl<const N: usize> SdsPart for &[u8; N] {
 /// print for `%s`. The old code handed the pointer straight to `vsnprintf`, so
 /// any call site that can pass null was already relying on that.
 impl SdsPart for *const ::core::ffi::c_char {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         if self.is_null() {
             return b"(null)".append_to(s);
         }
@@ -749,11 +749,11 @@ impl SdsPart for *const ::core::ffi::c_char {
     }
 }
 
-/// `sds` is `*mut c_char`, so this covers both a plain C string and an sds
+/// `SdsRaw` is `*mut c_char`, so this covers both a plain C string and an SdsRaw
 /// passed to `%s` -- which, like C, measures it with `strlen` and therefore
 /// stops at an embedded NUL. Use [`Sds`] for `%S`.
 impl SdsPart for *mut ::core::ffi::c_char {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         (self as *const ::core::ffi::c_char).append_to(s)
     }
 }
@@ -762,17 +762,17 @@ impl SdsPart for *mut ::core::ffi::c_char {
 /// JSON output. Identical to the `*const c_char` impl above, minus the `strlen`
 /// and the null check: a `CStr` carries its own length and cannot be null.
 impl SdsPart for &::core::ffi::CStr {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         self.to_bytes().append_to(s)
     }
 }
 
-/// An sds appended by its stored length (`%S`), so unlike `%s` it keeps any
+/// An SdsRaw appended by its stored length (`%S`), so unlike `%s` it keeps any
 /// embedded NUL bytes.
-pub struct Sds(pub sds);
+pub struct Sds(pub SdsRaw);
 
 impl SdsPart for Sds {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         sdscatsds(s, self.0)
     }
 }
@@ -786,7 +786,7 @@ impl SdsPart for Sds {
 pub struct Byte(pub u8);
 
 impl SdsPart for Byte {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         sdscatlen(
             s,
             &self.0 as *const u8 as *const ::core::ffi::c_void,
@@ -810,24 +810,24 @@ pub struct Dec5(pub ::core::ffi::c_int);
 ///
 /// Safe to route through `format!` because the result is digits: see the note
 /// on [`SdsPart`] for why text may not be.
-unsafe fn cat_ascii(s: sds, digits: &str) -> sds {
+unsafe fn cat_ascii(s: SdsRaw, digits: &str) -> SdsRaw {
     digits.as_bytes().append_to(s)
 }
 
 impl SdsPart for ::core::ffi::c_int {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{self}"))
     }
 }
 
 impl SdsPart for ::core::ffi::c_uint {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{self}"))
     }
 }
 
 impl SdsPart for Dec5 {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{:05}", self.0))
     }
 }
@@ -837,30 +837,30 @@ impl SdsPart for Dec5 {
 /// complement -- eight digits, not four. `as u32` reproduces exactly that,
 /// and widens a `u16` the same way C's default promotion does.
 impl SdsPart for Hex4 {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{:04x}", self.0))
     }
 }
 
 impl SdsPart for Hex4Upper {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{:04X}", self.0))
     }
 }
 
 impl SdsPart for Hex2 {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{:02x}", self.0))
     }
 }
 
 impl SdsPart for Hex2Upper {
-    unsafe fn append_to(self, s: sds) -> sds {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{:02X}", self.0))
     }
 }
 
-/// Append pieces to an sds, in order, and evaluate to the result.
+/// Append pieces to an SdsRaw, in order, and evaluate to the result.
 ///
 /// ```ignore
 /// sdscatprintf(sdsempty(), "lookup_%s_%02x_%d\0", name, kind, index)
@@ -876,7 +876,7 @@ impl SdsPart for Hex2Upper {
 #[macro_export]
 macro_rules! sdsbuild {
     ($base:expr $(, $part:expr)* $(,)?) => {{
-        let mut __sds: $crate::vendor::sds::sds = $base;
+        let mut __sds: $crate::vendor::sds::SdsRaw = $base;
         $(
             __sds = $crate::vendor::sds::SdsPart::append_to($part, __sds);
         )*
@@ -884,7 +884,7 @@ macro_rules! sdsbuild {
     }};
 }
 
-pub unsafe extern "C" fn sdstrim(mut s: sds, mut cset: *const ::core::ffi::c_char) -> sds {
+pub unsafe extern "C" fn sdstrim(mut s: SdsRaw, mut cset: *const ::core::ffi::c_char) -> SdsRaw {
     let mut start: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut end: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut sp: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -919,7 +919,7 @@ pub unsafe extern "C" fn sdstrim(mut s: sds, mut cset: *const ::core::ffi::c_cha
     return s;
 }
 pub unsafe extern "C" fn sdsrange(
-    mut s: sds,
+    mut s: SdsRaw,
     mut start: ::core::ffi::c_int,
     mut end: ::core::ffi::c_int,
 ) {
@@ -969,7 +969,7 @@ pub unsafe extern "C" fn sdsrange(
     *s.offset(newlen as isize) = 0 as ::core::ffi::c_char;
     sdssetlen(s, newlen);
 }
-pub unsafe extern "C" fn sdstolower(mut s: sds) {
+pub unsafe extern "C" fn sdstolower(mut s: SdsRaw) {
     let mut len: ::core::ffi::c_int = sdslen(s) as ::core::ffi::c_int;
     let mut j: ::core::ffi::c_int = 0;
     j = 0 as ::core::ffi::c_int;
@@ -978,7 +978,7 @@ pub unsafe extern "C" fn sdstolower(mut s: sds) {
         j += 1;
     }
 }
-pub unsafe extern "C" fn sdstoupper(mut s: sds) {
+pub unsafe extern "C" fn sdstoupper(mut s: SdsRaw) {
     let mut len: ::core::ffi::c_int = sdslen(s) as ::core::ffi::c_int;
     let mut j: ::core::ffi::c_int = 0;
     j = 0 as ::core::ffi::c_int;
@@ -987,7 +987,7 @@ pub unsafe extern "C" fn sdstoupper(mut s: sds) {
         j += 1;
     }
 }
-pub unsafe extern "C" fn sdscmp(s1: sds, s2: sds) -> ::core::ffi::c_int {
+pub unsafe extern "C" fn sdscmp(s1: SdsRaw, s2: SdsRaw) -> ::core::ffi::c_int {
     let mut l1: usize = 0;
     let mut l2: usize = 0;
     let mut minlen: usize = 0;
@@ -1011,20 +1011,20 @@ pub unsafe extern "C" fn sdssplitlen(
     mut sep: *const ::core::ffi::c_char,
     mut seplen: ::core::ffi::c_int,
     mut count: *mut ::core::ffi::c_int,
-) -> *mut sds {
+) -> *mut SdsRaw {
     let mut current_block: u64;
     let mut elements: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut slots: ::core::ffi::c_int = 5 as ::core::ffi::c_int;
     let mut start: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut j: ::core::ffi::c_int = 0;
-    let mut tokens: *mut sds = ::core::ptr::null_mut::<sds>();
+    let mut tokens: *mut SdsRaw = ::core::ptr::null_mut::<SdsRaw>();
     if seplen < 1 as ::core::ffi::c_int || len < 0 as ::core::ffi::c_int {
-        return ::core::ptr::null_mut::<sds>();
+        return ::core::ptr::null_mut::<SdsRaw>();
     }
     tokens =
-        malloc((::core::mem::size_of::<sds>() as usize).wrapping_mul(slots as usize)) as *mut sds;
+        malloc((::core::mem::size_of::<SdsRaw>() as usize).wrapping_mul(slots as usize)) as *mut SdsRaw;
     if tokens.is_null() {
-        return ::core::ptr::null_mut::<sds>();
+        return ::core::ptr::null_mut::<SdsRaw>();
     }
     if len == 0 as ::core::ffi::c_int {
         *count = 0 as ::core::ffi::c_int;
@@ -1037,12 +1037,12 @@ pub unsafe extern "C" fn sdssplitlen(
             break;
         }
         if slots < elements + 2 as ::core::ffi::c_int {
-            let mut newtokens: *mut sds = ::core::ptr::null_mut::<sds>();
+            let mut newtokens: *mut SdsRaw = ::core::ptr::null_mut::<SdsRaw>();
             slots *= 2 as ::core::ffi::c_int;
             newtokens = realloc(
                 tokens as *mut ::core::ffi::c_void,
-                (::core::mem::size_of::<sds>() as usize).wrapping_mul(slots as usize),
-            ) as *mut sds;
+                (::core::mem::size_of::<SdsRaw>() as usize).wrapping_mul(slots as usize),
+            ) as *mut SdsRaw;
             if newtokens.is_null() {
                 current_block = 2896259319996730917;
                 break;
@@ -1096,9 +1096,9 @@ pub unsafe extern "C" fn sdssplitlen(
     }
     free(tokens as *mut ::core::ffi::c_void);
     *count = 0 as ::core::ffi::c_int;
-    return ::core::ptr::null_mut::<sds>();
+    return ::core::ptr::null_mut::<SdsRaw>();
 }
-pub unsafe extern "C" fn sdsfreesplitres(mut tokens: *mut sds, mut count: ::core::ffi::c_int) {
+pub unsafe extern "C" fn sdsfreesplitres(mut tokens: *mut SdsRaw, mut count: ::core::ffi::c_int) {
     if tokens.is_null() {
         return;
     }
@@ -1113,10 +1113,10 @@ pub unsafe extern "C" fn sdsfreesplitres(mut tokens: *mut sds, mut count: ::core
     free(tokens as *mut ::core::ffi::c_void);
 }
 pub unsafe extern "C" fn sdscatrepr(
-    mut s: sds,
+    mut s: SdsRaw,
     mut p: *const ::core::ffi::c_char,
     mut len: usize,
-) -> sds {
+) -> SdsRaw {
     s = sdscatlen(
         s,
         b"\"\0" as *const u8 as *const ::core::ffi::c_char as *const ::core::ffi::c_void,
@@ -1223,7 +1223,7 @@ pub unsafe extern "C" fn hex_digit_to_int(mut c: ::core::ffi::c_char) -> ::core:
 pub unsafe extern "C" fn sdssplitargs(
     mut line: *const ::core::ffi::c_char,
     mut argc: *mut ::core::ffi::c_int,
-) -> *mut sds {
+) -> *mut SdsRaw {
     let mut p: *const ::core::ffi::c_char = line;
     let mut current: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut vector: *mut *mut ::core::ffi::c_char =
@@ -1256,7 +1256,7 @@ pub unsafe extern "C" fn sdssplitargs(
                             + hex_digit_to_int(*p.offset(3 as ::core::ffi::c_int as isize)))
                             as ::core::ffi::c_uchar;
                         current = sdscatlen(
-                            current as sds,
+                            current as SdsRaw,
                             &raw mut byte as *mut ::core::ffi::c_char as *const ::core::ffi::c_void,
                             1 as usize,
                         ) as *mut ::core::ffi::c_char;
@@ -1287,7 +1287,7 @@ pub unsafe extern "C" fn sdssplitargs(
                             }
                         }
                         current = sdscatlen(
-                            current as sds,
+                            current as SdsRaw,
                             &raw mut c as *const ::core::ffi::c_void,
                             1 as usize,
                         ) as *mut ::core::ffi::c_char;
@@ -1302,7 +1302,7 @@ pub unsafe extern "C" fn sdssplitargs(
                         break 's_13;
                     } else {
                         current =
-                            sdscatlen(current as sds, p as *const ::core::ffi::c_void, 1 as usize)
+                            sdscatlen(current as SdsRaw, p as *const ::core::ffi::c_void, 1 as usize)
                                 as *mut ::core::ffi::c_char;
                     }
                 } else if insq != 0 {
@@ -1312,7 +1312,7 @@ pub unsafe extern "C" fn sdssplitargs(
                     {
                         p = p.offset(1);
                         current = sdscatlen(
-                            current as sds,
+                            current as SdsRaw,
                             b"'\0" as *const u8 as *const ::core::ffi::c_char
                                 as *const ::core::ffi::c_void,
                             1 as usize,
@@ -1329,7 +1329,7 @@ pub unsafe extern "C" fn sdssplitargs(
                             break 's_13;
                         }
                         current =
-                            sdscatlen(current as sds, p as *const ::core::ffi::c_void, 1 as usize)
+                            sdscatlen(current as SdsRaw, p as *const ::core::ffi::c_void, 1 as usize)
                                 as *mut ::core::ffi::c_char;
                     }
                 } else {
@@ -1345,7 +1345,7 @@ pub unsafe extern "C" fn sdssplitargs(
                         }
                         _ => {
                             current = sdscatlen(
-                                current as sds,
+                                current as SdsRaw,
                                 p as *const ::core::ffi::c_void,
                                 1 as usize,
                             ) as *mut ::core::ffi::c_char;
@@ -1370,7 +1370,7 @@ pub unsafe extern "C" fn sdssplitargs(
                 vector = malloc(::core::mem::size_of::<*mut ::core::ffi::c_void>() as usize)
                     as *mut *mut ::core::ffi::c_char;
             }
-            return vector as *mut sds;
+            return vector as *mut SdsRaw;
         }
     }
     loop {
@@ -1379,21 +1379,21 @@ pub unsafe extern "C" fn sdssplitargs(
         if !(fresh14 != 0) {
             break;
         }
-        sdsfree(*vector.offset(*argc as isize) as sds);
+        sdsfree(*vector.offset(*argc as isize) as SdsRaw);
     }
     free(vector as *mut ::core::ffi::c_void);
     if !current.is_null() {
-        sdsfree(current as sds);
+        sdsfree(current as SdsRaw);
     }
     *argc = 0 as ::core::ffi::c_int;
-    return ::core::ptr::null_mut::<sds>();
+    return ::core::ptr::null_mut::<SdsRaw>();
 }
 pub unsafe extern "C" fn sdsmapchars(
-    mut s: sds,
+    mut s: SdsRaw,
     mut from: *const ::core::ffi::c_char,
     mut to: *const ::core::ffi::c_char,
     mut setlen: usize,
-) -> sds {
+) -> SdsRaw {
     let mut j: usize = 0;
     let mut i: usize = 0;
     let mut l: usize = sdslen(s);
@@ -1418,8 +1418,8 @@ pub unsafe extern "C" fn sdsjoin(
     mut argv: *mut *mut ::core::ffi::c_char,
     mut argc: ::core::ffi::c_int,
     mut sep: *mut ::core::ffi::c_char,
-) -> sds {
-    let mut join: sds = sdsempty();
+) -> SdsRaw {
+    let mut join: SdsRaw = sdsempty();
     let mut j: ::core::ffi::c_int = 0;
     j = 0 as ::core::ffi::c_int;
     while j < argc {
@@ -1432,12 +1432,12 @@ pub unsafe extern "C" fn sdsjoin(
     return join;
 }
 pub unsafe extern "C" fn sdsjoinsds(
-    mut argv: *mut sds,
+    mut argv: *mut SdsRaw,
     mut argc: ::core::ffi::c_int,
     mut sep: *const ::core::ffi::c_char,
     mut seplen: usize,
-) -> sds {
-    let mut join: sds = sdsempty();
+) -> SdsRaw {
+    let mut join: SdsRaw = sdsempty();
     let mut j: ::core::ffi::c_int = 0;
     j = 0 as ::core::ffi::c_int;
     while j < argc {

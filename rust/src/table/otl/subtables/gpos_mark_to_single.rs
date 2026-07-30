@@ -3,24 +3,24 @@ use libc::{free, malloc, memcmp, memcpy, memset, qsort, strlen};
 
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
-use crate::table::otl::coverage::{otl_Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
-use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, otfcc_Handle, otfcc_GlyphHandle, HANDLE_STATE_EMPTY};
+use crate::table::otl::coverage::{Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
+use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{font_file_pointer, glyphclass_t, glyphid_t};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
-use crate::vendor::json::{json_object, json_value};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::support::buffer::{Buffer};
+use crate::support::options::{Options};
+use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{b16, bk_Block, bk_int, bk_new_Block, bk_ptr, bk_push, p16};
-use crate::support::{NULL, __compar_fn_t};
-use crate::table::otl::{__caryll_elementinterface_subtable_gpos_markToSingle, __caryll_vectorinterface_otl_BaseArray, otl_Anchor, otl_BaseArray, otl_BaseRecord, otl_Subtable, subtable_gpos_markToSingle};
-use crate::table::otl::subtables::{otl_BuildHeuristics};
-use crate::table::otl::subtables::gpos_common::{otl_ClassnameHash};
-use crate::vendor::uthash::{UT_hash_bucket, UT_hash_handle};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::support::{NULL, ComparFn};
+use crate::table::otl::{GposMarkToSingleSubtableElementInterface, BaseArrayVectorInterface, Anchor, BaseArray, BaseRecord, Subtable, GposMarkToSingleSubtable};
+use crate::table::otl::subtables::{BuildHeuristics};
+use crate::table::otl::subtables::gpos_common::{ClassNameHash};
+use crate::vendor::uthash::{UtHashBucket, UtHashHandle};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Block};
 use crate::table::otl::coverage::{otl_iCoverage};
@@ -29,91 +29,91 @@ use crate::vendor::json_builder::{json_integer_new, json_object_new, json_object
 use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_otl_BaseRecord {
-    pub init: Option<unsafe extern "C" fn(*mut otl_BaseRecord) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otl_BaseRecord, *const otl_BaseRecord) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otl_BaseRecord, *mut otl_BaseRecord) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otl_BaseRecord) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otl_BaseRecord, otl_BaseRecord) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otl_BaseRecord, otl_BaseRecord) -> ()>,
+pub struct BaseRecordElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut BaseRecord) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut BaseRecord, *const BaseRecord) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut BaseRecord, *mut BaseRecord) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut BaseRecord) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut BaseRecord, BaseRecord) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut BaseRecord, BaseRecord) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> usize {
+unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut sdshdr8))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut SdsHdr8))
                 .len as usize;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .len as usize;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .len as usize;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .len as usize;
         }
         _ => {}
     }
     return 0 as usize;
 }
-unsafe extern "C" fn deleteBaseArrayItem(mut entry: *mut otl_BaseRecord) {
+unsafe extern "C" fn deleteBaseArrayItem(mut entry: *mut BaseRecord) {
     otfcc_Handle_dispose(&raw mut (*entry).glyph);
     free((*entry).anchors as *mut ::core::ffi::c_void);
-    (*entry).anchors = ::core::ptr::null_mut::<otl_Anchor>();
+    (*entry).anchors = ::core::ptr::null_mut::<Anchor>();
 }
-static ba_typeinfo: __caryll_elementinterface_otl_BaseRecord = {
-    __caryll_elementinterface_otl_BaseRecord {
+static ba_typeinfo: BaseRecordElementInterface = {
+    BaseRecordElementInterface {
         init: None,
         copy: None,
         move_0: None,
-        dispose: Some(deleteBaseArrayItem as unsafe extern "C" fn(*mut otl_BaseRecord) -> ()),
+        dispose: Some(deleteBaseArrayItem as unsafe extern "C" fn(*mut BaseRecord) -> ()),
         replace: None,
         copyReplace: None,
     }
 };
 #[inline]
-unsafe extern "C" fn otl_BaseArray_createN(mut n: usize) -> *mut otl_BaseArray {
-    let mut t: *mut otl_BaseArray =
-        malloc(::core::mem::size_of::<otl_BaseArray>() as usize) as *mut otl_BaseArray;
+unsafe extern "C" fn otl_BaseArray_createN(mut n: usize) -> *mut BaseArray {
+    let mut t: *mut BaseArray =
+        malloc(::core::mem::size_of::<BaseArray>() as usize) as *mut BaseArray;
     otl_BaseArray_initN(t, n);
     return t;
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_push(arr: *mut otl_BaseArray, elem: otl_BaseRecord) {
+unsafe extern "C" fn otl_BaseArray_push(arr: *mut BaseArray, elem: BaseRecord) {
     cvec_push(otl_BaseArray_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_grow(arr: *mut otl_BaseArray) {
+unsafe extern "C" fn otl_BaseArray_grow(arr: *mut BaseArray) {
     cvec_grow(otl_BaseArray_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_growTo(arr: *mut otl_BaseArray, target: usize) {
+unsafe extern "C" fn otl_BaseArray_growTo(arr: *mut BaseArray, target: usize) {
     cvec_grow_to(otl_BaseArray_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_pop(arr: *mut otl_BaseArray) -> otl_BaseRecord {
+unsafe extern "C" fn otl_BaseArray_pop(arr: *mut BaseArray) -> BaseRecord {
     cvec_pop(otl_BaseArray_as_cvec(arr))
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_copyReplace(mut dst: *mut otl_BaseArray, src: otl_BaseArray) {
+unsafe extern "C" fn otl_BaseArray_copyReplace(mut dst: *mut BaseArray, src: BaseArray) {
     otl_BaseArray_dispose(dst);
     otl_BaseArray_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn otl_BaseArray_copy(
-    mut dst: *mut otl_BaseArray,
-    mut src: *const otl_BaseArray,
+    mut dst: *mut BaseArray,
+    mut src: *const BaseArray,
 ) {
     otl_BaseArray_init(dst);
     otl_BaseArray_growTo(dst, (*src).length);
@@ -122,8 +122,8 @@ unsafe extern "C" fn otl_BaseArray_copy(
         let mut j: usize = 0 as usize;
         while j < (*src).length {
             ba_typeinfo.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut otl_BaseRecord,
-                (*src).items.offset(j as isize) as *mut otl_BaseRecord as *const otl_BaseRecord,
+                (*dst).items.offset(j as isize) as *mut BaseRecord,
+                (*src).items.offset(j as isize) as *mut BaseRecord as *const BaseRecord,
             );
             j = j.wrapping_add(1);
         }
@@ -136,7 +136,7 @@ unsafe extern "C" fn otl_BaseArray_copy(
     };
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_dispose(mut arr: *mut otl_BaseArray) {
+unsafe extern "C" fn otl_BaseArray_dispose(mut arr: *mut BaseArray) {
     if arr.is_null() {
         return;
     }
@@ -149,41 +149,41 @@ unsafe extern "C" fn otl_BaseArray_dispose(mut arr: *mut otl_BaseArray) {
                 break;
             }
             ba_typeinfo.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut otl_BaseRecord,
+                (*arr).items.offset(j as isize) as *mut BaseRecord,
             );
         }
     }
     free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<otl_BaseRecord>();
+    (*arr).items = ::core::ptr::null_mut::<BaseRecord>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_replace(mut dst: *mut otl_BaseArray, src: otl_BaseArray) {
+unsafe extern "C" fn otl_BaseArray_replace(mut dst: *mut BaseArray, src: BaseArray) {
     otl_BaseArray_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otl_BaseArray>() as usize,
+        ::core::mem::size_of::<BaseArray>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_initCapN(mut arr: *mut otl_BaseArray, mut n: usize) {
+unsafe extern "C" fn otl_BaseArray_initCapN(mut arr: *mut BaseArray, mut n: usize) {
     otl_BaseArray_init(arr);
     otl_BaseArray_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_growToN(arr: *mut otl_BaseArray, target: usize) {
+unsafe extern "C" fn otl_BaseArray_growToN(arr: *mut BaseArray, target: usize) {
     cvec_grow_to_n(otl_BaseArray_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_initN(mut arr: *mut otl_BaseArray, mut n: usize) {
+unsafe extern "C" fn otl_BaseArray_initN(mut arr: *mut BaseArray, mut n: usize) {
     otl_BaseArray_init(arr);
     otl_BaseArray_growToN(arr, n);
     otl_BaseArray_fill(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_free(mut x: *mut otl_BaseArray) {
+unsafe extern "C" fn otl_BaseArray_free(mut x: *mut BaseArray) {
     if x.is_null() {
         return;
     }
@@ -191,31 +191,31 @@ unsafe extern "C" fn otl_BaseArray_free(mut x: *mut otl_BaseArray) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe fn otl_BaseArray_as_cvec(arr: *mut otl_BaseArray) -> *mut CVecRaw<otl_BaseRecord> {
-    arr as *mut CVecRaw<otl_BaseRecord>
+unsafe fn otl_BaseArray_as_cvec(arr: *mut BaseArray) -> *mut CVecRaw<BaseRecord> {
+    arr as *mut CVecRaw<BaseRecord>
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_init(arr: *mut otl_BaseArray) {
+unsafe extern "C" fn otl_BaseArray_init(arr: *mut BaseArray) {
     cvec_init(otl_BaseArray_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_create() -> *mut otl_BaseArray {
-    let mut x: *mut otl_BaseArray =
-        malloc(::core::mem::size_of::<otl_BaseArray>() as usize) as *mut otl_BaseArray;
+unsafe extern "C" fn otl_BaseArray_create() -> *mut BaseArray {
+    let mut x: *mut BaseArray =
+        malloc(::core::mem::size_of::<BaseArray>() as usize) as *mut BaseArray;
     otl_BaseArray_init(x);
     return x;
 }
 #[inline]
 unsafe extern "C" fn otl_BaseArray_filterEnv(
-    mut arr: *mut otl_BaseArray,
-    mut fn_0: Option<unsafe extern "C" fn(*const otl_BaseRecord, *mut ::core::ffi::c_void) -> bool>,
+    mut arr: *mut BaseArray,
+    mut fn_0: Option<unsafe extern "C" fn(*const BaseRecord, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
 ) {
     let mut j: usize = 0 as usize;
     let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut otl_BaseRecord,
+            (*arr).items.offset(k as isize) as *mut BaseRecord,
             env,
         ) {
             if j != k {
@@ -225,7 +225,7 @@ unsafe extern "C" fn otl_BaseArray_filterEnv(
         } else {
             if ba_typeinfo.dispose.is_some() {
                 ba_typeinfo.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut otl_BaseRecord,
+                    (*arr).items.offset(k as isize) as *mut BaseRecord,
                 );
             } else {
             };
@@ -234,51 +234,51 @@ unsafe extern "C" fn otl_BaseArray_filterEnv(
     }
     (*arr).length = j;
 }
-pub static otl_iBaseArray: __caryll_vectorinterface_otl_BaseArray = {
-    __caryll_vectorinterface_otl_BaseArray {
-        init: Some(otl_BaseArray_init as unsafe extern "C" fn(*mut otl_BaseArray) -> ()),
+pub static otl_iBaseArray: BaseArrayVectorInterface = {
+    BaseArrayVectorInterface {
+        init: Some(otl_BaseArray_init as unsafe extern "C" fn(*mut BaseArray) -> ()),
         copy: Some(
             otl_BaseArray_copy
-                as unsafe extern "C" fn(*mut otl_BaseArray, *const otl_BaseArray) -> (),
+                as unsafe extern "C" fn(*mut BaseArray, *const BaseArray) -> (),
         ),
         move_0: Some(
             otl_BaseArray_move
-                as unsafe extern "C" fn(*mut otl_BaseArray, *mut otl_BaseArray) -> (),
+                as unsafe extern "C" fn(*mut BaseArray, *mut BaseArray) -> (),
         ),
-        dispose: Some(otl_BaseArray_dispose as unsafe extern "C" fn(*mut otl_BaseArray) -> ()),
+        dispose: Some(otl_BaseArray_dispose as unsafe extern "C" fn(*mut BaseArray) -> ()),
         replace: Some(
-            otl_BaseArray_replace as unsafe extern "C" fn(*mut otl_BaseArray, otl_BaseArray) -> (),
+            otl_BaseArray_replace as unsafe extern "C" fn(*mut BaseArray, BaseArray) -> (),
         ),
         copyReplace: Some(
             otl_BaseArray_copyReplace
-                as unsafe extern "C" fn(*mut otl_BaseArray, otl_BaseArray) -> (),
+                as unsafe extern "C" fn(*mut BaseArray, BaseArray) -> (),
         ),
         create: Some(otl_BaseArray_create),
-        free: Some(otl_BaseArray_free as unsafe extern "C" fn(*mut otl_BaseArray) -> ()),
-        initN: Some(otl_BaseArray_initN as unsafe extern "C" fn(*mut otl_BaseArray, usize) -> ()),
+        free: Some(otl_BaseArray_free as unsafe extern "C" fn(*mut BaseArray) -> ()),
+        initN: Some(otl_BaseArray_initN as unsafe extern "C" fn(*mut BaseArray, usize) -> ()),
         initCapN: Some(
-            otl_BaseArray_initCapN as unsafe extern "C" fn(*mut otl_BaseArray, usize) -> (),
+            otl_BaseArray_initCapN as unsafe extern "C" fn(*mut BaseArray, usize) -> (),
         ),
-        createN: Some(otl_BaseArray_createN as unsafe extern "C" fn(usize) -> *mut otl_BaseArray),
-        fill: Some(otl_BaseArray_fill as unsafe extern "C" fn(*mut otl_BaseArray, usize) -> ()),
-        clear: Some(otl_BaseArray_dispose as unsafe extern "C" fn(*mut otl_BaseArray) -> ()),
+        createN: Some(otl_BaseArray_createN as unsafe extern "C" fn(usize) -> *mut BaseArray),
+        fill: Some(otl_BaseArray_fill as unsafe extern "C" fn(*mut BaseArray, usize) -> ()),
+        clear: Some(otl_BaseArray_dispose as unsafe extern "C" fn(*mut BaseArray) -> ()),
         push: Some(
-            otl_BaseArray_push as unsafe extern "C" fn(*mut otl_BaseArray, otl_BaseRecord) -> (),
+            otl_BaseArray_push as unsafe extern "C" fn(*mut BaseArray, BaseRecord) -> (),
         ),
         shrinkToFit: Some(
-            otl_BaseArray_shrinkToFit as unsafe extern "C" fn(*mut otl_BaseArray) -> (),
+            otl_BaseArray_shrinkToFit as unsafe extern "C" fn(*mut BaseArray) -> (),
         ),
-        pop: Some(otl_BaseArray_pop as unsafe extern "C" fn(*mut otl_BaseArray) -> otl_BaseRecord),
+        pop: Some(otl_BaseArray_pop as unsafe extern "C" fn(*mut BaseArray) -> BaseRecord),
         disposeItem: Some(
-            otl_BaseArray_disposeItem as unsafe extern "C" fn(*mut otl_BaseArray, usize) -> (),
+            otl_BaseArray_disposeItem as unsafe extern "C" fn(*mut BaseArray, usize) -> (),
         ),
         filterEnv: Some(
             otl_BaseArray_filterEnv
                 as unsafe extern "C" fn(
-                    *mut otl_BaseArray,
+                    *mut BaseArray,
                     Option<
                         unsafe extern "C" fn(
-                            *const otl_BaseRecord,
+                            *const BaseRecord,
                             *mut ::core::ffi::c_void,
                         ) -> bool,
                     >,
@@ -288,11 +288,11 @@ pub static otl_iBaseArray: __caryll_vectorinterface_otl_BaseArray = {
         sort: Some(
             otl_BaseArray_sort
                 as unsafe extern "C" fn(
-                    *mut otl_BaseArray,
+                    *mut BaseArray,
                     Option<
                         unsafe extern "C" fn(
-                            *const otl_BaseRecord,
-                            *const otl_BaseRecord,
+                            *const BaseRecord,
+                            *const BaseRecord,
                         ) -> ::core::ffi::c_int,
                     >,
                 ) -> (),
@@ -300,58 +300,58 @@ pub static otl_iBaseArray: __caryll_vectorinterface_otl_BaseArray = {
     }
 };
 #[inline]
-unsafe extern "C" fn otl_BaseArray_shrinkToFit(mut arr: *mut otl_BaseArray) {
+unsafe extern "C" fn otl_BaseArray_shrinkToFit(mut arr: *mut BaseArray) {
     otl_BaseArray_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_move(dst: *mut otl_BaseArray, src: *mut otl_BaseArray) {
+unsafe extern "C" fn otl_BaseArray_move(dst: *mut BaseArray, src: *mut BaseArray) {
     cvec_move(otl_BaseArray_as_cvec(dst), otl_BaseArray_as_cvec(src));
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_resizeTo(arr: *mut otl_BaseArray, target: usize) {
+unsafe extern "C" fn otl_BaseArray_resizeTo(arr: *mut BaseArray, target: usize) {
     cvec_resize_to(otl_BaseArray_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_disposeItem(mut arr: *mut otl_BaseArray, mut n: usize) {
+unsafe extern "C" fn otl_BaseArray_disposeItem(mut arr: *mut BaseArray, mut n: usize) {
     if ba_typeinfo.dispose.is_some() {
         ba_typeinfo.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut otl_BaseRecord
+            (*arr).items.offset(n as isize) as *mut BaseRecord
         );
     } else {
     };
 }
 #[inline]
 unsafe extern "C" fn otl_BaseArray_sort(
-    mut arr: *mut otl_BaseArray,
+    mut arr: *mut BaseArray,
     mut fn_0: Option<
-        unsafe extern "C" fn(*const otl_BaseRecord, *const otl_BaseRecord) -> ::core::ffi::c_int,
+        unsafe extern "C" fn(*const BaseRecord, *const BaseRecord) -> ::core::ffi::c_int,
     >,
 ) {
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<otl_BaseRecord>() as usize,
+        ::core::mem::size_of::<BaseRecord>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
-                    *const otl_BaseRecord,
-                    *const otl_BaseRecord,
+                    *const BaseRecord,
+                    *const BaseRecord,
                 ) -> ::core::ffi::c_int,
             >,
-            __compar_fn_t,
+            ComparFn,
         >(fn_0),
     );
 }
 #[inline]
-unsafe extern "C" fn otl_BaseArray_fill(mut arr: *mut otl_BaseArray, mut n: usize) {
+unsafe extern "C" fn otl_BaseArray_fill(mut arr: *mut BaseArray, mut n: usize) {
     while (*arr).length < n {
-        let mut x: otl_BaseRecord = otl_BaseRecord {
-            glyph: otfcc_Handle {
-                state: HANDLE_STATE_EMPTY,
+        let mut x: BaseRecord = BaseRecord {
+            glyph: Handle {
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
-            anchors: ::core::ptr::null_mut::<otl_Anchor>(),
+            anchors: ::core::ptr::null_mut::<Anchor>(),
         };
         if ba_typeinfo.init.is_some() {
             ba_typeinfo.init.expect("non-null function pointer")(&raw mut x);
@@ -359,67 +359,67 @@ unsafe extern "C" fn otl_BaseArray_fill(mut arr: *mut otl_BaseArray, mut n: usiz
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<otl_BaseRecord>() as usize,
+                ::core::mem::size_of::<BaseRecord>() as usize,
             );
         }
         otl_BaseArray_push(arr, x);
     }
 }
 #[inline]
-unsafe extern "C" fn initMarkToSingle(mut subtable: *mut subtable_gpos_markToSingle) {
+unsafe extern "C" fn initMarkToSingle(mut subtable: *mut GposMarkToSingleSubtable) {
     otl_iMarkArray.init.expect("non-null function pointer")(&raw mut (*subtable).markArray);
     otl_iBaseArray.init.expect("non-null function pointer")(&raw mut (*subtable).baseArray);
 }
 #[inline]
-unsafe extern "C" fn disposeMarkToSingle(mut subtable: *mut subtable_gpos_markToSingle) {
+unsafe extern "C" fn disposeMarkToSingle(mut subtable: *mut GposMarkToSingleSubtable) {
     otl_iMarkArray.dispose.expect("non-null function pointer")(&raw mut (*subtable).markArray);
     otl_iBaseArray.dispose.expect("non-null function pointer")(&raw mut (*subtable).baseArray);
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_markToSingle_copyReplace(
-    mut dst: *mut subtable_gpos_markToSingle,
-    src: subtable_gpos_markToSingle,
+    mut dst: *mut GposMarkToSingleSubtable,
+    src: GposMarkToSingleSubtable,
 ) {
     subtable_gpos_markToSingle_dispose(dst);
     subtable_gpos_markToSingle_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_markToSingle_copy(
-    mut dst: *mut subtable_gpos_markToSingle,
-    mut src: *const subtable_gpos_markToSingle,
+    mut dst: *mut GposMarkToSingleSubtable,
+    mut src: *const GposMarkToSingleSubtable,
 ) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<subtable_gpos_markToSingle>() as usize,
+        ::core::mem::size_of::<GposMarkToSingleSubtable>() as usize,
     );
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_markToSingle_replace(
-    mut dst: *mut subtable_gpos_markToSingle,
-    src: subtable_gpos_markToSingle,
+    mut dst: *mut GposMarkToSingleSubtable,
+    src: GposMarkToSingleSubtable,
 ) {
     subtable_gpos_markToSingle_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<subtable_gpos_markToSingle>() as usize,
+        ::core::mem::size_of::<GposMarkToSingleSubtable>() as usize,
     );
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_markToSingle_move(
-    mut dst: *mut subtable_gpos_markToSingle,
-    mut src: *mut subtable_gpos_markToSingle,
+    mut dst: *mut GposMarkToSingleSubtable,
+    mut src: *mut GposMarkToSingleSubtable,
 ) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<subtable_gpos_markToSingle>() as usize,
+        ::core::mem::size_of::<GposMarkToSingleSubtable>() as usize,
     );
     subtable_gpos_markToSingle_init(src);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToSingle_free(mut x: *mut subtable_gpos_markToSingle) {
+unsafe extern "C" fn subtable_gpos_markToSingle_free(mut x: *mut GposMarkToSingleSubtable) {
     if x.is_null() {
         return;
     }
@@ -427,83 +427,83 @@ unsafe extern "C" fn subtable_gpos_markToSingle_free(mut x: *mut subtable_gpos_m
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToSingle_init(mut x: *mut subtable_gpos_markToSingle) {
+unsafe extern "C" fn subtable_gpos_markToSingle_init(mut x: *mut GposMarkToSingleSubtable) {
     initMarkToSingle(x);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToSingle_dispose(mut x: *mut subtable_gpos_markToSingle) {
+unsafe extern "C" fn subtable_gpos_markToSingle_dispose(mut x: *mut GposMarkToSingleSubtable) {
     disposeMarkToSingle(x);
 }
-pub static iSubtable_gpos_markToSingle: __caryll_elementinterface_subtable_gpos_markToSingle = {
-    __caryll_elementinterface_subtable_gpos_markToSingle {
+pub static iSubtable_gpos_markToSingle: GposMarkToSingleSubtableElementInterface = {
+    GposMarkToSingleSubtableElementInterface {
         init: Some(
             subtable_gpos_markToSingle_init
-                as unsafe extern "C" fn(*mut subtable_gpos_markToSingle) -> (),
+                as unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> (),
         ),
         copy: Some(
             subtable_gpos_markToSingle_copy
                 as unsafe extern "C" fn(
-                    *mut subtable_gpos_markToSingle,
-                    *const subtable_gpos_markToSingle,
+                    *mut GposMarkToSingleSubtable,
+                    *const GposMarkToSingleSubtable,
                 ) -> (),
         ),
         move_0: Some(
             subtable_gpos_markToSingle_move
                 as unsafe extern "C" fn(
-                    *mut subtable_gpos_markToSingle,
-                    *mut subtable_gpos_markToSingle,
+                    *mut GposMarkToSingleSubtable,
+                    *mut GposMarkToSingleSubtable,
                 ) -> (),
         ),
         dispose: Some(
             subtable_gpos_markToSingle_dispose
-                as unsafe extern "C" fn(*mut subtable_gpos_markToSingle) -> (),
+                as unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> (),
         ),
         replace: Some(
             subtable_gpos_markToSingle_replace
                 as unsafe extern "C" fn(
-                    *mut subtable_gpos_markToSingle,
-                    subtable_gpos_markToSingle,
+                    *mut GposMarkToSingleSubtable,
+                    GposMarkToSingleSubtable,
                 ) -> (),
         ),
         copyReplace: Some(
             subtable_gpos_markToSingle_copyReplace
                 as unsafe extern "C" fn(
-                    *mut subtable_gpos_markToSingle,
-                    subtable_gpos_markToSingle,
+                    *mut GposMarkToSingleSubtable,
+                    GposMarkToSingleSubtable,
                 ) -> (),
         ),
         create: Some(subtable_gpos_markToSingle_create),
         free: Some(
             subtable_gpos_markToSingle_free
-                as unsafe extern "C" fn(*mut subtable_gpos_markToSingle) -> (),
+                as unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> (),
         ),
     }
 };
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToSingle_create() -> *mut subtable_gpos_markToSingle {
-    let mut x: *mut subtable_gpos_markToSingle =
-        malloc(::core::mem::size_of::<subtable_gpos_markToSingle>() as usize)
-            as *mut subtable_gpos_markToSingle;
+unsafe extern "C" fn subtable_gpos_markToSingle_create() -> *mut GposMarkToSingleSubtable {
+    let mut x: *mut GposMarkToSingleSubtable =
+        malloc(::core::mem::size_of::<GposMarkToSingleSubtable>() as usize)
+            as *mut GposMarkToSingleSubtable;
     subtable_gpos_markToSingle_init(x);
     return x;
 }
 pub unsafe extern "C" fn otl_read_gpos_markToSingle(
-    data: font_file_pointer,
+    data: FontFilePointer,
     mut tableLength: u32,
     mut subtableOffset: u32,
-    _maxGlyphs: glyphid_t,
-    mut _options: *const otfcc_Options,
-) -> *mut otl_Subtable {
+    _maxGlyphs: GlyphId,
+    mut _options: *const Options,
+) -> *mut Subtable {
     let mut markArrayOffset: u32 = 0;
     let mut baseArrayOffset: u32 = 0;
     let mut _offset: u32 = 0;
-    let mut subtable: *mut subtable_gpos_markToSingle =
+    let mut subtable: *mut GposMarkToSingleSubtable =
         (
             iSubtable_gpos_markToSingle
                 .create
                 .expect("non-null function pointer"))();
-    let mut marks: *mut otl_Coverage = ::core::ptr::null_mut::<otl_Coverage>();
-    let mut bases: *mut otl_Coverage = ::core::ptr::null_mut::<otl_Coverage>();
+    let mut marks: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
+    let mut bases: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     if !(tableLength < subtableOffset.wrapping_add(12 as u32)) {
         marks = readCoverage(
             data as *const u8,
@@ -529,7 +529,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToSingle(
             (*subtable).classCount = read_16u(
                 data.offset(subtableOffset as isize)
                     .offset(6 as ::core::ffi::c_int as isize) as *const u8,
-            ) as glyphclass_t;
+            ) as GlyphClass;
             markArrayOffset = subtableOffset.wrapping_add(read_16u(
                 data.offset(subtableOffset as isize)
                     .offset(8 as ::core::ffi::c_int as isize) as *const u8,
@@ -558,16 +558,16 @@ pub unsafe extern "C" fn otl_read_gpos_markToSingle(
                     != (*bases).numGlyphs as ::core::ffi::c_int)
                 {
                     _offset = baseArrayOffset.wrapping_add(2 as u32);
-                    let mut j: glyphid_t = 0 as glyphid_t;
+                    let mut j: GlyphId = 0 as GlyphId;
                     while (j as ::core::ffi::c_int) < (*bases).numGlyphs as ::core::ffi::c_int {
-                        let mut baseAnchors: *mut otl_Anchor =
-                            ::core::ptr::null_mut::<otl_Anchor>();
+                        let mut baseAnchors: *mut Anchor =
+                            ::core::ptr::null_mut::<Anchor>();
                         baseAnchors = __caryll_allocate_clean(
-                            (::core::mem::size_of::<otl_Anchor>() as usize)
+                            (::core::mem::size_of::<Anchor>() as usize)
                                 .wrapping_mul((*subtable).classCount as usize),
                             49 as ::core::ffi::c_ulong,
-                        ) as *mut otl_Anchor;
-                        let mut k: glyphclass_t = 0 as glyphclass_t;
+                        ) as *mut Anchor;
+                        let mut k: GlyphClass = 0 as GlyphClass;
                         while (k as ::core::ffi::c_int)
                             < (*subtable).classCount as ::core::ffi::c_int
                         {
@@ -588,10 +588,10 @@ pub unsafe extern "C" fn otl_read_gpos_markToSingle(
                         }
                         otl_iBaseArray.push.expect("non-null function pointer")(
                             &raw mut (*subtable).baseArray,
-                            otl_BaseRecord {
+                            BaseRecord {
                                 glyph: otfcc_Handle_dup(
-                                    *(*bases).glyphs.offset(j as isize) as otfcc_Handle,
-                                ) as otfcc_GlyphHandle,
+                                    *(*bases).glyphs.offset(j as isize) as Handle,
+                                ) as GlyphHandle,
                                 anchors: baseAnchors,
                             },
                         );
@@ -603,7 +603,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToSingle(
                     if !bases.is_null() {
                         otl_Coverage_free(bases);
                     }
-                    return subtable as *mut otl_Subtable;
+                    return subtable as *mut Subtable;
                 }
             }
         }
@@ -611,19 +611,19 @@ pub unsafe extern "C" fn otl_read_gpos_markToSingle(
     iSubtable_gpos_markToSingle
         .free
         .expect("non-null function pointer")(subtable);
-    return ::core::ptr::null_mut::<otl_Subtable>();
+    return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe extern "C" fn otl_gpos_dump_markToSingle(
-    mut st: *const otl_Subtable,
-) -> *mut json_value {
-    let mut subtable: *const subtable_gpos_markToSingle = &raw const (*st).gpos_markToSingle;
-    let mut _subtable: *mut json_value = json_object_new(3 as usize);
-    let mut _marks: *mut json_value = json_object_new((*subtable).markArray.length);
-    let mut _bases: *mut json_value = json_object_new((*subtable).baseArray.length);
-    let mut j: glyphid_t = 0 as glyphid_t;
+    mut st: *const Subtable,
+) -> *mut JsonValue {
+    let mut subtable: *const GposMarkToSingleSubtable = &raw const (*st).gpos_markToSingle;
+    let mut _subtable: *mut JsonValue = json_object_new(3 as usize);
+    let mut _marks: *mut JsonValue = json_object_new((*subtable).markArray.length);
+    let mut _bases: *mut JsonValue = json_object_new((*subtable).baseArray.length);
+    let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).markArray.length {
-        let mut _mark: *mut json_value = json_object_new(3 as usize);
-        let mut markClassName: sds = crate::sdsbuild!(
+        let mut _mark: *mut JsonValue = json_object_new(3 as usize);
+        let mut markClassName: SdsRaw = crate::sdsbuild!(
             sdsempty(),
             b"anchor",
             (*(*subtable).markArray.items.offset(j as isize)).markClass as ::core::ffi::c_int,
@@ -655,17 +655,17 @@ pub unsafe extern "C" fn otl_gpos_dump_markToSingle(
         );
         j = j.wrapping_add(1);
     }
-    let mut j_0: glyphid_t = 0 as glyphid_t;
+    let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).baseArray.length {
-        let mut _base: *mut json_value = json_object_new((*subtable).classCount as usize);
-        let mut k: glyphclass_t = 0 as glyphclass_t;
+        let mut _base: *mut JsonValue = json_object_new((*subtable).classCount as usize);
+        let mut k: GlyphClass = 0 as GlyphClass;
         while (k as ::core::ffi::c_int) < (*subtable).classCount as ::core::ffi::c_int {
             if (*(*(*subtable).baseArray.items.offset(j_0 as isize))
                 .anchors
                 .offset(k as isize))
             .present
             {
-                let mut _anchor: *mut json_value = json_object_new(2 as usize);
+                let mut _anchor: *mut JsonValue = json_object_new(2 as usize);
                 json_object_push(
                     _anchor,
                     b"x\0" as *const u8 as *const ::core::ffi::c_char,
@@ -686,7 +686,7 @@ pub unsafe extern "C" fn otl_gpos_dump_markToSingle(
                         .y as i64,
                     ),
                 );
-                let mut markClassName_0: sds = crate::sdsbuild!(sdsempty(), b"anchor", k as ::core::ffi::c_int);
+                let mut markClassName_0: SdsRaw = crate::sdsbuild!(sdsempty(), b"anchor", k as ::core::ffi::c_int);
                 json_object_push_length(
                     _base,
                     sdslen(markClassName_0) as ::core::ffi::c_uint,
@@ -719,59 +719,59 @@ pub unsafe extern "C" fn otl_gpos_dump_markToSingle(
     return _subtable;
 }
 unsafe extern "C" fn parseBases(
-    mut _bases: *mut json_value,
-    mut subtable: *mut subtable_gpos_markToSingle,
-    mut h: *mut *mut otl_ClassnameHash,
-    mut options: *const otfcc_Options,
+    mut _bases: *mut JsonValue,
+    mut subtable: *mut GposMarkToSingleSubtable,
+    mut h: *mut *mut ClassNameHash,
+    mut options: *const Options,
 ) {
-    let mut classCount: glyphclass_t = (if !(*h).is_null() {
+    let mut classCount: GlyphClass = (if !(*h).is_null() {
         (*(**h).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
-    }) as glyphclass_t;
-    let mut j: glyphid_t = 0 as glyphid_t;
+    }) as GlyphClass;
+    let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < (*_bases).u.object.length {
         let mut gname: *mut ::core::ffi::c_char =
             (*(*_bases).u.object.values.offset(j as isize)).name;
-        let mut base: otl_BaseRecord = otl_BaseRecord {
-            glyph: otfcc_Handle {
-                state: HANDLE_STATE_EMPTY,
+        let mut base: BaseRecord = BaseRecord {
+            glyph: Handle {
+                state: HandleState::Empty,
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
-            anchors: ::core::ptr::null_mut::<otl_Anchor>(),
+            anchors: ::core::ptr::null_mut::<Anchor>(),
         };
         base.glyph = handle_fromName(sdsnewlen(
             gname as *const ::core::ffi::c_void,
             (*(*_bases).u.object.values.offset(j as isize)).name_length as usize,
-        )) as otfcc_GlyphHandle;
+        )) as GlyphHandle;
         base.anchors = __caryll_allocate_clean(
-            (::core::mem::size_of::<otl_Anchor>() as usize).wrapping_mul(classCount as usize),
+            (::core::mem::size_of::<Anchor>() as usize).wrapping_mul(classCount as usize),
             116 as ::core::ffi::c_ulong,
-        ) as *mut otl_Anchor;
-        let mut k: glyphclass_t = 0 as glyphclass_t;
+        ) as *mut Anchor;
+        let mut k: GlyphClass = 0 as GlyphClass;
         while (k as ::core::ffi::c_int) < classCount as ::core::ffi::c_int {
             *base.anchors.offset(k as isize) = otl_anchor_absent();
             k = k.wrapping_add(1);
         }
-        let mut baseRecord: *mut json_value =
-            (*(*_bases).u.object.values.offset(j as isize)).value as *mut json_value;
+        let mut baseRecord: *mut JsonValue =
+            (*(*_bases).u.object.values.offset(j as isize)).value as *mut JsonValue;
         if baseRecord.is_null()
-            || (*baseRecord).type_0 != json_object
+            || (*baseRecord).type_0 != JsonType::Object
         {
             otl_iBaseArray.push.expect("non-null function pointer")(
                 &raw mut (*subtable).baseArray,
                 base,
             );
         } else {
-            let mut k_0: glyphclass_t = 0 as glyphclass_t;
+            let mut k_0: GlyphClass = 0 as GlyphClass;
             while (k_0 as ::core::ffi::c_uint) < (*baseRecord).u.object.length {
-                let mut className: sds = sdsnewlen(
+                let mut className: SdsRaw = sdsnewlen(
                     (*(*baseRecord).u.object.values.offset(k_0 as isize)).name
                         as *const ::core::ffi::c_void,
                     (*(*baseRecord).u.object.values.offset(k_0 as isize)).name_length as usize,
                 );
-                let mut s: *mut otl_ClassnameHash = ::core::ptr::null_mut::<otl_ClassnameHash>();
+                let mut s: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
                 let mut _hf_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i: ::core::ffi::c_uint = 0;
                 let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -1046,7 +1046,7 @@ unsafe extern "C" fn parseBases(
                 _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
                 _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
                 _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-                s = ::core::ptr::null_mut::<otl_ClassnameHash>();
+                s = ::core::ptr::null_mut::<ClassNameHash>();
                 if !(*h).is_null() {
                     let mut _hf_bkt: ::core::ffi::c_uint = 0;
                     _hf_bkt = _hf_hashv
@@ -1062,10 +1062,10 @@ unsafe extern "C" fn parseBases(
                                 as *mut ::core::ffi::c_char)
                                 .offset(-(*(**h).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
-                                as *mut otl_ClassnameHash
-                                as *mut otl_ClassnameHash;
+                                as *mut ClassNameHash
+                                as *mut ClassNameHash;
                         } else {
-                            s = ::core::ptr::null_mut::<otl_ClassnameHash>();
+                            s = ::core::ptr::null_mut::<ClassNameHash>();
                         }
                         while !s.is_null() {
                             if (*s).hh.hashv == _hf_hashv
@@ -1088,10 +1088,10 @@ unsafe extern "C" fn parseBases(
                                 s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
                                     .offset(-(*(**h).hh.tbl).hho)
                                     as *mut ::core::ffi::c_void
-                                    as *mut otl_ClassnameHash
-                                    as *mut otl_ClassnameHash;
+                                    as *mut ClassNameHash
+                                    as *mut ClassNameHash;
                             } else {
-                                s = ::core::ptr::null_mut::<otl_ClassnameHash>();
+                                s = ::core::ptr::null_mut::<ClassNameHash>();
                             }
                         }
                     }
@@ -1102,9 +1102,9 @@ unsafe extern "C" fn parseBases(
                         .expect(
                             "non-null function pointer",
                         )(
-                        (*options).logger as *mut otfcc_ILogger,
+                        (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[OTFCC-fea] Invalid anchor class name <",
@@ -1117,7 +1117,7 @@ unsafe extern "C" fn parseBases(
                 } else {
                     *base.anchors.offset((*s).classID as isize) = otl_parse_anchor(
                         (*(*baseRecord).u.object.values.offset(k_0 as isize)).value
-                            as *mut json_value,
+                            as *mut JsonValue,
                     );
                 }
                 sdsfree(className);
@@ -1132,67 +1132,67 @@ unsafe extern "C" fn parseBases(
     }
 }
 pub unsafe extern "C" fn otl_gpos_parse_markToSingle(
-    mut _subtable: *const json_value,
-    mut options: *const otfcc_Options,
-) -> *mut otl_Subtable {
-    let mut _marks: *mut json_value = json_obj_get_type(
+    mut _subtable: *const JsonValue,
+    mut options: *const Options,
+) -> *mut Subtable {
+    let mut _marks: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"marks\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
-    let mut _bases: *mut json_value = json_obj_get_type(
+    let mut _bases: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"bases\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if _marks.is_null() || _bases.is_null() {
-        return ::core::ptr::null_mut::<otl_Subtable>();
+        return ::core::ptr::null_mut::<Subtable>();
     }
-    let mut st: *mut subtable_gpos_markToSingle =
+    let mut st: *mut GposMarkToSingleSubtable =
         (
             iSubtable_gpos_markToSingle
                 .create
                 .expect("non-null function pointer"))();
-    let mut h: *mut otl_ClassnameHash = ::core::ptr::null_mut::<otl_ClassnameHash>();
+    let mut h: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
     otl_parseMarkArray(_marks, &raw mut (*st).markArray, &raw mut h, options);
     (*st).classCount = (if !h.is_null() {
         (*(*h).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
-    }) as glyphclass_t;
+    }) as GlyphClass;
     parseBases(_bases, st, &raw mut h, options);
-    let mut s: *mut otl_ClassnameHash = ::core::ptr::null_mut::<otl_ClassnameHash>();
-    let mut tmp: *mut otl_ClassnameHash = ::core::ptr::null_mut::<otl_ClassnameHash>();
+    let mut s: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
+    let mut tmp: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
     s = h;
-    tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut otl_ClassnameHash
-        as *mut otl_ClassnameHash;
+    tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut ClassNameHash
+        as *mut ClassNameHash;
     while !s.is_null() {
-        let mut _hd_hh_del: *mut UT_hash_handle = &raw mut (*s).hh;
+        let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
             free((*(*h).hh.tbl).buckets as *mut ::core::ffi::c_void);
             free((*h).hh.tbl as *mut ::core::ffi::c_void);
-            h = ::core::ptr::null_mut::<otl_ClassnameHash>();
+            h = ::core::ptr::null_mut::<ClassNameHash>();
         } else {
             let mut _hd_bkt: ::core::ffi::c_uint = 0;
             if _hd_hh_del == (*(*h).hh.tbl).tail {
                 (*(*h).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                     .offset((*(*h).hh.tbl).hho)
-                    as *mut UT_hash_handle
-                    as *mut UT_hash_handle;
+                    as *mut UtHashHandle
+                    as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).prev.is_null() {
                 let ref mut fresh2 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
                     .offset((*(*h).hh.tbl).hho)
-                    as *mut UT_hash_handle))
+                    as *mut UtHashHandle))
                     .next;
                 *fresh2 = (*_hd_hh_del).next;
             } else {
-                h = (*_hd_hh_del).next as *mut otl_ClassnameHash as *mut otl_ClassnameHash;
+                h = (*_hd_hh_del).next as *mut ClassNameHash as *mut ClassNameHash;
             }
             if !(*_hd_hh_del).next.is_null() {
                 let ref mut fresh3 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
                     .offset((*(*h).hh.tbl).hho)
-                    as *mut UT_hash_handle))
+                    as *mut UtHashHandle))
                     .prev;
                 *fresh3 = (*_hd_hh_del).prev;
             }
@@ -1200,11 +1200,11 @@ pub unsafe extern "C" fn otl_gpos_parse_markToSingle(
                 & (*(*h).hh.tbl)
                     .num_buckets
                     .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _hd_head: *mut UT_hash_bucket =
-                (*(*h).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UT_hash_bucket;
+            let mut _hd_head: *mut UtHashBucket =
+                (*(*h).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UtHashBucket;
             (*_hd_head).count = (*_hd_head).count.wrapping_sub(1);
             if (*_hd_head).hh_head == _hd_hh_del {
-                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UT_hash_handle;
+                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UtHashHandle;
             }
             if !(*_hd_hh_del).hh_prev.is_null() {
                 (*(*_hd_hh_del).hh_prev).hh_next = (*_hd_hh_del).hh_next;
@@ -1216,57 +1216,57 @@ pub unsafe extern "C" fn otl_gpos_parse_markToSingle(
         }
         sdsfree((*s).className);
         free(s as *mut ::core::ffi::c_void);
-        s = ::core::ptr::null_mut::<otl_ClassnameHash>();
+        s = ::core::ptr::null_mut::<ClassNameHash>();
         s = tmp;
-        tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut otl_ClassnameHash
-            as *mut otl_ClassnameHash;
+        tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut ClassNameHash
+            as *mut ClassNameHash;
     }
-    return st as *mut otl_Subtable;
+    return st as *mut Subtable;
 }
 pub unsafe extern "C" fn otfcc_build_gpos_markToSingle(
-    mut _subtable: *const otl_Subtable,
-    mut _heuristics: otl_BuildHeuristics,
-) -> *mut caryll_Buffer {
-    let mut subtable: *const subtable_gpos_markToSingle = &raw const (*_subtable).gpos_markToSingle;
-    let mut marks: *mut otl_Coverage = otl_Coverage_create();
-    let mut j: glyphid_t = 0 as glyphid_t;
+    mut _subtable: *const Subtable,
+    mut _heuristics: BuildHeuristics,
+) -> *mut Buffer {
+    let mut subtable: *const GposMarkToSingleSubtable = &raw const (*_subtable).gpos_markToSingle;
+    let mut marks: *mut Coverage = otl_Coverage_create();
+    let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).markArray.length {
         pushToCoverage(
             marks,
             otfcc_Handle_dup(
-                (*(*subtable).markArray.items.offset(j as isize)).glyph as otfcc_Handle,
-            ) as otfcc_GlyphHandle,
+                (*(*subtable).markArray.items.offset(j as isize)).glyph as Handle,
+            ) as GlyphHandle,
         );
         j = j.wrapping_add(1);
     }
-    let mut bases: *mut otl_Coverage = otl_Coverage_create();
-    let mut j_0: glyphid_t = 0 as glyphid_t;
+    let mut bases: *mut Coverage = otl_Coverage_create();
+    let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).baseArray.length {
         pushToCoverage(
             bases,
             otfcc_Handle_dup(
-                (*(*subtable).baseArray.items.offset(j_0 as isize)).glyph as otfcc_Handle,
-            ) as otfcc_GlyphHandle,
+                (*(*subtable).baseArray.items.offset(j_0 as isize)).glyph as Handle,
+            ) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut root: *mut bk_Block = bk_new_Block(&[bk_int(b16, 1 as u32), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             marks,
-        ))), bk_ptr(p16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
             bases,
-        ))), bk_int(b16, ((*subtable).classCount as ::core::ffi::c_int) as u32)]);
-    let mut markArray: *mut bk_Block = bk_new_Block(&[bk_int(b16, ((*subtable).markArray.length) as u32)]);
-    let mut j_1: glyphid_t = 0 as glyphid_t;
+        ))), bk_int(BkCellType::B16, ((*subtable).classCount as ::core::ffi::c_int) as u32)]);
+    let mut markArray: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*subtable).markArray.length) as u32)]);
+    let mut j_1: GlyphId = 0 as GlyphId;
     while (j_1 as usize) < (*subtable).markArray.length {
-        bk_push(markArray, &[bk_int(b16, ((*(*subtable).markArray.items.offset(j_1 as isize)).markClass as ::core::ffi::c_int) as u32), bk_ptr(p16, bkFromAnchor((*(*subtable).markArray.items.offset(j_1 as isize)).anchor))]);
+        bk_push(markArray, &[bk_int(BkCellType::B16, ((*(*subtable).markArray.items.offset(j_1 as isize)).markClass as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bkFromAnchor((*(*subtable).markArray.items.offset(j_1 as isize)).anchor))]);
         j_1 = j_1.wrapping_add(1);
     }
-    let mut baseArray: *mut bk_Block = bk_new_Block(&[bk_int(b16, ((*subtable).baseArray.length) as u32)]);
-    let mut j_2: glyphid_t = 0 as glyphid_t;
+    let mut baseArray: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*subtable).baseArray.length) as u32)]);
+    let mut j_2: GlyphId = 0 as GlyphId;
     while (j_2 as usize) < (*subtable).baseArray.length {
-        let mut k: glyphclass_t = 0 as glyphclass_t;
+        let mut k: GlyphClass = 0 as GlyphClass;
         while (k as ::core::ffi::c_int) < (*subtable).classCount as ::core::ffi::c_int {
-            bk_push(baseArray, &[bk_ptr(p16, bkFromAnchor(
+            bk_push(baseArray, &[bk_ptr(BkCellType::P16, bkFromAnchor(
                     *(*(*subtable).baseArray.items.offset(j_2 as isize))
                         .anchors
                         .offset(k as isize),
@@ -1275,7 +1275,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_markToSingle(
         }
         j_2 = j_2.wrapping_add(1);
     }
-    bk_push(root, &[bk_ptr(p16, markArray), bk_ptr(p16, baseArray)]);
+    bk_push(root, &[bk_ptr(BkCellType::P16, markArray), bk_ptr(BkCellType::P16, baseArray)]);
     otl_Coverage_free(marks);
     otl_Coverage_free(bases);
     return bk_build_Block(root);

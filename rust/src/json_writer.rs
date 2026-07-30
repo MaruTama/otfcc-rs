@@ -9,11 +9,11 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::otf_writer::FontSerializer;
 
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{glyphid_t, shapeid_t};
+use crate::support::options::{Options};
+use crate::support::primitives::{GlyphId, ShapeId};
 
-use crate::vendor::json::{json_value};
-use crate::font::caryll_font::{otfcc_Font, otfcc_IFontSerializer};
+use crate::vendor::json::{JsonValue};
+use crate::font::caryll_font::{Font, IFontSerializer};
 use crate::support::{NULL};
 
 
@@ -58,9 +58,9 @@ impl FontSerializer for JsonSerializer {
         font: *mut ::core::ffi::c_void,
         options: *const ::core::ffi::c_void,
     ) -> *mut ::core::ffi::c_void {
-    let font = font as *mut otfcc_Font;
-    let options = options as *const otfcc_Options;
-    let mut root: *mut json_value = json_object_new(48 as usize);
+    let font = font as *mut Font;
+    let options = options as *const Options;
+    let mut root: *mut JsonValue = json_object_new(48 as usize);
     if root.is_null() {
         return NULL;
     }
@@ -77,8 +77,8 @@ impl FontSerializer for JsonSerializer {
     otfcc_dumpCFF((*font).CFF_, root, options);
     let mut ctx: GlyfIOContext = GlyfIOContext {
         locaIsLong: (*(*font).head).indexToLocFormat != 0,
-        numGlyphs: (*(*font).maxp).numGlyphs as glyphid_t,
-        nPhantomPoints: 4 as shapeid_t,
+        numGlyphs: (*(*font).maxp).numGlyphs as GlyphId,
+        nPhantomPoints: 4 as ShapeId,
         fvar: (*font).fvar,
         hasVerticalMetrics: !(*font).vhea.is_null(),
         exportFDSelect: !(*font).CFF_.is_null() && (*(*font).CFF_).isCID as ::core::ffi::c_int != 0,
@@ -140,34 +140,34 @@ impl FontSerializer for JsonSerializer {
     }
 }
 unsafe extern "C" fn serializeToJson(
-    mut font: *mut otfcc_Font,
-    mut options: *const otfcc_Options,
+    mut font: *mut Font,
+    mut options: *const Options,
 ) -> *mut ::core::ffi::c_void {
     <JsonSerializer as FontSerializer>::serialize(
         font as *mut ::core::ffi::c_void,
         options as *const ::core::ffi::c_void,
     )
 }
-unsafe extern "C" fn freeJsonWriter(mut self_0: *mut otfcc_IFontSerializer) {
+unsafe extern "C" fn freeJsonWriter(mut self_0: *mut IFontSerializer) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_newJsonWriter() -> *mut otfcc_IFontSerializer {
-    let mut writer: *mut otfcc_IFontSerializer = ::core::ptr::null_mut::<otfcc_IFontSerializer>();
+pub unsafe extern "C" fn otfcc_newJsonWriter() -> *mut IFontSerializer {
+    let mut writer: *mut IFontSerializer = ::core::ptr::null_mut::<IFontSerializer>();
     writer = __caryll_allocate_clean(
-        ::core::mem::size_of::<otfcc_IFontSerializer>() as usize,
+        ::core::mem::size_of::<IFontSerializer>() as usize,
         52 as ::core::ffi::c_ulong,
-    ) as *mut otfcc_IFontSerializer;
+    ) as *mut IFontSerializer;
     (*writer).serialize = Some(
         serializeToJson
             as unsafe extern "C" fn(
-                *mut otfcc_Font,
-                *const otfcc_Options,
+                *mut Font,
+                *const Options,
             ) -> *mut ::core::ffi::c_void,
     )
         as Option<
-            unsafe extern "C" fn(*mut otfcc_Font, *const otfcc_Options) -> *mut ::core::ffi::c_void,
+            unsafe extern "C" fn(*mut Font, *const Options) -> *mut ::core::ffi::c_void,
         >;
-    (*writer).free = Some(freeJsonWriter as unsafe extern "C" fn(*mut otfcc_IFontSerializer) -> ())
-        as Option<unsafe extern "C" fn(*mut otfcc_IFontSerializer) -> ()>;
+    (*writer).free = Some(freeJsonWriter as unsafe extern "C" fn(*mut IFontSerializer) -> ())
+        as Option<unsafe extern "C" fn(*mut IFontSerializer) -> ()>;
     return writer;
 }

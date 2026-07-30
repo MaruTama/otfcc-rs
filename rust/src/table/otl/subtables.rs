@@ -30,7 +30,7 @@ bitflags::bitflags! {
     /// `warnings = "deny"` turns into a build failure).
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     #[repr(transparent)]
-    pub struct otl_BuildHeuristics: u32 {
+    pub struct BuildHeuristics: u32 {
         const GSUB_VERT = 1;
     }
 }

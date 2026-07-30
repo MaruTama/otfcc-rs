@@ -1,19 +1,19 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{calloc, free, malloc, memcmp, memcpy, realloc, strlen};
-use crate::vendor::json::{_json_value, json_array, json_boolean, json_double, json_integer, json_null, json_object, json_object_entry, json_pre_serialized, json_string, json_value};
+use crate::vendor::json::{JsonValue, JsonType, JsonObjectEntry};
 use crate::vendor::emyg_dtoa::{emyg_dtoa};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct json_builder_value {
-    pub value: json_value,
+pub struct JsonBuilderValue {
+    pub value: JsonValue,
     pub is_builder_value: ::core::ffi::c_int,
     pub additional_length_allocated: usize,
     pub length_iterated: usize,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct json_serialize_opts {
+pub struct JsonSerializeOpts {
     pub mode: ::core::ffi::c_int,
     pub opts: ::core::ffi::c_int,
     pub indent_size: ::core::ffi::c_int,
@@ -31,24 +31,24 @@ pub const json_serialize_opt_no_space_after_colon: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int;
 pub const json_serialize_opt_use_tabs: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int;
-static default_opts: json_serialize_opts = json_serialize_opts {
+static default_opts: JsonSerializeOpts = JsonSerializeOpts {
     mode: json_serialize_mode_single_line,
     opts: 0 as ::core::ffi::c_int,
     indent_size: 3 as ::core::ffi::c_int,
 };
-unsafe extern "C" fn builderize(mut value: *mut json_value) -> ::core::ffi::c_int {
-    if (*(value as *mut json_builder_value)).is_builder_value != 0 {
+unsafe extern "C" fn builderize(mut value: *mut JsonValue) -> ::core::ffi::c_int {
+    if (*(value as *mut JsonBuilderValue)).is_builder_value != 0 {
         return 1 as ::core::ffi::c_int;
     }
-    if (*value).type_0 == json_object
+    if (*value).type_0 == JsonType::Object
     {
         let mut i: ::core::ffi::c_uint = 0;
         i = 0 as ::core::ffi::c_uint;
         while i < (*value).u.object.length {
             let mut name_copy: *mut ::core::ffi::c_char =
                 ::core::ptr::null_mut::<::core::ffi::c_char>();
-            let mut entry: *mut json_object_entry =
-                (*value).u.object.values.offset(i as isize) as *mut json_object_entry;
+            let mut entry: *mut JsonObjectEntry =
+                (*value).u.object.values.offset(i as isize) as *mut JsonObjectEntry;
             name_copy = malloc(
                 ((*entry).name_length.wrapping_add(1 as ::core::ffi::c_uint) as usize)
                     .wrapping_mul(::core::mem::size_of::<::core::ffi::c_char>() as usize),
@@ -65,10 +65,10 @@ unsafe extern "C" fn builderize(mut value: *mut json_value) -> ::core::ffi::c_in
             i = i.wrapping_add(1);
         }
     }
-    (*(value as *mut json_builder_value)).is_builder_value = 1 as ::core::ffi::c_int;
+    (*(value as *mut JsonBuilderValue)).is_builder_value = 1 as ::core::ffi::c_int;
     return 1 as ::core::ffi::c_int;
 }
-/// `json-builder.h` documents this as the value to put in `json_settings`'
+/// `json-builder.h` documents this as the value to put in `JsonSettings`'
 /// `value_extra` when parsing into builder values. In C it is an
 /// `extern const size_t` that has to be computed by an initializer, because C
 /// cannot fold `sizeof` into an external definition; c2rust reproduced that as a
@@ -77,7 +77,7 @@ unsafe extern "C" fn builderize(mut value: *mut json_value) -> ::core::ffi::c_in
 /// the `link_section` hack that ran it -- are gone. Nothing in otfcc reads it;
 /// it is the vendored library's own API.
 pub const json_builder_extra: usize =
-    ::core::mem::size_of::<json_builder_value>() - ::core::mem::size_of::<json_value>();
+    ::core::mem::size_of::<JsonBuilderValue>() - ::core::mem::size_of::<JsonValue>();
 pub static f_spaces_around_brackets: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int;
 pub static f_spaces_after_commas: ::core::ffi::c_int =
@@ -85,7 +85,7 @@ pub static f_spaces_after_commas: ::core::ffi::c_int =
 pub static f_spaces_after_colons: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int;
 pub static f_tabs: ::core::ffi::c_int = (1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int;
-pub unsafe extern "C" fn get_serialize_flags(mut opts: json_serialize_opts) -> ::core::ffi::c_int {
+pub unsafe extern "C" fn get_serialize_flags(mut opts: JsonSerializeOpts) -> ::core::ffi::c_int {
     let mut flags: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     if opts.mode == json_serialize_mode_packed {
         return 0 as ::core::ffi::c_int;
@@ -107,103 +107,103 @@ pub unsafe extern "C" fn get_serialize_flags(mut opts: json_serialize_opts) -> :
     }
     return flags;
 }
-pub unsafe extern "C" fn json_array_new(mut length: usize) -> *mut json_value {
-    let mut value: *mut json_value = calloc(
+pub unsafe extern "C" fn json_array_new(mut length: usize) -> *mut JsonValue {
+    let mut value: *mut JsonValue = calloc(
         1 as usize,
-        ::core::mem::size_of::<json_builder_value>() as usize,
-    ) as *mut json_value;
+        ::core::mem::size_of::<JsonBuilderValue>() as usize,
+    ) as *mut JsonValue;
     if value.is_null() {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    (*(value as *mut json_builder_value)).is_builder_value = 1 as ::core::ffi::c_int;
-    (*value).type_0 = json_array;
+    (*(value as *mut JsonBuilderValue)).is_builder_value = 1 as ::core::ffi::c_int;
+    (*value).type_0 = JsonType::Array;
     (*value).u.array.values =
-        malloc(length.wrapping_mul(::core::mem::size_of::<*mut json_value>() as usize))
-            as *mut *mut json_value as *mut *mut _json_value;
+        malloc(length.wrapping_mul(::core::mem::size_of::<*mut JsonValue>() as usize))
+            as *mut *mut JsonValue as *mut *mut JsonValue;
     if (*value).u.array.values.is_null() {
         free(value as *mut ::core::ffi::c_void);
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    (*(value as *mut json_builder_value)).additional_length_allocated = length;
+    (*(value as *mut JsonBuilderValue)).additional_length_allocated = length;
     return value;
 }
 pub unsafe extern "C" fn json_array_push(
-    mut array: *mut json_value,
-    mut value: *mut json_value,
-) -> *mut json_value {
+    mut array: *mut JsonValue,
+    mut value: *mut JsonValue,
+) -> *mut JsonValue {
     if builderize(array) == 0 || builderize(value) == 0 {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    if (*(array as *mut json_builder_value)).additional_length_allocated > 0 as usize {
-        let ref mut fresh0 = (*(array as *mut json_builder_value)).additional_length_allocated;
+    if (*(array as *mut JsonBuilderValue)).additional_length_allocated > 0 as usize {
+        let ref mut fresh0 = (*(array as *mut JsonBuilderValue)).additional_length_allocated;
         *fresh0 = (*fresh0).wrapping_sub(1);
     } else {
-        let mut values_new: *mut *mut json_value = realloc(
+        let mut values_new: *mut *mut JsonValue = realloc(
             (*array).u.array.values as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<*mut json_value>() as usize).wrapping_mul(
+            (::core::mem::size_of::<*mut JsonValue>() as usize).wrapping_mul(
                 (*array)
                     .u
                     .array
                     .length
                     .wrapping_add(1 as ::core::ffi::c_uint) as usize,
             ),
-        ) as *mut *mut json_value;
+        ) as *mut *mut JsonValue;
         if values_new.is_null() {
-            return ::core::ptr::null_mut::<json_value>();
+            return ::core::ptr::null_mut::<JsonValue>();
         }
-        (*array).u.array.values = values_new as *mut *mut _json_value;
+        (*array).u.array.values = values_new as *mut *mut JsonValue;
     }
     let ref mut fresh1 = *(*array)
         .u
         .array
         .values
         .offset((*array).u.array.length as isize);
-    *fresh1 = value as *mut _json_value;
+    *fresh1 = value as *mut JsonValue;
     (*array).u.array.length = (*array).u.array.length.wrapping_add(1);
-    (*value).parent = array as *mut _json_value;
+    (*value).parent = array as *mut JsonValue;
     return value;
 }
-pub unsafe extern "C" fn json_object_new(mut length: usize) -> *mut json_value {
-    let mut value: *mut json_value = calloc(
+pub unsafe extern "C" fn json_object_new(mut length: usize) -> *mut JsonValue {
+    let mut value: *mut JsonValue = calloc(
         1 as usize,
-        ::core::mem::size_of::<json_builder_value>() as usize,
-    ) as *mut json_value;
+        ::core::mem::size_of::<JsonBuilderValue>() as usize,
+    ) as *mut JsonValue;
     if value.is_null() {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    (*(value as *mut json_builder_value)).is_builder_value = 1 as ::core::ffi::c_int;
-    (*value).type_0 = json_object;
+    (*(value as *mut JsonBuilderValue)).is_builder_value = 1 as ::core::ffi::c_int;
+    (*value).type_0 = JsonType::Object;
     (*value).u.object.values = calloc(
         length,
-        ::core::mem::size_of::<json_object_entry>() as usize,
-    ) as *mut json_object_entry;
+        ::core::mem::size_of::<JsonObjectEntry>() as usize,
+    ) as *mut JsonObjectEntry;
     if (*value).u.object.values.is_null() {
         free(value as *mut ::core::ffi::c_void);
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    (*(value as *mut json_builder_value)).additional_length_allocated = length;
+    (*(value as *mut JsonBuilderValue)).additional_length_allocated = length;
     return value;
 }
 pub unsafe extern "C" fn json_object_push(
-    mut object: *mut json_value,
+    mut object: *mut JsonValue,
     mut name: *const ::core::ffi::c_char,
-    mut value: *mut json_value,
-) -> *mut json_value {
+    mut value: *mut JsonValue,
+) -> *mut JsonValue {
     return json_object_push_length(object, strlen(name) as ::core::ffi::c_uint, name, value);
 }
 pub unsafe extern "C" fn json_object_push_length(
-    mut object: *mut json_value,
+    mut object: *mut JsonValue,
     mut name_length: ::core::ffi::c_uint,
     mut name: *const ::core::ffi::c_char,
-    mut value: *mut json_value,
-) -> *mut json_value {
+    mut value: *mut JsonValue,
+) -> *mut JsonValue {
     let mut name_copy: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     name_copy = malloc(
         (name_length.wrapping_add(1 as ::core::ffi::c_uint) as usize)
             .wrapping_mul(::core::mem::size_of::<::core::ffi::c_char>() as usize),
     ) as *mut ::core::ffi::c_char;
     if name_copy.is_null() {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
     memcpy(
         name_copy as *mut ::core::ffi::c_void,
@@ -214,36 +214,36 @@ pub unsafe extern "C" fn json_object_push_length(
     *name_copy.offset(name_length as isize) = 0 as ::core::ffi::c_char;
     if json_object_push_nocopy(object, name_length, name_copy, value).is_null() {
         free(name_copy as *mut ::core::ffi::c_void);
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
     return value;
 }
 pub unsafe extern "C" fn json_object_push_nocopy(
-    mut object: *mut json_value,
+    mut object: *mut JsonValue,
     mut name_length: ::core::ffi::c_uint,
     mut name: *mut ::core::ffi::c_char,
-    mut value: *mut json_value,
-) -> *mut json_value {
-    let mut entry: *mut json_object_entry = ::core::ptr::null_mut::<json_object_entry>();
+    mut value: *mut JsonValue,
+) -> *mut JsonValue {
+    let mut entry: *mut JsonObjectEntry = ::core::ptr::null_mut::<JsonObjectEntry>();
     if builderize(object) == 0 || builderize(value) == 0 {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    if (*(object as *mut json_builder_value)).additional_length_allocated > 0 as usize {
-        let ref mut fresh2 = (*(object as *mut json_builder_value)).additional_length_allocated;
+    if (*(object as *mut JsonBuilderValue)).additional_length_allocated > 0 as usize {
+        let ref mut fresh2 = (*(object as *mut JsonBuilderValue)).additional_length_allocated;
         *fresh2 = (*fresh2).wrapping_sub(1);
     } else {
-        let mut values_new: *mut json_object_entry = realloc(
+        let mut values_new: *mut JsonObjectEntry = realloc(
             (*object).u.object.values as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<json_object_entry>() as usize).wrapping_mul(
+            (::core::mem::size_of::<JsonObjectEntry>() as usize).wrapping_mul(
                 (*object)
                     .u
                     .object
                     .length
                     .wrapping_add(1 as ::core::ffi::c_uint) as usize,
             ),
-        ) as *mut json_object_entry;
+        ) as *mut JsonObjectEntry;
         if values_new.is_null() {
-            return ::core::ptr::null_mut::<json_value>();
+            return ::core::ptr::null_mut::<JsonValue>();
         }
         (*object).u.object.values = values_new;
     }
@@ -254,25 +254,25 @@ pub unsafe extern "C" fn json_object_push_nocopy(
         .offset((*object).u.object.length as isize);
     (*entry).name_length = name_length;
     (*entry).name = name;
-    (*entry).value = value as *mut _json_value;
+    (*entry).value = value as *mut JsonValue;
     (*object).u.object.length = (*object).u.object.length.wrapping_add(1);
-    (*value).parent = object as *mut _json_value;
+    (*value).parent = object as *mut JsonValue;
     return value;
 }
-pub unsafe extern "C" fn json_string_new(mut buf: *const ::core::ffi::c_char) -> *mut json_value {
+pub unsafe extern "C" fn json_string_new(mut buf: *const ::core::ffi::c_char) -> *mut JsonValue {
     return json_string_new_length(strlen(buf) as ::core::ffi::c_uint, buf);
 }
 pub unsafe extern "C" fn json_string_new_length(
     mut length: ::core::ffi::c_uint,
     mut buf: *const ::core::ffi::c_char,
-) -> *mut json_value {
-    let mut value: *mut json_value = ::core::ptr::null_mut::<json_value>();
+) -> *mut JsonValue {
+    let mut value: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     let mut copy: *mut ::core::ffi::c_char = malloc(
         (length.wrapping_add(1 as ::core::ffi::c_uint) as usize)
             .wrapping_mul(::core::mem::size_of::<::core::ffi::c_char>() as usize),
     ) as *mut ::core::ffi::c_char;
     if copy.is_null() {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
     memcpy(
         copy as *mut ::core::ffi::c_void,
@@ -283,79 +283,79 @@ pub unsafe extern "C" fn json_string_new_length(
     value = json_string_new_nocopy(length, copy);
     if value.is_null() {
         free(copy as *mut ::core::ffi::c_void);
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
     return value;
 }
 pub unsafe extern "C" fn json_string_new_nocopy(
     mut length: ::core::ffi::c_uint,
     mut buf: *mut ::core::ffi::c_char,
-) -> *mut json_value {
-    let mut value: *mut json_value = calloc(
+) -> *mut JsonValue {
+    let mut value: *mut JsonValue = calloc(
         1 as usize,
-        ::core::mem::size_of::<json_builder_value>() as usize,
-    ) as *mut json_value;
+        ::core::mem::size_of::<JsonBuilderValue>() as usize,
+    ) as *mut JsonValue;
     if value.is_null() {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    (*(value as *mut json_builder_value)).is_builder_value = 1 as ::core::ffi::c_int;
-    (*value).type_0 = json_string;
+    (*(value as *mut JsonBuilderValue)).is_builder_value = 1 as ::core::ffi::c_int;
+    (*value).type_0 = JsonType::String;
     (*value).u.string.length = length;
     (*value).u.string.ptr = buf;
     return value;
 }
-pub unsafe extern "C" fn json_integer_new(mut integer: i64) -> *mut json_value {
-    let mut value: *mut json_value = calloc(
+pub unsafe extern "C" fn json_integer_new(mut integer: i64) -> *mut JsonValue {
+    let mut value: *mut JsonValue = calloc(
         1 as usize,
-        ::core::mem::size_of::<json_builder_value>() as usize,
-    ) as *mut json_value;
+        ::core::mem::size_of::<JsonBuilderValue>() as usize,
+    ) as *mut JsonValue;
     if value.is_null() {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    (*(value as *mut json_builder_value)).is_builder_value = 1 as ::core::ffi::c_int;
-    (*value).type_0 = json_integer;
+    (*(value as *mut JsonBuilderValue)).is_builder_value = 1 as ::core::ffi::c_int;
+    (*value).type_0 = JsonType::Integer;
     (*value).u.integer = integer;
     return value;
 }
-pub unsafe extern "C" fn json_double_new(mut dbl: ::core::ffi::c_double) -> *mut json_value {
-    let mut value: *mut json_value = calloc(
+pub unsafe extern "C" fn json_double_new(mut dbl: ::core::ffi::c_double) -> *mut JsonValue {
+    let mut value: *mut JsonValue = calloc(
         1 as usize,
-        ::core::mem::size_of::<json_builder_value>() as usize,
-    ) as *mut json_value;
+        ::core::mem::size_of::<JsonBuilderValue>() as usize,
+    ) as *mut JsonValue;
     if value.is_null() {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    (*(value as *mut json_builder_value)).is_builder_value = 1 as ::core::ffi::c_int;
-    (*value).type_0 = json_double;
+    (*(value as *mut JsonBuilderValue)).is_builder_value = 1 as ::core::ffi::c_int;
+    (*value).type_0 = JsonType::Double;
     (*value).u.dbl = dbl;
     return value;
 }
-pub unsafe extern "C" fn json_boolean_new(mut b: ::core::ffi::c_int) -> *mut json_value {
-    let mut value: *mut json_value = calloc(
+pub unsafe extern "C" fn json_boolean_new(mut b: ::core::ffi::c_int) -> *mut JsonValue {
+    let mut value: *mut JsonValue = calloc(
         1 as usize,
-        ::core::mem::size_of::<json_builder_value>() as usize,
-    ) as *mut json_value;
+        ::core::mem::size_of::<JsonBuilderValue>() as usize,
+    ) as *mut JsonValue;
     if value.is_null() {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    (*(value as *mut json_builder_value)).is_builder_value = 1 as ::core::ffi::c_int;
-    (*value).type_0 = json_boolean;
+    (*(value as *mut JsonBuilderValue)).is_builder_value = 1 as ::core::ffi::c_int;
+    (*value).type_0 = JsonType::Boolean;
     (*value).u.boolean = b;
     return value;
 }
-pub unsafe extern "C" fn json_null_new() -> *mut json_value {
-    let mut value: *mut json_value = calloc(
+pub unsafe extern "C" fn json_null_new() -> *mut JsonValue {
+    let mut value: *mut JsonValue = calloc(
         1 as usize,
-        ::core::mem::size_of::<json_builder_value>() as usize,
-    ) as *mut json_value;
+        ::core::mem::size_of::<JsonBuilderValue>() as usize,
+    ) as *mut JsonValue;
     if value.is_null() {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
-    (*(value as *mut json_builder_value)).is_builder_value = 1 as ::core::ffi::c_int;
-    (*value).type_0 = json_null;
+    (*(value as *mut JsonBuilderValue)).is_builder_value = 1 as ::core::ffi::c_int;
+    (*value).type_0 = JsonType::Null;
     return value;
 }
-pub unsafe extern "C" fn json_object_sort(mut object: *mut json_value, mut proto: *mut json_value) {
+pub unsafe extern "C" fn json_object_sort(mut object: *mut JsonValue, mut proto: *mut JsonValue) {
     let mut i: ::core::ffi::c_uint = 0;
     let mut out_index: ::core::ffi::c_uint = 0 as ::core::ffi::c_uint;
     if builderize(object) == 0 {
@@ -364,10 +364,10 @@ pub unsafe extern "C" fn json_object_sort(mut object: *mut json_value, mut proto
     i = 0 as ::core::ffi::c_uint;
     while i < (*proto).u.object.length {
         let mut j: ::core::ffi::c_uint = 0;
-        let mut proto_entry: json_object_entry = *(*proto).u.object.values.offset(i as isize);
+        let mut proto_entry: JsonObjectEntry = *(*proto).u.object.values.offset(i as isize);
         j = 0 as ::core::ffi::c_uint;
         while j < (*object).u.object.length {
-            let mut entry: json_object_entry = *(*object).u.object.values.offset(j as isize);
+            let mut entry: JsonObjectEntry = *(*object).u.object.values.offset(j as isize);
             if !(entry.name_length != proto_entry.name_length) {
                 if !(memcmp(
                     entry.name as *const ::core::ffi::c_void,
@@ -387,43 +387,43 @@ pub unsafe extern "C" fn json_object_sort(mut object: *mut json_value, mut proto
     }
 }
 pub unsafe extern "C" fn json_object_merge(
-    mut objectA: *mut json_value,
-    mut objectB: *mut json_value,
-) -> *mut json_value {
+    mut objectA: *mut JsonValue,
+    mut objectB: *mut JsonValue,
+) -> *mut JsonValue {
     let mut i: ::core::ffi::c_uint = 0;
     if builderize(objectA) == 0 || builderize(objectB) == 0 {
-        return ::core::ptr::null_mut::<json_value>();
+        return ::core::ptr::null_mut::<JsonValue>();
     }
     if (*objectB).u.object.length as usize
-        <= (*(objectA as *mut json_builder_value)).additional_length_allocated
+        <= (*(objectA as *mut JsonBuilderValue)).additional_length_allocated
     {
-        let ref mut fresh3 = (*(objectA as *mut json_builder_value)).additional_length_allocated;
+        let ref mut fresh3 = (*(objectA as *mut JsonBuilderValue)).additional_length_allocated;
         *fresh3 = (*fresh3).wrapping_sub((*objectB).u.object.length as usize);
     } else {
-        let mut values_new: *mut json_object_entry = ::core::ptr::null_mut::<json_object_entry>();
+        let mut values_new: *mut JsonObjectEntry = ::core::ptr::null_mut::<JsonObjectEntry>();
         let mut alloc: ::core::ffi::c_uint = ((*objectA).u.object.length as usize)
-            .wrapping_add((*(objectA as *mut json_builder_value)).additional_length_allocated)
+            .wrapping_add((*(objectA as *mut JsonBuilderValue)).additional_length_allocated)
             .wrapping_add((*objectB).u.object.length as usize)
             as ::core::ffi::c_uint;
         values_new = realloc(
             (*objectA).u.object.values as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<json_object_entry>() as usize).wrapping_mul(alloc as usize),
-        ) as *mut json_object_entry;
+            (::core::mem::size_of::<JsonObjectEntry>() as usize).wrapping_mul(alloc as usize),
+        ) as *mut JsonObjectEntry;
         if values_new.is_null() {
-            return ::core::ptr::null_mut::<json_value>();
+            return ::core::ptr::null_mut::<JsonValue>();
         }
         (*objectA).u.object.values = values_new;
     }
     i = 0 as ::core::ffi::c_uint;
     while i < (*objectB).u.object.length {
-        let mut entry: *mut json_object_entry = (*objectA)
+        let mut entry: *mut JsonObjectEntry = (*objectA)
             .u
             .object
             .values
             .offset((*objectA).u.object.length.wrapping_add(i) as isize)
-            as *mut json_object_entry;
+            as *mut JsonObjectEntry;
         *entry = *(*objectB).u.object.values.offset(i as isize);
-        (*(*entry).value).parent = objectA as *mut _json_value;
+        (*(*entry).value).parent = objectA as *mut JsonValue;
         i = i.wrapping_add(1);
     }
     (*objectA).u.object.length = (*objectA)
@@ -576,12 +576,12 @@ unsafe extern "C" fn serialize_string(
     }
     return buf.offset_from(orig_buf) as ::core::ffi::c_long as usize;
 }
-pub unsafe extern "C" fn json_measure(mut value: *mut json_value) -> usize {
+pub unsafe extern "C" fn json_measure(mut value: *mut JsonValue) -> usize {
     return json_measure_ex(value, default_opts);
 }
 pub unsafe extern "C" fn json_measure_ex(
-    mut value: *mut json_value,
-    mut opts: json_serialize_opts,
+    mut value: *mut JsonValue,
+    mut opts: JsonSerializeOpts,
 ) -> usize {
     let mut total: usize = 1 as usize;
     let mut newlines: usize = 0 as usize;
@@ -610,10 +610,10 @@ pub unsafe extern "C" fn json_measure_ex(
     let mut current_block_76: u64;
     while !value.is_null() {
         let mut integer: i64 = 0;
-        let mut entry: *mut json_object_entry = ::core::ptr::null_mut::<json_object_entry>();
+        let mut entry: *mut JsonObjectEntry = ::core::ptr::null_mut::<JsonObjectEntry>();
         match (*value).type_0 {
-            json_array => {
-                if (*(value as *mut json_builder_value)).length_iterated == 0 as usize {
+            JsonType::Array => {
+                if (*(value as *mut JsonBuilderValue)).length_iterated == 0 as usize {
                     if (*value).u.array.length == 0 as ::core::ffi::c_uint {
                         total = total.wrapping_add(2 as usize);
                         current_block_76 = 9437375157805982253;
@@ -630,36 +630,36 @@ pub unsafe extern "C" fn json_measure_ex(
                 match current_block_76 {
                     9437375157805982253 => {}
                     _ => {
-                        if (*(value as *mut json_builder_value)).length_iterated
+                        if (*(value as *mut JsonBuilderValue)).length_iterated
                             == (*value).u.array.length as usize
                         {
                             depth = depth.wrapping_sub(1);
                             newlines = newlines.wrapping_add(1);
                             indents = indents.wrapping_add(depth);
                             total = total.wrapping_add(bracket_size as usize);
-                            (*(value as *mut json_builder_value)).length_iterated = 0 as usize;
+                            (*(value as *mut JsonBuilderValue)).length_iterated = 0 as usize;
                         } else {
-                            if (*(value as *mut json_builder_value)).length_iterated > 0 as usize {
+                            if (*(value as *mut JsonBuilderValue)).length_iterated > 0 as usize {
                                 total = total.wrapping_add(comma_size as usize);
                                 newlines = newlines.wrapping_add(1);
                                 indents = indents.wrapping_add(depth);
                             }
                             let ref mut fresh4 =
-                                (*(value as *mut json_builder_value)).length_iterated;
+                                (*(value as *mut JsonBuilderValue)).length_iterated;
                             *fresh4 = (*fresh4).wrapping_add(1);
                             value = *(*value).u.array.values.offset(
-                                (*(value as *mut json_builder_value))
+                                (*(value as *mut JsonBuilderValue))
                                     .length_iterated
                                     .wrapping_sub(1 as usize)
                                     as isize,
-                            ) as *mut json_value;
+                            ) as *mut JsonValue;
                             continue;
                         }
                     }
                 }
             }
-            json_object => {
-                if (*(value as *mut json_builder_value)).length_iterated == 0 as usize {
+            JsonType::Object => {
+                if (*(value as *mut JsonBuilderValue)).length_iterated == 0 as usize {
                     if (*value).u.object.length == 0 as ::core::ffi::c_uint {
                         total = total.wrapping_add(2 as usize);
                         current_block_76 = 9437375157805982253;
@@ -676,22 +676,22 @@ pub unsafe extern "C" fn json_measure_ex(
                 match current_block_76 {
                     9437375157805982253 => {}
                     _ => {
-                        if (*(value as *mut json_builder_value)).length_iterated
+                        if (*(value as *mut JsonBuilderValue)).length_iterated
                             == (*value).u.object.length as usize
                         {
                             depth = depth.wrapping_sub(1);
                             newlines = newlines.wrapping_add(1);
                             indents = indents.wrapping_add(depth);
                             total = total.wrapping_add(bracket_size as usize);
-                            (*(value as *mut json_builder_value)).length_iterated = 0 as usize;
+                            (*(value as *mut JsonBuilderValue)).length_iterated = 0 as usize;
                         } else {
-                            if (*(value as *mut json_builder_value)).length_iterated > 0 as usize {
+                            if (*(value as *mut JsonBuilderValue)).length_iterated > 0 as usize {
                                 total = total.wrapping_add(comma_size as usize);
                                 newlines = newlines.wrapping_add(1);
                                 indents = indents.wrapping_add(depth);
                             }
                             let ref mut fresh5 =
-                                (*(value as *mut json_builder_value)).length_iterated;
+                                (*(value as *mut JsonBuilderValue)).length_iterated;
                             let fresh6 = *fresh5;
                             *fresh5 = (*fresh5).wrapping_add(1);
                             entry = (*value).u.object.values.offset(fresh6 as isize);
@@ -699,23 +699,23 @@ pub unsafe extern "C" fn json_measure_ex(
                                 .wrapping_add((2 as ::core::ffi::c_int + colon_size) as usize);
                             total = total
                                 .wrapping_add(measure_string((*entry).name_length, (*entry).name));
-                            value = (*entry).value as *mut json_value;
+                            value = (*entry).value as *mut JsonValue;
                             continue;
                         }
                     }
                 }
             }
-            json_pre_serialized => {
+            JsonType::PreSerialized => {
                 total = total.wrapping_add((*value).u.string.length as usize);
             }
-            json_string => {
+            JsonType::String => {
                 total = total.wrapping_add(2 as usize);
                 total = total.wrapping_add(measure_string(
                     (*value).u.string.length,
                     (*value).u.string.ptr,
                 ));
             }
-            json_integer => {
+            JsonType::Integer => {
                 integer = (*value).u.integer;
                 if integer < 0 as i64 {
                     total = total.wrapping_add(1 as usize);
@@ -727,12 +727,12 @@ pub unsafe extern "C" fn json_measure_ex(
                     integer /= 10 as i64;
                 }
             }
-            json_double => {
+            JsonType::Double => {
                 let mut buffer: [::core::ffi::c_char; 256] = [0; 256];
                 emyg_dtoa((*value).u.dbl, &raw mut buffer as *mut ::core::ffi::c_char);
                 total = total.wrapping_add(strlen(&raw mut buffer as *mut ::core::ffi::c_char));
             }
-            json_boolean => {
+            JsonType::Boolean => {
                 total = total.wrapping_add(
                     (if (*value).u.boolean != 0 {
                         4 as ::core::ffi::c_int
@@ -741,12 +741,12 @@ pub unsafe extern "C" fn json_measure_ex(
                     }) as usize,
                 );
             }
-            json_null => {
+            JsonType::Null => {
                 total = total.wrapping_add(4 as usize);
             }
             _ => {}
         }
-        value = (*value).parent as *mut json_value;
+        value = (*value).parent as *mut JsonValue;
     }
     if opts.mode == json_serialize_mode_multiline {
         total = total.wrapping_add(newlines.wrapping_mul(
@@ -762,18 +762,18 @@ pub unsafe extern "C" fn json_measure_ex(
 }
 pub unsafe extern "C" fn json_serialize(
     mut buf: *mut ::core::ffi::c_char,
-    mut value: *mut json_value,
+    mut value: *mut JsonValue,
 ) {
     json_serialize_ex(buf, value, default_opts);
 }
 pub unsafe extern "C" fn json_serialize_ex(
     mut buf: *mut ::core::ffi::c_char,
-    mut value: *mut json_value,
-    mut opts: json_serialize_opts,
+    mut value: *mut JsonValue,
+    mut opts: JsonSerializeOpts,
 ) {
     let mut integer: i64 = 0;
     let mut orig_integer: i64 = 0;
-    let mut entry: *mut json_object_entry = ::core::ptr::null_mut::<json_object_entry>();
+    let mut entry: *mut JsonObjectEntry = ::core::ptr::null_mut::<JsonObjectEntry>();
     let mut ptr: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut indent: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut indent_char: ::core::ffi::c_char = 0;
@@ -788,8 +788,8 @@ pub unsafe extern "C" fn json_serialize_ex(
     let mut current_block_156: u64;
     while !value.is_null() {
         match (*value).type_0 {
-            json_array => {
-                if (*(value as *mut json_builder_value)).length_iterated == 0 as usize {
+            JsonType::Array => {
+                if (*(value as *mut JsonBuilderValue)).length_iterated == 0 as usize {
                     if (*value).u.array.length == 0 as ::core::ffi::c_uint {
                         let fresh7 = buf;
                         buf = buf.offset(1);
@@ -833,7 +833,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                 match current_block_156 {
                     5089124893069931607 => {}
                     _ => {
-                        if (*(value as *mut json_builder_value)).length_iterated
+                        if (*(value as *mut JsonBuilderValue)).length_iterated
                             == (*value).u.array.length as usize
                         {
                             indent -= opts.indent_size;
@@ -862,9 +862,9 @@ pub unsafe extern "C" fn json_serialize_ex(
                             let fresh18 = buf;
                             buf = buf.offset(1);
                             *fresh18 = ']' as i32 as ::core::ffi::c_char;
-                            (*(value as *mut json_builder_value)).length_iterated = 0 as usize;
+                            (*(value as *mut JsonBuilderValue)).length_iterated = 0 as usize;
                         } else {
-                            if (*(value as *mut json_builder_value)).length_iterated > 0 as usize {
+                            if (*(value as *mut JsonBuilderValue)).length_iterated > 0 as usize {
                                 let fresh19 = buf;
                                 buf = buf.offset(1);
                                 *fresh19 = ',' as i32 as ::core::ffi::c_char;
@@ -892,21 +892,21 @@ pub unsafe extern "C" fn json_serialize_ex(
                                 }
                             }
                             let ref mut fresh24 =
-                                (*(value as *mut json_builder_value)).length_iterated;
+                                (*(value as *mut JsonBuilderValue)).length_iterated;
                             *fresh24 = (*fresh24).wrapping_add(1);
                             value = *(*value).u.array.values.offset(
-                                (*(value as *mut json_builder_value))
+                                (*(value as *mut JsonBuilderValue))
                                     .length_iterated
                                     .wrapping_sub(1 as usize)
                                     as isize,
-                            ) as *mut json_value;
+                            ) as *mut JsonValue;
                             continue;
                         }
                     }
                 }
             }
-            json_object => {
-                if (*(value as *mut json_builder_value)).length_iterated == 0 as usize {
+            JsonType::Object => {
+                if (*(value as *mut JsonBuilderValue)).length_iterated == 0 as usize {
                     if (*value).u.object.length == 0 as ::core::ffi::c_uint {
                         let fresh25 = buf;
                         buf = buf.offset(1);
@@ -950,7 +950,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                 match current_block_156 {
                     5089124893069931607 => {}
                     _ => {
-                        if (*(value as *mut json_builder_value)).length_iterated
+                        if (*(value as *mut JsonBuilderValue)).length_iterated
                             == (*value).u.object.length as usize
                         {
                             indent -= opts.indent_size;
@@ -979,9 +979,9 @@ pub unsafe extern "C" fn json_serialize_ex(
                             let fresh36 = buf;
                             buf = buf.offset(1);
                             *fresh36 = '}' as i32 as ::core::ffi::c_char;
-                            (*(value as *mut json_builder_value)).length_iterated = 0 as usize;
+                            (*(value as *mut JsonBuilderValue)).length_iterated = 0 as usize;
                         } else {
-                            if (*(value as *mut json_builder_value)).length_iterated > 0 as usize {
+                            if (*(value as *mut JsonBuilderValue)).length_iterated > 0 as usize {
                                 let fresh37 = buf;
                                 buf = buf.offset(1);
                                 *fresh37 = ',' as i32 as ::core::ffi::c_char;
@@ -1009,7 +1009,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                                 }
                             }
                             let ref mut fresh42 =
-                                (*(value as *mut json_builder_value)).length_iterated;
+                                (*(value as *mut JsonBuilderValue)).length_iterated;
                             let fresh43 = *fresh42;
                             *fresh42 = (*fresh42).wrapping_add(1);
                             entry = (*value).u.object.values.offset(fresh43 as isize);
@@ -1032,13 +1032,13 @@ pub unsafe extern "C" fn json_serialize_ex(
                                 buf = buf.offset(1);
                                 *fresh47 = ' ' as i32 as ::core::ffi::c_char;
                             }
-                            value = (*entry).value as *mut json_value;
+                            value = (*entry).value as *mut JsonValue;
                             continue;
                         }
                     }
                 }
             }
-            json_pre_serialized => {
+            JsonType::PreSerialized => {
                 memcpy(
                     buf as *mut ::core::ffi::c_void,
                     (*value).u.string.ptr as *const ::core::ffi::c_void,
@@ -1046,7 +1046,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                 );
                 buf = buf.offset((*value).u.string.length as isize);
             }
-            json_string => {
+            JsonType::String => {
                 let fresh48 = buf;
                 buf = buf.offset(1);
                 *fresh48 = '"' as i32 as ::core::ffi::c_char;
@@ -1059,7 +1059,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                 buf = buf.offset(1);
                 *fresh49 = '"' as i32 as ::core::ffi::c_char;
             }
-            json_integer => {
+            JsonType::Integer => {
                 integer = (*value).u.integer;
                 if integer < 0 as i64 {
                     let fresh50 = buf;
@@ -1086,7 +1086,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                     }
                 }
             }
-            json_double => {
+            JsonType::Double => {
                 let mut tmp: [::core::ffi::c_char; 256] = [0; 256];
                 emyg_dtoa((*value).u.dbl, &raw mut tmp as *mut ::core::ffi::c_char);
                 memcpy(
@@ -1096,7 +1096,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                 );
                 buf = buf.offset(strlen(&raw mut tmp as *mut ::core::ffi::c_char) as isize);
             }
-            json_boolean => {
+            JsonType::Boolean => {
                 if (*value).u.boolean != 0 {
                     memcpy(
                         buf as *mut ::core::ffi::c_void,
@@ -1115,7 +1115,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                     buf = buf.offset(5 as ::core::ffi::c_int as isize);
                 }
             }
-            json_null => {
+            JsonType::Null => {
                 memcpy(
                     buf as *mut ::core::ffi::c_void,
                     b"null\0" as *const u8 as *const ::core::ffi::c_char
@@ -1126,19 +1126,19 @@ pub unsafe extern "C" fn json_serialize_ex(
             }
             _ => {}
         }
-        value = (*value).parent as *mut json_value;
+        value = (*value).parent as *mut JsonValue;
     }
     *buf = 0 as ::core::ffi::c_char;
 }
-pub unsafe extern "C" fn json_builder_free(mut value: *mut json_value) {
-    let mut cur_value: *mut json_value = ::core::ptr::null_mut::<json_value>();
+pub unsafe extern "C" fn json_builder_free(mut value: *mut JsonValue) {
+    let mut cur_value: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     if value.is_null() {
         return;
     }
-    (*value).parent = ::core::ptr::null_mut::<_json_value>();
+    (*value).parent = ::core::ptr::null_mut::<JsonValue>();
     while !value.is_null() {
         match (*value).type_0 {
-            json_array => {
+            JsonType::Array => {
                 if (*value).u.array.length == 0 {
                     free((*value).u.array.values as *mut ::core::ffi::c_void);
                 } else {
@@ -1148,16 +1148,16 @@ pub unsafe extern "C" fn json_builder_free(mut value: *mut json_value) {
                         .array
                         .values
                         .offset((*value).u.array.length as isize)
-                        as *mut json_value;
+                        as *mut JsonValue;
                     continue;
                 }
             }
-            json_object => {
+            JsonType::Object => {
                 if (*value).u.object.length == 0 {
                     free((*value).u.object.values as *mut ::core::ffi::c_void);
                 } else {
                     (*value).u.object.length = (*value).u.object.length.wrapping_sub(1);
-                    if (*(value as *mut json_builder_value)).is_builder_value != 0 {
+                    if (*(value as *mut JsonBuilderValue)).is_builder_value != 0 {
                         free(
                             (*(*value)
                                 .u
@@ -1172,17 +1172,17 @@ pub unsafe extern "C" fn json_builder_free(mut value: *mut json_value) {
                         .object
                         .values
                         .offset((*value).u.object.length as isize))
-                    .value as *mut json_value;
+                    .value as *mut JsonValue;
                     continue;
                 }
             }
-            json_string | json_pre_serialized => {
+            JsonType::String | JsonType::PreSerialized => {
                 free((*value).u.string.ptr as *mut ::core::ffi::c_void);
             }
             _ => {}
         }
         cur_value = value;
-        value = (*value).parent as *mut json_value;
+        value = (*value).parent as *mut JsonValue;
         free(cur_value as *mut ::core::ffi::c_void);
     }
 }

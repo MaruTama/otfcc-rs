@@ -1,14 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::table::otl::coverage::{otl_Coverage, shrinkCoverage};
-use crate::support::handle::{otfcc_GlyphHandle, otfcc_Handle, otfcc_Handle_dup};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
+use crate::table::otl::coverage::{Coverage, shrinkCoverage};
+use crate::support::handle::{GlyphHandle, Handle, otfcc_Handle_dup};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{glyphid_t};
+use crate::support::options::{Options};
+use crate::support::primitives::{GlyphId};
 
-use crate::font::caryll_font::{otfcc_Font};
-
-
+use crate::font::caryll_font::{Font};
 
 
 
@@ -32,7 +30,9 @@ use crate::font::caryll_font::{otfcc_Font};
 
 
 
-use crate::table::otl::{otl_GsubLigatureEntry, otl_Subtable, subtable_gsub_ligature, table_OTL};
+
+
+use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable, OtlTable};
 use crate::consolidate::otl::common::{fontop_consolidateCoverage};
 use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
 use crate::table::otl::subtables::gsub_ligature::{iSubtable_gsub_ligature};
@@ -48,21 +48,21 @@ use crate::vendor::sds::{sdsempty};
 
 
 pub unsafe extern "C" fn consolidate_gsub_ligature(
-    mut font: *mut otfcc_Font,
-    mut _table: *mut table_OTL,
-    mut _subtable: *mut otl_Subtable,
-    mut options: *const otfcc_Options,
+    mut font: *mut Font,
+    mut _table: *mut OtlTable,
+    mut _subtable: *mut Subtable,
+    mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut subtable_gsub_ligature = &raw mut (*_subtable).gsub_ligature;
-    let mut nt: subtable_gsub_ligature = subtable_gsub_ligature {
+    let mut subtable: *mut GsubLigatureSubtable = &raw mut (*_subtable).gsub_ligature;
+    let mut nt: GsubLigatureSubtable = GsubLigatureSubtable {
         length: 0,
         capacity: 0,
-        items: ::core::ptr::null_mut::<otl_GsubLigatureEntry>(),
+        items: ::core::ptr::null_mut::<GsubLigatureEntry>(),
     };
     iSubtable_gsub_ligature
         .init
         .expect("non-null function pointer")(&raw mut nt);
-    let mut k: glyphid_t = 0 as glyphid_t;
+    let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).length {
         if !otfcc_pkgGlyphOrder
             .consolidateHandle
@@ -73,9 +73,9 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger,
+                (*options).logger as *mut ILogger,
                 log_vl_important,
-                log_type_warning,
+                LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
@@ -93,9 +93,9 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                 (*(*options).logger)
                     .logSDS
                     .expect("non-null function pointer")(
-                    (*options).logger as *mut otfcc_ILogger,
+                    (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignoring empty ligature substitution to glyph /",
@@ -108,15 +108,15 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                     .push
                     .expect("non-null function pointer")(
                     &raw mut nt,
-                    otl_GsubLigatureEntry {
+                    GsubLigatureEntry {
                         from: (*(*subtable).items.offset(k as isize)).from,
                         to: otfcc_Handle_dup(
-                            (*(*subtable).items.offset(k as isize)).to as otfcc_Handle,
-                        ) as otfcc_GlyphHandle,
+                            (*(*subtable).items.offset(k as isize)).to as Handle,
+                        ) as GlyphHandle,
                     },
                 );
                 let ref mut fresh0 = (*(*subtable).items.offset(k as isize)).from;
-                *fresh0 = ::core::ptr::null_mut::<otl_Coverage>();
+                *fresh0 = ::core::ptr::null_mut::<Coverage>();
             }
         }
         k = k.wrapping_add(1);

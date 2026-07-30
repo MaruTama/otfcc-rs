@@ -1,15 +1,14 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{memmove};
-pub type DiyFp = DiyFp_s;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct DiyFp_s {
+pub struct DiyFp {
     pub f: u64,
     pub e: ::core::ffi::c_int,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union dtoa_DoubleBits {
+pub union DoubleBits {
     pub d: ::core::ffi::c_double,
     pub u64_0: u64,
 }
@@ -30,14 +29,14 @@ static kDpHiddenBit: u64 = (0x100000 as ::core::ffi::c_int as u64)
     | 0 as ::core::ffi::c_int as u64;
 #[inline]
 unsafe extern "C" fn DiyFp_from_parts(mut f: u64, mut e: ::core::ffi::c_int) -> DiyFp {
-    let mut fp: DiyFp = DiyFp_s { f: 0, e: 0 };
+    let mut fp: DiyFp = DiyFp { f: 0, e: 0 };
     fp.f = f;
     fp.e = e;
     return fp;
 }
 pub unsafe extern "C" fn DiyFp_from_double(mut d: ::core::ffi::c_double) -> DiyFp {
-    let mut u: dtoa_DoubleBits = dtoa_DoubleBits { d: d };
-    let mut res: DiyFp = DiyFp_s { f: 0, e: 0 };
+    let mut u: DoubleBits = DoubleBits { d: d };
+    let mut res: DiyFp = DiyFp { f: 0, e: 0 };
     let mut biased_e: ::core::ffi::c_int =
         ((u.u64_0 & kDpExponentMask) >> kDpSignificandSize) as ::core::ffi::c_int;
     let mut significand: u64 = u.u64_0 & kDpSignificandMask;
@@ -584,8 +583,8 @@ unsafe extern "C" fn Grisu2(
     mut K: *mut ::core::ffi::c_int,
 ) {
     let v: DiyFp = DiyFp_from_double(value) as DiyFp;
-    let mut w_m: DiyFp = DiyFp_s { f: 0, e: 0 };
-    let mut w_p: DiyFp = DiyFp_s { f: 0, e: 0 };
+    let mut w_m: DiyFp = DiyFp { f: 0, e: 0 };
+    let mut w_p: DiyFp = DiyFp { f: 0, e: 0 };
     NormalizedBoundaries(v, &raw mut w_m, &raw mut w_p);
     let c_mk: DiyFp = GetCachedPower(w_p.e, K) as DiyFp;
     let W: DiyFp = DiyFp_multiply(Normalize(v), c_mk) as DiyFp;

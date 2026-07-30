@@ -2,15 +2,15 @@
 use libc::{free, malloc, memcpy, memset, qsort};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint};
 use crate::support::binio::{read_16u};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{font_file_pointer};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
-use crate::vendor::json::{json_array, json_integer, json_object, json_string, json_value};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::support::buffer::{Buffer};
+use crate::support::options::{Options};
+use crate::support::primitives::{FontFilePointer};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
-use crate::support::{__compar_fn_t};
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::support::{ComparFn};
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite16b, bufwrite_buf, bufwrite_bytes};
@@ -20,93 +20,93 @@ use crate::vendor::sds::{sdsempty, sdsfree, sdsgrowzero, sdsnewlen};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct otfcc_NameRecord {
+pub struct NameRecord {
     pub platformID: u16,
     pub encodingID: u16,
     pub languageID: u16,
     pub nameID: u16,
-    pub nameString: sds,
+    pub nameString: SdsRaw,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_otfcc_NameRecord {
-    pub init: Option<unsafe extern "C" fn(*mut otfcc_NameRecord) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut otfcc_NameRecord, *const otfcc_NameRecord) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut otfcc_NameRecord, *mut otfcc_NameRecord) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut otfcc_NameRecord) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut otfcc_NameRecord, otfcc_NameRecord) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut otfcc_NameRecord, otfcc_NameRecord) -> ()>,
+pub struct NameRecordElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut NameRecord) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut NameRecord, *const NameRecord) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut NameRecord, *mut NameRecord) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut NameRecord) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut NameRecord, NameRecord) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut NameRecord, NameRecord) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct table_name {
+pub struct NameTable {
     pub length: usize,
     pub capacity: usize,
-    pub items: *mut otfcc_NameRecord,
+    pub items: *mut NameRecord,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_vectorinterface_table_name {
-    pub init: Option<unsafe extern "C" fn(*mut table_name) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_name, *const table_name) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_name, *mut table_name) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_name) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_name, table_name) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_name, table_name) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_name>,
-    pub free: Option<unsafe extern "C" fn(*mut table_name) -> ()>,
-    pub initN: Option<unsafe extern "C" fn(*mut table_name, usize) -> ()>,
-    pub initCapN: Option<unsafe extern "C" fn(*mut table_name, usize) -> ()>,
-    pub createN: Option<unsafe extern "C" fn(usize) -> *mut table_name>,
-    pub fill: Option<unsafe extern "C" fn(*mut table_name, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut table_name) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut table_name, otfcc_NameRecord) -> ()>,
-    pub shrinkToFit: Option<unsafe extern "C" fn(*mut table_name) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut table_name) -> otfcc_NameRecord>,
-    pub disposeItem: Option<unsafe extern "C" fn(*mut table_name, usize) -> ()>,
+pub struct NameTableVectorInterface {
+    pub init: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut NameTable, *const NameTable) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut NameTable, *mut NameTable) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut NameTable, NameTable) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut NameTable, NameTable) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut NameTable>,
+    pub free: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
+    pub initN: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
+    pub initCapN: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
+    pub createN: Option<unsafe extern "C" fn(usize) -> *mut NameTable>,
+    pub fill: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
+    pub clear: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
+    pub push: Option<unsafe extern "C" fn(*mut NameTable, NameRecord) -> ()>,
+    pub shrinkToFit: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
+    pub pop: Option<unsafe extern "C" fn(*mut NameTable) -> NameRecord>,
+    pub disposeItem: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
     pub filterEnv: Option<
         unsafe extern "C" fn(
-            *mut table_name,
-            Option<unsafe extern "C" fn(*const otfcc_NameRecord, *mut ::core::ffi::c_void) -> bool>,
+            *mut NameTable,
+            Option<unsafe extern "C" fn(*const NameRecord, *mut ::core::ffi::c_void) -> bool>,
             *mut ::core::ffi::c_void,
         ) -> (),
     >,
     pub sort: Option<
         unsafe extern "C" fn(
-            *mut table_name,
+            *mut NameTable,
             Option<
                 unsafe extern "C" fn(
-                    *const otfcc_NameRecord,
-                    *const otfcc_NameRecord,
+                    *const NameRecord,
+                    *const NameRecord,
                 ) -> ::core::ffi::c_int,
             >,
         ) -> (),
     >,
 }
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> usize {
+unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut sdshdr8))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut SdsHdr8))
                 .len as usize;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .len as usize;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .len as usize;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .len as usize;
         }
         _ => {}
@@ -114,106 +114,106 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     return 0 as usize;
 }
 pub const COPYRIGHT_LEN: ::core::ffi::c_int = 32 as ::core::ffi::c_int;
-unsafe extern "C" fn nameRecordDtor(mut entry: *mut otfcc_NameRecord) {
+unsafe extern "C" fn nameRecordDtor(mut entry: *mut NameRecord) {
     sdsfree((*entry).nameString);
     (*entry).nameString = ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
 #[inline]
 unsafe extern "C" fn otfcc_NameRecord_move(
-    mut dst: *mut otfcc_NameRecord,
-    mut src: *mut otfcc_NameRecord,
+    mut dst: *mut NameRecord,
+    mut src: *mut NameRecord,
 ) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_NameRecord>() as usize,
+        ::core::mem::size_of::<NameRecord>() as usize,
     );
     otfcc_NameRecord_init(src);
 }
 #[inline]
-unsafe extern "C" fn otfcc_NameRecord_init(mut x: *mut otfcc_NameRecord) {
+unsafe extern "C" fn otfcc_NameRecord_init(mut x: *mut NameRecord) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<otfcc_NameRecord>() as usize,
+        ::core::mem::size_of::<NameRecord>() as usize,
     );
 }
 #[inline]
 unsafe extern "C" fn otfcc_NameRecord_replace(
-    mut dst: *mut otfcc_NameRecord,
-    src: otfcc_NameRecord,
+    mut dst: *mut NameRecord,
+    src: NameRecord,
 ) {
     otfcc_NameRecord_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_NameRecord>() as usize,
+        ::core::mem::size_of::<NameRecord>() as usize,
     );
 }
 #[inline]
 unsafe extern "C" fn otfcc_NameRecord_copyReplace(
-    mut dst: *mut otfcc_NameRecord,
-    src: otfcc_NameRecord,
+    mut dst: *mut NameRecord,
+    src: NameRecord,
 ) {
     otfcc_NameRecord_dispose(dst);
     otfcc_NameRecord_copy(dst, &raw const src);
 }
-pub static otfcc_iNameRecord: __caryll_elementinterface_otfcc_NameRecord = {
-    __caryll_elementinterface_otfcc_NameRecord {
-        init: Some(otfcc_NameRecord_init as unsafe extern "C" fn(*mut otfcc_NameRecord) -> ()),
+pub static otfcc_iNameRecord: NameRecordElementInterface = {
+    NameRecordElementInterface {
+        init: Some(otfcc_NameRecord_init as unsafe extern "C" fn(*mut NameRecord) -> ()),
         copy: Some(
             otfcc_NameRecord_copy
-                as unsafe extern "C" fn(*mut otfcc_NameRecord, *const otfcc_NameRecord) -> (),
+                as unsafe extern "C" fn(*mut NameRecord, *const NameRecord) -> (),
         ),
         move_0: Some(
             otfcc_NameRecord_move
-                as unsafe extern "C" fn(*mut otfcc_NameRecord, *mut otfcc_NameRecord) -> (),
+                as unsafe extern "C" fn(*mut NameRecord, *mut NameRecord) -> (),
         ),
         dispose: Some(
-            otfcc_NameRecord_dispose as unsafe extern "C" fn(*mut otfcc_NameRecord) -> (),
+            otfcc_NameRecord_dispose as unsafe extern "C" fn(*mut NameRecord) -> (),
         ),
         replace: Some(
             otfcc_NameRecord_replace
-                as unsafe extern "C" fn(*mut otfcc_NameRecord, otfcc_NameRecord) -> (),
+                as unsafe extern "C" fn(*mut NameRecord, NameRecord) -> (),
         ),
         copyReplace: Some(
             otfcc_NameRecord_copyReplace
-                as unsafe extern "C" fn(*mut otfcc_NameRecord, otfcc_NameRecord) -> (),
+                as unsafe extern "C" fn(*mut NameRecord, NameRecord) -> (),
         ),
     }
 };
 #[inline]
-unsafe extern "C" fn otfcc_NameRecord_dispose(mut x: *mut otfcc_NameRecord) {
+unsafe extern "C" fn otfcc_NameRecord_dispose(mut x: *mut NameRecord) {
     nameRecordDtor(x);
 }
 #[inline]
 unsafe extern "C" fn otfcc_NameRecord_copy(
-    mut dst: *mut otfcc_NameRecord,
-    mut src: *const otfcc_NameRecord,
+    mut dst: *mut NameRecord,
+    mut src: *const NameRecord,
 ) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<otfcc_NameRecord>() as usize,
+        ::core::mem::size_of::<NameRecord>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_name_growTo(arr: *mut table_name, target: usize) {
+unsafe extern "C" fn table_name_growTo(arr: *mut NameTable, target: usize) {
     cvec_grow_to(table_name_as_cvec(arr), target);
 }
 #[inline]
-unsafe fn table_name_as_cvec(arr: *mut table_name) -> *mut CVecRaw<otfcc_NameRecord> {
-    arr as *mut CVecRaw<otfcc_NameRecord>
+unsafe fn table_name_as_cvec(arr: *mut NameTable) -> *mut CVecRaw<NameRecord> {
+    arr as *mut CVecRaw<NameRecord>
 }
 #[inline]
-unsafe extern "C" fn table_name_init(arr: *mut table_name) {
+unsafe extern "C" fn table_name_init(arr: *mut NameTable) {
     cvec_init(table_name_as_cvec(arr));
 }
 #[inline]
 unsafe extern "C" fn table_name_filterEnv(
-    mut arr: *mut table_name,
+    mut arr: *mut NameTable,
     mut fn_0: Option<
-        unsafe extern "C" fn(*const otfcc_NameRecord, *mut ::core::ffi::c_void) -> bool,
+        unsafe extern "C" fn(*const NameRecord, *mut ::core::ffi::c_void) -> bool,
     >,
     mut env: *mut ::core::ffi::c_void,
 ) {
@@ -221,7 +221,7 @@ unsafe extern "C" fn table_name_filterEnv(
     let mut k: usize = 0 as usize;
     while k < (*arr).length {
         if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut otfcc_NameRecord,
+            (*arr).items.offset(k as isize) as *mut NameRecord,
             env,
         ) {
             if j != k {
@@ -233,7 +233,7 @@ unsafe extern "C" fn table_name_filterEnv(
                 otfcc_iNameRecord
                     .dispose
                     .expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut otfcc_NameRecord,
+                    (*arr).items.offset(k as isize) as *mut NameRecord,
                 );
             } else {
             };
@@ -243,45 +243,45 @@ unsafe extern "C" fn table_name_filterEnv(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn table_name_disposeItem(mut arr: *mut table_name, mut n: usize) {
+unsafe extern "C" fn table_name_disposeItem(mut arr: *mut NameTable, mut n: usize) {
     if otfcc_iNameRecord.dispose.is_some() {
         otfcc_iNameRecord
             .dispose
             .expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut otfcc_NameRecord
+            (*arr).items.offset(n as isize) as *mut NameRecord
         );
     } else {
     };
 }
 #[inline]
 unsafe extern "C" fn table_name_sort(
-    mut arr: *mut table_name,
+    mut arr: *mut NameTable,
     mut fn_0: Option<
         unsafe extern "C" fn(
-            *const otfcc_NameRecord,
-            *const otfcc_NameRecord,
+            *const NameRecord,
+            *const NameRecord,
         ) -> ::core::ffi::c_int,
     >,
 ) {
     qsort(
         (*arr).items as *mut ::core::ffi::c_void,
         (*arr).length,
-        ::core::mem::size_of::<otfcc_NameRecord>() as usize,
+        ::core::mem::size_of::<NameRecord>() as usize,
         ::core::mem::transmute::<
             Option<
                 unsafe extern "C" fn(
-                    *const otfcc_NameRecord,
-                    *const otfcc_NameRecord,
+                    *const NameRecord,
+                    *const NameRecord,
                 ) -> ::core::ffi::c_int,
             >,
-            __compar_fn_t,
+            ComparFn,
         >(fn_0),
     );
 }
 #[inline]
-unsafe extern "C" fn table_name_fill(mut arr: *mut table_name, mut n: usize) {
+unsafe extern "C" fn table_name_fill(mut arr: *mut NameTable, mut n: usize) {
     while (*arr).length < n {
-        let mut x: otfcc_NameRecord = otfcc_NameRecord {
+        let mut x: NameRecord = NameRecord {
             platformID: 0,
             encodingID: 0,
             languageID: 0,
@@ -294,58 +294,58 @@ unsafe extern "C" fn table_name_fill(mut arr: *mut table_name, mut n: usize) {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
                 0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<otfcc_NameRecord>() as usize,
+                ::core::mem::size_of::<NameRecord>() as usize,
             );
         }
         table_name_push(arr, x);
     }
 }
 #[inline]
-unsafe extern "C" fn table_name_push(arr: *mut table_name, elem: otfcc_NameRecord) {
+unsafe extern "C" fn table_name_push(arr: *mut NameTable, elem: NameRecord) {
     cvec_push(table_name_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn table_name_grow(arr: *mut table_name) {
+unsafe extern "C" fn table_name_grow(arr: *mut NameTable) {
     cvec_grow(table_name_as_cvec(arr));
 }
-pub static table_iName: __caryll_vectorinterface_table_name = {
-    __caryll_vectorinterface_table_name {
-        init: Some(table_name_init as unsafe extern "C" fn(*mut table_name) -> ()),
+pub static table_iName: NameTableVectorInterface = {
+    NameTableVectorInterface {
+        init: Some(table_name_init as unsafe extern "C" fn(*mut NameTable) -> ()),
         copy: Some(
-            table_name_copy as unsafe extern "C" fn(*mut table_name, *const table_name) -> (),
+            table_name_copy as unsafe extern "C" fn(*mut NameTable, *const NameTable) -> (),
         ),
         move_0: Some(
-            table_name_move as unsafe extern "C" fn(*mut table_name, *mut table_name) -> (),
+            table_name_move as unsafe extern "C" fn(*mut NameTable, *mut NameTable) -> (),
         ),
-        dispose: Some(table_name_dispose as unsafe extern "C" fn(*mut table_name) -> ()),
+        dispose: Some(table_name_dispose as unsafe extern "C" fn(*mut NameTable) -> ()),
         replace: Some(
-            table_name_replace as unsafe extern "C" fn(*mut table_name, table_name) -> (),
+            table_name_replace as unsafe extern "C" fn(*mut NameTable, NameTable) -> (),
         ),
         copyReplace: Some(
-            table_name_copyReplace as unsafe extern "C" fn(*mut table_name, table_name) -> (),
+            table_name_copyReplace as unsafe extern "C" fn(*mut NameTable, NameTable) -> (),
         ),
         create: Some(table_name_create),
-        free: Some(table_name_free as unsafe extern "C" fn(*mut table_name) -> ()),
-        initN: Some(table_name_initN as unsafe extern "C" fn(*mut table_name, usize) -> ()),
-        initCapN: Some(table_name_initCapN as unsafe extern "C" fn(*mut table_name, usize) -> ()),
-        createN: Some(table_name_createN as unsafe extern "C" fn(usize) -> *mut table_name),
-        fill: Some(table_name_fill as unsafe extern "C" fn(*mut table_name, usize) -> ()),
-        clear: Some(table_name_dispose as unsafe extern "C" fn(*mut table_name) -> ()),
+        free: Some(table_name_free as unsafe extern "C" fn(*mut NameTable) -> ()),
+        initN: Some(table_name_initN as unsafe extern "C" fn(*mut NameTable, usize) -> ()),
+        initCapN: Some(table_name_initCapN as unsafe extern "C" fn(*mut NameTable, usize) -> ()),
+        createN: Some(table_name_createN as unsafe extern "C" fn(usize) -> *mut NameTable),
+        fill: Some(table_name_fill as unsafe extern "C" fn(*mut NameTable, usize) -> ()),
+        clear: Some(table_name_dispose as unsafe extern "C" fn(*mut NameTable) -> ()),
         push: Some(
-            table_name_push as unsafe extern "C" fn(*mut table_name, otfcc_NameRecord) -> (),
+            table_name_push as unsafe extern "C" fn(*mut NameTable, NameRecord) -> (),
         ),
-        shrinkToFit: Some(table_name_shrinkToFit as unsafe extern "C" fn(*mut table_name) -> ()),
-        pop: Some(table_name_pop as unsafe extern "C" fn(*mut table_name) -> otfcc_NameRecord),
+        shrinkToFit: Some(table_name_shrinkToFit as unsafe extern "C" fn(*mut NameTable) -> ()),
+        pop: Some(table_name_pop as unsafe extern "C" fn(*mut NameTable) -> NameRecord),
         disposeItem: Some(
-            table_name_disposeItem as unsafe extern "C" fn(*mut table_name, usize) -> (),
+            table_name_disposeItem as unsafe extern "C" fn(*mut NameTable, usize) -> (),
         ),
         filterEnv: Some(
             table_name_filterEnv
                 as unsafe extern "C" fn(
-                    *mut table_name,
+                    *mut NameTable,
                     Option<
                         unsafe extern "C" fn(
-                            *const otfcc_NameRecord,
+                            *const NameRecord,
                             *mut ::core::ffi::c_void,
                         ) -> bool,
                     >,
@@ -355,11 +355,11 @@ pub static table_iName: __caryll_vectorinterface_table_name = {
         sort: Some(
             table_name_sort
                 as unsafe extern "C" fn(
-                    *mut table_name,
+                    *mut NameTable,
                     Option<
                         unsafe extern "C" fn(
-                            *const otfcc_NameRecord,
-                            *const otfcc_NameRecord,
+                            *const NameRecord,
+                            *const NameRecord,
                         ) -> ::core::ffi::c_int,
                     >,
                 ) -> (),
@@ -367,16 +367,16 @@ pub static table_iName: __caryll_vectorinterface_table_name = {
     }
 };
 #[inline]
-unsafe extern "C" fn table_name_pop(arr: *mut table_name) -> otfcc_NameRecord {
+unsafe extern "C" fn table_name_pop(arr: *mut NameTable) -> NameRecord {
     cvec_pop(table_name_as_cvec(arr))
 }
 #[inline]
-unsafe extern "C" fn table_name_copyReplace(mut dst: *mut table_name, src: table_name) {
+unsafe extern "C" fn table_name_copyReplace(mut dst: *mut NameTable, src: NameTable) {
     table_name_dispose(dst);
     table_name_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_name_copy(mut dst: *mut table_name, mut src: *const table_name) {
+unsafe extern "C" fn table_name_copy(mut dst: *mut NameTable, mut src: *const NameTable) {
     table_name_init(dst);
     table_name_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
@@ -384,8 +384,8 @@ unsafe extern "C" fn table_name_copy(mut dst: *mut table_name, mut src: *const t
         let mut j: usize = 0 as usize;
         while j < (*src).length {
             otfcc_iNameRecord.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut otfcc_NameRecord,
-                (*src).items.offset(j as isize) as *mut otfcc_NameRecord as *const otfcc_NameRecord,
+                (*dst).items.offset(j as isize) as *mut NameRecord,
+                (*src).items.offset(j as isize) as *mut NameRecord as *const NameRecord,
             );
             j = j.wrapping_add(1);
         }
@@ -398,7 +398,7 @@ unsafe extern "C" fn table_name_copy(mut dst: *mut table_name, mut src: *const t
     };
 }
 #[inline]
-unsafe extern "C" fn table_name_dispose(mut arr: *mut table_name) {
+unsafe extern "C" fn table_name_dispose(mut arr: *mut NameTable) {
     if arr.is_null() {
         return;
     }
@@ -413,41 +413,41 @@ unsafe extern "C" fn table_name_dispose(mut arr: *mut table_name) {
             otfcc_iNameRecord
                 .dispose
                 .expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut otfcc_NameRecord
+                (*arr).items.offset(j as isize) as *mut NameRecord
             );
         }
     }
     free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<otfcc_NameRecord>();
+    (*arr).items = ::core::ptr::null_mut::<NameRecord>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn table_name_replace(mut dst: *mut table_name, src: table_name) {
+unsafe extern "C" fn table_name_replace(mut dst: *mut NameTable, src: NameTable) {
     table_name_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_name>() as usize,
+        ::core::mem::size_of::<NameTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_name_initCapN(mut arr: *mut table_name, mut n: usize) {
+unsafe extern "C" fn table_name_initCapN(mut arr: *mut NameTable, mut n: usize) {
     table_name_init(arr);
     table_name_growToN(arr, n);
 }
 #[inline]
-unsafe extern "C" fn table_name_growToN(arr: *mut table_name, target: usize) {
+unsafe extern "C" fn table_name_growToN(arr: *mut NameTable, target: usize) {
     cvec_grow_to_n(table_name_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn table_name_initN(mut arr: *mut table_name, mut n: usize) {
+unsafe extern "C" fn table_name_initN(mut arr: *mut NameTable, mut n: usize) {
     table_name_init(arr);
     table_name_growToN(arr, n);
     table_name_fill(arr, n);
 }
 #[inline]
-unsafe extern "C" fn table_name_free(mut x: *mut table_name) {
+unsafe extern "C" fn table_name_free(mut x: *mut NameTable) {
     if x.is_null() {
         return;
     }
@@ -455,32 +455,32 @@ unsafe extern "C" fn table_name_free(mut x: *mut table_name) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_name_createN(mut n: usize) -> *mut table_name {
-    let mut t: *mut table_name =
-        malloc(::core::mem::size_of::<table_name>() as usize) as *mut table_name;
+unsafe extern "C" fn table_name_createN(mut n: usize) -> *mut NameTable {
+    let mut t: *mut NameTable =
+        malloc(::core::mem::size_of::<NameTable>() as usize) as *mut NameTable;
     table_name_initN(t, n);
     return t;
 }
 #[inline]
-unsafe extern "C" fn table_name_create() -> *mut table_name {
-    let mut x: *mut table_name =
-        malloc(::core::mem::size_of::<table_name>() as usize) as *mut table_name;
+unsafe extern "C" fn table_name_create() -> *mut NameTable {
+    let mut x: *mut NameTable =
+        malloc(::core::mem::size_of::<NameTable>() as usize) as *mut NameTable;
     table_name_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_name_shrinkToFit(mut arr: *mut table_name) {
+unsafe extern "C" fn table_name_shrinkToFit(mut arr: *mut NameTable) {
     table_name_resizeTo(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn table_name_resizeTo(arr: *mut table_name, target: usize) {
+unsafe extern "C" fn table_name_resizeTo(arr: *mut NameTable, target: usize) {
     cvec_resize_to(table_name_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn table_name_move(dst: *mut table_name, src: *mut table_name) {
+unsafe extern "C" fn table_name_move(dst: *mut NameTable, src: *mut NameTable) {
     cvec_move(table_name_as_cvec(dst), table_name_as_cvec(src));
 }
-unsafe extern "C" fn shouldDecodeAsUTF16(mut record: *const otfcc_NameRecord) -> bool {
+unsafe extern "C" fn shouldDecodeAsUTF16(mut record: *const NameRecord) -> bool {
     return (*record).platformID as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         || (*record).platformID as ::core::ffi::c_int == 2 as ::core::ffi::c_int
             && (*record).encodingID as ::core::ffi::c_int == 1 as ::core::ffi::c_int
@@ -489,15 +489,15 @@ unsafe extern "C" fn shouldDecodeAsUTF16(mut record: *const otfcc_NameRecord) ->
                 || (*record).encodingID as ::core::ffi::c_int == 1 as ::core::ffi::c_int
                 || (*record).encodingID as ::core::ffi::c_int == 10 as ::core::ffi::c_int);
 }
-unsafe extern "C" fn shouldDecodeAsBytes(mut record: *const otfcc_NameRecord) -> bool {
+unsafe extern "C" fn shouldDecodeAsBytes(mut record: *const NameRecord) -> bool {
     return (*record).platformID as ::core::ffi::c_int == 1 as ::core::ffi::c_int
         && (*record).encodingID as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         && (*record).languageID as ::core::ffi::c_int == 0 as ::core::ffi::c_int;
 }
 pub unsafe extern "C" fn otfcc_readName(
-    packet: otfcc_Packet,
-    mut options: *const otfcc_Options,
-) -> *mut table_name {
+    packet: Packet,
+    mut options: *const Options,
+) -> *mut NameTable {
     let mut count: u32 = 0;
     let mut stringOffset: u32 = 0;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -507,13 +507,13 @@ pub unsafe extern "C" fn otfcc_readName(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == 1851878757i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut name: *mut table_name = ::core::ptr::null_mut::<table_name>();
-                    let mut data: font_file_pointer = table.data as font_file_pointer;
+                    let mut name: *mut NameTable = ::core::ptr::null_mut::<NameTable>();
+                    let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 6 as u32) {
                         count = read_16u(
@@ -529,7 +529,7 @@ pub unsafe extern "C" fn otfcc_readName(
                                 table_iName.create.expect("non-null function pointer"))();
                             let mut j: u16 = 0 as u16;
                             while (j as u32) < count {
-                                let mut record: otfcc_NameRecord = otfcc_NameRecord {
+                                let mut record: NameRecord = NameRecord {
                                     platformID: 0,
                                     encodingID: 0,
                                     languageID: 0,
@@ -589,7 +589,7 @@ pub unsafe extern "C" fn otfcc_readName(
                                         as *const u8,
                                 );
                                 if shouldDecodeAsBytes(&raw mut record) {
-                                    let mut nameString: sds = sdsnewlen(
+                                    let mut nameString: SdsRaw = sdsnewlen(
                                         data.offset(stringOffset as isize)
                                             .offset(offset as ::core::ffi::c_int as isize)
                                             as *const ::core::ffi::c_void,
@@ -597,7 +597,7 @@ pub unsafe extern "C" fn otfcc_readName(
                                     );
                                     record.nameString = nameString;
                                 } else if shouldDecodeAsUTF16(&raw mut record) {
-                                    let mut nameString_0: sds = utf16be_to_utf8(
+                                    let mut nameString_0: SdsRaw = utf16be_to_utf8(
                                         data.offset(stringOffset as isize)
                                             .offset(offset as ::core::ffi::c_int as isize)
                                             as *const u8,
@@ -627,14 +627,14 @@ pub unsafe extern "C" fn otfcc_readName(
                     (*(*options).logger)
                         .logSDS
                         .expect("non-null function pointer")(
-                        (*options).logger as *mut otfcc_ILogger,
+                        (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'name' corrupted.\n"),
                     );
                     if !name.is_null() {
                         table_iName.free.expect("non-null function pointer")(name);
-                        name = ::core::ptr::null_mut::<table_name>();
+                        name = ::core::ptr::null_mut::<NameTable>();
                     }
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -645,12 +645,12 @@ pub unsafe extern "C" fn otfcc_readName(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<table_name>();
+    return ::core::ptr::null_mut::<NameTable>();
 }
 pub unsafe extern "C" fn otfcc_dumpName(
-    mut name: *const table_name,
-    mut root: *mut json_value,
-    mut options: *const otfcc_Options,
+    mut name: *const NameTable,
+    mut root: *mut JsonValue,
+    mut options: *const Options,
 ) {
     if name.is_null() {
         return;
@@ -658,17 +658,17 @@ pub unsafe extern "C" fn otfcc_dumpName(
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"name"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _name: *mut json_value = json_array_new((*name).length);
+        let mut _name: *mut JsonValue = json_array_new((*name).length);
         let mut j: u16 = 0 as u16;
         while (j as usize) < (*name).length {
-            let mut r: *mut otfcc_NameRecord =
-                (*name).items.offset(j as isize) as *mut otfcc_NameRecord;
-            let mut record: *mut json_value = json_object_new(5 as usize);
+            let mut r: *mut NameRecord =
+                (*name).items.offset(j as isize) as *mut NameRecord;
+            let mut record: *mut JsonValue = json_object_new(5 as usize);
             json_object_push(
                 record,
                 b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
@@ -708,12 +708,12 @@ pub unsafe extern "C" fn otfcc_dumpName(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
 unsafe extern "C" fn name_record_sort(
-    mut a: *const otfcc_NameRecord,
-    mut b: *const otfcc_NameRecord,
+    mut a: *const NameRecord,
+    mut b: *const NameRecord,
 ) -> ::core::ffi::c_int {
     if (*a).platformID as ::core::ffi::c_int != (*b).platformID as ::core::ffi::c_int {
         return (*a).platformID as ::core::ffi::c_int - (*b).platformID as ::core::ffi::c_int;
@@ -727,22 +727,22 @@ unsafe extern "C" fn name_record_sort(
     return (*a).nameID as ::core::ffi::c_int - (*b).nameID as ::core::ffi::c_int;
 }
 pub unsafe extern "C" fn otfcc_parseName(
-    mut root: *const json_value,
-    mut options: *const otfcc_Options,
-) -> *mut table_name {
-    let mut name: *mut table_name = (
+    mut root: *const JsonValue,
+    mut options: *const Options,
+) -> *mut NameTable {
+    let mut name: *mut NameTable = (
         table_iName.create.expect("non-null function pointer"))();
-    let mut table: *mut json_value = ::core::ptr::null_mut::<json_value>();
+    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
         b"name\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     if !table.is_null() {
         (*(*options).logger)
             .startSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), b"name"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -750,23 +750,23 @@ pub unsafe extern "C" fn otfcc_parseName(
             let mut j: u32 = 0 as u32;
             while j < (*table).u.array.length as u32 {
                 if !(*(*table).u.array.values.offset(j as isize)).is_null()
-                    && (**(*table).u.array.values.offset(j as isize)).type_0 == json_object
+                    && (**(*table).u.array.values.offset(j as isize)).type_0 == JsonType::Object
                 {
-                    let mut _record: *mut json_value =
-                        *(*table).u.array.values.offset(j as isize) as *mut json_value;
+                    let mut _record: *mut JsonValue =
+                        *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
                     if json_obj_get_type(
                         _record,
                         b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_integer,
+                        JsonType::Integer,
                     )
                     .is_null()
                     {
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
-                            (*options).logger as *mut otfcc_ILogger,
+                            (*options).logger as *mut ILogger,
                             log_vl_important,
-                            log_type_warning,
+                            LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
                                 b"Missing or invalid platformID for name entry ",
@@ -777,16 +777,16 @@ pub unsafe extern "C" fn otfcc_parseName(
                     } else if json_obj_get_type(
                         _record,
                         b"encodingID\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_integer,
+                        JsonType::Integer,
                     )
                     .is_null()
                     {
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
-                            (*options).logger as *mut otfcc_ILogger,
+                            (*options).logger as *mut ILogger,
                             log_vl_important,
-                            log_type_warning,
+                            LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
                                 b"Missing or invalid encodingID for name entry ",
@@ -797,16 +797,16 @@ pub unsafe extern "C" fn otfcc_parseName(
                     } else if json_obj_get_type(
                         _record,
                         b"languageID\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_integer,
+                        JsonType::Integer,
                     )
                     .is_null()
                     {
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
-                            (*options).logger as *mut otfcc_ILogger,
+                            (*options).logger as *mut ILogger,
                             log_vl_important,
-                            log_type_warning,
+                            LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
                                 b"Missing or invalid languageID for name entry ",
@@ -817,16 +817,16 @@ pub unsafe extern "C" fn otfcc_parseName(
                     } else if json_obj_get_type(
                         _record,
                         b"nameID\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_integer,
+                        JsonType::Integer,
                     )
                     .is_null()
                     {
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
-                            (*options).logger as *mut otfcc_ILogger,
+                            (*options).logger as *mut ILogger,
                             log_vl_important,
-                            log_type_warning,
+                            LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
                                 b"Missing or invalid nameID for name entry ",
@@ -837,16 +837,16 @@ pub unsafe extern "C" fn otfcc_parseName(
                     } else if json_obj_get_type(
                         _record,
                         b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_string,
+                        JsonType::String,
                     )
                     .is_null()
                     {
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
-                            (*options).logger as *mut otfcc_ILogger,
+                            (*options).logger as *mut ILogger,
                             log_vl_important,
-                            log_type_warning,
+                            LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
                                 b"Missing or invalid name string for name entry ",
@@ -855,7 +855,7 @@ pub unsafe extern "C" fn otfcc_parseName(
                             ),
                         );
                     } else {
-                        let mut record: otfcc_NameRecord = otfcc_NameRecord {
+                        let mut record: NameRecord = NameRecord {
                             platformID: 0,
                             encodingID: 0,
                             languageID: 0,
@@ -878,10 +878,10 @@ pub unsafe extern "C" fn otfcc_parseName(
                             _record,
                             b"nameID\0" as *const u8 as *const ::core::ffi::c_char,
                         ) as u16;
-                        let mut str: *mut json_value = json_obj_get_type(
+                        let mut str: *mut JsonValue = json_obj_get_type(
                             _record,
                             b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_string,
+                            JsonType::String,
                         );
                         record.nameString = sdsnewlen(
                             (*str).u.string.ptr as *const ::core::ffi::c_void,
@@ -897,8 +897,8 @@ pub unsafe extern "C" fn otfcc_parseName(
                 Some(
                     name_record_sort
                         as unsafe extern "C" fn(
-                            *const otfcc_NameRecord,
-                            *const otfcc_NameRecord,
+                            *const NameRecord,
+                            *const NameRecord,
                         ) -> ::core::ffi::c_int,
                 ),
             );
@@ -906,28 +906,28 @@ pub unsafe extern "C" fn otfcc_parseName(
             (*(*options).logger)
                 .finish
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger
+                (*options).logger as *mut ILogger
             );
         }
     }
     return name;
 }
 pub unsafe extern "C" fn otfcc_buildName(
-    mut name: *const table_name,
-    mut _options: *const otfcc_Options,
-) -> *mut caryll_Buffer {
+    mut name: *const NameTable,
+    mut _options: *const Options,
+) -> *mut Buffer {
     if name.is_null() {
-        return ::core::ptr::null_mut::<caryll_Buffer>();
+        return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut buf: *mut caryll_Buffer = bufnew();
+    let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, (*name).length as u16);
     bufwrite16b(buf, 0 as u16);
-    let mut strings: *mut caryll_Buffer = bufnew();
+    let mut strings: *mut Buffer = bufnew();
     let mut j: u16 = 0 as u16;
     while (j as usize) < (*name).length {
-        let mut record: *mut otfcc_NameRecord =
-            (*name).items.offset(j as isize) as *mut otfcc_NameRecord;
+        let mut record: *mut NameRecord =
+            (*name).items.offset(j as isize) as *mut NameRecord;
         bufwrite16b(buf, (*record).platformID);
         bufwrite16b(buf, (*record).encodingID);
         bufwrite16b(buf, (*record).languageID);
@@ -961,7 +961,7 @@ pub unsafe extern "C" fn otfcc_buildName(
         bufwrite16b(buf, cbefore as u16);
         j = j.wrapping_add(1);
     }
-    let mut copyright: sds = crate::sdsbuild!(
+    let mut copyright: SdsRaw = crate::sdsbuild!(
         sdsempty(),
         b"-- By OTFCC ",
         MAIN_VER,

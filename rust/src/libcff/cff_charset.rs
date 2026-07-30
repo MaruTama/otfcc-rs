@@ -3,76 +3,75 @@ use libc::{free};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::buffer::{caryll_Buffer};
+use crate::support::buffer::{Buffer};
 use crate::support::buffer::{bufnew};
 
 /// Which charset a CFF font carries: one of the three predefined ones, or the
 /// format of an embedded charset.
 ///
-/// Like [`cff_FDSelectType`](crate::libcff::cff_fdselect::cff_FDSelectType),
+/// Like [`CffFdSelectType`](crate::libcff::cff_fdselect::CffFdSelectType),
 /// this is the crate's own classification and not the byte from the file --
 /// `cff_extract_Charset` reads the format and stores one of these.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
-pub enum cff_CharsetType {
-    cff_CHARSET_ISOADOBE = 0,
-    cff_CHARSET_EXPERT = 1,
-    cff_CHARSET_EXPERTSUBSET = 2,
-    cff_CHARSET_FORMAT0 = 3,
-    cff_CHARSET_FORMAT1 = 4,
-    cff_CHARSET_FORMAT2 = 5,
+pub enum CffCharsetType {
+    IsoAdobe = 0,
+    Expert = 1,
+    ExpertSubset = 2,
+    Format0 = 3,
+    Format1 = 4,
+    Format2 = 5,
 }
-pub use cff_CharsetType::*;
 
 /// "No charset given", which C spelled as a second name for 0 -- the CFF
 /// default when a font's Top DICT has no charset entry *is* ISOAdobe, so the
 /// two are the same state and only ever differ in what the reader was trying to
 /// say. A const rather than a variant, since Rust cannot give one value two
 /// variant names; it still works in a pattern.
-pub const cff_CHARSET_UNSPECED: cff_CharsetType = cff_CHARSET_ISOADOBE;
+pub const cff_CHARSET_UNSPECED: CffCharsetType = CffCharsetType::IsoAdobe;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_CharsetFormat0 {
+pub struct CffCharsetFormat0 {
     pub format: u8,
     pub glyph: *mut u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_CharsetRangeFormat1 {
+pub struct CffCharsetRangeFormat1 {
     pub first: u16,
     pub nleft: u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_CharsetFormat1 {
+pub struct CffCharsetFormat1 {
     pub format: u8,
-    pub range1: *mut cff_CharsetRangeFormat1,
+    pub range1: *mut CffCharsetRangeFormat1,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_CharsetRangeFormat2 {
+pub struct CffCharsetRangeFormat2 {
     pub first: u16,
     pub nleft: u16,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_CharsetFormat2 {
+pub struct CffCharsetFormat2 {
     pub format: u8,
-    pub range2: *mut cff_CharsetRangeFormat2,
+    pub range2: *mut CffCharsetRangeFormat2,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct cff_Charset {
-    pub t: cff_CharsetType,
+pub struct CffCharset {
+    pub t: CffCharsetType,
     pub s: u32,
-    pub c2rust_unnamed: cff_CharsetBody,
+    pub c2rust_unnamed: CffCharsetBody,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union cff_CharsetBody {
-    pub f0: cff_CharsetFormat0,
-    pub f1: cff_CharsetFormat1,
-    pub f2: cff_CharsetFormat2,
+pub union CffCharsetBody {
+    pub f0: CffCharsetFormat0,
+    pub f1: CffCharsetFormat1,
+    pub f2: CffCharsetFormat2,
 }
 #[inline]
 unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
@@ -92,19 +91,19 @@ pub unsafe extern "C" fn cff_extract_Charset(
     mut data: *mut u8,
     mut offset: i32,
     mut nchars: u16,
-    mut charsets: *mut cff_Charset,
+    mut charsets: *mut CffCharset,
 ) {
     let mut i: u32 = 0;
-    if offset == cff_CHARSET_ISOADOBE as ::core::ffi::c_int as i32 {
-        (*charsets).t = cff_CHARSET_ISOADOBE;
-    } else if offset == cff_CHARSET_EXPERT as ::core::ffi::c_int as i32 {
-        (*charsets).t = cff_CHARSET_EXPERT;
-    } else if offset == cff_CHARSET_EXPERTSUBSET as ::core::ffi::c_int as i32 {
-        (*charsets).t = cff_CHARSET_EXPERTSUBSET;
+    if offset == CffCharsetType::IsoAdobe as ::core::ffi::c_int as i32 {
+        (*charsets).t = CffCharsetType::IsoAdobe;
+    } else if offset == CffCharsetType::Expert as ::core::ffi::c_int as i32 {
+        (*charsets).t = CffCharsetType::Expert;
+    } else if offset == CffCharsetType::ExpertSubset as ::core::ffi::c_int as i32 {
+        (*charsets).t = CffCharsetType::ExpertSubset;
     } else {
         match *data.offset(offset as isize) as ::core::ffi::c_int {
             0 => {
-                (*charsets).t = cff_CHARSET_FORMAT0;
+                (*charsets).t = CffCharsetType::Format0;
                 (*charsets).s =
                     (nchars as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u32;
                 (*charsets).c2rust_unnamed.f0.glyph = __caryll_allocate_clean(
@@ -125,7 +124,7 @@ pub unsafe extern "C" fn cff_extract_Charset(
                 }
             }
             1 => {
-                (*charsets).t = cff_CHARSET_FORMAT1;
+                (*charsets).t = CffCharsetType::Format1;
                 let mut size: u32 = 0;
                 let mut glyphsEncodedSofar: u32 = 1 as u32;
                 i = 0 as u32;
@@ -142,11 +141,11 @@ pub unsafe extern "C" fn cff_extract_Charset(
                 size = i;
                 (*charsets).s = size;
                 (*charsets).c2rust_unnamed.f1.range1 = __caryll_allocate_clean(
-                    (::core::mem::size_of::<cff_CharsetRangeFormat1>() as usize)
+                    (::core::mem::size_of::<CffCharsetRangeFormat1>() as usize)
                         .wrapping_mul(i.wrapping_add(1 as u32) as usize),
                     35 as ::core::ffi::c_ulong,
                 )
-                    as *mut cff_CharsetRangeFormat1;
+                    as *mut CffCharsetRangeFormat1;
                 i = 0 as u32;
                 while i < size {
                     (*(*charsets).c2rust_unnamed.f1.range1.offset(i as isize)).first = gu2(
@@ -165,7 +164,7 @@ pub unsafe extern "C" fn cff_extract_Charset(
                 }
             }
             2 => {
-                (*charsets).t = cff_CHARSET_FORMAT2;
+                (*charsets).t = CffCharsetType::Format2;
                 let mut size_0: u32 = 0;
                 let mut glyphsEncodedSofar_0: u32 = 1 as u32;
                 i = 0 as u32;
@@ -182,11 +181,11 @@ pub unsafe extern "C" fn cff_extract_Charset(
                 size_0 = i;
                 (*charsets).s = size_0;
                 (*charsets).c2rust_unnamed.f2.range2 = __caryll_allocate_clean(
-                    (::core::mem::size_of::<cff_CharsetRangeFormat2>() as usize)
+                    (::core::mem::size_of::<CffCharsetRangeFormat2>() as usize)
                         .wrapping_mul(i.wrapping_add(1 as u32) as usize),
                     53 as ::core::ffi::c_ulong,
                 )
-                    as *mut cff_CharsetRangeFormat2;
+                    as *mut CffCharsetRangeFormat2;
                 i = 0 as u32;
                 while i < size_0 {
                     (*(*charsets).c2rust_unnamed.f2.range2.offset(i as isize)).first = gu2(
@@ -208,11 +207,11 @@ pub unsafe extern "C" fn cff_extract_Charset(
         }
     };
 }
-pub unsafe extern "C" fn cff_build_Charset(mut cset: cff_Charset) -> *mut caryll_Buffer {
+pub unsafe extern "C" fn cff_build_Charset(mut cset: CffCharset) -> *mut Buffer {
     match cset.t {
-        cff_CHARSET_ISOADOBE | cff_CHARSET_EXPERT | cff_CHARSET_EXPERTSUBSET => return bufnew(),
-        cff_CHARSET_FORMAT0 => {
-            let mut blob: *mut caryll_Buffer = bufnew();
+        CffCharsetType::IsoAdobe | CffCharsetType::Expert | CffCharsetType::ExpertSubset => return bufnew(),
+        CffCharsetType::Format0 => {
+            let mut blob: *mut Buffer = bufnew();
             (*blob).size =
                 (1 as u32).wrapping_add(cset.s.wrapping_mul(2 as u32)) as usize;
             (*blob).data = __caryll_allocate_clean(
@@ -235,8 +234,8 @@ pub unsafe extern "C" fn cff_build_Charset(mut cset: cff_Charset) -> *mut caryll
             (*blob).cursor = (*blob).size;
             return blob;
         }
-        cff_CHARSET_FORMAT1 => {
-            let mut blob_0: *mut caryll_Buffer = bufnew();
+        CffCharsetType::Format1 => {
+            let mut blob_0: *mut Buffer = bufnew();
             (*blob_0).size =
                 (1 as u32).wrapping_add(cset.s.wrapping_mul(3 as u32)) as usize;
             (*blob_0).data = __caryll_allocate_clean(
@@ -263,8 +262,8 @@ pub unsafe extern "C" fn cff_build_Charset(mut cset: cff_Charset) -> *mut caryll
             }
             return blob_0;
         }
-        cff_CHARSET_FORMAT2 => {
-            let mut blob_1: *mut caryll_Buffer = bufnew();
+        CffCharsetType::Format2 => {
+            let mut blob_1: *mut Buffer = bufnew();
             (*blob_1).size =
                 (1 as u32).wrapping_add(cset.s.wrapping_mul(4 as u32)) as usize;
             (*blob_1).data = __caryll_allocate_clean(
@@ -301,24 +300,24 @@ pub unsafe extern "C" fn cff_build_Charset(mut cset: cff_Charset) -> *mut caryll
         }
     }
 }
-pub unsafe extern "C" fn cff_close_Charset(mut cset: cff_Charset) {
+pub unsafe extern "C" fn cff_close_Charset(mut cset: CffCharset) {
     match cset.t {
-        cff_CHARSET_FORMAT0 => {
+        CffCharsetType::Format0 => {
             if !cset.c2rust_unnamed.f0.glyph.is_null() {
                 free(cset.c2rust_unnamed.f0.glyph as *mut ::core::ffi::c_void);
                 cset.c2rust_unnamed.f0.glyph = ::core::ptr::null_mut::<u16>();
             }
         }
-        cff_CHARSET_FORMAT1 => {
+        CffCharsetType::Format1 => {
             if !cset.c2rust_unnamed.f1.range1.is_null() {
                 free(cset.c2rust_unnamed.f1.range1 as *mut ::core::ffi::c_void);
-                cset.c2rust_unnamed.f1.range1 = ::core::ptr::null_mut::<cff_CharsetRangeFormat1>();
+                cset.c2rust_unnamed.f1.range1 = ::core::ptr::null_mut::<CffCharsetRangeFormat1>();
             }
         }
-        cff_CHARSET_FORMAT2 => {
+        CffCharsetType::Format2 => {
             if !cset.c2rust_unnamed.f2.range2.is_null() {
                 free(cset.c2rust_unnamed.f2.range2 as *mut ::core::ffi::c_void);
-                cset.c2rust_unnamed.f2.range2 = ::core::ptr::null_mut::<cff_CharsetRangeFormat2>();
+                cset.c2rust_unnamed.f2.range2 = ::core::ptr::null_mut::<CffCharsetRangeFormat2>();
             }
         }
         _ => {}
@@ -329,7 +328,7 @@ pub unsafe extern "C" fn cff_close_Charset(mut cset: cff_Charset) {
 mod tests {
     use super::*;
 
-    // `cff_CHARSET_UNSPECED` and `cff_CHARSET_ISOADOBE` are the same state, not
+    // `cff_CHARSET_UNSPECED` and `CffCharsetType::IsoAdobe` are the same state, not
     // two states that happen to share a number: a CFF font whose Top DICT has no
     // charset entry *is* ISOAdobe by the spec's default, and otfcc uses whichever
     // name reads better at each site (`cff_close_CFF` says UNSPECED, the reader
@@ -338,11 +337,11 @@ mod tests {
     // in patterns, which is what the reader and the builder rely on.
     #[test]
     fn unspeced_and_isoadobe_are_one_state() {
-        assert_eq!(cff_CHARSET_UNSPECED, cff_CHARSET_ISOADOBE);
-        assert_eq!(cff_CHARSET_ISOADOBE as u32, 0);
-        assert!(matches!(cff_CHARSET_UNSPECED, cff_CHARSET_ISOADOBE));
-        // A `cff_Charset` arrives from `__caryll_allocate_clean`, so all-zero has
+        assert_eq!(cff_CHARSET_UNSPECED, CffCharsetType::IsoAdobe);
+        assert_eq!(CffCharsetType::IsoAdobe as u32, 0);
+        assert!(matches!(cff_CHARSET_UNSPECED, CffCharsetType::IsoAdobe));
+        // A `CffCharset` arrives from `__caryll_allocate_clean`, so all-zero has
         // to be a legal value of the field.
-        assert_eq!(::core::mem::size_of::<cff_CharsetType>(), 4);
+        assert_eq!(::core::mem::size_of::<CffCharsetType>(), 4);
     }
 }

@@ -5,41 +5,41 @@ use libc::{free, malloc, memcpy, memset};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{font_file_pointer};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::support::options::{Options};
+use crate::support::primitives::{FontFilePointer};
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
-use crate::table::maxp::{table_maxp};
+use crate::table::maxp::{MaxpTable};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct device_record {
+pub struct DeviceRecord {
     pub pixelSize: u8,
     pub maxWidth: u8,
     pub widths: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct table_hdmx {
+pub struct HdmxTable {
     pub version: u16,
     pub numRecords: u16,
     pub sizeDeviceRecord: u32,
-    pub records: *mut device_record,
+    pub records: *mut DeviceRecord,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_table_hdmx {
-    pub init: Option<unsafe extern "C" fn(*mut table_hdmx) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_hdmx, *const table_hdmx) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_hdmx, *mut table_hdmx) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_hdmx) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_hdmx, table_hdmx) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_hdmx, table_hdmx) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_hdmx>,
-    pub free: Option<unsafe extern "C" fn(*mut table_hdmx) -> ()>,
+pub struct HdmxTableElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut HdmxTable, *const HdmxTable) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut HdmxTable, *mut HdmxTable) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut HdmxTable>,
+    pub free: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn disposeHdmx(mut table: *mut table_hdmx) {
+unsafe extern "C" fn disposeHdmx(mut table: *mut HdmxTable) {
     if (*table).records.is_null() {
         return;
     }
@@ -53,34 +53,34 @@ unsafe extern "C" fn disposeHdmx(mut table: *mut table_hdmx) {
         i = i.wrapping_add(1);
     }
     free((*table).records as *mut ::core::ffi::c_void);
-    (*table).records = ::core::ptr::null_mut::<device_record>();
+    (*table).records = ::core::ptr::null_mut::<DeviceRecord>();
 }
-pub static table_iHdmx: __caryll_elementinterface_table_hdmx = {
-    __caryll_elementinterface_table_hdmx {
-        init: Some(table_hdmx_init as unsafe extern "C" fn(*mut table_hdmx) -> ()),
+pub static table_iHdmx: HdmxTableElementInterface = {
+    HdmxTableElementInterface {
+        init: Some(table_hdmx_init as unsafe extern "C" fn(*mut HdmxTable) -> ()),
         copy: Some(
-            table_hdmx_copy as unsafe extern "C" fn(*mut table_hdmx, *const table_hdmx) -> (),
+            table_hdmx_copy as unsafe extern "C" fn(*mut HdmxTable, *const HdmxTable) -> (),
         ),
         move_0: Some(
-            table_hdmx_move as unsafe extern "C" fn(*mut table_hdmx, *mut table_hdmx) -> (),
+            table_hdmx_move as unsafe extern "C" fn(*mut HdmxTable, *mut HdmxTable) -> (),
         ),
-        dispose: Some(table_hdmx_dispose as unsafe extern "C" fn(*mut table_hdmx) -> ()),
+        dispose: Some(table_hdmx_dispose as unsafe extern "C" fn(*mut HdmxTable) -> ()),
         replace: Some(
-            table_hdmx_replace as unsafe extern "C" fn(*mut table_hdmx, table_hdmx) -> (),
+            table_hdmx_replace as unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> (),
         ),
         copyReplace: Some(
-            table_hdmx_copyReplace as unsafe extern "C" fn(*mut table_hdmx, table_hdmx) -> (),
+            table_hdmx_copyReplace as unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> (),
         ),
         create: Some(table_hdmx_create),
-        free: Some(table_hdmx_free as unsafe extern "C" fn(*mut table_hdmx) -> ()),
+        free: Some(table_hdmx_free as unsafe extern "C" fn(*mut HdmxTable) -> ()),
     }
 };
 #[inline]
-unsafe extern "C" fn table_hdmx_dispose(mut x: *mut table_hdmx) {
+unsafe extern "C" fn table_hdmx_dispose(mut x: *mut HdmxTable) {
     disposeHdmx(x);
 }
 #[inline]
-unsafe extern "C" fn table_hdmx_free(mut x: *mut table_hdmx) {
+unsafe extern "C" fn table_hdmx_free(mut x: *mut HdmxTable) {
     if x.is_null() {
         return;
     }
@@ -88,56 +88,56 @@ unsafe extern "C" fn table_hdmx_free(mut x: *mut table_hdmx) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_hdmx_copyReplace(mut dst: *mut table_hdmx, src: table_hdmx) {
+unsafe extern "C" fn table_hdmx_copyReplace(mut dst: *mut HdmxTable, src: HdmxTable) {
     table_hdmx_dispose(dst);
     table_hdmx_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_hdmx_copy(mut dst: *mut table_hdmx, mut src: *const table_hdmx) {
+unsafe extern "C" fn table_hdmx_copy(mut dst: *mut HdmxTable, mut src: *const HdmxTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_hdmx>() as usize,
+        ::core::mem::size_of::<HdmxTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_hdmx_replace(mut dst: *mut table_hdmx, src: table_hdmx) {
+unsafe extern "C" fn table_hdmx_replace(mut dst: *mut HdmxTable, src: HdmxTable) {
     table_hdmx_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_hdmx>() as usize,
+        ::core::mem::size_of::<HdmxTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_hdmx_create() -> *mut table_hdmx {
-    let mut x: *mut table_hdmx =
-        malloc(::core::mem::size_of::<table_hdmx>() as usize) as *mut table_hdmx;
+unsafe extern "C" fn table_hdmx_create() -> *mut HdmxTable {
+    let mut x: *mut HdmxTable =
+        malloc(::core::mem::size_of::<HdmxTable>() as usize) as *mut HdmxTable;
     table_hdmx_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_hdmx_move(mut dst: *mut table_hdmx, mut src: *mut table_hdmx) {
+unsafe extern "C" fn table_hdmx_move(mut dst: *mut HdmxTable, mut src: *mut HdmxTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_hdmx>() as usize,
+        ::core::mem::size_of::<HdmxTable>() as usize,
     );
     table_hdmx_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_hdmx_init(mut x: *mut table_hdmx) {
+unsafe extern "C" fn table_hdmx_init(mut x: *mut HdmxTable) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_hdmx>() as usize,
+        ::core::mem::size_of::<HdmxTable>() as usize,
     );
 }
 pub unsafe extern "C" fn otfcc_readHdmx(
-    mut packet: otfcc_Packet,
-    mut _options: *const otfcc_Options,
-    mut maxp: *mut table_maxp,
-) -> *mut table_hdmx {
+    mut packet: Packet,
+    mut _options: *const Options,
+    mut maxp: *mut MaxpTable,
+) -> *mut HdmxTable {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -145,27 +145,27 @@ pub unsafe extern "C" fn otfcc_readHdmx(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == 1751412088i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
-                    let mut data: font_file_pointer = table.data as font_file_pointer;
-                    let mut hdmx: *mut table_hdmx = ::core::ptr::null_mut::<table_hdmx>();
+                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut hdmx: *mut HdmxTable = ::core::ptr::null_mut::<HdmxTable>();
                     hdmx = __caryll_allocate_clean(
-                        ::core::mem::size_of::<table_hdmx>() as usize,
+                        ::core::mem::size_of::<HdmxTable>() as usize,
                         20 as ::core::ffi::c_ulong,
-                    ) as *mut table_hdmx;
+                    ) as *mut HdmxTable;
                     (*hdmx).version = read_16u(data as *const u8);
                     (*hdmx).numRecords =
                         read_16u(data.offset(2 as ::core::ffi::c_int as isize) as *const u8);
                     (*hdmx).sizeDeviceRecord =
                         read_32u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8);
                     (*hdmx).records = __caryll_allocate_clean(
-                        (::core::mem::size_of::<device_record>() as usize)
+                        (::core::mem::size_of::<DeviceRecord>() as usize)
                             .wrapping_mul((*hdmx).numRecords as usize),
                         24 as ::core::ffi::c_ulong,
-                    ) as *mut device_record;
+                    ) as *mut DeviceRecord;
                     let mut i: u32 = 0 as u32;
                     while i < (*hdmx).numRecords as u32 {
                         (*(*hdmx).records.offset(i as isize)).pixelSize = *data
@@ -210,5 +210,5 @@ pub unsafe extern "C" fn otfcc_readHdmx(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<table_hdmx>();
+    return ::core::ptr::null_mut::<HdmxTable>();
 }

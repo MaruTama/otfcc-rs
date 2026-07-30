@@ -1,15 +1,13 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strcmp};
 use crate::table::otl::coverage::shrinkCoverage;
-use crate::support::handle::{HANDLE_STATE_INDEX, handle_consolidateTo, otfcc_Handle, otfcc_Handle_dispose, otfcc_LookupHandle};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
+use crate::support::handle::{HandleState, handle_consolidateTo, Handle, otfcc_Handle_dispose, LookupHandle};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{glyphid_t, tableid_t};
+use crate::support::options::{Options};
+use crate::support::primitives::{GlyphId, TableId};
 
-use crate::font::caryll_font::{otfcc_Font};
-
-
+use crate::font::caryll_font::{Font};
 
 
 
@@ -34,7 +32,9 @@ use crate::font::caryll_font::{otfcc_Font};
 
 
 
-use crate::table::otl::{otl_ChainingRule, otl_Subtable, subtable_chaining, table_OTL};
+
+
+use crate::table::otl::{ChainingRule, Subtable, ChainingSubtable, OtlTable};
 use crate::consolidate::otl::common::{fontop_consolidateCoverage};
 use crate::vendor::sds::{sdsempty};
 
@@ -47,28 +47,27 @@ use crate::vendor::sds::{sdsempty};
 
 
 
-pub type lookup_handle = otfcc_LookupHandle;
 pub unsafe extern "C" fn consolidate_chaining(
-    mut font: *mut otfcc_Font,
-    mut table: *mut table_OTL,
-    mut _subtable: *mut otl_Subtable,
-    mut options: *const otfcc_Options,
+    mut font: *mut Font,
+    mut table: *mut OtlTable,
+    mut _subtable: *mut Subtable,
+    mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut subtable_chaining = &raw mut (*_subtable).chaining;
+    let mut subtable: *mut ChainingSubtable = &raw mut (*_subtable).chaining;
     if (*subtable).type_0 as u64 != 0 {
         (*(*options).logger)
             .logSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             log_vl_important,
-            log_type_warning,
+            LoggerType::Warning,
             crate::sdsbuild!(sdsempty(), b"[Consolidate] Ignoring non-canonical chaining subtable."),
         );
         return false;
     }
-    let mut rule: *mut otl_ChainingRule = &raw mut (*subtable).c2rust_unnamed.rule;
+    let mut rule: *mut ChainingRule = &raw mut (*subtable).c2rust_unnamed.rule;
     let mut possible: bool = true;
-    let mut j: tableid_t = 0 as tableid_t;
+    let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
         fontop_consolidateCoverage(font, *(*rule).match_0.offset(j as isize), options);
         shrinkCoverage(
@@ -86,12 +85,12 @@ pub unsafe extern "C" fn consolidate_chaining(
     if (*rule).inputEnds as ::core::ffi::c_int > (*rule).matchCount as ::core::ffi::c_int {
         (*rule).inputEnds = (*rule).matchCount;
     }
-    let mut j_0: tableid_t = 0 as tableid_t;
+    let mut j_0: TableId = 0 as TableId;
     while (j_0 as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
         let mut foundLookup: bool = false;
-        let mut h: *mut lookup_handle = &raw mut (*(*rule).apply.offset(j_0 as isize)).lookup;
+        let mut h: *mut LookupHandle = &raw mut (*(*rule).apply.offset(j_0 as isize)).lookup;
         if !(*h).name.is_null() {
-            let mut k: tableid_t = 0 as tableid_t;
+            let mut k: TableId = 0 as TableId;
             while (k as usize) < (*table).lookups.length {
                 if !(*(*table).lookups.items.offset(k as isize)).is_null() {
                     if !((**(*table).lookups.items.offset(k as isize))
@@ -107,8 +106,8 @@ pub unsafe extern "C" fn consolidate_chaining(
                         {
                             foundLookup = true;
                             handle_consolidateTo(
-                                h as *mut otfcc_Handle,
-                                k as glyphid_t,
+                                h as *mut Handle,
+                                k as GlyphId,
                                 (**(*table).lookups.items.offset(k as isize)).name,
                             );
                         }
@@ -122,9 +121,9 @@ pub unsafe extern "C" fn consolidate_chaining(
                     .expect(
                         "non-null function pointer",
                     )(
-                    (*options).logger as *mut otfcc_ILogger,
+                    (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Quoting an invalid lookup ",
@@ -136,15 +135,15 @@ pub unsafe extern "C" fn consolidate_chaining(
                     &raw mut (*(*rule).apply.offset(j_0 as isize)).lookup,
                 );
             }
-        } else if (*h).state == HANDLE_STATE_INDEX
+        } else if (*h).state == HandleState::Index
         {
             if (*h).index as usize >= (*table).lookups.length {
                 (*(*options).logger)
                     .logSDS
                     .expect("non-null function pointer")(
-                    (*options).logger as *mut otfcc_ILogger,
+                    (*options).logger as *mut ILogger,
                     log_vl_important,
-                    log_type_warning,
+                    LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Quoting an invalid lookup #",
@@ -152,10 +151,10 @@ pub unsafe extern "C" fn consolidate_chaining(
                         b".",
                     ),
                 );
-                (*h).index = 0 as glyphid_t;
+                (*h).index = 0 as GlyphId;
             }
             handle_consolidateTo(
-                h as *mut otfcc_Handle,
+                h as *mut Handle,
                 (*h).index,
                 (**(*table).lookups.items.offset((*h).index as isize)).name,
             );
@@ -163,8 +162,8 @@ pub unsafe extern "C" fn consolidate_chaining(
         j_0 = j_0.wrapping_add(1);
     }
     if (*rule).applyCount != 0 {
-        let mut k_0: tableid_t = 0 as tableid_t;
-        let mut j_1: tableid_t = 0 as tableid_t;
+        let mut k_0: TableId = 0 as TableId;
+        let mut j_1: TableId = 0 as TableId;
         while (j_1 as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
             if !(*(*rule).apply.offset(j_1 as isize)).lookup.name.is_null() {
                 let fresh0 = k_0;

@@ -8,22 +8,22 @@ use libc::{exit, free, malloc, memcmp, memset, strcmp, strtol};
 use crate::support::json_funcs::{json_obj_get_type};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::otf_reader::FontBuilder;
-use crate::logger::{log_type_info, log_vl_notice, otfcc_ILogger};
+use crate::logger::{LoggerType, log_vl_notice, ILogger};
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{glyphid_t};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
-use crate::vendor::json::{json_array, json_object, json_string, json_value};
-use crate::font::caryll_font::{FONTTYPE_CFF, FONTTYPE_TTF, otfcc_Font, otfcc_IFontBuilder, otfcc_font_subtype};
+use crate::support::options::{Options};
+use crate::support::primitives::{GlyphId};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::json::{JsonType, JsonValue};
+use crate::font::caryll_font::{FontSubtype, Font, IFontBuilder};
 use crate::support::{NULL};
-use crate::support::glyph_order::{ORD_CMAP, ORD_GLYF, ORD_GLYPHORDER, ORD_NOTDEF, json_GlyphOrderPass, otfcc_GlyphOrder, otfcc_GlyphOrderEntry};
+use crate::support::glyph_order::{GlyphOrderPass, GlyphOrder, GlyphOrderEntry};
 
 
 
 
 
 
-use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UT_hash_bucket, UT_hash_handle, UT_hash_table};
+use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::font::caryll_font::{otfcc_iFont};
 use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
 use crate::table::BASE::{otfcc_parseBASE};
@@ -63,29 +63,29 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
     ) as ::core::ffi::c_int;
 }
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> usize {
+unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut sdshdr8))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut SdsHdr8))
                 .len as usize;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .len as usize;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .len as usize;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .len as usize;
         }
         _ => {}
@@ -93,27 +93,27 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
     return 0 as usize;
 }
 unsafe extern "C" fn otfcc_decideFontSubtypeFromJson(
-    mut root: *const json_value,
-) -> otfcc_font_subtype {
+    mut root: *const JsonValue,
+) -> FontSubtype {
     if !json_obj_get_type(
         root,
         b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     )
     .is_null()
     {
-        return FONTTYPE_CFF;
+        return FontSubtype::Cff;
     } else {
-        return FONTTYPE_TTF;
+        return FontSubtype::Ttf;
     };
 }
 unsafe extern "C" fn setOrderByName(
-    mut go: *mut otfcc_GlyphOrder,
-    mut name: sds,
-    mut orderType: json_GlyphOrderPass,
+    mut go: *mut GlyphOrder,
+    mut name: SdsRaw,
+    mut orderType: GlyphOrderPass,
     mut orderEntry: u32,
 ) {
-    let mut s: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
+    let mut s: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
     let mut _hj_i: ::core::ffi::c_uint = 0;
     let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -367,7 +367,7 @@ unsafe extern "C" fn setOrderByName(
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
     _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-    s = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
+    s = ::core::ptr::null_mut::<GlyphOrderEntry>();
     if !(*go).byName.is_null() {
         let mut _hf_bkt: ::core::ffi::c_uint = 0;
         _hf_bkt = _hf_hashv
@@ -386,10 +386,10 @@ unsafe extern "C" fn setOrderByName(
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
                     .offset(-(*(*(*go).byName).hhName.tbl).hho)
-                    as *mut ::core::ffi::c_void as *mut otfcc_GlyphOrderEntry
-                    as *mut otfcc_GlyphOrderEntry;
+                    as *mut ::core::ffi::c_void as *mut GlyphOrderEntry
+                    as *mut GlyphOrderEntry;
             } else {
-                s = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
+                s = ::core::ptr::null_mut::<GlyphOrderEntry>();
             }
             while !s.is_null() {
                 if (*s).hhName.hashv == _hf_hashv && (*s).hhName.keylen as usize == sdslen(name) {
@@ -406,20 +406,20 @@ unsafe extern "C" fn setOrderByName(
                     s = ((*s).hhName.hh_next as *mut ::core::ffi::c_char)
                         .offset(-(*(*(*go).byName).hhName.tbl).hho)
                         as *mut ::core::ffi::c_void
-                        as *mut otfcc_GlyphOrderEntry
-                        as *mut otfcc_GlyphOrderEntry;
+                        as *mut GlyphOrderEntry
+                        as *mut GlyphOrderEntry;
                 } else {
-                    s = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
+                    s = ::core::ptr::null_mut::<GlyphOrderEntry>();
                 }
             }
         }
     }
     if s.is_null() {
         s = __caryll_allocate_clean(
-            ::core::mem::size_of::<otfcc_GlyphOrderEntry>() as usize,
+            ::core::mem::size_of::<GlyphOrderEntry>() as usize,
             21 as ::core::ffi::c_ulong,
-        ) as *mut otfcc_GlyphOrderEntry;
-        (*s).gid = -(1 as ::core::ffi::c_int) as glyphid_t;
+        ) as *mut GlyphOrderEntry;
+        (*s).gid = -(1 as ::core::ffi::c_int) as GlyphId;
         (*s).name = name;
         (*s).orderType = orderType;
         (*s).orderEntry = orderEntry;
@@ -696,25 +696,25 @@ unsafe extern "C" fn setOrderByName(
         if (*go).byName.is_null() {
             (*s).hhName.next = NULL;
             (*s).hhName.prev = NULL;
-            (*s).hhName.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                as *mut UT_hash_table as *mut UT_hash_table;
+            (*s).hhName.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                as *mut UtHashTable as *mut UtHashTable;
             if (*s).hhName.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
             } else {
                 memset(
                     (*s).hhName.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as usize,
+                    ::core::mem::size_of::<UtHashTable>() as usize,
                 );
-                (*(*s).hhName.tbl).tail = &raw mut (*s).hhName as *mut UT_hash_handle;
+                (*(*s).hhName.tbl).tail = &raw mut (*s).hhName as *mut UtHashHandle;
                 (*(*s).hhName.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*s).hhName.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*s).hhName.tbl).hho = (&raw mut (*s).hhName as *mut ::core::ffi::c_char)
                     .offset_from(s as *mut ::core::ffi::c_char)
                     as ::core::ffi::c_long as isize;
                 (*(*s).hhName.tbl).buckets = malloc(
-                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                ) as *mut UT_hash_bucket;
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                ) as *mut UtHashBucket;
                 (*(*s).hhName.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*s).hhName.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
@@ -723,7 +723,7 @@ unsafe extern "C" fn setOrderByName(
                         (*(*s).hhName.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
                         (32 as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                     );
                 }
             }
@@ -735,7 +735,7 @@ unsafe extern "C" fn setOrderByName(
                 .offset(-(*(*(*go).byName).hhName.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*go).byName).hhName.tbl).tail).next = s as *mut ::core::ffi::c_void;
-            (*(*(*go).byName).hhName.tbl).tail = &raw mut (*s).hhName as *mut UT_hash_handle;
+            (*(*(*go).byName).hhName.tbl).tail = &raw mut (*s).hhName as *mut UtHashHandle;
         }
         let mut _ha_bkt: ::core::ffi::c_uint = 0;
         (*(*(*go).byName).hhName.tbl).num_items =
@@ -744,17 +744,17 @@ unsafe extern "C" fn setOrderByName(
             & (*(*(*go).byName).hhName.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
-        let mut _ha_head: *mut UT_hash_bucket = (*(*(*go).byName).hhName.tbl)
+        let mut _ha_head: *mut UtHashBucket = (*(*(*go).byName).hhName.tbl)
             .buckets
             .offset(_ha_bkt as isize)
-            as *mut UT_hash_bucket;
+            as *mut UtHashBucket;
         (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-        (*s).hhName.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-        (*s).hhName.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+        (*s).hhName.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+        (*s).hhName.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
         if !(*_ha_head).hh_head.is_null() {
-            (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hhName as *mut UT_hash_handle;
+            (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hhName as *mut UtHashHandle;
         }
-        (*_ha_head).hh_head = &raw mut (*s).hhName as *mut UT_hash_handle;
+        (*_ha_head).hh_head = &raw mut (*s).hhName as *mut UtHashHandle;
         if (*_ha_head).count
             >= (*_ha_head)
                 .expand_mult
@@ -764,16 +764,16 @@ unsafe extern "C" fn setOrderByName(
         {
             let mut _he_bkt: ::core::ffi::c_uint = 0;
             let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-            let mut _he_thh: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-            let mut _he_hh_nxt: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-            let mut _he_new_buckets: *mut UT_hash_bucket =
-                ::core::ptr::null_mut::<UT_hash_bucket>();
-            let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
+            let mut _he_thh: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+            let mut _he_hh_nxt: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+            let mut _he_new_buckets: *mut UtHashBucket =
+                ::core::ptr::null_mut::<UtHashBucket>();
+            let mut _he_newbkt: *mut UtHashBucket = ::core::ptr::null_mut::<UtHashBucket>();
             _he_new_buckets = malloc(
                 (2 as usize)
                     .wrapping_mul((*(*s).hhName.tbl).num_buckets as usize)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-            ) as *mut UT_hash_bucket;
+                    .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+            ) as *mut UtHashBucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
             } else {
@@ -782,7 +782,7 @@ unsafe extern "C" fn setOrderByName(
                     '\0' as i32,
                     (2 as usize)
                         .wrapping_mul((*(*s).hhName.tbl).num_buckets as usize)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                        .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                 );
                 (*(*s).hhName.tbl).ideal_chain_maxlen = ((*(*s).hhName.tbl).num_items
                     >> (*(*s).hhName.tbl)
@@ -805,7 +805,7 @@ unsafe extern "C" fn setOrderByName(
                 _he_bkt_i = 0 as ::core::ffi::c_uint;
                 while _he_bkt_i < (*(*s).hhName.tbl).num_buckets {
                     _he_thh = (*(*(*s).hhName.tbl).buckets.offset(_he_bkt_i as isize)).hh_head
-                        as *mut UT_hash_handle;
+                        as *mut UtHashHandle;
                     while !_he_thh.is_null() {
                         _he_hh_nxt = (*_he_thh).hh_next;
                         _he_bkt = (*_he_thh).hashv
@@ -814,7 +814,7 @@ unsafe extern "C" fn setOrderByName(
                                 .wrapping_mul(2 as ::core::ffi::c_uint)
                                 .wrapping_sub(1 as ::core::ffi::c_uint);
                         _he_newbkt =
-                            _he_new_buckets.offset(_he_bkt as isize) as *mut UT_hash_bucket;
+                            _he_new_buckets.offset(_he_bkt as isize) as *mut UtHashBucket;
                         (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                         if (*_he_newbkt).count > (*(*s).hhName.tbl).ideal_chain_maxlen {
                             (*(*s).hhName.tbl).nonideal_items =
@@ -823,12 +823,12 @@ unsafe extern "C" fn setOrderByName(
                                 .count
                                 .wrapping_div((*(*s).hhName.tbl).ideal_chain_maxlen);
                         }
-                        (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
-                        (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                        (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
+                        (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UtHashHandle;
                         if !(*_he_newbkt).hh_head.is_null() {
                             (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                         }
-                        (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                        (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                         _he_thh = _he_hh_nxt;
                     }
                     _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -860,8 +860,8 @@ unsafe extern "C" fn setOrderByName(
     }
 }
 unsafe extern "C" fn _byOrder(
-    mut a: *mut otfcc_GlyphOrderEntry,
-    mut b: *mut otfcc_GlyphOrderEntry,
+    mut a: *mut GlyphOrderEntry,
+    mut b: *mut GlyphOrderEntry,
 ) -> ::core::ffi::c_int {
     if (*a).orderType < (*b).orderType {
         return -(1 as ::core::ffi::c_int);
@@ -877,26 +877,26 @@ unsafe extern "C" fn _byOrder(
     }
     return 0 as ::core::ffi::c_int;
 }
-unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
+unsafe extern "C" fn orderGlyphs(mut go: *mut GlyphOrder) {
     let mut _hs_i: ::core::ffi::c_uint = 0;
     let mut _hs_looping: ::core::ffi::c_uint = 0;
     let mut _hs_nmerges: ::core::ffi::c_uint = 0;
     let mut _hs_insize: ::core::ffi::c_uint = 0;
     let mut _hs_psize: ::core::ffi::c_uint = 0;
     let mut _hs_qsize: ::core::ffi::c_uint = 0;
-    let mut _hs_p: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_q: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_e: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_list: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-    let mut _hs_tail: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
+    let mut _hs_p: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_q: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_e: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_list: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+    let mut _hs_tail: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
     if !(*go).byName.is_null() {
         _hs_insize = 1 as ::core::ffi::c_uint;
         _hs_looping = 1 as ::core::ffi::c_uint;
-        _hs_list = &raw mut (*(*go).byName).hhName as *mut UT_hash_handle;
+        _hs_list = &raw mut (*(*go).byName).hhName as *mut UtHashHandle;
         while _hs_looping != 0 as ::core::ffi::c_uint {
             _hs_p = _hs_list;
-            _hs_list = ::core::ptr::null_mut::<UT_hash_handle>();
-            _hs_tail = ::core::ptr::null_mut::<UT_hash_handle>();
+            _hs_list = ::core::ptr::null_mut::<UtHashHandle>();
+            _hs_tail = ::core::ptr::null_mut::<UtHashHandle>();
             _hs_nmerges = 0 as ::core::ffi::c_uint;
             while !_hs_p.is_null() {
                 _hs_nmerges = _hs_nmerges.wrapping_add(1);
@@ -908,10 +908,10 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                     _hs_q = (if !(*_hs_q).next.is_null() {
                         ((*_hs_q).next as *mut ::core::ffi::c_char)
                             .offset((*(*(*go).byName).hhName.tbl).hho)
-                            as *mut UT_hash_handle
+                            as *mut UtHashHandle
                     } else {
-                        ::core::ptr::null_mut::<UT_hash_handle>()
-                    }) as *mut UT_hash_handle;
+                        ::core::ptr::null_mut::<UtHashHandle>()
+                    }) as *mut UtHashHandle;
                     if _hs_q.is_null() {
                         break;
                     }
@@ -926,10 +926,10 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
                                 .offset((*(*(*go).byName).hhName.tbl).hho)
-                                as *mut UT_hash_handle
+                                as *mut UtHashHandle
                         } else {
-                            ::core::ptr::null_mut::<UT_hash_handle>()
-                        }) as *mut UT_hash_handle;
+                            ::core::ptr::null_mut::<UtHashHandle>()
+                        }) as *mut UtHashHandle;
                         _hs_qsize = _hs_qsize.wrapping_sub(1);
                     } else if _hs_qsize == 0 as ::core::ffi::c_uint || _hs_q.is_null() {
                         _hs_e = _hs_p;
@@ -937,21 +937,21 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
                                     .offset((*(*(*go).byName).hhName.tbl).hho)
-                                    as *mut UT_hash_handle
+                                    as *mut UtHashHandle
                             } else {
-                                ::core::ptr::null_mut::<UT_hash_handle>()
-                            }) as *mut UT_hash_handle;
+                                ::core::ptr::null_mut::<UtHashHandle>()
+                            }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else if _byOrder(
                         (_hs_p as *mut ::core::ffi::c_char)
                             .offset(-(*(*(*go).byName).hhName.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut otfcc_GlyphOrderEntry,
+                            as *mut GlyphOrderEntry,
                         (_hs_q as *mut ::core::ffi::c_char)
                             .offset(-(*(*(*go).byName).hhName.tbl).hho)
                             as *mut ::core::ffi::c_void
-                            as *mut otfcc_GlyphOrderEntry,
+                            as *mut GlyphOrderEntry,
                     ) <= 0 as ::core::ffi::c_int
                     {
                         _hs_e = _hs_p;
@@ -959,10 +959,10 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                             _hs_p = (if !(*_hs_p).next.is_null() {
                                 ((*_hs_p).next as *mut ::core::ffi::c_char)
                                     .offset((*(*(*go).byName).hhName.tbl).hho)
-                                    as *mut UT_hash_handle
+                                    as *mut UtHashHandle
                             } else {
-                                ::core::ptr::null_mut::<UT_hash_handle>()
-                            }) as *mut UT_hash_handle;
+                                ::core::ptr::null_mut::<UtHashHandle>()
+                            }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
                     } else {
@@ -970,10 +970,10 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                         _hs_q = (if !(*_hs_q).next.is_null() {
                             ((*_hs_q).next as *mut ::core::ffi::c_char)
                                 .offset((*(*(*go).byName).hhName.tbl).hho)
-                                as *mut UT_hash_handle
+                                as *mut UtHashHandle
                         } else {
-                            ::core::ptr::null_mut::<UT_hash_handle>()
-                        }) as *mut UT_hash_handle;
+                            ::core::ptr::null_mut::<UtHashHandle>()
+                        }) as *mut UtHashHandle;
                         _hs_qsize = _hs_qsize.wrapping_sub(1);
                     }
                     if !_hs_tail.is_null() {
@@ -1009,21 +1009,21 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                 (*go).byName = (_hs_list as *mut ::core::ffi::c_char)
                     .offset(-(*(*(*go).byName).hhName.tbl).hho)
                     as *mut ::core::ffi::c_void
-                    as *mut otfcc_GlyphOrderEntry
-                    as *mut otfcc_GlyphOrderEntry;
+                    as *mut GlyphOrderEntry
+                    as *mut GlyphOrderEntry;
             }
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    let mut current: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
-    let mut temp: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
-    let mut gid: glyphid_t = 0 as glyphid_t;
+    let mut current: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
+    let mut temp: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
+    let mut gid: GlyphId = 0 as GlyphId;
     current = (*go).byName;
     temp = (if !(*go).byName.is_null() {
         (*(*go).byName).hhName.next
     } else {
         NULL
-    }) as *mut otfcc_GlyphOrderEntry as *mut otfcc_GlyphOrderEntry;
+    }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
     while !current.is_null() {
         (*current).gid = gid;
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
@@ -1035,7 +1035,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
         _ha_hashv = 0xfeedbeef as ::core::ffi::c_uint;
         _hj_j = 0x9e3779b9 as ::core::ffi::c_uint;
         _hj_i = _hj_j;
-        _hj_k = ::core::mem::size_of::<glyphid_t>() as ::core::ffi::c_uint;
+        _hj_k = ::core::mem::size_of::<GlyphId>() as ::core::ffi::c_uint;
         while _hj_k >= 12 as ::core::ffi::c_uint {
             _hj_i = _hj_i.wrapping_add(
                 (*_hj_key.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
@@ -1113,7 +1113,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
             _hj_k = _hj_k.wrapping_sub(12 as ::core::ffi::c_uint);
         }
         _ha_hashv =
-            _ha_hashv.wrapping_add(::core::mem::size_of::<glyphid_t>() as ::core::ffi::c_uint);
+            _ha_hashv.wrapping_add(::core::mem::size_of::<GlyphId>() as ::core::ffi::c_uint);
         let mut current_block_122: u64;
         match _hj_k {
             11 => {
@@ -1286,21 +1286,21 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
         (*current).hhID.hashv = _ha_hashv;
         (*current).hhID.key =
             &raw mut (*current).gid as *mut ::core::ffi::c_char as *mut ::core::ffi::c_void;
-        (*current).hhID.keylen = ::core::mem::size_of::<glyphid_t>() as ::core::ffi::c_uint;
+        (*current).hhID.keylen = ::core::mem::size_of::<GlyphId>() as ::core::ffi::c_uint;
         if (*go).byGID.is_null() {
             (*current).hhID.next = NULL;
             (*current).hhID.prev = NULL;
-            (*current).hhID.tbl = malloc(::core::mem::size_of::<UT_hash_table>() as usize)
-                as *mut UT_hash_table as *mut UT_hash_table;
+            (*current).hhID.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
+                as *mut UtHashTable as *mut UtHashTable;
             if (*current).hhID.tbl.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
             } else {
                 memset(
                     (*current).hhID.tbl as *mut ::core::ffi::c_void,
                     '\0' as i32,
-                    ::core::mem::size_of::<UT_hash_table>() as usize,
+                    ::core::mem::size_of::<UtHashTable>() as usize,
                 );
-                (*(*current).hhID.tbl).tail = &raw mut (*current).hhID as *mut UT_hash_handle;
+                (*(*current).hhID.tbl).tail = &raw mut (*current).hhID as *mut UtHashHandle;
                 (*(*current).hhID.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
                 (*(*current).hhID.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
                 (*(*current).hhID.tbl).hho = (&raw mut (*current).hhID as *mut ::core::ffi::c_char)
@@ -1308,8 +1308,8 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                     as ::core::ffi::c_long
                     as isize;
                 (*(*current).hhID.tbl).buckets = malloc(
-                    (32 as usize).wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-                ) as *mut UT_hash_bucket;
+                    (32 as usize).wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+                ) as *mut UtHashBucket;
                 (*(*current).hhID.tbl).signature = HASH_SIGNATURE as u32;
                 if (*(*current).hhID.tbl).buckets.is_null() {
                     exit(-(1 as ::core::ffi::c_int));
@@ -1318,7 +1318,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                         (*(*current).hhID.tbl).buckets as *mut ::core::ffi::c_void,
                         '\0' as i32,
                         (32 as usize)
-                            .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                     );
                 }
             }
@@ -1330,7 +1330,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                 .offset(-(*(*(*go).byGID).hhID.tbl).hho)
                 as *mut ::core::ffi::c_void;
             (*(*(*(*go).byGID).hhID.tbl).tail).next = current as *mut ::core::ffi::c_void;
-            (*(*(*go).byGID).hhID.tbl).tail = &raw mut (*current).hhID as *mut UT_hash_handle;
+            (*(*(*go).byGID).hhID.tbl).tail = &raw mut (*current).hhID as *mut UtHashHandle;
         }
         let mut _ha_bkt: ::core::ffi::c_uint = 0;
         (*(*(*go).byGID).hhID.tbl).num_items = (*(*(*go).byGID).hhID.tbl).num_items.wrapping_add(1);
@@ -1338,15 +1338,15 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
             & (*(*(*go).byGID).hhID.tbl)
                 .num_buckets
                 .wrapping_sub(1 as ::core::ffi::c_uint);
-        let mut _ha_head: *mut UT_hash_bucket =
-            (*(*(*go).byGID).hhID.tbl).buckets.offset(_ha_bkt as isize) as *mut UT_hash_bucket;
+        let mut _ha_head: *mut UtHashBucket =
+            (*(*(*go).byGID).hhID.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
         (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-        (*current).hhID.hh_next = (*_ha_head).hh_head as *mut UT_hash_handle;
-        (*current).hhID.hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
+        (*current).hhID.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
+        (*current).hhID.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
         if !(*_ha_head).hh_head.is_null() {
-            (*(*_ha_head).hh_head).hh_prev = &raw mut (*current).hhID as *mut UT_hash_handle;
+            (*(*_ha_head).hh_head).hh_prev = &raw mut (*current).hhID as *mut UtHashHandle;
         }
-        (*_ha_head).hh_head = &raw mut (*current).hhID as *mut UT_hash_handle;
+        (*_ha_head).hh_head = &raw mut (*current).hhID as *mut UtHashHandle;
         if (*_ha_head).count
             >= (*_ha_head)
                 .expand_mult
@@ -1356,16 +1356,16 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
         {
             let mut _he_bkt: ::core::ffi::c_uint = 0;
             let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-            let mut _he_thh: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-            let mut _he_hh_nxt: *mut UT_hash_handle = ::core::ptr::null_mut::<UT_hash_handle>();
-            let mut _he_new_buckets: *mut UT_hash_bucket =
-                ::core::ptr::null_mut::<UT_hash_bucket>();
-            let mut _he_newbkt: *mut UT_hash_bucket = ::core::ptr::null_mut::<UT_hash_bucket>();
+            let mut _he_thh: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+            let mut _he_hh_nxt: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
+            let mut _he_new_buckets: *mut UtHashBucket =
+                ::core::ptr::null_mut::<UtHashBucket>();
+            let mut _he_newbkt: *mut UtHashBucket = ::core::ptr::null_mut::<UtHashBucket>();
             _he_new_buckets = malloc(
                 (2 as usize)
                     .wrapping_mul((*(*current).hhID.tbl).num_buckets as usize)
-                    .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
-            ) as *mut UT_hash_bucket;
+                    .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
+            ) as *mut UtHashBucket;
             if _he_new_buckets.is_null() {
                 exit(-(1 as ::core::ffi::c_int));
             } else {
@@ -1374,7 +1374,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                     '\0' as i32,
                     (2 as usize)
                         .wrapping_mul((*(*current).hhID.tbl).num_buckets as usize)
-                        .wrapping_mul(::core::mem::size_of::<UT_hash_bucket>() as usize),
+                        .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
                 );
                 (*(*current).hhID.tbl).ideal_chain_maxlen = ((*(*current).hhID.tbl).num_items
                     >> (*(*current).hhID.tbl)
@@ -1397,7 +1397,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                 _he_bkt_i = 0 as ::core::ffi::c_uint;
                 while _he_bkt_i < (*(*current).hhID.tbl).num_buckets {
                     _he_thh = (*(*(*current).hhID.tbl).buckets.offset(_he_bkt_i as isize)).hh_head
-                        as *mut UT_hash_handle;
+                        as *mut UtHashHandle;
                     while !_he_thh.is_null() {
                         _he_hh_nxt = (*_he_thh).hh_next;
                         _he_bkt = (*_he_thh).hashv
@@ -1406,7 +1406,7 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                                 .wrapping_mul(2 as ::core::ffi::c_uint)
                                 .wrapping_sub(1 as ::core::ffi::c_uint);
                         _he_newbkt =
-                            _he_new_buckets.offset(_he_bkt as isize) as *mut UT_hash_bucket;
+                            _he_new_buckets.offset(_he_bkt as isize) as *mut UtHashBucket;
                         (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
                         if (*_he_newbkt).count > (*(*current).hhID.tbl).ideal_chain_maxlen {
                             (*(*current).hhID.tbl).nonideal_items =
@@ -1415,12 +1415,12 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                                 .count
                                 .wrapping_div((*(*current).hhID.tbl).ideal_chain_maxlen);
                         }
-                        (*_he_thh).hh_prev = ::core::ptr::null_mut::<UT_hash_handle>();
-                        (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UT_hash_handle;
+                        (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
+                        (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UtHashHandle;
                         if !(*_he_newbkt).hh_head.is_null() {
                             (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
                         }
-                        (*_he_newbkt).hh_head = _he_thh as *mut UT_hash_handle;
+                        (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
                         _he_thh = _he_hh_nxt;
                     }
                     _he_bkt_i = _he_bkt_i.wrapping_add(1);
@@ -1446,22 +1446,22 @@ unsafe extern "C" fn orderGlyphs(mut go: *mut otfcc_GlyphOrder) {
                 }
             }
         }
-        gid = (gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as glyphid_t;
+        gid = (gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
         current = temp;
         temp = (if !temp.is_null() {
             (*temp).hhName.next
         } else {
             NULL
-        }) as *mut otfcc_GlyphOrderEntry as *mut otfcc_GlyphOrderEntry;
+        }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
     }
 }
 unsafe extern "C" fn escalateGlyphOrderByName(
-    mut go: *mut otfcc_GlyphOrder,
-    mut name: sds,
-    mut orderType: json_GlyphOrderPass,
+    mut go: *mut GlyphOrder,
+    mut name: SdsRaw,
+    mut orderType: GlyphOrderPass,
     mut orderEntry: u32,
 ) {
-    let mut s: *mut otfcc_GlyphOrderEntry = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
+    let mut s: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
     let mut _hj_i: ::core::ffi::c_uint = 0;
     let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -1715,7 +1715,7 @@ unsafe extern "C" fn escalateGlyphOrderByName(
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
     _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
     _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-    s = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
+    s = ::core::ptr::null_mut::<GlyphOrderEntry>();
     if !(*go).byName.is_null() {
         let mut _hf_bkt: ::core::ffi::c_uint = 0;
         _hf_bkt = _hf_hashv
@@ -1734,10 +1734,10 @@ unsafe extern "C" fn escalateGlyphOrderByName(
                     .offset(_hf_bkt as isize))
                 .hh_head as *mut ::core::ffi::c_char)
                     .offset(-(*(*(*go).byName).hhName.tbl).hho)
-                    as *mut ::core::ffi::c_void as *mut otfcc_GlyphOrderEntry
-                    as *mut otfcc_GlyphOrderEntry;
+                    as *mut ::core::ffi::c_void as *mut GlyphOrderEntry
+                    as *mut GlyphOrderEntry;
             } else {
-                s = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
+                s = ::core::ptr::null_mut::<GlyphOrderEntry>();
             }
             while !s.is_null() {
                 if (*s).hhName.hashv == _hf_hashv && (*s).hhName.keylen as usize == sdslen(name) {
@@ -1754,10 +1754,10 @@ unsafe extern "C" fn escalateGlyphOrderByName(
                     s = ((*s).hhName.hh_next as *mut ::core::ffi::c_char)
                         .offset(-(*(*(*go).byName).hhName.tbl).hho)
                         as *mut ::core::ffi::c_void
-                        as *mut otfcc_GlyphOrderEntry
-                        as *mut otfcc_GlyphOrderEntry;
+                        as *mut GlyphOrderEntry
+                        as *mut GlyphOrderEntry;
                 } else {
-                    s = ::core::ptr::null_mut::<otfcc_GlyphOrderEntry>();
+                    s = ::core::ptr::null_mut::<GlyphOrderEntry>();
                 }
             }
         }
@@ -1768,12 +1768,12 @@ unsafe extern "C" fn escalateGlyphOrderByName(
     }
 }
 unsafe extern "C" fn placeOrderEntriesFromGlyf(
-    mut table: *mut json_value,
-    mut go: *mut otfcc_GlyphOrder,
+    mut table: *mut JsonValue,
+    mut go: *mut GlyphOrder,
 ) {
     let mut j: u32 = 0 as u32;
     while j < (*table).u.object.length as u32 {
-        let mut gname: sds = sdsnewlen(
+        let mut gname: SdsRaw = sdsnewlen(
             (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
             (*(*table).u.object.values.offset(j as isize)).name_length as usize,
         );
@@ -1785,7 +1785,7 @@ unsafe extern "C" fn placeOrderEntriesFromGlyf(
             setOrderByName(
                 go,
                 gname,
-                ORD_NOTDEF,
+                GlyphOrderPass::Notdef,
                 0 as u32,
             );
         } else if strcmp(
@@ -1796,27 +1796,27 @@ unsafe extern "C" fn placeOrderEntriesFromGlyf(
             setOrderByName(
                 go,
                 gname,
-                ORD_NOTDEF,
+                GlyphOrderPass::Notdef,
                 1 as u32,
             );
         } else {
-            setOrderByName(go, gname, ORD_GLYF, j);
+            setOrderByName(go, gname, GlyphOrderPass::Glyf, j);
         }
         j = j.wrapping_add(1);
     }
 }
 unsafe extern "C" fn placeOrderEntriesFromCmap(
-    mut table: *mut json_value,
-    mut go: *mut otfcc_GlyphOrder,
+    mut table: *mut JsonValue,
+    mut go: *mut GlyphOrder,
 ) {
     let mut j: u32 = 0 as u32;
     while j < (*table).u.object.length as u32 {
-        let mut unicodeStr: sds = sdsnewlen(
+        let mut unicodeStr: SdsRaw = sdsnewlen(
             (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
             (*(*table).u.object.values.offset(j as isize)).name_length as usize,
         );
-        let mut item: *mut json_value =
-            (*(*table).u.object.values.offset(j as isize)).value as *mut json_value;
+        let mut item: *mut JsonValue =
+            (*(*table).u.object.values.offset(j as isize)).value as *mut JsonValue;
         let mut unicode: i32 = 0;
         if sdslen(unicodeStr) > 2 as usize
             && *unicodeStr.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
@@ -1833,18 +1833,18 @@ unsafe extern "C" fn placeOrderEntriesFromCmap(
             unicode = atoi(unicodeStr as *const ::core::ffi::c_char) as i32;
         }
         sdsfree(unicodeStr);
-        if (*item).type_0 == json_string
+        if (*item).type_0 == JsonType::String
             && unicode > 0 as i32
             && unicode <= 0x10ffff as i32
         {
-            let mut gname: sds = sdsnewlen(
+            let mut gname: SdsRaw = sdsnewlen(
                 (*item).u.string.ptr as *const ::core::ffi::c_void,
                 (*item).u.string.length as usize,
             );
             escalateGlyphOrderByName(
                 go,
                 gname,
-                ORD_CMAP,
+                GlyphOrderPass::Cmap,
                 unicode as u32,
             );
             sdsfree(gname);
@@ -1853,8 +1853,8 @@ unsafe extern "C" fn placeOrderEntriesFromCmap(
     }
 }
 unsafe extern "C" fn placeOrderEntriesFromSubtable(
-    mut table: *mut json_value,
-    mut go: *mut otfcc_GlyphOrder,
+    mut table: *mut JsonValue,
+    mut go: *mut GlyphOrder,
     mut zeroOnly: bool,
 ) {
     let mut uplimit: u32 = (*table).u.array.length as u32;
@@ -1863,18 +1863,18 @@ unsafe extern "C" fn placeOrderEntriesFromSubtable(
     }
     let mut j: u32 = 0 as u32;
     while j < uplimit {
-        let mut item: *mut json_value =
-            *(*table).u.array.values.offset(j as isize) as *mut json_value;
-        if (*item).type_0 == json_string
+        let mut item: *mut JsonValue =
+            *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
+        if (*item).type_0 == JsonType::String
         {
-            let mut gname: sds = sdsnewlen(
+            let mut gname: SdsRaw = sdsnewlen(
                 (*item).u.string.ptr as *const ::core::ffi::c_void,
                 (*item).u.string.length as usize,
             );
             escalateGlyphOrderByName(
                 go,
                 gname,
-                ORD_GLYPHORDER,
+                GlyphOrderPass::GlyphOrder,
                 j,
             );
             sdsfree(gname);
@@ -1883,29 +1883,29 @@ unsafe extern "C" fn placeOrderEntriesFromSubtable(
     }
 }
 unsafe extern "C" fn parseGlyphOrder(
-    mut root: *const json_value,
-    mut options: *const otfcc_Options,
-) -> *mut otfcc_GlyphOrder {
-    let mut go: *mut otfcc_GlyphOrder = (
+    mut root: *const JsonValue,
+    mut options: *const Options,
+) -> *mut GlyphOrder {
+    let mut go: *mut GlyphOrder = (
         otfcc_pkgGlyphOrder
             .create
             .expect("non-null function pointer"))();
-    if (*root).type_0 != json_object
+    if (*root).type_0 != JsonType::Object
     {
         return go;
     }
-    let mut table: *mut json_value = ::core::ptr::null_mut::<json_value>();
+    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
         b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-        json_object,
+        JsonType::Object,
     );
     if !table.is_null() {
         placeOrderEntriesFromGlyf(table, go);
         table = json_obj_get_type(
             root,
             b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-            json_object,
+            JsonType::Object,
         );
         if !table.is_null() {
             placeOrderEntriesFromCmap(table, go);
@@ -1913,7 +1913,7 @@ unsafe extern "C" fn parseGlyphOrder(
         table = json_obj_get_type(
             root,
             b"glyph_order\0" as *const u8 as *const ::core::ffi::c_char,
-            json_array,
+            JsonType::Array,
         );
         if !table.is_null() {
             let mut ignoreGlyphOrder: bool = (*options).ignore_glyph_order;
@@ -1921,16 +1921,16 @@ unsafe extern "C" fn parseGlyphOrder(
                 && !json_obj_get_type(
                     root,
                     b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_array,
+                    JsonType::Array,
                 )
                 .is_null()
             {
                 (*(*options).logger)
                     .logSDS
                     .expect("non-null function pointer")(
-                    (*options).logger as *mut otfcc_ILogger,
+                    (*options).logger as *mut ILogger,
                     log_vl_notice,
-                    log_type_info,
+                    LoggerType::Info,
                     crate::sdsbuild!(
                         sdsempty(),
                         b"OpenType SVG table detected. Glyph order is preserved.",
@@ -1951,9 +1951,9 @@ impl FontBuilder for JsonReader {
     mut _index: u32,
     options: *const ::core::ffi::c_void,
 ) -> *mut ::core::ffi::c_void {
-    let options = options as *const otfcc_Options;
-    let mut root: *const json_value = _root as *mut json_value;
-    let mut font: *mut otfcc_Font = (
+    let options = options as *const Options;
+    let mut root: *const JsonValue = _root as *mut JsonValue;
+    let mut font: *mut Font = (
         otfcc_iFont.create.expect("non-null function pointer"))();
     if font.is_null() {
         return ::core::ptr::null_mut::<::core::ffi::c_void>();
@@ -2024,37 +2024,37 @@ impl FontBuilder for JsonReader {
 unsafe extern "C" fn readJson(
     mut _root: *mut ::core::ffi::c_void,
     mut _index: u32,
-    mut options: *const otfcc_Options,
-) -> *mut otfcc_Font {
+    mut options: *const Options,
+) -> *mut Font {
     <JsonReader as FontBuilder>::read(_root, _index, options as *const ::core::ffi::c_void)
-        as *mut otfcc_Font
+        as *mut Font
 }
 #[inline]
-unsafe extern "C" fn freeReader(mut self_0: *mut otfcc_IFontBuilder) {
+unsafe extern "C" fn freeReader(mut self_0: *mut IFontBuilder) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_newJsonReader() -> *mut otfcc_IFontBuilder {
-    let mut reader: *mut otfcc_IFontBuilder = ::core::ptr::null_mut::<otfcc_IFontBuilder>();
+pub unsafe extern "C" fn otfcc_newJsonReader() -> *mut IFontBuilder {
+    let mut reader: *mut IFontBuilder = ::core::ptr::null_mut::<IFontBuilder>();
     reader = __caryll_allocate_clean(
-        ::core::mem::size_of::<otfcc_IFontBuilder>() as usize,
+        ::core::mem::size_of::<IFontBuilder>() as usize,
         177 as ::core::ffi::c_ulong,
-    ) as *mut otfcc_IFontBuilder;
+    ) as *mut IFontBuilder;
     (*reader).read = Some(
         readJson
             as unsafe extern "C" fn(
                 *mut ::core::ffi::c_void,
                 u32,
-                *const otfcc_Options,
-            ) -> *mut otfcc_Font,
+                *const Options,
+            ) -> *mut Font,
     )
         as Option<
             unsafe extern "C" fn(
                 *mut ::core::ffi::c_void,
                 u32,
-                *const otfcc_Options,
-            ) -> *mut otfcc_Font,
+                *const Options,
+            ) -> *mut Font,
         >;
-    (*reader).free = Some(freeReader as unsafe extern "C" fn(*mut otfcc_IFontBuilder) -> ())
-        as Option<unsafe extern "C" fn(*mut otfcc_IFontBuilder) -> ()>;
+    (*reader).free = Some(freeReader as unsafe extern "C" fn(*mut IFontBuilder) -> ())
+        as Option<unsafe extern "C" fn(*mut IFontBuilder) -> ()>;
     return reader;
 }

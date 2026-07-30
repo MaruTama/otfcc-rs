@@ -1,38 +1,38 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-use crate::logger::{otfcc_ILogger};
-use crate::support::options::{otfcc_Options};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
-use crate::vendor::json::{json_value};
+use crate::logger::{ILogger};
+use crate::support::options::{Options};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::json::{JsonValue};
 
-use crate::table::meta::types::{meta_Entry, table_meta};
+use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_encode};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdsempty};
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> usize {
+unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut sdshdr8))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut SdsHdr8))
                 .len as usize;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .len as usize;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .len as usize;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .len as usize;
         }
         _ => {}
@@ -44,9 +44,9 @@ unsafe extern "C" fn isStringTag(mut tag: u32) -> bool {
     return tag == 1684827751i32 as u32 || tag == 1936485991i32 as u32;
 }
 pub unsafe extern "C" fn otfcc_dumpMeta(
-    mut meta: *const table_meta,
-    mut root: *mut json_value,
-    mut options: *const otfcc_Options,
+    mut meta: *const MetaTable,
+    mut root: *mut JsonValue,
+    mut options: *const Options,
 ) {
     if meta.is_null() {
         return;
@@ -54,12 +54,12 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _meta: *mut json_value = json_object_new(3 as usize);
+        let mut _meta: *mut JsonValue = json_object_new(3 as usize);
         json_object_push(
             _meta,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -70,7 +70,7 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new((*meta).flags as i64),
         );
-        let mut _entries: *mut json_value = json_array_new((*meta).entries.length);
+        let mut _entries: *mut JsonValue = json_array_new((*meta).entries.length);
         json_object_push(
             _meta,
             b"entries\0" as *const u8 as *const ::core::ffi::c_char,
@@ -79,9 +79,9 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < (*meta).entries.length {
-            let mut e: *mut meta_Entry = (*meta).entries.items.offset(__caryll_index as isize);
+            let mut e: *mut MetaEntry = (*meta).entries.items.offset(__caryll_index as isize);
             while keep != 0 {
-                let mut _e: *mut json_value = json_object_new(2 as usize);
+                let mut _e: *mut JsonValue = json_object_new(2 as usize);
                 let mut _tag: [::core::ffi::c_char; 4] = [0; 4];
                 tag2str((*e).tag, &raw mut _tag as *mut ::core::ffi::c_char);
                 json_object_push(
@@ -133,7 +133,7 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
 #[inline]

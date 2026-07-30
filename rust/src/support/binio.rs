@@ -60,7 +60,7 @@ pub(crate) unsafe fn read_64u(src: *const u8) -> u64 {
     ])
 }
 
-/// C's *implicit* `pos_t` (f64) -> `uint16_t` narrowing, as it happens at
+/// C's *implicit* `Pos` (f64) -> `uint16_t` narrowing, as it happens at
 /// `bufwrite16b()` call sites whose C source has no explicit intermediate
 /// cast — `bufwrite16b(buf, hmtx->metrics[j].lsb)` and friends.
 ///
@@ -109,14 +109,14 @@ mod tests {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union otfcc_EndianProbe32 {
+pub union EndianProbe32 {
     pub i1: [u8; 4],
     pub i4: u32,
 }
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union otfcc_EndianProbe16 {
+pub union EndianProbe16 {
     pub i1: [u8; 2],
     pub i2: u16,
 }

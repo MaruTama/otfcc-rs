@@ -1,11 +1,11 @@
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct UT_hash_handle {
-    pub tbl: *mut UT_hash_table,
+pub struct UtHashHandle {
+    pub tbl: *mut UtHashTable,
     pub prev: *mut ::core::ffi::c_void,
     pub next: *mut ::core::ffi::c_void,
-    pub hh_prev: *mut UT_hash_handle,
-    pub hh_next: *mut UT_hash_handle,
+    pub hh_prev: *mut UtHashHandle,
+    pub hh_next: *mut UtHashHandle,
     pub key: *mut ::core::ffi::c_void,
     pub keylen: ::core::ffi::c_uint,
     pub hashv: ::core::ffi::c_uint,
@@ -13,12 +13,12 @@ pub struct UT_hash_handle {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct UT_hash_table {
-    pub buckets: *mut UT_hash_bucket,
+pub struct UtHashTable {
+    pub buckets: *mut UtHashBucket,
     pub num_buckets: ::core::ffi::c_uint,
     pub log2_num_buckets: ::core::ffi::c_uint,
     pub num_items: ::core::ffi::c_uint,
-    pub tail: *mut UT_hash_handle,
+    pub tail: *mut UtHashHandle,
     pub hho: isize,
     pub ideal_chain_maxlen: ::core::ffi::c_uint,
     pub nonideal_items: ::core::ffi::c_uint,
@@ -29,8 +29,8 @@ pub struct UT_hash_table {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct UT_hash_bucket {
-    pub hh_head: *mut UT_hash_handle,
+pub struct UtHashBucket {
+    pub hh_head: *mut UtHashHandle,
     pub count: ::core::ffi::c_uint,
     pub expand_mult: ::core::ffi::c_uint,
 }

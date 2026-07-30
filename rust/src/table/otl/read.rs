@@ -5,12 +5,12 @@ use libc::{free};
 
 use crate::support::binio::{read_16u, read_32u};
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{font_file_pointer, glyphid_t, tableid_t};
+use crate::support::options::{Options};
+use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::sds::{Byte, Dec5, Hex2};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
-use crate::table::otl::{otl_Feature, otl_FeatureList, otl_FeaturePtr, otl_FeatureRef, otl_LanguageSystem, otl_LanguageSystemPtr, otl_Lookup, otl_LookupPtr, otl_LookupRef, otl_LookupType, otl_Subtable, otl_SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_context, otl_type_gpos_cursive, otl_type_gpos_extend, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gpos_unknown, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_context, otl_type_gsub_extend, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, otl_type_gsub_unknown, otl_type_unknown, table_OTL};
+use crate::table::otl::{Feature, FeatureList, FeaturePtr, FeatureRef, LanguageSystem, LanguageSystemPtr, Lookup, LookupPtr, LookupRef, LookupType, Subtable, SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_context, otl_type_gpos_cursive, otl_type_gpos_extend, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gpos_unknown, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_context, otl_type_gsub_extend, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, otl_type_gsub_unknown, otl_type_unknown, OtlTable};
 use crate::table::otl::{otfcc_delete_lookup, otl_iFeatureList, otl_iFeaturePtr, otl_iFeatureRefList, otl_iLangSystemList, otl_iLanguageSystem, otl_iLookupList, otl_iLookupPtr, otl_iLookupRefList, otl_iSubtableList, table_iOTL};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
@@ -26,13 +26,13 @@ use crate::table::otl::subtables::gsub_reverse::{otl_read_gsub_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_read_gsub_single};
 use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn otfcc_readOtl_subtable(
-    mut data: font_file_pointer,
+    mut data: FontFilePointer,
     mut tableLength: u32,
     mut subtableOffset: u32,
-    mut lookupType: otl_LookupType,
-    maxGlyphs: glyphid_t,
-    mut options: *const otfcc_Options,
-) -> *mut otl_Subtable {
+    mut lookupType: LookupType,
+    maxGlyphs: GlyphId,
+    mut options: *const Options,
+) -> *mut Subtable {
     match lookupType {
         otl_type_gsub_single => {
             return otl_read_gsub_single(data, tableLength, subtableOffset, maxGlyphs, options);
@@ -115,50 +115,50 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
                 options,
             );
         }
-        _ => return ::core::ptr::null_mut::<otl_Subtable>(),
+        _ => return ::core::ptr::null_mut::<Subtable>(),
     };
 }
 unsafe extern "C" fn parseLanguage(
-    mut data: font_file_pointer,
+    mut data: FontFilePointer,
     mut tableLength: u32,
     mut base: u32,
-    mut lang: *mut otl_LanguageSystem,
-    mut features: *mut otl_FeatureList,
+    mut lang: *mut LanguageSystem,
+    mut features: *mut FeatureList,
 ) {
-    let mut rid: tableid_t = 0;
-    let mut featureCount: tableid_t = 0;
+    let mut rid: TableId = 0;
+    let mut featureCount: TableId = 0;
     if tableLength < base.wrapping_add(6 as u32) {
         otl_iFeatureRefList
             .dispose
             .expect("non-null function pointer")(&raw mut (*lang).features);
-        (*lang).requiredFeature = ::core::ptr::null::<otl_Feature>();
+        (*lang).requiredFeature = ::core::ptr::null::<Feature>();
         return;
     } else {
         rid = read_16u(
             data.offset(base as isize)
                 .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        ) as tableid_t;
+        ) as TableId;
         if (rid as usize) < (*features).length {
-            (*lang).requiredFeature = *(*features).items.offset(rid as isize) as otl_FeatureRef;
+            (*lang).requiredFeature = *(*features).items.offset(rid as isize) as FeatureRef;
         } else {
-            (*lang).requiredFeature = ::core::ptr::null::<otl_Feature>();
+            (*lang).requiredFeature = ::core::ptr::null::<Feature>();
         }
         featureCount = read_16u(
             data.offset(base as isize)
                 .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-        ) as tableid_t;
-        let mut j: tableid_t = 0 as tableid_t;
+        ) as TableId;
+        let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < featureCount as ::core::ffi::c_int {
-            let mut featureIndex: tableid_t = read_16u(
+            let mut featureIndex: TableId = read_16u(
                 data.offset(base as isize)
                     .offset(6 as ::core::ffi::c_int as isize)
                     .offset((2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize)
                     as *const u8,
-            ) as tableid_t;
+            ) as TableId;
             if (featureIndex as usize) < (*features).length {
                 otl_iFeatureRefList.push.expect("non-null function pointer")(
                     &raw mut (*lang).features,
-                    *(*features).items.offset(featureIndex as isize) as otl_FeatureRef,
+                    *(*features).items.offset(featureIndex as isize) as FeatureRef,
                 );
             }
             j = j.wrapping_add(1);
@@ -167,16 +167,16 @@ unsafe extern "C" fn parseLanguage(
     };
 }
 unsafe extern "C" fn otfcc_readOtl_common(
-    mut data: font_file_pointer,
+    mut data: FontFilePointer,
     mut tableLength: u32,
-    mut lookup_type_base: otl_LookupType,
-    mut options: *const otfcc_Options,
-) -> *mut table_OTL {
+    mut lookup_type_base: LookupType,
+    mut options: *const Options,
+) -> *mut OtlTable {
     let mut scriptListOffset: u32 = 0;
     let mut featureListOffset: u32 = 0;
     let mut lookupListOffset: u32 = 0;
     let mut current_block: u64;
-    let mut table: *mut table_OTL = (
+    let mut table: *mut OtlTable = (
         table_iOTL.create.expect("non-null function pointer"))();
     if !table.is_null() {
         if !(tableLength < 10 as u32) {
@@ -192,24 +192,24 @@ unsafe extern "C" fn otfcc_readOtl_common(
                         read_16u(data.offset(8 as ::core::ffi::c_int as isize) as *const u8)
                             as u32;
                     if !(tableLength < lookupListOffset.wrapping_add(2 as u32)) {
-                        let mut lookupCount: tableid_t =
+                        let mut lookupCount: TableId =
                             read_16u(data.offset(lookupListOffset as isize) as *const u8)
-                                as tableid_t;
+                                as TableId;
                         if !(tableLength
                             < lookupListOffset.wrapping_add(2 as u32).wrapping_add(
                                 (lookupCount as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
                                     as u32,
                             ))
                         {
-                            let mut j: tableid_t = 0 as tableid_t;
+                            let mut j: TableId = 0 as TableId;
                             loop {
                                 if !((j as ::core::ffi::c_int) < lookupCount as ::core::ffi::c_int)
                                 {
                                     current_block = 12147880666119273379;
                                     break;
                                 }
-                                let mut lookup: *mut otl_Lookup =
-                                    ::core::ptr::null_mut::<otl_Lookup>();
+                                let mut lookup: *mut Lookup =
+                                    ::core::ptr::null_mut::<Lookup>();
                                 otl_iLookupPtr.init.expect("non-null function pointer")(
                                     &raw mut lookup,
                                 );
@@ -226,23 +226,23 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                     current_block = 2510049428056405458;
                                     break;
                                 }
-                                (*lookup).type_0 = otl_LookupType::from_file(
+                                (*lookup).type_0 = LookupType::from_file(
                                     lookup_type_base,
                                     read_16u(data.offset((*lookup)._offset as isize) as *const u8),
                                 );
                                 otl_iLookupList.push.expect("non-null function pointer")(
                                     &raw mut (*table).lookups,
-                                    lookup as otl_LookupPtr,
+                                    lookup as LookupPtr,
                                 );
                                 j = j.wrapping_add(1);
                             }
                             match current_block {
                                 2510049428056405458 => {}
                                 _ => {
-                                    let mut featureCount: tableid_t =
+                                    let mut featureCount: TableId =
                                         read_16u(data.offset(featureListOffset as isize)
                                             as *const u8)
-                                            as tableid_t;
+                                            as TableId;
                                     if !(tableLength
                                         < featureListOffset
                                             .wrapping_add(2 as u32)
@@ -252,8 +252,8 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                     as u32,
                                             ))
                                     {
-                                        let mut lnk: tableid_t = 0 as tableid_t;
-                                        let mut j_0: tableid_t = 0 as tableid_t;
+                                        let mut lnk: TableId = 0 as TableId;
+                                        let mut j_0: TableId = 0 as TableId;
                                         loop {
                                             if !((j_0 as ::core::ffi::c_int)
                                                 < featureCount as ::core::ffi::c_int)
@@ -261,8 +261,8 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                 current_block = 13460095289871124136;
                                                 break;
                                             }
-                                            let mut feature: *mut otl_Feature =
-                                                ::core::ptr::null_mut::<otl_Feature>();
+                                            let mut feature: *mut Feature =
+                                                ::core::ptr::null_mut::<Feature>();
                                             otl_iFeaturePtr
                                                 .init
                                                 .expect("non-null function pointer")(
@@ -326,12 +326,12 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                 current_block = 2510049428056405458;
                                                 break;
                                             }
-                                            let mut lookupCount_0: tableid_t = read_16u(
+                                            let mut lookupCount_0: TableId = read_16u(
                                                 data.offset(featureOffset as isize)
                                                     .offset(2 as ::core::ffi::c_int as isize)
                                                     as *const u8,
                                             )
-                                                as tableid_t;
+                                                as TableId;
                                             if tableLength
                                                 < featureOffset
                                                     .wrapping_add(4 as u32)
@@ -344,11 +344,11 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                 current_block = 2510049428056405458;
                                                 break;
                                             }
-                                            let mut k: tableid_t = 0 as tableid_t;
+                                            let mut k: TableId = 0 as TableId;
                                             while (k as ::core::ffi::c_int)
                                                 < lookupCount_0 as ::core::ffi::c_int
                                             {
-                                                let mut lookupid: tableid_t = read_16u(
+                                                let mut lookupid: TableId = read_16u(
                                                     data.offset(featureOffset as isize)
                                                         .offset(4 as ::core::ffi::c_int as isize)
                                                         .offset(
@@ -358,13 +358,13 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                         )
                                                         as *const u8,
                                                 )
-                                                    as tableid_t;
+                                                    as TableId;
                                                 if (lookupid as usize) < (*table).lookups.length {
-                                                    let mut lookup_0: *mut otl_Lookup = *(*table)
+                                                    let mut lookup_0: *mut Lookup = *(*table)
                                                         .lookups
                                                         .items
                                                         .offset(lookupid as isize)
-                                                        as *mut otl_Lookup;
+                                                        as *mut Lookup;
                                                     if (*lookup_0).name.is_null() {
                                                         if !(*options).glyph_name_prefix.is_null() {
                                                             let fresh3 = lnk;
@@ -406,7 +406,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                         .push
                                                         .expect("non-null function pointer")(
                                                         &raw mut (*feature).lookups,
-                                                        lookup_0 as otl_LookupRef,
+                                                        lookup_0 as LookupRef,
                                                     );
                                                 }
                                                 k = k.wrapping_add(1);
@@ -415,17 +415,17 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                 .push
                                                 .expect("non-null function pointer")(
                                                 &raw mut (*table).features,
-                                                feature as otl_FeaturePtr,
+                                                feature as FeaturePtr,
                                             );
                                             j_0 = j_0.wrapping_add(1);
                                         }
                                         match current_block {
                                             2510049428056405458 => {}
                                             _ => {
-                                                let mut scriptCount: tableid_t =
+                                                let mut scriptCount: TableId =
                                                     read_16u(data.offset(scriptListOffset as isize)
                                                         as *const u8)
-                                                        as tableid_t;
+                                                        as TableId;
                                                 if !(tableLength
                                                     < scriptListOffset
                                                         .wrapping_add(2 as u32)
@@ -437,7 +437,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                 {
                                                     let mut nLanguageCombinations: u32 =
                                                         0 as u32;
-                                                    let mut j_1: tableid_t = 0 as tableid_t;
+                                                    let mut j_1: TableId = 0 as TableId;
                                                     loop {
                                                         if !((j_1 as ::core::ffi::c_int)
                                                             < scriptCount as ::core::ffi::c_int)
@@ -474,12 +474,12 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                             current_block = 2510049428056405458;
                                                             break;
                                                         }
-                                                        let mut defaultLangSystem: tableid_t =
+                                                        let mut defaultLangSystem: TableId =
                                                             read_16u(
                                                                 data.offset(scriptOffset as isize)
                                                                     as *const u8,
                                                             )
-                                                                as tableid_t;
+                                                                as TableId;
                                                         nLanguageCombinations =
                                                             nLanguageCombinations.wrapping_add(
                                                                 ((if defaultLangSystem
@@ -507,7 +507,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                     match current_block {
                                                         2510049428056405458 => {}
                                                         _ => {
-                                                            let mut j_2: tableid_t = 0 as tableid_t;
+                                                            let mut j_2: TableId = 0 as TableId;
                                                             while (j_2 as ::core::ffi::c_int)
                                                                 < scriptCount as ::core::ffi::c_int
                                                             {
@@ -533,12 +533,12 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                                 .offset(4 as ::core::ffi::c_int as isize) as *const u8,
                                                                         ) as u32,
                                                                     );
-                                                                let mut defaultLangSystem_0: tableid_t = read_16u(
+                                                                let mut defaultLangSystem_0: TableId = read_16u(
                                                                     data.offset(scriptOffset_0 as isize) as *const u8,
-                                                                ) as tableid_t;
+                                                                ) as TableId;
                                                                 if defaultLangSystem_0 != 0 {
-                                                                    let mut lang: *mut otl_LanguageSystem = ::core::ptr::null_mut::<
-                                                                        otl_LanguageSystem,
+                                                                    let mut lang: *mut LanguageSystem = ::core::ptr::null_mut::<
+                                                                        LanguageSystem,
                                                                     >();
                                                                     otl_iLanguageSystem
                                                                         .init
@@ -573,10 +573,10 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                             "non-null function pointer",
                                                                         )(
                                                                         &raw mut (*table).languages,
-                                                                        lang as otl_LanguageSystemPtr,
+                                                                        lang as LanguageSystemPtr,
                                                                     );
                                                                 }
-                                                                let mut langSysCount: tableid_t =
+                                                                let mut langSysCount: TableId =
                                                                     read_16u(
                                                                         data.offset(
                                                                             scriptOffset_0 as isize,
@@ -587,9 +587,9 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                         )
                                                                             as *const u8,
                                                                     )
-                                                                        as tableid_t;
-                                                                let mut k_0: tableid_t =
-                                                                    0 as tableid_t;
+                                                                        as TableId;
+                                                                let mut k_0: TableId =
+                                                                    0 as TableId;
                                                                 while (k_0 as ::core::ffi::c_int)
                                                                     < langSysCount
                                                                         as ::core::ffi::c_int
@@ -603,7 +603,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                                     as isize,
                                                                             ) as *const u8,
                                                                     );
-                                                                    let mut langSys: tableid_t = read_16u(
+                                                                    let mut langSys: TableId = read_16u(
                                                                         data
                                                                             .offset(scriptOffset_0 as isize)
                                                                             .offset(4 as ::core::ffi::c_int as isize)
@@ -612,9 +612,9 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                                     as isize,
                                                                             )
                                                                             .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-                                                                    ) as tableid_t;
-                                                                    let mut lang_0: *mut otl_LanguageSystem = ::core::ptr::null_mut::<
-                                                                        otl_LanguageSystem,
+                                                                    ) as TableId;
+                                                                    let mut lang_0: *mut LanguageSystem = ::core::ptr::null_mut::<
+                                                                        LanguageSystem,
                                                                     >();
                                                                     otl_iLanguageSystem
                                                                         .init
@@ -651,13 +651,13 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                             "non-null function pointer",
                                                                         )(
                                                                         &raw mut (*table).languages,
-                                                                        lang_0 as otl_LanguageSystemPtr,
+                                                                        lang_0 as LanguageSystemPtr,
                                                                     );
                                                                     k_0 = k_0.wrapping_add(1);
                                                                 }
                                                                 j_2 = j_2.wrapping_add(1);
                                                             }
-                                                            let mut j_3: tableid_t = 0 as tableid_t;
+                                                            let mut j_3: TableId = 0 as TableId;
                                                             while (j_3 as usize)
                                                                 < (*table).lookups.length
                                                             {
@@ -727,23 +727,23 @@ unsafe extern "C" fn otfcc_readOtl_common(
     if !table.is_null() {
         table_iOTL.free.expect("non-null function pointer")(table);
     }
-    return ::core::ptr::null_mut::<table_OTL>();
+    return ::core::ptr::null_mut::<OtlTable>();
 }
 unsafe extern "C" fn otfcc_readOtl_lookup(
-    mut data: font_file_pointer,
+    mut data: FontFilePointer,
     mut tableLength: u32,
-    mut lookup: *mut otl_Lookup,
-    mut maxGlyphs: glyphid_t,
-    mut options: *const otfcc_Options,
+    mut lookup: *mut Lookup,
+    mut maxGlyphs: GlyphId,
+    mut options: *const Options,
 ) {
     (*lookup).flags = read_16u(
         data.offset((*lookup)._offset as isize)
             .offset(2 as ::core::ffi::c_int as isize) as *const u8,
     );
-    let mut subtableCount: tableid_t = read_16u(
+    let mut subtableCount: TableId = read_16u(
         data.offset((*lookup)._offset as isize)
             .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-    ) as tableid_t;
+    ) as TableId;
     if subtableCount == 0
         || tableLength
             < (*lookup)._offset.wrapping_add(6 as u32).wrapping_add(
@@ -753,7 +753,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
         (*lookup).type_0 = otl_type_unknown;
         return;
     }
-    let mut j: tableid_t = 0 as tableid_t;
+    let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < subtableCount as ::core::ffi::c_int {
         let mut subtableOffset: u32 = (*lookup)._offset.wrapping_add(read_16u(
             data.offset((*lookup)._offset as isize)
@@ -761,7 +761,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
                 .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
                 as *const u8,
         ) as u32);
-        let mut subtable: *mut otl_Subtable = otfcc_readOtl_subtable(
+        let mut subtable: *mut Subtable = otfcc_readOtl_subtable(
             data,
             tableLength,
             subtableOffset,
@@ -771,7 +771,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
         );
         otl_iSubtableList.push.expect("non-null function pointer")(
             &raw mut (*lookup).subtables,
-            subtable as otl_SubtablePtr,
+            subtable as SubtablePtr,
         );
         j = j.wrapping_add(1);
     }
@@ -779,7 +779,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
         || (*lookup).type_0 == otl_type_gpos_extend
     {
         (*lookup).type_0 = otl_type_unknown;
-        let mut j_0: tableid_t = 0 as tableid_t;
+        let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*lookup).subtables.length {
             if !(*(*lookup).subtables.items.offset(j_0 as isize)).is_null() {
                 (*lookup).type_0 = (**(*lookup).subtables.items.offset(j_0 as isize))
@@ -791,7 +791,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
             }
         }
         if (*lookup).type_0 != otl_type_unknown {
-            let mut j_1: tableid_t = 0 as tableid_t;
+            let mut j_1: TableId = 0 as TableId;
             while (j_1 as usize) < (*lookup).subtables.length {
                 if !(*(*lookup).subtables.items.offset(j_1 as isize)).is_null()
                     && (**(*lookup).subtables.items.offset(j_1 as isize))
@@ -799,19 +799,19 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
                         .type_0
                         == (*lookup).type_0
                 {
-                    let mut st: *mut otl_Subtable =
+                    let mut st: *mut Subtable =
                         (**(*lookup).subtables.items.offset(j_1 as isize))
                             .extend
-                            .subtable as *mut otl_Subtable;
+                            .subtable as *mut Subtable;
                     free(
                         *(*lookup).subtables.items.offset(j_1 as isize) as *mut ::core::ffi::c_void
                     );
                     let ref mut fresh0 = *(*lookup).subtables.items.offset(j_1 as isize);
-                    *fresh0 = ::core::ptr::null_mut::<otl_Subtable>();
+                    *fresh0 = ::core::ptr::null_mut::<Subtable>();
                     let ref mut fresh1 = *(*lookup).subtables.items.offset(j_1 as isize);
-                    *fresh1 = st as otl_SubtablePtr;
+                    *fresh1 = st as SubtablePtr;
                 } else if !(*(*lookup).subtables.items.offset(j_1 as isize)).is_null() {
-                    let mut temp: *mut otl_Lookup = ::core::ptr::null_mut::<otl_Lookup>();
+                    let mut temp: *mut Lookup = ::core::ptr::null_mut::<Lookup>();
                     otl_iLookupPtr.init.expect("non-null function pointer")(&raw mut temp);
                     (*temp).type_0 = (**(*lookup).subtables.items.offset(j_1 as isize))
                         .extend
@@ -820,15 +820,15 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
                         &raw mut (*temp).subtables,
                         (**(*lookup).subtables.items.offset(j_1 as isize))
                             .extend
-                            .subtable as otl_SubtablePtr,
+                            .subtable as SubtablePtr,
                     );
                     otfcc_delete_lookup(temp);
-                    temp = ::core::ptr::null_mut::<otl_Lookup>();
+                    temp = ::core::ptr::null_mut::<Lookup>();
                     free(
                         *(*lookup).subtables.items.offset(j_1 as isize) as *mut ::core::ffi::c_void
                     );
                     let ref mut fresh2 = *(*lookup).subtables.items.offset(j_1 as isize);
-                    *fresh2 = ::core::ptr::null_mut::<otl_Subtable>();
+                    *fresh2 = ::core::ptr::null_mut::<Subtable>();
                 }
                 j_1 = j_1.wrapping_add(1);
             }
@@ -851,12 +851,12 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
     }
 }
 pub unsafe extern "C" fn otfcc_readOtl(
-    mut packet: otfcc_Packet,
-    mut options: *const otfcc_Options,
+    mut packet: Packet,
+    mut options: *const Options,
     mut tag: u32,
-    mut maxGlyphs: glyphid_t,
-) -> *mut table_OTL {
-    let mut otl: *mut table_OTL = ::core::ptr::null_mut::<table_OTL>();
+    mut maxGlyphs: GlyphId,
+) -> *mut OtlTable {
+    let mut otl: *mut OtlTable = ::core::ptr::null_mut::<OtlTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -864,12 +864,12 @@ pub unsafe extern "C" fn otfcc_readOtl(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == tag {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: font_file_pointer = table.data as font_file_pointer;
+                    let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     otl = otfcc_readOtl_common(
                         data,
@@ -887,14 +887,14 @@ pub unsafe extern "C" fn otfcc_readOtl(
                         if !otl.is_null() {
                             table_iOTL.free.expect("non-null function pointer")(otl);
                         }
-                        otl = ::core::ptr::null_mut::<table_OTL>();
+                        otl = ::core::ptr::null_mut::<OtlTable>();
                     } else {
-                        let mut j: tableid_t = 0 as tableid_t;
+                        let mut j: TableId = 0 as TableId;
                         while (j as usize) < (*otl).lookups.length {
                             otfcc_readOtl_lookup(
                                 data,
                                 length,
-                                *(*otl).lookups.items.offset(j as isize) as *mut otl_Lookup,
+                                *(*otl).lookups.items.offset(j as isize) as *mut Lookup,
                                 maxGlyphs,
                                 options,
                             );
@@ -911,5 +911,5 @@ pub unsafe extern "C" fn otfcc_readOtl(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<table_OTL>();
+    return ::core::ptr::null_mut::<OtlTable>();
 }

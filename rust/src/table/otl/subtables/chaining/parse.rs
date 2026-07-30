@@ -2,67 +2,67 @@
 
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
-use crate::table::otl::coverage::otl_Coverage;
-use crate::support::handle::{handle_fromName, otfcc_Handle_empty, otfcc_LookupHandle};
+use crate::table::otl::coverage::Coverage;
+use crate::support::handle::{handle_fromName, otfcc_Handle_empty, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 
 
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{tableid_t};
-use crate::vendor::json::{json_array, json_object, json_string, json_value};
+use crate::support::options::{Options};
+use crate::support::primitives::{TableId};
+use crate::vendor::json::{JsonType, JsonValue};
 
-use crate::table::otl::{otl_ChainLookupApplication, otl_ChainingRule, otl_Subtable, otl_chaining_canonical, subtable_chaining};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable};
 use crate::table::otl::coverage::{otl_iCoverage};
 use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
 use crate::vendor::sds::{sdsnewlen};
 pub unsafe extern "C" fn otl_parse_chaining(
-    mut _subtable: *const json_value,
-    mut _options: *const otfcc_Options,
-) -> *mut otl_Subtable {
-    let mut _match: *mut json_value = json_obj_get_type(
+    mut _subtable: *const JsonValue,
+    mut _options: *const Options,
+) -> *mut Subtable {
+    let mut _match: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"match\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
-    let mut _apply: *mut json_value = json_obj_get_type(
+    let mut _apply: *mut JsonValue = json_obj_get_type(
         _subtable,
         b"apply\0" as *const u8 as *const ::core::ffi::c_char,
-        json_array,
+        JsonType::Array,
     );
     if _match.is_null() || _apply.is_null() {
-        return ::core::ptr::null_mut::<otl_Subtable>();
+        return ::core::ptr::null_mut::<Subtable>();
     }
-    let mut subtable: *mut subtable_chaining =
+    let mut subtable: *mut ChainingSubtable =
         (
             iSubtable_chaining
                 .create
                 .expect("non-null function pointer"))();
-    (*subtable).type_0 = otl_chaining_canonical;
-    let mut rule: *mut otl_ChainingRule = &raw mut (*subtable).c2rust_unnamed.rule;
-    (*rule).matchCount = (*_match).u.array.length as tableid_t;
+    (*subtable).type_0 = ChainingType::Canonical;
+    let mut rule: *mut ChainingRule = &raw mut (*subtable).c2rust_unnamed.rule;
+    (*rule).matchCount = (*_match).u.array.length as TableId;
     (*rule).match_0 = __caryll_allocate_clean(
-        (::core::mem::size_of::<*mut otl_Coverage>() as usize)
+        (::core::mem::size_of::<*mut Coverage>() as usize)
             .wrapping_mul((*rule).matchCount as usize),
         14 as ::core::ffi::c_ulong,
-    ) as *mut *mut otl_Coverage;
-    (*rule).applyCount = (*_apply).u.array.length as tableid_t;
+    ) as *mut *mut Coverage;
+    (*rule).applyCount = (*_apply).u.array.length as TableId;
     (*rule).apply = __caryll_allocate_clean(
-        (::core::mem::size_of::<otl_ChainLookupApplication>() as usize)
+        (::core::mem::size_of::<ChainLookupApplication>() as usize)
             .wrapping_mul((*rule).applyCount as usize),
         16 as ::core::ffi::c_ulong,
-    ) as *mut otl_ChainLookupApplication;
+    ) as *mut ChainLookupApplication;
     (*rule).inputBegins = json_obj_getnum_fallback(
         _subtable,
         b"inputBegins\0" as *const u8 as *const ::core::ffi::c_char,
         0 as ::core::ffi::c_int as ::core::ffi::c_double,
-    ) as tableid_t;
+    ) as TableId;
     (*rule).inputEnds = json_obj_getnum_fallback(
         _subtable,
         b"inputEnds\0" as *const u8 as *const ::core::ffi::c_char,
         (*rule).matchCount as ::core::ffi::c_double,
-    ) as tableid_t;
-    let mut j: tableid_t = 0 as tableid_t;
+    ) as TableId;
+    let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
         let ref mut fresh0 = *(*rule).match_0.offset(j as isize);
         *fresh0 = otl_iCoverage.parse.expect("non-null function pointer")(
@@ -70,33 +70,33 @@ pub unsafe extern "C" fn otl_parse_chaining(
         );
         j = j.wrapping_add(1);
     }
-    let mut j_0: tableid_t = 0 as tableid_t;
+    let mut j_0: TableId = 0 as TableId;
     while (j_0 as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
-        (*(*rule).apply.offset(j_0 as isize)).index = 0 as tableid_t;
+        (*(*rule).apply.offset(j_0 as isize)).index = 0 as TableId;
         (*(*rule).apply.offset(j_0 as isize)).lookup =
-            otfcc_Handle_empty() as otfcc_LookupHandle;
-        let mut _application: *mut json_value =
-            *(*_apply).u.array.values.offset(j_0 as isize) as *mut json_value;
-        if (*_application).type_0 == json_object
+            otfcc_Handle_empty() as LookupHandle;
+        let mut _application: *mut JsonValue =
+            *(*_apply).u.array.values.offset(j_0 as isize) as *mut JsonValue;
+        if (*_application).type_0 == JsonType::Object
         {
-            let mut _ln: *mut json_value = json_obj_get_type(
+            let mut _ln: *mut JsonValue = json_obj_get_type(
                 _application,
                 b"lookup\0" as *const u8 as *const ::core::ffi::c_char,
-                json_string,
+                JsonType::String,
             );
             if !_ln.is_null() {
                 (*(*rule).apply.offset(j_0 as isize)).lookup =
                     handle_fromName(sdsnewlen(
                         (*_ln).u.string.ptr as *const ::core::ffi::c_void,
                         (*_ln).u.string.length as usize,
-                    )) as otfcc_LookupHandle;
+                    )) as LookupHandle;
                 (*(*rule).apply.offset(j_0 as isize)).index = json_obj_getnum(
                     _application,
                     b"at\0" as *const u8 as *const ::core::ffi::c_char,
-                ) as tableid_t;
+                ) as TableId;
             }
         }
         j_0 = j_0.wrapping_add(1);
     }
-    return subtable as *mut otl_Subtable;
+    return subtable as *mut Subtable;
 }

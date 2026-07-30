@@ -5,9 +5,9 @@ use crate::support::json_funcs::{preserialize};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 
-use crate::support::options::{otfcc_Options};
-use crate::vendor::sds::{sds};
-use crate::vendor::json::{json_array, json_integer, json_string, json_value};
+use crate::support::options::{Options};
+use crate::vendor::sds::{SdsRaw};
+use crate::vendor::json::{JsonType, JsonValue};
 
 use crate::support::ctype_compat::{c_isdigit, c_tolower};
 use crate::support::base64::{base64_decode, base64_encode};
@@ -15,7 +15,7 @@ use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_
 use crate::vendor::sds::{sdsfree, sdsnewlen};
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
-/// instructions. `u8`, since that is what `instrdata.instrs` holds.
+/// instructions. `u8`, since that is what `InstrData.instrs` holds.
 ///
 /// c2rust emitted all 123 of `ttf_instructions`' names, of which these were the
 /// only ones any code referenced. The rest restated `ff_ttf_instrnames` below,
@@ -29,31 +29,30 @@ pub const ttf_pushb: u8 = 176;
 pub const ttf_pushw: u8 = 184;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct instrdata {
+pub struct InstrData {
     pub instrs: *mut u8,
     pub instr_cnt: u32,
     /// What each byte of `instrs` *is*, one entry per byte, filled in by
     /// [`instr_typify`]. Not part of the instruction stream: the two arrays run
     /// in parallel, which is why this one is typed and `instrs` stays `u8`.
-    pub bts: *mut byte_types,
+    pub bts: *mut ByteType,
 }
 
 /// The role of one byte in a TrueType instruction stream: the opcode itself, or
 /// one of the operand bytes that follow a push.
 ///
 /// `#[repr(u8)]` deliberately -- the array is `calloc`ed one byte per
-/// instruction byte, and `bt_instr` being 0 is what makes that zeroing valid.
+/// instruction byte, and `ByteType::Instr` being 0 is what makes that zeroing valid.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u8)]
-pub enum byte_types {
-    bt_instr = 0,
-    bt_cnt = 1,
-    bt_byte = 2,
-    bt_wordhi = 3,
-    bt_wordlo = 4,
-    bt_impliedreturn = 5,
+pub enum ByteType {
+    Instr = 0,
+    Cnt = 1,
+    Byte = 2,
+    WordHi = 3,
+    WordLo = 4,
+    ImpliedReturn = 5,
 }
-pub use byte_types::*;
 pub static ff_ttf_instrnames: [&::core::ffi::CStr; 256] = [
     c"SVTCA[y-axis]",
     c"SVTCA[x-axis]",
@@ -725,49 +724,49 @@ unsafe extern "C" fn parse_instrs(
     ) as *mut u8;
     return instrs;
 }
-unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int {
+unsafe extern "C" fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int {
     let mut i: ::core::ffi::c_int = 0;
     let mut len: ::core::ffi::c_int = (*id).instr_cnt as ::core::ffi::c_int;
     let mut cnt: ::core::ffi::c_int = 0;
     let mut j: ::core::ffi::c_int = 0;
     let mut lh: ::core::ffi::c_int = 0;
     let mut instrs: *mut u8 = (*id).instrs;
-    let mut bts: *mut byte_types = ::core::ptr::null_mut::<byte_types>();
+    let mut bts: *mut ByteType = ::core::ptr::null_mut::<ByteType>();
     if (*id).bts.is_null() {
         (*id).bts = __caryll_allocate_clean(
-            (::core::mem::size_of::<byte_types>() as usize)
+            (::core::mem::size_of::<ByteType>() as usize)
                 .wrapping_mul((len + 1 as ::core::ffi::c_int) as usize),
             582 as ::core::ffi::c_ulong,
-        ) as *mut byte_types;
+        ) as *mut ByteType;
     }
     bts = (*id).bts;
     lh = 0 as ::core::ffi::c_int;
     i = lh;
     while i < len {
-        *bts.offset(i as isize) = bt_instr;
+        *bts.offset(i as isize) = ByteType::Instr;
         lh += 1;
         if *instrs.offset(i as isize) == ttf_npushb {
             i += 1;
-            *bts.offset(i as isize) = bt_cnt;
+            *bts.offset(i as isize) = ByteType::Cnt;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_byte;
+                *bts.offset(i as isize) = ByteType::Byte;
                 j += 1;
             }
             lh += 1 as ::core::ffi::c_int + cnt;
         } else if *instrs.offset(i as isize) == ttf_npushw {
             i += 1;
-            *bts.offset(i as isize) = bt_cnt;
+            *bts.offset(i as isize) = ByteType::Cnt;
             lh += 1;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_wordhi;
+                *bts.offset(i as isize) = ByteType::WordHi;
                 i += 1;
-                *bts.offset(i as isize) = bt_wordlo;
+                *bts.offset(i as isize) = ByteType::WordLo;
                 j += 1;
             }
             lh += 1 as ::core::ffi::c_int + cnt;
@@ -779,7 +778,7 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_byte;
+                *bts.offset(i as isize) = ByteType::Byte;
                 j += 1;
             }
             lh += cnt;
@@ -791,45 +790,45 @@ unsafe extern "C" fn instr_typify(mut id: *mut instrdata) -> ::core::ffi::c_int 
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
-                *bts.offset(i as isize) = bt_wordhi;
+                *bts.offset(i as isize) = ByteType::WordHi;
                 i += 1;
-                *bts.offset(i as isize) = bt_wordlo;
+                *bts.offset(i as isize) = ByteType::WordLo;
                 j += 1;
             }
             lh += cnt;
         }
         i += 1;
     }
-    *bts.offset(i as isize) = bt_impliedreturn;
+    *bts.offset(i as isize) = ByteType::ImpliedReturn;
     return lh;
 }
 pub unsafe extern "C" fn dump_ttinstr(
     mut instructions: *mut u8,
     mut length: u32,
-    mut options: *const otfcc_Options,
-) -> *mut json_value {
+    mut options: *const Options,
+) -> *mut JsonValue {
     if (*options).instr_as_bytes {
         let mut len: usize = 0 as usize;
         let mut buf: *mut u8 = base64_encode(instructions, length as usize, &raw mut len);
         return json_string_new_length(len as ::core::ffi::c_uint, buf as *mut ::core::ffi::c_char);
     } else {
-        let mut id: instrdata = instrdata {
+        let mut id: InstrData = InstrData {
             instrs: ::core::ptr::null_mut::<u8>(),
             instr_cnt: 0,
-            bts: ::core::ptr::null_mut::<byte_types>(),
+            bts: ::core::ptr::null_mut::<ByteType>(),
         };
         memset(
             &raw mut id as *mut ::core::ffi::c_void,
             0 as ::core::ffi::c_int,
-            ::core::mem::size_of::<instrdata>() as usize,
+            ::core::mem::size_of::<InstrData>() as usize,
         );
         id.instr_cnt = length;
         id.instrs = instructions;
         instr_typify(&raw mut id);
-        let mut ret: *mut json_value = json_array_new(id.instr_cnt as usize);
+        let mut ret: *mut JsonValue = json_array_new(id.instr_cnt as usize);
         let mut i: u32 = 0 as u32;
         while i < id.instr_cnt {
-            if *id.bts.offset(i as isize) == bt_wordhi {
+            if *id.bts.offset(i as isize) == ByteType::WordHi {
                 json_array_push(
                     ret,
                     json_integer_new(
@@ -841,8 +840,8 @@ pub unsafe extern "C" fn dump_ttinstr(
                     ),
                 );
                 i = i.wrapping_add(1);
-            } else if *id.bts.offset(i as isize) == bt_cnt
-                || *id.bts.offset(i as isize) == bt_byte
+            } else if *id.bts.offset(i as isize) == ByteType::Cnt
+                || *id.bts.offset(i as isize) == ByteType::Byte
             {
                 json_array_push(
                     ret,
@@ -857,12 +856,12 @@ pub unsafe extern "C" fn dump_ttinstr(
             i = i.wrapping_add(1);
         }
         free(id.bts as *mut ::core::ffi::c_void);
-        id.bts = ::core::ptr::null_mut::<byte_types>();
+        id.bts = ::core::ptr::null_mut::<ByteType>();
         return preserialize(ret);
     };
 }
 pub unsafe extern "C" fn parse_ttinstr(
-    mut col: *mut json_value,
+    mut col: *mut JsonValue,
     mut context: *mut ::core::ffi::c_void,
     mut Make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> ()>,
     mut Wrong: Option<
@@ -879,7 +878,7 @@ pub unsafe extern "C" fn parse_ttinstr(
             ::core::ptr::null_mut::<u8>(),
             0 as u32,
         );
-    } else if (*col).type_0 == json_string
+    } else if (*col).type_0 == JsonType::String
     {
         let mut instrlen: usize = 0;
         let mut instructions: *mut u8 = base64_decode(
@@ -888,14 +887,14 @@ pub unsafe extern "C" fn parse_ttinstr(
             &raw mut instrlen,
         );
         Make.expect("non-null function pointer")(context, instructions, instrlen as u32);
-    } else if (*col).type_0 == json_array
+    } else if (*col).type_0 == JsonType::Array
     {
         let mut istrlen: usize = 0 as usize;
         let mut j: u32 = 0 as u32;
         while j < (*col).u.array.length as u32 {
-            let mut record: *mut json_value =
-                *(*col).u.array.values.offset(j as isize) as *mut json_value;
-            if (*record).type_0 == json_string
+            let mut record: *mut JsonValue =
+                *(*col).u.array.values.offset(j as isize) as *mut JsonValue;
+            if (*record).type_0 == JsonType::String
             {
                 istrlen = istrlen.wrapping_add(
                     (*record)
@@ -904,7 +903,7 @@ pub unsafe extern "C" fn parse_ttinstr(
                         .length
                         .wrapping_add(1 as ::core::ffi::c_uint) as usize,
                 );
-            } else if (*record).type_0 == json_integer
+            } else if (*record).type_0 == JsonType::Integer
             {
                 istrlen = istrlen
                     .wrapping_add((1 as ::core::ffi::c_int + 20 as ::core::ffi::c_int) as usize);
@@ -918,16 +917,16 @@ pub unsafe extern "C" fn parse_ttinstr(
             }
             j = j.wrapping_add(1);
         }
-        let mut instrString: sds = sdsnewlen(
+        let mut instrString: SdsRaw = sdsnewlen(
             ::core::ptr::null::<::core::ffi::c_void>(),
             istrlen.wrapping_add(1 as usize),
         );
         let mut head: *mut ::core::ffi::c_char = instrString as *mut ::core::ffi::c_char;
         let mut j_0: u32 = 0 as u32;
         while j_0 < (*col).u.array.length as u32 {
-            let mut record_0: *mut json_value =
-                *(*col).u.array.values.offset(j_0 as isize) as *mut json_value;
-            if (*record_0).type_0 == json_string
+            let mut record_0: *mut JsonValue =
+                *(*col).u.array.values.offset(j_0 as isize) as *mut JsonValue;
+            if (*record_0).type_0 == JsonType::String
             {
                 memcpy(
                     head as *mut ::core::ffi::c_void,
@@ -936,7 +935,7 @@ pub unsafe extern "C" fn parse_ttinstr(
                         .wrapping_mul((*record_0).u.string.length as usize),
                 );
                 head = head.offset((*record_0).u.string.length as isize);
-            } else if (*record_0).type_0 == json_integer
+            } else if (*record_0).type_0 == JsonType::Integer
             {
                 let mut n: ::core::ffi::c_int = snprintf(
                     head,
@@ -985,15 +984,15 @@ mod tests {
     use super::*;
 
     // `instr_typify` allocates the `bts` array with `__caryll_allocate_clean`,
-    // one byte per instruction byte, and then fills it in -- so `bt_instr` has
+    // one byte per instruction byte, and then fills it in -- so `ByteType::Instr` has
     // to be the zero variant (a calloc'ed enum with no zero variant is instantly
     // invalid) and the type has to stay one byte wide or the allocation is short.
     #[test]
     fn byte_types_is_a_calloc_safe_byte() {
-        assert_eq!(::core::mem::size_of::<byte_types>(), 1);
-        assert_eq!(bt_instr as u8, 0);
+        assert_eq!(::core::mem::size_of::<ByteType>(), 1);
+        assert_eq!(ByteType::Instr as u8, 0);
         assert_eq!(
-            [bt_cnt as u8, bt_byte as u8, bt_wordhi as u8, bt_wordlo as u8, bt_impliedreturn as u8],
+            [ByteType::Cnt as u8, ByteType::Byte as u8, ByteType::WordHi as u8, ByteType::WordLo as u8, ByteType::ImpliedReturn as u8],
             [1, 2, 3, 4, 5]
         );
     }

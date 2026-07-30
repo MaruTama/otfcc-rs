@@ -4,13 +4,13 @@ use libc::{free, malloc, memcpy, memset};
 
 use crate::support::json_funcs::{json_obj_get};
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{otfcc_ILogger};
-use crate::support::buffer::{caryll_Buffer};
-use crate::support::options::{otfcc_Options};
-use crate::support::primitives::{font_file_pointer};
-use crate::vendor::sds::{sds};
-use crate::vendor::json::json_value;
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::logger::{ILogger};
+use crate::support::buffer::{Buffer};
+use crate::support::options::{Options};
+use crate::support::primitives::{FontFilePointer};
+use crate::vendor::sds::{SdsRaw};
+use crate::vendor::json::JsonValue;
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite_bytes};
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::vendor::json_builder::{json_object_push};
@@ -18,25 +18,25 @@ use crate::vendor::sds::{sdsempty, sdsfree, sdsnew};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct table_fpgm_prep {
-    pub tag: sds,
+pub struct FpgmPrepTable {
+    pub tag: SdsRaw,
     pub length: u32,
     pub bytes: *mut u8,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct __caryll_elementinterface_table_fpgm_prep {
-    pub init: Option<unsafe extern "C" fn(*mut table_fpgm_prep) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut table_fpgm_prep, *const table_fpgm_prep) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut table_fpgm_prep, *mut table_fpgm_prep) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut table_fpgm_prep) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut table_fpgm_prep, table_fpgm_prep) -> ()>,
-    pub copyReplace: Option<unsafe extern "C" fn(*mut table_fpgm_prep, table_fpgm_prep) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut table_fpgm_prep>,
-    pub free: Option<unsafe extern "C" fn(*mut table_fpgm_prep) -> ()>,
+pub struct FpgmPrepTableElementInterface {
+    pub init: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
+    pub copy: Option<unsafe extern "C" fn(*mut FpgmPrepTable, *const FpgmPrepTable) -> ()>,
+    pub move_0: Option<unsafe extern "C" fn(*mut FpgmPrepTable, *mut FpgmPrepTable) -> ()>,
+    pub dispose: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
+    pub replace: Option<unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> ()>,
+    pub copyReplace: Option<unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> ()>,
+    pub create: Option<unsafe extern "C" fn() -> *mut FpgmPrepTable>,
+    pub free: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn disposeFpgmPrep(mut table: *mut table_fpgm_prep) {
+unsafe extern "C" fn disposeFpgmPrep(mut table: *mut FpgmPrepTable) {
     if !(*table).tag.is_null() {
         sdsfree((*table).tag);
     }
@@ -46,15 +46,15 @@ unsafe extern "C" fn disposeFpgmPrep(mut table: *mut table_fpgm_prep) {
     }
 }
 #[inline]
-unsafe extern "C" fn table_fpgm_prep_init(mut x: *mut table_fpgm_prep) {
+unsafe extern "C" fn table_fpgm_prep_init(mut x: *mut FpgmPrepTable) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<table_fpgm_prep>() as usize,
+        ::core::mem::size_of::<FpgmPrepTable>() as usize,
     );
 }
 #[inline]
-unsafe extern "C" fn table_fpgm_prep_free(mut x: *mut table_fpgm_prep) {
+unsafe extern "C" fn table_fpgm_prep_free(mut x: *mut FpgmPrepTable) {
     if x.is_null() {
         return;
     }
@@ -62,86 +62,86 @@ unsafe extern "C" fn table_fpgm_prep_free(mut x: *mut table_fpgm_prep) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_fpgm_prep_create() -> *mut table_fpgm_prep {
-    let mut x: *mut table_fpgm_prep =
-        malloc(::core::mem::size_of::<table_fpgm_prep>() as usize) as *mut table_fpgm_prep;
+unsafe extern "C" fn table_fpgm_prep_create() -> *mut FpgmPrepTable {
+    let mut x: *mut FpgmPrepTable =
+        malloc(::core::mem::size_of::<FpgmPrepTable>() as usize) as *mut FpgmPrepTable;
     table_fpgm_prep_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_fpgm_prep_replace(mut dst: *mut table_fpgm_prep, src: table_fpgm_prep) {
+unsafe extern "C" fn table_fpgm_prep_replace(mut dst: *mut FpgmPrepTable, src: FpgmPrepTable) {
     table_fpgm_prep_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_fpgm_prep>() as usize,
+        ::core::mem::size_of::<FpgmPrepTable>() as usize,
     );
 }
 #[inline]
 unsafe extern "C" fn table_fpgm_prep_copyReplace(
-    mut dst: *mut table_fpgm_prep,
-    src: table_fpgm_prep,
+    mut dst: *mut FpgmPrepTable,
+    src: FpgmPrepTable,
 ) {
     table_fpgm_prep_dispose(dst);
     table_fpgm_prep_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn table_fpgm_prep_copy(
-    mut dst: *mut table_fpgm_prep,
-    mut src: *const table_fpgm_prep,
+    mut dst: *mut FpgmPrepTable,
+    mut src: *const FpgmPrepTable,
 ) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_fpgm_prep>() as usize,
+        ::core::mem::size_of::<FpgmPrepTable>() as usize,
     );
 }
 #[inline]
 unsafe extern "C" fn table_fpgm_prep_move(
-    mut dst: *mut table_fpgm_prep,
-    mut src: *mut table_fpgm_prep,
+    mut dst: *mut FpgmPrepTable,
+    mut src: *mut FpgmPrepTable,
 ) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<table_fpgm_prep>() as usize,
+        ::core::mem::size_of::<FpgmPrepTable>() as usize,
     );
     table_fpgm_prep_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_fpgm_prep_dispose(mut x: *mut table_fpgm_prep) {
+unsafe extern "C" fn table_fpgm_prep_dispose(mut x: *mut FpgmPrepTable) {
     disposeFpgmPrep(x);
 }
-pub static table_iFpgm_prep: __caryll_elementinterface_table_fpgm_prep = {
-    __caryll_elementinterface_table_fpgm_prep {
-        init: Some(table_fpgm_prep_init as unsafe extern "C" fn(*mut table_fpgm_prep) -> ()),
+pub static table_iFpgm_prep: FpgmPrepTableElementInterface = {
+    FpgmPrepTableElementInterface {
+        init: Some(table_fpgm_prep_init as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
         copy: Some(
             table_fpgm_prep_copy
-                as unsafe extern "C" fn(*mut table_fpgm_prep, *const table_fpgm_prep) -> (),
+                as unsafe extern "C" fn(*mut FpgmPrepTable, *const FpgmPrepTable) -> (),
         ),
         move_0: Some(
             table_fpgm_prep_move
-                as unsafe extern "C" fn(*mut table_fpgm_prep, *mut table_fpgm_prep) -> (),
+                as unsafe extern "C" fn(*mut FpgmPrepTable, *mut FpgmPrepTable) -> (),
         ),
-        dispose: Some(table_fpgm_prep_dispose as unsafe extern "C" fn(*mut table_fpgm_prep) -> ()),
+        dispose: Some(table_fpgm_prep_dispose as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
         replace: Some(
             table_fpgm_prep_replace
-                as unsafe extern "C" fn(*mut table_fpgm_prep, table_fpgm_prep) -> (),
+                as unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> (),
         ),
         copyReplace: Some(
             table_fpgm_prep_copyReplace
-                as unsafe extern "C" fn(*mut table_fpgm_prep, table_fpgm_prep) -> (),
+                as unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> (),
         ),
         create: Some(table_fpgm_prep_create),
-        free: Some(table_fpgm_prep_free as unsafe extern "C" fn(*mut table_fpgm_prep) -> ()),
+        free: Some(table_fpgm_prep_free as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
     }
 };
 pub unsafe extern "C" fn otfcc_readFpgmPrep(
-    packet: otfcc_Packet,
-    mut _options: *const otfcc_Options,
+    packet: Packet,
+    mut _options: *const Options,
     mut tag: u32,
-) -> *mut table_fpgm_prep {
-    let mut t: *mut table_fpgm_prep = ::core::ptr::null_mut::<table_fpgm_prep>();
+) -> *mut FpgmPrepTable {
+    let mut t: *mut FpgmPrepTable = ::core::ptr::null_mut::<FpgmPrepTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -149,12 +149,12 @@ pub unsafe extern "C" fn otfcc_readFpgmPrep(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == tag {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: font_file_pointer = table.data as font_file_pointer;
+                    let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     t = (
                         table_iFpgm_prep.create.expect("non-null function pointer"))();
@@ -167,7 +167,7 @@ pub unsafe extern "C" fn otfcc_readFpgmPrep(
                     ) as *mut u8;
                     if (*t).bytes.is_null() {
                         table_iFpgm_prep.free.expect("non-null function pointer")(t);
-                        t = ::core::ptr::null_mut::<table_fpgm_prep>();
+                        t = ::core::ptr::null_mut::<FpgmPrepTable>();
                     } else {
                         memcpy(
                             (*t).bytes as *mut ::core::ffi::c_void,
@@ -185,12 +185,12 @@ pub unsafe extern "C" fn otfcc_readFpgmPrep(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<table_fpgm_prep>();
+    return ::core::ptr::null_mut::<FpgmPrepTable>();
 }
 pub unsafe extern "C" fn table_dumpTableFpgmPrep(
-    mut table: *const table_fpgm_prep,
-    mut root: *mut json_value,
-    mut options: *const otfcc_Options,
+    mut table: *const FpgmPrepTable,
+    mut root: *mut JsonValue,
+    mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
     if table.is_null() {
@@ -199,7 +199,7 @@ pub unsafe extern "C" fn table_dumpTableFpgmPrep(
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
-        (*options).logger as *mut otfcc_ILogger,
+        (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), tag),
     );
     let mut ___loggedstep_v: bool = true;
@@ -212,7 +212,7 @@ pub unsafe extern "C" fn table_dumpTableFpgmPrep(
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
-            .expect("non-null function pointer")((*options).logger as *mut otfcc_ILogger);
+            .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
 pub unsafe extern "C" fn makeFpgmPrepInstr(
@@ -220,7 +220,7 @@ pub unsafe extern "C" fn makeFpgmPrepInstr(
     mut instrs: *mut u8,
     mut length: u32,
 ) {
-    let mut t: *mut table_fpgm_prep = _t as *mut table_fpgm_prep;
+    let mut t: *mut FpgmPrepTable = _t as *mut FpgmPrepTable;
     (*t).length = length;
     (*t).bytes = instrs;
 }
@@ -231,18 +231,18 @@ pub unsafe extern "C" fn wrongFpgmPrepInstr(
 ) {
 }
 pub unsafe extern "C" fn otfcc_parseFpgmPrep(
-    mut root: *const json_value,
-    mut options: *const otfcc_Options,
+    mut root: *const JsonValue,
+    mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
-) -> *mut table_fpgm_prep {
-    let mut t: *mut table_fpgm_prep = ::core::ptr::null_mut::<table_fpgm_prep>();
-    let mut table: *mut json_value = ::core::ptr::null_mut::<json_value>();
+) -> *mut FpgmPrepTable {
+    let mut t: *mut FpgmPrepTable = ::core::ptr::null_mut::<FpgmPrepTable>();
+    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get(root, tag);
     if !table.is_null() {
         (*(*options).logger)
             .startSDS
             .expect("non-null function pointer")(
-            (*options).logger as *mut otfcc_ILogger,
+            (*options).logger as *mut ILogger,
             crate::sdsbuild!(sdsempty(), tag),
         );
         let mut ___loggedstep_v: bool = true;
@@ -274,20 +274,20 @@ pub unsafe extern "C" fn otfcc_parseFpgmPrep(
             (*(*options).logger)
                 .finish
                 .expect("non-null function pointer")(
-                (*options).logger as *mut otfcc_ILogger
+                (*options).logger as *mut ILogger
             );
         }
     }
     return t;
 }
 pub unsafe extern "C" fn otfcc_buildFpgmPrep(
-    mut table: *const table_fpgm_prep,
-    mut _options: *const otfcc_Options,
-) -> *mut caryll_Buffer {
+    mut table: *const FpgmPrepTable,
+    mut _options: *const Options,
+) -> *mut Buffer {
     if table.is_null() {
-        return ::core::ptr::null_mut::<caryll_Buffer>();
+        return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut buf: *mut caryll_Buffer = bufnew();
+    let mut buf: *mut Buffer = bufnew();
     bufwrite_bytes(buf, (*table).length as usize, (*table).bytes);
     return buf;
 }

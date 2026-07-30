@@ -1,32 +1,32 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{malloc};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, sds, sdshdr16, sdshdr32, sdshdr64, sdshdr8};
+use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::sds::{sdsnewlen};
 
 #[inline]
-unsafe extern "C" fn sdslen(s: sds) -> usize {
+unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
         SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr8>() as isize))
-                as *mut sdshdr8))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
+                as *mut SdsHdr8))
                 .len as usize;
         }
         SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr16>() as isize))
-                as *mut sdshdr16))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
+                as *mut SdsHdr16))
                 .len as usize;
         }
         SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr32>() as isize))
-                as *mut sdshdr32))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
+                as *mut SdsHdr32))
                 .len as usize;
         }
         SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<sdshdr64>() as isize))
-                as *mut sdshdr64))
+            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
+                as *mut SdsHdr64))
                 .len as usize;
         }
         _ => {}
@@ -36,7 +36,7 @@ unsafe extern "C" fn sdslen(s: sds) -> usize {
 pub unsafe extern "C" fn utf16le_to_utf8(
     mut inb: *const u8,
     mut inlenb: ::core::ffi::c_int,
-) -> sds {
+) -> SdsRaw {
     let mut in_0: *mut u16 = inb as *mut u16;
     let mut inend: *mut u16 = ::core::ptr::null_mut::<u16>();
     let mut c: u32 = 0;
@@ -78,11 +78,11 @@ pub unsafe extern "C" fn utf16le_to_utf8(
         }
     }
     in_0 = inb as *mut u16;
-    let mut out: sds = sdsnewlen(
+    let mut out: SdsRaw = sdsnewlen(
         ::core::ptr::null::<::core::ffi::c_void>(),
         bytesNeeded as usize,
     );
-    let mut out0: sds = out;
+    let mut out0: SdsRaw = out;
     while in_0 < inend {
         let fresh2 = in_0;
         in_0 = in_0.offset(1);
@@ -137,7 +137,7 @@ pub unsafe extern "C" fn utf16le_to_utf8(
 pub unsafe extern "C" fn utf16be_to_utf8(
     mut inb: *const u8,
     mut inlenb: ::core::ffi::c_int,
-) -> sds {
+) -> SdsRaw {
     let mut in_0: *mut u16 = inb as *mut u16;
     let mut inend: *mut u16 = ::core::ptr::null_mut::<u16>();
     let mut c: u32 = 0;
@@ -188,11 +188,11 @@ pub unsafe extern "C" fn utf16be_to_utf8(
         }
     }
     in_0 = inb as *mut u16;
-    let mut out: sds = sdsnewlen(
+    let mut out: SdsRaw = sdsnewlen(
         ::core::ptr::null::<::core::ffi::c_void>(),
         bytesNeeded as usize,
     );
-    let mut out0: sds = out;
+    let mut out0: SdsRaw = out;
     while in_0 < inend {
         tmp = in_0 as *mut u8;
         let fresh11 = tmp;
@@ -252,12 +252,12 @@ pub unsafe extern "C" fn utf16be_to_utf8(
     }
     return out0;
 }
-pub unsafe extern "C" fn utf8toutf16be(mut _in: sds, mut out_bytes: *mut usize) -> *mut u8 {
+pub unsafe extern "C" fn utf8toutf16be(mut _in: SdsRaw, mut out_bytes: *mut usize) -> *mut u8 {
     if _in.is_null() {
         *out_bytes = 0 as usize;
         return ::core::ptr::null_mut::<u8>();
     }
-    let mut in_0: sds = _in;
+    let mut in_0: SdsRaw = _in;
     let mut inlen: usize = sdslen(in_0);
     let mut inend: *mut ::core::ffi::c_char = in_0.offset(inlen as isize);
     let mut wordsNeeded: u32 = 0 as u32;

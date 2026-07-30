@@ -1,20 +1,20 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::binio::{read_32u};
-use crate::logger::{log_type_warning, log_vl_important, otfcc_ILogger};
-use crate::support::options::{otfcc_Options};
-use crate::font::caryll_sfnt::{otfcc_Packet, otfcc_PacketPiece};
+use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::support::options::{Options};
+use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
-use crate::table::meta::types::{meta_Entry, table_meta};
+use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::table::meta::types::{meta_iEntries, table_iMeta};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 pub unsafe extern "C" fn otfcc_readMeta(
-    packet: otfcc_Packet,
-    mut options: *const otfcc_Options,
-) -> *mut table_meta {
+    packet: Packet,
+    mut options: *const Options,
+) -> *mut MetaTable {
     let mut version: u32 = 0;
     let mut flags: u32 = 0;
     let mut dataMapsCount: u32 = 0;
-    let mut meta: *mut table_meta = ::core::ptr::null_mut::<table_meta>();
+    let mut meta: *mut MetaTable = ::core::ptr::null_mut::<MetaTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -22,7 +22,7 @@ pub unsafe extern "C" fn otfcc_readMeta(
         && __fortable_keep != 0
         && __fortable_count < packet.numTables as ::core::ffi::c_int
     {
-        let mut table: otfcc_PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
             if table.tag == 1835365473i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -66,7 +66,7 @@ pub unsafe extern "C" fn otfcc_readMeta(
                                 if !(table.length < offset.wrapping_add(length)) {
                                     meta_iEntries.push.expect("non-null function pointer")(
                                         &raw mut (*meta).entries,
-                                        meta_Entry {
+                                        MetaEntry {
                                             tag: tag,
                                             data: sdsnewlen(
                                                 table.data.offset(offset as isize)
@@ -85,13 +85,13 @@ pub unsafe extern "C" fn otfcc_readMeta(
                     (*(*options).logger)
                         .logSDS
                         .expect("non-null function pointer")(
-                        (*options).logger as *mut otfcc_ILogger,
+                        (*options).logger as *mut ILogger,
                         log_vl_important,
-                        log_type_warning,
+                        LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'meta' corrupted.\n"),
                     );
                     table_iMeta.free.expect("non-null function pointer")(meta);
-                    meta = ::core::ptr::null_mut::<table_meta>();
+                    meta = ::core::ptr::null_mut::<MetaTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }

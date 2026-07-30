@@ -3,15 +3,11 @@
 
 
 
-use crate::support::options::{otfcc_Options};
+use crate::support::options::{Options};
 
 
 
-use crate::font::caryll_font::{otfcc_Font};
-
-
-
-
+use crate::font::caryll_font::{Font};
 
 
 
@@ -33,7 +29,11 @@ use crate::font::caryll_font::{otfcc_Font};
 
 
 
-use crate::table::otl::{otl_Subtable, subtable_gpos_pair, table_OTL};
+
+
+
+
+use crate::table::otl::{Subtable, GposPairSubtable, OtlTable};
 use crate::consolidate::otl::common::{fontop_consolidateClassDef};
 use crate::table::otl::classdef::{otl_iClassDef};
 
@@ -46,12 +46,12 @@ use crate::table::otl::classdef::{otl_iClassDef};
 
 
 pub unsafe extern "C" fn consolidate_gpos_pair(
-    mut font: *mut otfcc_Font,
-    mut _table: *mut table_OTL,
-    mut _subtable: *mut otl_Subtable,
-    mut options: *const otfcc_Options,
+    mut font: *mut Font,
+    mut _table: *mut OtlTable,
+    mut _subtable: *mut Subtable,
+    mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut subtable_gpos_pair = &raw mut (*_subtable).gpos_pair;
+    let mut subtable: *mut GposPairSubtable = &raw mut (*_subtable).gpos_pair;
     fontop_consolidateClassDef(font, (*subtable).first, options);
     fontop_consolidateClassDef(font, (*subtable).second, options);
     otl_iClassDef.shrink.expect("non-null function pointer")((*subtable).first);
