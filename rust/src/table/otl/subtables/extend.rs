@@ -11,7 +11,7 @@ use crate::support::binio::{read_16u, read_32u};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 
-use crate::table::otl::{LookupType, Subtable, otl_type_gpos_unknown, otl_type_gsub_unknown, ExtendSubtable};
+use crate::table::otl::{LookupType, Subtable, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_UNKNOWN, ExtendSubtable};
 use crate::table::otl::read::{otfcc_readOtl_subtable};
 
 unsafe extern "C" fn _caryll_read_otl_extend(
@@ -65,7 +65,7 @@ pub unsafe extern "C" fn otfcc_readOtl_gsub_extend(
         data,
         tableLength,
         subtableOffset,
-        otl_type_gsub_unknown,
+        OTL_TYPE_GSUB_UNKNOWN,
         maxGlyphs,
         options,
     );
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn otfcc_readOtl_gpos_extend(
         data,
         tableLength,
         subtableOffset,
-        otl_type_gpos_unknown,
+        OTL_TYPE_GPOS_UNKNOWN,
         maxGlyphs,
         options,
     );

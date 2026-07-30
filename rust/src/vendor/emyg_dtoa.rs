@@ -12,19 +12,19 @@ pub union DoubleBits {
     pub d: ::core::ffi::c_double,
     pub u64_0: u64,
 }
-static kDiySignificandSize: ::core::ffi::c_int = 64 as ::core::ffi::c_int;
-static kDpSignificandSize: ::core::ffi::c_int = 52 as ::core::ffi::c_int;
-static kDpExponentBias: ::core::ffi::c_int =
+static K_DIY_SIGNIFICAND_SIZE: ::core::ffi::c_int = 64 as ::core::ffi::c_int;
+static K_DP_SIGNIFICAND_SIZE: ::core::ffi::c_int = 52 as ::core::ffi::c_int;
+static K_DP_EXPONENT_BIAS: ::core::ffi::c_int =
     0x3ff as ::core::ffi::c_int + 52 as ::core::ffi::c_int;
-static kDpMinExponent: ::core::ffi::c_int =
+static K_DP_MIN_EXPONENT: ::core::ffi::c_int =
     -(0x3ff as ::core::ffi::c_int) - 52 as ::core::ffi::c_int;
-static kDpExponentMask: u64 = (0x7ff00000 as ::core::ffi::c_int as u64)
+static K_DP_EXPONENT_MASK: u64 = (0x7ff00000 as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0 as ::core::ffi::c_int as u64;
-static kDpSignificandMask: u64 = (0xfffff as ::core::ffi::c_int as u64)
+static K_DP_SIGNIFICAND_MASK: u64 = (0xfffff as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0xffffffff as ::core::ffi::c_uint as u64;
-static kDpHiddenBit: u64 = (0x100000 as ::core::ffi::c_int as u64)
+static K_DP_HIDDEN_BIT: u64 = (0x100000 as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0 as ::core::ffi::c_int as u64;
 #[inline]
@@ -38,14 +38,14 @@ pub unsafe extern "C" fn DiyFp_from_double(mut d: ::core::ffi::c_double) -> DiyF
     let mut u: DoubleBits = DoubleBits { d: d };
     let mut res: DiyFp = DiyFp { f: 0, e: 0 };
     let mut biased_e: ::core::ffi::c_int =
-        ((u.u64_0 & kDpExponentMask) >> kDpSignificandSize) as ::core::ffi::c_int;
-    let mut significand: u64 = u.u64_0 & kDpSignificandMask;
+        ((u.u64_0 & K_DP_EXPONENT_MASK) >> K_DP_SIGNIFICAND_SIZE) as ::core::ffi::c_int;
+    let mut significand: u64 = u.u64_0 & K_DP_SIGNIFICAND_MASK;
     if biased_e != 0 as ::core::ffi::c_int {
-        res.f = significand.wrapping_add(kDpHiddenBit);
-        res.e = biased_e - kDpExponentBias;
+        res.f = significand.wrapping_add(K_DP_HIDDEN_BIT);
+        res.e = biased_e - K_DP_EXPONENT_BIAS;
     } else {
         res.f = significand;
-        res.e = kDpMinExponent + 1 as ::core::ffi::c_int;
+        res.e = K_DP_MIN_EXPONENT + 1 as ::core::ffi::c_int;
     }
     return res;
 }
@@ -83,12 +83,12 @@ unsafe extern "C" fn Normalize(lhs: DiyFp) -> DiyFp {
 #[inline]
 unsafe extern "C" fn NormalizeBoundary(lhs: DiyFp) -> DiyFp {
     let mut res: DiyFp = lhs;
-    while res.f & kDpHiddenBit << 1 as ::core::ffi::c_int == 0 {
+    while res.f & K_DP_HIDDEN_BIT << 1 as ::core::ffi::c_int == 0 {
         res.f <<= 1 as ::core::ffi::c_int;
         res.e -= 1;
     }
-    res.f <<= kDiySignificandSize - kDpSignificandSize - 2 as ::core::ffi::c_int;
-    res.e = res.e - (kDiySignificandSize - kDpSignificandSize - 2 as ::core::ffi::c_int);
+    res.f <<= K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2 as ::core::ffi::c_int;
+    res.e = res.e - (K_DIY_SIGNIFICAND_SIZE - K_DP_SIGNIFICAND_SIZE - 2 as ::core::ffi::c_int);
     return res;
 }
 #[inline]
@@ -101,7 +101,7 @@ unsafe extern "C" fn NormalizedBoundaries(
         (lhs.f << 1 as ::core::ffi::c_int).wrapping_add(1 as u64),
         lhs.e - 1 as ::core::ffi::c_int,
     ));
-    let mut mi: DiyFp = if lhs.f == kDpHiddenBit {
+    let mut mi: DiyFp = if lhs.f == K_DP_HIDDEN_BIT {
         DiyFp_from_parts(
             (lhs.f << 2 as ::core::ffi::c_int).wrapping_sub(1 as u64),
             lhs.e - 2 as ::core::ffi::c_int,
@@ -122,7 +122,7 @@ unsafe extern "C" fn GetCachedPower(
     mut e: ::core::ffi::c_int,
     mut K: *mut ::core::ffi::c_int,
 ) -> DiyFp {
-    static kCachedPowers_F: [u64; 87] = [
+    static K_CACHED_POWERS_F: [u64; 87] = [
         (0xfa8fd5a0 as ::core::ffi::c_uint as u64) << 32 as ::core::ffi::c_int
             | 0x81c0288 as ::core::ffi::c_int as u64,
         (0xbaaee17f as ::core::ffi::c_uint as u64) << 32 as ::core::ffi::c_int
@@ -298,7 +298,7 @@ unsafe extern "C" fn GetCachedPower(
         (0xaf87023b as ::core::ffi::c_uint as u64) << 32 as ::core::ffi::c_int
             | 0x9bf0ee6b as ::core::ffi::c_uint as u64,
     ];
-    static kCachedPowers_E: [i16; 87] = [
+    static K_CACHED_POWERS_E: [i16; 87] = [
         -(1220 as ::core::ffi::c_int) as i16,
         -(1193 as ::core::ffi::c_int) as i16,
         -(1166 as ::core::ffi::c_int) as i16,
@@ -398,8 +398,8 @@ unsafe extern "C" fn GetCachedPower(
         ((k >> 3 as ::core::ffi::c_int) + 1 as ::core::ffi::c_int) as ::core::ffi::c_uint;
     *K = -(-(348 as ::core::ffi::c_int) + (index << 3 as ::core::ffi::c_int) as ::core::ffi::c_int);
     return DiyFp_from_parts(
-        kCachedPowers_F[index as usize],
-        kCachedPowers_E[index as usize] as ::core::ffi::c_int,
+        K_CACHED_POWERS_F[index as usize],
+        K_CACHED_POWERS_E[index as usize] as ::core::ffi::c_int,
     );
 }
 #[inline]
@@ -461,7 +461,7 @@ unsafe extern "C" fn DigitGen(
     mut len: *mut ::core::ffi::c_int,
     mut K: *mut ::core::ffi::c_int,
 ) {
-    static kPow10: [u32; 10] = [
+    static K_POW10: [u32; 10] = [
         1 as ::core::ffi::c_int as u32,
         10 as ::core::ffi::c_int as u32,
         100 as ::core::ffi::c_int as u32,
@@ -543,7 +543,7 @@ unsafe extern "C" fn DigitGen(
                 *len,
                 delta,
                 tmp,
-                (kPow10[(kappa as usize).min(9)] as u64) << -one.e,
+                (K_POW10[(kappa as usize).min(9)] as u64) << -one.e,
                 wp_w.f,
             );
             return;
@@ -569,7 +569,7 @@ unsafe extern "C" fn DigitGen(
                 delta,
                 p2,
                 one.f,
-                wp_w.f.wrapping_mul(kPow10[(-kappa as usize).min(9)] as u64),
+                wp_w.f.wrapping_mul(K_POW10[(-kappa as usize).min(9)] as u64),
             );
             return;
         }
@@ -596,7 +596,7 @@ unsafe extern "C" fn Grisu2(
 }
 #[inline]
 unsafe extern "C" fn GetDigitsLut() -> *const ::core::ffi::c_char {
-    static cDigitsLut: [::core::ffi::c_char; 200] = [
+    static C_DIGITS_LUT: [::core::ffi::c_char; 200] = [
         '0' as i32 as ::core::ffi::c_char,
         '0' as i32 as ::core::ffi::c_char,
         '0' as i32 as ::core::ffi::c_char,
@@ -798,7 +798,7 @@ unsafe extern "C" fn GetDigitsLut() -> *const ::core::ffi::c_char {
         '9' as i32 as ::core::ffi::c_char,
         '9' as i32 as ::core::ffi::c_char,
     ];
-    return &raw const cDigitsLut as *const ::core::ffi::c_char;
+    return &raw const C_DIGITS_LUT as *const ::core::ffi::c_char;
 }
 #[inline]
 unsafe extern "C" fn WriteExponent(

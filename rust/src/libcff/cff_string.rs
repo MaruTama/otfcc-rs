@@ -4,7 +4,7 @@ use crate::vendor::sds::{SdsRaw};
 use crate::libcff::cff_index::{CffIndex};
 use crate::vendor::sds::{sdsnew, sdsnewlen};
 
-static string_standard: [&::core::ffi::CStr; 391] = [
+static STRING_STANDARD: [&::core::ffi::CStr; 391] = [
     c".notdef",
     c"space",
     c"exclam",
@@ -399,7 +399,7 @@ static string_standard: [&::core::ffi::CStr; 391] = [
 ];
 pub unsafe extern "C" fn sdsget_cff_sid(mut idx: u16, mut str: CffIndex) -> SdsRaw {
     if idx as ::core::ffi::c_int <= 390 as ::core::ffi::c_int {
-        return sdsnew(string_standard[idx as usize].as_ptr());
+        return sdsnew(STRING_STANDARD[idx as usize].as_ptr());
     } else if str.count > 0 as Arity
         && ((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as Arity) < str.count
     {

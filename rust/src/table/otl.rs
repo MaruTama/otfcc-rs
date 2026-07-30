@@ -19,16 +19,16 @@ use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::vendor::sds::{SdsRaw};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::support::{ComparFn};
-use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
-use crate::table::otl::subtables::gpos_cursive::{iSubtable_gpos_cursive};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{iSubtable_gpos_markToLigature};
-use crate::table::otl::subtables::gpos_mark_to_single::{iSubtable_gpos_markToSingle};
-use crate::table::otl::subtables::gpos_pair::{iSubtable_gpos_pair};
-use crate::table::otl::subtables::gpos_single::{iSubtable_gpos_single};
-use crate::table::otl::subtables::gsub_ligature::{iSubtable_gsub_ligature};
-use crate::table::otl::subtables::gsub_multi::{iSubtable_gsub_multi};
-use crate::table::otl::subtables::gsub_reverse::{iSubtable_gsub_reverse};
-use crate::table::otl::subtables::gsub_single::{iSubtable_gsub_single};
+use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
+use crate::table::otl::subtables::gpos_cursive::{I_SUBTABLE_GPOS_CURSIVE};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{I_SUBTABLE_GPOS_MARK_TO_LIGATURE};
+use crate::table::otl::subtables::gpos_mark_to_single::{I_SUBTABLE_GPOS_MARK_TO_SINGLE};
+use crate::table::otl::subtables::gpos_pair::{I_SUBTABLE_GPOS_PAIR};
+use crate::table::otl::subtables::gpos_single::{I_SUBTABLE_GPOS_SINGLE};
+use crate::table::otl::subtables::gsub_ligature::{I_SUBTABLE_GSUB_LIGATURE};
+use crate::table::otl::subtables::gsub_multi::{I_SUBTABLE_GSUB_MULTI};
+use crate::table::otl::subtables::gsub_reverse::{I_SUBTABLE_GSUB_REVERSE};
+use crate::table::otl::subtables::gsub_single::{I_SUBTABLE_GSUB_SINGLE};
 use crate::vendor::sds::{sdsfree};
 
 
@@ -59,31 +59,31 @@ use crate::vendor::sds::{sdsfree};
 #[repr(transparent)]
 pub struct LookupType(u32);
 
-pub const otl_type_gpos_extend: LookupType = LookupType(41);
-pub const otl_type_gpos_chaining: LookupType = LookupType(40);
-pub const otl_type_gpos_context: LookupType = LookupType(39);
-pub const otl_type_gpos_markToMark: LookupType = LookupType(38);
-pub const otl_type_gpos_markToLigature: LookupType = LookupType(37);
-pub const otl_type_gpos_markToBase: LookupType = LookupType(36);
-pub const otl_type_gpos_cursive: LookupType = LookupType(35);
-pub const otl_type_gpos_pair: LookupType = LookupType(34);
-pub const otl_type_gpos_single: LookupType = LookupType(33);
-pub const otl_type_gpos_unknown: LookupType = LookupType(32);
-pub const otl_type_gsub_reverse: LookupType = LookupType(24);
-pub const otl_type_gsub_extend: LookupType = LookupType(23);
-pub const otl_type_gsub_chaining: LookupType = LookupType(22);
-pub const otl_type_gsub_context: LookupType = LookupType(21);
-pub const otl_type_gsub_ligature: LookupType = LookupType(20);
-pub const otl_type_gsub_alternate: LookupType = LookupType(19);
-pub const otl_type_gsub_multiple: LookupType = LookupType(18);
-pub const otl_type_gsub_single: LookupType = LookupType(17);
-pub const otl_type_gsub_unknown: LookupType = LookupType(16);
-pub const otl_type_unknown: LookupType = LookupType(0);
+pub const OTL_TYPE_GPOS_EXTEND: LookupType = LookupType(41);
+pub const OTL_TYPE_GPOS_CHAINING: LookupType = LookupType(40);
+pub const OTL_TYPE_GPOS_CONTEXT: LookupType = LookupType(39);
+pub const OTL_TYPE_GPOS_MARK_TO_MARK: LookupType = LookupType(38);
+pub const OTL_TYPE_GPOS_MARK_TO_LIGATURE: LookupType = LookupType(37);
+pub const OTL_TYPE_GPOS_MARK_TO_BASE: LookupType = LookupType(36);
+pub const OTL_TYPE_GPOS_CURSIVE: LookupType = LookupType(35);
+pub const OTL_TYPE_GPOS_PAIR: LookupType = LookupType(34);
+pub const OTL_TYPE_GPOS_SINGLE: LookupType = LookupType(33);
+pub const OTL_TYPE_GPOS_UNKNOWN: LookupType = LookupType(32);
+pub const OTL_TYPE_GSUB_REVERSE: LookupType = LookupType(24);
+pub const OTL_TYPE_GSUB_EXTEND: LookupType = LookupType(23);
+pub const OTL_TYPE_GSUB_CHAINING: LookupType = LookupType(22);
+pub const OTL_TYPE_GSUB_CONTEXT: LookupType = LookupType(21);
+pub const OTL_TYPE_GSUB_LIGATURE: LookupType = LookupType(20);
+pub const OTL_TYPE_GSUB_ALTERNATE: LookupType = LookupType(19);
+pub const OTL_TYPE_GSUB_MULTIPLE: LookupType = LookupType(18);
+pub const OTL_TYPE_GSUB_SINGLE: LookupType = LookupType(17);
+pub const OTL_TYPE_GSUB_UNKNOWN: LookupType = LookupType(16);
+pub const OTL_TYPE_UNKNOWN: LookupType = LookupType(0);
 
 impl LookupType {
     /// The type of a lookup as the font file spells it: a format number
-    /// relative to `base`, which is `otl_type_gsub_unknown` for GSUB and
-    /// `otl_type_gpos_unknown` for GPOS. Wrapping, like the C addition it
+    /// relative to `base`, which is `OTL_TYPE_GSUB_UNKNOWN` for GSUB and
+    /// `OTL_TYPE_GPOS_UNKNOWN` for GPOS. Wrapping, like the C addition it
     /// replaces — `raw` is a full `u16` straight out of the file and is not
     /// validated here, exactly as C does not validate it.
     pub const fn from_file(base: Self, raw: u16) -> Self {
@@ -99,17 +99,17 @@ impl LookupType {
     /// The format number to write back into the file — this value with its
     /// table's base taken off again, and 0 for anything at or below GSUB's base.
     ///
-    /// The comparisons are `>`, not `>=`, exactly as in C: `otl_type_unknown`
-    /// and `otl_type_gsub_unknown` give 0, while `otl_type_gpos_unknown` (32)
+    /// The comparisons are `>`, not `>=`, exactly as in C: `OTL_TYPE_UNKNOWN`
+    /// and `OTL_TYPE_GSUB_UNKNOWN` give 0, while `OTL_TYPE_GPOS_UNKNOWN` (32)
     /// is above *GSUB's* base and so reads as GSUB format 16. That is a quirk
     /// of the original, reachable only from a font declaring a GPOS lookup of
     /// format 0; the number reaches the lookup header, so it is reproduced
     /// rather than tidied. `file_format_undoes_the_table_base` pins it.
     pub const fn file_format(self) -> u32 {
-        if self.0 > otl_type_gpos_unknown.0 {
-            self.0 - otl_type_gpos_unknown.0
-        } else if self.0 > otl_type_gsub_unknown.0 {
-            self.0 - otl_type_gsub_unknown.0
+        if self.0 > OTL_TYPE_GPOS_UNKNOWN.0 {
+            self.0 - OTL_TYPE_GPOS_UNKNOWN.0
+        } else if self.0 > OTL_TYPE_GSUB_UNKNOWN.0 {
+            self.0 - OTL_TYPE_GSUB_UNKNOWN.0
         } else {
             0
         }
@@ -1100,101 +1100,101 @@ unsafe extern "C" fn disposeSubtableDependent(
     mut lookup: *const Lookup,
 ) {
     match (*lookup).type_0 {
-        otl_type_gsub_single => {
+        OTL_TYPE_GSUB_SINGLE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gsub_single.free)
+            >(I_SUBTABLE_GSUB_SINGLE.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gsub_multiple => {
+        OTL_TYPE_GSUB_MULTIPLE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gsub_multi.free)
+            >(I_SUBTABLE_GSUB_MULTI.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gsub_alternate => {
+        OTL_TYPE_GSUB_ALTERNATE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gsub_multi.free)
+            >(I_SUBTABLE_GSUB_MULTI.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gsub_ligature => {
+        OTL_TYPE_GSUB_LIGATURE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gsub_ligature.free)
+            >(I_SUBTABLE_GSUB_LIGATURE.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gsub_chaining => {
+        OTL_TYPE_GSUB_CHAINING => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_chaining.free)
+            >(I_SUBTABLE_CHAINING.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gsub_reverse => {
+        OTL_TYPE_GSUB_REVERSE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GsubReverseSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gsub_reverse.free)
+            >(I_SUBTABLE_GSUB_REVERSE.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gpos_single => {
+        OTL_TYPE_GPOS_SINGLE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gpos_single.free)
+            >(I_SUBTABLE_GPOS_SINGLE.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gpos_pair => {
+        OTL_TYPE_GPOS_PAIR => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gpos_pair.free)
+            >(I_SUBTABLE_GPOS_PAIR.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gpos_cursive => {
+        OTL_TYPE_GPOS_CURSIVE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gpos_cursive.free)
+            >(I_SUBTABLE_GPOS_CURSIVE.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gpos_chaining => {
+        OTL_TYPE_GPOS_CHAINING => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_chaining.free)
+            >(I_SUBTABLE_CHAINING.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gpos_markToBase => {
+        OTL_TYPE_GPOS_MARK_TO_BASE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gpos_markToSingle.free)
+            >(I_SUBTABLE_GPOS_MARK_TO_SINGLE.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gpos_markToMark => {
+        OTL_TYPE_GPOS_MARK_TO_MARK => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gpos_markToSingle.free)
+            >(I_SUBTABLE_GPOS_MARK_TO_SINGLE.free)
             .expect("non-null function pointer")(*subtableRef);
         }
-        otl_type_gpos_markToLigature => {
+        OTL_TYPE_GPOS_MARK_TO_LIGATURE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(iSubtable_gpos_markToLigature.free)
+            >(I_SUBTABLE_GPOS_MARK_TO_LIGATURE.free)
             .expect("non-null function pointer")(*subtableRef);
         }
         _ => {}
     };
 }
-static otl_iSubtablePtr: SubtablePtrElementInterface =
+static OTL_I_SUBTABLE_PTR: SubtablePtrElementInterface =
     SubtablePtrElementInterface {
         init: None,
         copy: None,
@@ -1249,8 +1249,8 @@ unsafe extern "C" fn otl_SubtableList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if otl_iSubtablePtr.dispose.is_some() {
-                otl_iSubtablePtr.dispose.expect("non-null function pointer")(
+            if OTL_I_SUBTABLE_PTR.dispose.is_some() {
+                OTL_I_SUBTABLE_PTR.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut SubtablePtr,
                 );
             } else {
@@ -1328,8 +1328,8 @@ unsafe extern "C" fn otl_SubtableList_create() -> *mut SubtableList {
 unsafe extern "C" fn otl_SubtableList_fill(mut arr: *mut SubtableList, mut n: usize) {
     while (*arr).length < n {
         let mut x: SubtablePtr = ::core::ptr::null_mut::<Subtable>();
-        if otl_iSubtablePtr.init.is_some() {
-            otl_iSubtablePtr.init.expect("non-null function pointer")(&raw mut x);
+        if OTL_I_SUBTABLE_PTR.init.is_some() {
+            OTL_I_SUBTABLE_PTR.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -1342,8 +1342,8 @@ unsafe extern "C" fn otl_SubtableList_fill(mut arr: *mut SubtableList, mut n: us
 }
 #[inline]
 unsafe extern "C" fn otl_SubtableList_disposeItem(mut arr: *mut SubtableList, mut n: usize) {
-    if otl_iSubtablePtr.dispose.is_some() {
-        otl_iSubtablePtr.dispose.expect("non-null function pointer")(
+    if OTL_I_SUBTABLE_PTR.dispose.is_some() {
+        OTL_I_SUBTABLE_PTR.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut SubtablePtr,
         );
     } else {
@@ -1381,10 +1381,10 @@ unsafe extern "C" fn otl_SubtableList_copy(
     otl_SubtableList_init(dst);
     otl_SubtableList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if otl_iSubtablePtr.copy.is_some() {
+    if OTL_I_SUBTABLE_PTR.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            otl_iSubtablePtr.copy.expect("non-null function pointer")(
+            OTL_I_SUBTABLE_PTR.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut SubtablePtr,
                 (*src).items.offset(j as isize) as *mut SubtablePtr as *const SubtablePtr,
             );
@@ -1404,7 +1404,7 @@ unsafe extern "C" fn otl_SubtableList_dispose(mut arr: *mut SubtableList) {
     if arr.is_null() {
         return;
     }
-    if otl_iSubtablePtr.dispose.is_some() {
+    if OTL_I_SUBTABLE_PTR.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh5 = j;
@@ -1412,7 +1412,7 @@ unsafe extern "C" fn otl_SubtableList_dispose(mut arr: *mut SubtableList) {
             if !(fresh5 != 0) {
                 break;
             }
-            otl_iSubtablePtr.dispose.expect("non-null function pointer")(
+            OTL_I_SUBTABLE_PTR.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut SubtablePtr,
             );
         }
@@ -1449,7 +1449,7 @@ unsafe extern "C" fn otl_SubtableList_initN(mut arr: *mut SubtableList, mut n: u
     otl_SubtableList_growToN(arr, n);
     otl_SubtableList_fill(arr, n);
 }
-pub static otl_iSubtableList: SubtableListVectorInterface = {
+pub static OTL_I_SUBTABLE_LIST: SubtableListVectorInterface = {
     SubtableListVectorInterface {
         init: Some(otl_SubtableList_init as unsafe extern "C" fn(*mut SubtableList) -> ()),
         copy: Some(
@@ -1535,7 +1535,7 @@ pub unsafe extern "C" fn otfcc_delete_lookup(mut lookup: *mut Lookup) {
     if lookup.is_null() {
         return;
     }
-    otl_iSubtableList
+    OTL_I_SUBTABLE_LIST
         .disposeDependent
         .expect("non-null function pointer")(&raw mut (*lookup).subtables, lookup);
     sdsfree((*lookup).name);
@@ -1549,13 +1549,13 @@ unsafe extern "C" fn initLookupPtr(mut entry: *mut LookupPtr) {
         47 as ::core::ffi::c_ulong,
     ) as LookupPtr;
     (**entry).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    otl_iSubtableList.init.expect("non-null function pointer")(&raw mut (**entry).subtables);
+    OTL_I_SUBTABLE_LIST.init.expect("non-null function pointer")(&raw mut (**entry).subtables);
 }
 #[inline]
 unsafe extern "C" fn disposeLookupPtr(mut entry: *mut LookupPtr) {
     otfcc_delete_lookup(*entry);
 }
-pub static otl_iLookupPtr: LookupPtrElementInterface = {
+pub static OTL_I_LOOKUP_PTR: LookupPtrElementInterface = {
     LookupPtrElementInterface {
         init: Some(otl_LookupPtr_init as unsafe extern "C" fn(*mut LookupPtr) -> ()),
         copy: Some(
@@ -1657,8 +1657,8 @@ unsafe extern "C" fn otl_LookupList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if otl_iLookupPtr.dispose.is_some() {
-                otl_iLookupPtr.dispose.expect("non-null function pointer")(
+            if OTL_I_LOOKUP_PTR.dispose.is_some() {
+                OTL_I_LOOKUP_PTR.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut LookupPtr,
                 );
             } else {
@@ -1670,8 +1670,8 @@ unsafe extern "C" fn otl_LookupList_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn otl_LookupList_disposeItem(mut arr: *mut LookupList, mut n: usize) {
-    if otl_iLookupPtr.dispose.is_some() {
-        otl_iLookupPtr.dispose.expect("non-null function pointer")(
+    if OTL_I_LOOKUP_PTR.dispose.is_some() {
+        OTL_I_LOOKUP_PTR.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut LookupPtr
         );
     } else {
@@ -1703,8 +1703,8 @@ unsafe extern "C" fn otl_LookupList_sort(
 unsafe extern "C" fn otl_LookupList_fill(mut arr: *mut LookupList, mut n: usize) {
     while (*arr).length < n {
         let mut x: LookupPtr = ::core::ptr::null_mut::<Lookup>();
-        if otl_iLookupPtr.init.is_some() {
-            otl_iLookupPtr.init.expect("non-null function pointer")(&raw mut x);
+        if OTL_I_LOOKUP_PTR.init.is_some() {
+            OTL_I_LOOKUP_PTR.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -1744,10 +1744,10 @@ unsafe extern "C" fn otl_LookupList_copy(
     otl_LookupList_init(dst);
     otl_LookupList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if otl_iLookupPtr.copy.is_some() {
+    if OTL_I_LOOKUP_PTR.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            otl_iLookupPtr.copy.expect("non-null function pointer")(
+            OTL_I_LOOKUP_PTR.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut LookupPtr,
                 (*src).items.offset(j as isize) as *mut LookupPtr as *const LookupPtr,
             );
@@ -1767,7 +1767,7 @@ unsafe extern "C" fn otl_LookupList_dispose(mut arr: *mut LookupList) {
     if arr.is_null() {
         return;
     }
-    if otl_iLookupPtr.dispose.is_some() {
+    if OTL_I_LOOKUP_PTR.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh10 = j;
@@ -1775,7 +1775,7 @@ unsafe extern "C" fn otl_LookupList_dispose(mut arr: *mut LookupList) {
             if !(fresh10 != 0) {
                 break;
             }
-            otl_iLookupPtr.dispose.expect("non-null function pointer")(
+            OTL_I_LOOKUP_PTR.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut LookupPtr,
             );
         }
@@ -1831,7 +1831,7 @@ unsafe extern "C" fn otl_LookupList_create() -> *mut LookupList {
     otl_LookupList_init(x);
     return x;
 }
-pub static otl_iLookupList: LookupListVectorInterface = {
+pub static OTL_I_LOOKUP_LIST: LookupListVectorInterface = {
     LookupListVectorInterface {
         init: Some(otl_LookupList_init as unsafe extern "C" fn(*mut LookupList) -> ()),
         copy: Some(
@@ -1945,7 +1945,7 @@ unsafe extern "C" fn otl_LookupRef_replace(mut dst: *mut LookupRef, src: LookupR
         ::core::mem::size_of::<LookupRef>() as usize,
     );
 }
-pub static otl_iLookupRef: LookupRefElementInterface = {
+pub static OTL_I_LOOKUP_REF: LookupRefElementInterface = {
     LookupRefElementInterface {
         init: Some(otl_LookupRef_init as unsafe extern "C" fn(*mut LookupRef) -> ()),
         copy: Some(
@@ -1970,7 +1970,7 @@ pub static otl_iLookupRef: LookupRefElementInterface = {
 unsafe extern "C" fn otl_LookupRefList_pop(arr: *mut LookupRefList) -> LookupRef {
     cvec_pop(otl_LookupRefList_as_cvec(arr))
 }
-pub static otl_iLookupRefList: LookupRefListVectorInterface = {
+pub static OTL_I_LOOKUP_REF_LIST: LookupRefListVectorInterface = {
     LookupRefListVectorInterface {
         init: Some(otl_LookupRefList_init as unsafe extern "C" fn(*mut LookupRefList) -> ()),
         copy: Some(
@@ -2090,8 +2090,8 @@ unsafe extern "C" fn otl_LookupRefList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if otl_iLookupRef.dispose.is_some() {
-                otl_iLookupRef.dispose.expect("non-null function pointer")(
+            if OTL_I_LOOKUP_REF.dispose.is_some() {
+                OTL_I_LOOKUP_REF.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut LookupRef,
                 );
             } else {
@@ -2103,8 +2103,8 @@ unsafe extern "C" fn otl_LookupRefList_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn otl_LookupRefList_disposeItem(mut arr: *mut LookupRefList, mut n: usize) {
-    if otl_iLookupRef.dispose.is_some() {
-        otl_iLookupRef.dispose.expect("non-null function pointer")(
+    if OTL_I_LOOKUP_REF.dispose.is_some() {
+        OTL_I_LOOKUP_REF.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut LookupRef
         );
     } else {
@@ -2136,8 +2136,8 @@ unsafe extern "C" fn otl_LookupRefList_sort(
 unsafe extern "C" fn otl_LookupRefList_fill(mut arr: *mut LookupRefList, mut n: usize) {
     while (*arr).length < n {
         let mut x: LookupRef = ::core::ptr::null::<Lookup>();
-        if otl_iLookupRef.init.is_some() {
-            otl_iLookupRef.init.expect("non-null function pointer")(&raw mut x);
+        if OTL_I_LOOKUP_REF.init.is_some() {
+            OTL_I_LOOKUP_REF.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -2190,10 +2190,10 @@ unsafe extern "C" fn otl_LookupRefList_copy(
     otl_LookupRefList_init(dst);
     otl_LookupRefList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if otl_iLookupRef.copy.is_some() {
+    if OTL_I_LOOKUP_REF.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            otl_iLookupRef.copy.expect("non-null function pointer")(
+            OTL_I_LOOKUP_REF.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut LookupRef,
                 (*src).items.offset(j as isize) as *mut LookupRef as *const LookupRef,
             );
@@ -2213,7 +2213,7 @@ unsafe extern "C" fn otl_LookupRefList_dispose(mut arr: *mut LookupRefList) {
     if arr.is_null() {
         return;
     }
-    if otl_iLookupRef.dispose.is_some() {
+    if OTL_I_LOOKUP_REF.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh15 = j;
@@ -2221,7 +2221,7 @@ unsafe extern "C" fn otl_LookupRefList_dispose(mut arr: *mut LookupRefList) {
             if !(fresh15 != 0) {
                 break;
             }
-            otl_iLookupRef.dispose.expect("non-null function pointer")(
+            OTL_I_LOOKUP_REF.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut LookupRef,
             );
         }
@@ -2272,7 +2272,7 @@ unsafe extern "C" fn initFeaturePtr(mut feature: *mut FeaturePtr) {
         ::core::mem::size_of::<Feature>() as usize,
         61 as ::core::ffi::c_ulong,
     ) as FeaturePtr;
-    otl_iLookupRefList.init.expect("non-null function pointer")(&raw mut (**feature).lookups);
+    OTL_I_LOOKUP_REF_LIST.init.expect("non-null function pointer")(&raw mut (**feature).lookups);
 }
 #[inline]
 unsafe extern "C" fn disposeFeaturePtr(mut feature: *mut FeaturePtr) {
@@ -2282,7 +2282,7 @@ unsafe extern "C" fn disposeFeaturePtr(mut feature: *mut FeaturePtr) {
     if !(**feature).name.is_null() {
         sdsfree((**feature).name);
     }
-    otl_iLookupRefList
+    OTL_I_LOOKUP_REF_LIST
         .dispose
         .expect("non-null function pointer")(&raw mut (**feature).lookups);
     free(*feature as *mut ::core::ffi::c_void);
@@ -2328,7 +2328,7 @@ unsafe extern "C" fn otl_FeaturePtr_move(
 unsafe extern "C" fn otl_FeaturePtr_init(mut x: *mut FeaturePtr) {
     initFeaturePtr(x);
 }
-pub static otl_iFeaturePtr: FeaturePtrElementInterface = {
+pub static OTL_I_FEATURE_PTR: FeaturePtrElementInterface = {
     FeaturePtrElementInterface {
         init: Some(otl_FeaturePtr_init as unsafe extern "C" fn(*mut FeaturePtr) -> ()),
         copy: Some(
@@ -2359,8 +2359,8 @@ unsafe extern "C" fn otl_FeaturePtr_copyReplace(mut dst: *mut FeaturePtr, src: F
 unsafe extern "C" fn otl_FeatureList_fill(mut arr: *mut FeatureList, mut n: usize) {
     while (*arr).length < n {
         let mut x: FeaturePtr = ::core::ptr::null_mut::<Feature>();
-        if otl_iFeaturePtr.init.is_some() {
-            otl_iFeaturePtr.init.expect("non-null function pointer")(&raw mut x);
+        if OTL_I_FEATURE_PTR.init.is_some() {
+            OTL_I_FEATURE_PTR.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -2461,10 +2461,10 @@ unsafe extern "C" fn otl_FeatureList_copy(
     otl_FeatureList_init(dst);
     otl_FeatureList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if otl_iFeaturePtr.copy.is_some() {
+    if OTL_I_FEATURE_PTR.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            otl_iFeaturePtr.copy.expect("non-null function pointer")(
+            OTL_I_FEATURE_PTR.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut FeaturePtr,
                 (*src).items.offset(j as isize) as *mut FeaturePtr as *const FeaturePtr,
             );
@@ -2488,7 +2488,7 @@ unsafe extern "C" fn otl_FeatureList_dispose(mut arr: *mut FeatureList) {
     if arr.is_null() {
         return;
     }
-    if otl_iFeaturePtr.dispose.is_some() {
+    if OTL_I_FEATURE_PTR.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh20 = j;
@@ -2496,7 +2496,7 @@ unsafe extern "C" fn otl_FeatureList_dispose(mut arr: *mut FeatureList) {
             if !(fresh20 != 0) {
                 break;
             }
-            otl_iFeaturePtr.dispose.expect("non-null function pointer")(
+            OTL_I_FEATURE_PTR.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut FeaturePtr,
             );
         }
@@ -2520,7 +2520,7 @@ unsafe extern "C" fn otl_FeatureList_initCapN(mut arr: *mut FeatureList, mut n: 
     otl_FeatureList_init(arr);
     otl_FeatureList_growToN(arr, n);
 }
-pub static otl_iFeatureList: FeatureListVectorInterface = {
+pub static OTL_I_FEATURE_LIST: FeatureListVectorInterface = {
     FeatureListVectorInterface {
         init: Some(otl_FeatureList_init as unsafe extern "C" fn(*mut FeatureList) -> ()),
         copy: Some(
@@ -2626,8 +2626,8 @@ unsafe extern "C" fn otl_FeatureList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if otl_iFeaturePtr.dispose.is_some() {
-                otl_iFeaturePtr.dispose.expect("non-null function pointer")(
+            if OTL_I_FEATURE_PTR.dispose.is_some() {
+                OTL_I_FEATURE_PTR.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut FeaturePtr,
                 );
             } else {
@@ -2639,14 +2639,14 @@ unsafe extern "C" fn otl_FeatureList_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn otl_FeatureList_disposeItem(mut arr: *mut FeatureList, mut n: usize) {
-    if otl_iFeaturePtr.dispose.is_some() {
-        otl_iFeaturePtr.dispose.expect("non-null function pointer")(
+    if OTL_I_FEATURE_PTR.dispose.is_some() {
+        OTL_I_FEATURE_PTR.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut FeaturePtr,
         );
     } else {
     };
 }
-pub static otl_iFeatureRef: FeatureRefElementInterface = {
+pub static OTL_I_FEATURE_REF: FeatureRefElementInterface = {
     FeatureRefElementInterface {
         init: Some(otl_FeatureRef_init as unsafe extern "C" fn(*mut FeatureRef) -> ()),
         copy: Some(
@@ -2719,8 +2719,8 @@ unsafe extern "C" fn otl_FeatureRef_init(mut x: *mut FeatureRef) {
 unsafe extern "C" fn otl_FeatureRefList_fill(mut arr: *mut FeatureRefList, mut n: usize) {
     while (*arr).length < n {
         let mut x: FeatureRef = ::core::ptr::null::<Feature>();
-        if otl_iFeatureRef.init.is_some() {
-            otl_iFeatureRef.init.expect("non-null function pointer")(&raw mut x);
+        if OTL_I_FEATURE_REF.init.is_some() {
+            OTL_I_FEATURE_REF.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -2755,10 +2755,10 @@ unsafe extern "C" fn otl_FeatureRefList_copy(
     otl_FeatureRefList_init(dst);
     otl_FeatureRefList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if otl_iFeatureRef.copy.is_some() {
+    if OTL_I_FEATURE_REF.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            otl_iFeatureRef.copy.expect("non-null function pointer")(
+            OTL_I_FEATURE_REF.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut FeatureRef,
                 (*src).items.offset(j as isize) as *mut FeatureRef as *const FeatureRef,
             );
@@ -2778,7 +2778,7 @@ unsafe extern "C" fn otl_FeatureRefList_dispose(mut arr: *mut FeatureRefList) {
     if arr.is_null() {
         return;
     }
-    if otl_iFeatureRef.dispose.is_some() {
+    if OTL_I_FEATURE_REF.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh25 = j;
@@ -2786,7 +2786,7 @@ unsafe extern "C" fn otl_FeatureRefList_dispose(mut arr: *mut FeatureRefList) {
             if !(fresh25 != 0) {
                 break;
             }
-            otl_iFeatureRef.dispose.expect("non-null function pointer")(
+            OTL_I_FEATURE_REF.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut FeatureRef,
             );
         }
@@ -2845,7 +2845,7 @@ unsafe extern "C" fn otl_FeatureRefList_create() -> *mut FeatureRefList {
     otl_FeatureRefList_init(x);
     return x;
 }
-pub static otl_iFeatureRefList: FeatureRefListVectorInterface = {
+pub static OTL_I_FEATURE_REF_LIST: FeatureRefListVectorInterface = {
     FeatureRefListVectorInterface {
         init: Some(otl_FeatureRefList_init as unsafe extern "C" fn(*mut FeatureRefList) -> ()),
         copy: Some(
@@ -2958,8 +2958,8 @@ unsafe extern "C" fn otl_FeatureRefList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if otl_iFeatureRef.dispose.is_some() {
-                otl_iFeatureRef.dispose.expect("non-null function pointer")(
+            if OTL_I_FEATURE_REF.dispose.is_some() {
+                OTL_I_FEATURE_REF.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut FeatureRef,
                 );
             } else {
@@ -3012,8 +3012,8 @@ unsafe extern "C" fn otl_FeatureRefList_disposeItem(
     mut arr: *mut FeatureRefList,
     mut n: usize,
 ) {
-    if otl_iFeatureRef.dispose.is_some() {
-        otl_iFeatureRef.dispose.expect("non-null function pointer")(
+    if OTL_I_FEATURE_REF.dispose.is_some() {
+        OTL_I_FEATURE_REF.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut FeatureRef,
         );
     } else {
@@ -3025,7 +3025,7 @@ unsafe extern "C" fn initLanguagePtr(mut language: *mut LanguageSystemPtr) {
         ::core::mem::size_of::<LanguageSystem>() as usize,
         77 as ::core::ffi::c_ulong,
     ) as LanguageSystemPtr;
-    otl_iFeatureRefList.init.expect("non-null function pointer")(&raw mut (**language).features);
+    OTL_I_FEATURE_REF_LIST.init.expect("non-null function pointer")(&raw mut (**language).features);
 }
 #[inline]
 unsafe extern "C" fn disposeLanguagePtr(mut language: *mut LanguageSystemPtr) {
@@ -3035,13 +3035,13 @@ unsafe extern "C" fn disposeLanguagePtr(mut language: *mut LanguageSystemPtr) {
     if !(**language).name.is_null() {
         sdsfree((**language).name);
     }
-    otl_iFeatureRefList
+    OTL_I_FEATURE_REF_LIST
         .dispose
         .expect("non-null function pointer")(&raw mut (**language).features);
     free(*language as *mut ::core::ffi::c_void);
     *language = ::core::ptr::null_mut::<LanguageSystem>();
 }
-pub static otl_iLanguageSystem: LanguageSystemPtrElementInterface = {
+pub static OTL_I_LANGUAGE_SYSTEM: LanguageSystemPtrElementInterface = {
     LanguageSystemPtrElementInterface {
         init: Some(initLanguagePtr as unsafe extern "C" fn(*mut LanguageSystemPtr) -> ()),
         copy: None,
@@ -3072,8 +3072,8 @@ unsafe extern "C" fn otl_LangSystemList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if otl_iLanguageSystem.dispose.is_some() {
-                otl_iLanguageSystem
+            if OTL_I_LANGUAGE_SYSTEM.dispose.is_some() {
+                OTL_I_LANGUAGE_SYSTEM
                     .dispose
                     .expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut LanguageSystemPtr,
@@ -3093,7 +3093,7 @@ unsafe fn otl_LangSystemList_as_cvec(arr: *mut LangSystemList) -> *mut CVecRaw<L
 unsafe extern "C" fn otl_LangSystemList_init(arr: *mut LangSystemList) {
     cvec_init(otl_LangSystemList_as_cvec(arr));
 }
-pub static otl_iLangSystemList: LangSystemListVectorInterface = {
+pub static OTL_I_LANG_SYSTEM_LIST: LangSystemListVectorInterface = {
     LangSystemListVectorInterface {
         init: Some(otl_LangSystemList_init as unsafe extern "C" fn(*mut LangSystemList) -> ()),
         copy: Some(
@@ -3180,8 +3180,8 @@ unsafe extern "C" fn otl_LangSystemList_disposeItem(
     mut arr: *mut LangSystemList,
     mut n: usize,
 ) {
-    if otl_iLanguageSystem.dispose.is_some() {
-        otl_iLanguageSystem
+    if OTL_I_LANGUAGE_SYSTEM.dispose.is_some() {
+        OTL_I_LANGUAGE_SYSTEM
             .dispose
             .expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut LanguageSystemPtr
@@ -3218,8 +3218,8 @@ unsafe extern "C" fn otl_LangSystemList_sort(
 unsafe extern "C" fn otl_LangSystemList_fill(mut arr: *mut LangSystemList, mut n: usize) {
     while (*arr).length < n {
         let mut x: LanguageSystemPtr = ::core::ptr::null_mut::<LanguageSystem>();
-        if otl_iLanguageSystem.init.is_some() {
-            otl_iLanguageSystem.init.expect("non-null function pointer")(&raw mut x);
+        if OTL_I_LANGUAGE_SYSTEM.init.is_some() {
+            OTL_I_LANGUAGE_SYSTEM.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -3262,10 +3262,10 @@ unsafe extern "C" fn otl_LangSystemList_copy(
     otl_LangSystemList_init(dst);
     otl_LangSystemList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if otl_iLanguageSystem.copy.is_some() {
+    if OTL_I_LANGUAGE_SYSTEM.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            otl_iLanguageSystem.copy.expect("non-null function pointer")(
+            OTL_I_LANGUAGE_SYSTEM.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut LanguageSystemPtr,
                 (*src).items.offset(j as isize) as *mut LanguageSystemPtr
                     as *const LanguageSystemPtr,
@@ -3286,7 +3286,7 @@ unsafe extern "C" fn otl_LangSystemList_dispose(mut arr: *mut LangSystemList) {
     if arr.is_null() {
         return;
     }
-    if otl_iLanguageSystem.dispose.is_some() {
+    if OTL_I_LANGUAGE_SYSTEM.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh30 = j;
@@ -3294,7 +3294,7 @@ unsafe extern "C" fn otl_LangSystemList_dispose(mut arr: *mut LangSystemList) {
             if !(fresh30 != 0) {
                 break;
             }
-            otl_iLanguageSystem
+            OTL_I_LANGUAGE_SYSTEM
                 .dispose
                 .expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut LanguageSystemPtr
@@ -3369,15 +3369,15 @@ unsafe extern "C" fn otl_LangSystemList_move(dst: *mut LangSystemList, src: *mut
 }
 #[inline]
 unsafe extern "C" fn initOTL(mut table: *mut OtlTable) {
-    otl_iLookupList.init.expect("non-null function pointer")(&raw mut (*table).lookups);
-    otl_iFeatureList.init.expect("non-null function pointer")(&raw mut (*table).features);
-    otl_iLangSystemList.init.expect("non-null function pointer")(&raw mut (*table).languages);
+    OTL_I_LOOKUP_LIST.init.expect("non-null function pointer")(&raw mut (*table).lookups);
+    OTL_I_FEATURE_LIST.init.expect("non-null function pointer")(&raw mut (*table).features);
+    OTL_I_LANG_SYSTEM_LIST.init.expect("non-null function pointer")(&raw mut (*table).languages);
 }
 #[inline]
 unsafe extern "C" fn disposeOTL(mut table: *mut OtlTable) {
-    otl_iLookupList.dispose.expect("non-null function pointer")(&raw mut (*table).lookups);
-    otl_iFeatureList.dispose.expect("non-null function pointer")(&raw mut (*table).features);
-    otl_iLangSystemList
+    OTL_I_LOOKUP_LIST.dispose.expect("non-null function pointer")(&raw mut (*table).lookups);
+    OTL_I_FEATURE_LIST.dispose.expect("non-null function pointer")(&raw mut (*table).features);
+    OTL_I_LANG_SYSTEM_LIST
         .dispose
         .expect("non-null function pointer")(&raw mut (*table).languages);
 }
@@ -3409,7 +3409,7 @@ unsafe extern "C" fn table_OTL_create() -> *mut OtlTable {
 unsafe extern "C" fn table_OTL_init(mut x: *mut OtlTable) {
     initOTL(x);
 }
-pub static table_iOTL: OtlTableElementInterface = {
+pub static TABLE_I_OTL: OtlTableElementInterface = {
     OtlTableElementInterface {
         init: Some(table_OTL_init as unsafe extern "C" fn(*mut OtlTable) -> ()),
         copy: Some(table_OTL_copy as unsafe extern "C" fn(*mut OtlTable, *const OtlTable) -> ()),
@@ -3583,31 +3583,31 @@ mod tests {
     // otfccdump writes for every lookup, and the key otfccbuild matches a
     // lookup against when reading the JSON back. They are also *not* the
     // constants' own spelling -- the JSON says `gpos_mark_to_base` where the
-    // constant is `otl_type_gpos_markToBase` -- so they were copied from the
+    // constant is `OTL_TYPE_GPOS_MARK_TO_BASE` -- so they were copied from the
     // `tableNames` table this replaced and are pinned here rather than derived.
     #[test]
     fn lookup_type_names_are_the_json_strings() {
         for (t, name) in [
-            (otl_type_unknown, c"unknown"),
-            (otl_type_gsub_unknown, c"gsub_unknown"),
-            (otl_type_gsub_single, c"gsub_single"),
-            (otl_type_gsub_multiple, c"gsub_multiple"),
-            (otl_type_gsub_alternate, c"gsub_alternate"),
-            (otl_type_gsub_ligature, c"gsub_ligature"),
-            (otl_type_gsub_context, c"gsub_context"),
-            (otl_type_gsub_chaining, c"gsub_chaining"),
-            (otl_type_gsub_extend, c"gsub_extend"),
-            (otl_type_gsub_reverse, c"gsub_reverse"),
-            (otl_type_gpos_unknown, c"gpos_unknown"),
-            (otl_type_gpos_single, c"gpos_single"),
-            (otl_type_gpos_pair, c"gpos_pair"),
-            (otl_type_gpos_cursive, c"gpos_cursive"),
-            (otl_type_gpos_markToBase, c"gpos_mark_to_base"),
-            (otl_type_gpos_markToLigature, c"gpos_mark_to_ligature"),
-            (otl_type_gpos_markToMark, c"gpos_mark_to_mark"),
-            (otl_type_gpos_context, c"gpos_context"),
-            (otl_type_gpos_chaining, c"gpos_chaining"),
-            (otl_type_gpos_extend, c"gpos_extend"),
+            (OTL_TYPE_UNKNOWN, c"unknown"),
+            (OTL_TYPE_GSUB_UNKNOWN, c"gsub_unknown"),
+            (OTL_TYPE_GSUB_SINGLE, c"gsub_single"),
+            (OTL_TYPE_GSUB_MULTIPLE, c"gsub_multiple"),
+            (OTL_TYPE_GSUB_ALTERNATE, c"gsub_alternate"),
+            (OTL_TYPE_GSUB_LIGATURE, c"gsub_ligature"),
+            (OTL_TYPE_GSUB_CONTEXT, c"gsub_context"),
+            (OTL_TYPE_GSUB_CHAINING, c"gsub_chaining"),
+            (OTL_TYPE_GSUB_EXTEND, c"gsub_extend"),
+            (OTL_TYPE_GSUB_REVERSE, c"gsub_reverse"),
+            (OTL_TYPE_GPOS_UNKNOWN, c"gpos_unknown"),
+            (OTL_TYPE_GPOS_SINGLE, c"gpos_single"),
+            (OTL_TYPE_GPOS_PAIR, c"gpos_pair"),
+            (OTL_TYPE_GPOS_CURSIVE, c"gpos_cursive"),
+            (OTL_TYPE_GPOS_MARK_TO_BASE, c"gpos_mark_to_base"),
+            (OTL_TYPE_GPOS_MARK_TO_LIGATURE, c"gpos_mark_to_ligature"),
+            (OTL_TYPE_GPOS_MARK_TO_MARK, c"gpos_mark_to_mark"),
+            (OTL_TYPE_GPOS_CONTEXT, c"gpos_context"),
+            (OTL_TYPE_GPOS_CHAINING, c"gpos_chaining"),
+            (OTL_TYPE_GPOS_EXTEND, c"gpos_extend"),
         ] {
             assert_eq!(t.name(), name, "name for {t:?}");
         }
@@ -3618,22 +3618,22 @@ mod tests {
     // written straight into the lookup header.
     #[test]
     fn file_format_undoes_the_table_base() {
-        assert_eq!(otl_type_gsub_single.file_format(), 1);
-        assert_eq!(otl_type_gsub_reverse.file_format(), 8);
-        assert_eq!(otl_type_gsub_extend.file_format(), 7);
-        assert_eq!(otl_type_gpos_single.file_format(), 1);
-        assert_eq!(otl_type_gpos_extend.file_format(), 9);
+        assert_eq!(OTL_TYPE_GSUB_SINGLE.file_format(), 1);
+        assert_eq!(OTL_TYPE_GSUB_REVERSE.file_format(), 8);
+        assert_eq!(OTL_TYPE_GSUB_EXTEND.file_format(), 7);
+        assert_eq!(OTL_TYPE_GPOS_SINGLE.file_format(), 1);
+        assert_eq!(OTL_TYPE_GPOS_EXTEND.file_format(), 9);
         // The bases themselves are *not* above their own base -- C compares with
         // `>`, not `>=` -- so they carry no format number.
-        assert_eq!(otl_type_unknown.file_format(), 0);
-        assert_eq!(otl_type_gsub_unknown.file_format(), 0);
+        assert_eq!(OTL_TYPE_UNKNOWN.file_format(), 0);
+        assert_eq!(OTL_TYPE_GSUB_UNKNOWN.file_format(), 0);
         // Except `gpos_unknown`, and this one is a quirk kept on purpose: 32 is
         // not above GPOS's base but it *is* above GSUB's, so C's nested
         // comparisons read it as GSUB format 16. Reachable only from a font
         // declaring a GPOS lookup of format 0, which no version of the spec has
         // -- but the number would go straight into the lookup header, so it is
         // reproduced rather than tidied.
-        assert_eq!(otl_type_gpos_unknown.file_format(), 16);
+        assert_eq!(OTL_TYPE_GPOS_UNKNOWN.file_format(), 16);
     }
 
     // A lookup type comes out of the font as a 16-bit number added to a base,
@@ -3643,19 +3643,19 @@ mod tests {
     #[test]
     fn from_file_keeps_unnamed_types() {
         assert_eq!(
-            LookupType::from_file(otl_type_gsub_unknown, 1),
-            otl_type_gsub_single
+            LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 1),
+            OTL_TYPE_GSUB_SINGLE
         );
         assert_eq!(
-            LookupType::from_file(otl_type_gpos_unknown, 9),
-            otl_type_gpos_extend
+            LookupType::from_file(OTL_TYPE_GPOS_UNKNOWN, 9),
+            OTL_TYPE_GPOS_EXTEND
         );
         // GSUB format 9 exists in no version of the spec otfcc knows; it stays
         // 25, gets no subtable, and reaches the output as `lookup_0019_…`.
-        let unnamed = LookupType::from_file(otl_type_gsub_unknown, 9);
+        let unnamed = LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 9);
         assert_eq!(unnamed.raw(), 25);
         assert_eq!(unnamed.name(), c"unknown");
-        assert_eq!(LookupType::from_file(otl_type_gsub_unknown, 0xffff).raw(), 65551);
+        assert_eq!(LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 0xffff).raw(), 65551);
         assert_eq!(::core::mem::size_of::<LookupType>(), 4);
     }
 }

@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{malloc, memset};
 
-static base64_table: [u8; 64] = unsafe {
+static BASE64_TABLE: [u8; 64] = unsafe {
     ::core::mem::transmute::<[u8; 64], [u8; 64]>(
         *b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
     )
@@ -32,12 +32,12 @@ pub unsafe extern "C" fn base64_encode(
     while end.offset_from(in_0) as ::core::ffi::c_long >= 3 as ::core::ffi::c_long {
         let fresh0 = pos;
         pos = pos.offset(1);
-        *fresh0 = base64_table[(*in_0.offset(0 as ::core::ffi::c_int as isize)
+        *fresh0 = BASE64_TABLE[(*in_0.offset(0 as ::core::ffi::c_int as isize)
             as ::core::ffi::c_int
             >> 2 as ::core::ffi::c_int) as usize];
         let fresh1 = pos;
         pos = pos.offset(1);
-        *fresh1 = base64_table[((*in_0.offset(0 as ::core::ffi::c_int as isize)
+        *fresh1 = BASE64_TABLE[((*in_0.offset(0 as ::core::ffi::c_int as isize)
             as ::core::ffi::c_int
             & 0x3 as ::core::ffi::c_int)
             << 4 as ::core::ffi::c_int
@@ -45,7 +45,7 @@ pub unsafe extern "C" fn base64_encode(
                 >> 4 as ::core::ffi::c_int) as usize];
         let fresh2 = pos;
         pos = pos.offset(1);
-        *fresh2 = base64_table[((*in_0.offset(1 as ::core::ffi::c_int as isize)
+        *fresh2 = BASE64_TABLE[((*in_0.offset(1 as ::core::ffi::c_int as isize)
             as ::core::ffi::c_int
             & 0xf as ::core::ffi::c_int)
             << 2 as ::core::ffi::c_int
@@ -53,7 +53,7 @@ pub unsafe extern "C" fn base64_encode(
                 >> 6 as ::core::ffi::c_int) as usize];
         let fresh3 = pos;
         pos = pos.offset(1);
-        *fresh3 = base64_table[(*in_0.offset(2 as ::core::ffi::c_int as isize)
+        *fresh3 = BASE64_TABLE[(*in_0.offset(2 as ::core::ffi::c_int as isize)
             as ::core::ffi::c_int
             & 0x3f as ::core::ffi::c_int) as usize];
         in_0 = in_0.offset(3 as ::core::ffi::c_int as isize);
@@ -61,13 +61,13 @@ pub unsafe extern "C" fn base64_encode(
     if end.offset_from(in_0) as ::core::ffi::c_long != 0 {
         let fresh4 = pos;
         pos = pos.offset(1);
-        *fresh4 = base64_table[(*in_0.offset(0 as ::core::ffi::c_int as isize)
+        *fresh4 = BASE64_TABLE[(*in_0.offset(0 as ::core::ffi::c_int as isize)
             as ::core::ffi::c_int
             >> 2 as ::core::ffi::c_int) as usize];
         if end.offset_from(in_0) as ::core::ffi::c_long == 1 as ::core::ffi::c_long {
             let fresh5 = pos;
             pos = pos.offset(1);
-            *fresh5 = base64_table[((*in_0.offset(0 as ::core::ffi::c_int as isize)
+            *fresh5 = BASE64_TABLE[((*in_0.offset(0 as ::core::ffi::c_int as isize)
                 as ::core::ffi::c_int
                 & 0x3 as ::core::ffi::c_int)
                 << 4 as ::core::ffi::c_int) as usize];
@@ -77,7 +77,7 @@ pub unsafe extern "C" fn base64_encode(
         } else {
             let fresh7 = pos;
             pos = pos.offset(1);
-            *fresh7 = base64_table[((*in_0.offset(0 as ::core::ffi::c_int as isize)
+            *fresh7 = BASE64_TABLE[((*in_0.offset(0 as ::core::ffi::c_int as isize)
                 as ::core::ffi::c_int
                 & 0x3 as ::core::ffi::c_int)
                 << 4 as ::core::ffi::c_int
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn base64_encode(
                     >> 4 as ::core::ffi::c_int) as usize];
             let fresh8 = pos;
             pos = pos.offset(1);
-            *fresh8 = base64_table[((*in_0.offset(1 as ::core::ffi::c_int as isize)
+            *fresh8 = BASE64_TABLE[((*in_0.offset(1 as ::core::ffi::c_int as isize)
                 as ::core::ffi::c_int
                 & 0xf as ::core::ffi::c_int)
                 << 2 as ::core::ffi::c_int) as usize];
@@ -120,7 +120,7 @@ pub unsafe extern "C" fn base64_decode(
     );
     i = 0 as usize;
     while i < ::core::mem::size_of::<[u8; 64]>() {
-        dtable[base64_table[i] as usize] = i as u8;
+        dtable[BASE64_TABLE[i] as usize] = i as u8;
         i = i.wrapping_add(1);
     }
     dtable['=' as i32 as usize] = 0 as u8;

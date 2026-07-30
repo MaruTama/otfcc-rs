@@ -15,7 +15,7 @@ use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite16b};
-use crate::table::otl::classdef::{otl_iClassDef};
+use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::vendor::json_builder::{json_object_push};
 
 
@@ -73,7 +73,7 @@ pub unsafe extern "C" fn otfcc_dumpTSI5(
     json_object_push(
         root,
         b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
-        otl_iClassDef.dump.expect("non-null function pointer")(table as *const ClassDef),
+        OTL_I_CLASS_DEF.dump.expect("non-null function pointer")(table as *const ClassDef),
     );
 }
 pub unsafe extern "C" fn otfcc_parseTSI5(
@@ -89,7 +89,7 @@ pub unsafe extern "C" fn otfcc_parseTSI5(
     if _tsi.is_null() {
         return ::core::ptr::null_mut::<Tsi5Table>();
     }
-    return otl_iClassDef.parse.expect("non-null function pointer")(_tsi) as *mut Tsi5Table;
+    return OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(_tsi) as *mut Tsi5Table;
 }
 pub unsafe extern "C" fn otfcc_buildTSI5(
     mut tsi5: *const Tsi5Table,

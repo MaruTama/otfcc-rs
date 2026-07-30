@@ -18,15 +18,15 @@ use crate::vendor::sds::{sdsfree, sdsnewlen};
 /// instructions. `u8`, since that is what `InstrData.instrs` holds.
 ///
 /// c2rust emitted all 123 of `ttf_instructions`' names, of which these were the
-/// only ones any code referenced. The rest restated `ff_ttf_instrnames` below,
+/// only ones any code referenced. The rest restated `FF_TTF_INSTRNAMES` below,
 /// which the dumper and parser actually use and which covers all 256 opcodes --
 /// checked name by name against it before removing them (121 matched exactly;
-/// `ttf_pushb`/`ttf_pushw` name the base of the eight `PUSHB_1`..`PUSHB_8`
+/// `TTF_PUSHB`/`TTF_PUSHW` name the base of the eight `PUSHB_1`..`PUSHB_8`
 /// variants the table spells out).
-pub const ttf_npushb: u8 = 64;
-pub const ttf_npushw: u8 = 65;
-pub const ttf_pushb: u8 = 176;
-pub const ttf_pushw: u8 = 184;
+pub const TTF_NPUSHB: u8 = 64;
+pub const TTF_NPUSHW: u8 = 65;
+pub const TTF_PUSHB: u8 = 176;
+pub const TTF_PUSHW: u8 = 184;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct InstrData {
@@ -53,7 +53,7 @@ pub enum ByteType {
     WordLo = 4,
     ImpliedReturn = 5,
 }
-pub static ff_ttf_instrnames: [&::core::ffi::CStr; 256] = [
+pub static FF_TTF_INSTRNAMES: [&::core::ffi::CStr; 256] = [
     c"SVTCA[y-axis]",
     c"SVTCA[x-axis]",
     c"SPVTCA[y-axis]",
@@ -533,7 +533,7 @@ unsafe extern "C" fn parse_instrs(
                         if i - nread <= 8 as ::core::ffi::c_int {
                             let fresh7 = icnt;
                             icnt = icnt + 1;
-                            *instrs.offset(fresh7 as isize) = (ttf_pushb as ::core::ffi::c_int
+                            *instrs.offset(fresh7 as isize) = (TTF_PUSHB as ::core::ffi::c_int
                                 + (i - nread)
                                 - 1 as ::core::ffi::c_int)
                                 as u8;
@@ -541,7 +541,7 @@ unsafe extern "C" fn parse_instrs(
                             let fresh8 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh8 as isize) =
-                                ttf_npushb;
+                                TTF_NPUSHB;
                             let fresh9 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh9 as isize) = (i - nread) as u8;
@@ -566,7 +566,7 @@ unsafe extern "C" fn parse_instrs(
                         if i - nread <= 8 as ::core::ffi::c_int {
                             let fresh12 = icnt;
                             icnt = icnt + 1;
-                            *instrs.offset(fresh12 as isize) = (ttf_pushw as ::core::ffi::c_int
+                            *instrs.offset(fresh12 as isize) = (TTF_PUSHW as ::core::ffi::c_int
                                 + (i - nread)
                                 - 1 as ::core::ffi::c_int)
                                 as u8;
@@ -574,7 +574,7 @@ unsafe extern "C" fn parse_instrs(
                             let fresh13 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh13 as isize) =
-                                ttf_npushw;
+                                TTF_NPUSHW;
                             let fresh14 = icnt;
                             icnt = icnt + 1;
                             *instrs.offset(fresh14 as isize) = (i - nread) as u8;
@@ -615,12 +615,12 @@ unsafe extern "C" fn parse_instrs(
                 while i < 256 as ::core::ffi::c_int {
                     if strnmatch(
                         pt,
-                        ff_ttf_instrnames[i as usize].as_ptr(),
+                        FF_TTF_INSTRNAMES[i as usize].as_ptr(),
                         end.offset_from(pt) as ::core::ffi::c_long as ::core::ffi::c_int,
                     ) == 0 as ::core::ffi::c_int
                         && ::core::mem::size_of::<::core::ffi::c_char>()
                             .wrapping_mul(end.offset_from(pt) as ::core::ffi::c_long as usize)
-                            == ff_ttf_instrnames[i as usize].count_bytes()
+                            == FF_TTF_INSTRNAMES[i as usize].count_bytes()
                     {
                         break;
                     }
@@ -631,7 +631,7 @@ unsafe extern "C" fn parse_instrs(
                     while i < 256 as ::core::ffi::c_int {
                         if strnmatch(
                             pt,
-                            ff_ttf_instrnames[i as usize].as_ptr(),
+                            FF_TTF_INSTRNAMES[i as usize].as_ptr(),
                             (brack.offset_from(pt) as ::core::ffi::c_long
                                 + 1 as ::core::ffi::c_long)
                                 as ::core::ffi::c_int,
@@ -678,29 +678,29 @@ unsafe extern "C" fn parse_instrs(
                 let fresh18 = icnt;
                 icnt = icnt + 1;
                 *instrs.offset(fresh18 as isize) = i as u8;
-                if i == ttf_npushb as ::core::ffi::c_int
-                    || i == ttf_npushw as ::core::ffi::c_int
-                    || i >= ttf_pushb as ::core::ffi::c_int
-                        && i <= ttf_pushw as ::core::ffi::c_int + 7 as ::core::ffi::c_int
+                if i == TTF_NPUSHB as ::core::ffi::c_int
+                    || i == TTF_NPUSHW as ::core::ffi::c_int
+                    || i >= TTF_PUSHB as ::core::ffi::c_int
+                        && i <= TTF_PUSHW as ::core::ffi::c_int + 7 as ::core::ffi::c_int
                 {
-                    push_size = if i == ttf_npushb as ::core::ffi::c_int
-                        || i >= ttf_pushb as ::core::ffi::c_int
-                            && i <= ttf_pushb as ::core::ffi::c_int + 7 as ::core::ffi::c_int
+                    push_size = if i == TTF_NPUSHB as ::core::ffi::c_int
+                        || i >= TTF_PUSHB as ::core::ffi::c_int
+                            && i <= TTF_PUSHB as ::core::ffi::c_int + 7 as ::core::ffi::c_int
                     {
                         1 as ::core::ffi::c_int
                     } else {
                         2 as ::core::ffi::c_int
                     };
-                    if i == ttf_npushb as ::core::ffi::c_int
-                        || i == ttf_npushw as ::core::ffi::c_int
+                    if i == TTF_NPUSHB as ::core::ffi::c_int
+                        || i == TTF_NPUSHW as ::core::ffi::c_int
                     {
                         push_left = -(1 as ::core::ffi::c_int);
-                    } else if i >= ttf_pushb as ::core::ffi::c_int
-                        && i <= ttf_pushb as ::core::ffi::c_int + 7 as ::core::ffi::c_int
+                    } else if i >= TTF_PUSHB as ::core::ffi::c_int
+                        && i <= TTF_PUSHB as ::core::ffi::c_int + 7 as ::core::ffi::c_int
                     {
-                        push_left = i - ttf_pushb as ::core::ffi::c_int + 1 as ::core::ffi::c_int;
+                        push_left = i - TTF_PUSHB as ::core::ffi::c_int + 1 as ::core::ffi::c_int;
                     } else {
-                        push_left = i - ttf_pushw as ::core::ffi::c_int + 1 as ::core::ffi::c_int;
+                        push_left = i - TTF_PUSHW as ::core::ffi::c_int + 1 as ::core::ffi::c_int;
                     }
                 }
                 if *pt as ::core::ffi::c_int == '\0' as i32 {
@@ -745,7 +745,7 @@ unsafe extern "C" fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int 
     while i < len {
         *bts.offset(i as isize) = ByteType::Instr;
         lh += 1;
-        if *instrs.offset(i as isize) == ttf_npushb {
+        if *instrs.offset(i as isize) == TTF_NPUSHB {
             i += 1;
             *bts.offset(i as isize) = ByteType::Cnt;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
@@ -756,7 +756,7 @@ unsafe extern "C" fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int 
                 j += 1;
             }
             lh += 1 as ::core::ffi::c_int + cnt;
-        } else if *instrs.offset(i as isize) == ttf_npushw {
+        } else if *instrs.offset(i as isize) == TTF_NPUSHW {
             i += 1;
             *bts.offset(i as isize) = ByteType::Cnt;
             lh += 1;
@@ -850,7 +850,7 @@ pub unsafe extern "C" fn dump_ttinstr(
             } else {
                 json_array_push(
                     ret,
-                    json_string_new(ff_ttf_instrnames[*id.instrs.offset(i as isize) as usize].as_ptr()),
+                    json_string_new(FF_TTF_INSTRNAMES[*id.instrs.offset(i as isize) as usize].as_ptr()),
                 );
             }
             i = i.wrapping_add(1);
@@ -998,24 +998,24 @@ mod tests {
     }
 
     // The four opcodes whose operands sit inside the instruction stream. These
-    // are the values the TrueType spec assigns, and `ff_ttf_instrnames` -- which
+    // are the values the TrueType spec assigns, and `FF_TTF_INSTRNAMES` -- which
     // is what the dumper writes and the parser matches -- has to agree with them,
     // since the two are the only remaining record of the opcode numbering.
     #[test]
     fn push_opcodes_agree_with_the_name_table() {
-        assert_eq!([ttf_npushb, ttf_npushw, ttf_pushb, ttf_pushw], [64, 65, 176, 184]);
-        assert_eq!(ff_ttf_instrnames[ttf_npushb as usize], c"NPUSHB");
-        assert_eq!(ff_ttf_instrnames[ttf_npushw as usize], c"NPUSHW");
+        assert_eq!([TTF_NPUSHB, TTF_NPUSHW, TTF_PUSHB, TTF_PUSHW], [64, 65, 176, 184]);
+        assert_eq!(FF_TTF_INSTRNAMES[TTF_NPUSHB as usize], c"NPUSHB");
+        assert_eq!(FF_TTF_INSTRNAMES[TTF_NPUSHW as usize], c"NPUSHW");
         // `PUSHB`/`PUSHW` are eight opcodes each, pushing 1..=8 values; the
         // constant is the first of the run, which is why the code adds an offset
         // to it rather than comparing for equality.
         for n in 0..8u8 {
             assert_eq!(
-                ff_ttf_instrnames[(ttf_pushb + n) as usize].to_bytes(),
+                FF_TTF_INSTRNAMES[(TTF_PUSHB + n) as usize].to_bytes(),
                 format!("PUSHB_{}", n + 1).as_bytes()
             );
             assert_eq!(
-                ff_ttf_instrnames[(ttf_pushw + n) as usize].to_bytes(),
+                FF_TTF_INSTRNAMES[(TTF_PUSHW + n) as usize].to_bytes(),
                 format!("PUSHW_{}", n + 1).as_bytes()
             );
         }

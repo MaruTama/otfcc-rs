@@ -4,7 +4,7 @@ use libc::{free, malloc, memcpy, memset};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, Length, Pos};
@@ -99,7 +99,7 @@ unsafe extern "C" fn table_vmtx_replace(mut dst: *mut VmtxTable, src: VmtxTable)
         ::core::mem::size_of::<VmtxTable>() as usize,
     );
 }
-pub static table_iVmtx: VmtxTableElementInterface = {
+pub static TABLE_I_VMTX: VmtxTableElementInterface = {
     VmtxTableElementInterface {
         init: Some(table_vmtx_init as unsafe extern "C" fn(*mut VmtxTable) -> ()),
         copy: Some(
@@ -169,12 +169,12 @@ pub unsafe extern "C" fn otfcc_readVmtx(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"Table 'vmtx' corrupted.\n"),
                         );
                         if !vmtx.is_null() {
-                            table_iVmtx.free.expect("non-null function pointer")(vmtx);
+                            TABLE_I_VMTX.free.expect("non-null function pointer")(vmtx);
                             vmtx = ::core::ptr::null_mut::<VmtxTable>();
                         }
                     } else {

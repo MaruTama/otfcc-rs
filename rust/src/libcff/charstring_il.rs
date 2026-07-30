@@ -9,16 +9,16 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{Arity, Pos, ShapeId};
 
-use crate::libcff::{op_cntrmask, op_endchar, op_hhcurveto, op_hintmask, op_hlineto, op_hmoveto, op_hstem, op_hstemhm, op_hvcurveto, op_rcurveline, op_rlinecurve, op_rlineto, op_rmoveto, op_rrcurveto, op_vhcurveto, op_vlineto, op_vmoveto, op_vstem, op_vstemhm, op_vvcurveto, type2_argument_stack};
-use crate::support::{true_0};
+use crate::libcff::{OP_CNTRMASK, OP_ENDCHAR, OP_HHCURVETO, OP_HINTMASK, OP_HLINETO, OP_HMOVETO, OP_HSTEM, OP_HSTEMHM, OP_HVCURVETO, OP_RCURVELINE, OP_RLINECURVE, OP_RLINETO, OP_RMOVETO, OP_RRCURVETO, OP_VHCURVETO, OP_VLINETO, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, OP_VVCURVETO, TYPE2_ARGUMENT_STACK};
+use crate::support::{TRUE_0};
 use crate::table::glyf::{Contour, Glyph, MaskList, StemDefList};
 
 use crate::vf::vq::VQ;
 use crate::libcff::cff_opmean::{cff_getStandardArity};
 use crate::libcff::cff_writer::{cff_mergeCS2Operand, cff_mergeCS2Operator, cff_mergeCS2Special};
 use crate::support::buffer::{bufnew};
-use crate::table::glyf::{glyf_iContour, glyf_iPoint};
-use crate::vf::vq::{iVQ};
+use crate::table::glyf::{GLYF_I_CONTOUR, GLYF_I_POINT};
+use crate::vf::vq::{I_VQ};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum CffInstructionType {
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn il_push_operand(
 pub unsafe extern "C" fn il_push_VQ(mut il: *mut CffCharstringIl, mut x: VQ) {
     il_push_operand(
         il,
-        iVQ.getStill.expect("non-null function pointer")(x) as ::core::ffi::c_double,
+        I_VQ.getStill.expect("non-null function pointer")(x) as ::core::ffi::c_double,
     );
 }
 pub unsafe extern "C" fn il_push_special(mut il: *mut CffCharstringIl, mut s: i32) {
@@ -103,12 +103,12 @@ pub unsafe extern "C" fn il_push_op(mut il: *mut CffCharstringIl, mut op: i32) {
 unsafe extern "C" fn il_moveto(mut il: *mut CffCharstringIl, mut dx: VQ, mut dy: VQ) {
     il_push_VQ(il, dx);
     il_push_VQ(il, dy);
-    il_push_op(il, op_rmoveto);
+    il_push_op(il, OP_RMOVETO);
 }
 unsafe extern "C" fn il_lineto(mut il: *mut CffCharstringIl, mut dx: VQ, mut dy: VQ) {
     il_push_VQ(il, dx);
     il_push_VQ(il, dy);
-    il_push_op(il, op_rlineto);
+    il_push_op(il, OP_RLINETO);
 }
 unsafe extern "C" fn il_curveto(
     mut il: *mut CffCharstringIl,
@@ -125,7 +125,7 @@ unsafe extern "C" fn il_curveto(
     il_push_VQ(il, dy2);
     il_push_VQ(il, dx3);
     il_push_VQ(il, dy3);
-    il_push_op(il, op_rrcurveto);
+    il_push_op(il, OP_RRCURVETO);
 }
 unsafe extern "C" fn _il_push_maskgroup(
     mut il: *mut CffCharstringIl,
@@ -201,7 +201,7 @@ unsafe extern "C" fn il_push_masks(
         (*g).stemH.length as u16,
         (*g).stemV.length as u16,
         jh,
-        op_cntrmask,
+        OP_CNTRMASK,
     );
     _il_push_maskgroup(
         il,
@@ -211,7 +211,7 @@ unsafe extern "C" fn il_push_masks(
         (*g).stemH.length as u16,
         (*g).stemV.length as u16,
         jm,
-        op_hintmask,
+        OP_HINTMASK,
     );
 }
 unsafe extern "C" fn _il_push_stemgroup(
@@ -245,11 +245,11 @@ unsafe extern "C" fn _il_push_stemgroup(
         ref_0 = (*(*stems).items.offset(j as isize)).position
             + (*(*stems).items.offset(j as isize)).width;
         nn = nn.wrapping_add(1);
-        if nn as u32 >= type2_argument_stack {
+        if nn as u32 >= TYPE2_ARGUMENT_STACK {
             if hasmask {
-                il_push_op(il, op_hstemhm);
+                il_push_op(il, OP_HSTEMHM);
             } else {
-                il_push_op(il, op_hstem);
+                il_push_op(il, OP_HSTEM);
             }
             (*(*il)
                 .instr
@@ -280,16 +280,16 @@ unsafe extern "C" fn il_push_stems(
         &raw mut (*g).stemH,
         hasmask,
         haswidth,
-        op_hstemhm,
-        op_hstem,
+        OP_HSTEMHM,
+        OP_HSTEM,
     );
     _il_push_stemgroup(
         il,
         &raw mut (*g).stemV,
         hasmask,
         haswidth,
-        op_vstemhm,
-        op_vstem,
+        OP_VSTEMHM,
+        OP_VSTEM,
     );
 }
 pub unsafe extern "C" fn cff_compileGlyphToIL(
@@ -304,9 +304,9 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
     ) as *mut CffCharstringIl;
     let mut tempContours: *mut Contour = ::core::ptr::null_mut::<Contour>();
     let mut x: VQ =
-        (iVQ.neutral.expect("non-null function pointer"))();
+        (I_VQ.neutral.expect("non-null function pointer"))();
     let mut y: VQ =
-        (iVQ.neutral.expect("non-null function pointer"))();
+        (I_VQ.neutral.expect("non-null function pointer"))();
     tempContours = __caryll_allocate_clean(
         (::core::mem::size_of::<Contour>() as usize).wrapping_mul((*g).contours.length),
         149 as ::core::ffi::c_ulong,
@@ -317,12 +317,12 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
             (*g).contours.items.offset(c as isize) as *mut Contour;
         let mut newcontour: *mut Contour =
             tempContours.offset(c as isize) as *mut Contour;
-        glyf_iContour.init.expect("non-null function pointer")(newcontour);
+        GLYF_I_CONTOUR.init.expect("non-null function pointer")(newcontour);
         let mut j: ShapeId = 0 as ShapeId;
         while (j as usize) < (*contour).length {
-            glyf_iContour.push.expect("non-null function pointer")(
+            GLYF_I_CONTOUR.push.expect("non-null function pointer")(
                 newcontour,
-                glyf_iPoint.dup.expect("non-null function pointer")(
+                GLYF_I_POINT.dup.expect("non-null function pointer")(
                     *(*contour).items.offset(j as isize),
                 ),
             );
@@ -335,36 +335,36 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
             .onCurve
                 == 0
         {
-            glyf_iContour.push.expect("non-null function pointer")(
+            GLYF_I_CONTOUR.push.expect("non-null function pointer")(
                 newcontour,
-                glyf_iPoint.dup.expect("non-null function pointer")(
+                GLYF_I_POINT.dup.expect("non-null function pointer")(
                     *(*newcontour).items.offset(0 as ::core::ffi::c_int as isize),
                 ),
             );
         }
         let mut j_0: ShapeId = 0 as ShapeId;
         while (j_0 as usize) < (*newcontour).length {
-            let mut dx: VQ = iVQ.minus.expect("non-null function pointer")(
+            let mut dx: VQ = I_VQ.minus.expect("non-null function pointer")(
                 (*(*newcontour).items.offset(j_0 as isize)).x,
                 x,
             );
-            let mut dy: VQ = iVQ.minus.expect("non-null function pointer")(
+            let mut dy: VQ = I_VQ.minus.expect("non-null function pointer")(
                 (*(*newcontour).items.offset(j_0 as isize)).y,
                 y,
             );
-            iVQ.copyReplace.expect("non-null function pointer")(
+            I_VQ.copyReplace.expect("non-null function pointer")(
                 &raw mut x,
                 (*(*newcontour).items.offset(j_0 as isize)).x,
             );
-            iVQ.copyReplace.expect("non-null function pointer")(
+            I_VQ.copyReplace.expect("non-null function pointer")(
                 &raw mut y,
                 (*(*newcontour).items.offset(j_0 as isize)).y,
             );
-            iVQ.replace.expect("non-null function pointer")(
+            I_VQ.replace.expect("non-null function pointer")(
                 &raw mut (*(*newcontour).items.offset(j_0 as isize)).x,
                 dx,
             );
-            iVQ.replace.expect("non-null function pointer")(
+            I_VQ.replace.expect("non-null function pointer")(
                 &raw mut (*(*newcontour).items.offset(j_0 as isize)).y,
                 dy,
             );
@@ -372,11 +372,11 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
         }
         c = c.wrapping_add(1);
     }
-    iVQ.dispose.expect("non-null function pointer")(&raw mut x);
-    iVQ.dispose.expect("non-null function pointer")(&raw mut y);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut x);
+    I_VQ.dispose.expect("non-null function pointer")(&raw mut y);
     let mut hasmask: bool = (*g).hintMasks.length != 0 || (*g).contourMasks.length != 0;
     let glyphADWConst: Pos =
-        iVQ.getStill.expect("non-null function pointer")((*g).advanceWidth) as Pos;
+        I_VQ.getStill.expect("non-null function pointer")((*g).advanceWidth) as Pos;
     let mut haswidth: bool = glyphADWConst != defaultWidth as ::core::ffi::c_int as Pos;
     if haswidth {
         il_push_operand(
@@ -495,10 +495,10 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
         }
         c_0 = c_0.wrapping_add(1);
     }
-    il_push_op(il, op_endchar);
+    il_push_op(il, OP_ENDCHAR);
     let mut c_1: ShapeId = 0 as ShapeId;
     while (c_1 as usize) < (*g).contours.length {
-        glyf_iContour.dispose.expect("non-null function pointer")(
+        GLYF_I_CONTOUR.dispose.expect("non-null function pointer")(
             tempContours.offset(c_1 as isize) as *mut Contour,
         );
         c_1 = c_1.wrapping_add(1);
@@ -571,7 +571,7 @@ unsafe fn zroll(
             as ::core::ffi::c_int
             != 0
     {
-        let mut check: u8 = true_0 as u8;
+        let mut check: u8 = TRUE_0 as u8;
         let mut resultArity: u8 = arity;
         let mut mask: [bool; 16] = [false; 16];
         debug_assert_eq!(zeros.len(), arity as usize, "zroll: flag count must match the operator's arity");
@@ -654,7 +654,7 @@ unsafe extern "C" fn opop_roll(
         ) as ::core::ffi::c_int
             != 0
         && (*current).arity.wrapping_add((*nextop).arity)
-            <= type2_argument_stack
+            <= TYPE2_ARGUMENT_STACK
     {
         (*current).type_0 = CffInstructionType::PhantomOperator;
         (*nextop).c2rust_unnamed.i = resultop;
@@ -671,7 +671,7 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> 
     let mut current: *mut CffCharstringInstruction =
         (*il).instr.offset(j as isize) as *mut CffCharstringInstruction;
     let mut checkdelta: u32 = (if ((*current).arity & 1 as Arity != 0) as ::core::ffi::c_int
-        ^ ((*current).c2rust_unnamed.i == op_vlineto)
+        ^ ((*current).c2rust_unnamed.i == OP_VLINETO)
             as ::core::ffi::c_int
         != 0
     {
@@ -679,13 +679,13 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> 
     } else {
         2 as ::core::ffi::c_int
     }) as u32;
-    if (il_matchop(il, j, op_hlineto) as ::core::ffi::c_int != 0
-        || il_matchop(il, j, op_vlineto) as ::core::ffi::c_int
+    if (il_matchop(il, j, OP_HLINETO) as ::core::ffi::c_int != 0
+        || il_matchop(il, j, OP_VLINETO) as ::core::ffi::c_int
             != 0)
         && il_matchop(
             il,
             j.wrapping_add(3 as u32),
-            op_rlineto,
+            OP_RLINETO,
         ) as ::core::ffi::c_int
             != 0
         && il_matchtype(
@@ -700,7 +700,7 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> 
             .d
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
         && (*current).arity.wrapping_add(1 as Arity)
-            <= type2_argument_stack
+            <= TYPE2_ARGUMENT_STACK
     {
         (*(*il).instr.offset(j.wrapping_add(checkdelta) as isize)).type_0 = CffInstructionType::PhantomOperand;
         (*(*il).instr.offset(j as isize)).type_0 = CffInstructionType::PhantomOperator;
@@ -715,8 +715,8 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> 
     };
 }
 unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
-    if !il_matchop(il, j, op_hvcurveto)
-        && !il_matchop(il, j, op_vhcurveto)
+    if !il_matchop(il, j, OP_HVCURVETO)
+        && !il_matchop(il, j, OP_VHCURVETO)
     {
         return 0 as u8;
     }
@@ -727,7 +727,7 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
     }
     let mut hvcase: bool = ((*current).arity >> 2 as ::core::ffi::c_int & 1 as Arity != 0)
         as ::core::ffi::c_int
-        ^ ((*current).c2rust_unnamed.i == op_hvcurveto)
+        ^ ((*current).c2rust_unnamed.i == OP_HVCURVETO)
             as ::core::ffi::c_int
         != 0;
     let mut checkdelta1: u32 = (if hvcase as ::core::ffi::c_int != 0 {
@@ -743,7 +743,7 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
     if il_matchop(
         il,
         j.wrapping_add(7 as u32),
-        op_rrcurveto,
+        OP_RRCURVETO,
     ) as ::core::ffi::c_int
         != 0
         && il_matchtype(
@@ -763,7 +763,7 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
             .d
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
             && (*current).arity.wrapping_add(4 as Arity)
-                <= type2_argument_stack
+                <= TYPE2_ARGUMENT_STACK
         {
             (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).type_0 =
                 CffInstructionType::PhantomOperand;
@@ -777,7 +777,7 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
                 (*current).arity.wrapping_add(4 as Arity);
             return 7 as u8;
         } else if (*current).arity.wrapping_add(5 as Arity)
-            <= type2_argument_stack
+            <= TYPE2_ARGUMENT_STACK
         {
             (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).type_0 =
                 CffInstructionType::PhantomOperand;
@@ -810,8 +810,8 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
     };
 }
 unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
-    if !il_matchop(il, j, op_hhcurveto)
-        && !il_matchop(il, j, op_vvcurveto)
+    if !il_matchop(il, j, OP_HHCURVETO)
+        && !il_matchop(il, j, OP_VVCURVETO)
     {
         return 0 as u8;
     }
@@ -820,7 +820,7 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
     if j.wrapping_add(7 as u32) >= (*il).length {
         return 0 as u8;
     }
-    let mut hh: bool = (*current).c2rust_unnamed.i == op_hhcurveto;
+    let mut hh: bool = (*current).c2rust_unnamed.i == OP_HHCURVETO;
     let mut checkdelta1: u32 = (if hh as ::core::ffi::c_int != 0 {
         2 as ::core::ffi::c_int
     } else {
@@ -834,7 +834,7 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
     if il_matchop(
         il,
         j.wrapping_add(7 as u32),
-        op_rrcurveto,
+        OP_RRCURVETO,
     ) as ::core::ffi::c_int
         != 0
         && il_matchtype(
@@ -853,7 +853,7 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
             .d
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
         && (*current).arity.wrapping_add(4 as Arity)
-            <= type2_argument_stack
+            <= TYPE2_ARGUMENT_STACK
     {
         (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).type_0 =
             CffInstructionType::PhantomOperand;
@@ -885,45 +885,45 @@ unsafe extern "C" fn decideAdvance(
     mut _optimizeLevel: u8,
 ) -> u8 {
     let mut r: u8 = 0 as u8;
-    r = zroll(il, j, op_rlineto, op_hlineto, &[false, true]);
+    r = zroll(il, j, OP_RLINETO, OP_HLINETO, &[false, true]);
     if r != 0 {
         return r;
     }
-    r = zroll(il, j, op_rlineto, op_vlineto, &[true, false]);
+    r = zroll(il, j, OP_RLINETO, OP_VLINETO, &[true, false]);
     if r != 0 {
         return r;
     }
-    r = zroll(il, j, op_rmoveto, op_hmoveto, &[false, true]);
+    r = zroll(il, j, OP_RMOVETO, OP_HMOVETO, &[false, true]);
     if r != 0 {
         return r;
     }
-    r = zroll(il, j, op_rmoveto, op_vmoveto, &[true, false]);
+    r = zroll(il, j, OP_RMOVETO, OP_VMOVETO, &[true, false]);
     if r != 0 {
         return r;
     }
-    r = zroll(il, j, op_rrcurveto, op_hvcurveto, &[false, true, false, false, true, false]);
+    r = zroll(il, j, OP_RRCURVETO, OP_HVCURVETO, &[false, true, false, false, true, false]);
     if r != 0 {
         return r;
     }
-    r = zroll(il, j, op_rrcurveto, op_vhcurveto, &[true, false, false, false, false, true]);
+    r = zroll(il, j, OP_RRCURVETO, OP_VHCURVETO, &[true, false, false, false, false, true]);
     if r != 0 {
         return r;
     }
-    r = zroll(il, j, op_rrcurveto, op_hhcurveto, &[false, true, false, false, false, true]);
+    r = zroll(il, j, OP_RRCURVETO, OP_HHCURVETO, &[false, true, false, false, false, true]);
     if r != 0 {
         return r;
     }
-    r = zroll(il, j, op_rrcurveto, op_vvcurveto, &[true, false, false, false, true, false]);
+    r = zroll(il, j, OP_RRCURVETO, OP_VVCURVETO, &[true, false, false, false, true, false]);
     if r != 0 {
         return r;
     }
     r = opop_roll(
         il,
         j,
-        op_rrcurveto,
+        OP_RRCURVETO,
         6 as i32,
-        op_rrcurveto,
-        op_rrcurveto,
+        OP_RRCURVETO,
+        OP_RRCURVETO,
     );
     if r != 0 {
         return r;
@@ -931,10 +931,10 @@ unsafe extern "C" fn decideAdvance(
     r = opop_roll(
         il,
         j,
-        op_rrcurveto,
+        OP_RRCURVETO,
         2 as i32,
-        op_rlineto,
-        op_rcurveline,
+        OP_RLINETO,
+        OP_RCURVELINE,
     );
     if r != 0 {
         return r;
@@ -942,10 +942,10 @@ unsafe extern "C" fn decideAdvance(
     r = opop_roll(
         il,
         j,
-        op_rlineto,
+        OP_RLINETO,
         6 as i32,
-        op_rrcurveto,
-        op_rlinecurve,
+        OP_RRCURVETO,
+        OP_RLINECURVE,
     );
     if r != 0 {
         return r;
@@ -953,10 +953,10 @@ unsafe extern "C" fn decideAdvance(
     r = opop_roll(
         il,
         j,
-        op_rlineto,
+        OP_RLINETO,
         2 as i32,
-        op_rlineto,
-        op_rlineto,
+        OP_RLINETO,
+        OP_RLINETO,
     );
     if r != 0 {
         return r;
@@ -964,10 +964,10 @@ unsafe extern "C" fn decideAdvance(
     r = opop_roll(
         il,
         j,
-        op_hstemhm,
+        OP_HSTEMHM,
         0 as i32,
-        op_hintmask,
-        op_hintmask,
+        OP_HINTMASK,
+        OP_HINTMASK,
     );
     if r != 0 {
         return r;
@@ -975,10 +975,10 @@ unsafe extern "C" fn decideAdvance(
     r = opop_roll(
         il,
         j,
-        op_vstemhm,
+        OP_VSTEMHM,
         0 as i32,
-        op_hintmask,
-        op_hintmask,
+        OP_HINTMASK,
+        OP_HINTMASK,
     );
     if r != 0 {
         return r;
@@ -986,10 +986,10 @@ unsafe extern "C" fn decideAdvance(
     r = opop_roll(
         il,
         j,
-        op_hstemhm,
+        OP_HSTEMHM,
         0 as i32,
-        op_cntrmask,
-        op_cntrmask,
+        OP_CNTRMASK,
+        OP_CNTRMASK,
     );
     if r != 0 {
         return r;
@@ -997,10 +997,10 @@ unsafe extern "C" fn decideAdvance(
     r = opop_roll(
         il,
         j,
-        op_vstemhm,
+        OP_VSTEMHM,
         0 as i32,
-        op_cntrmask,
-        op_cntrmask,
+        OP_CNTRMASK,
+        OP_CNTRMASK,
     );
     if r != 0 {
         return r;

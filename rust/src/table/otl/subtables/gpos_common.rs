@@ -44,7 +44,7 @@ pub struct ClassNameHash {
 unsafe extern "C" fn deleteMarkArrayItem(mut entry: *mut MarkRecord) {
     otfcc_Handle_dispose(&raw mut (*entry).glyph);
 }
-static gss_typeinfo: MarkRecordElementInterface = {
+static GSS_TYPEINFO: MarkRecordElementInterface = {
     MarkRecordElementInterface {
         init: None,
         copy: None,
@@ -56,8 +56,8 @@ static gss_typeinfo: MarkRecordElementInterface = {
 };
 #[inline]
 unsafe extern "C" fn otl_MarkArray_disposeItem(mut arr: *mut MarkArray, mut n: usize) {
-    if gss_typeinfo.dispose.is_some() {
-        gss_typeinfo.dispose.expect("non-null function pointer")(
+    if GSS_TYPEINFO.dispose.is_some() {
+        GSS_TYPEINFO.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut MarkRecord
         );
     } else {
@@ -84,10 +84,10 @@ unsafe extern "C" fn otl_MarkArray_copy(
     otl_MarkArray_init(dst);
     otl_MarkArray_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if gss_typeinfo.copy.is_some() {
+    if GSS_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            gss_typeinfo.copy.expect("non-null function pointer")(
+            GSS_TYPEINFO.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut MarkRecord,
                 (*src).items.offset(j as isize) as *mut MarkRecord as *const MarkRecord,
             );
@@ -106,7 +106,7 @@ unsafe extern "C" fn otl_MarkArray_dispose(mut arr: *mut MarkArray) {
     if arr.is_null() {
         return;
     }
-    if gss_typeinfo.dispose.is_some() {
+    if GSS_TYPEINFO.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -114,7 +114,7 @@ unsafe extern "C" fn otl_MarkArray_dispose(mut arr: *mut MarkArray) {
             if !(fresh1 != 0) {
                 break;
             }
-            gss_typeinfo.dispose.expect("non-null function pointer")(
+            GSS_TYPEINFO.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut MarkRecord,
             );
         }
@@ -200,8 +200,8 @@ unsafe extern "C" fn otl_MarkArray_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if gss_typeinfo.dispose.is_some() {
-                gss_typeinfo.dispose.expect("non-null function pointer")(
+            if GSS_TYPEINFO.dispose.is_some() {
+                GSS_TYPEINFO.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut MarkRecord,
                 );
             } else {
@@ -211,7 +211,7 @@ unsafe extern "C" fn otl_MarkArray_filterEnv(
     }
     (*arr).length = j;
 }
-pub static otl_iMarkArray: MarkArrayVectorInterface = {
+pub static OTL_I_MARK_ARRAY: MarkArrayVectorInterface = {
     MarkArrayVectorInterface {
         init: Some(otl_MarkArray_init as unsafe extern "C" fn(*mut MarkArray) -> ()),
         copy: Some(
@@ -322,8 +322,8 @@ unsafe extern "C" fn otl_MarkArray_fill(mut arr: *mut MarkArray, mut n: usize) {
                 y: 0.,
             },
         };
-        if gss_typeinfo.init.is_some() {
-            gss_typeinfo.init.expect("non-null function pointer")(&raw mut x);
+        if GSS_TYPEINFO.init.is_some() {
+            GSS_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -367,7 +367,7 @@ pub unsafe extern "C" fn otl_readMarkArray(
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             );
             if delta != 0 {
-                otl_iMarkArray.push.expect("non-null function pointer")(
+                OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(
                     array,
                     MarkRecord {
                         glyph: otfcc_Handle_dup(
@@ -382,7 +382,7 @@ pub unsafe extern "C" fn otl_readMarkArray(
                     },
                 );
             } else {
-                otl_iMarkArray.push.expect("non-null function pointer")(
+                OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(
                     array,
                     MarkRecord {
                         glyph: otfcc_Handle_dup(
@@ -440,7 +440,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
         if anchorRecord.is_null()
             || (*anchorRecord).type_0 != JsonType::Object
         {
-            otl_iMarkArray.push.expect("non-null function pointer")(array, mark);
+            OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(array, mark);
         } else {
             let mut _className: *mut JsonValue = json_obj_get_type(
                 anchorRecord,
@@ -448,7 +448,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                 JsonType::String,
             );
             if _className.is_null() {
-                otl_iMarkArray.push.expect("non-null function pointer")(array, mark);
+                OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(array, mark);
             } else {
                 let mut className: SdsRaw = sdsnewlen(
                     (*_className).u.string.ptr as *const ::core::ffi::c_void,
@@ -1261,7 +1261,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                     anchorRecord,
                     b"y\0" as *const u8 as *const ::core::ffi::c_char,
                 ) as Pos;
-                otl_iMarkArray.push.expect("non-null function pointer")(array, mark);
+                OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(array, mark);
             }
         }
         j = j.wrapping_add(1);
@@ -1844,7 +1844,7 @@ pub static FORMAT_DX: u8 = 1 as u8;
 pub static FORMAT_DY: u8 = 2 as u8;
 pub static FORMAT_DWIDTH: u8 = 4 as u8;
 pub static FORMAT_DHEIGHT: u8 = 8 as u8;
-pub static bits_in: [u8; 256] = [
+pub static BITS_IN: [u8; 256] = [
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
@@ -3127,7 +3127,7 @@ pub static bits_in: [u8; 256] = [
         + 2 as ::core::ffi::c_int) as u8,
 ];
 pub unsafe extern "C" fn position_format_length(mut format: u16) -> u8 {
-    return ((bits_in[(format as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as usize]
+    return ((BITS_IN[(format as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as usize]
         as ::core::ffi::c_int)
         << 1 as ::core::ffi::c_int) as u8;
 }

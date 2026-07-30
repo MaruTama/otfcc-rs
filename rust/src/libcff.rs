@@ -27,241 +27,241 @@ pub mod subr;
 ///
 /// **Not interchangeable with [`CffCharstringOperator`]**, even though both are
 /// `i32`: 38 of the numbers mean one thing in a DICT and something else in a
-/// CharString (`op_Notice` and `op_hstem` are both 1, `op_FDArray` and
-/// `op_hflex1` are both 3108). The names are all distinct and the two sets are
+/// CharString (`OP_NOTICE` and `OP_HSTEM` are both 1, `OP_FD_ARRAY` and
+/// `OP_HFLEX1` are both 3108). The names are all distinct and the two sets are
 /// used by disjoint code, but the compiler cannot tell them apart while they are
 /// aliases. Making them newtypes would -- see rust/README.md's next steps.
 pub type CffDictOperator = i32;
 
-pub const op_FontName: CffDictOperator = 3110;
+pub const OP_FONT_NAME: CffDictOperator = 3110;
 
-pub const op_FDSelect: CffDictOperator = 3109;
+pub const OP_FD_SELECT: CffDictOperator = 3109;
 
-pub const op_FDArray: CffDictOperator = 3108;
+pub const OP_FD_ARRAY: CffDictOperator = 3108;
 
-pub const op_UIDBase: CffDictOperator = 3107;
+pub const OP_UID_BASE: CffDictOperator = 3107;
 
-pub const op_CIDCount: CffDictOperator = 3106;
+pub const OP_CID_COUNT: CffDictOperator = 3106;
 
-pub const op_CIDFontType: CffDictOperator = 3105;
+pub const OP_CID_FONT_TYPE: CffDictOperator = 3105;
 
-pub const op_CIDFontRevision: CffDictOperator = 3104;
+pub const OP_CID_FONT_REVISION: CffDictOperator = 3104;
 
-pub const op_CIDFontVersion: CffDictOperator = 3103;
+pub const OP_CID_FONT_VERSION: CffDictOperator = 3103;
 
-pub const op_ROS: CffDictOperator = 3102;
+pub const OP_ROS: CffDictOperator = 3102;
 
-pub const op_maxstack: CffDictOperator = 25;
+pub const OP_MAXSTACK: CffDictOperator = 25;
 
-pub const op_vstore: CffDictOperator = 24;
+pub const OP_VSTORE: CffDictOperator = 24;
 
-pub const op_BaseFontBlend: CffDictOperator = 3095;
+pub const OP_BASE_FONT_BLEND: CffDictOperator = 3095;
 
-pub const op_blend: CffDictOperator = 23;
+pub const OP_BLEND: CffDictOperator = 23;
 
-pub const op_BaseFontName: CffDictOperator = 3094;
+pub const OP_BASE_FONT_NAME: CffDictOperator = 3094;
 
-pub const op_vsindex: CffDictOperator = 22;
+pub const OP_VSINDEX: CffDictOperator = 22;
 
-pub const op_PostScript: CffDictOperator = 3093;
+pub const OP_POST_SCRIPT: CffDictOperator = 3093;
 
-pub const op_nominalWidthX: CffDictOperator = 21;
+pub const OP_NOMINAL_WIDTH_X: CffDictOperator = 21;
 
-pub const op_SyntheicBase: CffDictOperator = 3092;
+pub const OP_SYNTHEIC_BASE: CffDictOperator = 3092;
 
-pub const op_defaultWidthX: CffDictOperator = 20;
+pub const OP_DEFAULT_WIDTH_X: CffDictOperator = 20;
 
-pub const op_initialRandomSeed: CffDictOperator = 3091;
+pub const OP_INITIAL_RANDOM_SEED: CffDictOperator = 3091;
 
-pub const op_Subrs: CffDictOperator = 19;
+pub const OP_SUBRS: CffDictOperator = 19;
 
-pub const op_ExpansionFactor: CffDictOperator = 3090;
+pub const OP_EXPANSION_FACTOR: CffDictOperator = 3090;
 
-pub const op_Private: CffDictOperator = 18;
+pub const OP_PRIVATE: CffDictOperator = 18;
 
-pub const op_LanguageGroup: CffDictOperator = 3089;
+pub const OP_LANGUAGE_GROUP: CffDictOperator = 3089;
 
-pub const op_CharStrings: CffDictOperator = 17;
+pub const OP_CHAR_STRINGS: CffDictOperator = 17;
 
-pub const op_Encoding: CffDictOperator = 16;
+pub const OP_ENCODING: CffDictOperator = 16;
 
-pub const op_charset: CffDictOperator = 15;
+pub const OP_CHARSET: CffDictOperator = 15;
 
-pub const op_ForceBold: CffDictOperator = 3086;
+pub const OP_FORCE_BOLD: CffDictOperator = 3086;
 
-pub const op_XUID: CffDictOperator = 14;
+pub const OP_XUID: CffDictOperator = 14;
 
-pub const op_StemSnapV: CffDictOperator = 3085;
+pub const OP_STEM_SNAP_V: CffDictOperator = 3085;
 
-pub const op_UniqueID: CffDictOperator = 13;
+pub const OP_UNIQUE_ID: CffDictOperator = 13;
 
-pub const op_StemSnapH: CffDictOperator = 3084;
+pub const OP_STEM_SNAP_H: CffDictOperator = 3084;
 
-pub const op_BlueFuzz: CffDictOperator = 3083;
+pub const OP_BLUE_FUZZ: CffDictOperator = 3083;
 
-pub const op_StdVW: CffDictOperator = 11;
+pub const OP_STD_VW: CffDictOperator = 11;
 
-pub const op_BlueShift: CffDictOperator = 3082;
+pub const OP_BLUE_SHIFT: CffDictOperator = 3082;
 
-pub const op_StdHW: CffDictOperator = 10;
+pub const OP_STD_HW: CffDictOperator = 10;
 
-pub const op_BlueScale: CffDictOperator = 3081;
+pub const OP_BLUE_SCALE: CffDictOperator = 3081;
 
-pub const op_FamilyOtherBlues: CffDictOperator = 9;
+pub const OP_FAMILY_OTHER_BLUES: CffDictOperator = 9;
 
-pub const op_StrokeWidth: CffDictOperator = 3080;
+pub const OP_STROKE_WIDTH: CffDictOperator = 3080;
 
-pub const op_FamilyBlues: CffDictOperator = 8;
+pub const OP_FAMILY_BLUES: CffDictOperator = 8;
 
-pub const op_FontMatrix: CffDictOperator = 3079;
+pub const OP_FONT_MATRIX: CffDictOperator = 3079;
 
-pub const op_OtherBlues: CffDictOperator = 7;
+pub const OP_OTHER_BLUES: CffDictOperator = 7;
 
-pub const op_CharstringType: CffDictOperator = 3078;
+pub const OP_CHARSTRING_TYPE: CffDictOperator = 3078;
 
-pub const op_BlueValues: CffDictOperator = 6;
+pub const OP_BLUE_VALUES: CffDictOperator = 6;
 
-pub const op_PaintType: CffDictOperator = 3077;
+pub const OP_PAINT_TYPE: CffDictOperator = 3077;
 
-pub const op_FontBBox: CffDictOperator = 5;
+pub const OP_FONT_BBOX: CffDictOperator = 5;
 
-pub const op_UnderlineThickness: CffDictOperator = 3076;
+pub const OP_UNDERLINE_THICKNESS: CffDictOperator = 3076;
 
-pub const op_Weight: CffDictOperator = 4;
+pub const OP_WEIGHT: CffDictOperator = 4;
 
-pub const op_UnderlinePosition: CffDictOperator = 3075;
+pub const OP_UNDERLINE_POSITION: CffDictOperator = 3075;
 
-pub const op_FamilyName: CffDictOperator = 3;
+pub const OP_FAMILY_NAME: CffDictOperator = 3;
 
-pub const op_ItalicAngle: CffDictOperator = 3074;
+pub const OP_ITALIC_ANGLE: CffDictOperator = 3074;
 
-pub const op_FullName: CffDictOperator = 2;
+pub const OP_FULL_NAME: CffDictOperator = 2;
 
-pub const op_isFixedPitch: CffDictOperator = 3073;
+pub const OP_IS_FIXED_PITCH: CffDictOperator = 3073;
 
-pub const op_Notice: CffDictOperator = 1;
+pub const OP_NOTICE: CffDictOperator = 1;
 
-pub const op_Copyright: CffDictOperator = 3072;
+pub const OP_COPYRIGHT: CffDictOperator = 3072;
 
-pub const op_version: CffDictOperator = 0;
+pub const OP_VERSION: CffDictOperator = 0;
 
 /// A Type 2 CharString operator, encoded like [`CffDictOperator`] and, as noted
 /// there, sharing 38 of its numbers while meaning something else by them.
 pub type CffCharstringOperator = i32;
 
-pub const op_flex1: CffCharstringOperator = 3109;
+pub const OP_FLEX1: CffCharstringOperator = 3109;
 
-pub const op_hflex1: CffCharstringOperator = 3108;
+pub const OP_HFLEX1: CffCharstringOperator = 3108;
 
-pub const op_flex: CffCharstringOperator = 3107;
+pub const OP_FLEX: CffCharstringOperator = 3107;
 
-pub const op_hflex: CffCharstringOperator = 3106;
+pub const OP_HFLEX: CffCharstringOperator = 3106;
 
-pub const op_hvcurveto: CffCharstringOperator = 31;
+pub const OP_HVCURVETO: CffCharstringOperator = 31;
 
-pub const op_roll: CffCharstringOperator = 3102;
+pub const OP_ROLL: CffCharstringOperator = 3102;
 
-pub const op_vhcurveto: CffCharstringOperator = 30;
+pub const OP_VHCURVETO: CffCharstringOperator = 30;
 
-pub const op_index: CffCharstringOperator = 3101;
+pub const OP_INDEX: CffCharstringOperator = 3101;
 
-pub const op_callgsubr: CffCharstringOperator = 29;
+pub const OP_CALLGSUBR: CffCharstringOperator = 29;
 
-pub const op_exch: CffCharstringOperator = 3100;
+pub const OP_EXCH: CffCharstringOperator = 3100;
 
-pub const op_dup: CffCharstringOperator = 3099;
+pub const OP_DUP: CffCharstringOperator = 3099;
 
-pub const op_hhcurveto: CffCharstringOperator = 27;
+pub const OP_HHCURVETO: CffCharstringOperator = 27;
 
-pub const op_sqrt: CffCharstringOperator = 3098;
+pub const OP_SQRT: CffCharstringOperator = 3098;
 
-pub const op_vvcurveto: CffCharstringOperator = 26;
+pub const OP_VVCURVETO: CffCharstringOperator = 26;
 
-pub const op_rlinecurve: CffCharstringOperator = 25;
+pub const OP_RLINECURVE: CffCharstringOperator = 25;
 
-pub const op_mul: CffCharstringOperator = 3096;
+pub const OP_MUL: CffCharstringOperator = 3096;
 
-pub const op_rcurveline: CffCharstringOperator = 24;
+pub const OP_RCURVELINE: CffCharstringOperator = 24;
 
-pub const op_random: CffCharstringOperator = 3095;
+pub const OP_RANDOM: CffCharstringOperator = 3095;
 
-pub const op_vstemhm: CffCharstringOperator = 23;
+pub const OP_VSTEMHM: CffCharstringOperator = 23;
 
-pub const op_ifelse: CffCharstringOperator = 3094;
+pub const OP_IFELSE: CffCharstringOperator = 3094;
 
-pub const op_hmoveto: CffCharstringOperator = 22;
+pub const OP_HMOVETO: CffCharstringOperator = 22;
 
-pub const op_get: CffCharstringOperator = 3093;
+pub const OP_GET: CffCharstringOperator = 3093;
 
-pub const op_rmoveto: CffCharstringOperator = 21;
+pub const OP_RMOVETO: CffCharstringOperator = 21;
 
-pub const op_put: CffCharstringOperator = 3092;
+pub const OP_PUT: CffCharstringOperator = 3092;
 
-pub const op_cntrmask: CffCharstringOperator = 20;
+pub const OP_CNTRMASK: CffCharstringOperator = 20;
 
-pub const op_hintmask: CffCharstringOperator = 19;
+pub const OP_HINTMASK: CffCharstringOperator = 19;
 
-pub const op_drop: CffCharstringOperator = 3090;
+pub const OP_DROP: CffCharstringOperator = 3090;
 
-pub const op_hstemhm: CffCharstringOperator = 18;
+pub const OP_HSTEMHM: CffCharstringOperator = 18;
 
-pub const op_cff2blend: CffCharstringOperator = 16;
+pub const OP_CFF2BLEND: CffCharstringOperator = 16;
 
-pub const op_eq: CffCharstringOperator = 3087;
+pub const OP_EQ: CffCharstringOperator = 3087;
 
-pub const op_cff2vsidx: CffCharstringOperator = 15;
+pub const OP_CFF2VSIDX: CffCharstringOperator = 15;
 
-pub const op_neg: CffCharstringOperator = 3086;
+pub const OP_NEG: CffCharstringOperator = 3086;
 
-pub const op_endchar: CffCharstringOperator = 14;
+pub const OP_ENDCHAR: CffCharstringOperator = 14;
 
-pub const op_div: CffCharstringOperator = 3084;
+pub const OP_DIV: CffCharstringOperator = 3084;
 
-pub const op_sub: CffCharstringOperator = 3083;
+pub const OP_SUB: CffCharstringOperator = 3083;
 
-pub const op_return: CffCharstringOperator = 11;
+pub const OP_RETURN: CffCharstringOperator = 11;
 
-pub const op_add: CffCharstringOperator = 3082;
+pub const OP_ADD: CffCharstringOperator = 3082;
 
-pub const op_callsubr: CffCharstringOperator = 10;
+pub const OP_CALLSUBR: CffCharstringOperator = 10;
 
-pub const op_abs: CffCharstringOperator = 3081;
+pub const OP_ABS: CffCharstringOperator = 3081;
 
-pub const op_rrcurveto: CffCharstringOperator = 8;
+pub const OP_RRCURVETO: CffCharstringOperator = 8;
 
-pub const op_vlineto: CffCharstringOperator = 7;
+pub const OP_VLINETO: CffCharstringOperator = 7;
 
-pub const op_hlineto: CffCharstringOperator = 6;
+pub const OP_HLINETO: CffCharstringOperator = 6;
 
-pub const op_not: CffCharstringOperator = 3077;
+pub const OP_NOT: CffCharstringOperator = 3077;
 
-pub const op_rlineto: CffCharstringOperator = 5;
+pub const OP_RLINETO: CffCharstringOperator = 5;
 
-pub const op_or: CffCharstringOperator = 3076;
+pub const OP_OR: CffCharstringOperator = 3076;
 
-pub const op_vmoveto: CffCharstringOperator = 4;
+pub const OP_VMOVETO: CffCharstringOperator = 4;
 
-pub const op_and: CffCharstringOperator = 3075;
+pub const OP_AND: CffCharstringOperator = 3075;
 
-pub const op_vstem: CffCharstringOperator = 3;
+pub const OP_VSTEM: CffCharstringOperator = 3;
 
-pub const op_hstem: CffCharstringOperator = 1;
+pub const OP_HSTEM: CffCharstringOperator = 1;
 
 // The Type 2 charstring spec's implementation limits. C gave them a
 // `cff_Type2Limits` type of their own, but they are not a set of anything --
 // they are six unrelated capacities, only ever compared against a count -- so
 // each is typed as whatever it is compared with instead, which is what removes
-// the casts at the fifteen sites that use them. `type2_charstring_len` and
-// `type2_stem_hints` are the two otfcc never checks; they stay because the
+// the casts at the fifteen sites that use them. `TYPE2_CHARSTRING_LEN` and
+// `TYPE2_STEM_HINTS` are the two otfcc never checks; they stay because the
 // spec's table is easier to verify whole than with holes in it.
 /// Size of [`CffStack::transient`], which it declares -- so the modulus that
 /// wraps an index into that array cannot drift from the array itself.
-pub const type2_transient_array: usize = 32;
-pub const type2_max_subrs: u32 = 65300;
-pub const type2_charstring_len: u32 = 65535;
-pub const type2_subr_nesting: u32 = 10;
-pub const type2_stem_hints: u32 = 96;
-pub const type2_argument_stack: u32 = 48;
+pub const TYPE2_TRANSIENT_ARRAY: usize = 32;
+pub const TYPE2_MAX_SUBRS: u32 = 65300;
+pub const TYPE2_CHARSTRING_LEN: u32 = 65535;
+pub const TYPE2_SUBR_NESTING: u32 = 10;
+pub const TYPE2_STEM_HINTS: u32 = 96;
+pub const TYPE2_ARGUMENT_STACK: u32 = 48;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -328,7 +328,7 @@ pub union CffEncodingBody {
 #[repr(C)]
 pub struct CffStack {
     pub stack: *mut CffValue,
-    pub transient: [CffValue; type2_transient_array],
+    pub transient: [CffValue; TYPE2_TRANSIENT_ARRAY],
     pub index: Arity,
     pub max: Arity,
     pub stem: u8,
@@ -401,12 +401,12 @@ mod tests {
     // they became newtypes.
     #[test]
     fn the_two_operator_tables_share_numbers() {
-        assert_eq!(op_Notice, op_hstem);
-        assert_eq!(op_FDArray, op_hflex1);
-        assert_eq!(op_FamilyName, op_vstem);
+        assert_eq!(OP_NOTICE, OP_HSTEM);
+        assert_eq!(OP_FD_ARRAY, OP_HFLEX1);
+        assert_eq!(OP_FAMILY_NAME, OP_VSTEM);
         // Both encode a two-byte operator as `12 << 8 | b`.
-        assert_eq!(op_FDArray, 12 << 8 | 36);
-        assert_eq!(op_hflex1, 12 << 8 | 36);
-        assert_eq!(op_version, 0);
+        assert_eq!(OP_FD_ARRAY, 12 << 8 | 36);
+        assert_eq!(OP_HFLEX1, 12 << 8 | 36);
+        assert_eq!(OP_VERSION, 0);
     }
 }

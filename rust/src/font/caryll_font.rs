@@ -42,32 +42,32 @@ use crate::table::vdmx::types::{VdmxTable};
 use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
 use crate::consolidate::{otfcc_consolidateFont};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
-use crate::table::BASE::{table_iBASE};
-use crate::table::CFF::{table_iCFF};
-use crate::table::COLR::{table_iCOLR};
-use crate::table::CPAL::{table_iCPAL};
-use crate::table::GDEF::{table_iGDEF};
-use crate::table::LTSH::{table_iLTSH};
-use crate::table::OS_2::{table_iOS_2};
-use crate::table::SVG::{table_iSVG};
-use crate::table::VORG::{table_iVORG};
-use crate::table::_TSI::{table_iTSI};
-use crate::table::cmap::{table_iCmap};
-use crate::table::cvt::{table_iCvt};
-use crate::table::fpgm_prep::{table_iFpgm_prep};
-use crate::table::gasp::{table_iGasp};
-use crate::table::glyf::{table_iGlyf};
-use crate::table::head::{table_iHead};
-use crate::table::hhea::{table_iHhea};
-use crate::table::hmtx::{table_iHmtx};
-use crate::table::maxp::{table_iMaxp};
-use crate::table::meta::types::{table_iMeta};
-use crate::table::name::{table_iName};
-use crate::table::otl::{table_iOTL};
-use crate::table::post::{iTable_post};
-use crate::table::vhea::{table_iVhea};
-use crate::table::vmtx::{table_iVmtx};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::table::BASE::{TABLE_I_BASE};
+use crate::table::CFF::{TABLE_I_CFF};
+use crate::table::COLR::{TABLE_I_COLR};
+use crate::table::CPAL::{TABLE_I_CPAL};
+use crate::table::GDEF::{TABLE_I_GDEF};
+use crate::table::LTSH::{TABLE_I_LTSH};
+use crate::table::OS_2::{TABLE_I_OS_2};
+use crate::table::SVG::{TABLE_I_SVG};
+use crate::table::VORG::{TABLE_I_VORG};
+use crate::table::_TSI::{TABLE_I_TSI};
+use crate::table::cmap::{TABLE_I_CMAP};
+use crate::table::cvt::{TABLE_I_CVT};
+use crate::table::fpgm_prep::{TABLE_I_FPGM_PREP};
+use crate::table::gasp::{TABLE_I_GASP};
+use crate::table::glyf::{TABLE_I_GLYF};
+use crate::table::head::{TABLE_I_HEAD};
+use crate::table::hhea::{TABLE_I_HHEA};
+use crate::table::hmtx::{TABLE_I_HMTX};
+use crate::table::maxp::{TABLE_I_MAXP};
+use crate::table::meta::types::{TABLE_I_META};
+use crate::table::name::{TABLE_I_NAME};
+use crate::table::otl::{TABLE_I_OTL};
+use crate::table::post::{I_TABLE_POST};
+use crate::table::vhea::{TABLE_I_VHEA};
+use crate::table::vmtx::{TABLE_I_VMTX};
 
 
 
@@ -140,11 +140,11 @@ unsafe extern "C" fn createFontTable(
     match tag {
         1851878757 => {
             return (
-                table_iName.create.expect("non-null function pointer"))() as *mut ::core::ffi::c_void;
+                TABLE_I_NAME.create.expect("non-null function pointer"))() as *mut ::core::ffi::c_void;
         }
         1196643650 | 1196445523 => {
             return (
-                table_iOTL.create.expect("non-null function pointer"))() as *mut ::core::ffi::c_void;
+                TABLE_I_OTL.create.expect("non-null function pointer"))() as *mut ::core::ffi::c_void;
         }
         _ => return NULL,
     };
@@ -153,196 +153,196 @@ unsafe extern "C" fn deleteFontTable(mut font: *mut Font, tag: u32) {
     match tag {
         1751474532 => {
             if !(*font).head.is_null() {
-                table_iHead.free.expect("non-null function pointer")((*font).head);
+                TABLE_I_HEAD.free.expect("non-null function pointer")((*font).head);
                 (*font).head = ::core::ptr::null_mut::<HeadTable>();
             }
             return;
         }
         1751672161 => {
             if !(*font).hhea.is_null() {
-                table_iHhea.free.expect("non-null function pointer")((*font).hhea);
+                TABLE_I_HHEA.free.expect("non-null function pointer")((*font).hhea);
                 (*font).hhea = ::core::ptr::null_mut::<HheaTable>();
             }
             return;
         }
         1835104368 => {
             if !(*font).maxp.is_null() {
-                table_iMaxp.free.expect("non-null function pointer")((*font).maxp);
+                TABLE_I_MAXP.free.expect("non-null function pointer")((*font).maxp);
                 (*font).maxp = ::core::ptr::null_mut::<MaxpTable>();
             }
             return;
         }
         1330863922 | 1330851634 => {
             if !(*font).OS_2.is_null() {
-                table_iOS_2.free.expect("non-null function pointer")((*font).OS_2);
+                TABLE_I_OS_2.free.expect("non-null function pointer")((*font).OS_2);
                 (*font).OS_2 = ::core::ptr::null_mut::<Os2Table>();
             }
             return;
         }
         1851878757 => {
             if !(*font).name.is_null() {
-                table_iName.free.expect("non-null function pointer")((*font).name);
+                TABLE_I_NAME.free.expect("non-null function pointer")((*font).name);
                 (*font).name = ::core::ptr::null_mut::<NameTable>();
             }
             return;
         }
         1835365473 => {
             if !(*font).meta.is_null() {
-                table_iMeta.free.expect("non-null function pointer")((*font).meta);
+                TABLE_I_META.free.expect("non-null function pointer")((*font).meta);
                 (*font).meta = ::core::ptr::null_mut::<MetaTable>();
             }
             return;
         }
         1752003704 => {
             if !(*font).hmtx.is_null() {
-                table_iHmtx.free.expect("non-null function pointer")((*font).hmtx);
+                TABLE_I_HMTX.free.expect("non-null function pointer")((*font).hmtx);
                 (*font).hmtx = ::core::ptr::null_mut::<HmtxTable>();
             }
             return;
         }
         1986884728 => {
             if !(*font).vmtx.is_null() {
-                table_iVmtx.free.expect("non-null function pointer")((*font).vmtx);
+                TABLE_I_VMTX.free.expect("non-null function pointer")((*font).vmtx);
                 (*font).vmtx = ::core::ptr::null_mut::<VmtxTable>();
             }
             return;
         }
         1886352244 => {
             if !(*font).post.is_null() {
-                iTable_post.free.expect("non-null function pointer")((*font).post);
+                I_TABLE_POST.free.expect("non-null function pointer")((*font).post);
                 (*font).post = ::core::ptr::null_mut::<PostTable>();
             }
             return;
         }
         1986553185 => {
             if !(*font).vhea.is_null() {
-                table_iVhea.free.expect("non-null function pointer")((*font).vhea);
+                TABLE_I_VHEA.free.expect("non-null function pointer")((*font).vhea);
                 (*font).vhea = ::core::ptr::null_mut::<VheaTable>();
             }
             return;
         }
         1718642541 => {
             if !(*font).fpgm.is_null() {
-                table_iFpgm_prep.free.expect("non-null function pointer")((*font).fpgm);
+                TABLE_I_FPGM_PREP.free.expect("non-null function pointer")((*font).fpgm);
                 (*font).fpgm = ::core::ptr::null_mut::<FpgmPrepTable>();
             }
             return;
         }
         1886545264 => {
             if !(*font).prep.is_null() {
-                table_iFpgm_prep.free.expect("non-null function pointer")((*font).prep);
+                TABLE_I_FPGM_PREP.free.expect("non-null function pointer")((*font).prep);
                 (*font).prep = ::core::ptr::null_mut::<FpgmPrepTable>();
             }
             return;
         }
         1668707423 | 1668707360 => {
             if !(*font).cvt_.is_null() {
-                table_iCvt.free.expect("non-null function pointer")((*font).cvt_);
+                TABLE_I_CVT.free.expect("non-null function pointer")((*font).cvt_);
                 (*font).cvt_ = ::core::ptr::null_mut::<CvtTable>();
             }
             return;
         }
         1734439792 => {
             if !(*font).gasp.is_null() {
-                table_iGasp.free.expect("non-null function pointer")((*font).gasp);
+                TABLE_I_GASP.free.expect("non-null function pointer")((*font).gasp);
                 (*font).gasp = ::core::ptr::null_mut::<GaspTable>();
             }
             return;
         }
         1128679007 | 1128678944 => {
             if !(*font).CFF_.is_null() {
-                table_iCFF.free.expect("non-null function pointer")((*font).CFF_);
+                TABLE_I_CFF.free.expect("non-null function pointer")((*font).CFF_);
                 (*font).CFF_ = ::core::ptr::null_mut::<CffTable>();
             }
             return;
         }
         1735162214 => {
             if !(*font).glyf.is_null() {
-                table_iGlyf.free.expect("non-null function pointer")((*font).glyf);
+                TABLE_I_GLYF.free.expect("non-null function pointer")((*font).glyf);
                 (*font).glyf = ::core::ptr::null_mut::<GlyfTable>();
             }
             return;
         }
         1668112752 => {
             if !(*font).cmap.is_null() {
-                table_iCmap.free.expect("non-null function pointer")((*font).cmap);
+                TABLE_I_CMAP.free.expect("non-null function pointer")((*font).cmap);
                 (*font).cmap = ::core::ptr::null_mut::<CmapTable>();
             }
             return;
         }
         1280594760 => {
             if !(*font).LTSH.is_null() {
-                table_iLTSH.free.expect("non-null function pointer")((*font).LTSH);
+                TABLE_I_LTSH.free.expect("non-null function pointer")((*font).LTSH);
                 (*font).LTSH = ::core::ptr::null_mut::<LtshTable>();
             }
             return;
         }
         1196643650 => {
             if !(*font).GSUB.is_null() {
-                table_iOTL.free.expect("non-null function pointer")((*font).GSUB);
+                TABLE_I_OTL.free.expect("non-null function pointer")((*font).GSUB);
                 (*font).GSUB = ::core::ptr::null_mut::<OtlTable>();
             }
             return;
         }
         1196445523 => {
             if !(*font).GPOS.is_null() {
-                table_iOTL.free.expect("non-null function pointer")((*font).GPOS);
+                TABLE_I_OTL.free.expect("non-null function pointer")((*font).GPOS);
                 (*font).GPOS = ::core::ptr::null_mut::<OtlTable>();
             }
             return;
         }
         1195656518 => {
             if !(*font).GDEF.is_null() {
-                table_iGDEF.free.expect("non-null function pointer")((*font).GDEF);
+                TABLE_I_GDEF.free.expect("non-null function pointer")((*font).GDEF);
                 (*font).GDEF = ::core::ptr::null_mut::<GdefTable>();
             }
             return;
         }
         1111577413 => {
             if !(*font).BASE.is_null() {
-                table_iBASE.free.expect("non-null function pointer")((*font).BASE);
+                TABLE_I_BASE.free.expect("non-null function pointer")((*font).BASE);
                 (*font).BASE = ::core::ptr::null_mut::<BaseTable>();
             }
             return;
         }
         1448038983 => {
             if !(*font).VORG.is_null() {
-                table_iVORG.free.expect("non-null function pointer")((*font).VORG);
+                TABLE_I_VORG.free.expect("non-null function pointer")((*font).VORG);
                 (*font).VORG = ::core::ptr::null_mut::<VorgTable>();
             }
             return;
         }
         1129333068 => {
             if !(*font).CPAL.is_null() {
-                table_iCPAL.free.expect("non-null function pointer")((*font).CPAL);
+                TABLE_I_CPAL.free.expect("non-null function pointer")((*font).CPAL);
                 (*font).CPAL = ::core::ptr::null_mut::<CpalTable>();
             }
             return;
         }
         1129270354 => {
             if !(*font).COLR.is_null() {
-                table_iCOLR.free.expect("non-null function pointer")((*font).COLR);
+                TABLE_I_COLR.free.expect("non-null function pointer")((*font).COLR);
                 (*font).COLR = ::core::ptr::null_mut::<ColrTable>();
             }
             return;
         }
         1398163232 | 1398163295 => {
             if !(*font).SVG_.is_null() {
-                table_iSVG.free.expect("non-null function pointer")((*font).SVG_);
+                TABLE_I_SVG.free.expect("non-null function pointer")((*font).SVG_);
                 (*font).SVG_ = ::core::ptr::null_mut::<SvgTable>();
             }
             return;
         }
         1414744368 | 1414744369 => {
             if !(*font).TSI_01.is_null() {
-                table_iTSI.free.expect("non-null function pointer")((*font).TSI_01);
+                TABLE_I_TSI.free.expect("non-null function pointer")((*font).TSI_01);
                 (*font).TSI_01 = ::core::ptr::null_mut::<TsiTable>();
             }
             return;
         }
         1414744370 | 1414744371 => {
             if !(*font).TSI_23.is_null() {
-                table_iTSI.free.expect("non-null function pointer")((*font).TSI_23);
+                TABLE_I_TSI.free.expect("non-null function pointer")((*font).TSI_23);
                 (*font).TSI_23 = ::core::ptr::null_mut::<TsiTable>();
             }
             return;
@@ -399,7 +399,7 @@ unsafe extern "C" fn disposeFont(mut font: *mut Font) {
     deleteFontTable(font, 1414744368i32 as u32);
     deleteFontTable(font, 1414744370i32 as u32);
     deleteFontTable(font, 1414744373i32 as u32);
-    otfcc_pkgGlyphOrder.free.expect("non-null function pointer")((*font).glyph_order);
+    OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")((*font).glyph_order);
 }
 #[inline]
 unsafe extern "C" fn otfcc_Font_dispose(mut x: *mut Font) {
@@ -455,7 +455,7 @@ unsafe extern "C" fn otfcc_Font_move(mut dst: *mut Font, mut src: *mut Font) {
     );
     otfcc_Font_init(src);
 }
-pub static otfcc_iFont: FontElementInterface = {
+pub static OTFCC_I_FONT: FontElementInterface = {
     FontElementInterface {
         init: Some(otfcc_Font_init as unsafe extern "C" fn(*mut Font) -> ()),
         copy: Some(

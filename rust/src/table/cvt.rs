@@ -99,7 +99,7 @@ unsafe extern "C" fn table_cvt_replace(mut dst: *mut CvtTable, src: CvtTable) {
 unsafe extern "C" fn table_cvt_dispose(mut x: *mut CvtTable) {
     disposeCvt(x);
 }
-pub static table_iCvt: CvtTableElementInterface = {
+pub static TABLE_I_CVT: CvtTableElementInterface = {
     CvtTableElementInterface {
         init: Some(table_cvt_init as unsafe extern "C" fn(*mut CvtTable) -> ()),
         copy: Some(table_cvt_copy as unsafe extern "C" fn(*mut CvtTable, *const CvtTable) -> ()),

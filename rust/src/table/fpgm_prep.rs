@@ -112,7 +112,7 @@ unsafe extern "C" fn table_fpgm_prep_move(
 unsafe extern "C" fn table_fpgm_prep_dispose(mut x: *mut FpgmPrepTable) {
     disposeFpgmPrep(x);
 }
-pub static table_iFpgm_prep: FpgmPrepTableElementInterface = {
+pub static TABLE_I_FPGM_PREP: FpgmPrepTableElementInterface = {
     FpgmPrepTableElementInterface {
         init: Some(table_fpgm_prep_init as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
         copy: Some(
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn otfcc_readFpgmPrep(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     t = (
-                        table_iFpgm_prep.create.expect("non-null function pointer"))();
+                        TABLE_I_FPGM_PREP.create.expect("non-null function pointer"))();
                     (*t).tag = ::core::ptr::null_mut::<::core::ffi::c_char>();
                     (*t).length = length;
                     (*t).bytes = __caryll_allocate_clean(
@@ -166,7 +166,7 @@ pub unsafe extern "C" fn otfcc_readFpgmPrep(
                         22 as ::core::ffi::c_ulong,
                     ) as *mut u8;
                     if (*t).bytes.is_null() {
-                        table_iFpgm_prep.free.expect("non-null function pointer")(t);
+                        TABLE_I_FPGM_PREP.free.expect("non-null function pointer")(t);
                         t = ::core::ptr::null_mut::<FpgmPrepTable>();
                     } else {
                         memcpy(
@@ -248,7 +248,7 @@ pub unsafe extern "C" fn otfcc_parseFpgmPrep(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             t = (
-                table_iFpgm_prep.create.expect("non-null function pointer"))();
+                TABLE_I_FPGM_PREP.create.expect("non-null function pointer"))();
             (*t).tag = sdsnew(tag);
             parse_ttinstr(
                 table,

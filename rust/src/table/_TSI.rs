@@ -161,7 +161,7 @@ unsafe extern "C" fn tsi_Entry_move(mut dst: *mut TsiEntry, mut src: *mut TsiEnt
     );
     tsi_Entry_init(src);
 }
-pub static tsi_iEntry: TsiEntryElementInterface = {
+pub static TSI_I_ENTRY: TsiEntryElementInterface = {
     TsiEntryElementInterface {
         init: Some(tsi_Entry_init as unsafe extern "C" fn(*mut TsiEntry) -> ()),
         copy: Some(tsi_Entry_copy as unsafe extern "C" fn(*mut TsiEntry, *const TsiEntry) -> ()),
@@ -198,8 +198,8 @@ unsafe extern "C" fn table_TSI_fill(mut arr: *mut TsiTable, mut n: usize) {
             },
             content: ::core::ptr::null_mut::<::core::ffi::c_char>(),
         };
-        if tsi_iEntry.init.is_some() {
-            tsi_iEntry.init.expect("non-null function pointer")(&raw mut x);
+        if TSI_I_ENTRY.init.is_some() {
+            TSI_I_ENTRY.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -240,8 +240,8 @@ unsafe extern "C" fn table_TSI_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if tsi_iEntry.dispose.is_some() {
-                tsi_iEntry.dispose.expect("non-null function pointer")(
+            if TSI_I_ENTRY.dispose.is_some() {
+                TSI_I_ENTRY.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut TsiEntry,
                 );
             } else {
@@ -253,8 +253,8 @@ unsafe extern "C" fn table_TSI_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn table_TSI_disposeItem(mut arr: *mut TsiTable, mut n: usize) {
-    if tsi_iEntry.dispose.is_some() {
-        tsi_iEntry.dispose.expect("non-null function pointer")(
+    if TSI_I_ENTRY.dispose.is_some() {
+        TSI_I_ENTRY.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut TsiEntry
         );
     } else {
@@ -277,7 +277,7 @@ unsafe extern "C" fn table_TSI_sort(
         >(fn_0),
     );
 }
-pub static table_iTSI: TsiTableVectorInterface = {
+pub static TABLE_I_TSI: TsiTableVectorInterface = {
     TsiTableVectorInterface {
         init: Some(table_TSI_init as unsafe extern "C" fn(*mut TsiTable) -> ()),
         copy: Some(table_TSI_copy as unsafe extern "C" fn(*mut TsiTable, *const TsiTable) -> ()),
@@ -348,10 +348,10 @@ unsafe extern "C" fn table_TSI_copy(mut dst: *mut TsiTable, mut src: *const TsiT
     table_TSI_init(dst);
     table_TSI_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if tsi_iEntry.copy.is_some() {
+    if TSI_I_ENTRY.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            tsi_iEntry.copy.expect("non-null function pointer")(
+            TSI_I_ENTRY.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut TsiEntry,
                 (*src).items.offset(j as isize) as *mut TsiEntry as *const TsiEntry,
             );
@@ -370,7 +370,7 @@ unsafe extern "C" fn table_TSI_dispose(mut arr: *mut TsiTable) {
     if arr.is_null() {
         return;
     }
-    if tsi_iEntry.dispose.is_some() {
+    if TSI_I_ENTRY.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -378,7 +378,7 @@ unsafe extern "C" fn table_TSI_dispose(mut arr: *mut TsiTable) {
             if !(fresh1 != 0) {
                 break;
             }
-            tsi_iEntry.dispose.expect("non-null function pointer")(
+            TSI_I_ENTRY.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut TsiEntry
             );
         }
@@ -521,7 +521,7 @@ pub unsafe extern "C" fn otfcc_readTSI(
         return ::core::ptr::null_mut::<TsiTable>();
     }
     let mut tsi: *mut TsiTable = (
-        table_iTSI.create.expect("non-null function pointer"))();
+        TABLE_I_TSI.create.expect("non-null function pointer"))();
     let mut j: u32 = 0 as u32;
     while j.wrapping_mul(8 as u32) < indexPart.length {
         let mut gid: u16 = read_16u(
@@ -604,7 +604,7 @@ pub unsafe extern "C" fn otfcc_readTSI(
                 textPart.data.offset(textOffset as isize) as *const ::core::ffi::c_void,
                 textLength as usize,
             );
-            table_iTSI.push.expect("non-null function pointer")(tsi, entry);
+            TABLE_I_TSI.push.expect("non-null function pointer")(tsi, entry);
         }
         j = j.wrapping_add(1);
     }
@@ -722,7 +722,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
         return ::core::ptr::null_mut::<TsiTable>();
     }
     let mut tsi: *mut TsiTable = (
-        table_iTSI.create.expect("non-null function pointer"))();
+        TABLE_I_TSI.create.expect("non-null function pointer"))();
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
@@ -748,7 +748,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                 if !(_content.is_null()
                     || (*_content).type_0 != JsonType::String)
                 {
-                    table_iTSI.push.expect("non-null function pointer")(
+                    TABLE_I_TSI.push.expect("non-null function pointer")(
                         tsi,
                         TsiEntry {
                             type_0: TsiEntryType::Glyph,
@@ -783,7 +783,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                     if strcmp(_key, b"cvt\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
-                        table_iTSI.push.expect("non-null function pointer")(
+                        TABLE_I_TSI.push.expect("non-null function pointer")(
                             tsi,
                             TsiEntry {
                                 type_0: TsiEntryType::Cvt,
@@ -797,7 +797,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                     } else if strcmp(_key, b"fpgm\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
-                        table_iTSI.push.expect("non-null function pointer")(
+                        TABLE_I_TSI.push.expect("non-null function pointer")(
                             tsi,
                             TsiEntry {
                                 type_0: TsiEntryType::Fpgm,
@@ -811,7 +811,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                     } else if strcmp(_key, b"prep\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
-                        table_iTSI.push.expect("non-null function pointer")(
+                        TABLE_I_TSI.push.expect("non-null function pointer")(
                             tsi,
                             TsiEntry {
                                 type_0: TsiEntryType::Prep,

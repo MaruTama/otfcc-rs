@@ -8,7 +8,7 @@ use libc::{exit, free, malloc, memcmp, memset, strcmp, strtol};
 use crate::support::json_funcs::{json_obj_get_type};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::otf_reader::FontBuilder;
-use crate::logger::{LoggerType, log_vl_notice, ILogger};
+use crate::logger::{LoggerType, LOG_VL_NOTICE, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -24,8 +24,8 @@ use crate::support::glyph_order::{GlyphOrderPass, GlyphOrder, GlyphOrderEntry};
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::font::caryll_font::{otfcc_iFont};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::font::caryll_font::{OTFCC_I_FONT};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::BASE::{otfcc_parseBASE};
 use crate::table::CFF::{otfcc_parseCFF};
 use crate::table::COLR::{otfcc_parseCOLR};
@@ -1887,7 +1887,7 @@ unsafe extern "C" fn parseGlyphOrder(
     mut options: *const Options,
 ) -> *mut GlyphOrder {
     let mut go: *mut GlyphOrder = (
-        otfcc_pkgGlyphOrder
+        OTFCC_PKG_GLYPH_ORDER
             .create
             .expect("non-null function pointer"))();
     if (*root).type_0 != JsonType::Object
@@ -1929,7 +1929,7 @@ unsafe extern "C" fn parseGlyphOrder(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_notice,
+                    LOG_VL_NOTICE,
                     LoggerType::Info,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1954,7 +1954,7 @@ impl FontBuilder for JsonReader {
     let options = options as *const Options;
     let mut root: *const JsonValue = _root as *mut JsonValue;
     let mut font: *mut Font = (
-        otfcc_iFont.create.expect("non-null function pointer"))();
+        OTFCC_I_FONT.create.expect("non-null function pointer"))();
     if font.is_null() {
         return ::core::ptr::null_mut::<::core::ffi::c_void>();
     }

@@ -4,7 +4,7 @@ use libc::{free, malloc, memcpy, memset};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u, read_32s, read_64u};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer};
@@ -103,7 +103,7 @@ unsafe extern "C" fn table_head_move(mut dst: *mut HeadTable, mut src: *mut Head
     );
     table_head_init(src);
 }
-pub static table_iHead: HeadTableElementInterface = {
+pub static TABLE_I_HEAD: HeadTableElementInterface = {
     HeadTableElementInterface {
         init: Some(table_head_init as unsafe extern "C" fn(*mut HeadTable) -> ()),
         copy: Some(
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn otfcc_readHead(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"table 'head' corrupted.\n"),
                         );
@@ -229,7 +229,7 @@ pub unsafe extern "C" fn otfcc_readHead(
     }
     return ::core::ptr::null_mut::<HeadTable>();
 }
-static headFlagsLabels: [&::core::ffi::CStr; 15] = [
+static HEAD_FLAGS_LABELS: [&::core::ffi::CStr; 15] = [
     c"baselineAtY_0",
     c"lsbAtX_0",
     c"instrMayDependOnPointSize",
@@ -246,7 +246,7 @@ static headFlagsLabels: [&::core::ffi::CStr; 15] = [
     c"optimizedForCleartype",
     c"lastResortFont",
 ];
-static macStyleLabels: [&::core::ffi::CStr; 7] = [
+static MAC_STYLE_LABELS: [&::core::ffi::CStr; 7] = [
     c"bold",
     c"italic",
     c"underline",
@@ -287,7 +287,7 @@ pub unsafe extern "C" fn otfcc_dumpHead(
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).flags as ::core::ffi::c_int,
-                &headFlagsLabels,
+                &HEAD_FLAGS_LABELS,
             ),
         );
         json_object_push(
@@ -330,7 +330,7 @@ pub unsafe extern "C" fn otfcc_dumpHead(
             b"macStyle\0" as *const u8 as *const ::core::ffi::c_char,
             otfcc_dump_flags(
                 (*table).macStyle as ::core::ffi::c_int,
-                &macStyleLabels,
+                &MAC_STYLE_LABELS,
             ),
         );
         json_object_push(
@@ -369,7 +369,7 @@ pub unsafe extern "C" fn otfcc_parseHead(
     mut options: *const Options,
 ) -> *mut HeadTable {
     let mut head: *mut HeadTable = (
-        table_iHead.create.expect("non-null function pointer"))();
+        TABLE_I_HEAD.create.expect("non-null function pointer"))();
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -397,7 +397,7 @@ pub unsafe extern "C" fn otfcc_parseHead(
             )) as u32;
             (*head).flags = otfcc_parse_flags(
                 json_obj_get(table, b"flags\0" as *const u8 as *const ::core::ffi::c_char),
-                &headFlagsLabels,
+                &HEAD_FLAGS_LABELS,
             ) as u16;
             (*head).unitsPerEm = json_obj_getnum_fallback(
                 table,
@@ -439,7 +439,7 @@ pub unsafe extern "C" fn otfcc_parseHead(
                     table,
                     b"macStyle\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &macStyleLabels,
+                &MAC_STYLE_LABELS,
             ) as u16;
             (*head).lowestRecPPEM = json_obj_getnum_fallback(
                 table,

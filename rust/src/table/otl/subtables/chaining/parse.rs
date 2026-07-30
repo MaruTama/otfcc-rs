@@ -13,8 +13,8 @@ use crate::support::primitives::{TableId};
 use crate::vendor::json::{JsonType, JsonValue};
 
 use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable};
-use crate::table::otl::coverage::{otl_iCoverage};
-use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::vendor::sds::{sdsnewlen};
 pub unsafe extern "C" fn otl_parse_chaining(
     mut _subtable: *const JsonValue,
@@ -35,7 +35,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
     }
     let mut subtable: *mut ChainingSubtable =
         (
-            iSubtable_chaining
+            I_SUBTABLE_CHAINING
                 .create
                 .expect("non-null function pointer"))();
     (*subtable).type_0 = ChainingType::Canonical;
@@ -65,7 +65,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
         let ref mut fresh0 = *(*rule).match_0.offset(j as isize);
-        *fresh0 = otl_iCoverage.parse.expect("non-null function pointer")(
+        *fresh0 = OTL_I_COVERAGE.parse.expect("non-null function pointer")(
             *(*_match).u.array.values.offset(j as isize),
         );
         j = j.wrapping_add(1);

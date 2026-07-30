@@ -11,7 +11,7 @@
 /// `CffValueType::Unset` is a name this port adds. C had none: it wrote
 /// `(CffValueType)0` in six struct initialisers and let `calloc` supply it
 /// everywhere else. The state is real and reachable, not padding --
-/// `cff_iDict.parseDictKey` resets `context.res.t` to it to mean "key not
+/// `CFF_I_DICT.parseDictKey` resets `context.res.t` to it to mean "key not
 /// found", and such a value reaching [`cffnum`] returns 0.0 because it matches
 /// neither number arm. An `enum` without a zero variant would make every one of
 /// those initialisers instant UB, so the zero gets a name.

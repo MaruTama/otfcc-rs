@@ -172,7 +172,7 @@ unsafe extern "C" fn getIndexLength(mut i: *const CffIndex) -> u32 {
     };
 }
 unsafe extern "C" fn emptyIndex(mut i: *mut CffIndex) {
-    cff_iIndex.dispose.expect("non-null function pointer")(i);
+    CFF_I_INDEX.dispose.expect("non-null function pointer")(i);
     memset(
         i as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -263,7 +263,7 @@ unsafe extern "C" fn newIndexByCallback(
     >,
 ) -> *mut CffIndex {
     let mut idx: *mut CffIndex = (
-        cff_iIndex.create.expect("non-null function pointer"))();
+        CFF_I_INDEX.create.expect("non-null function pointer"))();
     (*idx).count = length as Arity;
     (*idx).offset = __caryll_allocate_clean(
         (::core::mem::size_of::<u32>() as usize)
@@ -431,7 +431,7 @@ unsafe extern "C" fn buildIndex(mut index: *const CffIndex) -> *mut Buffer {
     (*blob).cursor = (*blob).size;
     return blob;
 }
-pub static cff_iIndex: CffIndexElementInterface = {
+pub static CFF_I_INDEX: CffIndexElementInterface = {
     CffIndexElementInterface {
         init: Some(cff_Index_init as unsafe extern "C" fn(*mut CffIndex) -> ()),
         copy: Some(cff_Index_copy as unsafe extern "C" fn(*mut CffIndex, *const CffIndex) -> ()),

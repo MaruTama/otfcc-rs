@@ -46,7 +46,7 @@ unsafe extern "C" fn table_LTSH_free(mut x: *mut LtshTable) {
     table_LTSH_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-pub static table_iLTSH: LtshTableElementInterface = {
+pub static TABLE_I_LTSH: LtshTableElementInterface = {
     LtshTableElementInterface {
         init: Some(table_LTSH_init as unsafe extern "C" fn(*mut LtshTable) -> ()),
         copy: Some(

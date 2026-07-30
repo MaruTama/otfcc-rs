@@ -13,7 +13,7 @@ use crate::support::{NULL};
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getbool, json_obj_getnum};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_sds};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json_builder::{json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
@@ -74,7 +74,7 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     }
     return 0 as usize;
 }
-static standardMacNames: [&::core::ffi::CStr; 258] = [
+static STANDARD_MAC_NAMES: [&::core::ffi::CStr; 258] = [
     c".notdef",
     c".null",
     c"nonmarkingreturn",
@@ -346,7 +346,7 @@ unsafe extern "C" fn initPost(mut post: *mut PostTable) {
 #[inline]
 unsafe extern "C" fn disposePost(mut post: *mut PostTable) {
     if !(*post).post_name_map.is_null() {
-        otfcc_pkgGlyphOrder.free.expect("non-null function pointer")((*post).post_name_map);
+        OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")((*post).post_name_map);
     }
 }
 #[inline]
@@ -403,7 +403,7 @@ unsafe extern "C" fn table_post_replace(mut dst: *mut PostTable, src: PostTable)
         ::core::mem::size_of::<PostTable>() as usize,
     );
 }
-pub static iTable_post: PostTableElementInterface = {
+pub static I_TABLE_POST: PostTableElementInterface = {
     PostTableElementInterface {
         init: Some(table_post_init as unsafe extern "C" fn(*mut PostTable) -> ()),
         copy: Some(
@@ -442,7 +442,7 @@ pub unsafe extern "C" fn otfcc_readPost(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut post: *mut PostTable =
                         (
-                            iTable_post.create.expect("non-null function pointer"))();
+                            I_TABLE_POST.create.expect("non-null function pointer"))();
                     (*post).version = read_32s(data as *const u8) as F16Dot16;
                     (*post).italicAngle =
                         read_32u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8)
@@ -467,7 +467,7 @@ pub unsafe extern "C" fn otfcc_readPost(
                     if (*post).version == 0x20000 as F16Dot16 {
                         let mut map: *mut GlyphOrder =
                             (
-                                otfcc_pkgGlyphOrder
+                                OTFCC_PKG_GLYPH_ORDER
                                     .create
                                     .expect("non-null function pointer"))();
                         let mut pendingNames: [SdsRaw; 65536] =
@@ -514,7 +514,7 @@ pub unsafe extern "C" fn otfcc_readPost(
                                     (2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize,
                                 ) as *const u8);
                             if nameMap as ::core::ffi::c_int >= 258 as ::core::ffi::c_int {
-                                otfcc_pkgGlyphOrder
+                                OTFCC_PKG_GLYPH_ORDER
                                     .setByGID
                                     .expect("non-null function pointer")(
                                     map,
@@ -526,12 +526,12 @@ pub unsafe extern "C" fn otfcc_readPost(
                                     ),
                                 );
                             } else {
-                                otfcc_pkgGlyphOrder
+                                OTFCC_PKG_GLYPH_ORDER
                                     .setByGID
                                     .expect("non-null function pointer")(
                                     map,
                                     j as GlyphId,
-                                    sdsnew(standardMacNames[nameMap as usize].as_ptr()),
+                                    sdsnew(STANDARD_MAC_NAMES[nameMap as usize].as_ptr()),
                                 );
                             }
                             j = j.wrapping_add(1);
@@ -631,7 +631,7 @@ pub unsafe extern "C" fn otfcc_parsePost(
     mut options: *const Options,
 ) -> *mut PostTable {
     let mut post: *mut PostTable = (
-        iTable_post.create.expect("non-null function pointer"))();
+        I_TABLE_POST.create.expect("non-null function pointer"))();
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,

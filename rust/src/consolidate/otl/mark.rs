@@ -5,7 +5,7 @@ use libc::{exit, free, malloc, memcmp, memset};
 use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphClass, GlyphId};
@@ -43,10 +43,10 @@ use crate::table::otl::{Anchor, BaseArray, BaseRecord, LigatureArray, LigatureBa
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
-use crate::table::otl::subtables::gpos_common::{otl_iMarkArray};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_iLigatureArray};
-use crate::table::otl::subtables::gpos_mark_to_single::{otl_iBaseArray};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::table::otl::subtables::gpos_common::{OTL_I_MARK_ARRAY};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{OTL_I_LIGATURE_ARRAY};
+use crate::table::otl::subtables::gpos_mark_to_single::{OTL_I_BASE_ARRAY};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
@@ -103,7 +103,7 @@ unsafe extern "C" fn consolidateMarkArray(
     let mut hm: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*markArray).length {
-        if !otfcc_pkgGlyphOrder
+        if !OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")(
             (*font).glyph_order,
@@ -113,7 +113,7 @@ unsafe extern "C" fn consolidateMarkArray(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -904,7 +904,7 @@ unsafe extern "C" fn consolidateMarkArray(
                         "non-null function pointer",
                     )(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1048,13 +1048,13 @@ unsafe extern "C" fn consolidateMarkArray(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    otl_iMarkArray.clear.expect("non-null function pointer")(markArray);
+    OTL_I_MARK_ARRAY.clear.expect("non-null function pointer")(markArray);
     let mut s_0: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
     let mut tmp: *mut MarkHash = ::core::ptr::null_mut::<MarkHash>();
     s_0 = hm;
     tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut MarkHash as *mut MarkHash;
     while !s_0.is_null() {
-        otl_iMarkArray.push.expect("non-null function pointer")(
+        OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(
             markArray,
             MarkRecord {
                 glyph: handle_fromConsolidated(
@@ -1128,7 +1128,7 @@ unsafe extern "C" fn consolidateBaseArray(
     let mut hm: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*baseArray).length {
-        if !otfcc_pkgGlyphOrder
+        if !OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")(
             (*font).glyph_order,
@@ -1138,7 +1138,7 @@ unsafe extern "C" fn consolidateBaseArray(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -1923,7 +1923,7 @@ unsafe extern "C" fn consolidateBaseArray(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -2067,13 +2067,13 @@ unsafe extern "C" fn consolidateBaseArray(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    otl_iBaseArray.clear.expect("non-null function pointer")(baseArray);
+    OTL_I_BASE_ARRAY.clear.expect("non-null function pointer")(baseArray);
     let mut s_0: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
     let mut tmp: *mut BaseHash = ::core::ptr::null_mut::<BaseHash>();
     s_0 = hm;
     tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut BaseHash as *mut BaseHash;
     while !s_0.is_null() {
-        otl_iBaseArray.push.expect("non-null function pointer")(
+        OTL_I_BASE_ARRAY.push.expect("non-null function pointer")(
             baseArray,
             BaseRecord {
                 glyph: handle_fromConsolidated(
@@ -2146,7 +2146,7 @@ unsafe extern "C" fn consolidateLigArray(
     let mut hm: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*ligArray).length {
-        if !otfcc_pkgGlyphOrder
+        if !OTFCC_PKG_GLYPH_ORDER
             .consolidateHandle
             .expect("non-null function pointer")(
             (*font).glyph_order,
@@ -2156,7 +2156,7 @@ unsafe extern "C" fn consolidateLigArray(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -2942,7 +2942,7 @@ unsafe extern "C" fn consolidateLigArray(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -3086,13 +3086,13 @@ unsafe extern "C" fn consolidateLigArray(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    otl_iLigatureArray.clear.expect("non-null function pointer")(ligArray);
+    OTL_I_LIGATURE_ARRAY.clear.expect("non-null function pointer")(ligArray);
     let mut s_0: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
     let mut tmp: *mut LigHash = ::core::ptr::null_mut::<LigHash>();
     s_0 = hm;
     tmp = (if !hm.is_null() { (*hm).hh.next } else { NULL }) as *mut LigHash as *mut LigHash;
     while !s_0.is_null() {
-        otl_iLigatureArray.push.expect("non-null function pointer")(
+        OTL_I_LIGATURE_ARRAY.push.expect("non-null function pointer")(
             ligArray,
             LigatureBaseRecord {
                 glyph: handle_fromConsolidated(

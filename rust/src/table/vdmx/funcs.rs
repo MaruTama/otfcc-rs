@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum};
 use crate::support::binio::{read_8u, read_16u, read_16s};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ShapeId};
@@ -11,7 +11,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::vdmx::types::{VdmxTable, VdmxGroup, VdmxRatioRange, VdmxRecord};
 use crate::bk::bkgraph::{bk_build_Block_noMinimize};
-use crate::table::vdmx::types::{table_iVDMX, vdmx_iGroup, vdmx_iRatioRange, vdmx_iRatioRangeList};
+use crate::table::vdmx::types::{TABLE_I_VDMX, VDMX_I_GROUP, VDMX_I_RATIO_RANGE, VDMX_I_RATIO_RANGE_LIST};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn otfcc_readVDMX(
@@ -42,7 +42,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                                 as u32)
                         {
                             vdmx = (
-                                table_iVDMX.create.expect("non-null function pointer"))();
+                                TABLE_I_VDMX.create.expect("non-null function pointer"))();
                             (*vdmx).version = version;
                             let mut g: ShapeId = 0 as ShapeId;
                             while (g as ::core::ffi::c_int) < numRatios as ::core::ffi::c_int {
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                                         items: ::core::ptr::null_mut::<VdmxRecord>(),
                                     },
                                 };
-                                vdmx_iRatioRange.init.expect("non-null function pointer")(
+                                VDMX_I_RATIO_RANGE.init.expect("non-null function pointer")(
                                     &raw mut r,
                                 );
                                 r.bCharset = read_8u(
@@ -134,7 +134,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                                             )
                                             .offset(4 as ::core::ffi::c_int as isize),
                                     );
-                                    vdmx_iGroup.push.expect("non-null function pointer")(
+                                    VDMX_I_GROUP.push.expect("non-null function pointer")(
                                         &raw mut r.records,
                                         VdmxRecord {
                                             yPelHeight: yPelHeight,
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                                     );
                                     j = j.wrapping_add(1);
                                 }
-                                vdmx_iRatioRangeList
+                                VDMX_I_RATIO_RANGE_LIST
                                     .push
                                     .expect("non-null function pointer")(
                                     &raw mut (*vdmx).ratios,
@@ -159,11 +159,11 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'VDMX' corrupted.\n"),
                     );
-                    table_iVDMX.free.expect("non-null function pointer")(vdmx);
+                    TABLE_I_VDMX.free.expect("non-null function pointer")(vdmx);
                     vdmx = ::core::ptr::null_mut::<VdmxTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -295,7 +295,7 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
         return ::core::ptr::null_mut::<VdmxTable>();
     }
     let mut vdmx: *mut VdmxTable = (
-        table_iVDMX.create.expect("non-null function pointer"))();
+        TABLE_I_VDMX.create.expect("non-null function pointer"))();
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
@@ -331,7 +331,7 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
                         items: ::core::ptr::null_mut::<VdmxRecord>(),
                     },
                 };
-                vdmx_iRatioRange.init.expect("non-null function pointer")(&raw mut r);
+                VDMX_I_RATIO_RANGE.init.expect("non-null function pointer")(&raw mut r);
                 r.bCharset = json_obj_getnum(
                     _rr,
                     b"bCharset\0" as *const u8 as *const ::core::ffi::c_char,
@@ -353,7 +353,7 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
                     JsonType::Array,
                 );
                 if _records.is_null() {
-                    vdmx_iRatioRange.dispose.expect("non-null function pointer")(&raw mut r);
+                    VDMX_I_RATIO_RANGE.dispose.expect("non-null function pointer")(&raw mut r);
                 } else {
                     let mut j_0: usize = 0 as usize;
                     while j_0 < (*_records).u.array.length as usize {
@@ -362,7 +362,7 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
                         if !(_r.is_null()
                             || (*_r).type_0 != JsonType::Object)
                         {
-                            vdmx_iGroup.push.expect("non-null function pointer")(
+                            VDMX_I_GROUP.push.expect("non-null function pointer")(
                                 &raw mut r.records,
                                 VdmxRecord {
                                     yPelHeight: json_obj_getnum(
@@ -382,7 +382,7 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
                         }
                         j_0 = j_0.wrapping_add(1);
                     }
-                    vdmx_iRatioRangeList
+                    VDMX_I_RATIO_RANGE_LIST
                         .push
                         .expect("non-null function pointer")(
                         &raw mut (*vdmx).ratios, r

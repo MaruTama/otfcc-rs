@@ -5,7 +5,7 @@ use libc::{free, malloc, memcpy, memset};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum_fallback};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32s};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer};
@@ -65,7 +65,7 @@ unsafe extern "C" fn table_hhea_free(mut x: *mut HheaTable) {
     table_hhea_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-pub static table_iHhea: HheaTableElementInterface = {
+pub static TABLE_I_HHEA: HheaTableElementInterface = {
     HheaTableElementInterface {
         init: Some(table_hhea_init as unsafe extern "C" fn(*mut HheaTable) -> ()),
         copy: Some(
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn otfcc_readHhea(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"table 'hhea' corrupted.\n"),
                         );
@@ -318,7 +318,7 @@ pub unsafe extern "C" fn otfcc_parseHhea(
     mut options: *const Options,
 ) -> *mut HheaTable {
     let mut hhea: *mut HheaTable = (
-        table_iHhea.create.expect("non-null function pointer"))();
+        TABLE_I_HHEA.create.expect("non-null function pointer"))();
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,

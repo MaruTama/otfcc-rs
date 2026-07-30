@@ -6,7 +6,7 @@ use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_cop
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, GlyphId};
@@ -154,7 +154,7 @@ unsafe extern "C" fn copyLayer(mut dst: *mut ColrLayer, mut src: *const ColrLaye
 unsafe extern "C" fn disposeLayer(mut layer: *mut ColrLayer) {
     otfcc_Handle_dispose(&raw mut (*layer).glyph);
 }
-pub static colr_iLayer: ColrLayerElementInterface = {
+pub static COLR_I_LAYER: ColrLayerElementInterface = {
     ColrLayerElementInterface {
         init: Some(colr_Layer_init as unsafe extern "C" fn(*mut ColrLayer) -> ()),
         copy: Some(
@@ -241,8 +241,8 @@ unsafe extern "C" fn colr_LayerList_fill(mut arr: *mut ColrLayerList, mut n: usi
             },
             paletteIndex: 0,
         };
-        if colr_iLayer.init.is_some() {
-            colr_iLayer.init.expect("non-null function pointer")(&raw mut x);
+        if COLR_I_LAYER.init.is_some() {
+            COLR_I_LAYER.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -261,7 +261,7 @@ unsafe extern "C" fn colr_LayerList_push(arr: *mut ColrLayerList, elem: ColrLaye
 unsafe extern "C" fn colr_LayerList_grow(arr: *mut ColrLayerList) {
     cvec_grow(colr_LayerList_as_cvec(arr));
 }
-pub static colr_iLayerList: ColrLayerListVectorInterface = {
+pub static COLR_I_LAYER_LIST: ColrLayerListVectorInterface = {
     ColrLayerListVectorInterface {
         init: Some(colr_LayerList_init as unsafe extern "C" fn(*mut ColrLayerList) -> ()),
         copy: Some(
@@ -345,10 +345,10 @@ unsafe extern "C" fn colr_LayerList_copy(
     colr_LayerList_init(dst);
     colr_LayerList_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if colr_iLayer.copy.is_some() {
+    if COLR_I_LAYER.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            colr_iLayer.copy.expect("non-null function pointer")(
+            COLR_I_LAYER.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut ColrLayer,
                 (*src).items.offset(j as isize) as *mut ColrLayer as *const ColrLayer,
             );
@@ -367,7 +367,7 @@ unsafe extern "C" fn colr_LayerList_dispose(mut arr: *mut ColrLayerList) {
     if arr.is_null() {
         return;
     }
-    if colr_iLayer.dispose.is_some() {
+    if COLR_I_LAYER.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -375,7 +375,7 @@ unsafe extern "C" fn colr_LayerList_dispose(mut arr: *mut ColrLayerList) {
             if !(fresh1 != 0) {
                 break;
             }
-            colr_iLayer.dispose.expect("non-null function pointer")(
+            COLR_I_LAYER.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut ColrLayer,
             );
         }
@@ -453,8 +453,8 @@ unsafe extern "C" fn colr_LayerList_init(arr: *mut ColrLayerList) {
 }
 #[inline]
 unsafe extern "C" fn colr_LayerList_disposeItem(mut arr: *mut ColrLayerList, mut n: usize) {
-    if colr_iLayer.dispose.is_some() {
-        colr_iLayer.dispose.expect("non-null function pointer")(
+    if COLR_I_LAYER.dispose.is_some() {
+        COLR_I_LAYER.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut ColrLayer
         );
     } else {
@@ -478,8 +478,8 @@ unsafe extern "C" fn colr_LayerList_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if colr_iLayer.dispose.is_some() {
-                colr_iLayer.dispose.expect("non-null function pointer")(
+            if COLR_I_LAYER.dispose.is_some() {
+                COLR_I_LAYER.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut ColrLayer,
                 );
             } else {
@@ -492,7 +492,7 @@ unsafe extern "C" fn colr_LayerList_filterEnv(
 #[inline]
 unsafe extern "C" fn initMapping(mut mapping: *mut ColrMapping) {
     otfcc_Handle_init(&raw mut (*mapping).glyph);
-    colr_iLayerList.init.expect("non-null function pointer")(&raw mut (*mapping).layers);
+    COLR_I_LAYER_LIST.init.expect("non-null function pointer")(&raw mut (*mapping).layers);
 }
 #[inline]
 unsafe extern "C" fn copyMapping(mut dst: *mut ColrMapping, mut src: *const ColrMapping) {
@@ -500,7 +500,7 @@ unsafe extern "C" fn copyMapping(mut dst: *mut ColrMapping, mut src: *const Colr
         &raw mut (*dst).glyph,
         &raw const (*src).glyph,
     );
-    colr_iLayerList.copy.expect("non-null function pointer")(
+    COLR_I_LAYER_LIST.copy.expect("non-null function pointer")(
         &raw mut (*dst).layers,
         &raw const (*src).layers,
     );
@@ -508,7 +508,7 @@ unsafe extern "C" fn copyMapping(mut dst: *mut ColrMapping, mut src: *const Colr
 #[inline]
 unsafe extern "C" fn disposeMapping(mut mapping: *mut ColrMapping) {
     otfcc_Handle_dispose(&raw mut (*mapping).glyph);
-    colr_iLayerList.dispose.expect("non-null function pointer")(&raw mut (*mapping).layers);
+    COLR_I_LAYER_LIST.dispose.expect("non-null function pointer")(&raw mut (*mapping).layers);
 }
 #[inline]
 unsafe extern "C" fn colr_Mapping_dispose(mut x: *mut ColrMapping) {
@@ -519,7 +519,7 @@ unsafe extern "C" fn colr_Mapping_copyReplace(mut dst: *mut ColrMapping, src: Co
     colr_Mapping_dispose(dst);
     colr_Mapping_copy(dst, &raw const src);
 }
-pub static colr_iMapping: ColrMappingElementInterface = {
+pub static COLR_I_MAPPING: ColrMappingElementInterface = {
     ColrMappingElementInterface {
         init: Some(colr_Mapping_init as unsafe extern "C" fn(*mut ColrMapping) -> ()),
         copy: Some(
@@ -576,7 +576,7 @@ unsafe extern "C" fn table_COLR_replace(mut dst: *mut ColrTable, src: ColrTable)
 unsafe extern "C" fn table_COLR_growTo(arr: *mut ColrTable, target: usize) {
     cvec_grow_to(table_COLR_as_cvec(arr), target);
 }
-pub static table_iCOLR: ColrTableVectorInterface = {
+pub static TABLE_I_COLR: ColrTableVectorInterface = {
     ColrTableVectorInterface {
         init: Some(table_COLR_init as unsafe extern "C" fn(*mut ColrTable) -> ()),
         copy: Some(
@@ -667,8 +667,8 @@ unsafe extern "C" fn table_COLR_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if colr_iMapping.dispose.is_some() {
-                colr_iMapping.dispose.expect("non-null function pointer")(
+            if COLR_I_MAPPING.dispose.is_some() {
+                COLR_I_MAPPING.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut ColrMapping,
                 );
             } else {
@@ -680,8 +680,8 @@ unsafe extern "C" fn table_COLR_filterEnv(
 }
 #[inline]
 unsafe extern "C" fn table_COLR_disposeItem(mut arr: *mut ColrTable, mut n: usize) {
-    if colr_iMapping.dispose.is_some() {
-        colr_iMapping.dispose.expect("non-null function pointer")(
+    if COLR_I_MAPPING.dispose.is_some() {
+        COLR_I_MAPPING.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut ColrMapping
         );
     } else {
@@ -724,8 +724,8 @@ unsafe extern "C" fn table_COLR_fill(mut arr: *mut ColrTable, mut n: usize) {
                 items: ::core::ptr::null_mut::<ColrLayer>(),
             },
         };
-        if colr_iMapping.init.is_some() {
-            colr_iMapping.init.expect("non-null function pointer")(&raw mut x);
+        if COLR_I_MAPPING.init.is_some() {
+            COLR_I_MAPPING.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -758,10 +758,10 @@ unsafe extern "C" fn table_COLR_copy(mut dst: *mut ColrTable, mut src: *const Co
     table_COLR_init(dst);
     table_COLR_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if colr_iMapping.copy.is_some() {
+    if COLR_I_MAPPING.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            colr_iMapping.copy.expect("non-null function pointer")(
+            COLR_I_MAPPING.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut ColrMapping,
                 (*src).items.offset(j as isize) as *mut ColrMapping as *const ColrMapping,
             );
@@ -780,7 +780,7 @@ unsafe extern "C" fn table_COLR_dispose(mut arr: *mut ColrTable) {
     if arr.is_null() {
         return;
     }
-    if colr_iMapping.dispose.is_some() {
+    if COLR_I_MAPPING.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh3 = j;
@@ -788,7 +788,7 @@ unsafe extern "C" fn table_COLR_dispose(mut arr: *mut ColrTable) {
             if !(fresh3 != 0) {
                 break;
             }
-            colr_iMapping.dispose.expect("non-null function pointer")(
+            COLR_I_MAPPING.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut ColrMapping,
             );
         }
@@ -835,8 +835,8 @@ unsafe extern "C" fn table_COLR_create() -> *mut ColrTable {
     table_COLR_init(x);
     return x;
 }
-static baseGlyphRecLength: usize = 6 as usize;
-static layerRecLength: usize = 4 as usize;
+static BASE_GLYPH_REC_LENGTH: usize = 6 as usize;
+static LAYER_REC_LENGTH: usize = 4 as usize;
 pub unsafe extern "C" fn otfcc_readCOLR(
     packet: Packet,
     mut options: *const Options,
@@ -871,12 +871,12 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                             read_32u(table.data.offset(8 as ::core::ffi::c_int as isize));
                         if !((table.length as usize)
                             < (offsetBaseGlyphRecord as usize).wrapping_add(
-                                baseGlyphRecLength.wrapping_mul(numBaseGlyphRecords as usize),
+                                BASE_GLYPH_REC_LENGTH.wrapping_mul(numBaseGlyphRecords as usize),
                             ))
                         {
                             if !((table.length as usize)
                                 < (offsetLayerRecord as usize).wrapping_add(
-                                    layerRecLength.wrapping_mul(numLayerRecords as usize),
+                                    LAYER_REC_LENGTH.wrapping_mul(numLayerRecords as usize),
                                 ))
                             {
                                 gids = ::core::ptr::null_mut::<GlyphId>();
@@ -897,7 +897,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                 {
                                     *gids.offset(j as isize) = read_16u(
                                         table.data.offset(offsetLayerRecord as isize).offset(
-                                            layerRecLength.wrapping_mul(j as usize) as isize,
+                                            LAYER_REC_LENGTH.wrapping_mul(j as usize) as isize,
                                         ),
                                     )
                                         as GlyphId;
@@ -906,14 +906,14 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                             table
                                                 .data
                                                 .offset(offsetLayerRecord as isize)
-                                                .offset(layerRecLength.wrapping_mul(j as usize)
+                                                .offset(LAYER_REC_LENGTH.wrapping_mul(j as usize)
                                                     as isize)
                                                 .offset(2 as ::core::ffi::c_int as isize),
                                         ) as ColorId;
                                     j = j.wrapping_add(1);
                                 }
                                 colr = (
-                                    table_iCOLR.create.expect("non-null function pointer"))();
+                                    TABLE_I_COLR.create.expect("non-null function pointer"))();
                                 let mut j_0: GlyphId = 0 as GlyphId;
                                 while (j_0 as ::core::ffi::c_int)
                                     < numBaseGlyphRecords as ::core::ffi::c_int
@@ -930,21 +930,21 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                             items: ::core::ptr::null_mut::<ColrLayer>(),
                                         },
                                     };
-                                    colr_iMapping.init.expect("non-null function pointer")(
+                                    COLR_I_MAPPING.init.expect("non-null function pointer")(
                                         &raw mut mapping,
                                     );
                                     let mut gid: u16 = read_16u(
                                         table
                                             .data
                                             .offset(offsetBaseGlyphRecord as isize)
-                                            .offset(baseGlyphRecLength.wrapping_mul(j_0 as usize)
+                                            .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
                                                 as isize),
                                     );
                                     let mut firstLayerIndex: u16 = read_16u(
                                         table
                                             .data
                                             .offset(offsetBaseGlyphRecord as isize)
-                                            .offset(baseGlyphRecLength.wrapping_mul(j_0 as usize)
+                                            .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
                                                 as isize)
                                             .offset(2 as ::core::ffi::c_int as isize),
                                     );
@@ -952,7 +952,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                         table
                                             .data
                                             .offset(offsetBaseGlyphRecord as isize)
-                                            .offset(baseGlyphRecLength.wrapping_mul(j_0 as usize)
+                                            .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
                                                 as isize)
                                             .offset(4 as ::core::ffi::c_int as isize),
                                     );
@@ -972,7 +972,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                             + firstLayerIndex as ::core::ffi::c_int)
                                             < numLayerRecords as ::core::ffi::c_int
                                         {
-                                            colr_iLayerList
+                                            COLR_I_LAYER_LIST
                                                 .push
                                                 .expect("non-null function pointer")(
                                                 &raw mut mapping.layers,
@@ -996,7 +996,7 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                                         }
                                         k = k.wrapping_add(1);
                                     }
-                                    table_iCOLR.push.expect("non-null function pointer")(
+                                    TABLE_I_COLR.push.expect("non-null function pointer")(
                                         colr, mapping,
                                     );
                                     j_0 = j_0.wrapping_add(1);
@@ -1009,11 +1009,11 @@ pub unsafe extern "C" fn otfcc_readCOLR(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'COLR' corrupted.\n"),
                     );
-                    table_iCOLR.free.expect("non-null function pointer")(colr);
+                    TABLE_I_COLR.free.expect("non-null function pointer")(colr);
                     colr = ::core::ptr::null_mut::<ColrTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -1114,7 +1114,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
         return ::core::ptr::null_mut::<ColrTable>();
     }
     let mut colr: *mut ColrTable = (
-        table_iCOLR.create.expect("non-null function pointer"))();
+        TABLE_I_COLR.create.expect("non-null function pointer"))();
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
@@ -1153,7 +1153,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
                             items: ::core::ptr::null_mut::<ColrLayer>(),
                         },
                     };
-                    colr_iMapping.init.expect("non-null function pointer")(&raw mut m);
+                    COLR_I_MAPPING.init.expect("non-null function pointer")(&raw mut m);
                     m.glyph = handle_fromName(sdsnewlen(
                         (*_baseglyph).u.string.ptr as *const ::core::ffi::c_void,
                         (*_baseglyph).u.string.length as usize,
@@ -1171,7 +1171,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
                                 JsonType::String,
                             );
                             if !_layerglyph.is_null() {
-                                colr_iLayerList.push.expect("non-null function pointer")(
+                                COLR_I_LAYER_LIST.push.expect("non-null function pointer")(
                                     &raw mut m.layers,
                                     ColrLayer {
                                         glyph: handle_fromName(
@@ -1195,7 +1195,7 @@ pub unsafe extern "C" fn otfcc_parseCOLR(
                         }
                         k = k.wrapping_add(1);
                     }
-                    table_iCOLR.push.expect("non-null function pointer")(colr, m);
+                    TABLE_I_COLR.push.expect("non-null function pointer")(colr, m);
                 }
             }
             j = j.wrapping_add(1);
@@ -1225,8 +1225,8 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
         capacity: 0,
         items: ::core::ptr::null_mut::<ColrMapping>(),
     };
-    table_iCOLR.copy.expect("non-null function pointer")(&raw mut colr, _colr);
-    table_iCOLR.sort.expect("non-null function pointer")(
+    TABLE_I_COLR.copy.expect("non-null function pointer")(&raw mut colr, _colr);
+    TABLE_I_COLR.sort.expect("non-null function pointer")(
         &raw mut colr,
         Some(
             byGID
@@ -1266,6 +1266,6 @@ pub unsafe extern "C" fn otfcc_buildCOLR(
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (colr.length) as u32), bk_ptr(BkCellType::P32, baseRecords), bk_ptr(BkCellType::P32, layerRecords), bk_int(BkCellType::B16, (currentLayerIndex as ::core::ffi::c_int) as u32)]);
-    table_iCOLR.dispose.expect("non-null function pointer")(&raw mut colr);
+    TABLE_I_COLR.dispose.expect("non-null function pointer")(&raw mut colr);
     return bk_build_Block(root);
 }

@@ -8,7 +8,7 @@ use crate::support::options::{Options};
 
 use crate::vendor::json::{JsonValue};
 use crate::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
-use crate::font::caryll_font::{otfcc_iFont};
+use crate::font::caryll_font::{OTFCC_I_FONT};
 use crate::json_reader::{otfcc_newJsonReader};
 use crate::logger::{otfcc_newEmptyTarget, otfcc_newLogger};
 use crate::otf_writer::{otfcc_newOTFWriter};
@@ -87,13 +87,13 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     if font.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    otfcc_iFont.consolidate.expect("non-null function pointer")(font, options);
+    OTFCC_I_FONT.consolidate.expect("non-null function pointer")(font, options);
     let mut writer: *mut IFontSerializer = otfcc_newOTFWriter();
     let mut otf: *mut Buffer =
         (*writer).serialize.expect("non-null function pointer")(font, options)
             as *mut Buffer;
     (*writer).free.expect("non-null function pointer")(writer as *mut IFontSerializer);
-    otfcc_iFont.free.expect("non-null function pointer")(font);
+    OTFCC_I_FONT.free.expect("non-null function pointer")(font);
     return otf;
 }
 #[unsafe(no_mangle)]

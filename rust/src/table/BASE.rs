@@ -8,7 +8,7 @@ unsafe extern "C" {
 use crate::support::json_funcs::{json_new_position, json_numof, json_obj_get_type, json_obj_getstr_share, json_object_push_tag};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u, read_16s, read_32u};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, Pos, TableId};
@@ -127,7 +127,7 @@ unsafe extern "C" fn table_BASE_replace(mut dst: *mut BaseTable, src: BaseTable)
         ::core::mem::size_of::<BaseTable>() as usize,
     );
 }
-pub static table_iBASE: BaseTableElementInterface = {
+pub static TABLE_I_BASE: BaseTableElementInterface = {
     BaseTableElementInterface {
         init: Some(table_BASE_init as unsafe extern "C" fn(*mut BaseTable) -> ()),
         copy: Some(
@@ -446,11 +446,11 @@ pub unsafe extern "C" fn otfcc_readBASE(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"Table 'BASE' Corrupted"),
                         );
-                        table_iBASE.free.expect("non-null function pointer")(base);
+                        TABLE_I_BASE.free.expect("non-null function pointer")(base);
                         base = ::core::ptr::null_mut::<BaseTable>();
                     } else {
                         base = __caryll_allocate_clean(

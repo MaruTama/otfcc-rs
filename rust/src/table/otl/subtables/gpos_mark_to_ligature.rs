@@ -8,7 +8,7 @@ use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
@@ -23,8 +23,8 @@ use crate::table::otl::subtables::gpos_common::{ClassNameHash};
 use crate::vendor::uthash::{UtHashBucket, UtHashHandle};
 use crate::bk::bkblock::{bk_newBlockFromBuffer};
 use crate::bk::bkgraph::{bk_build_Block};
-use crate::table::otl::coverage::{otl_iCoverage};
-use crate::table::otl::subtables::gpos_common::{bkFromAnchor, otl_anchor_absent, otl_iMarkArray, otl_parseMarkArray, otl_parse_anchor, otl_readMarkArray, otl_read_anchor};
+use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::subtables::gpos_common::{bkFromAnchor, otl_anchor_absent, OTL_I_MARK_ARRAY, otl_parseMarkArray, otl_parse_anchor, otl_readMarkArray, otl_read_anchor};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_length, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 #[derive(Copy, Clone)]
@@ -87,7 +87,7 @@ unsafe extern "C" fn deleteLigArrayItem(mut entry: *mut LigatureBaseRecord) {
         (*entry).anchors = ::core::ptr::null_mut::<*mut Anchor>();
     }
 }
-static la_typeinfo: LigatureBaseRecordElementInterface = {
+static LA_TYPEINFO: LigatureBaseRecordElementInterface = {
     LigatureBaseRecordElementInterface {
         init: None,
         copy: None,
@@ -135,10 +135,10 @@ unsafe extern "C" fn otl_LigatureArray_copy(
     otl_LigatureArray_init(dst);
     otl_LigatureArray_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if la_typeinfo.copy.is_some() {
+    if LA_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            la_typeinfo.copy.expect("non-null function pointer")(
+            LA_TYPEINFO.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut LigatureBaseRecord,
                 (*src).items.offset(j as isize) as *mut LigatureBaseRecord
                     as *const LigatureBaseRecord,
@@ -158,7 +158,7 @@ unsafe extern "C" fn otl_LigatureArray_dispose(mut arr: *mut LigatureArray) {
     if arr.is_null() {
         return;
     }
-    if la_typeinfo.dispose.is_some() {
+    if LA_TYPEINFO.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh2 = j;
@@ -166,7 +166,7 @@ unsafe extern "C" fn otl_LigatureArray_dispose(mut arr: *mut LigatureArray) {
             if !(fresh2 != 0) {
                 break;
             }
-            la_typeinfo.dispose.expect("non-null function pointer")(
+            LA_TYPEINFO.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut LigatureBaseRecord,
             );
         }
@@ -249,8 +249,8 @@ unsafe extern "C" fn otl_LigatureArray_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if la_typeinfo.dispose.is_some() {
-                la_typeinfo.dispose.expect("non-null function pointer")(
+            if LA_TYPEINFO.dispose.is_some() {
+                LA_TYPEINFO.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut LigatureBaseRecord,
                 );
             } else {
@@ -260,7 +260,7 @@ unsafe extern "C" fn otl_LigatureArray_filterEnv(
     }
     (*arr).length = j;
 }
-pub static otl_iLigatureArray: LigatureArrayVectorInterface = {
+pub static OTL_I_LIGATURE_ARRAY: LigatureArrayVectorInterface = {
     LigatureArrayVectorInterface {
         init: Some(otl_LigatureArray_init as unsafe extern "C" fn(*mut LigatureArray) -> ()),
         copy: Some(
@@ -356,8 +356,8 @@ unsafe extern "C" fn otl_LigatureArray_move(dst: *mut LigatureArray, src: *mut L
 }
 #[inline]
 unsafe extern "C" fn otl_LigatureArray_disposeItem(mut arr: *mut LigatureArray, mut n: usize) {
-    if la_typeinfo.dispose.is_some() {
-        la_typeinfo.dispose.expect("non-null function pointer")(
+    if LA_TYPEINFO.dispose.is_some() {
+        LA_TYPEINFO.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut LigatureBaseRecord
         );
     } else {
@@ -400,8 +400,8 @@ unsafe extern "C" fn otl_LigatureArray_fill(mut arr: *mut LigatureArray, mut n: 
             componentCount: 0,
             anchors: ::core::ptr::null_mut::<*mut Anchor>(),
         };
-        if la_typeinfo.init.is_some() {
-            la_typeinfo.init.expect("non-null function pointer")(&raw mut x);
+        if LA_TYPEINFO.init.is_some() {
+            LA_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -414,13 +414,13 @@ unsafe extern "C" fn otl_LigatureArray_fill(mut arr: *mut LigatureArray, mut n: 
 }
 #[inline]
 unsafe extern "C" fn initMarkToLigature(mut subtable: *mut GposMarkToLigatureSubtable) {
-    otl_iMarkArray.init.expect("non-null function pointer")(&raw mut (*subtable).markArray);
-    otl_iLigatureArray.init.expect("non-null function pointer")(&raw mut (*subtable).ligArray);
+    OTL_I_MARK_ARRAY.init.expect("non-null function pointer")(&raw mut (*subtable).markArray);
+    OTL_I_LIGATURE_ARRAY.init.expect("non-null function pointer")(&raw mut (*subtable).ligArray);
 }
 #[inline]
 unsafe extern "C" fn disposeMarkToLigature(mut subtable: *mut GposMarkToLigatureSubtable) {
-    otl_iMarkArray.dispose.expect("non-null function pointer")(&raw mut (*subtable).markArray);
-    otl_iLigatureArray
+    OTL_I_MARK_ARRAY.dispose.expect("non-null function pointer")(&raw mut (*subtable).markArray);
+    OTL_I_LIGATURE_ARRAY
         .dispose
         .expect("non-null function pointer")(&raw mut (*subtable).ligArray);
 }
@@ -471,7 +471,7 @@ unsafe extern "C" fn subtable_gpos_markToLigature_move(
     );
     subtable_gpos_markToLigature_init(src);
 }
-pub static iSubtable_gpos_markToLigature:
+pub static I_SUBTABLE_GPOS_MARK_TO_LIGATURE:
     GposMarkToLigatureSubtableElementInterface = {
     GposMarkToLigatureSubtableElementInterface {
         init: Some(
@@ -551,7 +551,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
     let mut current_block: u64;
     let mut subtable: *mut GposMarkToLigatureSubtable =
         (
-            iSubtable_gpos_markToLigature
+            I_SUBTABLE_GPOS_MARK_TO_LIGATURE
                 .create
                 .expect("non-null function pointer"))();
     let mut marks: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -688,7 +688,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
                             }
                             k = k.wrapping_add(1);
                         }
-                        otl_iLigatureArray.push.expect("non-null function pointer")(
+                        OTL_I_LIGATURE_ARRAY.push.expect("non-null function pointer")(
                             &raw mut (*subtable).ligArray,
                             lig,
                         );
@@ -716,7 +716,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
     if !bases.is_null() {
         otl_Coverage_free(bases);
     }
-    iSubtable_gpos_markToLigature
+    I_SUBTABLE_GPOS_MARK_TO_LIGATURE
         .free
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
@@ -864,7 +864,7 @@ unsafe extern "C" fn parseBases(
         if baseRecord.is_null()
             || (*baseRecord).type_0 != JsonType::Array
         {
-            otl_iLigatureArray.push.expect("non-null function pointer")(
+            OTL_I_LIGATURE_ARRAY.push.expect("non-null function pointer")(
                 &raw mut (*subtable).ligArray,
                 lig,
             );
@@ -1240,7 +1240,7 @@ unsafe extern "C" fn parseBases(
                                     "non-null function pointer",
                                 )(
                                 (*options).logger as *mut ILogger,
-                                log_vl_important,
+                                LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::sdsbuild!(
                                     sdsempty(),
@@ -1265,7 +1265,7 @@ unsafe extern "C" fn parseBases(
                 }
                 k = k.wrapping_add(1);
             }
-            otl_iLigatureArray.push.expect("non-null function pointer")(
+            OTL_I_LIGATURE_ARRAY.push.expect("non-null function pointer")(
                 &raw mut (*subtable).ligArray,
                 lig,
             );
@@ -1292,7 +1292,7 @@ pub unsafe extern "C" fn otl_gpos_parse_markToLigature(
     }
     let mut st: *mut GposMarkToLigatureSubtable =
         (
-            iSubtable_gpos_markToLigature
+            I_SUBTABLE_GPOS_MARK_TO_LIGATURE
                 .create
                 .expect("non-null function pointer"))();
     let mut h: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
@@ -1393,9 +1393,9 @@ pub unsafe extern "C" fn otfcc_build_gpos_markToLigature(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             marks,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(otl_iCoverage.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             bases,
         ))), bk_int(BkCellType::B16, ((*subtable).classCount as ::core::ffi::c_int) as u32)]);
     let mut markArray: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*subtable).markArray.length) as u32)]);

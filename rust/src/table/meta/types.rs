@@ -88,7 +88,7 @@ unsafe extern "C" fn initMetaEntry(mut e: *mut MetaEntry) {
 unsafe extern "C" fn disposeMetaEntry(mut e: *mut MetaEntry) {
     sdsfree((*e).data);
 }
-pub static meta_iEntry: MetaEntryElementInterface = {
+pub static META_I_ENTRY: MetaEntryElementInterface = {
     MetaEntryElementInterface {
         init: Some(meta_Entry_init as unsafe extern "C" fn(*mut MetaEntry) -> ()),
         copy: Some(
@@ -163,8 +163,8 @@ unsafe extern "C" fn meta_Entries_filterEnv(
             }
             j = j.wrapping_add(1);
         } else {
-            if meta_iEntry.dispose.is_some() {
-                meta_iEntry.dispose.expect("non-null function pointer")(
+            if META_I_ENTRY.dispose.is_some() {
+                META_I_ENTRY.dispose.expect("non-null function pointer")(
                     (*arr).items.offset(k as isize) as *mut MetaEntry,
                 );
             } else {
@@ -186,7 +186,7 @@ unsafe fn meta_Entries_as_cvec(arr: *mut MetaEntries) -> *mut CVecRaw<MetaEntry>
 unsafe extern "C" fn meta_Entries_init(arr: *mut MetaEntries) {
     cvec_init(meta_Entries_as_cvec(arr));
 }
-pub static meta_iEntries: MetaEntriesVectorInterface = {
+pub static META_I_ENTRIES: MetaEntriesVectorInterface = {
     MetaEntriesVectorInterface {
         init: Some(meta_Entries_init as unsafe extern "C" fn(*mut MetaEntries) -> ()),
         copy: Some(
@@ -245,8 +245,8 @@ pub static meta_iEntries: MetaEntriesVectorInterface = {
 };
 #[inline]
 unsafe extern "C" fn meta_Entries_disposeItem(mut arr: *mut MetaEntries, mut n: usize) {
-    if meta_iEntry.dispose.is_some() {
-        meta_iEntry.dispose.expect("non-null function pointer")(
+    if META_I_ENTRY.dispose.is_some() {
+        META_I_ENTRY.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut MetaEntry
         );
     } else {
@@ -278,8 +278,8 @@ unsafe extern "C" fn meta_Entries_fill(mut arr: *mut MetaEntries, mut n: usize) 
             tag: 0,
             data: ::core::ptr::null_mut::<::core::ffi::c_char>(),
         };
-        if meta_iEntry.init.is_some() {
-            meta_iEntry.init.expect("non-null function pointer")(&raw mut x);
+        if META_I_ENTRY.init.is_some() {
+            META_I_ENTRY.init.expect("non-null function pointer")(&raw mut x);
         } else {
             memset(
                 &raw mut x as *mut ::core::ffi::c_void,
@@ -316,10 +316,10 @@ unsafe extern "C" fn meta_Entries_copy(mut dst: *mut MetaEntries, mut src: *cons
     meta_Entries_init(dst);
     meta_Entries_growTo(dst, (*src).length);
     (*dst).length = (*src).length;
-    if meta_iEntry.copy.is_some() {
+    if META_I_ENTRY.copy.is_some() {
         let mut j: usize = 0 as usize;
         while j < (*src).length {
-            meta_iEntry.copy.expect("non-null function pointer")(
+            META_I_ENTRY.copy.expect("non-null function pointer")(
                 (*dst).items.offset(j as isize) as *mut MetaEntry,
                 (*src).items.offset(j as isize) as *mut MetaEntry as *const MetaEntry,
             );
@@ -338,7 +338,7 @@ unsafe extern "C" fn meta_Entries_dispose(mut arr: *mut MetaEntries) {
     if arr.is_null() {
         return;
     }
-    if meta_iEntry.dispose.is_some() {
+    if META_I_ENTRY.dispose.is_some() {
         let mut j: usize = (*arr).length;
         loop {
             let fresh1 = j;
@@ -346,7 +346,7 @@ unsafe extern "C" fn meta_Entries_dispose(mut arr: *mut MetaEntries) {
             if !(fresh1 != 0) {
                 break;
             }
-            meta_iEntry.dispose.expect("non-null function pointer")(
+            META_I_ENTRY.dispose.expect("non-null function pointer")(
                 (*arr).items.offset(j as isize) as *mut MetaEntry,
             );
         }
@@ -413,10 +413,10 @@ unsafe extern "C" fn meta_Entries_resizeTo(arr: *mut MetaEntries, target: usize)
 unsafe extern "C" fn initMetaTable(mut t: *mut MetaTable) {
     (*t).version = 1 as u32;
     (*t).flags = 0 as u32;
-    meta_iEntries.init.expect("non-null function pointer")(&raw mut (*t).entries);
+    META_I_ENTRIES.init.expect("non-null function pointer")(&raw mut (*t).entries);
 }
 unsafe extern "C" fn disposeMetaTable(mut t: *mut MetaTable) {
-    meta_iEntries.dispose.expect("non-null function pointer")(&raw mut (*t).entries);
+    META_I_ENTRIES.dispose.expect("non-null function pointer")(&raw mut (*t).entries);
 }
 #[inline]
 unsafe extern "C" fn table_meta_free(mut x: *mut MetaTable) {
@@ -443,7 +443,7 @@ unsafe extern "C" fn table_meta_copy(mut dst: *mut MetaTable, mut src: *const Me
         ::core::mem::size_of::<MetaTable>() as usize,
     );
 }
-pub static table_iMeta: MetaTableElementInterface = {
+pub static TABLE_I_META: MetaTableElementInterface = {
     MetaTableElementInterface {
         init: Some(table_meta_init as unsafe extern "C" fn(*mut MetaTable) -> ()),
         copy: Some(

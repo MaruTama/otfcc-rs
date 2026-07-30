@@ -18,21 +18,21 @@ pub struct JsonSerializeOpts {
     pub opts: ::core::ffi::c_int,
     pub indent_size: ::core::ffi::c_int,
 }
-pub const json_serialize_mode_multiline: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const json_serialize_mode_single_line: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const json_serialize_mode_packed: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
-pub const json_serialize_opt_CRLF: ::core::ffi::c_int =
+pub const JSON_SERIALIZE_MODE_MULTILINE: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+pub const JSON_SERIALIZE_MODE_SINGLE_LINE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
+pub const JSON_SERIALIZE_MODE_PACKED: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
+pub const JSON_SERIALIZE_OPT_CRLF: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int;
-pub const json_serialize_opt_pack_brackets: ::core::ffi::c_int =
+pub const JSON_SERIALIZE_OPT_PACK_BRACKETS: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int;
-pub const json_serialize_opt_no_space_after_comma: ::core::ffi::c_int =
+pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int;
-pub const json_serialize_opt_no_space_after_colon: ::core::ffi::c_int =
+pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int;
-pub const json_serialize_opt_use_tabs: ::core::ffi::c_int =
+pub const JSON_SERIALIZE_OPT_USE_TABS: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int;
-static default_opts: JsonSerializeOpts = JsonSerializeOpts {
-    mode: json_serialize_mode_single_line,
+static DEFAULT_OPTS: JsonSerializeOpts = JsonSerializeOpts {
+    mode: JSON_SERIALIZE_MODE_SINGLE_LINE,
     opts: 0 as ::core::ffi::c_int,
     indent_size: 3 as ::core::ffi::c_int,
 };
@@ -76,34 +76,34 @@ unsafe extern "C" fn builderize(mut value: *mut JsonValue) -> ::core::ffi::c_int
 /// `main`. Rust evaluates `size_of` at compile time, so the initializer -- and
 /// the `link_section` hack that ran it -- are gone. Nothing in otfcc reads it;
 /// it is the vendored library's own API.
-pub const json_builder_extra: usize =
+pub const JSON_BUILDER_EXTRA: usize =
     ::core::mem::size_of::<JsonBuilderValue>() - ::core::mem::size_of::<JsonValue>();
-pub static f_spaces_around_brackets: ::core::ffi::c_int =
+pub static F_SPACES_AROUND_BRACKETS: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int;
-pub static f_spaces_after_commas: ::core::ffi::c_int =
+pub static F_SPACES_AFTER_COMMAS: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int;
-pub static f_spaces_after_colons: ::core::ffi::c_int =
+pub static F_SPACES_AFTER_COLONS: ::core::ffi::c_int =
     (1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int;
-pub static f_tabs: ::core::ffi::c_int = (1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int;
+pub static F_TABS: ::core::ffi::c_int = (1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int;
 pub unsafe extern "C" fn get_serialize_flags(mut opts: JsonSerializeOpts) -> ::core::ffi::c_int {
     let mut flags: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    if opts.mode == json_serialize_mode_packed {
+    if opts.mode == JSON_SERIALIZE_MODE_PACKED {
         return 0 as ::core::ffi::c_int;
     }
-    if opts.mode == json_serialize_mode_multiline {
-        if opts.opts & json_serialize_opt_use_tabs != 0 {
-            flags |= f_tabs;
+    if opts.mode == JSON_SERIALIZE_MODE_MULTILINE {
+        if opts.opts & JSON_SERIALIZE_OPT_USE_TABS != 0 {
+            flags |= F_TABS;
         }
     } else {
-        if opts.opts & json_serialize_opt_pack_brackets == 0 {
-            flags |= f_spaces_around_brackets;
+        if opts.opts & JSON_SERIALIZE_OPT_PACK_BRACKETS == 0 {
+            flags |= F_SPACES_AROUND_BRACKETS;
         }
-        if opts.opts & json_serialize_opt_no_space_after_comma == 0 {
-            flags |= f_spaces_after_commas;
+        if opts.opts & JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA == 0 {
+            flags |= F_SPACES_AFTER_COMMAS;
         }
     }
-    if opts.opts & json_serialize_opt_no_space_after_colon == 0 {
-        flags |= f_spaces_after_colons;
+    if opts.opts & JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON == 0 {
+        flags |= F_SPACES_AFTER_COLONS;
     }
     return flags;
 }
@@ -577,7 +577,7 @@ unsafe extern "C" fn serialize_string(
     return buf.offset_from(orig_buf) as ::core::ffi::c_long as usize;
 }
 pub unsafe extern "C" fn json_measure(mut value: *mut JsonValue) -> usize {
-    return json_measure_ex(value, default_opts);
+    return json_measure_ex(value, DEFAULT_OPTS);
 }
 pub unsafe extern "C" fn json_measure_ex(
     mut value: *mut JsonValue,
@@ -592,17 +592,17 @@ pub unsafe extern "C" fn json_measure_ex(
     let mut comma_size: ::core::ffi::c_int = 0;
     let mut colon_size: ::core::ffi::c_int = 0;
     flags = get_serialize_flags(opts);
-    bracket_size = if flags & f_spaces_around_brackets != 0 {
+    bracket_size = if flags & F_SPACES_AROUND_BRACKETS != 0 {
         2 as ::core::ffi::c_int
     } else {
         1 as ::core::ffi::c_int
     };
-    comma_size = if flags & f_spaces_after_commas != 0 {
+    comma_size = if flags & F_SPACES_AFTER_COMMAS != 0 {
         2 as ::core::ffi::c_int
     } else {
         1 as ::core::ffi::c_int
     };
-    colon_size = if flags & f_spaces_after_colons != 0 {
+    colon_size = if flags & F_SPACES_AFTER_COLONS != 0 {
         2 as ::core::ffi::c_int
     } else {
         1 as ::core::ffi::c_int
@@ -748,9 +748,9 @@ pub unsafe extern "C" fn json_measure_ex(
         }
         value = (*value).parent as *mut JsonValue;
     }
-    if opts.mode == json_serialize_mode_multiline {
+    if opts.mode == JSON_SERIALIZE_MODE_MULTILINE {
         total = total.wrapping_add(newlines.wrapping_mul(
-            ((if opts.opts & json_serialize_opt_CRLF != 0 {
+            ((if opts.opts & JSON_SERIALIZE_OPT_CRLF != 0 {
                 2 as ::core::ffi::c_int
             } else {
                 1 as ::core::ffi::c_int
@@ -764,7 +764,7 @@ pub unsafe extern "C" fn json_serialize(
     mut buf: *mut ::core::ffi::c_char,
     mut value: *mut JsonValue,
 ) {
-    json_serialize_ex(buf, value, default_opts);
+    json_serialize_ex(buf, value, DEFAULT_OPTS);
 }
 pub unsafe extern "C" fn json_serialize_ex(
     mut buf: *mut ::core::ffi::c_char,
@@ -780,7 +780,7 @@ pub unsafe extern "C" fn json_serialize_ex(
     let mut i: ::core::ffi::c_int = 0;
     let mut flags: ::core::ffi::c_int = 0;
     flags = get_serialize_flags(opts);
-    indent_char = (if flags & f_tabs != 0 {
+    indent_char = (if flags & F_TABS != 0 {
         '\t' as i32
     } else {
         ' ' as i32
@@ -802,14 +802,14 @@ pub unsafe extern "C" fn json_serialize_ex(
                         let fresh9 = buf;
                         buf = buf.offset(1);
                         *fresh9 = '[' as i32 as ::core::ffi::c_char;
-                        if flags & f_spaces_around_brackets != 0 {
+                        if flags & F_SPACES_AROUND_BRACKETS != 0 {
                             let fresh10 = buf;
                             buf = buf.offset(1);
                             *fresh10 = ' ' as i32 as ::core::ffi::c_char;
                         }
                         indent += opts.indent_size;
-                        if opts.mode == json_serialize_mode_multiline {
-                            if opts.opts & json_serialize_opt_CRLF != 0 {
+                        if opts.mode == JSON_SERIALIZE_MODE_MULTILINE {
+                            if opts.opts & JSON_SERIALIZE_OPT_CRLF != 0 {
                                 let fresh11 = buf;
                                 buf = buf.offset(1);
                                 *fresh11 = '\r' as i32 as ::core::ffi::c_char;
@@ -837,8 +837,8 @@ pub unsafe extern "C" fn json_serialize_ex(
                             == (*value).u.array.length as usize
                         {
                             indent -= opts.indent_size;
-                            if opts.mode == json_serialize_mode_multiline {
-                                if opts.opts & json_serialize_opt_CRLF != 0 {
+                            if opts.mode == JSON_SERIALIZE_MODE_MULTILINE {
+                                if opts.opts & JSON_SERIALIZE_OPT_CRLF != 0 {
                                     let fresh14 = buf;
                                     buf = buf.offset(1);
                                     *fresh14 = '\r' as i32 as ::core::ffi::c_char;
@@ -854,7 +854,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                                     i += 1;
                                 }
                             }
-                            if flags & f_spaces_around_brackets != 0 {
+                            if flags & F_SPACES_AROUND_BRACKETS != 0 {
                                 let fresh17 = buf;
                                 buf = buf.offset(1);
                                 *fresh17 = ' ' as i32 as ::core::ffi::c_char;
@@ -868,13 +868,13 @@ pub unsafe extern "C" fn json_serialize_ex(
                                 let fresh19 = buf;
                                 buf = buf.offset(1);
                                 *fresh19 = ',' as i32 as ::core::ffi::c_char;
-                                if flags & f_spaces_after_commas != 0 {
+                                if flags & F_SPACES_AFTER_COMMAS != 0 {
                                     let fresh20 = buf;
                                     buf = buf.offset(1);
                                     *fresh20 = ' ' as i32 as ::core::ffi::c_char;
                                 }
-                                if opts.mode == json_serialize_mode_multiline {
-                                    if opts.opts & json_serialize_opt_CRLF != 0 {
+                                if opts.mode == JSON_SERIALIZE_MODE_MULTILINE {
+                                    if opts.opts & JSON_SERIALIZE_OPT_CRLF != 0 {
                                         let fresh21 = buf;
                                         buf = buf.offset(1);
                                         *fresh21 = '\r' as i32 as ::core::ffi::c_char;
@@ -919,14 +919,14 @@ pub unsafe extern "C" fn json_serialize_ex(
                         let fresh27 = buf;
                         buf = buf.offset(1);
                         *fresh27 = '{' as i32 as ::core::ffi::c_char;
-                        if flags & f_spaces_around_brackets != 0 {
+                        if flags & F_SPACES_AROUND_BRACKETS != 0 {
                             let fresh28 = buf;
                             buf = buf.offset(1);
                             *fresh28 = ' ' as i32 as ::core::ffi::c_char;
                         }
                         indent += opts.indent_size;
-                        if opts.mode == json_serialize_mode_multiline {
-                            if opts.opts & json_serialize_opt_CRLF != 0 {
+                        if opts.mode == JSON_SERIALIZE_MODE_MULTILINE {
+                            if opts.opts & JSON_SERIALIZE_OPT_CRLF != 0 {
                                 let fresh29 = buf;
                                 buf = buf.offset(1);
                                 *fresh29 = '\r' as i32 as ::core::ffi::c_char;
@@ -954,8 +954,8 @@ pub unsafe extern "C" fn json_serialize_ex(
                             == (*value).u.object.length as usize
                         {
                             indent -= opts.indent_size;
-                            if opts.mode == json_serialize_mode_multiline {
-                                if opts.opts & json_serialize_opt_CRLF != 0 {
+                            if opts.mode == JSON_SERIALIZE_MODE_MULTILINE {
+                                if opts.opts & JSON_SERIALIZE_OPT_CRLF != 0 {
                                     let fresh32 = buf;
                                     buf = buf.offset(1);
                                     *fresh32 = '\r' as i32 as ::core::ffi::c_char;
@@ -971,7 +971,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                                     i += 1;
                                 }
                             }
-                            if flags & f_spaces_around_brackets != 0 {
+                            if flags & F_SPACES_AROUND_BRACKETS != 0 {
                                 let fresh35 = buf;
                                 buf = buf.offset(1);
                                 *fresh35 = ' ' as i32 as ::core::ffi::c_char;
@@ -985,13 +985,13 @@ pub unsafe extern "C" fn json_serialize_ex(
                                 let fresh37 = buf;
                                 buf = buf.offset(1);
                                 *fresh37 = ',' as i32 as ::core::ffi::c_char;
-                                if flags & f_spaces_after_commas != 0 {
+                                if flags & F_SPACES_AFTER_COMMAS != 0 {
                                     let fresh38 = buf;
                                     buf = buf.offset(1);
                                     *fresh38 = ' ' as i32 as ::core::ffi::c_char;
                                 }
-                                if opts.mode == json_serialize_mode_multiline {
-                                    if opts.opts & json_serialize_opt_CRLF != 0 {
+                                if opts.mode == JSON_SERIALIZE_MODE_MULTILINE {
+                                    if opts.opts & JSON_SERIALIZE_OPT_CRLF != 0 {
                                         let fresh39 = buf;
                                         buf = buf.offset(1);
                                         *fresh39 = '\r' as i32 as ::core::ffi::c_char;
@@ -1027,7 +1027,7 @@ pub unsafe extern "C" fn json_serialize_ex(
                             let fresh46 = buf;
                             buf = buf.offset(1);
                             *fresh46 = ':' as i32 as ::core::ffi::c_char;
-                            if flags & f_spaces_after_colons != 0 {
+                            if flags & F_SPACES_AFTER_COLONS != 0 {
                                 let fresh47 = buf;
                                 buf = buf.offset(1);
                                 *fresh47 = ' ' as i32 as ::core::ffi::c_char;

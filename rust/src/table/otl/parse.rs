@@ -7,18 +7,18 @@ use libc::{exit, free, malloc, memcmp, memset, strcmp, strlen, strncmp};
 
 use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getint};
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_important, log_vl_notice, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, LOG_VL_NOTICE, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonValue, JsonType};
-use crate::support::{NULL, true_0};
-use crate::table::otl::{Feature, FeaturePtr, FeatureRef, FeatureRefList, LanguageSystem, LanguageSystemPtr, Lookup, LookupPtr, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, otl_type_gpos_chaining, otl_type_gpos_cursive, otl_type_gpos_markToBase, otl_type_gpos_markToLigature, otl_type_gpos_markToMark, otl_type_gpos_pair, otl_type_gpos_single, otl_type_gsub_alternate, otl_type_gsub_chaining, otl_type_gsub_ligature, otl_type_gsub_multiple, otl_type_gsub_reverse, otl_type_gsub_single, OtlTable};
+use crate::support::{NULL, TRUE_0};
+use crate::table::otl::{Feature, FeaturePtr, FeatureRef, FeatureRefList, LanguageSystem, LanguageSystemPtr, Lookup, LookupPtr, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::json_funcs::otfcc_parse_flags;
-use crate::table::otl::constants::{lookupFlagsLabels};
+use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::support::json_ident::{json_ident};
-use crate::table::otl::{otfcc_delete_lookup, otl_iFeatureList, otl_iFeaturePtr, otl_iFeatureRefList, otl_iLangSystemList, otl_iLanguageSystem, otl_iLookupList, otl_iLookupPtr, otl_iLookupRefList, otl_iSubtableList, table_iOTL};
+use crate::table::otl::{otfcc_delete_lookup, OTL_I_FEATURE_LIST, OTL_I_FEATURE_PTR, OTL_I_FEATURE_REF_LIST, OTL_I_LANG_SYSTEM_LIST, OTL_I_LANGUAGE_SYSTEM, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_PTR, OTL_I_LOOKUP_REF_LIST, OTL_I_SUBTABLE_LIST, TABLE_I_OTL};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::parse::{otl_parse_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_parse_cursive};
@@ -72,7 +72,7 @@ unsafe extern "C" fn _parse_lookup(
     let mut parsed: bool = false;
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gsub_single,
+            OTL_TYPE_GSUB_SINGLE,
             Some(
                 otl_gsub_parse_single
                     as unsafe extern "C" fn(
@@ -88,7 +88,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gsub_multiple,
+            OTL_TYPE_GSUB_MULTIPLE,
             Some(
                 otl_gsub_parse_multi
                     as unsafe extern "C" fn(
@@ -104,7 +104,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gsub_alternate,
+            OTL_TYPE_GSUB_ALTERNATE,
             Some(
                 otl_gsub_parse_multi
                     as unsafe extern "C" fn(
@@ -120,7 +120,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gsub_ligature,
+            OTL_TYPE_GSUB_LIGATURE,
             Some(
                 otl_gsub_parse_ligature
                     as unsafe extern "C" fn(
@@ -136,7 +136,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gsub_chaining,
+            OTL_TYPE_GSUB_CHAINING,
             Some(
                 otl_parse_chaining
                     as unsafe extern "C" fn(
@@ -152,7 +152,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gsub_reverse,
+            OTL_TYPE_GSUB_REVERSE,
             Some(
                 otl_gsub_parse_reverse
                     as unsafe extern "C" fn(
@@ -168,7 +168,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gpos_single,
+            OTL_TYPE_GPOS_SINGLE,
             Some(
                 otl_gpos_parse_single
                     as unsafe extern "C" fn(
@@ -184,7 +184,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gpos_pair,
+            OTL_TYPE_GPOS_PAIR,
             Some(
                 otl_gpos_parse_pair
                     as unsafe extern "C" fn(
@@ -200,7 +200,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gpos_cursive,
+            OTL_TYPE_GPOS_CURSIVE,
             Some(
                 otl_gpos_parse_cursive
                     as unsafe extern "C" fn(
@@ -216,7 +216,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gpos_chaining,
+            OTL_TYPE_GPOS_CHAINING,
             Some(
                 otl_parse_chaining
                     as unsafe extern "C" fn(
@@ -232,7 +232,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gpos_markToBase,
+            OTL_TYPE_GPOS_MARK_TO_BASE,
             Some(
                 otl_gpos_parse_markToSingle
                     as unsafe extern "C" fn(
@@ -248,7 +248,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gpos_markToMark,
+            OTL_TYPE_GPOS_MARK_TO_MARK,
             Some(
                 otl_gpos_parse_markToSingle
                     as unsafe extern "C" fn(
@@ -264,7 +264,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     if !parsed {
         parsed = _declareLookupParser(
-            otl_type_gpos_markToLigature,
+            OTL_TYPE_GPOS_MARK_TO_LIGATURE,
             Some(
                 otl_gpos_parse_markToLigature
                     as unsafe extern "C" fn(
@@ -301,7 +301,7 @@ unsafe extern "C" fn _declareLookupParser(
                 .logSDS
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                log_vl_important,
+                LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::sdsbuild!(
                     sdsempty(),
@@ -616,7 +616,7 @@ unsafe extern "C" fn _declareLookupParser(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" already exists."),
         );
@@ -632,7 +632,7 @@ unsafe extern "C" fn _declareLookupParser(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -644,14 +644,14 @@ unsafe extern "C" fn _declareLookupParser(
         return false;
     }
     let mut lookup: *mut Lookup = ::core::ptr::null_mut::<Lookup>();
-    otl_iLookupPtr.init.expect("non-null function pointer")(&raw mut lookup);
+    OTL_I_LOOKUP_PTR.init.expect("non-null function pointer")(&raw mut lookup);
     (*lookup).type_0 = llt;
     (*lookup).flags = otfcc_parse_flags(
         json_obj_get(
             _lookup,
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
         ),
-        &lookupFlagsLabels,
+        &LOOKUP_FLAGS_LABELS,
     ) as u16;
     let mut markAttachmentType: u16 = json_obj_getint(
         _lookup,
@@ -680,7 +680,7 @@ unsafe extern "C" fn _declareLookupParser(
             {
                 let mut _st: *mut Subtable =
                     parser.expect("non-null function pointer")(_subtable, options);
-                otl_iSubtableList.push.expect("non-null function pointer")(
+                OTL_I_SUBTABLE_LIST.push.expect("non-null function pointer")(
                     &raw mut (*lookup).subtables,
                     _st as SubtablePtr,
                 );
@@ -697,7 +697,7 @@ unsafe extern "C" fn _declareLookupParser(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(sdsempty(), b"Lookup ", lookupName, b" does not have any subtables."),
         );
@@ -1154,7 +1154,7 @@ unsafe extern "C" fn figureOutLookupsFromJSON(
                     .logSDS
                     .expect("non-null function pointer")(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -1976,7 +1976,7 @@ unsafe extern "C" fn feature_merger_activate(
                         (strncmp(kthis, kthat, 4 as usize) == 0 as ::core::ffi::c_int)
                             as ::core::ffi::c_int
                     } else {
-                        true_0
+                        TRUE_0
                     }) != 0
                 {
                     json_value_free(jthat);
@@ -1989,7 +1989,7 @@ unsafe extern "C" fn feature_merger_activate(
                         .logSDS
                         .expect("non-null function pointer")(
                         (*options).logger as *mut ILogger,
-                        log_vl_notice,
+                        LOG_VL_NOTICE,
                         LoggerType::Info,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -2037,7 +2037,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                 capacity: 0,
                 items: ::core::ptr::null_mut::<LookupRef>(),
             };
-            otl_iLookupRefList.init.expect("non-null function pointer")(&raw mut al);
+            OTL_I_LOOKUP_REF_LIST.init.expect("non-null function pointer")(&raw mut al);
             let mut k: TableId = 0 as TableId;
             while (k as ::core::ffi::c_uint) < (*_feature).u.array.length {
                 let mut term: *mut JsonValue =
@@ -2370,7 +2370,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         }
                     }
                     if !item.is_null() {
-                        otl_iLookupRefList.push.expect("non-null function pointer")(
+                        OTL_I_LOOKUP_REF_LIST.push.expect("non-null function pointer")(
                             &raw mut al,
                             (*item).lookup as LookupRef,
                         );
@@ -2379,7 +2379,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
@@ -2726,9 +2726,9 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     ) as *mut FeatureHash;
                     (*s).name = sdsnew(featureName) as *mut ::core::ffi::c_char;
                     (*s).alias = false;
-                    otl_iFeaturePtr.init.expect("non-null function pointer")(&raw mut (*s).feature);
+                    OTL_I_FEATURE_PTR.init.expect("non-null function pointer")(&raw mut (*s).feature);
                     (*(*s).feature).name = sdsdup((*s).name as SdsRaw);
-                    otl_iLookupRefList
+                    OTL_I_LOOKUP_REF_LIST
                         .replace
                         .expect("non-null function pointer")(
                         &raw mut (*(*s).feature).lookups, al
@@ -3194,7 +3194,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             "non-null function pointer",
                         )(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -3205,7 +3205,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             b"]. This feature will be ignored.\n",
                         ),
                     );
-                    otl_iLookupRefList
+                    OTL_I_LOOKUP_REF_LIST
                         .dispose
                         .expect("non-null function pointer")(&raw mut al);
                 }
@@ -3216,7 +3216,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         "non-null function pointer",
                     )(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -3227,7 +3227,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         b"]. This feature will be ignored.\n",
                     ),
                 );
-                otl_iLookupRefList
+                OTL_I_LOOKUP_REF_LIST
                     .dispose
                     .expect("non-null function pointer")(&raw mut al);
             }
@@ -4379,7 +4379,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                 capacity: 0,
                 items: ::core::ptr::null_mut::<FeatureRef>(),
             };
-            otl_iFeatureRefList.init.expect("non-null function pointer")(&raw mut af);
+            OTL_I_FEATURE_REF_LIST.init.expect("non-null function pointer")(&raw mut af);
             let mut _features: *mut JsonValue = json_obj_get_type(
                 _language,
                 b"features\0" as *const u8 as *const ::core::ffi::c_char,
@@ -4721,7 +4721,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                             }
                         }
                         if !item.is_null() {
-                            otl_iFeatureRefList.push.expect("non-null function pointer")(
+                            OTL_I_FEATURE_REF_LIST.push.expect("non-null function pointer")(
                                 &raw mut af,
                                 (*item).feature as FeatureRef,
                             );
@@ -5059,12 +5059,12 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         267 as ::core::ffi::c_ulong,
                     ) as *mut LanguageHash;
                     (*s).name = sdsnew(languageName) as *mut ::core::ffi::c_char;
-                    otl_iLanguageSystem.init.expect("non-null function pointer")(
+                    OTL_I_LANGUAGE_SYSTEM.init.expect("non-null function pointer")(
                         &raw mut (*s).language,
                     );
                     (*(*s).language).name = sdsdup((*s).name as SdsRaw);
                     (*(*s).language).requiredFeature = requiredFeature as FeatureRef;
-                    otl_iFeatureRefList
+                    OTL_I_FEATURE_REF_LIST
                         .replace
                         .expect("non-null function pointer")(
                         &raw mut (*(*s).language).features,
@@ -5531,7 +5531,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                             "non-null function pointer",
                         )(
                         (*options).logger as *mut ILogger,
-                        log_vl_important,
+                        LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::sdsbuild!(
                             sdsempty(),
@@ -5542,7 +5542,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                             b"]. This language term will be ignored.\n",
                         ),
                     );
-                    otl_iFeatureRefList
+                    OTL_I_FEATURE_REF_LIST
                         .dispose
                         .expect("non-null function pointer")(&raw mut af);
                 }
@@ -5553,7 +5553,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         "non-null function pointer",
                     )(
                     (*options).logger as *mut ILogger,
-                    log_vl_important,
+                    LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::sdsbuild!(
                         sdsempty(),
@@ -5564,7 +5564,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         b"]. This language term will be ignored.\n",
                     ),
                 );
-                otl_iFeatureRefList
+                OTL_I_FEATURE_REF_LIST
                     .dispose
                     .expect("non-null function pointer")(&raw mut af);
             }
@@ -5610,7 +5610,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
     let mut table: *mut JsonValue = json_obj_get_type(root, tag, JsonType::Object);
     if !table.is_null() {
         otl = (
-            table_iOTL.create.expect("non-null function pointer"))();
+            TABLE_I_OTL.create.expect("non-null function pointer"))();
         languages = json_obj_get_type(
             table,
             b"languages\0" as *const u8 as *const ::core::ffi::c_char,
@@ -6451,7 +6451,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                     tmp = (if !lh.is_null() { (*lh).hh.next } else { NULL }) as *mut LookupHash
                         as *mut LookupHash;
                     while !s.is_null() {
-                        otl_iLookupList.push.expect("non-null function pointer")(
+                        OTL_I_LOOKUP_LIST.push.expect("non-null function pointer")(
                             &raw mut (*otl).lookups,
                             (*s).lookup as LookupPtr,
                         );
@@ -6520,7 +6520,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                         as *mut FeatureHash;
                     while !s_0.is_null() {
                         if !(*s_0).alias {
-                            otl_iFeatureList.push.expect("non-null function pointer")(
+                            OTL_I_FEATURE_LIST.push.expect("non-null function pointer")(
                                 &raw mut (*otl).features,
                                 (*s_0).feature as FeaturePtr,
                             );
@@ -6594,7 +6594,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                     tmp_1 = (if !sh.is_null() { (*sh).hh.next } else { NULL }) as *mut LanguageHash
                         as *mut LanguageHash;
                     while !s_1.is_null() {
-                        otl_iLangSystemList.push.expect("non-null function pointer")(
+                        OTL_I_LANG_SYSTEM_LIST.push.expect("non-null function pointer")(
                             &raw mut (*otl).languages,
                             (*s_1).language as LanguageSystemPtr,
                         );
@@ -6681,7 +6681,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
             .logSDS
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            log_vl_important,
+            LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::sdsbuild!(
                 sdsempty(),
@@ -6690,7 +6690,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                 b".\n",
             ),
         );
-        table_iOTL.free.expect("non-null function pointer")(otl);
+        TABLE_I_OTL.free.expect("non-null function pointer")(otl);
     }
     return ::core::ptr::null_mut::<OtlTable>();
 }

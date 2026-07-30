@@ -55,7 +55,7 @@ pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut ChainingSubtabl
         closeRule(&raw mut (*subtable).c2rust_unnamed.rule);
     };
 }
-pub static iSubtable_chaining: ChainingSubtableElementInterface = {
+pub static I_SUBTABLE_CHAINING: ChainingSubtableElementInterface = {
     ChainingSubtableElementInterface {
         init: Some(subtable_chaining_init as unsafe extern "C" fn(*mut ChainingSubtable) -> ()),
         copy: Some(

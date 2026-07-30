@@ -14,7 +14,7 @@ use crate::support::{NULL};
 use crate::table::otl::{ChainLookupApplication, ChainingRule, Lookup, Subtable, ChainingType, ChainingSubtable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::table::otl::subtables::chaining::build::{otfcc_build_chaining, otfcc_build_contextual, otfcc_chainingLookupIsContextualLookup};
-use crate::table::otl::subtables::chaining::common::{iSubtable_chaining};
+use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ClassifierHash {
@@ -3883,7 +3883,7 @@ pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
                 otfcc_build_chaining(st as *mut Subtable)
             };
             if st != st0 {
-                iSubtable_chaining.free.expect("non-null function pointer")(st);
+                I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(st);
             }
             let ref mut fresh0 = *(*subtableBuffers).offset(subtablesWritten as isize);
             *fresh0 = buf;

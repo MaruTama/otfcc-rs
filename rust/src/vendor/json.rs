@@ -97,15 +97,15 @@ pub struct JsonState {
     pub cur_col: ::core::ffi::c_uint,
 }
 pub type JsonUchar = ::core::ffi::c_uint;
-pub const json_enable_comments: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
-/// `json.h` exposes this as `extern const JsonValue json_value_none`, an empty
+pub const JSON_ENABLE_COMMENTS: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
+/// `json.h` exposes this as `extern const JsonValue JSON_VALUE_NONE`, an empty
 /// value for a caller to compare against or assign from. A `static` cannot hold
 /// it -- `JsonValue` has raw pointer fields, so it is not `Sync` -- but a
 /// `const` can, and being a compile-time constant is closer to what C meant by
 /// `const` here than a mutable global was. Nothing in otfcc reads it; like
-/// `json_builder_extra` it is the vendored library's own API, and it stops
+/// `JSON_BUILDER_EXTRA` it is the vendored library's own API, and it stops
 /// being an exported symbol.
-pub const json_value_none: JsonValue = JsonValue {
+pub const JSON_VALUE_NONE: JsonValue = JsonValue {
     parent: ::core::ptr::null::<JsonValue>() as *mut JsonValue,
     type_0: JsonType::None,
     u: JsonValuePayload { boolean: 0 },
@@ -264,35 +264,35 @@ unsafe extern "C" fn new_value(
     *alloc = *top;
     return 1 as ::core::ffi::c_int;
 }
-static flag_line_comment: ::core::ffi::c_long =
+static FLAG_LINE_COMMENT: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 13 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_seek_value: ::core::ffi::c_long =
+static FLAG_SEEK_VALUE: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_string: ::core::ffi::c_long =
+static FLAG_STRING: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_done: ::core::ffi::c_long =
+static FLAG_DONE: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 7 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_need_comma: ::core::ffi::c_long =
+static FLAG_NEED_COMMA: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_need_colon: ::core::ffi::c_long =
+static FLAG_NEED_COLON: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 6 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_block_comment: ::core::ffi::c_long =
+static FLAG_BLOCK_COMMENT: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 14 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_next: ::core::ffi::c_long =
+static FLAG_NEXT: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_reproc: ::core::ffi::c_long =
+static FLAG_REPROC: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_escaped: ::core::ffi::c_long =
+static FLAG_ESCAPED: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_num_negative: ::core::ffi::c_long =
+static FLAG_NUM_NEGATIVE: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_num_e_negative: ::core::ffi::c_long =
+static FLAG_NUM_E_NEGATIVE: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 12 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_num_e_got_sign: ::core::ffi::c_long =
+static FLAG_NUM_E_GOT_SIGN: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 11 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_num_zero: ::core::ffi::c_long =
+static FLAG_NUM_ZERO: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 9 as ::core::ffi::c_int) as ::core::ffi::c_long;
-static flag_num_e: ::core::ffi::c_long =
+static FLAG_NUM_E: ::core::ffi::c_long =
     ((1 as ::core::ffi::c_int) << 10 as ::core::ffi::c_int) as ::core::ffi::c_long;
 pub unsafe extern "C" fn json_parse_ex(
     mut settings: *mut JsonSettings,
@@ -414,7 +414,7 @@ pub unsafe extern "C" fn json_parse_ex(
         let mut string_length: ::core::ffi::c_uint = 0 as ::core::ffi::c_uint;
         root = ::core::ptr::null_mut::<JsonValue>();
         top = root;
-        flags = flag_seek_value;
+        flags = FLAG_SEEK_VALUE;
         state.cur_line = 1 as ::core::ffi::c_uint;
         state.ptr = json;
         loop {
@@ -423,7 +423,7 @@ pub unsafe extern "C" fn json_parse_ex(
             } else {
                 *state.ptr as ::core::ffi::c_int
             }) as ::core::ffi::c_char;
-            if flags & flag_string != 0 {
+            if flags & FLAG_STRING != 0 {
                 if b == 0 {
                     sprintf(
                         &raw mut error as *mut ::core::ffi::c_char,
@@ -439,8 +439,8 @@ pub unsafe extern "C" fn json_parse_ex(
                         current_block = 2680027254923815990;
                         break 's_107;
                     }
-                    if flags & flag_escaped != 0 {
-                        flags &= !flag_escaped;
+                    if flags & FLAG_ESCAPED != 0 {
+                        flags &= !FLAG_ESCAPED;
                         match b as ::core::ffi::c_int {
                             98 => {
                                 if state.first_pass == 0 {
@@ -677,13 +677,13 @@ pub unsafe extern "C" fn json_parse_ex(
                         }
                         current_block = 11057878835866523405;
                     } else if b as ::core::ffi::c_int == '\\' as i32 {
-                        flags |= flag_escaped;
+                        flags |= FLAG_ESCAPED;
                         current_block = 11057878835866523405;
                     } else if b as ::core::ffi::c_int == '"' as i32 {
                         if state.first_pass == 0 {
                             *string.offset(string_length as isize) = 0 as ::core::ffi::c_char;
                         }
-                        flags &= !flag_string;
+                        flags &= !FLAG_STRING;
                         string = ::core::ptr::null_mut::<::core::ffi::c_char>();
                         match (*top).type_0 {
                             JsonType::String => {
@@ -720,12 +720,12 @@ pub unsafe extern "C" fn json_parse_ex(
                                                     as isize,
                                             );
                                         }
-                                        flags |= flag_seek_value | flag_need_colon;
+                                        flags |= FLAG_SEEK_VALUE | FLAG_NEED_COLON;
                                         current_block = 11057878835866523405;
                                     }
                                     _ => {
                                         (*top).u.string.length = string_length;
-                                        flags |= flag_next;
+                                        flags |= FLAG_NEXT;
                                         current_block = 16696653877814833746;
                                     }
                                 }
@@ -764,12 +764,12 @@ pub unsafe extern "C" fn json_parse_ex(
                                                     as isize,
                                             );
                                         }
-                                        flags |= flag_seek_value | flag_need_colon;
+                                        flags |= FLAG_SEEK_VALUE | FLAG_NEED_COLON;
                                         current_block = 11057878835866523405;
                                     }
                                     _ => {
                                         (*top).u.string.length = string_length;
-                                        flags |= flag_next;
+                                        flags |= FLAG_NEXT;
                                         current_block = 16696653877814833746;
                                     }
                                 }
@@ -791,18 +791,18 @@ pub unsafe extern "C" fn json_parse_ex(
             }
             match current_block {
                 16696653877814833746 => {
-                    if state.settings.settings & json_enable_comments != 0 {
-                        if flags & (flag_line_comment | flag_block_comment) != 0 {
-                            if flags & flag_line_comment != 0 {
+                    if state.settings.settings & JSON_ENABLE_COMMENTS != 0 {
+                        if flags & (FLAG_LINE_COMMENT | FLAG_BLOCK_COMMENT) != 0 {
+                            if flags & FLAG_LINE_COMMENT != 0 {
                                 if b as ::core::ffi::c_int == '\r' as i32
                                     || b as ::core::ffi::c_int == '\n' as i32
                                     || b == 0
                                 {
-                                    flags &= !flag_line_comment;
+                                    flags &= !FLAG_LINE_COMMENT;
                                     state.ptr = state.ptr.offset(-1);
                                 }
                                 current_block = 11057878835866523405;
-                            } else if flags & flag_block_comment != 0 {
+                            } else if flags & FLAG_BLOCK_COMMENT != 0 {
                                 if b == 0 {
                                     sprintf(
                                         &raw mut error as *mut ::core::ffi::c_char,
@@ -819,7 +819,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                         as ::core::ffi::c_int
                                         == '/' as i32
                                 {
-                                    flags &= !flag_block_comment;
+                                    flags &= !FLAG_BLOCK_COMMENT;
                                     state.ptr = state.ptr.offset(1);
                                 }
                                 current_block = 11057878835866523405;
@@ -827,7 +827,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                 current_block = 4299703460566765016;
                             }
                         } else if b as ::core::ffi::c_int == '/' as i32 {
-                            if flags & (flag_seek_value | flag_done) == 0
+                            if flags & (FLAG_SEEK_VALUE | FLAG_DONE) == 0
                                 && (*top).type_0 != JsonType::Object
                             {
                                 sprintf(
@@ -855,10 +855,10 @@ pub unsafe extern "C" fn json_parse_ex(
                                     b = *state.ptr;
                                     match b as ::core::ffi::c_int {
                                         47 => {
-                                            flags |= flag_line_comment;
+                                            flags |= FLAG_LINE_COMMENT;
                                         }
                                         42 => {
-                                            flags |= flag_block_comment;
+                                            flags |= FLAG_BLOCK_COMMENT;
                                         }
                                         _ => {
                                             sprintf(
@@ -885,7 +885,7 @@ pub unsafe extern "C" fn json_parse_ex(
                     match current_block {
                         11057878835866523405 => {}
                         _ => {
-                            if flags & flag_done != 0 {
+                            if flags & FLAG_DONE != 0 {
                                 if b == 0 {
                                     break;
                                 }
@@ -935,7 +935,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                     }
                                 }
                             } else {
-                                if flags & flag_seek_value != 0 {
+                                if flags & FLAG_SEEK_VALUE != 0 {
                                     match b as ::core::ffi::c_int {
                                         10 => {
                                             current_block = 15953825877604003206;
@@ -952,8 +952,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 as ::core::ffi::c_uint
                                                     {
                                                         flags = flags
-                                                            & !(flag_need_comma | flag_seek_value)
-                                                            | flag_next;
+                                                            & !(FLAG_NEED_COMMA | FLAG_SEEK_VALUE)
+                                                            | FLAG_NEXT;
                                                     } else {
                                                         sprintf(
                                                             &raw mut error
@@ -969,9 +969,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                     current_block = 11603475171617447446;
                                                 }
                                                 _ => {
-                                                    if flags & flag_need_comma != 0 {
+                                                    if flags & FLAG_NEED_COMMA != 0 {
                                                         if b as ::core::ffi::c_int == ',' as i32 {
-                                                            flags &= !flag_need_comma;
+                                                            flags &= !FLAG_NEED_COMMA;
                                                         } else {
                                                             sprintf(
                                                                 &raw mut error
@@ -987,9 +987,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             break 's_107;
                                                         }
                                                         current_block = 11057878835866523405;
-                                                    } else if flags & flag_need_colon != 0 {
+                                                    } else if flags & FLAG_NEED_COLON != 0 {
                                                         if b as ::core::ffi::c_int == ':' as i32 {
-                                                            flags &= !flag_need_colon;
+                                                            flags &= !FLAG_NEED_COLON;
                                                         } else {
                                                             sprintf(
                                                                 &raw mut error
@@ -1006,7 +1006,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                         }
                                                         current_block = 11057878835866523405;
                                                     } else {
-                                                        flags &= !flag_seek_value;
+                                                        flags &= !FLAG_SEEK_VALUE;
                                                         match b as ::core::ffi::c_int {
                                                             123 => {
                                                                 if new_value(
@@ -1037,7 +1037,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_seek_value;
+                                                                flags |= FLAG_SEEK_VALUE;
                                                                 current_block =
                                                                     11057878835866523405;
                                                             }
@@ -1054,7 +1054,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_string;
+                                                                flags |= FLAG_STRING;
                                                                 string = (*top).u.string.ptr;
                                                                 string_length =
                                                                     0 as ::core::ffi::c_uint;
@@ -1105,7 +1105,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 (*top).u.boolean =
                                                                     1 as ::core::ffi::c_int;
-                                                                flags |= flag_next;
+                                                                flags |= FLAG_NEXT;
                                                                 current_block =
                                                                     11603475171617447446;
                                                             }
@@ -1158,7 +1158,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_next;
+                                                                flags |= FLAG_NEXT;
                                                                 current_block =
                                                                     11603475171617447446;
                                                             }
@@ -1204,7 +1204,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_next;
+                                                                flags |= FLAG_NEXT;
                                                                 current_block =
                                                                     11603475171617447446;
                                                             }
@@ -1242,15 +1242,15 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             }
                                                                         }
                                                                         flags |=
-                                                                            flag_next | flag_reproc;
+                                                                            FLAG_NEXT | FLAG_REPROC;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
-                                                                        flags &= !(flag_num_negative
-                                                                            | flag_num_e
-                                                                            | flag_num_e_got_sign
-                                                                            | flag_num_e_negative
-                                                                            | flag_num_zero);
+                                                                        flags &= !(FLAG_NUM_NEGATIVE
+                                                                            | FLAG_NUM_E
+                                                                            | FLAG_NUM_E_GOT_SIGN
+                                                                            | FLAG_NUM_E_NEGATIVE
+                                                                            | FLAG_NUM_ZERO);
                                                                         num_digits = 0
                                                                             as ::core::ffi::c_long;
                                                                         num_fraction = 0 as i64;
@@ -1259,11 +1259,11 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         if b as ::core::ffi::c_int
                                                                             != '-' as i32
                                                                         {
-                                                                            flags |= flag_reproc;
+                                                                            flags |= FLAG_REPROC;
                                                                             current_block = 11603475171617447446;
                                                                         } else {
                                                                             flags |=
-                                                                                flag_num_negative;
+                                                                                FLAG_NUM_NEGATIVE;
                                                                             current_block = 11057878835866523405;
                                                                         }
                                                                     }
@@ -1304,8 +1304,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 as ::core::ffi::c_uint
                                                     {
                                                         flags = flags
-                                                            & !(flag_need_comma | flag_seek_value)
-                                                            | flag_next;
+                                                            & !(FLAG_NEED_COMMA | FLAG_SEEK_VALUE)
+                                                            | FLAG_NEXT;
                                                     } else {
                                                         sprintf(
                                                             &raw mut error
@@ -1321,9 +1321,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                     current_block = 11603475171617447446;
                                                 }
                                                 _ => {
-                                                    if flags & flag_need_comma != 0 {
+                                                    if flags & FLAG_NEED_COMMA != 0 {
                                                         if b as ::core::ffi::c_int == ',' as i32 {
-                                                            flags &= !flag_need_comma;
+                                                            flags &= !FLAG_NEED_COMMA;
                                                         } else {
                                                             sprintf(
                                                                 &raw mut error
@@ -1339,9 +1339,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             break 's_107;
                                                         }
                                                         current_block = 11057878835866523405;
-                                                    } else if flags & flag_need_colon != 0 {
+                                                    } else if flags & FLAG_NEED_COLON != 0 {
                                                         if b as ::core::ffi::c_int == ':' as i32 {
-                                                            flags &= !flag_need_colon;
+                                                            flags &= !FLAG_NEED_COLON;
                                                         } else {
                                                             sprintf(
                                                                 &raw mut error
@@ -1358,7 +1358,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                         }
                                                         current_block = 11057878835866523405;
                                                     } else {
-                                                        flags &= !flag_seek_value;
+                                                        flags &= !FLAG_SEEK_VALUE;
                                                         match b as ::core::ffi::c_int {
                                                             123 => {
                                                                 if new_value(
@@ -1389,7 +1389,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_seek_value;
+                                                                flags |= FLAG_SEEK_VALUE;
                                                                 current_block =
                                                                     11057878835866523405;
                                                             }
@@ -1406,7 +1406,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_string;
+                                                                flags |= FLAG_STRING;
                                                                 string = (*top).u.string.ptr;
                                                                 string_length =
                                                                     0 as ::core::ffi::c_uint;
@@ -1457,7 +1457,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 (*top).u.boolean =
                                                                     1 as ::core::ffi::c_int;
-                                                                flags |= flag_next;
+                                                                flags |= FLAG_NEXT;
                                                                 current_block =
                                                                     11603475171617447446;
                                                             }
@@ -1510,7 +1510,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_next;
+                                                                flags |= FLAG_NEXT;
                                                                 current_block =
                                                                     11603475171617447446;
                                                             }
@@ -1556,7 +1556,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_next;
+                                                                flags |= FLAG_NEXT;
                                                                 current_block =
                                                                     11603475171617447446;
                                                             }
@@ -1594,15 +1594,15 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             }
                                                                         }
                                                                         flags |=
-                                                                            flag_next | flag_reproc;
+                                                                            FLAG_NEXT | FLAG_REPROC;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
-                                                                        flags &= !(flag_num_negative
-                                                                            | flag_num_e
-                                                                            | flag_num_e_got_sign
-                                                                            | flag_num_e_negative
-                                                                            | flag_num_zero);
+                                                                        flags &= !(FLAG_NUM_NEGATIVE
+                                                                            | FLAG_NUM_E
+                                                                            | FLAG_NUM_E_GOT_SIGN
+                                                                            | FLAG_NUM_E_NEGATIVE
+                                                                            | FLAG_NUM_ZERO);
                                                                         num_digits = 0
                                                                             as ::core::ffi::c_long;
                                                                         num_fraction = 0 as i64;
@@ -1611,11 +1611,11 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         if b as ::core::ffi::c_int
                                                                             != '-' as i32
                                                                         {
-                                                                            flags |= flag_reproc;
+                                                                            flags |= FLAG_REPROC;
                                                                             current_block = 11603475171617447446;
                                                                         } else {
                                                                             flags |=
-                                                                                flag_num_negative;
+                                                                                FLAG_NUM_NEGATIVE;
                                                                             current_block = 11057878835866523405;
                                                                         }
                                                                     }
@@ -1653,8 +1653,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 as ::core::ffi::c_uint
                                                     {
                                                         flags = flags
-                                                            & !(flag_need_comma | flag_seek_value)
-                                                            | flag_next;
+                                                            & !(FLAG_NEED_COMMA | FLAG_SEEK_VALUE)
+                                                            | FLAG_NEXT;
                                                     } else {
                                                         sprintf(
                                                             &raw mut error
@@ -1670,9 +1670,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                     current_block = 11603475171617447446;
                                                 }
                                                 _ => {
-                                                    if flags & flag_need_comma != 0 {
+                                                    if flags & FLAG_NEED_COMMA != 0 {
                                                         if b as ::core::ffi::c_int == ',' as i32 {
-                                                            flags &= !flag_need_comma;
+                                                            flags &= !FLAG_NEED_COMMA;
                                                         } else {
                                                             sprintf(
                                                                 &raw mut error
@@ -1688,9 +1688,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             break 's_107;
                                                         }
                                                         current_block = 11057878835866523405;
-                                                    } else if flags & flag_need_colon != 0 {
+                                                    } else if flags & FLAG_NEED_COLON != 0 {
                                                         if b as ::core::ffi::c_int == ':' as i32 {
-                                                            flags &= !flag_need_colon;
+                                                            flags &= !FLAG_NEED_COLON;
                                                         } else {
                                                             sprintf(
                                                                 &raw mut error
@@ -1707,7 +1707,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                         }
                                                         current_block = 11057878835866523405;
                                                     } else {
-                                                        flags &= !flag_seek_value;
+                                                        flags &= !FLAG_SEEK_VALUE;
                                                         match b as ::core::ffi::c_int {
                                                             123 => {
                                                                 if new_value(
@@ -1738,7 +1738,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_seek_value;
+                                                                flags |= FLAG_SEEK_VALUE;
                                                                 current_block =
                                                                     11057878835866523405;
                                                             }
@@ -1755,7 +1755,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_string;
+                                                                flags |= FLAG_STRING;
                                                                 string = (*top).u.string.ptr;
                                                                 string_length =
                                                                     0 as ::core::ffi::c_uint;
@@ -1806,7 +1806,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 (*top).u.boolean =
                                                                     1 as ::core::ffi::c_int;
-                                                                flags |= flag_next;
+                                                                flags |= FLAG_NEXT;
                                                                 current_block =
                                                                     11603475171617447446;
                                                             }
@@ -1859,7 +1859,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_next;
+                                                                flags |= FLAG_NEXT;
                                                                 current_block =
                                                                     11603475171617447446;
                                                             }
@@ -1905,7 +1905,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         5120512961492157320;
                                                                     break 's_107;
                                                                 }
-                                                                flags |= flag_next;
+                                                                flags |= FLAG_NEXT;
                                                                 current_block =
                                                                     11603475171617447446;
                                                             }
@@ -1943,15 +1943,15 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             }
                                                                         }
                                                                         flags |=
-                                                                            flag_next | flag_reproc;
+                                                                            FLAG_NEXT | FLAG_REPROC;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
-                                                                        flags &= !(flag_num_negative
-                                                                            | flag_num_e
-                                                                            | flag_num_e_got_sign
-                                                                            | flag_num_e_negative
-                                                                            | flag_num_zero);
+                                                                        flags &= !(FLAG_NUM_NEGATIVE
+                                                                            | FLAG_NUM_E
+                                                                            | FLAG_NUM_E_GOT_SIGN
+                                                                            | FLAG_NUM_E_NEGATIVE
+                                                                            | FLAG_NUM_ZERO);
                                                                         num_digits = 0
                                                                             as ::core::ffi::c_long;
                                                                         num_fraction = 0 as i64;
@@ -1960,11 +1960,11 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         if b as ::core::ffi::c_int
                                                                             != '-' as i32
                                                                         {
-                                                                            flags |= flag_reproc;
+                                                                            flags |= FLAG_REPROC;
                                                                             current_block = 11603475171617447446;
                                                                         } else {
                                                                             flags |=
-                                                                                flag_num_negative;
+                                                                                FLAG_NUM_NEGATIVE;
                                                                             current_block = 11057878835866523405;
                                                                         }
                                                                     }
@@ -1999,9 +1999,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             current_block = 17318500399378829025;
                                                             match current_block {
                                                                 10459093242147315661 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
-                                                                        flags &= !flag_need_comma;
+                                                                        flags &= !FLAG_NEED_COMMA;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
@@ -2010,7 +2010,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     }
                                                                 }
                                                                 14348858175135860202 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
                                                                         sprintf(
                                                                             &raw mut error as *mut ::core::ffi::c_char,
@@ -2023,7 +2023,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             14191169715820259248;
                                                                         break 's_107;
                                                                     } else {
-                                                                        flags |= flag_string;
+                                                                        flags |= FLAG_STRING;
                                                                         string = (*top)._reserved.object_mem
                                                                             as *mut ::core::ffi::c_char;
                                                                         string_length = 0
@@ -2043,8 +2043,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 7153118028659730796 => {
                                                                     flags = flags
-                                                                        & !flag_need_comma
-                                                                        | flag_next;
+                                                                        & !FLAG_NEED_COMMA
+                                                                        | FLAG_NEXT;
                                                                     current_block =
                                                                         11603475171617447446;
                                                                 }
@@ -2075,9 +2075,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             current_block = 14348858175135860202;
                                                             match current_block {
                                                                 10459093242147315661 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
-                                                                        flags &= !flag_need_comma;
+                                                                        flags &= !FLAG_NEED_COMMA;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
@@ -2086,7 +2086,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     }
                                                                 }
                                                                 14348858175135860202 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
                                                                         sprintf(
                                                                             &raw mut error as *mut ::core::ffi::c_char,
@@ -2099,7 +2099,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             14191169715820259248;
                                                                         break 's_107;
                                                                     } else {
-                                                                        flags |= flag_string;
+                                                                        flags |= FLAG_STRING;
                                                                         string = (*top)._reserved.object_mem
                                                                             as *mut ::core::ffi::c_char;
                                                                         string_length = 0
@@ -2119,8 +2119,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 7153118028659730796 => {
                                                                     flags = flags
-                                                                        & !flag_need_comma
-                                                                        | flag_next;
+                                                                        & !FLAG_NEED_COMMA
+                                                                        | FLAG_NEXT;
                                                                     current_block =
                                                                         11603475171617447446;
                                                                 }
@@ -2148,9 +2148,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             current_block = 7153118028659730796;
                                                             match current_block {
                                                                 10459093242147315661 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
-                                                                        flags &= !flag_need_comma;
+                                                                        flags &= !FLAG_NEED_COMMA;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
@@ -2159,7 +2159,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     }
                                                                 }
                                                                 14348858175135860202 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
                                                                         sprintf(
                                                                             &raw mut error as *mut ::core::ffi::c_char,
@@ -2172,7 +2172,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             14191169715820259248;
                                                                         break 's_107;
                                                                     } else {
-                                                                        flags |= flag_string;
+                                                                        flags |= FLAG_STRING;
                                                                         string = (*top)._reserved.object_mem
                                                                             as *mut ::core::ffi::c_char;
                                                                         string_length = 0
@@ -2192,8 +2192,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 7153118028659730796 => {
                                                                     flags = flags
-                                                                        & !flag_need_comma
-                                                                        | flag_next;
+                                                                        & !FLAG_NEED_COMMA
+                                                                        | FLAG_NEXT;
                                                                     current_block =
                                                                         11603475171617447446;
                                                                 }
@@ -2221,9 +2221,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             current_block = 10459093242147315661;
                                                             match current_block {
                                                                 10459093242147315661 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
-                                                                        flags &= !flag_need_comma;
+                                                                        flags &= !FLAG_NEED_COMMA;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
@@ -2232,7 +2232,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     }
                                                                 }
                                                                 14348858175135860202 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
                                                                         sprintf(
                                                                             &raw mut error as *mut ::core::ffi::c_char,
@@ -2245,7 +2245,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             14191169715820259248;
                                                                         break 's_107;
                                                                     } else {
-                                                                        flags |= flag_string;
+                                                                        flags |= FLAG_STRING;
                                                                         string = (*top)._reserved.object_mem
                                                                             as *mut ::core::ffi::c_char;
                                                                         string_length = 0
@@ -2265,8 +2265,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 7153118028659730796 => {
                                                                     flags = flags
-                                                                        & !flag_need_comma
-                                                                        | flag_next;
+                                                                        & !FLAG_NEED_COMMA
+                                                                        | FLAG_NEXT;
                                                                     current_block =
                                                                         11603475171617447446;
                                                                 }
@@ -2294,9 +2294,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             current_block = 5906948055639026220;
                                                             match current_block {
                                                                 10459093242147315661 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
-                                                                        flags &= !flag_need_comma;
+                                                                        flags &= !FLAG_NEED_COMMA;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
@@ -2305,7 +2305,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     }
                                                                 }
                                                                 14348858175135860202 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
                                                                         sprintf(
                                                                             &raw mut error as *mut ::core::ffi::c_char,
@@ -2318,7 +2318,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             14191169715820259248;
                                                                         break 's_107;
                                                                     } else {
-                                                                        flags |= flag_string;
+                                                                        flags |= FLAG_STRING;
                                                                         string = (*top)._reserved.object_mem
                                                                             as *mut ::core::ffi::c_char;
                                                                         string_length = 0
@@ -2338,8 +2338,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 7153118028659730796 => {
                                                                     flags = flags
-                                                                        & !flag_need_comma
-                                                                        | flag_next;
+                                                                        & !FLAG_NEED_COMMA
+                                                                        | FLAG_NEXT;
                                                                     current_block =
                                                                         11603475171617447446;
                                                                 }
@@ -2372,10 +2372,10 @@ pub unsafe extern "C" fn json_parse_ex(
                                                         if (*top).type_0 as ::core::ffi::c_uint
                                                             == JsonType::Integer as ::core::ffi::c_int
                                                                 as ::core::ffi::c_uint
-                                                            || flags & flag_num_e != 0
+                                                            || flags & FLAG_NUM_E != 0
                                                         {
-                                                            if flags & flag_num_e == 0 {
-                                                                if flags & flag_num_zero != 0 {
+                                                            if flags & FLAG_NUM_E == 0 {
+                                                                if flags & FLAG_NUM_ZERO != 0 {
                                                                     sprintf(
                                                                         &raw mut error as *mut ::core::ffi::c_char,
                                                                         b"%d:%d: Unexpected `0` before `%c`\0" as *const u8
@@ -2393,7 +2393,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         && b as ::core::ffi::c_int
                                                                             == '0' as i32
                                                                     {
-                                                                        flags |= flag_num_zero;
+                                                                        flags |= FLAG_NUM_ZERO;
                                                                     }
                                                                     (*top).u.integer = (*top)
                                                                         .u
@@ -2404,7 +2404,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             as i64;
                                                                 }
                                                             } else {
-                                                                flags |= flag_num_e_got_sign;
+                                                                flags |= FLAG_NUM_E_GOT_SIGN;
                                                                 num_e = num_e
                                                                     * 10 as ::core::ffi::c_long
                                                                     + (b as ::core::ffi::c_int
@@ -2423,14 +2423,14 @@ pub unsafe extern "C" fn json_parse_ex(
                                                         if b as ::core::ffi::c_int == '+' as i32
                                                             || b as ::core::ffi::c_int == '-' as i32
                                                         {
-                                                            if flags & flag_num_e != 0
-                                                                && flags & flag_num_e_got_sign == 0
+                                                            if flags & FLAG_NUM_E != 0
+                                                                && flags & FLAG_NUM_E_GOT_SIGN == 0
                                                             {
-                                                                flags |= flag_num_e_got_sign;
+                                                                flags |= FLAG_NUM_E_GOT_SIGN;
                                                                 if b as ::core::ffi::c_int
                                                                     == '-' as i32
                                                                 {
-                                                                    flags |= flag_num_e_negative;
+                                                                    flags |= FLAG_NUM_E_NEGATIVE;
                                                                 }
                                                                 current_block =
                                                                     11057878835866523405;
@@ -2470,7 +2470,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                         match current_block {
                                                             11057878835866523405 => {}
                                                             _ => {
-                                                                if flags & flag_num_e == 0 {
+                                                                if flags & FLAG_NUM_E == 0 {
                                                                     if (*top).type_0
                                                                         as ::core::ffi::c_uint
                                                                         == JsonType::Double
@@ -2498,7 +2498,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         || b as ::core::ffi::c_int
                                                                             == 'E' as i32
                                                                     {
-                                                                        flags |= flag_num_e;
+                                                                        flags |= FLAG_NUM_E;
                                                                         if (*top).type_0 == JsonType::Integer
                                                                         {
                                                                             (*top).type_0 = JsonType::Double;
@@ -2506,7 +2506,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         }
                                                                         num_digits = 0
                                                                             as ::core::ffi::c_long;
-                                                                        flags &= !flag_num_zero;
+                                                                        flags &= !FLAG_NUM_ZERO;
                                                                         current_block =
                                                                             11057878835866523405;
                                                                     } else {
@@ -2529,7 +2529,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         (*top).u.dbl
                                                                             *= pow(
                                                                                 10.0f64,
-                                                                                (if flags & flag_num_e_negative != 0 {
+                                                                                (if flags & FLAG_NUM_E_NEGATIVE != 0 {
                                                                                     -num_e
                                                                                 } else {
                                                                                     num_e
@@ -2542,7 +2542,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 match current_block {
                                                                     11057878835866523405 => {}
                                                                     _ => {
-                                                                        if flags & flag_num_negative
+                                                                        if flags & FLAG_NUM_NEGATIVE
                                                                             != 0
                                                                         {
                                                                             if (*top).type_0 == JsonType::Integer
@@ -2553,7 +2553,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             }
                                                                         }
                                                                         flags |=
-                                                                            flag_next | flag_reproc;
+                                                                            FLAG_NEXT | FLAG_REPROC;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     }
@@ -2573,9 +2573,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             current_block = 17318500399378829025;
                                                             match current_block {
                                                                 10459093242147315661 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
-                                                                        flags &= !flag_need_comma;
+                                                                        flags &= !FLAG_NEED_COMMA;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
@@ -2584,7 +2584,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     }
                                                                 }
                                                                 14348858175135860202 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
                                                                         sprintf(
                                                                             &raw mut error as *mut ::core::ffi::c_char,
@@ -2597,7 +2597,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             14191169715820259248;
                                                                         break 's_107;
                                                                     } else {
-                                                                        flags |= flag_string;
+                                                                        flags |= FLAG_STRING;
                                                                         string = (*top)._reserved.object_mem
                                                                             as *mut ::core::ffi::c_char;
                                                                         string_length = 0
@@ -2617,8 +2617,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 7153118028659730796 => {
                                                                     flags = flags
-                                                                        & !flag_need_comma
-                                                                        | flag_next;
+                                                                        & !FLAG_NEED_COMMA
+                                                                        | FLAG_NEXT;
                                                                     current_block =
                                                                         11603475171617447446;
                                                                 }
@@ -2649,9 +2649,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             current_block = 14348858175135860202;
                                                             match current_block {
                                                                 10459093242147315661 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
-                                                                        flags &= !flag_need_comma;
+                                                                        flags &= !FLAG_NEED_COMMA;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
@@ -2660,7 +2660,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     }
                                                                 }
                                                                 14348858175135860202 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
                                                                         sprintf(
                                                                             &raw mut error as *mut ::core::ffi::c_char,
@@ -2673,7 +2673,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             14191169715820259248;
                                                                         break 's_107;
                                                                     } else {
-                                                                        flags |= flag_string;
+                                                                        flags |= FLAG_STRING;
                                                                         string = (*top)._reserved.object_mem
                                                                             as *mut ::core::ffi::c_char;
                                                                         string_length = 0
@@ -2693,8 +2693,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 7153118028659730796 => {
                                                                     flags = flags
-                                                                        & !flag_need_comma
-                                                                        | flag_next;
+                                                                        & !FLAG_NEED_COMMA
+                                                                        | FLAG_NEXT;
                                                                     current_block =
                                                                         11603475171617447446;
                                                                 }
@@ -2722,9 +2722,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             current_block = 7153118028659730796;
                                                             match current_block {
                                                                 10459093242147315661 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
-                                                                        flags &= !flag_need_comma;
+                                                                        flags &= !FLAG_NEED_COMMA;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
@@ -2733,7 +2733,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     }
                                                                 }
                                                                 14348858175135860202 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
                                                                         sprintf(
                                                                             &raw mut error as *mut ::core::ffi::c_char,
@@ -2746,7 +2746,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             14191169715820259248;
                                                                         break 's_107;
                                                                     } else {
-                                                                        flags |= flag_string;
+                                                                        flags |= FLAG_STRING;
                                                                         string = (*top)._reserved.object_mem
                                                                             as *mut ::core::ffi::c_char;
                                                                         string_length = 0
@@ -2766,8 +2766,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 7153118028659730796 => {
                                                                     flags = flags
-                                                                        & !flag_need_comma
-                                                                        | flag_next;
+                                                                        & !FLAG_NEED_COMMA
+                                                                        | FLAG_NEXT;
                                                                     current_block =
                                                                         11603475171617447446;
                                                                 }
@@ -2795,9 +2795,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             current_block = 10459093242147315661;
                                                             match current_block {
                                                                 10459093242147315661 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
-                                                                        flags &= !flag_need_comma;
+                                                                        flags &= !FLAG_NEED_COMMA;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
@@ -2806,7 +2806,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     }
                                                                 }
                                                                 14348858175135860202 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
                                                                         sprintf(
                                                                             &raw mut error as *mut ::core::ffi::c_char,
@@ -2819,7 +2819,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             14191169715820259248;
                                                                         break 's_107;
                                                                     } else {
-                                                                        flags |= flag_string;
+                                                                        flags |= FLAG_STRING;
                                                                         string = (*top)._reserved.object_mem
                                                                             as *mut ::core::ffi::c_char;
                                                                         string_length = 0
@@ -2839,8 +2839,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 7153118028659730796 => {
                                                                     flags = flags
-                                                                        & !flag_need_comma
-                                                                        | flag_next;
+                                                                        & !FLAG_NEED_COMMA
+                                                                        | FLAG_NEXT;
                                                                     current_block =
                                                                         11603475171617447446;
                                                                 }
@@ -2868,9 +2868,9 @@ pub unsafe extern "C" fn json_parse_ex(
                                                             current_block = 5906948055639026220;
                                                             match current_block {
                                                                 10459093242147315661 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
-                                                                        flags &= !flag_need_comma;
+                                                                        flags &= !FLAG_NEED_COMMA;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     } else {
@@ -2879,7 +2879,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     }
                                                                 }
                                                                 14348858175135860202 => {
-                                                                    if flags & flag_need_comma != 0
+                                                                    if flags & FLAG_NEED_COMMA != 0
                                                                     {
                                                                         sprintf(
                                                                             &raw mut error as *mut ::core::ffi::c_char,
@@ -2892,7 +2892,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             14191169715820259248;
                                                                         break 's_107;
                                                                     } else {
-                                                                        flags |= flag_string;
+                                                                        flags |= FLAG_STRING;
                                                                         string = (*top)._reserved.object_mem
                                                                             as *mut ::core::ffi::c_char;
                                                                         string_length = 0
@@ -2912,8 +2912,8 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 }
                                                                 7153118028659730796 => {
                                                                     flags = flags
-                                                                        & !flag_need_comma
-                                                                        | flag_next;
+                                                                        & !FLAG_NEED_COMMA
+                                                                        | FLAG_NEXT;
                                                                     current_block =
                                                                         11603475171617447446;
                                                                 }
@@ -2946,10 +2946,10 @@ pub unsafe extern "C" fn json_parse_ex(
                                                         if (*top).type_0 as ::core::ffi::c_uint
                                                             == JsonType::Integer as ::core::ffi::c_int
                                                                 as ::core::ffi::c_uint
-                                                            || flags & flag_num_e != 0
+                                                            || flags & FLAG_NUM_E != 0
                                                         {
-                                                            if flags & flag_num_e == 0 {
-                                                                if flags & flag_num_zero != 0 {
+                                                            if flags & FLAG_NUM_E == 0 {
+                                                                if flags & FLAG_NUM_ZERO != 0 {
                                                                     sprintf(
                                                                         &raw mut error as *mut ::core::ffi::c_char,
                                                                         b"%d:%d: Unexpected `0` before `%c`\0" as *const u8
@@ -2967,7 +2967,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         && b as ::core::ffi::c_int
                                                                             == '0' as i32
                                                                     {
-                                                                        flags |= flag_num_zero;
+                                                                        flags |= FLAG_NUM_ZERO;
                                                                     }
                                                                     (*top).u.integer = (*top)
                                                                         .u
@@ -2978,7 +2978,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             as i64;
                                                                 }
                                                             } else {
-                                                                flags |= flag_num_e_got_sign;
+                                                                flags |= FLAG_NUM_E_GOT_SIGN;
                                                                 num_e = num_e
                                                                     * 10 as ::core::ffi::c_long
                                                                     + (b as ::core::ffi::c_int
@@ -2997,14 +2997,14 @@ pub unsafe extern "C" fn json_parse_ex(
                                                         if b as ::core::ffi::c_int == '+' as i32
                                                             || b as ::core::ffi::c_int == '-' as i32
                                                         {
-                                                            if flags & flag_num_e != 0
-                                                                && flags & flag_num_e_got_sign == 0
+                                                            if flags & FLAG_NUM_E != 0
+                                                                && flags & FLAG_NUM_E_GOT_SIGN == 0
                                                             {
-                                                                flags |= flag_num_e_got_sign;
+                                                                flags |= FLAG_NUM_E_GOT_SIGN;
                                                                 if b as ::core::ffi::c_int
                                                                     == '-' as i32
                                                                 {
-                                                                    flags |= flag_num_e_negative;
+                                                                    flags |= FLAG_NUM_E_NEGATIVE;
                                                                 }
                                                                 current_block =
                                                                     11057878835866523405;
@@ -3044,7 +3044,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                         match current_block {
                                                             11057878835866523405 => {}
                                                             _ => {
-                                                                if flags & flag_num_e == 0 {
+                                                                if flags & FLAG_NUM_E == 0 {
                                                                     if (*top).type_0
                                                                         as ::core::ffi::c_uint
                                                                         == JsonType::Double
@@ -3072,7 +3072,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         || b as ::core::ffi::c_int
                                                                             == 'E' as i32
                                                                     {
-                                                                        flags |= flag_num_e;
+                                                                        flags |= FLAG_NUM_E;
                                                                         if (*top).type_0 == JsonType::Integer
                                                                         {
                                                                             (*top).type_0 = JsonType::Double;
@@ -3080,7 +3080,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         }
                                                                         num_digits = 0
                                                                             as ::core::ffi::c_long;
-                                                                        flags &= !flag_num_zero;
+                                                                        flags &= !FLAG_NUM_ZERO;
                                                                         current_block =
                                                                             11057878835866523405;
                                                                     } else {
@@ -3103,7 +3103,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         (*top).u.dbl
                                                                             *= pow(
                                                                                 10.0f64,
-                                                                                (if flags & flag_num_e_negative != 0 {
+                                                                                (if flags & FLAG_NUM_E_NEGATIVE != 0 {
                                                                                     -num_e
                                                                                 } else {
                                                                                     num_e
@@ -3116,7 +3116,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                 match current_block {
                                                                     11057878835866523405 => {}
                                                                     _ => {
-                                                                        if flags & flag_num_negative
+                                                                        if flags & FLAG_NUM_NEGATIVE
                                                                             != 0
                                                                         {
                                                                             if (*top).type_0 == JsonType::Integer
@@ -3127,7 +3127,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                             }
                                                                         }
                                                                         flags |=
-                                                                            flag_next | flag_reproc;
+                                                                            FLAG_NEXT | FLAG_REPROC;
                                                                         current_block =
                                                                             11603475171617447446;
                                                                     }
@@ -3146,20 +3146,20 @@ pub unsafe extern "C" fn json_parse_ex(
                                 match current_block {
                                     11057878835866523405 => {}
                                     _ => {
-                                        if flags & flag_reproc != 0 {
-                                            flags &= !flag_reproc;
+                                        if flags & FLAG_REPROC != 0 {
+                                            flags &= !FLAG_REPROC;
                                             state.ptr = state.ptr.offset(-1);
                                         }
-                                        if flags & flag_next != 0 {
-                                            flags = flags & !flag_next | flag_need_comma;
+                                        if flags & FLAG_NEXT != 0 {
+                                            flags = flags & !FLAG_NEXT | FLAG_NEED_COMMA;
                                             if (*top).parent.is_null() {
-                                                flags |= flag_done;
+                                                flags |= FLAG_DONE;
                                             } else {
                                                 if (*(*top).parent).type_0 as ::core::ffi::c_uint
                                                     == JsonType::Array as ::core::ffi::c_int
                                                         as ::core::ffi::c_uint
                                                 {
-                                                    flags |= flag_seek_value;
+                                                    flags |= FLAG_SEEK_VALUE;
                                                 }
                                                 if state.first_pass == 0 {
                                                     let mut parent: *mut JsonValue =

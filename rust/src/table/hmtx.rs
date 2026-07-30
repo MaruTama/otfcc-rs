@@ -4,7 +4,7 @@ use libc::{free, malloc, memcpy, memset};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, Length, Pos};
@@ -99,7 +99,7 @@ unsafe extern "C" fn table_hmtx_replace(mut dst: *mut HmtxTable, src: HmtxTable)
         ::core::mem::size_of::<HmtxTable>() as usize,
     );
 }
-pub static table_iHmtx: HmtxTableElementInterface = {
+pub static TABLE_I_HMTX: HmtxTableElementInterface = {
     HmtxTableElementInterface {
         init: Some(table_hmtx_init as unsafe extern "C" fn(*mut HmtxTable) -> ()),
         copy: Some(
@@ -168,12 +168,12 @@ pub unsafe extern "C" fn otfcc_readHmtx(
                             .logSDS
                             .expect("non-null function pointer")(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"Table 'hmtx' corrupted.\n"),
                         );
                         if !hmtx.is_null() {
-                            table_iHmtx.free.expect("non-null function pointer")(hmtx);
+                            TABLE_I_HMTX.free.expect("non-null function pointer")(hmtx);
                             hmtx = ::core::ptr::null_mut::<HmtxTable>();
                         }
                     } else {

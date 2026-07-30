@@ -5,7 +5,7 @@ use libc::{exit, free, malloc, memcmp, memset};
 use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, log_vl_important, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -45,9 +45,9 @@ use crate::table::otl::classdef::ClassDef;
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::consolidate::otl::common::{fontop_consolidateClassDef};
-use crate::support::glyph_order::{otfcc_pkgGlyphOrder};
-use crate::table::GDEF::{otl_iCaretValueList, otl_iLigCaretTable};
-use crate::table::otl::classdef::{otl_iClassDef};
+use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::table::GDEF::{OTL_I_CARET_VALUE_LIST, OTL_I_LIG_CARET_TABLE};
+use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
@@ -77,17 +77,17 @@ pub unsafe extern "C" fn consolidate_GDEF(
     }
     if !(*gdef).glyphClassDef.is_null() {
         fontop_consolidateClassDef(font, (*gdef).glyphClassDef, options);
-        otl_iClassDef.shrink.expect("non-null function pointer")((*gdef).glyphClassDef);
+        OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*gdef).glyphClassDef);
         if (*(*gdef).glyphClassDef).numGlyphs == 0 {
-            otl_iClassDef.free.expect("non-null function pointer")((*gdef).glyphClassDef);
+            OTL_I_CLASS_DEF.free.expect("non-null function pointer")((*gdef).glyphClassDef);
             (*gdef).glyphClassDef = ::core::ptr::null_mut::<ClassDef>();
         }
     }
     if !(*gdef).markAttachClassDef.is_null() {
         fontop_consolidateClassDef(font, (*gdef).markAttachClassDef, options);
-        otl_iClassDef.shrink.expect("non-null function pointer")((*gdef).markAttachClassDef);
+        OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*gdef).markAttachClassDef);
         if (*(*gdef).markAttachClassDef).numGlyphs == 0 {
-            otl_iClassDef.free.expect("non-null function pointer")((*gdef).markAttachClassDef);
+            OTL_I_CLASS_DEF.free.expect("non-null function pointer")((*gdef).markAttachClassDef);
             (*gdef).markAttachClassDef = ::core::ptr::null_mut::<ClassDef>();
         }
     }
@@ -96,7 +96,7 @@ pub unsafe extern "C" fn consolidate_GDEF(
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*gdef).ligCarets.length {
             let mut s: *mut GdefLigCaretHash = ::core::ptr::null_mut::<GdefLigCaretHash>();
-            if otfcc_pkgGlyphOrder
+            if OTFCC_PKG_GLYPH_ORDER
                 .consolidateHandle
                 .expect("non-null function pointer")(
                 (*font).glyph_order,
@@ -438,7 +438,7 @@ pub unsafe extern "C" fn consolidate_GDEF(
                         ) as *mut GdefLigCaretHash;
                         (*s).gid = gid;
                         (*s).name = gname;
-                        otl_iCaretValueList
+                        OTL_I_CARET_VALUE_LIST
                             .move_0
                             .expect("non-null function pointer")(
                             &raw mut (*s).carets,
@@ -915,7 +915,7 @@ pub unsafe extern "C" fn consolidate_GDEF(
                                 "non-null function pointer",
                             )(
                             (*options).logger as *mut ILogger,
-                            log_vl_important,
+                            LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::sdsbuild!(
                                 sdsempty(),
@@ -1065,7 +1065,7 @@ pub unsafe extern "C" fn consolidate_GDEF(
                 _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
             }
         }
-        otl_iLigCaretTable.clear.expect("non-null function pointer")(&raw mut (*gdef).ligCarets);
+        OTL_I_LIG_CARET_TABLE.clear.expect("non-null function pointer")(&raw mut (*gdef).ligCarets);
         let mut s_0: *mut GdefLigCaretHash = ::core::ptr::null_mut::<GdefLigCaretHash>();
         let mut tmp: *mut GdefLigCaretHash = ::core::ptr::null_mut::<GdefLigCaretHash>();
         s_0 = h;
@@ -1082,12 +1082,12 @@ pub unsafe extern "C" fn consolidate_GDEF(
                     items: ::core::ptr::null_mut::<CaretValue>(),
                 },
             };
-            otl_iCaretValueList
+            OTL_I_CARET_VALUE_LIST
                 .move_0
                 .expect("non-null function pointer")(
                 &raw mut v.carets, &raw mut (*s_0).carets
             );
-            otl_iLigCaretTable.push.expect("non-null function pointer")(
+            OTL_I_LIG_CARET_TABLE.push.expect("non-null function pointer")(
                 &raw mut (*gdef).ligCarets,
                 v,
             );
