@@ -87,7 +87,7 @@ pub unsafe extern "C" fn consolidate_chaining(
     }
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
-        let mut foundLookup: bool = false;
+        let mut found_lookup: bool = false;
         let mut h: *mut LookupHandle = &raw mut (*(*rule).apply.offset(j_0 as isize)).lookup;
         if !(*h).name.is_null() {
             let mut k: TableId = 0 as TableId;
@@ -104,7 +104,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                             (*h).name as *const ::core::ffi::c_char,
                         ) != 0 as ::core::ffi::c_int)
                         {
-                            foundLookup = true;
+                            found_lookup = true;
                             handle_consolidateTo(
                                 h as *mut Handle,
                                 k as GlyphId,
@@ -115,7 +115,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                 }
                 k = k.wrapping_add(1);
             }
-            if !foundLookup && !(*(*rule).apply.offset(j_0 as isize)).lookup.name.is_null() {
+            if !found_lookup && !(*(*rule).apply.offset(j_0 as isize)).lookup.name.is_null() {
                 (*(*options).logger)
                     .logSDS
                     .expect(

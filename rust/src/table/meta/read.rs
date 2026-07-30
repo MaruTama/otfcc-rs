@@ -13,7 +13,7 @@ pub unsafe extern "C" fn otfcc_readMeta(
 ) -> *mut MetaTable {
     let mut version: u32 = 0;
     let mut flags: u32 = 0;
-    let mut dataMapsCount: u32 = 0;
+    let mut data_maps_count: u32 = 0;
     let mut meta: *mut MetaTable = ::core::ptr::null_mut::<MetaTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -30,18 +30,18 @@ pub unsafe extern "C" fn otfcc_readMeta(
                     if !(table.length < 16 as u32) {
                         version = read_32u(table.data.offset(0 as ::core::ffi::c_int as isize));
                         flags = read_32u(table.data.offset(4 as ::core::ffi::c_int as isize));
-                        dataMapsCount =
+                        data_maps_count =
                             read_32u(table.data.offset(12 as ::core::ffi::c_int as isize));
                         if !(table.length
                             < (16 as u32)
-                                .wrapping_add((12 as u32).wrapping_mul(dataMapsCount)))
+                                .wrapping_add((12 as u32).wrapping_mul(data_maps_count)))
                         {
                             meta = (
                                 TABLE_I_META.create.expect("non-null function pointer"))();
                             (*meta).version = version;
                             (*meta).flags = flags;
                             let mut j: u32 = 0 as u32;
-                            while j < dataMapsCount {
+                            while j < data_maps_count {
                                 let mut tag: u32 = read_32u(
                                     table
                                         .data

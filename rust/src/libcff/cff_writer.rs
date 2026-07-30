@@ -35,11 +35,11 @@ pub unsafe extern "C" fn cff_mergeCS2Int(mut blob: *mut Buffer, mut val: i32) {
     };
 }
 unsafe extern "C" fn mergeCS2Real(mut blob: *mut Buffer, mut val: ::core::ffi::c_double) {
-    let mut integerPart: i16 = floor(val) as i16;
-    let mut fractionPart: u16 = ((val
-        - integerPart as ::core::ffi::c_int as ::core::ffi::c_double)
+    let mut integer_part: i16 = floor(val) as i16;
+    let mut fraction_part: u16 = ((val
+        - integer_part as ::core::ffi::c_int as ::core::ffi::c_double)
         * 65536.0f64) as u16;
-    bufnwrite8(blob, &[0xff as u8, (integerPart as ::core::ffi::c_int >> 8 as ::core::ffi::c_int) as u8, (integerPart as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8, (fractionPart as ::core::ffi::c_int >> 8 as ::core::ffi::c_int) as u8, (fractionPart as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8]);
+    bufnwrite8(blob, &[0xff as u8, (integer_part as ::core::ffi::c_int >> 8 as ::core::ffi::c_int) as u8, (integer_part as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8, (fraction_part as ::core::ffi::c_int >> 8 as ::core::ffi::c_int) as u8, (fraction_part as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8]);
 }
 pub unsafe extern "C" fn cff_mergeCS2Operand(
     mut blob: *mut Buffer,

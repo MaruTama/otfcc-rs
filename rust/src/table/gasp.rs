@@ -530,7 +530,7 @@ pub unsafe extern "C" fn otfcc_readGasp(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut GaspTable {
-    let mut numRanges: TableId = 0;
+    let mut num_ranges: TableId = 0;
     let mut gasp: *mut GaspTable = ::core::ptr::null_mut::<GaspTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -550,16 +550,16 @@ pub unsafe extern "C" fn otfcc_readGasp(
                         gasp = (
                             TABLE_I_GASP.create.expect("non-null function pointer"))();
                         (*gasp).version = read_16u(data as *const u8);
-                        numRanges = read_16u(
+                        num_ranges = read_16u(
                             data.offset(2 as ::core::ffi::c_int as isize) as *const u8
                         ) as TableId;
                         if !(length
                             < (4 as ::core::ffi::c_int
-                                + numRanges as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
+                                + num_ranges as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
                                 as u32)
                         {
                             let mut j: u32 = 0 as u32;
-                            while j < numRanges as u32 {
+                            while j < num_ranges as u32 {
                                 let mut record: GaspRecord = GaspRecord {
                                     rangeMaxPPEM: 0,
                                     dogray: false,
@@ -573,21 +573,21 @@ pub unsafe extern "C" fn otfcc_readGasp(
                                         as *const u8,
                                 )
                                     as GlyphSize;
-                                let mut rangeGaspBehavior: u16 = read_16u(
+                                let mut range_gasp_behavior: u16 = read_16u(
                                     data.offset(4 as ::core::ffi::c_int as isize)
                                         .offset(j.wrapping_mul(4 as u32) as isize)
                                         .offset(2 as ::core::ffi::c_int as isize)
                                         as *const u8,
                                 );
                                 record.dogray =
-                                    rangeGaspBehavior as ::core::ffi::c_int & GASP_DOGRAY != 0;
+                                    range_gasp_behavior as ::core::ffi::c_int & GASP_DOGRAY != 0;
                                 record.gridfit =
-                                    rangeGaspBehavior as ::core::ffi::c_int & GASP_GRIDFIT != 0;
-                                record.symmetric_smoothing = rangeGaspBehavior
+                                    range_gasp_behavior as ::core::ffi::c_int & GASP_GRIDFIT != 0;
+                                record.symmetric_smoothing = range_gasp_behavior
                                     as ::core::ffi::c_int
                                     & GASP_SYMMETRIC_SMOOTHING
                                     != 0;
-                                record.symmetric_gridfit = rangeGaspBehavior as ::core::ffi::c_int
+                                record.symmetric_gridfit = range_gasp_behavior as ::core::ffi::c_int
                                     & GASP_SYMMETRIC_GRIDFIT
                                     != 0;
                                 GASP_I_RECORD_LIST.push.expect("non-null function pointer")(

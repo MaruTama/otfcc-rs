@@ -19,7 +19,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
     mut options: *const Options,
 ) -> *mut VdmxTable {
     let mut version: u16 = 0;
-    let mut numRatios: u16 = 0;
+    let mut num_ratios: u16 = 0;
     let mut vdmx: *mut VdmxTable = ::core::ptr::null_mut::<VdmxTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -35,22 +35,22 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                 while __fortable_k2 != 0 {
                     if !(table.length < 6 as u32) {
                         version = read_16u(table.data.offset(0 as ::core::ffi::c_int as isize));
-                        numRatios = read_16u(table.data.offset(4 as ::core::ffi::c_int as isize));
+                        num_ratios = read_16u(table.data.offset(4 as ::core::ffi::c_int as isize));
                         if !(table.length
                             < (6 as ::core::ffi::c_int
-                                + 6 as ::core::ffi::c_int * numRatios as ::core::ffi::c_int)
+                                + 6 as ::core::ffi::c_int * num_ratios as ::core::ffi::c_int)
                                 as u32)
                         {
                             vdmx = (
                                 TABLE_I_VDMX.create.expect("non-null function pointer"))();
                             (*vdmx).version = version;
                             let mut g: ShapeId = 0 as ShapeId;
-                            while (g as ::core::ffi::c_int) < numRatios as ::core::ffi::c_int {
-                                let ratioRangeOffset: usize = (6 as ::core::ffi::c_int
+                            while (g as ::core::ffi::c_int) < num_ratios as ::core::ffi::c_int {
+                                let ratio_range_offset: usize = (6 as ::core::ffi::c_int
                                     + 4 as ::core::ffi::c_int * g as ::core::ffi::c_int)
                                     as usize;
-                                let offsetOffset: usize = (6 as ::core::ffi::c_int
-                                    + 4 as ::core::ffi::c_int * numRatios as ::core::ffi::c_int
+                                let offset_offset: usize = (6 as ::core::ffi::c_int
+                                    + 4 as ::core::ffi::c_int * num_ratios as ::core::ffi::c_int
                                     + 2 as ::core::ffi::c_int * g as ::core::ffi::c_int)
                                     as usize;
                                 let mut r: VdmxRatioRange = VdmxRatioRange {
@@ -70,33 +70,33 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                                 r.bCharset = read_8u(
                                     table
                                         .data
-                                        .offset(ratioRangeOffset as isize)
+                                        .offset(ratio_range_offset as isize)
                                         .offset(0 as ::core::ffi::c_int as isize),
                                 );
                                 r.xRatio = read_8u(
                                     table
                                         .data
-                                        .offset(ratioRangeOffset as isize)
+                                        .offset(ratio_range_offset as isize)
                                         .offset(1 as ::core::ffi::c_int as isize),
                                 );
                                 r.yStartRatio = read_8u(
                                     table
                                         .data
-                                        .offset(ratioRangeOffset as isize)
+                                        .offset(ratio_range_offset as isize)
                                         .offset(2 as ::core::ffi::c_int as isize),
                                 );
                                 r.yEndRatio = read_8u(
                                     table
                                         .data
-                                        .offset(ratioRangeOffset as isize)
+                                        .offset(ratio_range_offset as isize)
                                         .offset(3 as ::core::ffi::c_int as isize),
                                 );
-                                let mut groupOffset: u16 =
-                                    read_16u(table.data.offset(offsetOffset as isize));
+                                let mut group_offset: u16 =
+                                    read_16u(table.data.offset(offset_offset as isize));
                                 let mut recs: u16 = read_16u(
                                     table
                                         .data
-                                        .offset(groupOffset as ::core::ffi::c_int as isize)
+                                        .offset(group_offset as ::core::ffi::c_int as isize)
                                         .offset(0 as ::core::ffi::c_int as isize),
                                 );
                                 let mut j: u16 = 0 as u16;
@@ -104,7 +104,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                                     let mut yPelHeight: u16 = read_16u(
                                         table
                                             .data
-                                            .offset(groupOffset as ::core::ffi::c_int as isize)
+                                            .offset(group_offset as ::core::ffi::c_int as isize)
                                             .offset(4 as ::core::ffi::c_int as isize)
                                             .offset(
                                                 (j as ::core::ffi::c_int * 6 as ::core::ffi::c_int)
@@ -115,7 +115,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                                     let mut yMax: i16 = read_16s(
                                         table
                                             .data
-                                            .offset(groupOffset as ::core::ffi::c_int as isize)
+                                            .offset(group_offset as ::core::ffi::c_int as isize)
                                             .offset(4 as ::core::ffi::c_int as isize)
                                             .offset(
                                                 (j as ::core::ffi::c_int * 6 as ::core::ffi::c_int)
@@ -126,7 +126,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
                                     let mut yMin: i16 = read_16s(
                                         table
                                             .data
-                                            .offset(groupOffset as ::core::ffi::c_int as isize)
+                                            .offset(group_offset as ::core::ffi::c_int as isize)
                                             .offset(4 as ::core::ffi::c_int as isize)
                                             .offset(
                                                 (j as ::core::ffi::c_int * 6 as ::core::ffi::c_int)

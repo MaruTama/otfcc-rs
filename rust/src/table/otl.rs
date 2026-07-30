@@ -1096,7 +1096,7 @@ pub struct OtlTableElementInterface {
 }
 #[inline]
 unsafe extern "C" fn disposeSubtableDependent(
-    mut subtableRef: *mut SubtablePtr,
+    mut subtable_ref: *mut SubtablePtr,
     mut lookup: *const Lookup,
 ) {
     match (*lookup).type_0 {
@@ -1105,91 +1105,91 @@ unsafe extern "C" fn disposeSubtableDependent(
                 Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GSUB_SINGLE.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GSUB_MULTIPLE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GSUB_MULTI.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GSUB_ALTERNATE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GSUB_MULTI.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GSUB_LIGATURE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GSUB_LIGATURE.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GSUB_CHAINING => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_CHAINING.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GSUB_REVERSE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GsubReverseSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GSUB_REVERSE.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GPOS_SINGLE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GPOS_SINGLE.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GPOS_PAIR => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GPOS_PAIR.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GPOS_CURSIVE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GPOS_CURSIVE.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GPOS_CHAINING => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_CHAINING.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GPOS_MARK_TO_BASE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GPOS_MARK_TO_SINGLE.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GPOS_MARK_TO_MARK => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GPOS_MARK_TO_SINGLE.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GPOS_MARK_TO_LIGATURE => {
             ::core::mem::transmute::<
                 Option<unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> ()>,
                 Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
             >(I_SUBTABLE_GPOS_MARK_TO_LIGATURE.free)
-            .expect("non-null function pointer")(*subtableRef);
+            .expect("non-null function pointer")(*subtable_ref);
         }
         _ => {}
     };

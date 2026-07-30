@@ -1811,28 +1811,28 @@ unsafe extern "C" fn placeOrderEntriesFromCmap(
 ) {
     let mut j: u32 = 0 as u32;
     while j < (*table).u.object.length as u32 {
-        let mut unicodeStr: SdsRaw = sdsnewlen(
+        let mut unicode_str: SdsRaw = sdsnewlen(
             (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
             (*(*table).u.object.values.offset(j as isize)).name_length as usize,
         );
         let mut item: *mut JsonValue =
             (*(*table).u.object.values.offset(j as isize)).value as *mut JsonValue;
         let mut unicode: i32 = 0;
-        if sdslen(unicodeStr) > 2 as usize
-            && *unicodeStr.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
+        if sdslen(unicode_str) > 2 as usize
+            && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
                 == 'U' as i32
-            && *unicodeStr.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
+            && *unicode_str.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
                 == '+' as i32
         {
             unicode = strtol(
-                unicodeStr.offset(2 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_char,
+                unicode_str.offset(2 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_char,
                 ::core::ptr::null_mut::<*mut ::core::ffi::c_char>(),
                 16 as ::core::ffi::c_int,
             ) as i32;
         } else {
-            unicode = atoi(unicodeStr as *const ::core::ffi::c_char) as i32;
+            unicode = atoi(unicode_str as *const ::core::ffi::c_char) as i32;
         }
-        sdsfree(unicodeStr);
+        sdsfree(unicode_str);
         if (*item).type_0 == JsonType::String
             && unicode > 0 as i32
             && unicode <= 0x10ffff as i32
@@ -1855,10 +1855,10 @@ unsafe extern "C" fn placeOrderEntriesFromCmap(
 unsafe extern "C" fn placeOrderEntriesFromSubtable(
     mut table: *mut JsonValue,
     mut go: *mut GlyphOrder,
-    mut zeroOnly: bool,
+    mut zero_only: bool,
 ) {
     let mut uplimit: u32 = (*table).u.array.length as u32;
-    if uplimit >= 1 as u32 && zeroOnly as ::core::ffi::c_int != 0 {
+    if uplimit >= 1 as u32 && zero_only as ::core::ffi::c_int != 0 {
         uplimit = 1 as u32;
     }
     let mut j: u32 = 0 as u32;
@@ -1916,8 +1916,8 @@ unsafe extern "C" fn parseGlyphOrder(
             JsonType::Array,
         );
         if !table.is_null() {
-            let mut ignoreGlyphOrder: bool = (*options).ignore_glyph_order;
-            if ignoreGlyphOrder as ::core::ffi::c_int != 0
+            let mut ignore_glyph_order: bool = (*options).ignore_glyph_order;
+            if ignore_glyph_order as ::core::ffi::c_int != 0
                 && !json_obj_get_type(
                     root,
                     b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,
@@ -1936,9 +1936,9 @@ unsafe extern "C" fn parseGlyphOrder(
                         b"OpenType SVG table detected. Glyph order is preserved.",
                     ),
                 );
-                ignoreGlyphOrder = false;
+                ignore_glyph_order = false;
             }
-            placeOrderEntriesFromSubtable(table, go, ignoreGlyphOrder);
+            placeOrderEntriesFromSubtable(table, go, ignore_glyph_order);
         }
     }
     orderGlyphs(go);

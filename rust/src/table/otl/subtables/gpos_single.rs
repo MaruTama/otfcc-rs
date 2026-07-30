@@ -388,12 +388,12 @@ unsafe extern "C" fn subtable_gpos_single_shrinkToFit(mut arr: *mut GposSingleSu
 }
 pub unsafe extern "C" fn otl_read_gpos_single(
     data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
-    _maxGlyphs: GlyphId,
+    _max_glyphs: GlyphId,
     mut _options: *const Options,
 ) -> *mut Subtable {
-    let mut subtableFormat: u16 = 0;
+    let mut subtable_format: u16 = 0;
     let mut current_block: u64;
     let mut subtable: *mut GposSingleSubtable =
         (
@@ -401,11 +401,11 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                 .create
                 .expect("non-null function pointer"))();
     let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    if !(tableLength < offset.wrapping_add(6 as u32)) {
-        subtableFormat = read_16u(data.offset(offset as isize) as *const u8);
+    if !(table_length < offset.wrapping_add(6 as u32)) {
+        subtable_format = read_16u(data.offset(offset as isize) as *const u8);
         targets = readCoverage(
             data as *const u8,
-            tableLength,
+            table_length,
             offset.wrapping_add(read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
@@ -414,10 +414,10 @@ pub unsafe extern "C" fn otl_read_gpos_single(
         if !(targets.is_null()
             || (*targets).numGlyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
         {
-            if subtableFormat as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
+            if subtable_format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
                 let mut v: PositionValue = read_gpos_value(
                     data,
-                    tableLength,
+                    table_length,
                     offset.wrapping_add(6 as u32),
                     read_16u(
                         data.offset(offset as isize)
@@ -442,24 +442,24 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                 }
                 current_block = 6009453772311597924;
             } else {
-                let mut valueFormat: u16 = read_16u(
+                let mut value_format: u16 = read_16u(
                     data.offset(offset as isize)
                         .offset(4 as ::core::ffi::c_int as isize)
                         as *const u8,
                 );
-                let mut valueCount: u16 = read_16u(
+                let mut value_count: u16 = read_16u(
                     data.offset(offset as isize)
                         .offset(6 as ::core::ffi::c_int as isize)
                         as *const u8,
                 );
-                if tableLength
+                if table_length
                     < offset.wrapping_add(8 as u32).wrapping_add(
-                        (position_format_length(valueFormat) as ::core::ffi::c_int
-                            * valueCount as ::core::ffi::c_int) as u32,
+                        (position_format_length(value_format) as ::core::ffi::c_int
+                            * value_count as ::core::ffi::c_int) as u32,
                     )
                 {
                     current_block = 18154618883129817269;
-                } else if valueCount as ::core::ffi::c_int
+                } else if value_count as ::core::ffi::c_int
                     != (*targets).numGlyphs as ::core::ffi::c_int
                 {
                     current_block = 18154618883129817269;
@@ -476,14 +476,14 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                                 ) as GlyphHandle,
                                 value: read_gpos_value(
                                     data,
-                                    tableLength,
+                                    table_length,
                                     offset.wrapping_add(8 as u32).wrapping_add(
                                         (j_0 as ::core::ffi::c_int
-                                            * position_format_length(valueFormat)
+                                            * position_format_length(value_format)
                                                 as ::core::ffi::c_int)
                                             as u32,
                                     ),
-                                    valueFormat,
+                                    value_format,
                                 ),
                             },
                         );
@@ -572,12 +572,12 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
     let mut subtable: *const GposSingleSubtable = &raw const (*_subtable).gpos_single;
-    let mut isConst: bool = (*subtable).length > 0 as usize;
+    let mut is_const: bool = (*subtable).length > 0 as usize;
     let mut format: u16 = 0 as u16;
     if (*subtable).length > 0 as usize {
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*subtable).length {
-            isConst = isConst as ::core::ffi::c_int != 0
+            is_const = is_const as ::core::ffi::c_int != 0
                 && (*(*subtable).items.offset(j as isize)).value.dx
                     == (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
                         .value
@@ -611,17 +611,17 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut coverageBuf: *mut Buffer =
+    let mut coverage_buf: *mut Buffer =
         OTL_I_COVERAGE.build.expect("non-null function pointer")(cov);
-    if isConst {
-        let mut b: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverageBuf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(
+    if is_const {
+        let mut b: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(
                 (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize)).value,
                 format,
             ))]);
         otl_Coverage_free(cov);
         return bk_build_Block(b);
     } else {
-        let mut b_0: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverageBuf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*subtable).length) as u32)]);
+        let mut b_0: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*subtable).length) as u32)]);
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < (*subtable).length {
             bk_push(b_0, &[bk_ptr(BkCellType::Embed, bk_gpos_value((*(*subtable).items.offset(k as isize)).value, format))]);

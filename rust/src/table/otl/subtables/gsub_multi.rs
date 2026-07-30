@@ -380,39 +380,39 @@ unsafe extern "C" fn subtable_gsub_multi_filterEnv(
 }
 pub unsafe extern "C" fn otl_read_gsub_multi(
     mut data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
-    _maxGlyphs: GlyphId,
+    _max_glyphs: GlyphId,
     mut _options: *const Options,
 ) -> *mut Subtable {
-    let mut seqCount: GlyphId = 0;
+    let mut seq_count: GlyphId = 0;
     let subtable: *mut GsubMultiSubtable =
         (
             I_SUBTABLE_GSUB_MULTI
                 .create
                 .expect("non-null function pointer"))();
     let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    if !(tableLength < offset.wrapping_add(6 as u32)) {
+    if !(table_length < offset.wrapping_add(6 as u32)) {
         from = readCoverage(
             data as *const u8,
-            tableLength,
+            table_length,
             offset.wrapping_add(read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             ) as u32),
         );
-        seqCount = read_16u(
+        seq_count = read_16u(
             data.offset(offset as isize)
                 .offset(4 as ::core::ffi::c_int as isize) as *const u8,
         ) as GlyphId;
-        if seqCount as ::core::ffi::c_int == (*from).numGlyphs as ::core::ffi::c_int {
-            if !(tableLength
+        if seq_count as ::core::ffi::c_int == (*from).numGlyphs as ::core::ffi::c_int {
+            if !(table_length
                 < offset.wrapping_add(6 as u32).wrapping_add(
-                    (seqCount as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
+                    (seq_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
                 ))
             {
-                for j in 0..seqCount {
-                    let seqOffset: u32 = offset.wrapping_add(read_16u(
+                for j in 0..seq_count {
+                    let seq_offset: u32 = offset.wrapping_add(read_16u(
                         data.offset(offset as isize)
                             .offset(6 as ::core::ffi::c_int as isize)
                             .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
@@ -422,12 +422,12 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
                     let cov: *mut Coverage =
                         otl_Coverage_create();
                     let n: GlyphId =
-                        read_16u(data.offset(seqOffset as isize) as *const u8) as GlyphId;
+                        read_16u(data.offset(seq_offset as isize) as *const u8) as GlyphId;
                     for k in 0..n {
                         pushToCoverage(
                             cov,
                             handle_fromIndex(read_16u(
-                                data.offset(seqOffset as isize)
+                                data.offset(seq_offset as isize)
                                     .offset(2 as ::core::ffi::c_int as isize)
                                     .offset(
                                         (k as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
@@ -540,13 +540,13 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
 ) -> *mut *mut Buffer {
     let mut subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi;
     let mut parts: *mut *mut Buffer = ::core::ptr::null_mut::<*mut Buffer>();
-    let mut nParts: TableId = 0 as TableId;
+    let mut n_parts: TableId = 0 as TableId;
     let mut start: GlyphId = 0 as GlyphId;
     while (start as usize) < (*subtable).length {
         let mut size: usize = (6 as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as usize;
         let mut end: GlyphId = start;
         while (end as usize) < (*subtable).length {
-            let mut entrySize: usize = ((2 as ::core::ffi::c_int
+            let mut entry_size: usize = ((2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int) as usize)
                 .wrapping_add(
@@ -554,25 +554,25 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
                         .wrapping_mul(2 as usize),
                 );
             if end as ::core::ffi::c_int > start as ::core::ffi::c_int
-                && size.wrapping_add(entrySize) > GSUB_MULTI_SUBTABLE_SIZE_LIMIT as usize
+                && size.wrapping_add(entry_size) > GSUB_MULTI_SUBTABLE_SIZE_LIMIT as usize
             {
                 break;
             }
-            size = size.wrapping_add(entrySize);
+            size = size.wrapping_add(entry_size);
             end = end.wrapping_add(1);
         }
         parts = __caryll_reallocate(
             parts as *mut ::core::ffi::c_void,
             (::core::mem::size_of::<*mut Buffer>() as usize)
-                .wrapping_mul((nParts as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize),
+                .wrapping_mul((n_parts as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize),
             125 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
-        let ref mut fresh2 = *parts.offset(nParts as isize);
+        let ref mut fresh2 = *parts.offset(n_parts as isize);
         *fresh2 = buildGsubMultiSubtableRange(subtable, start, end);
-        nParts = nParts.wrapping_add(1);
+        n_parts = n_parts.wrapping_add(1);
         start = end;
     }
-    if nParts == 0 {
+    if n_parts == 0 {
         parts = __caryll_reallocate(
             parts as *mut ::core::ffi::c_void,
             (::core::mem::size_of::<*mut Buffer>() as usize).wrapping_mul(1 as usize),
@@ -580,9 +580,9 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
         ) as *mut *mut Buffer;
         let ref mut fresh3 = *parts.offset(0 as ::core::ffi::c_int as isize);
         *fresh3 = buildGsubMultiSubtableRange(subtable, 0 as GlyphId, 0 as GlyphId);
-        nParts = 1 as TableId;
+        n_parts = 1 as TableId;
     }
-    *count = nParts;
+    *count = n_parts;
     return parts;
 }
 pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable(

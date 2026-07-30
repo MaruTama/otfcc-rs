@@ -295,7 +295,7 @@ pub unsafe extern "C" fn otfcc_dumpOtl(
         let mut ___loggedstep_v_2: bool = true;
         while ___loggedstep_v_2 {
             let mut lookups: *mut JsonValue = json_object_new((*table).lookups.length);
-            let mut lookupOrder: *mut JsonValue = json_array_new((*table).lookups.length);
+            let mut lookup_order: *mut JsonValue = json_array_new((*table).lookups.length);
             let mut j_1: TableId = 0 as TableId;
             while (j_1 as usize) < (*table).lookups.length {
                 let mut _lookup: *mut JsonValue = json_object_new(5 as usize);
@@ -308,7 +308,7 @@ pub unsafe extern "C" fn otfcc_dumpOtl(
                     _lookup,
                 );
                 json_array_push(
-                    lookupOrder,
+                    lookup_order,
                     json_string_new((*lookup).name as *const ::core::ffi::c_char),
                 );
                 j_1 = j_1.wrapping_add(1);
@@ -321,7 +321,7 @@ pub unsafe extern "C" fn otfcc_dumpOtl(
             json_object_push(
                 otl,
                 b"lookupOrder\0" as *const u8 as *const ::core::ffi::c_char,
-                lookupOrder,
+                lookup_order,
             );
             ___loggedstep_v_2 = false;
             (*(*options).logger)

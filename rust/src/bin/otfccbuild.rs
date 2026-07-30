@@ -620,7 +620,7 @@ unsafe fn main_0(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    let mut jsonRoot: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut json_root: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
@@ -629,7 +629,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
-        jsonRoot = json_parse(buffer, length as usize);
+        json_root = json_parse(buffer, length as usize);
         free(buffer as *mut ::core::ffi::c_void);
         (*(*options).logger)
             .logSDS
@@ -639,7 +639,7 @@ unsafe fn main_0(
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
-        if jsonRoot.is_null() {
+        if json_root.is_null() {
             (*(*options).logger)
                 .logSDS
                 .expect("non-null function pointer")(
@@ -671,7 +671,7 @@ unsafe fn main_0(
     while ___loggedstep_v_3 {
         let mut parser: *mut IFontBuilder = otfcc_newJsonReader();
         font = (*parser).read.expect("non-null function pointer")(
-            jsonRoot as *mut ::core::ffi::c_void,
+            json_root as *mut ::core::ffi::c_void,
             0 as u32,
             options,
         );
@@ -692,7 +692,7 @@ unsafe fn main_0(
             exit(EXIT_FAILURE);
         }
         (*parser).free.expect("non-null function pointer")(parser as *mut IFontBuilder);
-        json_value_free(jsonRoot);
+        json_value_free(json_root);
         (*(*options).logger)
             .logSDS
             .expect("non-null function pointer")(

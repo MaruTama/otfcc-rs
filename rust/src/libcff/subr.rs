@@ -4462,20 +4462,20 @@ unsafe extern "C" fn serializeNodeToBuffer(
     mut node: *mut CffSubrNode,
     mut buf: *mut Buffer,
     mut gsubrs: *mut Buffer,
-    mut maxGSubrs: u32,
+    mut max_g_subrs: u32,
     mut lsubrs: *mut Buffer,
-    mut maxLSubrs: u32,
+    mut max_l_subrs: u32,
 ) {
     if !(*node).rule.is_null() {
         if (*(*node).rule).numbered as ::core::ffi::c_int != 0
-            && (*(*node).rule).number < maxLSubrs.wrapping_add(maxGSubrs)
+            && (*(*node).rule).number < max_l_subrs.wrapping_add(max_g_subrs)
             && (*(*node).rule).height < TYPE2_SUBR_NESTING
         {
             let mut target: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-            if (*(*node).rule).number < maxLSubrs {
+            if (*(*node).rule).number < max_l_subrs {
                 let mut stacknum: i32 = (*(*node).rule)
                     .number
-                    .wrapping_sub(subroutineBias(maxLSubrs as i32) as u32)
+                    .wrapping_sub(subroutineBias(max_l_subrs as i32) as u32)
                     as i32;
                 target = lsubrs.offset((*(*node).rule).number as isize);
                 cff_mergeCS2Int(buf, stacknum);
@@ -4483,10 +4483,10 @@ unsafe extern "C" fn serializeNodeToBuffer(
             } else {
                 let mut stacknum_0: i32 = (*(*node).rule)
                     .number
-                    .wrapping_sub(maxLSubrs)
-                    .wrapping_sub(subroutineBias(maxGSubrs as i32) as u32)
+                    .wrapping_sub(max_l_subrs)
+                    .wrapping_sub(subroutineBias(max_g_subrs as i32) as u32)
                     as i32;
-                target = gsubrs.offset((*(*node).rule).number.wrapping_sub(maxLSubrs) as isize);
+                target = gsubrs.offset((*(*node).rule).number.wrapping_sub(max_l_subrs) as isize);
                 cff_mergeCS2Int(buf, stacknum_0);
                 cff_mergeCS2Operator(buf, OP_CALLGSUBR);
             }
@@ -4495,7 +4495,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
                 (*r).printed = true;
                 let mut e: *mut CffSubrNode = (*(*r).guard).next;
                 while e != (*r).guard {
-                    serializeNodeToBuffer(e, target, gsubrs, maxGSubrs, lsubrs, maxLSubrs);
+                    serializeNodeToBuffer(e, target, gsubrs, max_g_subrs, lsubrs, max_l_subrs);
                     e = (*e).next;
                 }
                 if !endsWithEndChar(r) {
@@ -4506,7 +4506,7 @@ unsafe extern "C" fn serializeNodeToBuffer(
             let mut r_0: *mut CffSubrRule = (*node).rule;
             let mut e_0: *mut CffSubrNode = (*(*r_0).guard).next;
             while e_0 != (*r_0).guard {
-                serializeNodeToBuffer(e_0, buf, gsubrs, maxGSubrs, lsubrs, maxLSubrs);
+                serializeNodeToBuffer(e_0, buf, gsubrs, max_g_subrs, lsubrs, max_l_subrs);
                 e_0 = (*e_0).next;
             }
         }
@@ -4531,43 +4531,43 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
     mut options: *const Options,
 ) {
     cff_statHeight((*g).root, 0 as u32);
-    let mut maxSubroutines: u32 = cff_numberSubroutines(g);
+    let mut max_subroutines: u32 = cff_numberSubroutines(g);
     (*(*options).logger)
         .logSDS
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         LOG_VL_PROGRESS,
         LoggerType::Progress,
-        crate::sdsbuild!(sdsempty(), b"[libcff] Total ", maxSubroutines, b" subroutines extracted."),
+        crate::sdsbuild!(sdsempty(), b"[libcff] Total ", max_subroutines, b" subroutines extracted."),
     );
-    let mut maxLSubrs: u32 = maxSubroutines;
-    let mut maxGSubrs: u32 = 0 as u32;
-    if maxLSubrs > TYPE2_MAX_SUBRS {
-        maxLSubrs = TYPE2_MAX_SUBRS;
-        maxGSubrs = maxSubroutines.wrapping_sub(maxLSubrs);
+    let mut max_l_subrs: u32 = max_subroutines;
+    let mut max_g_subrs: u32 = 0 as u32;
+    if max_l_subrs > TYPE2_MAX_SUBRS {
+        max_l_subrs = TYPE2_MAX_SUBRS;
+        max_g_subrs = max_subroutines.wrapping_sub(max_l_subrs);
     }
-    if maxGSubrs > TYPE2_MAX_SUBRS {
-        maxGSubrs = TYPE2_MAX_SUBRS;
+    if max_g_subrs > TYPE2_MAX_SUBRS {
+        max_g_subrs = TYPE2_MAX_SUBRS;
     }
-    let mut total: u32 = maxLSubrs.wrapping_add(maxGSubrs);
-    maxLSubrs = total.wrapping_div(2 as u32);
-    maxGSubrs = total.wrapping_sub(maxLSubrs);
-    let mut charStrings: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
+    let mut total: u32 = max_l_subrs.wrapping_add(max_g_subrs);
+    max_l_subrs = total.wrapping_div(2 as u32);
+    max_g_subrs = total.wrapping_sub(max_l_subrs);
+    let mut char_strings: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     let mut gsubrs: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     let mut lsubrs: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    charStrings = __caryll_allocate_clean(
+    char_strings = __caryll_allocate_clean(
         (::core::mem::size_of::<Buffer>() as usize)
             .wrapping_mul((*g).totalCharStrings.wrapping_add(1 as u32) as usize),
         608 as ::core::ffi::c_ulong,
     ) as *mut Buffer;
     lsubrs = __caryll_allocate_clean(
         (::core::mem::size_of::<Buffer>() as usize)
-            .wrapping_mul(maxLSubrs.wrapping_add(1 as u32) as usize),
+            .wrapping_mul(max_l_subrs.wrapping_add(1 as u32) as usize),
         609 as ::core::ffi::c_ulong,
     ) as *mut Buffer;
     gsubrs = __caryll_allocate_clean(
         (::core::mem::size_of::<Buffer>() as usize)
-            .wrapping_mul(maxGSubrs.wrapping_add(1 as u32) as usize),
+            .wrapping_mul(max_g_subrs.wrapping_add(1 as u32) as usize),
         610 as ::core::ffi::c_ulong,
     ) as *mut Buffer;
     let mut j: u32 = 0 as u32;
@@ -4576,11 +4576,11 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
     while e != (*r).guard {
         serializeNodeToBuffer(
             e,
-            charStrings.offset(j as isize),
+            char_strings.offset(j as isize),
             gsubrs,
-            maxGSubrs,
+            max_g_subrs,
             lsubrs,
-            maxLSubrs,
+            max_l_subrs,
         );
         if (*e).rule.is_null() && !(*e).terminal.is_null() && (*e).hard as ::core::ffi::c_int != 0 {
             j = j.wrapping_add(1);
@@ -4588,7 +4588,7 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
         e = (*e).next;
     }
     let mut is: *mut CffIndex = CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
-        charStrings as *mut ::core::ffi::c_void,
+        char_strings as *mut ::core::ffi::c_void,
         (*g).totalCharStrings,
         Some(
             from_array
@@ -4597,7 +4597,7 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
     );
     let mut igs: *mut CffIndex = CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
         gsubrs as *mut ::core::ffi::c_void,
-        maxGSubrs,
+        max_g_subrs,
         Some(
             from_array
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
@@ -4605,7 +4605,7 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
     );
     let mut ils: *mut CffIndex = CFF_I_INDEX.fromCallback.expect("non-null function pointer")(
         lsubrs as *mut ::core::ffi::c_void,
-        maxLSubrs,
+        max_l_subrs,
         Some(
             from_array
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
@@ -4613,27 +4613,27 @@ pub unsafe extern "C" fn cff_ilGraphToBuffers(
     );
     let mut j_0: u32 = 0 as u32;
     while j_0 < (*g).totalCharStrings {
-        free((*charStrings.offset(j_0 as isize)).data as *mut ::core::ffi::c_void);
-        let ref mut fresh6 = (*charStrings.offset(j_0 as isize)).data;
+        free((*char_strings.offset(j_0 as isize)).data as *mut ::core::ffi::c_void);
+        let ref mut fresh6 = (*char_strings.offset(j_0 as isize)).data;
         *fresh6 = ::core::ptr::null_mut::<u8>();
         j_0 = j_0.wrapping_add(1);
     }
     let mut j_1: u32 = 0 as u32;
-    while j_1 < maxGSubrs {
+    while j_1 < max_g_subrs {
         free((*gsubrs.offset(j_1 as isize)).data as *mut ::core::ffi::c_void);
         let ref mut fresh7 = (*gsubrs.offset(j_1 as isize)).data;
         *fresh7 = ::core::ptr::null_mut::<u8>();
         j_1 = j_1.wrapping_add(1);
     }
     let mut j_2: u32 = 0 as u32;
-    while j_2 < maxLSubrs {
+    while j_2 < max_l_subrs {
         free((*lsubrs.offset(j_2 as isize)).data as *mut ::core::ffi::c_void);
         let ref mut fresh8 = (*lsubrs.offset(j_2 as isize)).data;
         *fresh8 = ::core::ptr::null_mut::<u8>();
         j_2 = j_2.wrapping_add(1);
     }
-    free(charStrings as *mut ::core::ffi::c_void);
-    charStrings = ::core::ptr::null_mut::<Buffer>();
+    free(char_strings as *mut ::core::ffi::c_void);
+    char_strings = ::core::ptr::null_mut::<Buffer>();
     free(gsubrs as *mut ::core::ffi::c_void);
     gsubrs = ::core::ptr::null_mut::<Buffer>();
     free(lsubrs as *mut ::core::ffi::c_void);

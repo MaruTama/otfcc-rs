@@ -346,14 +346,14 @@ pub unsafe extern "C" fn otl_readMarkArray(
     mut array: *mut MarkArray,
     mut cov: *mut Coverage,
     mut data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
 ) {
-    let mut markCount: GlyphId = 0;
-    if !(tableLength < offset.wrapping_add(2 as u32)) {
-        markCount = read_16u(data.offset(offset as isize) as *const u8) as GlyphId;
+    let mut mark_count: GlyphId = 0;
+    if !(table_length < offset.wrapping_add(2 as u32)) {
+        mark_count = read_16u(data.offset(offset as isize) as *const u8) as GlyphId;
         let mut j: GlyphId = 0 as GlyphId;
-        while (j as ::core::ffi::c_int) < markCount as ::core::ffi::c_int {
+        while (j as ::core::ffi::c_int) < mark_count as ::core::ffi::c_int {
             let mut markClass: GlyphClass = read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize)
@@ -376,7 +376,7 @@ pub unsafe extern "C" fn otl_readMarkArray(
                         markClass: markClass,
                         anchor: otl_read_anchor(
                             data,
-                            tableLength,
+                            table_length,
                             offset.wrapping_add(delta as u32),
                         ),
                     },
@@ -429,7 +429,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
         };
         let mut gname: *mut ::core::ffi::c_char =
             (*(*_marks).u.object.values.offset(j as isize)).name;
-        let mut anchorRecord: *mut JsonValue =
+        let mut anchor_record: *mut JsonValue =
             (*(*_marks).u.object.values.offset(j as isize)).value as *mut JsonValue;
         mark.glyph = handle_fromName(sdsnewlen(
             gname as *const ::core::ffi::c_void,
@@ -437,13 +437,13 @@ pub unsafe extern "C" fn otl_parseMarkArray(
         )) as GlyphHandle;
         mark.markClass = 0 as GlyphClass;
         mark.anchor = otl_anchor_absent();
-        if anchorRecord.is_null()
-            || (*anchorRecord).type_0 != JsonType::Object
+        if anchor_record.is_null()
+            || (*anchor_record).type_0 != JsonType::Object
         {
             OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(array, mark);
         } else {
             let mut _className: *mut JsonValue = json_obj_get_type(
-                anchorRecord,
+                anchor_record,
                 b"class\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,
             );
@@ -1254,11 +1254,11 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                 mark.markClass = (*s).classID;
                 mark.anchor.present = true;
                 mark.anchor.x = json_obj_getnum(
-                    anchorRecord,
+                    anchor_record,
                     b"x\0" as *const u8 as *const ::core::ffi::c_char,
                 ) as Pos;
                 mark.anchor.y = json_obj_getnum(
-                    anchorRecord,
+                    anchor_record,
                     b"y\0" as *const u8 as *const ::core::ffi::c_char,
                 ) as Pos;
                 OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(array, mark);
@@ -1399,21 +1399,21 @@ pub unsafe extern "C" fn otl_parseMarkArray(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    let mut jAnchorIndex: GlyphId = 0 as GlyphId;
+    let mut j_anchor_index: GlyphId = 0 as GlyphId;
     let mut s_0: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
     s_0 = *h;
     while !s_0.is_null() {
-        (*s_0).classID = jAnchorIndex as GlyphClass;
-        jAnchorIndex = jAnchorIndex.wrapping_add(1);
+        (*s_0).classID = j_anchor_index as GlyphClass;
+        j_anchor_index = j_anchor_index.wrapping_add(1);
         s_0 = (*s_0).hh.next as *mut ClassNameHash;
     }
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*array).length {
         if (*(*array).items.offset(j_0 as isize)).anchor.present {
-            let mut anchorRecord_0: *mut JsonValue =
+            let mut anchor_record_0: *mut JsonValue =
                 (*(*_marks).u.object.values.offset(j_0 as isize)).value as *mut JsonValue;
             let mut _className_0: *mut JsonValue = json_obj_get_type(
-                anchorRecord_0,
+                anchor_record_0,
                 b"class\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,
             );
@@ -1766,7 +1766,7 @@ pub unsafe extern "C" fn otl_anchor_absent() -> Anchor {
 }
 pub unsafe extern "C" fn otl_read_anchor(
     mut data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
 ) -> Anchor {
     let mut anchor: Anchor = Anchor {
@@ -1774,7 +1774,7 @@ pub unsafe extern "C" fn otl_read_anchor(
         x: 0 as ::core::ffi::c_int as Pos,
         y: 0 as ::core::ffi::c_int as Pos,
     };
-    if tableLength < offset.wrapping_add(6 as u32) {
+    if table_length < offset.wrapping_add(6 as u32) {
         anchor.present = false;
         anchor.x = 0 as ::core::ffi::c_int as Pos;
         anchor.y = 0 as ::core::ffi::c_int as Pos;
@@ -3142,7 +3142,7 @@ pub unsafe extern "C" fn position_zero() -> PositionValue {
 }
 pub unsafe extern "C" fn read_gpos_value(
     mut data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
     mut format: u16,
 ) -> PositionValue {
@@ -3152,7 +3152,7 @@ pub unsafe extern "C" fn read_gpos_value(
         dWidth: 0.0f64,
         dHeight: 0.0f64,
     };
-    if tableLength < offset.wrapping_add(position_format_length(format) as u32) {
+    if table_length < offset.wrapping_add(position_format_length(format) as u32) {
         return v;
     }
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {

@@ -48,7 +48,7 @@ pub unsafe extern "C" fn utf16le_to_utf8(
     }
     inlen = (inlenb / 2 as ::core::ffi::c_int) as u32;
     inend = in_0.offset(inlen as isize);
-    let mut bytesNeeded: u32 = 0 as u32;
+    let mut bytes_needed: u32 = 0 as u32;
     while in_0 < inend {
         let fresh0 = in_0;
         in_0 = in_0.offset(1);
@@ -68,19 +68,19 @@ pub unsafe extern "C" fn utf16le_to_utf8(
             }
         }
         if c < 0x80 as u32 {
-            bytesNeeded = bytesNeeded.wrapping_add(1 as u32);
+            bytes_needed = bytes_needed.wrapping_add(1 as u32);
         } else if c < 0x800 as u32 {
-            bytesNeeded = bytesNeeded.wrapping_add(2 as u32);
+            bytes_needed = bytes_needed.wrapping_add(2 as u32);
         } else if c < 0x10000 as u32 {
-            bytesNeeded = bytesNeeded.wrapping_add(3 as u32);
+            bytes_needed = bytes_needed.wrapping_add(3 as u32);
         } else {
-            bytesNeeded = bytesNeeded.wrapping_add(4 as u32);
+            bytes_needed = bytes_needed.wrapping_add(4 as u32);
         }
     }
     in_0 = inb as *mut u16;
     let mut out: SdsRaw = sdsnewlen(
         ::core::ptr::null::<::core::ffi::c_void>(),
-        bytesNeeded as usize,
+        bytes_needed as usize,
     );
     let mut out0: SdsRaw = out;
     while in_0 < inend {
@@ -150,7 +150,7 @@ pub unsafe extern "C" fn utf16be_to_utf8(
     }
     inlen = (inlenb / 2 as ::core::ffi::c_int) as u32;
     inend = in_0.offset(inlen as isize);
-    let mut bytesNeeded: u32 = 0 as u32;
+    let mut bytes_needed: u32 = 0 as u32;
     while in_0 < inend {
         tmp = in_0 as *mut u8;
         let fresh9 = tmp;
@@ -178,19 +178,19 @@ pub unsafe extern "C" fn utf16be_to_utf8(
             }
         }
         if c < 0x80 as u32 {
-            bytesNeeded = bytesNeeded.wrapping_add(1 as u32);
+            bytes_needed = bytes_needed.wrapping_add(1 as u32);
         } else if c < 0x800 as u32 {
-            bytesNeeded = bytesNeeded.wrapping_add(2 as u32);
+            bytes_needed = bytes_needed.wrapping_add(2 as u32);
         } else if c < 0x10000 as u32 {
-            bytesNeeded = bytesNeeded.wrapping_add(3 as u32);
+            bytes_needed = bytes_needed.wrapping_add(3 as u32);
         } else {
-            bytesNeeded = bytesNeeded.wrapping_add(4 as u32);
+            bytes_needed = bytes_needed.wrapping_add(4 as u32);
         }
     }
     in_0 = inb as *mut u16;
     let mut out: SdsRaw = sdsnewlen(
         ::core::ptr::null::<::core::ffi::c_void>(),
-        bytesNeeded as usize,
+        bytes_needed as usize,
     );
     let mut out0: SdsRaw = out;
     while in_0 < inend {
@@ -260,7 +260,7 @@ pub unsafe extern "C" fn utf8toutf16be(mut _in: SdsRaw, mut out_bytes: *mut usiz
     let mut in_0: SdsRaw = _in;
     let mut inlen: usize = sdslen(in_0);
     let mut inend: *mut ::core::ffi::c_char = in_0.offset(inlen as isize);
-    let mut wordsNeeded: u32 = 0 as u32;
+    let mut words_needed: u32 = 0 as u32;
     let mut trailing: u8 = 0 as u8;
     let mut c: u32 = 0 as u32;
     while in_0 < inend {
@@ -305,13 +305,13 @@ pub unsafe extern "C" fn utf8toutf16be(mut _in: SdsRaw, mut out_bytes: *mut usiz
             trailing = trailing.wrapping_sub(1);
         }
         if c < 0x10000 as u32 {
-            wordsNeeded = wordsNeeded.wrapping_add(1 as u32);
+            words_needed = words_needed.wrapping_add(1 as u32);
         } else if c < 0x110000 as u32 {
-            wordsNeeded = wordsNeeded.wrapping_add(2 as u32);
+            words_needed = words_needed.wrapping_add(2 as u32);
         }
     }
     let mut _out: *mut u8 = malloc(
-        ((2 as u32).wrapping_mul(wordsNeeded) as usize)
+        ((2 as u32).wrapping_mul(words_needed) as usize)
             .wrapping_mul(::core::mem::size_of::<u8>() as usize),
     ) as *mut u8;
     let mut out: *mut u8 = _out;
@@ -384,6 +384,6 @@ pub unsafe extern "C" fn utf8toutf16be(mut _in: SdsRaw, mut out_bytes: *mut usiz
             *fresh27 = (tmp2 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8;
         }
     }
-    *out_bytes = wordsNeeded.wrapping_mul(2 as u32) as usize;
+    *out_bytes = words_needed.wrapping_mul(2 as u32) as usize;
     return _out;
 }

@@ -1295,10 +1295,10 @@ unsafe extern "C" fn vqAddDelta(
     VQ_I_SEG_LIST.push.expect("non-null function pointer")(&raw mut (*v).shift, nudge);
 }
 unsafe extern "C" fn vqPointLinearTfm(ax: VQ, mut a: Pos, x: VQ, mut b: Pos, y: VQ) -> VQ {
-    let mut targetX: VQ = I_VQ.dup.expect("non-null function pointer")(ax);
-    I_VQ.inplacePlusScale.expect("non-null function pointer")(&raw mut targetX, a as Scale, x);
-    I_VQ.inplacePlusScale.expect("non-null function pointer")(&raw mut targetX, b as Scale, y);
-    return targetX;
+    let mut target_x: VQ = I_VQ.dup.expect("non-null function pointer")(ax);
+    I_VQ.inplacePlusScale.expect("non-null function pointer")(&raw mut target_x, a as Scale, x);
+    I_VQ.inplacePlusScale.expect("non-null function pointer")(&raw mut target_x, b as Scale, y);
+    return target_x;
 }
 pub static I_VQ: VqVectorInterface = {
     VqVectorInterface {

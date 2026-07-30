@@ -55,18 +55,18 @@ unsafe extern "C" fn DiyFp_subtract(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
 }
 #[inline]
 unsafe extern "C" fn DiyFp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
-    let M32: u64 = 0xffffffff as u64;
+    let m32: u64 = 0xffffffff as u64;
     let a: u64 = lhs.f >> 32 as ::core::ffi::c_int;
-    let b: u64 = lhs.f & M32;
+    let b: u64 = lhs.f & m32;
     let c: u64 = rhs.f >> 32 as ::core::ffi::c_int;
-    let d: u64 = rhs.f & M32;
+    let d: u64 = rhs.f & m32;
     let ac: u64 = a.wrapping_mul(c);
     let bc: u64 = b.wrapping_mul(c);
     let ad: u64 = a.wrapping_mul(d);
     let bd: u64 = b.wrapping_mul(d);
     let mut tmp: u64 = (bd >> 32 as ::core::ffi::c_int)
-        .wrapping_add(ad & M32)
-        .wrapping_add(bc & M32);
+        .wrapping_add(ad & m32)
+        .wrapping_add(bc & m32);
     tmp = tmp.wrapping_add(((1 as ::core::ffi::c_uint) << 31 as ::core::ffi::c_int) as u64);
     return DiyFp_from_parts(
         ac.wrapping_add(ad >> 32 as ::core::ffi::c_int)
@@ -454,8 +454,8 @@ unsafe extern "C" fn CountDecimalDigit32(mut n: u32) -> ::core::ffi::c_uint {
 }
 #[inline]
 unsafe extern "C" fn DigitGen(
-    W: DiyFp,
-    Mp: DiyFp,
+    w: DiyFp,
+    mp: DiyFp,
     mut delta: u64,
     mut buffer: *mut ::core::ffi::c_char,
     mut len: *mut ::core::ffi::c_int,
@@ -474,10 +474,10 @@ unsafe extern "C" fn DigitGen(
         1000000000 as ::core::ffi::c_int as u32,
     ];
     let one: DiyFp =
-        DiyFp_from_parts((1 as ::core::ffi::c_int as u64) << -Mp.e, Mp.e) as DiyFp;
-    let wp_w: DiyFp = DiyFp_subtract(Mp, W) as DiyFp;
-    let mut p1: u32 = (Mp.f >> -one.e) as u32;
-    let mut p2: u64 = Mp.f & one.f.wrapping_sub(1 as u64);
+        DiyFp_from_parts((1 as ::core::ffi::c_int as u64) << -mp.e, mp.e) as DiyFp;
+    let wp_w: DiyFp = DiyFp_subtract(mp, w) as DiyFp;
+    let mut p1: u32 = (mp.f >> -one.e) as u32;
+    let mut p2: u64 = mp.f & one.f.wrapping_sub(1 as u64);
     let mut kappa: ::core::ffi::c_int = CountDecimalDigit32(p1) as ::core::ffi::c_int;
     *len = 0 as ::core::ffi::c_int;
     while kappa > 0 as ::core::ffi::c_int {
@@ -587,12 +587,12 @@ unsafe extern "C" fn Grisu2(
     let mut w_p: DiyFp = DiyFp { f: 0, e: 0 };
     NormalizedBoundaries(v, &raw mut w_m, &raw mut w_p);
     let c_mk: DiyFp = GetCachedPower(w_p.e, K) as DiyFp;
-    let W: DiyFp = DiyFp_multiply(Normalize(v), c_mk) as DiyFp;
-    let mut Wp: DiyFp = DiyFp_multiply(w_p, c_mk);
-    let mut Wm: DiyFp = DiyFp_multiply(w_m, c_mk);
-    Wm.f = Wm.f.wrapping_add(1);
-    Wp.f = Wp.f.wrapping_sub(1);
-    DigitGen(W, Wp, Wp.f.wrapping_sub(Wm.f), buffer, length, K);
+    let w: DiyFp = DiyFp_multiply(Normalize(v), c_mk) as DiyFp;
+    let mut wp: DiyFp = DiyFp_multiply(w_p, c_mk);
+    let mut wm: DiyFp = DiyFp_multiply(w_m, c_mk);
+    wm.f = wm.f.wrapping_add(1);
+    wp.f = wp.f.wrapping_sub(1);
+    DigitGen(w, wp, wp.f.wrapping_sub(wm.f), buffer, length, K);
 }
 #[inline]
 unsafe extern "C" fn GetDigitsLut() -> *const ::core::ffi::c_char {

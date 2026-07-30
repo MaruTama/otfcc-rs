@@ -487,8 +487,8 @@ pub unsafe extern "C" fn otfcc_readSVG(
     packet: Packet,
     mut _options: *const Options,
 ) -> *mut SvgTable {
-    let mut offsetToSVGDocIndex: u32 = 0;
-    let mut numEntries: u16 = 0;
+    let mut offset_to_svg_doc_index: u32 = 0;
+    let mut num_entries: u16 = 0;
     let mut svg: *mut SvgTable = ::core::ptr::null_mut::<SvgTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -503,26 +503,26 @@ pub unsafe extern "C" fn otfcc_readSVG(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     if !(table.length < 10 as u32) {
-                        offsetToSVGDocIndex =
+                        offset_to_svg_doc_index =
                             read_32u(table.data.offset(2 as ::core::ffi::c_int as isize));
-                        if !(table.length < offsetToSVGDocIndex.wrapping_add(2 as u32)) {
-                            numEntries = read_16u(table.data.offset(offsetToSVGDocIndex as isize));
+                        if !(table.length < offset_to_svg_doc_index.wrapping_add(2 as u32)) {
+                            num_entries = read_16u(table.data.offset(offset_to_svg_doc_index as isize));
                             if !(table.length
-                                < offsetToSVGDocIndex
+                                < offset_to_svg_doc_index
                                     .wrapping_add(2 as u32)
                                     .wrapping_add(
                                         (12 as ::core::ffi::c_int
-                                            * numEntries as ::core::ffi::c_int)
+                                            * num_entries as ::core::ffi::c_int)
                                             as u32,
                                     ))
                             {
                                 svg = (
                                     TABLE_I_SVG.create.expect("non-null function pointer"))();
                                 let mut j: GlyphId = 0 as GlyphId;
-                                while (j as ::core::ffi::c_int) < numEntries as ::core::ffi::c_int {
+                                while (j as ::core::ffi::c_int) < num_entries as ::core::ffi::c_int {
                                     let mut record: FontFilePointer = table
                                         .data
-                                        .offset(offsetToSVGDocIndex as isize)
+                                        .offset(offset_to_svg_doc_index as isize)
                                         .offset(2 as ::core::ffi::c_int as isize)
                                         .offset(
                                             (12 as ::core::ffi::c_int * j as ::core::ffi::c_int)
@@ -544,7 +544,7 @@ pub unsafe extern "C" fn otfcc_readSVG(
                                     let mut doclen: u32 =
                                         read_32u(record.offset(8 as ::core::ffi::c_int as isize)
                                             as *const u8);
-                                    if offsetToSVGDocIndex
+                                    if offset_to_svg_doc_index
                                         .wrapping_add(docstart)
                                         .wrapping_add(doclen)
                                         <= table.length
@@ -555,7 +555,7 @@ pub unsafe extern "C" fn otfcc_readSVG(
                                             doclen as usize,
                                             table
                                                 .data
-                                                .offset(offsetToSVGDocIndex as isize)
+                                                .offset(offset_to_svg_doc_index as isize)
                                                 .offset(docstart as isize),
                                         );
                                     } else {

@@ -351,10 +351,10 @@ pub unsafe extern "C" fn statMaxp(mut font: *mut Font) {
     let mut nestDepth: u16 = 0 as u16;
     let mut nPoints: u16 = 0 as u16;
     let mut nContours: u16 = 0 as u16;
-    let mut nComponents: u16 = 0 as u16;
+    let mut n_components: u16 = 0 as u16;
     let mut nCompositePoints: u16 = 0 as u16;
     let mut nCompositeContours: u16 = 0 as u16;
-    let mut instSize: u16 = 0 as u16;
+    let mut inst_size: u16 = 0 as u16;
     for j in 0..(*(*font).glyf).length as GlyphId {
         let g: *mut Glyph = *(*(*font).glyf).items.offset(j as isize) as *mut Glyph;
         if (*g).contours.length > 0 as usize {
@@ -378,12 +378,12 @@ pub unsafe extern "C" fn statMaxp(mut font: *mut Font) {
             if (*g).stat.nestDepth as ::core::ffi::c_int > nestDepth as ::core::ffi::c_int {
                 nestDepth = (*g).stat.nestDepth;
             }
-            if (*g).references.length > nComponents as usize {
-                nComponents = (*g).references.length as u16;
+            if (*g).references.length > n_components as usize {
+                n_components = (*g).references.length as u16;
             }
         }
-        if (*g).instructionsLength as ::core::ffi::c_int > instSize as ::core::ffi::c_int {
-            instSize = (*g).instructionsLength;
+        if (*g).instructionsLength as ::core::ffi::c_int > inst_size as ::core::ffi::c_int {
+            inst_size = (*g).instructionsLength;
         }
     }
     (*(*font).maxp).maxPoints = nPoints;
@@ -391,8 +391,8 @@ pub unsafe extern "C" fn statMaxp(mut font: *mut Font) {
     (*(*font).maxp).maxCompositePoints = nCompositePoints;
     (*(*font).maxp).maxCompositeContours = nCompositeContours;
     (*(*font).maxp).maxComponentDepth = nestDepth;
-    (*(*font).maxp).maxComponentElements = nComponents;
-    (*(*font).maxp).maxSizeOfInstructions = instSize;
+    (*(*font).maxp).maxComponentElements = n_components;
+    (*(*font).maxp).maxSizeOfInstructions = inst_size;
 }
 unsafe extern "C" fn statHmtx(mut font: *mut Font, mut _options: *const Options) {
     if (*font).glyf.is_null() {
@@ -405,7 +405,7 @@ unsafe extern "C" fn statHmtx(mut font: *mut Font, mut _options: *const Options)
     ) as *mut HmtxTable;
     let mut count_a: GlyphId = (*(*font).glyf).length as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
-    let mut lsbAtX_0: bool = true;
+    let mut lsb_at_x_0: bool = true;
     if (*font).subtype != FontSubtype::Cff {
         while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
             && I_VQ.getStill.expect("non-null function pointer")(
@@ -432,9 +432,9 @@ unsafe extern "C" fn statHmtx(mut font: *mut Font, mut _options: *const Options)
         (::core::mem::size_of::<Pos>() as usize).wrapping_mul(count_k as usize),
         176 as ::core::ffi::c_ulong,
     ) as *mut Pos;
-    let mut minLSB: Pos = 0x7fff as ::core::ffi::c_int as Pos;
-    let mut minRSB: Pos = 0x7fff as ::core::ffi::c_int as Pos;
-    let mut maxExtent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
+    let mut min_lsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
+    let mut min_rsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
+    let mut max_extent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
     let mut maxWidth: Length = 0 as ::core::ffi::c_int as Length;
     for j in 0..(*(*font).glyf).length as GlyphId {
         let g: *mut Glyph = *(*(*font).glyf).items.offset(j as isize) as *mut Glyph;
@@ -446,7 +446,7 @@ unsafe extern "C" fn statHmtx(mut font: *mut Font, mut _options: *const Options)
                     I_VQ.neutral.expect("non-null function pointer"))() as VQ,
             );
         } else {
-            lsbAtX_0 = false;
+            lsb_at_x_0 = false;
         }
         let hori: Pos =
             I_VQ.getStill.expect("non-null function pointer")((*g).horizontalOrigin) as Pos;
@@ -465,25 +465,25 @@ unsafe extern "C" fn statHmtx(mut font: *mut Font, mut _options: *const Options)
         if advw > maxWidth {
             maxWidth = advw as Length;
         }
-        if lsb < minLSB {
-            minLSB = lsb;
+        if lsb < min_lsb {
+            min_lsb = lsb;
         }
-        if rsb < minRSB {
-            minRSB = rsb;
+        if rsb < min_rsb {
+            min_rsb = rsb;
         }
-        if (*g).stat.xMax - hori > maxExtent {
-            maxExtent = (*g).stat.xMax - hori;
+        if (*g).stat.xMax - hori > max_extent {
+            max_extent = (*g).stat.xMax - hori;
         }
     }
     (*(*font).hhea).numberOfMetrics = count_a as u16;
-    (*(*font).hhea).minLeftSideBearing = minLSB as i16;
-    (*(*font).hhea).minRightSideBearing = minRSB as i16;
-    (*(*font).hhea).xMaxExtent = maxExtent as i16;
+    (*(*font).hhea).minLeftSideBearing = min_lsb as i16;
+    (*(*font).hhea).minRightSideBearing = min_rsb as i16;
+    (*(*font).hhea).xMaxExtent = max_extent as i16;
     (*(*font).hhea).advanceWidthMax = maxWidth as u16;
     (*font).hmtx = hmtx;
     (*(*font).head).flags = ((*(*font).head).flags as ::core::ffi::c_int
         & !(0x2 as ::core::ffi::c_int)
-        | (if lsbAtX_0 { 0x2 as ::core::ffi::c_int } else { 0 as ::core::ffi::c_int }))
+        | (if lsb_at_x_0 { 0x2 as ::core::ffi::c_int } else { 0 as ::core::ffi::c_int }))
         as u16;
 }
 unsafe extern "C" fn statVmtx(mut font: *mut Font, mut options: *const Options) {
@@ -523,10 +523,10 @@ unsafe extern "C" fn statVmtx(mut font: *mut Font, mut options: *const Options) 
         (::core::mem::size_of::<Pos>() as usize).wrapping_mul(count_k as usize),
         231 as ::core::ffi::c_ulong,
     ) as *mut Pos;
-    let mut minTSB: Pos = 0x7fff as ::core::ffi::c_int as Pos;
-    let mut minBSB: Pos = 0x7fff as ::core::ffi::c_int as Pos;
-    let mut maxExtent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
-    let mut maxHeight: Length = 0 as ::core::ffi::c_int as Length;
+    let mut min_tsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
+    let mut min_bsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
+    let mut max_extent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
+    let mut max_height: Length = 0 as ::core::ffi::c_int as Length;
     for j in 0..(*(*font).glyf).length as GlyphId {
         let g: *mut Glyph = *(*(*font).glyf).items.offset(j as isize) as *mut Glyph;
         let vori: Pos =
@@ -543,24 +543,24 @@ unsafe extern "C" fn statVmtx(mut font: *mut Font, mut options: *const Options) 
                 .topSideBearing
                 .offset((j as ::core::ffi::c_int - count_a as ::core::ffi::c_int) as isize) = tsb;
         }
-        if advh > maxHeight {
-            maxHeight = advh as Length;
+        if advh > max_height {
+            max_height = advh as Length;
         }
-        if tsb < minTSB {
-            minTSB = tsb;
+        if tsb < min_tsb {
+            min_tsb = tsb;
         }
-        if bsb < minBSB {
-            minBSB = bsb;
+        if bsb < min_bsb {
+            min_bsb = bsb;
         }
-        if vori - (*g).stat.yMin > maxExtent {
-            maxExtent = vori - (*g).stat.yMin;
+        if vori - (*g).stat.yMin > max_extent {
+            max_extent = vori - (*g).stat.yMin;
         }
     }
     (*(*font).vhea).numOfLongVerMetrics = count_a as u16;
-    (*(*font).vhea).minTop = minTSB as i16;
-    (*(*font).vhea).minBottom = minBSB as i16;
-    (*(*font).vhea).yMaxExtent = maxExtent as i16;
-    (*(*font).vhea).advanceHeightMax = maxHeight as i16;
+    (*(*font).vhea).minTop = min_tsb as i16;
+    (*(*font).vhea).minBottom = min_bsb as i16;
+    (*(*font).vhea).yMaxExtent = max_extent as i16;
+    (*(*font).vhea).advanceHeightMax = max_height as i16;
     (*font).vmtx = vmtx;
 }
 unsafe extern "C" fn statOS_2UnicodeRanges(
@@ -572,16 +572,16 @@ unsafe extern "C" fn statOS_2UnicodeRanges(
     let mut u2: u32 = 0 as u32;
     let mut u3: u32 = 0 as u32;
     let mut u4: u32 = 0 as u32;
-    let mut minUnicode: i32 = 0xffff as i32;
-    let mut maxUnicode: i32 = 0 as i32;
+    let mut min_unicode: i32 = 0xffff as i32;
+    let mut max_unicode: i32 = 0 as i32;
     item = (*(*font).cmap).unicodes;
     while !item.is_null() {
         let mut u: ::core::ffi::c_int = (*item).unicode;
-        if (u as i32) < minUnicode {
-            minUnicode = u as i32;
+        if (u as i32) < min_unicode {
+            min_unicode = u as i32;
         }
-        if u as i32 > maxUnicode {
-            maxUnicode = u as i32;
+        if u as i32 > max_unicode {
+            max_unicode = u as i32;
         }
         if u >= 0 as ::core::ffi::c_int && u <= 0x7f as ::core::ffi::c_int {
             u1 |= ((1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
@@ -1034,13 +1034,13 @@ unsafe extern "C" fn statOS_2UnicodeRanges(
         (*(*font).OS_2).ulUnicodeRange3 = u3;
         (*(*font).OS_2).ulUnicodeRange4 = u4;
     }
-    if minUnicode < 0x10000 as i32 {
-        (*(*font).OS_2).usFirstCharIndex = minUnicode as u16;
+    if min_unicode < 0x10000 as i32 {
+        (*(*font).OS_2).usFirstCharIndex = min_unicode as u16;
     } else {
         (*(*font).OS_2).usFirstCharIndex = 0xffff as u16;
     }
-    if maxUnicode < 0x10000 as i32 {
-        (*(*font).OS_2).usLastCharIndex = maxUnicode as u16;
+    if max_unicode < 0x10000 as i32 {
+        (*(*font).OS_2).usLastCharIndex = max_unicode as u16;
     } else {
         (*(*font).OS_2).usLastCharIndex = 0xffff as u16;
     };
@@ -1052,17 +1052,17 @@ unsafe extern "C" fn statOS_2AverageWidth(
     if (*options).keep_average_char_width {
         return;
     }
-    let mut totalWidth: u32 = 0 as u32;
+    let mut total_width: u32 = 0 as u32;
     for j in 0..(*(*font).glyf).length as GlyphId {
         let adw: Pos = I_VQ.getStill.expect("non-null function pointer")(
             (**(*(*font).glyf).items.offset(j as isize)).advanceWidth,
         ) as Pos;
         if adw > 0 as ::core::ffi::c_int as Pos {
-            totalWidth = (totalWidth as Pos + adw) as u32;
+            total_width = (total_width as Pos + adw) as u32;
         }
     }
     (*(*font).OS_2).xAvgCharWidth =
-        (totalWidth as usize).wrapping_div((*(*font).glyf).length) as i16;
+        (total_width as usize).wrapping_div((*(*font).glyf).length) as i16;
 }
 unsafe extern "C" fn statMaxContextOTL(table: *const OtlTable) -> u16 {
     // c2rust's translation of otfcc's own `foreach(item, vector) { ... }`
@@ -1150,11 +1150,11 @@ unsafe extern "C" fn statCFFWidths(mut font: *mut Font) {
         524 as ::core::ffi::c_ulong,
     ) as *mut u32;
     for j in 0..(*(*font).glyf).length as GlyphId {
-        let intWidth: u16 = I_VQ.getStill.expect("non-null function pointer")(
+        let int_width: u16 = I_VQ.getStill.expect("non-null function pointer")(
             (**(*(*font).glyf).items.offset(j as isize)).advanceWidth,
         ) as u16;
-        if (intWidth as ::core::ffi::c_int) < MAX_STAT_METRIC {
-            let fresh1 = frequency.offset(intWidth as isize);
+        if (int_width as ::core::ffi::c_int) < MAX_STAT_METRIC {
+            let fresh1 = frequency.offset(int_width as isize);
             *fresh1 = (*fresh1).wrapping_add(1 as u32);
         }
     }
@@ -1232,18 +1232,18 @@ unsafe extern "C" fn statVORG(mut font: *mut Font) {
         578 as ::core::ffi::c_ulong,
     ) as *mut VorgTable;
     (*vorg).defaultVerticalOrigin = maxj as Pos;
-    let mut nVertOrigs: GlyphId = 0 as GlyphId;
+    let mut n_vert_origs: GlyphId = 0 as GlyphId;
     for j_1 in 0..(*(*font).glyf).length as GlyphId {
         let vori_0: Pos = I_VQ.getStill.expect("non-null function pointer")(
             (**(*(*font).glyf).items.offset(j_1 as isize)).verticalOrigin,
         ) as Pos;
         if vori_0 != maxj as ::core::ffi::c_int as Pos {
-            nVertOrigs = (nVertOrigs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+            n_vert_origs = (n_vert_origs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
         }
     }
-    (*vorg).numVertOriginYMetrics = nVertOrigs;
+    (*vorg).numVertOriginYMetrics = n_vert_origs;
     (*vorg).entries = __caryll_allocate_clean(
-        (::core::mem::size_of::<VorgEntry>() as usize).wrapping_mul(nVertOrigs as usize),
+        (::core::mem::size_of::<VorgEntry>() as usize).wrapping_mul(n_vert_origs as usize),
         587 as ::core::ffi::c_ulong,
     ) as *mut VorgEntry;
     let mut jj: GlyphId = 0 as GlyphId;
@@ -1264,15 +1264,15 @@ unsafe extern "C" fn statLTSH(mut font: *mut Font) {
     if (*font).glyf.is_null() {
         return;
     }
-    let mut needLTSH: bool = false;
+    let mut need_ltsh: bool = false;
     for j in 0..(*(*font).glyf).length as GlyphId {
         if (**(*(*font).glyf).items.offset(j as isize)).yPel as ::core::ffi::c_int
             > 1 as ::core::ffi::c_int
         {
-            needLTSH = true;
+            need_ltsh = true;
         }
     }
-    if !needLTSH {
+    if !need_ltsh {
         return;
     }
     let mut ltsh: *mut LtshTable = ::core::ptr::null_mut::<LtshTable>();

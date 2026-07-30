@@ -166,10 +166,10 @@ unsafe extern "C" fn table_BASE_free(mut x: *mut BaseTable) {
 }
 unsafe extern "C" fn readBaseValue(
     mut data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u16,
 ) -> i16 {
-    if tableLength < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32 {
+    if table_length < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32 {
         return 0 as i16;
     } else {
         return read_16s(
@@ -180,40 +180,40 @@ unsafe extern "C" fn readBaseValue(
 }
 unsafe extern "C" fn readBaseScript(
     data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u16,
     mut entry: *mut BaseScriptEntry,
-    mut baseTagList: *mut u32,
-    mut nBaseTags: u16,
+    mut base_tag_list: *mut u32,
+    mut n_base_tags: u16,
 ) {
-    let mut baseValuesOffset: u16 = 0;
+    let mut base_values_offset: u16 = 0;
     (*entry).baseValuesCount = 0 as TableId;
     (*entry).baseValues = ::core::ptr::null_mut::<BaseValue>();
     (*entry).defaultBaselineTag = 0 as u32;
-    if !(tableLength < (offset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32) {
-        baseValuesOffset =
+    if !(table_length < (offset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32) {
+        base_values_offset =
             read_16u(data.offset(offset as ::core::ffi::c_int as isize) as *const u8);
-        if baseValuesOffset != 0 {
-            baseValuesOffset =
-                (baseValuesOffset as ::core::ffi::c_int + offset as ::core::ffi::c_int) as u16;
-            if !(tableLength
-                < (baseValuesOffset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32)
+        if base_values_offset != 0 {
+            base_values_offset =
+                (base_values_offset as ::core::ffi::c_int + offset as ::core::ffi::c_int) as u16;
+            if !(table_length
+                < (base_values_offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32)
             {
-                let mut defaultIndex: u16 =
-                    (read_16u(data.offset(baseValuesOffset as ::core::ffi::c_int as isize)
+                let mut default_index: u16 =
+                    (read_16u(data.offset(base_values_offset as ::core::ffi::c_int as isize)
                         as *const u8) as ::core::ffi::c_int
-                        % nBaseTags as ::core::ffi::c_int) as u16;
-                (*entry).defaultBaselineTag = *baseTagList.offset(defaultIndex as isize);
+                        % n_base_tags as ::core::ffi::c_int) as u16;
+                (*entry).defaultBaselineTag = *base_tag_list.offset(default_index as isize);
                 (*entry).baseValuesCount = read_16u(
-                    data.offset(baseValuesOffset as ::core::ffi::c_int as isize)
+                    data.offset(base_values_offset as ::core::ffi::c_int as isize)
                         .offset(2 as ::core::ffi::c_int as isize)
                         as *const u8,
                 ) as TableId;
                 if !((*entry).baseValuesCount as ::core::ffi::c_int
-                    != nBaseTags as ::core::ffi::c_int)
+                    != n_base_tags as ::core::ffi::c_int)
                 {
-                    if !(tableLength
-                        < (baseValuesOffset as ::core::ffi::c_int
+                    if !(table_length
+                        < (base_values_offset as ::core::ffi::c_int
                             + 4 as ::core::ffi::c_int
                             + 2 as ::core::ffi::c_int
                                 * (*entry).baseValuesCount as ::core::ffi::c_int)
@@ -229,21 +229,21 @@ unsafe extern "C" fn readBaseScript(
                             < (*entry).baseValuesCount as ::core::ffi::c_int
                         {
                             (*(*entry).baseValues.offset(j as isize)).tag =
-                                *baseTagList.offset(j as isize);
-                            let mut _valOffset: u16 = read_16u(
-                                data.offset(baseValuesOffset as ::core::ffi::c_int as isize)
+                                *base_tag_list.offset(j as isize);
+                            let mut _val_offset: u16 = read_16u(
+                                data.offset(base_values_offset as ::core::ffi::c_int as isize)
                                     .offset(4 as ::core::ffi::c_int as isize)
                                     .offset(
                                         (2 as ::core::ffi::c_int * j as ::core::ffi::c_int)
                                             as isize,
                                     ) as *const u8,
                             );
-                            if _valOffset != 0 {
+                            if _val_offset != 0 {
                                 (*(*entry).baseValues.offset(j as isize)).coordinate = readBaseValue(
                                     data,
-                                    tableLength,
-                                    (baseValuesOffset as ::core::ffi::c_int
-                                        + _valOffset as ::core::ffi::c_int)
+                                    table_length,
+                                    (base_values_offset as ::core::ffi::c_int
+                                        + _val_offset as ::core::ffi::c_int)
                                         as u16,
                                 )
                                     as Pos;
@@ -269,42 +269,42 @@ unsafe extern "C" fn readBaseScript(
 }
 unsafe extern "C" fn readAxis(
     mut data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u16,
 ) -> *mut BaseAxis {
-    let mut baseTagListOffset: u16 = 0;
-    let mut nBaseTags: u16 = 0;
-    let mut baseScriptListOffset: u16 = 0;
-    let mut nBaseScripts: TableId = 0;
+    let mut base_tag_list_offset: u16 = 0;
+    let mut n_base_tags: u16 = 0;
+    let mut base_script_list_offset: u16 = 0;
+    let mut n_base_scripts: TableId = 0;
     let mut axis: *mut BaseAxis = ::core::ptr::null_mut::<BaseAxis>();
-    let mut baseTagList: *mut u32 = ::core::ptr::null_mut::<u32>();
-    if !(tableLength < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32) {
-        baseTagListOffset = (offset as ::core::ffi::c_int
+    let mut base_tag_list: *mut u32 = ::core::ptr::null_mut::<u32>();
+    if !(table_length < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32) {
+        base_tag_list_offset = (offset as ::core::ffi::c_int
             + read_16u(data.offset(offset as ::core::ffi::c_int as isize) as *const u8)
                 as ::core::ffi::c_int) as u16;
-        if !(baseTagListOffset as ::core::ffi::c_int <= offset as ::core::ffi::c_int) {
-            if !(tableLength
-                < (baseTagListOffset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32)
+        if !(base_tag_list_offset as ::core::ffi::c_int <= offset as ::core::ffi::c_int) {
+            if !(table_length
+                < (base_tag_list_offset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32)
             {
-                nBaseTags = read_16u(
-                    data.offset(baseTagListOffset as ::core::ffi::c_int as isize) as *const u8,
+                n_base_tags = read_16u(
+                    data.offset(base_tag_list_offset as ::core::ffi::c_int as isize) as *const u8,
                 );
-                if !(nBaseTags == 0) {
-                    if !(tableLength
-                        < (baseTagListOffset as ::core::ffi::c_int
+                if !(n_base_tags == 0) {
+                    if !(table_length
+                        < (base_tag_list_offset as ::core::ffi::c_int
                             + 2 as ::core::ffi::c_int
-                            + 4 as ::core::ffi::c_int * nBaseTags as ::core::ffi::c_int)
+                            + 4 as ::core::ffi::c_int * n_base_tags as ::core::ffi::c_int)
                             as u32)
                     {
-                        baseTagList = __caryll_allocate_clean(
+                        base_tag_list = __caryll_allocate_clean(
                             (::core::mem::size_of::<u32>() as usize)
-                                .wrapping_mul(nBaseTags as usize),
+                                .wrapping_mul(n_base_tags as usize),
                             77 as ::core::ffi::c_ulong,
                         ) as *mut u32;
                         let mut j: u16 = 0 as u16;
-                        while (j as ::core::ffi::c_int) < nBaseTags as ::core::ffi::c_int {
-                            *baseTagList.offset(j as isize) = read_32u(
-                                data.offset(baseTagListOffset as ::core::ffi::c_int as isize)
+                        while (j as ::core::ffi::c_int) < n_base_tags as ::core::ffi::c_int {
+                            *base_tag_list.offset(j as isize) = read_32u(
+                                data.offset(base_tag_list_offset as ::core::ffi::c_int as isize)
                                     .offset(2 as ::core::ffi::c_int as isize)
                                     .offset(
                                         (j as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
@@ -313,30 +313,30 @@ unsafe extern "C" fn readAxis(
                             );
                             j = j.wrapping_add(1);
                         }
-                        baseScriptListOffset = (offset as ::core::ffi::c_int
+                        base_script_list_offset = (offset as ::core::ffi::c_int
                             + read_16u(
                                 data.offset(offset as ::core::ffi::c_int as isize)
                                     .offset(2 as ::core::ffi::c_int as isize)
                                     as *const u8,
                             ) as ::core::ffi::c_int)
                             as u16;
-                        if !(baseScriptListOffset as ::core::ffi::c_int
+                        if !(base_script_list_offset as ::core::ffi::c_int
                             <= offset as ::core::ffi::c_int)
                         {
-                            if !(tableLength
-                                < (baseScriptListOffset as ::core::ffi::c_int
+                            if !(table_length
+                                < (base_script_list_offset as ::core::ffi::c_int
                                     + 2 as ::core::ffi::c_int)
                                     as u32)
                             {
-                                nBaseScripts = read_16u(
-                                    data.offset(baseScriptListOffset as ::core::ffi::c_int as isize)
+                                n_base_scripts = read_16u(
+                                    data.offset(base_script_list_offset as ::core::ffi::c_int as isize)
                                         as *const u8,
                                 ) as TableId;
-                                if !(tableLength
-                                    < (baseScriptListOffset as ::core::ffi::c_int
+                                if !(table_length
+                                    < (base_script_list_offset as ::core::ffi::c_int
                                         + 2 as ::core::ffi::c_int
                                         + 6 as ::core::ffi::c_int
-                                            * nBaseScripts as ::core::ffi::c_int)
+                                            * n_base_scripts as ::core::ffi::c_int)
                                         as u32)
                                 {
                                     axis = __caryll_allocate_clean(
@@ -344,20 +344,20 @@ unsafe extern "C" fn readAxis(
                                         87 as ::core::ffi::c_ulong,
                                     )
                                         as *mut BaseAxis;
-                                    (*axis).scriptCount = nBaseScripts;
+                                    (*axis).scriptCount = n_base_scripts;
                                     (*axis).entries = __caryll_allocate_clean(
                                         (::core::mem::size_of::<BaseScriptEntry>() as usize)
-                                            .wrapping_mul(nBaseScripts as usize),
+                                            .wrapping_mul(n_base_scripts as usize),
                                         89 as ::core::ffi::c_ulong,
                                     )
                                         as *mut BaseScriptEntry;
                                     let mut j_0: TableId = 0 as TableId;
                                     while (j_0 as ::core::ffi::c_int)
-                                        < nBaseScripts as ::core::ffi::c_int
+                                        < n_base_scripts as ::core::ffi::c_int
                                     {
                                         (*(*axis).entries.offset(j_0 as isize)).tag = read_32u(
                                             data.offset(
-                                                baseScriptListOffset as ::core::ffi::c_int as isize,
+                                                base_script_list_offset as ::core::ffi::c_int as isize,
                                             )
                                             .offset(2 as ::core::ffi::c_int as isize)
                                             .offset(
@@ -367,9 +367,9 @@ unsafe extern "C" fn readAxis(
                                             )
                                                 as *const u8,
                                         );
-                                        let mut baseScriptOffset: u16 = read_16u(
+                                        let mut base_script_offset: u16 = read_16u(
                                             data.offset(
-                                                baseScriptListOffset as ::core::ffi::c_int as isize,
+                                                base_script_list_offset as ::core::ffi::c_int as isize,
                                             )
                                             .offset(2 as ::core::ffi::c_int as isize)
                                             .offset(
@@ -380,17 +380,17 @@ unsafe extern "C" fn readAxis(
                                             .offset(4 as ::core::ffi::c_int as isize)
                                                 as *const u8,
                                         );
-                                        if baseScriptOffset != 0 {
+                                        if base_script_offset != 0 {
                                             readBaseScript(
                                                 data,
-                                                tableLength,
-                                                (baseScriptListOffset as ::core::ffi::c_int
-                                                    + baseScriptOffset as ::core::ffi::c_int)
+                                                table_length,
+                                                (base_script_list_offset as ::core::ffi::c_int
+                                                    + base_script_offset as ::core::ffi::c_int)
                                                     as u16,
                                                 (*axis).entries.offset(j_0 as isize)
                                                     as *mut BaseScriptEntry,
-                                                baseTagList,
-                                                nBaseTags,
+                                                base_tag_list,
+                                                n_base_tags,
                                             );
                                         } else {
                                             (*(*axis).entries.offset(j_0 as isize))
@@ -412,9 +412,9 @@ unsafe extern "C" fn readAxis(
             }
         }
     }
-    if !baseTagList.is_null() {
-        free(baseTagList as *mut ::core::ffi::c_void);
-        baseTagList = ::core::ptr::null_mut::<u32>();
+    if !base_tag_list.is_null() {
+        free(base_tag_list as *mut ::core::ffi::c_void);
+        base_tag_list = ::core::ptr::null_mut::<u32>();
     }
     deleteBaseAxis(axis);
     axis = ::core::ptr::null_mut::<BaseAxis>();
@@ -437,11 +437,11 @@ pub unsafe extern "C" fn otfcc_readBASE(
             if table.tag == 1111577413i32 as u32 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut offsetH: u16 = 0;
-                    let mut offsetV: u16 = 0;
+                    let mut offset_h: u16 = 0;
+                    let mut offset_v: u16 = 0;
                     let mut data: FontFilePointer = table.data as FontFilePointer;
-                    let mut tableLength: u32 = table.length;
-                    if tableLength < 8 as u32 {
+                    let mut table_length: u32 = table.length;
+                    if table_length < 8 as u32 {
                         (*(*options).logger)
                             .logSDS
                             .expect("non-null function pointer")(
@@ -457,17 +457,17 @@ pub unsafe extern "C" fn otfcc_readBASE(
                             ::core::mem::size_of::<BaseTable>() as usize,
                             116 as ::core::ffi::c_ulong,
                         ) as *mut BaseTable;
-                        offsetH = read_16u(
+                        offset_h = read_16u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
-                        if offsetH != 0 {
-                            (*base).horizontal = readAxis(data, tableLength, offsetH);
+                        if offset_h != 0 {
+                            (*base).horizontal = readAxis(data, table_length, offset_h);
                         }
-                        offsetV = read_16u(
+                        offset_v = read_16u(
                             data.offset(6 as ::core::ffi::c_int as isize) as *const u8
                         );
-                        if offsetV != 0 {
-                            (*base).vertical = readAxis(data, tableLength, offsetV);
+                        if offset_v != 0 {
+                            (*base).vertical = readAxis(data, table_length, offset_v);
                         }
                         return base;
                     }
@@ -803,61 +803,61 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const BaseAxis) -> *mut BkBlock {
                 ) -> ::core::ffi::c_int,
         ),
     );
-    let mut baseTagList: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (taglist.size as ::core::ffi::c_int) as u32)]);
+    let mut base_tag_list: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (taglist.size as ::core::ffi::c_int) as u32)]);
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
-        bk_push(baseTagList, &[bk_int(BkCellType::B32, (*taglist.items.offset(j_0 as isize)) as u32)]);
+        bk_push(base_tag_list, &[bk_int(BkCellType::B32, (*taglist.items.offset(j_0 as isize)) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
-    let mut baseScriptList: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*axis).scriptCount as ::core::ffi::c_int) as u32)]);
+    let mut base_script_list: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*axis).scriptCount as ::core::ffi::c_int) as u32)]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
         let mut entry_0: *mut BaseScriptEntry =
             (*axis).entries.offset(j_1 as isize) as *mut BaseScriptEntry;
         let mut baseValues: *mut BkBlock = bk_new_Block(&[]);
-        let mut defaultIndex: TableId = 0 as TableId;
+        let mut default_index: TableId = 0 as TableId;
         let mut m: TableId = 0 as TableId;
         while (m as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
             if *taglist.items.offset(m as isize) == (*entry_0).defaultBaselineTag {
-                defaultIndex = m;
+                default_index = m;
                 break;
             } else {
                 m = m.wrapping_add(1);
             }
         }
-        bk_push(baseValues, &[bk_int(BkCellType::B16, (defaultIndex as ::core::ffi::c_int) as u32)]);
+        bk_push(baseValues, &[bk_int(BkCellType::B16, (default_index as ::core::ffi::c_int) as u32)]);
         bk_push(baseValues, &[bk_int(BkCellType::B16, (taglist.size as ::core::ffi::c_int) as u32)]);
         let mut m_0: usize = 0 as usize;
         while m_0 < taglist.size as usize {
             let mut found_1: bool = false;
-            let mut foundIndex: TableId = 0 as TableId;
+            let mut found_index: TableId = 0 as TableId;
             let mut k_0: TableId = 0 as TableId;
             while (k_0 as ::core::ffi::c_int) < (*entry_0).baseValuesCount as ::core::ffi::c_int {
                 if (*(*entry_0).baseValues.offset(k_0 as isize)).tag
                     == *taglist.items.offset(m_0 as isize)
                 {
                     found_1 = true;
-                    foundIndex = k_0;
+                    found_index = k_0;
                     break;
                 } else {
                     k_0 = k_0.wrapping_add(1);
                 }
             }
             if found_1 {
-                bk_push(baseValues, &[bk_ptr(BkCellType::P16, bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, ((*(*entry_0).baseValues.offset(foundIndex as isize)).coordinate as i16
+                bk_push(baseValues, &[bk_ptr(BkCellType::P16, bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, ((*(*entry_0).baseValues.offset(found_index as isize)).coordinate as i16
                             as ::core::ffi::c_int) as u32)]))]);
             } else {
                 bk_push(baseValues, &[bk_ptr(BkCellType::P16, bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, 0 as u32)]))]);
             }
             m_0 = m_0.wrapping_add(1);
         }
-        let mut scriptRecord: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, baseValues), bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, 0 as u32)]);
-        bk_push(baseScriptList, &[bk_int(BkCellType::B32, ((*entry_0).tag) as u32), bk_ptr(BkCellType::P16, scriptRecord)]);
+        let mut script_record: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, baseValues), bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, 0 as u32)]);
+        bk_push(base_script_list, &[bk_int(BkCellType::B32, ((*entry_0).tag) as u32), bk_ptr(BkCellType::P16, script_record)]);
         j_1 = j_1.wrapping_add(1);
     }
     free(taglist.items as *mut ::core::ffi::c_void);
     taglist.items = ::core::ptr::null_mut::<u32>();
-    return bk_new_Block(&[bk_ptr(BkCellType::P16, baseTagList), bk_ptr(BkCellType::P16, baseScriptList)]);
+    return bk_new_Block(&[bk_ptr(BkCellType::P16, base_tag_list), bk_ptr(BkCellType::P16, base_script_list)]);
 }
 pub unsafe extern "C" fn otfcc_buildBASE(
     mut base: *const BaseTable,

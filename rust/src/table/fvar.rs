@@ -981,7 +981,7 @@ unsafe extern "C" fn fvar_registerRegion(
             ::core::mem::size_of::<FvarMaster>() as usize,
             47 as ::core::ffi::c_ulong,
         ) as *mut FvarMaster;
-        let mut sMasterID: SdsRaw = sdsfromlonglong((1 as ::core::ffi::c_uint).wrapping_add(
+        let mut s_master_id: SdsRaw = sdsfromlonglong((1 as ::core::ffi::c_uint).wrapping_add(
             if !(*fvar).masters.is_null() {
                 (*(*(*fvar).masters).hh.tbl).num_items
             } else {
@@ -990,9 +990,9 @@ unsafe extern "C" fn fvar_registerRegion(
         ) as ::core::ffi::c_longlong);
         (*m).name = sdscatsds(
             sdsnew(b"m\0" as *const u8 as *const ::core::ffi::c_char),
-            sMasterID,
+            s_master_id,
         );
-        sdsfree(sMasterID);
+        sdsfree(s_master_id);
         (*m).region = region;
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
         let mut _hj_i_0: ::core::ffi::c_uint = 0;
@@ -1845,12 +1845,12 @@ pub unsafe extern "C" fn otfcc_readFvar(
     mut options: *const Options,
 ) -> *mut FvarTable {
     let mut header: *mut FVARHeader = ::core::ptr::null_mut::<FVARHeader>();
-    let mut nAxes: u16 = 0;
-    let mut instanceSizeWithoutPSNID: u16 = 0;
-    let mut instanceSizeWithPSNID: u16 = 0;
-    let mut axisRecord: *mut VariationAxisRecord = ::core::ptr::null_mut::<VariationAxisRecord>();
-    let mut nInstances: u16 = 0;
-    let mut hasPostscriptNameID: bool = false;
+    let mut n_axes: u16 = 0;
+    let mut instance_size_without_psnid: u16 = 0;
+    let mut instance_size_with_psnid: u16 = 0;
+    let mut axis_record: *mut VariationAxisRecord = ::core::ptr::null_mut::<VariationAxisRecord>();
+    let mut n_instances: u16 = 0;
+    let mut has_postscript_name_id: bool = false;
     let mut instance: *mut InstanceRecord = ::core::ptr::null_mut::<InstanceRecord>();
     let mut fvar: *mut FvarTable = ::core::ptr::null_mut::<FvarTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -1883,21 +1883,21 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                         if !(be16((*header).axisSize) as usize
                                             != ::core::mem::size_of::<VariationAxisRecord>())
                                         {
-                                            nAxes = be16((*header).axisCount);
-                                            instanceSizeWithoutPSNID = 4_usize.wrapping_add(
-                                                (nAxes as usize).wrapping_mul(
+                                            n_axes = be16((*header).axisCount);
+                                            instance_size_without_psnid = 4_usize.wrapping_add(
+                                                (n_axes as usize).wrapping_mul(
                                                     ::core::mem::size_of::<F16Dot16>(),
                                                 ),
                                             )
                                                 as u16;
-                                            instanceSizeWithPSNID = (2 as ::core::ffi::c_int
-                                                + instanceSizeWithoutPSNID as ::core::ffi::c_int)
+                                            instance_size_with_psnid = (2 as ::core::ffi::c_int
+                                                + instance_size_without_psnid as ::core::ffi::c_int)
                                                 as u16;
                                             if !(be16((*header).instanceSize) as ::core::ffi::c_int
-                                                != instanceSizeWithoutPSNID as ::core::ffi::c_int
+                                                != instance_size_without_psnid as ::core::ffi::c_int
                                                 && be16((*header).instanceSize)
                                                     as ::core::ffi::c_int
-                                                    != instanceSizeWithPSNID as ::core::ffi::c_int)
+                                                    != instance_size_with_psnid as ::core::ffi::c_int)
                                             {
                                                 if !((table.length as usize)
                                                     < (be16((*header).axesArrayOffset) as usize)
@@ -1906,7 +1906,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                                 VariationAxisRecord,
                                                             >(
                                                             )
-                                                                .wrapping_mul(nAxes as usize),
+                                                                .wrapping_mul(n_axes as usize),
                                                         )
                                                         .wrapping_add(
                                                             (be16((*header).instanceSize)
@@ -1925,36 +1925,36 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                             .expect("non-null function pointer"),
                                                     )(
                                                     );
-                                                    axisRecord =
+                                                    axis_record =
                                                         data.offset(be16((*header).axesArrayOffset)
                                                             as ::core::ffi::c_int
                                                             as isize)
                                                             as *mut VariationAxisRecord;
                                                     let mut j: u16 = 0 as u16;
                                                     while (j as ::core::ffi::c_int)
-                                                        < nAxes as ::core::ffi::c_int
+                                                        < n_axes as ::core::ffi::c_int
                                                     {
                                                         let mut axis: VfAxis = VfAxis {
-                                                            tag: be32((*axisRecord).axisTag),
+                                                            tag: be32((*axis_record).axisTag),
                                                             minValue: otfcc_from_fixed(be32(
-                                                                (*axisRecord).minValue as u32,
+                                                                (*axis_record).minValue as u32,
                                                             )
                                                                 as F16Dot16)
                                                                 as Pos,
                                                             defaultValue: otfcc_from_fixed(be32(
-                                                                (*axisRecord).defaultValue
+                                                                (*axis_record).defaultValue
                                                                     as u32,
                                                             )
                                                                 as F16Dot16)
                                                                 as Pos,
                                                             maxValue: otfcc_from_fixed(be32(
-                                                                (*axisRecord).maxValue as u32,
+                                                                (*axis_record).maxValue as u32,
                                                             )
                                                                 as F16Dot16)
                                                                 as Pos,
-                                                            flags: be16((*axisRecord).flags),
+                                                            flags: be16((*axis_record).flags),
                                                             axisNameID: be16(
-                                                                (*axisRecord).axisNameID,
+                                                                (*axis_record).axisNameID,
                                                             ),
                                                         };
                                                         VF_I_AXES
@@ -1963,19 +1963,19 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                             &raw mut (*fvar).axes,
                                                             axis,
                                                         );
-                                                        axisRecord = axisRecord.offset(1);
+                                                        axis_record = axis_record.offset(1);
                                                         j = j.wrapping_add(1);
                                                     }
-                                                    nInstances = be16((*header).instanceCount);
-                                                    hasPostscriptNameID =
+                                                    n_instances = be16((*header).instanceCount);
+                                                    has_postscript_name_id =
                                                         be16((*header).instanceSize)
                                                             as ::core::ffi::c_int
-                                                            == instanceSizeWithPSNID
+                                                            == instance_size_with_psnid
                                                                 as ::core::ffi::c_int;
-                                                    instance = axisRecord as *mut InstanceRecord;
+                                                    instance = axis_record as *mut InstanceRecord;
                                                     let mut j_0: u16 = 0 as u16;
                                                     while (j_0 as ::core::ffi::c_int)
-                                                        < nInstances as ::core::ffi::c_int
+                                                        < n_instances as ::core::ffi::c_int
                                                     {
                                                         let mut inst: FvarInstance =
                                                             FvarInstance {
@@ -2001,7 +2001,7 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                         inst.flags = be16((*instance).flags);
                                                         let mut k: u16 = 0 as u16;
                                                         while (k as ::core::ffi::c_int)
-                                                            < nAxes as ::core::ffi::c_int
+                                                            < n_axes as ::core::ffi::c_int
                                                         {
                                                             I_VV.push.expect(
                                                                 "non-null function pointer",
@@ -2023,11 +2023,11 @@ pub unsafe extern "C" fn otfcc_readFvar(
                                                             .expect("non-null function pointer")(
                                                             &raw mut inst.coordinates,
                                                         );
-                                                        if hasPostscriptNameID {
+                                                        if has_postscript_name_id {
                                                             inst.postScriptNameID = be16(
                                                                 *((instance as FontFilePointer)
                                                                     .offset(
-                                                                        instanceSizeWithoutPSNID
+                                                                        instance_size_without_psnid
                                                                             as ::core::ffi::c_int
                                                                             as isize,
                                                                     )

@@ -246,13 +246,13 @@ unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
 #[inline]
 unsafe extern "C" fn otfcc_get16u(mut file: *mut FILE) -> u16 {
     let mut tmp: u16 = 0;
-    let mut sizeRead: usize = fread(
+    let mut size_read: usize = fread(
         &raw mut tmp as *mut ::core::ffi::c_void,
         2 as usize,
         1 as usize,
         file,
     ) as usize;
-    if sizeRead == 0 {
+    if size_read == 0 {
         fprintf(
             stderr,
             b"File corruption of terminated unexpectedly.\n\0" as *const u8
@@ -265,13 +265,13 @@ unsafe extern "C" fn otfcc_get16u(mut file: *mut FILE) -> u16 {
 #[inline]
 unsafe extern "C" fn otfcc_get32u(mut file: *mut FILE) -> u32 {
     let mut tmp: u32 = 0;
-    let mut sizeRead: usize = fread(
+    let mut size_read: usize = fread(
         &raw mut tmp as *mut ::core::ffi::c_void,
         4 as usize,
         1 as usize,
         file,
     ) as usize;
-    if sizeRead == 0 {
+    if size_read == 0 {
         fprintf(
             stderr,
             b"File corruption of terminated unexpectedly.\n\0" as *const u8

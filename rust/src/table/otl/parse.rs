@@ -653,16 +653,16 @@ unsafe extern "C" fn _declareLookupParser(
         ),
         &LOOKUP_FLAGS_LABELS,
     ) as u16;
-    let mut markAttachmentType: u16 = json_obj_getint(
+    let mut mark_attachment_type: u16 = json_obj_getint(
         _lookup,
         b"markAttachmentType\0" as *const u8 as *const ::core::ffi::c_char,
     ) as u16;
-    if markAttachmentType != 0 {
+    if mark_attachment_type != 0 {
         (*lookup).flags = ((*lookup).flags as ::core::ffi::c_int
-            | (markAttachmentType as ::core::ffi::c_int) << 8 as ::core::ffi::c_int)
+            | (mark_attachment_type as ::core::ffi::c_int) << 8 as ::core::ffi::c_int)
             as u16;
     }
-    let mut subtableCount: TableId = (*_subtables).u.array.length as TableId;
+    let mut subtable_count: TableId = (*_subtables).u.array.length as TableId;
     (*(*options).logger)
         .startSDS
         .expect("non-null function pointer")(
@@ -672,7 +672,7 @@ unsafe extern "C" fn _declareLookupParser(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < subtableCount as ::core::ffi::c_int {
+        while (j as ::core::ffi::c_int) < subtable_count as ::core::ffi::c_int {
             let mut _subtable: *mut JsonValue =
                 *(*_subtables).u.array.values.offset(j as isize) as *mut JsonValue;
             if !_subtable.is_null()
@@ -2026,7 +2026,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
     }
     let mut j: u32 = 0 as u32;
     while j < (*features).u.object.length as u32 {
-        let mut featureName: *mut ::core::ffi::c_char =
+        let mut feature_name: *mut ::core::ffi::c_char =
             (*(*features).u.object.values.offset(j as isize)).name;
         let mut _feature: *mut JsonValue =
             (*(*features).u.object.values.offset(j as isize)).value as *mut JsonValue;
@@ -2388,7 +2388,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                                 b" for feature [",
                                 tag,
                                 b"/",
-                                featureName,
+                                feature_name,
                                 b"] is missing or invalid.",
                             ),
                         );
@@ -2403,11 +2403,11 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                 let mut _hj_j_0: ::core::ffi::c_uint = 0;
                 let mut _hj_k_0: ::core::ffi::c_uint = 0;
                 let mut _hj_key_0: *const ::core::ffi::c_uchar =
-                    featureName as *const ::core::ffi::c_uchar;
+                    feature_name as *const ::core::ffi::c_uchar;
                 _hf_hashv_0 = 0xfeedbeef as ::core::ffi::c_uint;
                 _hj_j_0 = 0x9e3779b9 as ::core::ffi::c_uint;
                 _hj_i_0 = _hj_j_0;
-                _hj_k_0 = strlen(featureName) as ::core::ffi::c_uint;
+                _hj_k_0 = strlen(feature_name) as ::core::ffi::c_uint;
                 while _hj_k_0 >= 12 as ::core::ffi::c_uint {
                     _hj_i_0 = _hj_i_0.wrapping_add(
                         (*_hj_key_0.offset(0 as ::core::ffi::c_int as isize)
@@ -2496,7 +2496,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     _hj_key_0 = _hj_key_0.offset(12 as ::core::ffi::c_int as isize);
                     _hj_k_0 = _hj_k_0.wrapping_sub(12 as ::core::ffi::c_uint);
                 }
-                _hf_hashv_0 = _hf_hashv_0.wrapping_add(strlen(featureName) as ::core::ffi::c_uint);
+                _hf_hashv_0 = _hf_hashv_0.wrapping_add(strlen(feature_name) as ::core::ffi::c_uint);
                 let mut current_block_174: u64;
                 match _hj_k_0 {
                     11 => {
@@ -2696,12 +2696,12 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         }
                         while !s.is_null() {
                             if (*s).hh.hashv == _hf_hashv_0
-                                && (*s).hh.keylen == strlen(featureName) as ::core::ffi::c_uint
+                                && (*s).hh.keylen == strlen(feature_name) as ::core::ffi::c_uint
                             {
                                 if memcmp(
                                     (*s).hh.key,
-                                    featureName as *const ::core::ffi::c_void,
-                                    strlen(featureName) as ::core::ffi::c_uint as usize,
+                                    feature_name as *const ::core::ffi::c_void,
+                                    strlen(feature_name) as ::core::ffi::c_uint as usize,
                                 ) == 0 as ::core::ffi::c_int
                                 {
                                     break;
@@ -2724,7 +2724,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         ::core::mem::size_of::<FeatureHash>() as usize,
                         194 as ::core::ffi::c_ulong,
                     ) as *mut FeatureHash;
-                    (*s).name = sdsnew(featureName) as *mut ::core::ffi::c_char;
+                    (*s).name = sdsnew(feature_name) as *mut ::core::ffi::c_char;
                     (*s).alias = false;
                     OTL_I_FEATURE_PTR.init.expect("non-null function pointer")(&raw mut (*s).feature);
                     (*(*s).feature).name = sdsdup((*s).name as SdsRaw);
@@ -3201,7 +3201,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                             b"[OTFCC-fea] Duplicate feature for [",
                             tag,
                             b"/",
-                            featureName,
+                            feature_name,
                             b"]. This feature will be ignored.\n",
                         ),
                     );
@@ -3223,7 +3223,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                         b"[OTFCC-fea] There is no valid lookup assignments for [",
                         tag,
                         b"/",
-                        featureName,
+                        feature_name,
                         b"]. This feature will be ignored.\n",
                     ),
                 );
@@ -3558,7 +3558,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
                     220 as ::core::ffi::c_ulong,
                 ) as *mut FeatureHash;
                 (*dup).alias = true;
-                (*dup).name = sdsnew(featureName) as *mut ::core::ffi::c_char;
+                (*dup).name = sdsnew(feature_name) as *mut ::core::ffi::c_char;
                 (*dup).feature = (*s_0).feature;
                 let mut _ha_hashv_0: ::core::ffi::c_uint = 0;
                 let mut _hj_i_3: ::core::ffi::c_uint = 0;
@@ -4033,13 +4033,13 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
     let mut sh: *mut LanguageHash = ::core::ptr::null_mut::<LanguageHash>();
     let mut j: u32 = 0 as u32;
     while j < (*languages).u.object.length as u32 {
-        let mut languageName: *mut ::core::ffi::c_char =
+        let mut language_name: *mut ::core::ffi::c_char =
             (*(*languages).u.object.values.offset(j as isize)).name;
-        let mut languageNameLen: usize =
+        let mut language_name_len: usize =
             (*(*languages).u.object.values.offset(j as isize)).name_length as usize;
         let mut _language: *mut JsonValue =
             (*(*languages).u.object.values.offset(j as isize)).value as *mut JsonValue;
-        if isValidLanguageName(languageName, languageNameLen) as ::core::ffi::c_int != 0
+        if isValidLanguageName(language_name, language_name_len) as ::core::ffi::c_int != 0
             && (*_language).type_0 == JsonType::Object
         {
             let mut requiredFeature: *mut Feature = ::core::ptr::null_mut::<Feature>();
@@ -4737,11 +4737,11 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                 let mut _hj_j_1: ::core::ffi::c_uint = 0;
                 let mut _hj_k_1: ::core::ffi::c_uint = 0;
                 let mut _hj_key_1: *const ::core::ffi::c_uchar =
-                    languageName as *const ::core::ffi::c_uchar;
+                    language_name as *const ::core::ffi::c_uchar;
                 _hf_hashv_1 = 0xfeedbeef as ::core::ffi::c_uint;
                 _hj_j_1 = 0x9e3779b9 as ::core::ffi::c_uint;
                 _hj_i_1 = _hj_j_1;
-                _hj_k_1 = strlen(languageName) as ::core::ffi::c_uint;
+                _hj_k_1 = strlen(language_name) as ::core::ffi::c_uint;
                 while _hj_k_1 >= 12 as ::core::ffi::c_uint {
                     _hj_i_1 = _hj_i_1.wrapping_add(
                         (*_hj_key_1.offset(0 as ::core::ffi::c_int as isize)
@@ -4830,7 +4830,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                     _hj_key_1 = _hj_key_1.offset(12 as ::core::ffi::c_int as isize);
                     _hj_k_1 = _hj_k_1.wrapping_sub(12 as ::core::ffi::c_uint);
                 }
-                _hf_hashv_1 = _hf_hashv_1.wrapping_add(strlen(languageName) as ::core::ffi::c_uint);
+                _hf_hashv_1 = _hf_hashv_1.wrapping_add(strlen(language_name) as ::core::ffi::c_uint);
                 let mut current_block_293: u64;
                 match _hj_k_1 {
                     11 => {
@@ -5030,12 +5030,12 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         }
                         while !s.is_null() {
                             if (*s).hh.hashv == _hf_hashv_1
-                                && (*s).hh.keylen == strlen(languageName) as ::core::ffi::c_uint
+                                && (*s).hh.keylen == strlen(language_name) as ::core::ffi::c_uint
                             {
                                 if memcmp(
                                     (*s).hh.key,
-                                    languageName as *const ::core::ffi::c_void,
-                                    strlen(languageName) as ::core::ffi::c_uint as usize,
+                                    language_name as *const ::core::ffi::c_void,
+                                    strlen(language_name) as ::core::ffi::c_uint as usize,
                                 ) == 0 as ::core::ffi::c_int
                                 {
                                     break;
@@ -5058,7 +5058,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         ::core::mem::size_of::<LanguageHash>() as usize,
                         267 as ::core::ffi::c_ulong,
                     ) as *mut LanguageHash;
-                    (*s).name = sdsnew(languageName) as *mut ::core::ffi::c_char;
+                    (*s).name = sdsnew(language_name) as *mut ::core::ffi::c_char;
                     OTL_I_LANGUAGE_SYSTEM.init.expect("non-null function pointer")(
                         &raw mut (*s).language,
                     );
@@ -5538,7 +5538,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                             b"[OTFCC-fea] Duplicate language item [",
                             tag,
                             b"/",
-                            languageName,
+                            language_name,
                             b"]. This language term will be ignored.\n",
                         ),
                     );
@@ -5560,7 +5560,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
                         b"[OTFCC-fea] There is no valid feature assignments for [",
                         tag,
                         b"/",
-                        languageName,
+                        language_name,
                         b"]. This language term will be ignored.\n",
                     ),
                 );
@@ -5640,16 +5640,16 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                     break;
                 }
                 let mut lh: *mut LookupHash = figureOutLookupsFromJSON(lookups, options);
-                let mut lookupOrder: *mut JsonValue = json_obj_get_type(
+                let mut lookup_order: *mut JsonValue = json_obj_get_type(
                     table,
                     b"lookupOrder\0" as *const u8 as *const ::core::ffi::c_char,
                     JsonType::Array,
                 );
-                if !lookupOrder.is_null() {
+                if !lookup_order.is_null() {
                     let mut j: TableId = 0 as TableId;
-                    while (j as ::core::ffi::c_uint) < (*lookupOrder).u.array.length {
+                    while (j as ::core::ffi::c_uint) < (*lookup_order).u.array.length {
                         let mut _ln: *mut JsonValue =
-                            *(*lookupOrder).u.array.values.offset(j as isize) as *mut JsonValue;
+                            *(*lookup_order).u.array.values.offset(j as isize) as *mut JsonValue;
                         if !_ln.is_null()
                             && (*_ln).type_0 == JsonType::String
                         {

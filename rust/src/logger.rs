@@ -118,9 +118,9 @@ unsafe extern "C" fn loggerIndent(
 }
 unsafe extern "C" fn loggerIndentSDS(mut _self: *mut ILogger, mut segment: SdsRaw) {
     let mut self_0: *mut Logger = _self as *mut Logger;
-    let mut newLevel: u8 =
+    let mut new_level: u8 =
         ((*self_0).level as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
-    if newLevel as ::core::ffi::c_int > (*self_0).levelCap as ::core::ffi::c_int {
+    if new_level as ::core::ffi::c_int > (*self_0).levelCap as ::core::ffi::c_int {
         (*self_0).levelCap = ((*self_0).levelCap as ::core::ffi::c_int
             + ((*self_0).levelCap as ::core::ffi::c_int / 2 as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int)) as u16;

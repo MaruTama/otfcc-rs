@@ -499,7 +499,7 @@ pub unsafe extern "C" fn otfcc_readName(
     mut options: *const Options,
 ) -> *mut NameTable {
     let mut count: u32 = 0;
-    let mut stringOffset: u32 = 0;
+    let mut string_offset: u32 = 0;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -519,7 +519,7 @@ pub unsafe extern "C" fn otfcc_readName(
                         count = read_16u(
                             data.offset(2 as ::core::ffi::c_int as isize) as *const u8
                         ) as u32;
-                        stringOffset = read_16u(
+                        string_offset = read_16u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         ) as u32;
                         if !(length
@@ -590,7 +590,7 @@ pub unsafe extern "C" fn otfcc_readName(
                                 );
                                 if shouldDecodeAsBytes(&raw mut record) {
                                     let mut nameString: SdsRaw = sdsnewlen(
-                                        data.offset(stringOffset as isize)
+                                        data.offset(string_offset as isize)
                                             .offset(offset as ::core::ffi::c_int as isize)
                                             as *const ::core::ffi::c_void,
                                         length_0 as usize,
@@ -598,7 +598,7 @@ pub unsafe extern "C" fn otfcc_readName(
                                     record.nameString = nameString;
                                 } else if shouldDecodeAsUTF16(&raw mut record) {
                                     let mut nameString_0: SdsRaw = utf16be_to_utf8(
-                                        data.offset(stringOffset as isize)
+                                        data.offset(string_offset as isize)
                                             .offset(offset as ::core::ffi::c_int as isize)
                                             as *const u8,
                                         length_0 as ::core::ffi::c_int,
@@ -607,7 +607,7 @@ pub unsafe extern "C" fn otfcc_readName(
                                 } else {
                                     let mut len: usize = 0 as usize;
                                     let mut buf: *mut u8 = base64_encode(
-                                        data.offset(stringOffset as isize)
+                                        data.offset(string_offset as isize)
                                             .offset(offset as ::core::ffi::c_int as isize)
                                             as *const u8,
                                         length_0 as usize,
@@ -980,10 +980,10 @@ pub unsafe extern "C" fn otfcc_buildName(
     copyright = sdsgrowzero(copyright, COPYRIGHT_LEN as usize);
     bufwrite_bytes(strings, COPYRIGHT_LEN as usize, copyright as *mut u8);
     sdsfree(copyright);
-    let mut stringsOffset: usize = (*buf).cursor;
+    let mut strings_offset: usize = (*buf).cursor;
     bufwrite_buf(buf, strings);
     bufseek(buf, 4 as usize);
-    bufwrite16b(buf, stringsOffset as u16);
+    bufwrite16b(buf, strings_offset as u16);
     buffree(strings);
     return buf;
 }

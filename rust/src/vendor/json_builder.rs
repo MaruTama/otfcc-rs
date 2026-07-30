@@ -387,53 +387,53 @@ pub unsafe extern "C" fn json_object_sort(mut object: *mut JsonValue, mut proto:
     }
 }
 pub unsafe extern "C" fn json_object_merge(
-    mut objectA: *mut JsonValue,
-    mut objectB: *mut JsonValue,
+    mut object_a: *mut JsonValue,
+    mut object_b: *mut JsonValue,
 ) -> *mut JsonValue {
     let mut i: ::core::ffi::c_uint = 0;
-    if builderize(objectA) == 0 || builderize(objectB) == 0 {
+    if builderize(object_a) == 0 || builderize(object_b) == 0 {
         return ::core::ptr::null_mut::<JsonValue>();
     }
-    if (*objectB).u.object.length as usize
-        <= (*(objectA as *mut JsonBuilderValue)).additional_length_allocated
+    if (*object_b).u.object.length as usize
+        <= (*(object_a as *mut JsonBuilderValue)).additional_length_allocated
     {
-        let ref mut fresh3 = (*(objectA as *mut JsonBuilderValue)).additional_length_allocated;
-        *fresh3 = (*fresh3).wrapping_sub((*objectB).u.object.length as usize);
+        let ref mut fresh3 = (*(object_a as *mut JsonBuilderValue)).additional_length_allocated;
+        *fresh3 = (*fresh3).wrapping_sub((*object_b).u.object.length as usize);
     } else {
         let mut values_new: *mut JsonObjectEntry = ::core::ptr::null_mut::<JsonObjectEntry>();
-        let mut alloc: ::core::ffi::c_uint = ((*objectA).u.object.length as usize)
-            .wrapping_add((*(objectA as *mut JsonBuilderValue)).additional_length_allocated)
-            .wrapping_add((*objectB).u.object.length as usize)
+        let mut alloc: ::core::ffi::c_uint = ((*object_a).u.object.length as usize)
+            .wrapping_add((*(object_a as *mut JsonBuilderValue)).additional_length_allocated)
+            .wrapping_add((*object_b).u.object.length as usize)
             as ::core::ffi::c_uint;
         values_new = realloc(
-            (*objectA).u.object.values as *mut ::core::ffi::c_void,
+            (*object_a).u.object.values as *mut ::core::ffi::c_void,
             (::core::mem::size_of::<JsonObjectEntry>() as usize).wrapping_mul(alloc as usize),
         ) as *mut JsonObjectEntry;
         if values_new.is_null() {
             return ::core::ptr::null_mut::<JsonValue>();
         }
-        (*objectA).u.object.values = values_new;
+        (*object_a).u.object.values = values_new;
     }
     i = 0 as ::core::ffi::c_uint;
-    while i < (*objectB).u.object.length {
-        let mut entry: *mut JsonObjectEntry = (*objectA)
+    while i < (*object_b).u.object.length {
+        let mut entry: *mut JsonObjectEntry = (*object_a)
             .u
             .object
             .values
-            .offset((*objectA).u.object.length.wrapping_add(i) as isize)
+            .offset((*object_a).u.object.length.wrapping_add(i) as isize)
             as *mut JsonObjectEntry;
-        *entry = *(*objectB).u.object.values.offset(i as isize);
-        (*(*entry).value).parent = objectA as *mut JsonValue;
+        *entry = *(*object_b).u.object.values.offset(i as isize);
+        (*(*entry).value).parent = object_a as *mut JsonValue;
         i = i.wrapping_add(1);
     }
-    (*objectA).u.object.length = (*objectA)
+    (*object_a).u.object.length = (*object_a)
         .u
         .object
         .length
-        .wrapping_add((*objectB).u.object.length);
-    free((*objectB).u.object.values as *mut ::core::ffi::c_void);
-    free(objectB as *mut ::core::ffi::c_void);
-    return objectA;
+        .wrapping_add((*object_b).u.object.length);
+    free((*object_b).u.object.values as *mut ::core::ffi::c_void);
+    free(object_b as *mut ::core::ffi::c_void);
+    return object_a;
 }
 unsafe extern "C" fn measure_string(
     mut length: ::core::ffi::c_uint,

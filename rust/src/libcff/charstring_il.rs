@@ -147,37 +147,37 @@ unsafe extern "C" fn _il_push_maskgroup(
                     <= points as ::core::ffi::c_int)
     {
         il_push_op(il, op);
-        let mut maskByte: u8 = 0 as u8;
+        let mut mask_byte: u8 = 0 as u8;
         let mut bits: u8 = 0 as u8;
         let mut j: u16 = 0 as u16;
         while (j as ::core::ffi::c_int) < nh as ::core::ffi::c_int {
-            maskByte = ((maskByte as ::core::ffi::c_int) << 1 as ::core::ffi::c_int
+            mask_byte = ((mask_byte as ::core::ffi::c_int) << 1 as ::core::ffi::c_int
                 | (*(*masks).items.offset(*jm as isize)).maskH[j as usize] as ::core::ffi::c_int
                     & 1 as ::core::ffi::c_int) as u8;
             bits = (bits as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
             if bits as ::core::ffi::c_int == 8 as ::core::ffi::c_int {
-                il_push_special(il, maskByte as i32);
+                il_push_special(il, mask_byte as i32);
                 bits = 0 as u8;
             }
             j = j.wrapping_add(1);
         }
         let mut j_0: u16 = 0 as u16;
         while (j_0 as ::core::ffi::c_int) < nv as ::core::ffi::c_int {
-            maskByte = ((maskByte as ::core::ffi::c_int) << 1 as ::core::ffi::c_int
+            mask_byte = ((mask_byte as ::core::ffi::c_int) << 1 as ::core::ffi::c_int
                 | (*(*masks).items.offset(*jm as isize)).maskV[j_0 as usize] as ::core::ffi::c_int
                     & 1 as ::core::ffi::c_int) as u8;
             bits = (bits as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
             if bits as ::core::ffi::c_int == 8 as ::core::ffi::c_int {
-                il_push_special(il, maskByte as i32);
+                il_push_special(il, mask_byte as i32);
                 bits = 0 as u8;
             }
             j_0 = j_0.wrapping_add(1);
         }
         if bits != 0 {
-            maskByte = ((maskByte as ::core::ffi::c_int)
+            mask_byte = ((mask_byte as ::core::ffi::c_int)
                 << 8 as ::core::ffi::c_int - bits as ::core::ffi::c_int)
                 as u8;
-            il_push_special(il, maskByte as i32);
+            il_push_special(il, mask_byte as i32);
         }
         *jm = (*jm as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
     }
@@ -295,19 +295,19 @@ unsafe extern "C" fn il_push_stems(
 pub unsafe extern "C" fn cff_compileGlyphToIL(
     mut g: *mut Glyph,
     mut defaultWidth: u16,
-    mut nominalWidth: u16,
+    mut nominal_width: u16,
 ) -> *mut CffCharstringIl {
     let mut il: *mut CffCharstringIl = ::core::ptr::null_mut::<CffCharstringIl>();
     il = __caryll_allocate_clean(
         ::core::mem::size_of::<CffCharstringIl>() as usize,
         143 as ::core::ffi::c_ulong,
     ) as *mut CffCharstringIl;
-    let mut tempContours: *mut Contour = ::core::ptr::null_mut::<Contour>();
+    let mut temp_contours: *mut Contour = ::core::ptr::null_mut::<Contour>();
     let mut x: VQ =
         (I_VQ.neutral.expect("non-null function pointer"))();
     let mut y: VQ =
         (I_VQ.neutral.expect("non-null function pointer"))();
-    tempContours = __caryll_allocate_clean(
+    temp_contours = __caryll_allocate_clean(
         (::core::mem::size_of::<Contour>() as usize).wrapping_mul((*g).contours.length),
         149 as ::core::ffi::c_ulong,
     ) as *mut Contour;
@@ -316,7 +316,7 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
         let mut contour: *mut Contour =
             (*g).contours.items.offset(c as isize) as *mut Contour;
         let mut newcontour: *mut Contour =
-            tempContours.offset(c as isize) as *mut Contour;
+            temp_contours.offset(c as isize) as *mut Contour;
         GLYF_I_CONTOUR.init.expect("non-null function pointer")(newcontour);
         let mut j: ShapeId = 0 as ShapeId;
         while (j as usize) < (*contour).length {
@@ -375,27 +375,27 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
     I_VQ.dispose.expect("non-null function pointer")(&raw mut x);
     I_VQ.dispose.expect("non-null function pointer")(&raw mut y);
     let mut hasmask: bool = (*g).hintMasks.length != 0 || (*g).contourMasks.length != 0;
-    let glyphADWConst: Pos =
+    let glyph_adw_const: Pos =
         I_VQ.getStill.expect("non-null function pointer")((*g).advanceWidth) as Pos;
-    let mut haswidth: bool = glyphADWConst != defaultWidth as ::core::ffi::c_int as Pos;
+    let mut haswidth: bool = glyph_adw_const != defaultWidth as ::core::ffi::c_int as Pos;
     if haswidth {
         il_push_operand(
             il,
-            (glyphADWConst as ::core::ffi::c_int - nominalWidth as ::core::ffi::c_int)
+            (glyph_adw_const as ::core::ffi::c_int - nominal_width as ::core::ffi::c_int)
                 as ::core::ffi::c_double,
         );
     }
     il_push_stems(il, g, hasmask, haswidth);
-    let mut contoursSofar: ShapeId = 0 as ShapeId;
-    let mut pointsSofar: ShapeId = 0 as ShapeId;
+    let mut contours_sofar: ShapeId = 0 as ShapeId;
+    let mut points_sofar: ShapeId = 0 as ShapeId;
     let mut jh: ShapeId = 0 as ShapeId;
     let mut jm: ShapeId = 0 as ShapeId;
     if hasmask {
         il_push_masks(
             il,
             g,
-            contoursSofar as u16,
-            pointsSofar as u16,
+            contours_sofar as u16,
+            points_sofar as u16,
             &raw mut jh,
             &raw mut jm,
         );
@@ -403,7 +403,7 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
     let mut c_0: ShapeId = 0 as ShapeId;
     while (c_0 as usize) < (*g).contours.length {
         let mut contour_0: *mut Contour =
-            tempContours.offset(c_0 as isize) as *mut Contour;
+            temp_contours.offset(c_0 as isize) as *mut Contour;
         let mut n: ShapeId = (*contour_0).length as ShapeId;
         if !(n as ::core::ffi::c_int == 0 as ::core::ffi::c_int) {
             il_moveto(
@@ -411,13 +411,13 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
                 (*(*contour_0).items.offset(0 as ::core::ffi::c_int as isize)).x,
                 (*(*contour_0).items.offset(0 as ::core::ffi::c_int as isize)).y,
             );
-            pointsSofar = pointsSofar.wrapping_add(1);
+            points_sofar = points_sofar.wrapping_add(1);
             if hasmask {
                 il_push_masks(
                     il,
                     g,
-                    contoursSofar as u16,
-                    pointsSofar as u16,
+                    contours_sofar as u16,
+                    points_sofar as u16,
                     &raw mut jh,
                     &raw mut jm,
                 );
@@ -430,8 +430,8 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
                         (*(*contour_0).items.offset(j_1 as isize)).x,
                         (*(*contour_0).items.offset(j_1 as isize)).y,
                     );
-                    pointsSofar =
-                        (pointsSofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
+                    points_sofar =
+                        (points_sofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
                 } else if (j_1 as ::core::ffi::c_int)
                     < n as ::core::ffi::c_int - 2 as ::core::ffi::c_int
                     && (*(*contour_0)
@@ -466,8 +466,8 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
                         ))
                         .y,
                     );
-                    pointsSofar =
-                        (pointsSofar as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as ShapeId;
+                    points_sofar =
+                        (points_sofar as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as ShapeId;
                     j_1 = (j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as ShapeId;
                 } else {
                     il_lineto(
@@ -475,23 +475,23 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
                         (*(*contour_0).items.offset(j_1 as isize)).x,
                         (*(*contour_0).items.offset(j_1 as isize)).y,
                     );
-                    pointsSofar = pointsSofar.wrapping_add(1);
+                    points_sofar = points_sofar.wrapping_add(1);
                 }
                 if hasmask {
                     il_push_masks(
                         il,
                         g,
-                        contoursSofar as u16,
-                        pointsSofar as u16,
+                        contours_sofar as u16,
+                        points_sofar as u16,
                         &raw mut jh,
                         &raw mut jm,
                     );
                 }
                 j_1 = j_1.wrapping_add(1);
             }
-            contoursSofar =
-                (contoursSofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
-            pointsSofar = 0 as ShapeId;
+            contours_sofar =
+                (contours_sofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
+            points_sofar = 0 as ShapeId;
         }
         c_0 = c_0.wrapping_add(1);
     }
@@ -499,12 +499,12 @@ pub unsafe extern "C" fn cff_compileGlyphToIL(
     let mut c_1: ShapeId = 0 as ShapeId;
     while (c_1 as usize) < (*g).contours.length {
         GLYF_I_CONTOUR.dispose.expect("non-null function pointer")(
-            tempContours.offset(c_1 as isize) as *mut Contour,
+            temp_contours.offset(c_1 as isize) as *mut Contour,
         );
         c_1 = c_1.wrapping_add(1);
     }
-    free(tempContours as *mut ::core::ffi::c_void);
-    tempContours = ::core::ptr::null_mut::<Contour>();
+    free(temp_contours as *mut ::core::ffi::c_void);
+    temp_contours = ::core::ptr::null_mut::<Contour>();
     return il;
 }
 unsafe extern "C" fn il_matchtype(
@@ -572,7 +572,7 @@ unsafe fn zroll(
             != 0
     {
         let mut check: u8 = TRUE_0 as u8;
-        let mut resultArity: u8 = arity;
+        let mut result_arity: u8 = arity;
         let mut mask: [bool; 16] = [false; 16];
         debug_assert_eq!(zeros.len(), arity as usize, "zroll: flag count must match the operator's arity");
         let mut m: u32 = 0 as u32;
@@ -580,8 +580,8 @@ unsafe fn zroll(
             let checkzero: bool = zeros[m as usize];
             mask[m as usize] = checkzero;
             if checkzero {
-                resultArity =
-                    (resultArity as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u8;
+                result_arity =
+                    (result_arity as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u8;
                 check = (check as ::core::ffi::c_int != 0
                     && (*(*il).instr.offset(j.wrapping_add(m) as isize))
                         .c2rust_unnamed
@@ -608,7 +608,7 @@ unsafe fn zroll(
             (*(*il)
                 .instr
                 .offset(j.wrapping_add(arity as u32) as isize))
-            .arity = resultArity as Arity;
+            .arity = result_arity as Arity;
             return arity;
         } else {
             return 0 as u8;
@@ -882,7 +882,7 @@ unsafe extern "C" fn nextstop(mut il: *mut CffCharstringIl, mut j: u32) -> u32 {
 unsafe extern "C" fn decideAdvance(
     mut il: *mut CffCharstringIl,
     mut j: u32,
-    mut _optimizeLevel: u8,
+    mut _optimize_level: u8,
 ) -> u8 {
     let mut r: u8 = 0 as u8;
     r = zroll(il, j, OP_RLINETO, OP_HLINETO, &[false, true]);

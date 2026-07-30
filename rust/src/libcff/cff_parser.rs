@@ -623,14 +623,14 @@ unsafe extern "C" fn callback_nopCurveTo(
 }
 unsafe extern "C" fn callback_nopsetHint(
     mut _context: *mut ::core::ffi::c_void,
-    mut _isVertical: bool,
+    mut _is_vertical: bool,
     mut _position: ::core::ffi::c_double,
     mut _width: ::core::ffi::c_double,
 ) {
 }
 unsafe extern "C" fn callback_nopsetMask(
     mut _context: *mut ::core::ffi::c_void,
-    mut _isContourMask: bool,
+    mut _is_contour_mask: bool,
     mut mask: *mut bool,
 ) {
     free(mask as *mut ::core::ffi::c_void);
@@ -788,7 +788,7 @@ pub unsafe extern "C" fn cff_parseOutline(
         advance = cff_decodeCS2Token(start, &raw mut val);
         match val.t {
             CffValueType::Operator => {
-                let mut hintBase: ::core::ffi::c_double = 0.;
+                let mut hint_base: ::core::ffi::c_double = 0.;
                 match val.c2rust_unnamed.i {
                     1 | 3 | 18 | 23 => {
                         if (*stack).index.wrapping_rem(2 as Arity) != 0 {
@@ -802,7 +802,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                         (*stack).stem = ((*stack).stem as Arity)
                             .wrapping_add((*stack).index >> 1 as ::core::ffi::c_int)
                             as u8 as u8;
-                        hintBase = 0 as ::core::ffi::c_int as ::core::ffi::c_double;
+                        hint_base = 0 as ::core::ffi::c_int as ::core::ffi::c_double;
                         let mut j: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j as Arity) < (*stack).index {
                             let mut pos: ::core::ffi::c_double =
@@ -817,10 +817,10 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 val.c2rust_unnamed.i == OP_VSTEM
                                     || val.c2rust_unnamed.i
                                         == OP_VSTEMHM,
-                                pos + hintBase,
+                                pos + hint_base,
                                 width,
                             );
-                            hintBase += pos + width;
+                            hint_base += pos + width;
                             j = (j as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u16;
                         }
                         (*stack).index = 0 as Arity;
@@ -834,12 +834,12 @@ pub unsafe extern "C" fn cff_parseOutline(
                                     .d,
                             );
                         }
-                        let mut isVertical: bool =
+                        let mut is_vertical: bool =
                             (*stack).stem as ::core::ffi::c_int > 0 as ::core::ffi::c_int;
                         (*stack).stem = ((*stack).stem as Arity)
                             .wrapping_add((*stack).index >> 1 as ::core::ffi::c_int)
                             as u8 as u8;
-                        let mut hintBase_0: ::core::ffi::c_double =
+                        let mut hint_base_0: ::core::ffi::c_double =
                             0 as ::core::ffi::c_int as ::core::ffi::c_double;
                         let mut j_0: u16 =
                             (*stack).index.wrapping_rem(2 as Arity) as u16;
@@ -853,14 +853,14 @@ pub unsafe extern "C" fn cff_parseOutline(
                             .d;
                             setHint.expect("non-null function pointer")(
                                 outline,
-                                isVertical,
-                                pos_0 + hintBase_0,
+                                is_vertical,
+                                pos_0 + hint_base_0,
                                 width_0,
                             );
-                            hintBase_0 += pos_0 + width_0;
+                            hint_base_0 += pos_0 + width_0;
                             j_0 = (j_0 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u16;
                         }
-                        let mut maskLength: u32 =
+                        let mut mask_length: u32 =
                             ((*stack).stem as ::core::ffi::c_int + 7 as ::core::ffi::c_int
                                 >> 3 as ::core::ffi::c_int) as u32;
                         let mut mask: *mut bool = ::core::ptr::null_mut::<bool>();
@@ -872,55 +872,55 @@ pub unsafe extern "C" fn cff_parseOutline(
                             405 as ::core::ffi::c_ulong,
                         ) as *mut bool;
                         let mut byte: u32 = 0 as u32;
-                        while byte < maskLength {
-                            let mut maskByte: u8 =
+                        while byte < mask_length {
+                            let mut mask_byte: u8 =
                                 *start.offset(advance.wrapping_add(byte) as isize);
                             *mask.offset(
                                 (byte << 3 as ::core::ffi::c_int).wrapping_add(0 as u32)
                                     as isize,
-                            ) = maskByte as ::core::ffi::c_int >> 7 as ::core::ffi::c_int
+                            ) = mask_byte as ::core::ffi::c_int >> 7 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
                             *mask.offset(
                                 (byte << 3 as ::core::ffi::c_int).wrapping_add(1 as u32)
                                     as isize,
-                            ) = maskByte as ::core::ffi::c_int >> 6 as ::core::ffi::c_int
+                            ) = mask_byte as ::core::ffi::c_int >> 6 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
                             *mask.offset(
                                 (byte << 3 as ::core::ffi::c_int).wrapping_add(2 as u32)
                                     as isize,
-                            ) = maskByte as ::core::ffi::c_int >> 5 as ::core::ffi::c_int
+                            ) = mask_byte as ::core::ffi::c_int >> 5 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
                             *mask.offset(
                                 (byte << 3 as ::core::ffi::c_int).wrapping_add(3 as u32)
                                     as isize,
-                            ) = maskByte as ::core::ffi::c_int >> 4 as ::core::ffi::c_int
+                            ) = mask_byte as ::core::ffi::c_int >> 4 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
                             *mask.offset(
                                 (byte << 3 as ::core::ffi::c_int).wrapping_add(4 as u32)
                                     as isize,
-                            ) = maskByte as ::core::ffi::c_int >> 3 as ::core::ffi::c_int
+                            ) = mask_byte as ::core::ffi::c_int >> 3 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
                             *mask.offset(
                                 (byte << 3 as ::core::ffi::c_int).wrapping_add(5 as u32)
                                     as isize,
-                            ) = maskByte as ::core::ffi::c_int >> 2 as ::core::ffi::c_int
+                            ) = mask_byte as ::core::ffi::c_int >> 2 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
                             *mask.offset(
                                 (byte << 3 as ::core::ffi::c_int).wrapping_add(6 as u32)
                                     as isize,
-                            ) = maskByte as ::core::ffi::c_int >> 1 as ::core::ffi::c_int
+                            ) = mask_byte as ::core::ffi::c_int >> 1 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
                             *mask.offset(
                                 (byte << 3 as ::core::ffi::c_int).wrapping_add(7 as u32)
                                     as isize,
-                            ) = maskByte as ::core::ffi::c_int >> 0 as ::core::ffi::c_int
+                            ) = mask_byte as ::core::ffi::c_int >> 0 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
                             byte = byte.wrapping_add(1);
@@ -930,7 +930,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                             val.c2rust_unnamed.i == OP_CNTRMASK,
                             mask,
                         );
-                        advance = advance.wrapping_add(maskLength);
+                        advance = advance.wrapping_add(mask_length);
                         (*stack).index = 0 as Arity;
                     }
                     4 => {

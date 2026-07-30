@@ -936,7 +936,7 @@ unsafe extern "C" fn table_GDEF_replace(mut dst: *mut GdefTable, src: GdefTable)
 }
 unsafe extern "C" fn readCaretValue(
     data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
 ) -> CaretValue {
     let mut v: CaretValue = CaretValue {
@@ -947,7 +947,7 @@ unsafe extern "C" fn readCaretValue(
     v.format = 0 as i8;
     v.coordiante = 0 as ::core::ffi::c_int as Pos;
     v.pointIndex = 0xffff as ::core::ffi::c_int as i16;
-    if !(tableLength < offset.wrapping_add(4 as u32)) {
+    if !(table_length < offset.wrapping_add(4 as u32)) {
         v.format = read_16u(data.offset(offset as isize) as *const u8) as i8;
         if v.format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
             v.pointIndex = read_16u(
@@ -965,10 +965,10 @@ unsafe extern "C" fn readCaretValue(
 }
 unsafe extern "C" fn readLigCaretRecord(
     data: FontFilePointer,
-    mut tableLength: u32,
+    mut table_length: u32,
     mut offset: u32,
 ) -> CaretValueRecord {
-    let mut caretCount: ShapeId = 0;
+    let mut caret_count: ShapeId = 0;
     let mut g: CaretValueRecord = CaretValueRecord {
         glyph: Handle {
             state: HandleState::Empty,
@@ -984,20 +984,20 @@ unsafe extern "C" fn readLigCaretRecord(
     OTL_I_CARET_VALUE_RECORD
         .init
         .expect("non-null function pointer")(&raw mut g);
-    if !(tableLength < offset.wrapping_add(2 as u32)) {
-        caretCount = read_16u(data.offset(offset as isize) as *const u8) as ShapeId;
-        if !(tableLength
+    if !(table_length < offset.wrapping_add(2 as u32)) {
+        caret_count = read_16u(data.offset(offset as isize) as *const u8) as ShapeId;
+        if !(table_length
             < offset.wrapping_add(2 as u32).wrapping_add(
-                (caretCount as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
+                (caret_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
             ))
         {
             let mut j: GlyphId = 0 as GlyphId;
-            while (j as ::core::ffi::c_int) < caretCount as ::core::ffi::c_int {
+            while (j as ::core::ffi::c_int) < caret_count as ::core::ffi::c_int {
                 OTL_I_CARET_VALUE_LIST.push.expect("non-null function pointer")(
                     &raw mut g.carets,
                     readCaretValue(
                         data,
-                        tableLength,
+                        table_length,
                         offset.wrapping_add(read_16u(
                             data.offset(offset as isize)
                                 .offset(2 as ::core::ffi::c_int as isize)
@@ -1017,9 +1017,9 @@ pub unsafe extern "C" fn otfcc_readGDEF(
     packet: Packet,
     mut _options: *const Options,
 ) -> *mut GdefTable {
-    let mut classdefOffset: u16 = 0;
-    let mut ligCaretOffset: u16 = 0;
-    let mut markAttachDefOffset: u16 = 0;
+    let mut classdef_offset: u16 = 0;
+    let mut lig_caret_offset: u16 = 0;
+    let mut mark_attach_def_offset: u16 = 0;
     let mut current_block: u64;
     let mut gdef: *mut GdefTable = ::core::ptr::null_mut::<GdefTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -1035,27 +1035,27 @@ pub unsafe extern "C" fn otfcc_readGDEF(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     let mut data: FontFilePointer = table.data as FontFilePointer;
-                    let mut tableLength: u32 = table.length;
-                    if !(tableLength < 12 as u32) {
+                    let mut table_length: u32 = table.length;
+                    if !(table_length < 12 as u32) {
                         gdef = (
                             TABLE_I_GDEF.create.expect("non-null function pointer"))();
-                        classdefOffset = read_16u(
+                        classdef_offset = read_16u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
-                        if classdefOffset != 0 {
+                        if classdef_offset != 0 {
                             (*gdef).glyphClassDef =
                                 readClassDef(
                                     data as *const u8,
-                                    tableLength,
-                                    classdefOffset as u32,
+                                    table_length,
+                                    classdef_offset as u32,
                                 );
                         }
-                        ligCaretOffset = read_16u(
+                        lig_caret_offset = read_16u(
                             data.offset(8 as ::core::ffi::c_int as isize) as *const u8
                         );
-                        if ligCaretOffset != 0 {
-                            if tableLength
-                                < (ligCaretOffset as ::core::ffi::c_int + 4 as ::core::ffi::c_int)
+                        if lig_caret_offset != 0 {
+                            if table_length
+                                < (lig_caret_offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int)
                                     as u32
                             {
                                 current_block = 10802812094495641425;
@@ -1063,10 +1063,10 @@ pub unsafe extern "C" fn otfcc_readGDEF(
                                 let mut cov: *mut Coverage =
                                     readCoverage(
                                         data as *const u8,
-                                        tableLength,
-                                        (ligCaretOffset as ::core::ffi::c_int
+                                        table_length,
+                                        (lig_caret_offset as ::core::ffi::c_int
                                             + read_16u(data.offset(
-                                                ligCaretOffset as ::core::ffi::c_int as isize,
+                                                lig_caret_offset as ::core::ffi::c_int as isize,
                                             )
                                                 as *const u8)
                                                 as ::core::ffi::c_int)
@@ -1076,7 +1076,7 @@ pub unsafe extern "C" fn otfcc_readGDEF(
                                     || (*cov).numGlyphs as ::core::ffi::c_int
                                         != read_16u(
                                             data.offset(
-                                                ligCaretOffset as ::core::ffi::c_int as isize,
+                                                lig_caret_offset as ::core::ffi::c_int as isize,
                                             )
                                             .offset(2 as ::core::ffi::c_int as isize)
                                                 as *const u8,
@@ -1084,8 +1084,8 @@ pub unsafe extern "C" fn otfcc_readGDEF(
                                             as ::core::ffi::c_int
                                 {
                                     current_block = 10802812094495641425;
-                                } else if tableLength
-                                    < (ligCaretOffset as ::core::ffi::c_int
+                                } else if table_length
+                                    < (lig_caret_offset as ::core::ffi::c_int
                                         + 4 as ::core::ffi::c_int
                                         + (*cov).numGlyphs as ::core::ffi::c_int
                                             * 2 as ::core::ffi::c_int)
@@ -1099,11 +1099,11 @@ pub unsafe extern "C" fn otfcc_readGDEF(
                                     {
                                         let mut v: CaretValueRecord = readLigCaretRecord(
                                             data,
-                                            tableLength,
-                                            (ligCaretOffset as ::core::ffi::c_int
+                                            table_length,
+                                            (lig_caret_offset as ::core::ffi::c_int
                                                 + read_16u(
                                                     data.offset(
-                                                        ligCaretOffset as ::core::ffi::c_int
+                                                        lig_caret_offset as ::core::ffi::c_int
                                                             as isize,
                                                     )
                                                     .offset(4 as ::core::ffi::c_int as isize)
@@ -1138,15 +1138,15 @@ pub unsafe extern "C" fn otfcc_readGDEF(
                         match current_block {
                             10802812094495641425 => {}
                             _ => {
-                                markAttachDefOffset =
+                                mark_attach_def_offset =
                                     read_16u(data.offset(10 as ::core::ffi::c_int as isize)
                                         as *const u8);
-                                if markAttachDefOffset != 0 {
+                                if mark_attach_def_offset != 0 {
                                     (*gdef).markAttachClassDef =
                                         readClassDef(
                                             data as *const u8,
-                                            tableLength,
-                                            markAttachDefOffset as u32,
+                                            table_length,
+                                            mark_attach_def_offset as u32,
                                         );
                                 }
                                 return gdef;
@@ -1303,9 +1303,9 @@ unsafe extern "C" fn ligCaretFromJson(
                 (*(*_carets).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
                 (*(*_carets).u.object.values.offset(j as isize)).name_length as usize,
             )) as GlyphHandle;
-            let mut caretCount: ShapeId = (*a).u.array.length as ShapeId;
+            let mut caret_count: ShapeId = (*a).u.array.length as ShapeId;
             let mut k: GlyphId = 0 as GlyphId;
-            while (k as ::core::ffi::c_int) < caretCount as ::core::ffi::c_int {
+            while (k as ::core::ffi::c_int) < caret_count as ::core::ffi::c_int {
                 let mut caret: CaretValue = CaretValue {
                     format: 0,
                     coordiante: 0.,
@@ -1442,25 +1442,25 @@ pub unsafe extern "C" fn otfcc_buildGDEF(
     if gdef.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut bGlyphClassDef: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
-    let mut bAttachList: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
-    let mut bLigCaretList: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
-    let mut bMarkAttachClassDef: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
+    let mut b_glyph_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
+    let mut b_attach_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
+    let mut b_lig_caret_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
+    let mut b_mark_attach_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     if !(*gdef).glyphClassDef.is_null() {
-        bGlyphClassDef =
+        b_glyph_class_def =
             bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
                 (*gdef).glyphClassDef,
             ));
     }
     if (*gdef).ligCarets.length != 0 {
-        bLigCaretList = writeLigCarets(&raw const (*gdef).ligCarets);
+        b_lig_caret_list = writeLigCarets(&raw const (*gdef).ligCarets);
     }
     if !(*gdef).markAttachClassDef.is_null() {
-        bMarkAttachClassDef =
+        b_mark_attach_class_def =
             bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
                 (*gdef).markAttachClassDef,
             ));
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, bGlyphClassDef), bk_ptr(BkCellType::P16, bAttachList), bk_ptr(BkCellType::P16, bLigCaretList), bk_ptr(BkCellType::P16, bMarkAttachClassDef)]);
+    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, b_glyph_class_def), bk_ptr(BkCellType::P16, b_attach_list), bk_ptr(BkCellType::P16, b_lig_caret_list), bk_ptr(BkCellType::P16, b_mark_attach_class_def)]);
     return bk_build_Block(root);
 }
