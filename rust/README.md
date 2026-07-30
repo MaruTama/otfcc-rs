@@ -536,6 +536,33 @@ the CI-matching Linux container:
   `type2_max_subrs` becomes `TYPE2_MAX_SUBRS` — because a naive case-transition
   splitter fragments digit-bearing names the source doesn't actually treat as
   multi-word.
+- **Local variables and parameters are `snake_case`** — 421 names, 2,792
+  occurrences over 62 files. `non_snake_case` covers four different things
+  (variables, functions, struct fields, modules) with one lint, so
+  `#![allow(non_snake_case)]` stays on `lib.rs` until all four are done; only
+  the "variable" diagnostics (707 sites, 480 unique names) belong to this PR.
+  Two things made this pass riskier than renaming types or constants, because
+  locals are scoped and a whole-crate textual rename by exact name isn't:
+  - **58 names were left for the field and function passes instead**, because
+    their identifier text is shared across namespaces. `className` is both a
+    local in `gpos_common.rs` *and* a struct field with the same spelling
+    elsewhere; renaming it here would rename the field too, ahead of the
+    field pass's per-site JSON-key check. Anything whose name (stripped of a
+    leading `_` or trailing `_N`) collided with a flagged field or function
+    name was deferred, so the eventual field/function rename lands on both
+    at once.
+  - **A leading underscore is not decoration.** `_maxGlyphs` and `maxGlyphs`
+    are two *different* parameters in two different function signatures that
+    implement the same callback shape — one ignores the argument, hence the
+    Rust unused-parameter convention. An early version of the case converter
+    stripped the underscore before recasing, which collapsed both onto
+    `max_glyphs` and would have silently turned that warning suppression
+    off; the fix keeps the prefix. One name needed a human instead of the
+    tool: `src/vendor/emyg_dtoa.rs`'s `K` (the binary exponent, an out
+    parameter) and `k` (the decimal digit count, a local) are both standard
+    notation from the Grisu2 paper and coexist in the same function —
+    `to_snake("K") == "k"` would have shadowed the real `k`. `K` stays
+    C-cased for now.
 - **Standard cargo layout**: `src/lib.rs` + `src/bin/` + `src/ffi/` +
   `src/vendor/`, replacing c2rust's `src::lib::` / `src::dep::r#extern::` /
   `src::src::` scaffolding. See "Crate layout" above.
@@ -825,21 +852,26 @@ on the other platform before a commit is trusted.
   inlines (`sdsavail`, `sdssetlen`, `sdsalloc`, …) are already single, so this is
   one name — but it needs a `pub sdslen` in `vendor/sds.rs`, which is also what
   `json_from_sds` is waiting for.
-- **Rust naming for the rest of the crate.** Types, enum variants, constants
-  and statics are done (above); what is left, split by what the compiler can
-  check rather than by module — counts below are the plan's original estimate
-  and, like the constants pass, likely undercounts by however much of
-  `nonstandard_style` PR #43 unmasked; re-measure at each step rather than
-  trusting these:
-  - 480 local variables and parameters — file-local, so each file stands alone.
-  - 1,738 functions, then inherent methods where a function is a type's
-    operation (`otfcc_iHandle`'s group → `impl Handle`).
-  - 345 struct fields, last and most carefully: **JSON keys are string
-    literals and must not move with the field names**, so each site needs
-    checking. The rename tool skips string and char literals for exactly this
-    reason, which mattered for none of the type names and will matter here —
-    `BASE`, `GDEF`, `OS_2` and `glyf` are all both identifiers and JSON keys.
-  - 11 modules (`table::CFF` → `table::cff`), which is also a file rename.
+- **Rust naming for the rest of the crate.** Types, enum variants, constants,
+  statics and local variables/parameters are done (above); what is left, from
+  a real measurement of `non_snake_case` (it drives functions, struct fields,
+  modules and variables together, unlike the type-only and global-only
+  lints): **1,745 functions, 717 struct fields, 12 modules** — all higher
+  than the plan's estimate, same reason as every other category (PR #43's
+  `no_mangle` removal). Plus **58 names deferred from the variable pass**
+  because their spelling is shared with a field or a function elsewhere
+  (`className` the local vs. `className` the field) — those land on whichever
+  of the next two passes claims the name, so each rename covers both sites at
+  once. Plus one hand case, `emyg_dtoa.rs`'s `K`.
+  - Functions, then inherent methods where a function is a type's operation
+    (`otfcc_iHandle`'s group → `impl Handle`).
+  - Struct fields, last and most carefully: **JSON keys are string literals
+    and must not move with the field names**, so each site needs checking.
+    The rename tool skips string and char literals for exactly this reason,
+    which mattered for none of the type or constant names and will matter
+    here — `BASE`, `GDEF`, `OS_2` and `glyf` are all both identifiers and
+    JSON keys.
+  - Modules (`table::CFF` → `table::cff`), which is also a file rename.
   Then `allow(non_snake_case)` comes out, and "this is idiomatic now" stops
   being an opinion.
 - **Then safe Rust, type by type**: `CVecRaw<T>` → `Vec<T>` first (one
