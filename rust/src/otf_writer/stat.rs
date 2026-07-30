@@ -16,15 +16,15 @@ use crate::font::caryll_font::{FontSubtype, Font};
 
 
 
-use crate::table::CFF::{CffFontMatrix, CffTable};
+use crate::table::cff::{CffFontMatrix, CffTable};
 
 
 
-use crate::table::LTSH::{LtshTable};
+use crate::table::ltsh::{LtshTable};
 
 
 
-use crate::table::VORG::{VorgEntry, VorgTable};
+use crate::table::vorg::{VorgEntry, VorgTable};
 
 use crate::table::cmap::{CmapEntry};
 
@@ -1029,20 +1029,20 @@ unsafe extern "C" fn stat_os_2_unicode_ranges(
         item = (*item).hh.next as *mut CmapEntry;
     }
     if !(*options).keep_unicode_ranges {
-        (*(*font).OS_2).ul_unicode_range1 = u1;
-        (*(*font).OS_2).ul_unicode_range2 = u2;
-        (*(*font).OS_2).ul_unicode_range3 = u3;
-        (*(*font).OS_2).ul_unicode_range4 = u4;
+        (*(*font).os_2).ul_unicode_range1 = u1;
+        (*(*font).os_2).ul_unicode_range2 = u2;
+        (*(*font).os_2).ul_unicode_range3 = u3;
+        (*(*font).os_2).ul_unicode_range4 = u4;
     }
     if min_unicode < 0x10000 as i32 {
-        (*(*font).OS_2).us_first_char_index = min_unicode as u16;
+        (*(*font).os_2).us_first_char_index = min_unicode as u16;
     } else {
-        (*(*font).OS_2).us_first_char_index = 0xffff as u16;
+        (*(*font).os_2).us_first_char_index = 0xffff as u16;
     }
     if max_unicode < 0x10000 as i32 {
-        (*(*font).OS_2).us_last_char_index = max_unicode as u16;
+        (*(*font).os_2).us_last_char_index = max_unicode as u16;
     } else {
-        (*(*font).OS_2).us_last_char_index = 0xffff as u16;
+        (*(*font).os_2).us_last_char_index = 0xffff as u16;
     };
 }
 unsafe extern "C" fn stat_os_2_average_width(
@@ -1061,7 +1061,7 @@ unsafe extern "C" fn stat_os_2_average_width(
             total_width = (total_width as Pos + adw) as u32;
         }
     }
-    (*(*font).OS_2).x_avg_char_width =
+    (*(*font).os_2).x_avg_char_width =
         (total_width as usize).wrapping_div((*(*font).glyf).length) as i16;
 }
 unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
@@ -1132,7 +1132,7 @@ unsafe extern "C" fn stat_max_context(mut font: *mut Font, mut _options: *const 
             maxc = maxc_gpos;
         }
     }
-    (*(*font).OS_2).us_max_context = maxc;
+    (*(*font).os_2).us_max_context = maxc;
 }
 unsafe extern "C" fn stat_os_2(mut font: *mut Font, mut options: *const Options) {
     stat_os_2_unicode_ranges(font, options);
@@ -1258,7 +1258,7 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
         }
     }
     free(frequency as *mut ::core::ffi::c_void);
-    (*font).VORG = vorg;
+    (*font).vorg = vorg;
 }
 unsafe extern "C" fn stat_ltsh(mut font: *mut Font) {
     if (*font).glyf.is_null() {
@@ -1288,7 +1288,7 @@ unsafe extern "C" fn stat_ltsh(mut font: *mut Font) {
     for j_0 in 0..(*(*font).glyf).length as GlyphId {
         *(*ltsh).y_pels.offset(j_0 as isize) = (**(*(*font).glyf).items.offset(j_0 as isize)).y_pel;
     }
-    (*font).LTSH = ltsh;
+    (*font).ltsh = ltsh;
 }
 pub unsafe extern "C" fn otfcc_stat_font(
     mut font: *mut Font,
@@ -1404,7 +1404,7 @@ pub unsafe extern "C" fn otfcc_stat_font(
             (*(*font).maxp).max_size_of_instructions = (*(*font).prep).length as u16;
         }
     }
-    if !(*font).OS_2.is_null() && !(*font).cmap.is_null() && !(*font).glyf.is_null() {
+    if !(*font).os_2.is_null() && !(*font).cmap.is_null() && !(*font).glyf.is_null() {
         stat_os_2(font, options);
     }
     if (*font).subtype == FontSubtype::Ttf {

@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 /// What a [`CffValue`] holds: an operator, or a number in one of the two forms
-/// CFF encodes.
+/// cff encodes.
 ///
 /// One value, two spellings. C declares each number twice -- `CffValueType::Operator` for
 /// code reading a DICT and `CS2_OPERATOR` for code reading a CharString -- so

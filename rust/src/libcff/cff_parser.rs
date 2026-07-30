@@ -24,7 +24,7 @@ use crate::libcff::cff_fdselect::{cff_close_fd_select, cff_extract_fd_select};
 use crate::libcff::cff_index::{CFF_I_INDEX};
 use crate::vendor::sds::{sdsempty};
 
-/// Which encoding a CFF font carries: one of the two predefined ones, or the
+/// Which encoding a cff font carries: one of the two predefined ones, or the
 /// format of an embedded encoding. Again the crate's own classification rather
 /// than anything read from the file -- though `cff_extract_Encoding` does lean
 /// on the numbering, comparing the *offset* from the Top DICT against

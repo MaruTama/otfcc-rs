@@ -12,17 +12,17 @@ use crate::support::options::{Options};
 
 use crate::support::{NULL};
 use crate::support::glyph_order::GlyphOrder;
-use crate::table::BASE::BaseTable;
-use crate::table::CFF::CffTable;
-use crate::table::COLR::ColrTable;
-use crate::table::CPAL::CpalTable;
-use crate::table::GDEF::GdefTable;
-use crate::table::LTSH::LtshTable;
-use crate::table::OS_2::Os2Table;
-use crate::table::SVG::SvgTable;
-use crate::table::TSI5::{Tsi5Table};
-use crate::table::VORG::VorgTable;
-use crate::table::_TSI::TsiTable;
+use crate::table::base::BaseTable;
+use crate::table::cff::CffTable;
+use crate::table::colr::ColrTable;
+use crate::table::cpal::CpalTable;
+use crate::table::gdef::GdefTable;
+use crate::table::ltsh::LtshTable;
+use crate::table::os_2::Os2Table;
+use crate::table::svg::SvgTable;
+use crate::table::tsi5::{Tsi5Table};
+use crate::table::vorg::VorgTable;
+use crate::table::_tsi::TsiTable;
 use crate::table::cmap::CmapTable;
 use crate::table::cvt::CvtTable;
 use crate::table::fpgm_prep::FpgmPrepTable;
@@ -43,16 +43,16 @@ use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
 use crate::consolidate::{otfcc_consolidate_font};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::BASE::{TABLE_I_BASE};
-use crate::table::CFF::{TABLE_I_CFF};
-use crate::table::COLR::{TABLE_I_COLR};
-use crate::table::CPAL::{TABLE_I_CPAL};
-use crate::table::GDEF::{TABLE_I_GDEF};
-use crate::table::LTSH::{TABLE_I_LTSH};
-use crate::table::OS_2::{TABLE_I_OS_2};
-use crate::table::SVG::{TABLE_I_SVG};
-use crate::table::VORG::{TABLE_I_VORG};
-use crate::table::_TSI::{TABLE_I_TSI};
+use crate::table::base::{TABLE_I_BASE};
+use crate::table::cff::{TABLE_I_CFF};
+use crate::table::colr::{TABLE_I_COLR};
+use crate::table::cpal::{TABLE_I_CPAL};
+use crate::table::gdef::{TABLE_I_GDEF};
+use crate::table::ltsh::{TABLE_I_LTSH};
+use crate::table::os_2::{TABLE_I_OS_2};
+use crate::table::svg::{TABLE_I_SVG};
+use crate::table::vorg::{TABLE_I_VORG};
+use crate::table::_tsi::{TABLE_I_TSI};
 use crate::table::cmap::{TABLE_I_CMAP};
 use crate::table::cvt::{TABLE_I_CVT};
 use crate::table::fpgm_prep::{TABLE_I_FPGM_PREP};
@@ -81,13 +81,13 @@ pub struct Font {
     pub head: *mut HeadTable,
     pub hhea: *mut HheaTable,
     pub maxp: *mut MaxpTable,
-    pub OS_2: *mut Os2Table,
+    pub os_2: *mut Os2Table,
     pub hmtx: *mut HmtxTable,
     pub post: *mut PostTable,
     pub hdmx: *mut HdmxTable,
     pub vhea: *mut VheaTable,
     pub vmtx: *mut VmtxTable,
-    pub VORG: *mut VorgTable,
+    pub vorg: *mut VorgTable,
     pub cff: *mut CffTable,
     pub glyf: *mut GlyfTable,
     pub cmap: *mut CmapTable,
@@ -98,17 +98,17 @@ pub struct Font {
     pub cvt_: *mut CvtTable,
     pub gasp: *mut GaspTable,
     pub vdmx: *mut VdmxTable,
-    pub LTSH: *mut LtshTable,
+    pub ltsh: *mut LtshTable,
     pub gsub: *mut OtlTable,
     pub gpos: *mut OtlTable,
-    pub GDEF: *mut GdefTable,
-    pub BASE: *mut BaseTable,
-    pub CPAL: *mut CpalTable,
-    pub COLR: *mut ColrTable,
+    pub gdef: *mut GdefTable,
+    pub base: *mut BaseTable,
+    pub cpal: *mut CpalTable,
+    pub colr: *mut ColrTable,
     pub svg: *mut SvgTable,
     pub tsi_01: *mut TsiTable,
     pub tsi_23: *mut TsiTable,
-    pub TSI5: *mut Tsi5Table,
+    pub tsi5: *mut Tsi5Table,
     pub glyph_order: *mut GlyphOrder,
 }
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -173,9 +173,9 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1330863922 | 1330851634 => {
-            if !(*font).OS_2.is_null() {
-                TABLE_I_OS_2.free.expect("non-null function pointer")((*font).OS_2);
-                (*font).OS_2 = ::core::ptr::null_mut::<Os2Table>();
+            if !(*font).os_2.is_null() {
+                TABLE_I_OS_2.free.expect("non-null function pointer")((*font).os_2);
+                (*font).os_2 = ::core::ptr::null_mut::<Os2Table>();
             }
             return;
         }
@@ -271,9 +271,9 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1280594760 => {
-            if !(*font).LTSH.is_null() {
-                TABLE_I_LTSH.free.expect("non-null function pointer")((*font).LTSH);
-                (*font).LTSH = ::core::ptr::null_mut::<LtshTable>();
+            if !(*font).ltsh.is_null() {
+                TABLE_I_LTSH.free.expect("non-null function pointer")((*font).ltsh);
+                (*font).ltsh = ::core::ptr::null_mut::<LtshTable>();
             }
             return;
         }
@@ -292,37 +292,37 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1195656518 => {
-            if !(*font).GDEF.is_null() {
-                TABLE_I_GDEF.free.expect("non-null function pointer")((*font).GDEF);
-                (*font).GDEF = ::core::ptr::null_mut::<GdefTable>();
+            if !(*font).gdef.is_null() {
+                TABLE_I_GDEF.free.expect("non-null function pointer")((*font).gdef);
+                (*font).gdef = ::core::ptr::null_mut::<GdefTable>();
             }
             return;
         }
         1111577413 => {
-            if !(*font).BASE.is_null() {
-                TABLE_I_BASE.free.expect("non-null function pointer")((*font).BASE);
-                (*font).BASE = ::core::ptr::null_mut::<BaseTable>();
+            if !(*font).base.is_null() {
+                TABLE_I_BASE.free.expect("non-null function pointer")((*font).base);
+                (*font).base = ::core::ptr::null_mut::<BaseTable>();
             }
             return;
         }
         1448038983 => {
-            if !(*font).VORG.is_null() {
-                TABLE_I_VORG.free.expect("non-null function pointer")((*font).VORG);
-                (*font).VORG = ::core::ptr::null_mut::<VorgTable>();
+            if !(*font).vorg.is_null() {
+                TABLE_I_VORG.free.expect("non-null function pointer")((*font).vorg);
+                (*font).vorg = ::core::ptr::null_mut::<VorgTable>();
             }
             return;
         }
         1129333068 => {
-            if !(*font).CPAL.is_null() {
-                TABLE_I_CPAL.free.expect("non-null function pointer")((*font).CPAL);
-                (*font).CPAL = ::core::ptr::null_mut::<CpalTable>();
+            if !(*font).cpal.is_null() {
+                TABLE_I_CPAL.free.expect("non-null function pointer")((*font).cpal);
+                (*font).cpal = ::core::ptr::null_mut::<CpalTable>();
             }
             return;
         }
         1129270354 => {
-            if !(*font).COLR.is_null() {
-                TABLE_I_COLR.free.expect("non-null function pointer")((*font).COLR);
-                (*font).COLR = ::core::ptr::null_mut::<ColrTable>();
+            if !(*font).colr.is_null() {
+                TABLE_I_COLR.free.expect("non-null function pointer")((*font).colr);
+                (*font).colr = ::core::ptr::null_mut::<ColrTable>();
             }
             return;
         }
@@ -348,11 +348,11 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1414744373 => {
-            if !(*font).TSI5.is_null() {
+            if !(*font).tsi5.is_null() {
                 otl_class_def_free(
-                    (*font).TSI5 as *mut ClassDef,
+                    (*font).tsi5 as *mut ClassDef,
                 );
-                (*font).TSI5 = ::core::ptr::null_mut::<Tsi5Table>();
+                (*font).tsi5 = ::core::ptr::null_mut::<Tsi5Table>();
             }
             return;
         }

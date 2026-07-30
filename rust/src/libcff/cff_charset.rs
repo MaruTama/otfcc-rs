@@ -6,7 +6,7 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
 use crate::support::buffer::{bufnew};
 
-/// Which charset a CFF font carries: one of the three predefined ones, or the
+/// Which charset a cff font carries: one of the three predefined ones, or the
 /// format of an embedded charset.
 ///
 /// Like [`CffFdSelectType`](crate::libcff::cff_fdselect::CffFdSelectType),
@@ -23,7 +23,7 @@ pub enum CffCharsetType {
     Format2 = 5,
 }
 
-/// "No charset given", which C spelled as a second name for 0 -- the CFF
+/// "No charset given", which C spelled as a second name for 0 -- the cff
 /// default when a font's Top DICT has no charset entry *is* ISOAdobe, so the
 /// two are the same state and only ever differ in what the reader was trying to
 /// say. A const rather than a variant, since Rust cannot give one value two
@@ -329,7 +329,7 @@ mod tests {
     use super::*;
 
     // `CFF_CHARSET_UNSPECED` and `CffCharsetType::IsoAdobe` are the same state, not
-    // two states that happen to share a number: a CFF font whose Top DICT has no
+    // two states that happen to share a number: a cff font whose Top DICT has no
     // charset entry *is* ISOAdobe by the spec's default, and otfcc uses whichever
     // name reads better at each site (`cff_close_CFF` says UNSPECED, the reader
     // says ISOADOBE). Rust cannot give one value two variant names, so one of

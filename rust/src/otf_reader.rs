@@ -17,22 +17,22 @@ use crate::font::caryll_font::{FontSubtype, Font, IFontBuilder};
 use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
 
 
-use crate::table::CFF::{CffAndGlyf};
+use crate::table::cff::{CffAndGlyf};
 use crate::table::glyf::GlyfIOContext;
 
 use crate::font::caryll_font::{OTFCC_I_FONT};
 use crate::otf_reader::unconsolidate::{otfcc_unconsolidate_font};
-use crate::table::BASE::{otfcc_read_base};
-use crate::table::CFF::{otfcc_read_cff_and_glyf_tables};
-use crate::table::COLR::{otfcc_read_colr};
-use crate::table::CPAL::{otfcc_read_cpal};
-use crate::table::GDEF::{otfcc_read_gdef};
-use crate::table::LTSH::{otfcc_read_ltsh};
-use crate::table::OS_2::{otfcc_read_os_2};
-use crate::table::SVG::{otfcc_read_svg};
-use crate::table::TSI5::{otfcc_read_tsi5};
-use crate::table::VORG::{otfcc_read_vorg};
-use crate::table::_TSI::{otfcc_read_tsi};
+use crate::table::base::{otfcc_read_base};
+use crate::table::cff::{otfcc_read_cff_and_glyf_tables};
+use crate::table::colr::{otfcc_read_colr};
+use crate::table::cpal::{otfcc_read_cpal};
+use crate::table::gdef::{otfcc_read_gdef};
+use crate::table::ltsh::{otfcc_read_ltsh};
+use crate::table::os_2::{otfcc_read_os_2};
+use crate::table::svg::{otfcc_read_svg};
+use crate::table::tsi5::{otfcc_read_tsi5};
+use crate::table::vorg::{otfcc_read_vorg};
+use crate::table::_tsi::{otfcc_read_tsi};
 use crate::table::cmap::{otfcc_read_cmap};
 use crate::table::cvt::{otfcc_read_cvt};
 use crate::table::fpgm_prep::{otfcc_read_fpgm_prep};
@@ -63,7 +63,7 @@ unsafe extern "C" fn decide_font_subtype_otf(
     // __fortable_keep/__notfound/__fortable_k2 flags simulate a
     // single-iteration inner scope purely to give the original C a labeled
     // break/continue target. Traced by hand: the whole thing reduces to
-    // "return FontSubtype::Cff at the first 'CFF ' tag, else FontSubtype::Ttf".
+    // "return FontSubtype::Cff at the first 'cff ' tag, else FontSubtype::Ttf".
     let packet: Packet = *(*sfnt).packets.offset(index as isize);
     for i in 0..packet.num_tables as ::core::ffi::c_int {
         let table: PacketPiece = *packet.pieces.offset(i as isize);
@@ -107,7 +107,7 @@ impl FontBuilder for OtfReader {
         (*font).maxp = otfcc_read_maxp(packet, options);
         (*font).name = otfcc_read_name(packet, options);
         (*font).meta = otfcc_read_meta(packet, options);
-        (*font).OS_2 = otfcc_read_os_2(packet, options);
+        (*font).os_2 = otfcc_read_os_2(packet, options);
         (*font).post = otfcc_read_post(packet, options);
         (*font).hhea = otfcc_read_hhea(packet, options);
         (*font).cmap = otfcc_read_cmap(packet, options);
@@ -122,7 +122,7 @@ impl FontBuilder for OtfReader {
             (*font).cvt_ = otfcc_read_cvt(packet, options, 1668707360i32 as u32);
             (*font).gasp = otfcc_read_gasp(packet, options);
             (*font).vdmx = otfcc_read_vdmx(packet, options);
-            (*font).LTSH = otfcc_read_ltsh(packet, options);
+            (*font).ltsh = otfcc_read_ltsh(packet, options);
             let mut ctx: GlyfIOContext = GlyfIOContext {
                 loca_is_long: (*(*font).head).index_to_loc_format != 0,
                 num_glyphs: (*(*font).maxp).num_glyphs as GlyphId,
@@ -140,7 +140,7 @@ impl FontBuilder for OtfReader {
             (*font).vhea = otfcc_read_vhea(packet, options);
             if !(*font).vhea.is_null() {
                 (*font).vmtx = otfcc_read_vmtx(packet, options, (*font).vhea, (*font).maxp);
-                (*font).VORG = otfcc_read_vorg(packet, options);
+                (*font).vorg = otfcc_read_vorg(packet, options);
             }
         }
         if !(*font).glyf.is_null() {
@@ -156,11 +156,11 @@ impl FontBuilder for OtfReader {
                 1196445523i32 as u32,
                 (*(*font).glyf).length as GlyphId,
             );
-            (*font).GDEF = otfcc_read_gdef(packet, options);
+            (*font).gdef = otfcc_read_gdef(packet, options);
         }
-        (*font).BASE = otfcc_read_base(packet, options);
-        (*font).CPAL = otfcc_read_cpal(packet, options);
-        (*font).COLR = otfcc_read_colr(packet, options);
+        (*font).base = otfcc_read_base(packet, options);
+        (*font).cpal = otfcc_read_cpal(packet, options);
+        (*font).colr = otfcc_read_colr(packet, options);
         (*font).svg = otfcc_read_svg(packet, options);
         (*font).tsi_01 = otfcc_read_tsi(
             packet,
@@ -174,7 +174,7 @@ impl FontBuilder for OtfReader {
             1414744370i32 as u32,
             1414744371i32 as u32,
         );
-        (*font).TSI5 = otfcc_read_tsi5(packet, options);
+        (*font).tsi5 = otfcc_read_tsi5(packet, options);
         otfcc_unconsolidate_font(font, options);
         return font as *mut ::core::ffi::c_void;
     };

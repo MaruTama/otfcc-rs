@@ -19,15 +19,15 @@ use crate::font::caryll_font::{Font};
 use crate::support::{NULL};
 use crate::support::glyph_order::GlyphOrder;
 
-use crate::table::CFF::{CffTable};
-use crate::table::COLR::{ColrLayer, ColrLayerList, ColrMapping, ColrTable};
+use crate::table::cff::{CffTable};
+use crate::table::colr::{ColrLayer, ColrLayerList, ColrMapping, ColrTable};
 
 
 
 
 
 
-use crate::table::_TSI::{TsiEntryType, TsiTable, TsiEntry};
+use crate::table::_tsi::{TsiEntryType, TsiTable, TsiEntry};
 use crate::table::cmap::{CmapEntry, CmapUvsEntry};
 
 
@@ -51,7 +51,7 @@ use crate::table::otl::classdef::{ClassDef};
 
 
 use crate::vf::vq::VQ;
-use crate::consolidate::otl::GDEF::{consolidate_gdef};
+use crate::consolidate::otl::gdef::{consolidate_gdef};
 use crate::consolidate::otl::chaining::{consolidate_chaining};
 use crate::consolidate::otl::common::{fontop_consolidate_class_def};
 use crate::consolidate::otl::gpos_cursive::{consolidate_gpos_cursive};
@@ -63,8 +63,8 @@ use crate::consolidate::otl::gsub_reverse::{consolidate_gsub_reverse};
 use crate::consolidate::otl::gsub_single::{consolidate_gsub_single};
 use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::COLR::{COLR_I_LAYER, COLR_I_LAYER_LIST, COLR_I_MAPPING, TABLE_I_COLR};
-use crate::table::_TSI::{TABLE_I_TSI, TSI_I_ENTRY};
+use crate::table::colr::{COLR_I_LAYER, COLR_I_LAYER_LIST, COLR_I_MAPPING, TABLE_I_COLR};
+use crate::table::_tsi::{TABLE_I_TSI, TSI_I_ENTRY};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR_LIST, GLYF_I_MASK_LIST, GLYF_I_REFERENCE_LIST, GLYF_I_STEM_DEF_LIST, otfcc_new_glyf_glyph};
 use crate::table::otl::{OTL_I_FEATURE_LIST, OTL_I_FEATURE_REF_LIST, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_REF_LIST};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
@@ -1303,7 +1303,7 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
-        consolidate_gdef(font, (*font).GDEF, options);
+        consolidate_gdef(font, (*font).gdef, options);
         ___loggedstep_v_1 = false;
         (*(*options).logger)
             .finish
@@ -1311,15 +1311,15 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
     }
 }
 unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
-    if font.is_null() || (*font).COLR.is_null() || (*font).glyph_order.is_null() {
+    if font.is_null() || (*font).colr.is_null() || (*font).glyph_order.is_null() {
         return;
     }
     let mut consolidated: *mut ColrTable = (
         TABLE_I_COLR.create.expect("non-null function pointer"))();
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
-    while keep != 0 && __caryll_index < (*(*font).COLR).length {
-        let mut mapping: *mut ColrMapping = (*(*font).COLR).items.offset(__caryll_index as isize);
+    while keep != 0 && __caryll_index < (*(*font).colr).length {
+        let mut mapping: *mut ColrMapping = (*(*font).colr).items.offset(__caryll_index as isize);
         while keep != 0 {
             if !OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
@@ -1427,8 +1427,8 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    TABLE_I_COLR.free.expect("non-null function pointer")((*font).COLR);
-    (*font).COLR = consolidated;
+    TABLE_I_COLR.free.expect("non-null function pointer")((*font).colr);
+    (*font).colr = consolidated;
 }
 unsafe extern "C" fn compare_tsi_entry(
     mut a: *const TsiEntry,
@@ -1706,7 +1706,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
-        fontop_consolidate_class_def(font, (*font).TSI5 as *mut ClassDef, options);
+        fontop_consolidate_class_def(font, (*font).tsi5 as *mut ClassDef, options);
         ___loggedstep_v_4 = false;
         (*(*options).logger)
             .finish

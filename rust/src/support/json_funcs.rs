@@ -7,7 +7,7 @@
 // identical before any was deleted, and none was ever externally linked (no
 // #[no_mangle] on the per-file form), so consolidating them changes no ABI.
 //
-// One helper is still where c2rust put it: `json_from_sds`, in table/CFF.rs. It
+// One helper is still where c2rust put it: `json_from_sds`, in table/cff.rs. It
 // needs `sdslen`, itself a `static inline` from SdsRaw.h with 20 copies of its own,
 // and that family is a separate pass. It only ever had one copy, so there is
 // nothing to collapse -- moving it would just be moving it.

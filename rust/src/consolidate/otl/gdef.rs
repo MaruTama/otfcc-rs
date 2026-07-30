@@ -17,7 +17,7 @@ use crate::support::{NULL};
 
 
 
-use crate::table::GDEF::{CaretValue, CaretValueList, CaretValueRecord, GdefTable};
+use crate::table::gdef::{CaretValue, CaretValueList, CaretValueRecord, GdefTable};
 
 
 
@@ -46,7 +46,7 @@ use crate::table::otl::classdef::ClassDef;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::consolidate::otl::common::{fontop_consolidate_class_def};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::GDEF::{OTL_I_CARET_VALUE_LIST, OTL_I_LIG_CARET_TABLE};
+use crate::table::gdef::{OTL_I_CARET_VALUE_LIST, OTL_I_LIG_CARET_TABLE};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 

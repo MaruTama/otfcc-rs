@@ -120,7 +120,7 @@ unsafe extern "C" fn normalized_boundaries(
 #[inline]
 unsafe extern "C" fn get_cached_power(
     mut e: ::core::ffi::c_int,
-    mut K: *mut ::core::ffi::c_int,
+    mut k_out: *mut ::core::ffi::c_int,
 ) -> DiyFp {
     static K_CACHED_POWERS_F: [u64; 87] = [
         (0xfa8fd5a0 as ::core::ffi::c_uint as u64) << 32 as ::core::ffi::c_int
@@ -396,7 +396,7 @@ unsafe extern "C" fn get_cached_power(
     }
     let mut index: ::core::ffi::c_uint =
         ((k >> 3 as ::core::ffi::c_int) + 1 as ::core::ffi::c_int) as ::core::ffi::c_uint;
-    *K = -(-(348 as ::core::ffi::c_int) + (index << 3 as ::core::ffi::c_int) as ::core::ffi::c_int);
+    *k_out = -(-(348 as ::core::ffi::c_int) + (index << 3 as ::core::ffi::c_int) as ::core::ffi::c_int);
     return diy_fp_from_parts(
         K_CACHED_POWERS_F[index as usize],
         K_CACHED_POWERS_E[index as usize] as ::core::ffi::c_int,
@@ -459,7 +459,7 @@ unsafe extern "C" fn digit_gen(
     mut delta: u64,
     mut buffer: *mut ::core::ffi::c_char,
     mut len: *mut ::core::ffi::c_int,
-    mut K: *mut ::core::ffi::c_int,
+    mut k_out: *mut ::core::ffi::c_int,
 ) {
     static K_POW10: [u32; 10] = [
         1 as ::core::ffi::c_int as u32,
@@ -537,7 +537,7 @@ unsafe extern "C" fn digit_gen(
         kappa -= 1;
         let mut tmp: u64 = ((p1 as u64) << -one.e).wrapping_add(p2);
         if tmp <= delta {
-            *K += kappa;
+            *k_out += kappa;
             grisu_round(
                 buffer,
                 *len,
@@ -562,7 +562,7 @@ unsafe extern "C" fn digit_gen(
         p2 &= one.f.wrapping_sub(1 as u64);
         kappa -= 1;
         if p2 < delta {
-            *K += kappa;
+            *k_out += kappa;
             grisu_round(
                 buffer,
                 *len,
@@ -580,19 +580,19 @@ unsafe extern "C" fn grisu2(
     mut value: ::core::ffi::c_double,
     mut buffer: *mut ::core::ffi::c_char,
     mut length: *mut ::core::ffi::c_int,
-    mut K: *mut ::core::ffi::c_int,
+    mut k_out: *mut ::core::ffi::c_int,
 ) {
     let v: DiyFp = diy_fp_from_double(value) as DiyFp;
     let mut w_m: DiyFp = DiyFp { f: 0, e: 0 };
     let mut w_p: DiyFp = DiyFp { f: 0, e: 0 };
     normalized_boundaries(v, &raw mut w_m, &raw mut w_p);
-    let c_mk: DiyFp = get_cached_power(w_p.e, K) as DiyFp;
+    let c_mk: DiyFp = get_cached_power(w_p.e, k_out) as DiyFp;
     let w: DiyFp = diy_fp_multiply(normalize(v), c_mk) as DiyFp;
     let mut wp: DiyFp = diy_fp_multiply(w_p, c_mk);
     let mut wm: DiyFp = diy_fp_multiply(w_m, c_mk);
     wm.f = wm.f.wrapping_add(1);
     wp.f = wp.f.wrapping_sub(1);
-    digit_gen(w, wp, wp.f.wrapping_sub(wm.f), buffer, length, K);
+    digit_gen(w, wp, wp.f.wrapping_sub(wm.f), buffer, length, k_out);
 }
 #[inline]
 unsafe extern "C" fn get_digits_lut() -> *const ::core::ffi::c_char {
@@ -802,33 +802,33 @@ unsafe extern "C" fn get_digits_lut() -> *const ::core::ffi::c_char {
 }
 #[inline]
 unsafe extern "C" fn write_exponent(
-    mut K: ::core::ffi::c_int,
+    mut k_out: ::core::ffi::c_int,
     mut buffer: *mut ::core::ffi::c_char,
 ) {
-    if K < 0 as ::core::ffi::c_int {
+    if k_out < 0 as ::core::ffi::c_int {
         let fresh1 = buffer;
         buffer = buffer.offset(1);
         *fresh1 = '-' as i32 as ::core::ffi::c_char;
-        K = -K;
+        k_out = -k_out;
     }
-    if K >= 100 as ::core::ffi::c_int {
+    if k_out >= 100 as ::core::ffi::c_int {
         let fresh2 = buffer;
         buffer = buffer.offset(1);
         *fresh2 = ('0' as i32
-            + (K / 100 as ::core::ffi::c_int) as ::core::ffi::c_char as ::core::ffi::c_int)
+            + (k_out / 100 as ::core::ffi::c_int) as ::core::ffi::c_char as ::core::ffi::c_int)
             as ::core::ffi::c_char;
-        K %= 100 as ::core::ffi::c_int;
+        k_out %= 100 as ::core::ffi::c_int;
         let mut d: *const ::core::ffi::c_char =
-            get_digits_lut().offset((K * 2 as ::core::ffi::c_int) as isize);
+            get_digits_lut().offset((k_out * 2 as ::core::ffi::c_int) as isize);
         let fresh3 = buffer;
         buffer = buffer.offset(1);
         *fresh3 = *d.offset(0 as ::core::ffi::c_int as isize);
         let fresh4 = buffer;
         buffer = buffer.offset(1);
         *fresh4 = *d.offset(1 as ::core::ffi::c_int as isize);
-    } else if K >= 10 as ::core::ffi::c_int {
+    } else if k_out >= 10 as ::core::ffi::c_int {
         let mut d_0: *const ::core::ffi::c_char =
-            get_digits_lut().offset((K * 2 as ::core::ffi::c_int) as isize);
+            get_digits_lut().offset((k_out * 2 as ::core::ffi::c_int) as isize);
         let fresh5 = buffer;
         buffer = buffer.offset(1);
         *fresh5 = *d_0.offset(0 as ::core::ffi::c_int as isize);
@@ -839,7 +839,7 @@ unsafe extern "C" fn write_exponent(
         let fresh7 = buffer;
         buffer = buffer.offset(1);
         *fresh7 =
-            ('0' as i32 + K as ::core::ffi::c_char as ::core::ffi::c_int) as ::core::ffi::c_char;
+            ('0' as i32 + k_out as ::core::ffi::c_char as ::core::ffi::c_int) as ::core::ffi::c_char;
     }
     *buffer = '\0' as i32 as ::core::ffi::c_char;
 }
@@ -927,8 +927,8 @@ pub unsafe extern "C" fn emyg_dtoa(
             value = -value;
         }
         let mut length: ::core::ffi::c_int = 0;
-        let mut K: ::core::ffi::c_int = 0;
-        grisu2(value, buffer, &raw mut length, &raw mut K);
-        prettify(buffer, length, K);
+        let mut k_out: ::core::ffi::c_int = 0;
+        grisu2(value, buffer, &raw mut length, &raw mut k_out);
+        prettify(buffer, length, k_out);
     };
 }
