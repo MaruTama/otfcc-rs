@@ -52,10 +52,7 @@ pub struct CmapTable {
 pub struct CmapTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CmapTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CmapTable, *const CmapTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CmapTable, *mut CmapTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CmapTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CmapTable, CmapTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CmapTable, CmapTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CmapTable>,
     pub free: Option<unsafe extern "C" fn(*mut CmapTable) -> ()>,
     pub encode_by_index:
@@ -275,35 +272,12 @@ unsafe extern "C" fn table_cmap_free(mut x: *mut CmapTable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_cmap_copy_replace(mut dst: *mut CmapTable, src: CmapTable) {
-    table_cmap_dispose(dst);
-    table_cmap_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_cmap_copy(mut dst: *mut CmapTable, mut src: *const CmapTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<CmapTable>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn table_cmap_replace(mut dst: *mut CmapTable, src: CmapTable) {
-    table_cmap_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CmapTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_cmap_move(mut dst: *mut CmapTable, mut src: *mut CmapTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CmapTable>() as usize,
-    );
-    table_cmap_init(src);
 }
 #[inline]
 unsafe extern "C" fn table_cmap_init(mut x: *mut CmapTable) {
@@ -4652,16 +4626,7 @@ pub static TABLE_I_CMAP: CmapTableElementInterface = {
         copy: Some(
             table_cmap_copy as unsafe extern "C" fn(*mut CmapTable, *const CmapTable) -> (),
         ),
-        move_0: Some(
-            table_cmap_move as unsafe extern "C" fn(*mut CmapTable, *mut CmapTable) -> (),
-        ),
         dispose: Some(table_cmap_dispose as unsafe extern "C" fn(*mut CmapTable) -> ()),
-        replace: Some(
-            table_cmap_replace as unsafe extern "C" fn(*mut CmapTable, CmapTable) -> (),
-        ),
-        copy_replace: Some(
-            table_cmap_copy_replace as unsafe extern "C" fn(*mut CmapTable, CmapTable) -> (),
-        ),
         create: Some(table_cmap_create),
         free: Some(table_cmap_free as unsafe extern "C" fn(*mut CmapTable) -> ()),
         encode_by_index: Some(

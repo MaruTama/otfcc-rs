@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort};
+use libc::{free, malloc, memset, qsort};
 
 
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
@@ -12,7 +12,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubMultiSubtableVectorInterface, GsubMultiEntry, Subtable, GsubMultiSubtable};
@@ -29,12 +29,7 @@ pub struct GsubMultiEntryElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut GsubMultiEntry) -> ()>,
     pub copy:
         Option<unsafe extern "C" fn(*mut GsubMultiEntry, *const GsubMultiEntry) -> ()>,
-    pub move_0:
-        Option<unsafe extern "C" fn(*mut GsubMultiEntry, *mut GsubMultiEntry) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GsubMultiEntry) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut GsubMultiEntry, GsubMultiEntry) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut GsubMultiEntry, GsubMultiEntry) -> ()>,
 }
 unsafe extern "C" fn delete_gsub_multi_entry(mut entry: *mut GsubMultiEntry) {
     otfcc_handle_dispose(&raw mut (*entry).from);
@@ -45,10 +40,7 @@ static GSM_TYPEINFO: GsubMultiEntryElementInterface = {
     GsubMultiEntryElementInterface {
         init: None,
         copy: None,
-        move_0: None,
         dispose: Some(delete_gsub_multi_entry as unsafe extern "C" fn(*mut GsubMultiEntry) -> ()),
-        replace: None,
-        copy_replace: None,
     }
 };
 #[inline]
@@ -68,20 +60,8 @@ pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
             subtable_gsub_multi_copy
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, *const GsubMultiSubtable) -> (),
         ),
-        move_0: Some(
-            subtable_gsub_multi_move
-                as unsafe extern "C" fn(*mut GsubMultiSubtable, *mut GsubMultiSubtable) -> (),
-        ),
         dispose: Some(
             subtable_gsub_multi_dispose as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
-        ),
-        replace: Some(
-            subtable_gsub_multi_replace
-                as unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiSubtable) -> (),
-        ),
-        copy_replace: Some(
-            subtable_gsub_multi_copy_replace
-                as unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiSubtable) -> (),
         ),
         create: Some(subtable_gsub_multi_create),
         free: Some(
@@ -156,13 +136,6 @@ unsafe extern "C" fn subtable_gsub_multi_resize_to(arr: *mut GsubMultiSubtable, 
     cvec_resize_to(as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_move(
-    dst: *mut GsubMultiSubtable,
-    src: *mut GsubMultiSubtable,
-) {
-    cvec_move(as_cvec(dst), as_cvec(src));
-}
-#[inline]
 unsafe extern "C" fn subtable_gsub_multi_dispose_item(
     mut arr: *mut GsubMultiSubtable,
     mut n: usize,
@@ -227,20 +200,8 @@ unsafe extern "C" fn subtable_gsub_multi_push(arr: *mut GsubMultiSubtable, elem:
     cvec_push(as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_grow(arr: *mut GsubMultiSubtable) {
-    cvec_grow(as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn subtable_gsub_multi_init(arr: *mut GsubMultiSubtable) {
     cvec_init(as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_multi_copy_replace(
-    mut dst: *mut GsubMultiSubtable,
-    src: GsubMultiSubtable,
-) {
-    subtable_gsub_multi_dispose(dst);
-    subtable_gsub_multi_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_multi_pop(arr: *mut GsubMultiSubtable) -> GsubMultiEntry {
@@ -294,18 +255,6 @@ unsafe extern "C" fn subtable_gsub_multi_dispose(mut arr: *mut GsubMultiSubtable
     (*arr).items = ::core::ptr::null_mut::<GsubMultiEntry>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_multi_replace(
-    mut dst: *mut GsubMultiSubtable,
-    src: GsubMultiSubtable,
-) {
-    subtable_gsub_multi_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GsubMultiSubtable>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_multi_init_cap_n(

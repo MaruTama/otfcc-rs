@@ -124,10 +124,7 @@ pub struct CffTable {
 pub struct CffTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CffTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CffTable, *const CffTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CffTable, *mut CffTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CffTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CffTable, CffTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CffTable, CffTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CffTable>,
     pub free: Option<unsafe extern "C" fn(*mut CffTable) -> ()>,
 }
@@ -306,38 +303,15 @@ unsafe extern "C" fn table_cff_free(mut x: *mut CffTable) {
     table_cff_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[inline]
-unsafe extern "C" fn table_cff_replace(mut dst: *mut CffTable, src: CffTable) {
-    table_cff_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CffTable>() as usize,
-    );
-}
 pub static TABLE_I_CFF: CffTableElementInterface = {
     CffTableElementInterface {
         init: Some(table_cff_init as unsafe extern "C" fn(*mut CffTable) -> ()),
         copy: Some(table_cff_copy as unsafe extern "C" fn(*mut CffTable, *const CffTable) -> ()),
-        move_0: Some(table_cff_move as unsafe extern "C" fn(*mut CffTable, *mut CffTable) -> ()),
         dispose: Some(table_cff_dispose as unsafe extern "C" fn(*mut CffTable) -> ()),
-        replace: Some(table_cff_replace as unsafe extern "C" fn(*mut CffTable, CffTable) -> ()),
-        copy_replace: Some(
-            table_cff_copy_replace as unsafe extern "C" fn(*mut CffTable, CffTable) -> (),
-        ),
         create: Some(table_cff_create),
         free: Some(table_cff_free as unsafe extern "C" fn(*mut CffTable) -> ()),
     }
 };
-#[inline]
-unsafe extern "C" fn table_cff_move(mut dst: *mut CffTable, mut src: *mut CffTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CffTable>() as usize,
-    );
-    table_cff_init(src);
-}
 #[inline]
 unsafe extern "C" fn table_cff_create() -> *mut CffTable {
     let mut x: *mut CffTable =
@@ -348,11 +322,6 @@ unsafe extern "C" fn table_cff_create() -> *mut CffTable {
 #[inline]
 unsafe extern "C" fn table_cff_init(mut x: *mut CffTable) {
     init_fd(x);
-}
-#[inline]
-unsafe extern "C" fn table_cff_copy_replace(mut dst: *mut CffTable, src: CffTable) {
-    table_cff_dispose(dst);
-    table_cff_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn table_cff_dispose(mut x: *mut CffTable) {

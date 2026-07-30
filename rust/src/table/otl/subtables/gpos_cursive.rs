@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort};
+use libc::{free, malloc, memset, qsort};
 
 use crate::support::json_funcs::{json_obj_get, preserialize};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
@@ -11,7 +11,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GposCursiveSubtableVectorInterface, Anchor, GposCursiveEntry, Subtable, GposCursiveSubtable};
@@ -29,13 +29,7 @@ pub struct GposCursiveEntryElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut GposCursiveEntry) -> ()>,
     pub copy:
         Option<unsafe extern "C" fn(*mut GposCursiveEntry, *const GposCursiveEntry) -> ()>,
-    pub move_0:
-        Option<unsafe extern "C" fn(*mut GposCursiveEntry, *mut GposCursiveEntry) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GposCursiveEntry) -> ()>,
-    pub replace:
-        Option<unsafe extern "C" fn(*mut GposCursiveEntry, GposCursiveEntry) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut GposCursiveEntry, GposCursiveEntry) -> ()>,
 }
 unsafe extern "C" fn delete_gpos_cursive_entry(mut entry: *mut GposCursiveEntry) {
     otfcc_handle_dispose(&raw mut (*entry).target);
@@ -44,18 +38,11 @@ static GSS_TYPEINFO: GposCursiveEntryElementInterface = {
     GposCursiveEntryElementInterface {
         init: None,
         copy: None,
-        move_0: None,
         dispose: Some(
             delete_gpos_cursive_entry as unsafe extern "C" fn(*mut GposCursiveEntry) -> (),
         ),
-        replace: None,
-        copy_replace: None,
     }
 };
-#[inline]
-unsafe extern "C" fn subtable_gpos_cursive_move(dst: *mut GposCursiveSubtable, src: *mut GposCursiveSubtable) {
-    cvec_move(as_cvec(dst), as_cvec(src));
-}
 #[inline]
 unsafe extern "C" fn subtable_gpos_cursive_resize_to(arr: *mut GposCursiveSubtable, target: usize) {
     cvec_resize_to(as_cvec(arr), target);
@@ -176,24 +163,12 @@ unsafe extern "C" fn subtable_gpos_cursive_push(arr: *mut GposCursiveSubtable, e
     cvec_push(as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_cursive_grow(arr: *mut GposCursiveSubtable) {
-    cvec_grow(as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn subtable_gpos_cursive_grow_to(arr: *mut GposCursiveSubtable, target: usize) {
     cvec_grow_to(as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_cursive_pop(arr: *mut GposCursiveSubtable) -> GposCursiveEntry {
     cvec_pop(as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_cursive_copy_replace(
-    mut dst: *mut GposCursiveSubtable,
-    src: GposCursiveSubtable,
-) {
-    subtable_gpos_cursive_dispose(dst);
-    subtable_gpos_cursive_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_cursive_copy(
@@ -243,18 +218,6 @@ unsafe extern "C" fn subtable_gpos_cursive_dispose(mut arr: *mut GposCursiveSubt
     (*arr).items = ::core::ptr::null_mut::<GposCursiveEntry>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_cursive_replace(
-    mut dst: *mut GposCursiveSubtable,
-    src: GposCursiveSubtable,
-) {
-    subtable_gpos_cursive_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GposCursiveSubtable>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_cursive_init_cap_n(
@@ -313,23 +276,8 @@ pub static I_SUBTABLE_GPOS_CURSIVE: GposCursiveSubtableVectorInterface = {
                     *const GposCursiveSubtable,
                 ) -> (),
         ),
-        move_0: Some(
-            subtable_gpos_cursive_move
-                as unsafe extern "C" fn(
-                    *mut GposCursiveSubtable,
-                    *mut GposCursiveSubtable,
-                ) -> (),
-        ),
         dispose: Some(
             subtable_gpos_cursive_dispose as unsafe extern "C" fn(*mut GposCursiveSubtable) -> (),
-        ),
-        replace: Some(
-            subtable_gpos_cursive_replace
-                as unsafe extern "C" fn(*mut GposCursiveSubtable, GposCursiveSubtable) -> (),
-        ),
-        copy_replace: Some(
-            subtable_gpos_cursive_copy_replace
-                as unsafe extern "C" fn(*mut GposCursiveSubtable, GposCursiveSubtable) -> (),
         ),
         create: Some(subtable_gpos_cursive_create),
         free: Some(

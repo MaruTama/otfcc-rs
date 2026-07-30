@@ -60,10 +60,7 @@ pub struct Os2Table {
 pub struct Os2TableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut Os2Table) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut Os2Table, *const Os2Table) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut Os2Table, *mut Os2Table) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Os2Table) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut Os2Table, Os2Table) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut Os2Table, Os2Table) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut Os2Table>,
     pub free: Option<unsafe extern "C" fn(*mut Os2Table) -> ()>,
 }
@@ -90,11 +87,6 @@ unsafe extern "C" fn table_os_2_create() -> *mut Os2Table {
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_os_2_copy_replace(mut dst: *mut Os2Table, src: Os2Table) {
-    table_os_2_dispose(dst);
-    table_os_2_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_os_2_init(mut x: *mut Os2Table) {
     init_os2(x);
 }
@@ -104,16 +96,7 @@ pub static TABLE_I_OS_2: Os2TableElementInterface = {
         copy: Some(
             table_os_2_copy as unsafe extern "C" fn(*mut Os2Table, *const Os2Table) -> (),
         ),
-        move_0: Some(
-            table_os_2_move as unsafe extern "C" fn(*mut Os2Table, *mut Os2Table) -> (),
-        ),
         dispose: Some(table_os_2_dispose as unsafe extern "C" fn(*mut Os2Table) -> ()),
-        replace: Some(
-            table_os_2_replace as unsafe extern "C" fn(*mut Os2Table, Os2Table) -> (),
-        ),
-        copy_replace: Some(
-            table_os_2_copy_replace as unsafe extern "C" fn(*mut Os2Table, Os2Table) -> (),
-        ),
         create: Some(table_os_2_create),
         free: Some(table_os_2_free as unsafe extern "C" fn(*mut Os2Table) -> ()),
     }
@@ -125,24 +108,6 @@ unsafe extern "C" fn table_os_2_copy(mut dst: *mut Os2Table, mut src: *const Os2
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<Os2Table>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn table_os_2_replace(mut dst: *mut Os2Table, src: Os2Table) {
-    table_os_2_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Os2Table>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_os_2_move(mut dst: *mut Os2Table, mut src: *mut Os2Table) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Os2Table>() as usize,
-    );
-    table_os_2_init(src);
 }
 #[inline]
 unsafe extern "C" fn table_os_2_free(mut x: *mut Os2Table) {

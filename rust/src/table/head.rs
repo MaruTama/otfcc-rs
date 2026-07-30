@@ -41,10 +41,7 @@ pub struct HeadTable {
 pub struct HeadTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut HeadTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut HeadTable, *const HeadTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut HeadTable, *mut HeadTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut HeadTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut HeadTable, HeadTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut HeadTable, HeadTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut HeadTable>,
     pub free: Option<unsafe extern "C" fn(*mut HeadTable) -> ()>,
 }
@@ -61,26 +58,12 @@ unsafe extern "C" fn init_head(mut head: *mut HeadTable) {
 #[inline]
 unsafe extern "C" fn dispose_head(mut _head: *mut HeadTable) {}
 #[inline]
-unsafe extern "C" fn table_head_replace(mut dst: *mut HeadTable, src: HeadTable) {
-    table_head_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<HeadTable>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn table_head_free(mut x: *mut HeadTable) {
     if x.is_null() {
         return;
     }
     table_head_dispose(x);
     free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn table_head_copy_replace(mut dst: *mut HeadTable, src: HeadTable) {
-    table_head_dispose(dst);
-    table_head_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn table_head_copy(mut dst: *mut HeadTable, mut src: *const HeadTable) {
@@ -94,31 +77,13 @@ unsafe extern "C" fn table_head_copy(mut dst: *mut HeadTable, mut src: *const He
 unsafe extern "C" fn table_head_dispose(mut x: *mut HeadTable) {
     dispose_head(x);
 }
-#[inline]
-unsafe extern "C" fn table_head_move(mut dst: *mut HeadTable, mut src: *mut HeadTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<HeadTable>() as usize,
-    );
-    table_head_init(src);
-}
 pub static TABLE_I_HEAD: HeadTableElementInterface = {
     HeadTableElementInterface {
         init: Some(table_head_init as unsafe extern "C" fn(*mut HeadTable) -> ()),
         copy: Some(
             table_head_copy as unsafe extern "C" fn(*mut HeadTable, *const HeadTable) -> (),
         ),
-        move_0: Some(
-            table_head_move as unsafe extern "C" fn(*mut HeadTable, *mut HeadTable) -> (),
-        ),
         dispose: Some(table_head_dispose as unsafe extern "C" fn(*mut HeadTable) -> ()),
-        replace: Some(
-            table_head_replace as unsafe extern "C" fn(*mut HeadTable, HeadTable) -> (),
-        ),
-        copy_replace: Some(
-            table_head_copy_replace as unsafe extern "C" fn(*mut HeadTable, HeadTable) -> (),
-        ),
         create: Some(table_head_create),
         free: Some(table_head_free as unsafe extern "C" fn(*mut HeadTable) -> ()),
     }

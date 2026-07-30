@@ -37,10 +37,7 @@ pub struct MaxpTable {
 pub struct MaxpTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut MaxpTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut MaxpTable, *const MaxpTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut MaxpTable, *mut MaxpTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MaxpTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut MaxpTable>,
     pub free: Option<unsafe extern "C" fn(*mut MaxpTable) -> ()>,
 }
@@ -55,31 +52,13 @@ unsafe extern "C" fn init_maxp(mut maxp: *mut MaxpTable) {
 }
 #[inline]
 unsafe extern "C" fn dispose_maxp(mut _maxp: *mut MaxpTable) {}
-#[inline]
-unsafe extern "C" fn table_maxp_replace(mut dst: *mut MaxpTable, src: MaxpTable) {
-    table_maxp_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<MaxpTable>() as usize,
-    );
-}
 pub static TABLE_I_MAXP: MaxpTableElementInterface = {
     MaxpTableElementInterface {
         init: Some(table_maxp_init as unsafe extern "C" fn(*mut MaxpTable) -> ()),
         copy: Some(
             table_maxp_copy as unsafe extern "C" fn(*mut MaxpTable, *const MaxpTable) -> (),
         ),
-        move_0: Some(
-            table_maxp_move as unsafe extern "C" fn(*mut MaxpTable, *mut MaxpTable) -> (),
-        ),
         dispose: Some(table_maxp_dispose as unsafe extern "C" fn(*mut MaxpTable) -> ()),
-        replace: Some(
-            table_maxp_replace as unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> (),
-        ),
-        copy_replace: Some(
-            table_maxp_copy_replace as unsafe extern "C" fn(*mut MaxpTable, MaxpTable) -> (),
-        ),
         create: Some(table_maxp_create),
         free: Some(table_maxp_free as unsafe extern "C" fn(*mut MaxpTable) -> ()),
     }
@@ -104,11 +83,6 @@ unsafe extern "C" fn table_maxp_free(mut x: *mut MaxpTable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_maxp_copy_replace(mut dst: *mut MaxpTable, src: MaxpTable) {
-    table_maxp_dispose(dst);
-    table_maxp_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_maxp_copy(mut dst: *mut MaxpTable, mut src: *const MaxpTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
@@ -119,15 +93,6 @@ unsafe extern "C" fn table_maxp_copy(mut dst: *mut MaxpTable, mut src: *const Ma
 #[inline]
 unsafe extern "C" fn table_maxp_dispose(mut x: *mut MaxpTable) {
     dispose_maxp(x);
-}
-#[inline]
-unsafe extern "C" fn table_maxp_move(mut dst: *mut MaxpTable, mut src: *mut MaxpTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<MaxpTable>() as usize,
-    );
-    table_maxp_init(src);
 }
 pub unsafe extern "C" fn otfcc_read_maxp(
     packet: Packet,

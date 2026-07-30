@@ -14,7 +14,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::{NULL, ComparFn};
 use crate::table::otl::{GsubLigatureSubtableVectorInterface, GsubLigatureEntry, Subtable, GsubLigatureSubtable};
@@ -32,13 +32,7 @@ pub struct GsubLigatureEntryElementInterface {
     pub copy: Option<
         unsafe extern "C" fn(*mut GsubLigatureEntry, *const GsubLigatureEntry) -> (),
     >,
-    pub move_0:
-        Option<unsafe extern "C" fn(*mut GsubLigatureEntry, *mut GsubLigatureEntry) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GsubLigatureEntry) -> ()>,
-    pub replace:
-        Option<unsafe extern "C" fn(*mut GsubLigatureEntry, GsubLigatureEntry) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut GsubLigatureEntry, GsubLigatureEntry) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -85,18 +79,11 @@ static GSS_TYPEINFO: GsubLigatureEntryElementInterface = {
     GsubLigatureEntryElementInterface {
         init: None,
         copy: None,
-        move_0: None,
         dispose: Some(
             delete_gsub_ligature_entry as unsafe extern "C" fn(*mut GsubLigatureEntry) -> (),
         ),
-        replace: None,
-        copy_replace: None,
     }
 };
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_move(dst: *mut GsubLigatureSubtable, src: *mut GsubLigatureSubtable) {
-    cvec_move(as_cvec(dst), as_cvec(src));
-}
 #[inline]
 unsafe extern "C" fn subtable_gsub_ligature_grow_to(arr: *mut GsubLigatureSubtable, target: usize) {
     cvec_grow_to(as_cvec(arr), target);
@@ -112,14 +99,6 @@ unsafe extern "C" fn subtable_gsub_ligature_free(mut x: *mut GsubLigatureSubtabl
 #[inline]
 unsafe extern "C" fn subtable_gsub_ligature_pop(arr: *mut GsubLigatureSubtable) -> GsubLigatureEntry {
     cvec_pop(as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_copy_replace(
-    mut dst: *mut GsubLigatureSubtable,
-    src: GsubLigatureSubtable,
-) {
-    subtable_gsub_ligature_dispose(dst);
-    subtable_gsub_ligature_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_ligature_copy(
@@ -270,23 +249,12 @@ pub static I_SUBTABLE_GSUB_LIGATURE: GsubLigatureSubtableVectorInterface = {
                     *const GsubLigatureSubtable,
                 ) -> (),
         ),
-        move_0: Some(
-            subtable_gsub_ligature_move
-                as unsafe extern "C" fn(
-                    *mut GsubLigatureSubtable,
-                    *mut GsubLigatureSubtable,
-                ) -> (),
-        ),
         dispose: Some(
             subtable_gsub_ligature_dispose
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> (),
         ),
         replace: Some(
             subtable_gsub_ligature_replace
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureSubtable) -> (),
-        ),
-        copy_replace: Some(
-            subtable_gsub_ligature_copy_replace
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureSubtable) -> (),
         ),
         create: Some(subtable_gsub_ligature_create),
@@ -430,10 +398,6 @@ unsafe extern "C" fn subtable_gsub_ligature_fill(
 #[inline]
 unsafe extern "C" fn subtable_gsub_ligature_push(arr: *mut GsubLigatureSubtable, elem: GsubLigatureEntry) {
     cvec_push(as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_grow(arr: *mut GsubLigatureSubtable) {
-    cvec_grow(as_cvec(arr));
 }
 pub unsafe extern "C" fn otl_read_gsub_ligature(
     data: FontFilePointer,

@@ -31,10 +31,7 @@ pub struct VmtxTable {
 pub struct VmtxTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut VmtxTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut VmtxTable, *const VmtxTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VmtxTable, *mut VmtxTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VmtxTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VmtxTable>,
     pub free: Option<unsafe extern "C" fn(*mut VmtxTable) -> ()>,
 }
@@ -76,45 +73,13 @@ unsafe extern "C" fn table_vmtx_init(mut x: *mut VmtxTable) {
         ::core::mem::size_of::<VmtxTable>() as usize,
     );
 }
-#[inline]
-unsafe extern "C" fn table_vmtx_copy_replace(mut dst: *mut VmtxTable, src: VmtxTable) {
-    table_vmtx_dispose(dst);
-    table_vmtx_copy(dst, &raw const src);
-}
-#[inline]
-unsafe extern "C" fn table_vmtx_move(mut dst: *mut VmtxTable, mut src: *mut VmtxTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VmtxTable>() as usize,
-    );
-    table_vmtx_init(src);
-}
-#[inline]
-unsafe extern "C" fn table_vmtx_replace(mut dst: *mut VmtxTable, src: VmtxTable) {
-    table_vmtx_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VmtxTable>() as usize,
-    );
-}
 pub static TABLE_I_VMTX: VmtxTableElementInterface = {
     VmtxTableElementInterface {
         init: Some(table_vmtx_init as unsafe extern "C" fn(*mut VmtxTable) -> ()),
         copy: Some(
             table_vmtx_copy as unsafe extern "C" fn(*mut VmtxTable, *const VmtxTable) -> (),
         ),
-        move_0: Some(
-            table_vmtx_move as unsafe extern "C" fn(*mut VmtxTable, *mut VmtxTable) -> (),
-        ),
         dispose: Some(table_vmtx_dispose as unsafe extern "C" fn(*mut VmtxTable) -> ()),
-        replace: Some(
-            table_vmtx_replace as unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> (),
-        ),
-        copy_replace: Some(
-            table_vmtx_copy_replace as unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> (),
-        ),
         create: Some(table_vmtx_create),
         free: Some(table_vmtx_free as unsafe extern "C" fn(*mut VmtxTable) -> ()),
     }

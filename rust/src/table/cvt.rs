@@ -27,10 +27,7 @@ pub struct CvtTable {
 pub struct CvtTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CvtTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CvtTable, *const CvtTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CvtTable, *mut CvtTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CvtTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CvtTable, CvtTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CvtTable, CvtTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CvtTable>,
     pub free: Option<unsafe extern "C" fn(*mut CvtTable) -> ()>,
 }
@@ -73,29 +70,6 @@ unsafe extern "C" fn table_cvt_init(mut x: *mut CvtTable) {
     );
 }
 #[inline]
-unsafe extern "C" fn table_cvt_copy_replace(mut dst: *mut CvtTable, src: CvtTable) {
-    table_cvt_dispose(dst);
-    table_cvt_copy(dst, &raw const src);
-}
-#[inline]
-unsafe extern "C" fn table_cvt_move(mut dst: *mut CvtTable, mut src: *mut CvtTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CvtTable>() as usize,
-    );
-    table_cvt_init(src);
-}
-#[inline]
-unsafe extern "C" fn table_cvt_replace(mut dst: *mut CvtTable, src: CvtTable) {
-    table_cvt_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CvtTable>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn table_cvt_dispose(mut x: *mut CvtTable) {
     dispose_cvt(x);
 }
@@ -103,12 +77,7 @@ pub static TABLE_I_CVT: CvtTableElementInterface = {
     CvtTableElementInterface {
         init: Some(table_cvt_init as unsafe extern "C" fn(*mut CvtTable) -> ()),
         copy: Some(table_cvt_copy as unsafe extern "C" fn(*mut CvtTable, *const CvtTable) -> ()),
-        move_0: Some(table_cvt_move as unsafe extern "C" fn(*mut CvtTable, *mut CvtTable) -> ()),
         dispose: Some(table_cvt_dispose as unsafe extern "C" fn(*mut CvtTable) -> ()),
-        replace: Some(table_cvt_replace as unsafe extern "C" fn(*mut CvtTable, CvtTable) -> ()),
-        copy_replace: Some(
-            table_cvt_copy_replace as unsafe extern "C" fn(*mut CvtTable, CvtTable) -> (),
-        ),
         create: Some(table_cvt_create),
         free: Some(table_cvt_free as unsafe extern "C" fn(*mut CvtTable) -> ()),
     }

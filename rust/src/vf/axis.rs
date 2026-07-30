@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
 use crate::support::primitives::{Pos};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::support::{ComparFn};
 
 #[derive(Copy, Clone)]
@@ -19,10 +19,7 @@ pub struct VfAxis {
 pub struct VfAxisElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut VfAxis) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut VfAxis, *const VfAxis) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VfAxis, *mut VfAxis) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VfAxis) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VfAxis, VfAxis) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut VfAxis, VfAxis) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> VfAxis>,
     pub dup: Option<unsafe extern "C" fn(VfAxis) -> VfAxis>,
 }
@@ -38,10 +35,7 @@ pub struct VfAxes {
 pub struct VfAxesVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut VfAxes) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut VfAxes, *const VfAxes) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VfAxes, *mut VfAxes) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VfAxes) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VfAxes, VfAxes) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut VfAxes, VfAxes) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VfAxes>,
     pub free: Option<unsafe extern "C" fn(*mut VfAxes) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut VfAxes, usize) -> ()>,
@@ -76,11 +70,6 @@ unsafe extern "C" fn vf_axis_init(mut x: *mut VfAxis) {
     );
 }
 #[inline]
-unsafe extern "C" fn vf_axis_copy_replace(mut dst: *mut VfAxis, src: VfAxis) {
-    vf_axis_dispose(dst);
-    vf_axis_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn vf_axis_copy(mut dst: *mut VfAxis, mut src: *const VfAxis) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
@@ -102,33 +91,12 @@ unsafe extern "C" fn vf_axis_empty() -> VfAxis {
     return x;
 }
 #[inline]
-unsafe extern "C" fn vf_axis_replace(mut dst: *mut VfAxis, src: VfAxis) {
-    vf_axis_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VfAxis>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn vf_axis_dispose(mut _x: *mut VfAxis) {}
-#[inline]
-unsafe extern "C" fn vf_axis_move(mut dst: *mut VfAxis, mut src: *mut VfAxis) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VfAxis>() as usize,
-    );
-    vf_axis_init(src);
-}
 pub static VF_I_AXIS: VfAxisElementInterface = {
     VfAxisElementInterface {
         init: Some(vf_axis_init as unsafe extern "C" fn(*mut VfAxis) -> ()),
         copy: Some(vf_axis_copy as unsafe extern "C" fn(*mut VfAxis, *const VfAxis) -> ()),
-        move_0: Some(vf_axis_move as unsafe extern "C" fn(*mut VfAxis, *mut VfAxis) -> ()),
         dispose: Some(vf_axis_dispose as unsafe extern "C" fn(*mut VfAxis) -> ()),
-        replace: Some(vf_axis_replace as unsafe extern "C" fn(*mut VfAxis, VfAxis) -> ()),
-        copy_replace: Some(vf_axis_copy_replace as unsafe extern "C" fn(*mut VfAxis, VfAxis) -> ()),
         empty: Some(vf_axis_empty),
         dup: Some(vf_axis_dup as unsafe extern "C" fn(VfAxis) -> VfAxis),
     }
@@ -155,10 +123,6 @@ unsafe extern "C" fn vf_axes_shrink_to_fit(mut arr: *mut VfAxes) {
     vf_axes_resize_to(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn vf_axes_move(dst: *mut VfAxes, src: *mut VfAxes) {
-    cvec_move(vf_axes_as_cvec(dst), vf_axes_as_cvec(src));
-}
-#[inline]
 unsafe fn vf_axes_as_cvec(arr: *mut VfAxes) -> *mut CVecRaw<VfAxis> {
     arr as *mut CVecRaw<VfAxis>
 }
@@ -170,10 +134,7 @@ pub static VF_I_AXES: VfAxesVectorInterface = {
     VfAxesVectorInterface {
         init: Some(vf_axes_init as unsafe extern "C" fn(*mut VfAxes) -> ()),
         copy: Some(vf_axes_copy as unsafe extern "C" fn(*mut VfAxes, *const VfAxes) -> ()),
-        move_0: Some(vf_axes_move as unsafe extern "C" fn(*mut VfAxes, *mut VfAxes) -> ()),
         dispose: Some(vf_axes_dispose as unsafe extern "C" fn(*mut VfAxes) -> ()),
-        replace: Some(vf_axes_replace as unsafe extern "C" fn(*mut VfAxes, VfAxes) -> ()),
-        copy_replace: Some(vf_axes_copy_replace as unsafe extern "C" fn(*mut VfAxes, VfAxes) -> ()),
         create: Some(vf_axes_create),
         free: Some(vf_axes_free as unsafe extern "C" fn(*mut VfAxes) -> ()),
         init_n: Some(vf_axes_init_n as unsafe extern "C" fn(*mut VfAxes, usize) -> ()),
@@ -289,15 +250,6 @@ unsafe extern "C" fn vf_axes_grow_to(arr: *mut VfAxes, target: usize) {
     cvec_grow_to(vf_axes_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn vf_axes_grow(arr: *mut VfAxes) {
-    cvec_grow(vf_axes_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn vf_axes_copy_replace(mut dst: *mut VfAxes, src: VfAxes) {
-    vf_axes_dispose(dst);
-    vf_axes_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn vf_axes_copy(mut dst: *mut VfAxes, mut src: *const VfAxes) {
     vf_axes_init(dst);
     vf_axes_grow_to(dst, (*src).length);
@@ -345,15 +297,6 @@ unsafe extern "C" fn vf_axes_dispose(mut arr: *mut VfAxes) {
 #[inline]
 unsafe extern "C" fn vf_axes_pop(arr: *mut VfAxes) -> VfAxis {
     cvec_pop(vf_axes_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn vf_axes_replace(mut dst: *mut VfAxes, src: VfAxes) {
-    vf_axes_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VfAxes>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn vf_axes_init_cap_n(mut arr: *mut VfAxes, mut n: usize) {

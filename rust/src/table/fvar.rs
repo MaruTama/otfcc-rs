@@ -1,9 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
-
 
 use crate::support::json_funcs::{json_new_position, json_numof, json_object_push_tag, preserialize};
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -12,7 +8,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::JsonValue;
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{NULL, ComparFn};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
@@ -39,10 +35,7 @@ pub struct FvarInstance {
 pub struct FvarInstanceElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut FvarInstance) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut FvarInstance, *const FvarInstance) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut FvarInstance, *mut FvarInstance) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FvarInstance) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut FvarInstance, FvarInstance) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut FvarInstance, FvarInstance) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -56,10 +49,7 @@ pub struct FvarInstanceList {
 pub struct FvarInstanceListVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut FvarInstanceList, *const FvarInstanceList) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut FvarInstanceList, *mut FvarInstanceList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut FvarInstanceList, FvarInstanceList) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut FvarInstanceList, FvarInstanceList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FvarInstanceList>,
     pub free: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
@@ -111,10 +101,7 @@ pub struct FvarTable {
 pub struct FvarTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut FvarTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut FvarTable, *const FvarTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut FvarTable, *mut FvarTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FvarTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut FvarTable, FvarTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut FvarTable, FvarTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FvarTable>,
     pub free: Option<unsafe extern "C" fn(*mut FvarTable) -> ()>,
     pub register_region:
@@ -201,37 +188,12 @@ pub static FVAR_I_INSTANCE: FvarInstanceElementInterface = {
             fvar_instance_copy
                 as unsafe extern "C" fn(*mut FvarInstance, *const FvarInstance) -> (),
         ),
-        move_0: Some(
-            fvar_instance_move
-                as unsafe extern "C" fn(*mut FvarInstance, *mut FvarInstance) -> (),
-        ),
         dispose: Some(fvar_instance_dispose as unsafe extern "C" fn(*mut FvarInstance) -> ()),
-        replace: Some(
-            fvar_instance_replace as unsafe extern "C" fn(*mut FvarInstance, FvarInstance) -> (),
-        ),
-        copy_replace: Some(
-            fvar_instance_copy_replace
-                as unsafe extern "C" fn(*mut FvarInstance, FvarInstance) -> (),
-        ),
     }
 };
 #[inline]
-unsafe extern "C" fn fvar_instance_copy_replace(mut dst: *mut FvarInstance, src: FvarInstance) {
-    fvar_instance_dispose(dst);
-    fvar_instance_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn fvar_instance_dispose(mut x: *mut FvarInstance) {
     dispose_fvar_instance(x);
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_move(mut dst: *mut FvarInstance, mut src: *mut FvarInstance) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FvarInstance>() as usize,
-    );
-    fvar_instance_init(src);
 }
 #[inline]
 unsafe extern "C" fn fvar_instance_init(mut x: *mut FvarInstance) {
@@ -245,15 +207,6 @@ unsafe extern "C" fn fvar_instance_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FvarInstance>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_replace(mut dst: *mut FvarInstance, src: FvarInstance) {
-    fvar_instance_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<FvarInstance>() as usize,
     );
 }
@@ -290,10 +243,6 @@ unsafe fn fvar_instance_list_as_cvec(arr: *mut FvarInstanceList) -> *mut CVecRaw
 #[inline]
 unsafe extern "C" fn fvar_instance_list_init(arr: *mut FvarInstanceList) {
     cvec_init(fvar_instance_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_move(dst: *mut FvarInstanceList, src: *mut FvarInstanceList) {
-    cvec_move(fvar_instance_list_as_cvec(dst), fvar_instance_list_as_cvec(src));
 }
 #[inline]
 unsafe extern "C" fn fvar_instance_list_filter_env(
@@ -385,24 +334,12 @@ unsafe extern "C" fn fvar_instance_list_push(arr: *mut FvarInstanceList, elem: F
     cvec_push(fvar_instance_list_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn fvar_instance_list_grow(arr: *mut FvarInstanceList) {
-    cvec_grow(fvar_instance_list_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn fvar_instance_list_grow_to(arr: *mut FvarInstanceList, target: usize) {
     cvec_grow_to(fvar_instance_list_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn fvar_instance_list_pop(arr: *mut FvarInstanceList) -> FvarInstance {
     cvec_pop(fvar_instance_list_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_copy_replace(
-    mut dst: *mut FvarInstanceList,
-    src: FvarInstanceList,
-) {
-    fvar_instance_list_dispose(dst);
-    fvar_instance_list_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn fvar_instance_list_copy(
@@ -453,18 +390,6 @@ unsafe extern "C" fn fvar_instance_list_dispose(mut arr: *mut FvarInstanceList) 
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn fvar_instance_list_replace(
-    mut dst: *mut FvarInstanceList,
-    src: FvarInstanceList,
-) {
-    fvar_instance_list_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FvarInstanceList>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn fvar_instance_list_init_cap_n(mut arr: *mut FvarInstanceList, mut n: usize) {
     fvar_instance_list_init(arr);
     fvar_instance_list_grow_to_n(arr, n);
@@ -480,20 +405,8 @@ pub static FVAR_I_INSTANCE_LIST: FvarInstanceListVectorInterface = {
             fvar_instance_list_copy
                 as unsafe extern "C" fn(*mut FvarInstanceList, *const FvarInstanceList) -> (),
         ),
-        move_0: Some(
-            fvar_instance_list_move
-                as unsafe extern "C" fn(*mut FvarInstanceList, *mut FvarInstanceList) -> (),
-        ),
         dispose: Some(
             fvar_instance_list_dispose as unsafe extern "C" fn(*mut FvarInstanceList) -> (),
-        ),
-        replace: Some(
-            fvar_instance_list_replace
-                as unsafe extern "C" fn(*mut FvarInstanceList, FvarInstanceList) -> (),
-        ),
-        copy_replace: Some(
-            fvar_instance_list_copy_replace
-                as unsafe extern "C" fn(*mut FvarInstanceList, FvarInstanceList) -> (),
         ),
         create: Some(fvar_instance_list_create),
         free: Some(fvar_instance_list_free as unsafe extern "C" fn(*mut FvarInstanceList) -> ()),
@@ -1782,11 +1695,6 @@ unsafe extern "C" fn table_fvar_create() -> *mut FvarTable {
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_fvar_copy_replace(mut dst: *mut FvarTable, src: FvarTable) {
-    table_fvar_dispose(dst);
-    table_fvar_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_fvar_copy(mut dst: *mut FvarTable, mut src: *const FvarTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
@@ -1794,40 +1702,13 @@ unsafe extern "C" fn table_fvar_copy(mut dst: *mut FvarTable, mut src: *const Fv
         ::core::mem::size_of::<FvarTable>() as usize,
     );
 }
-#[inline]
-unsafe extern "C" fn table_fvar_replace(mut dst: *mut FvarTable, src: FvarTable) {
-    table_fvar_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FvarTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_fvar_move(mut dst: *mut FvarTable, mut src: *mut FvarTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FvarTable>() as usize,
-    );
-    table_fvar_init(src);
-}
 pub static TABLE_I_FVAR: FvarTableElementInterface = {
     FvarTableElementInterface {
         init: Some(table_fvar_init as unsafe extern "C" fn(*mut FvarTable) -> ()),
         copy: Some(
             table_fvar_copy as unsafe extern "C" fn(*mut FvarTable, *const FvarTable) -> (),
         ),
-        move_0: Some(
-            table_fvar_move as unsafe extern "C" fn(*mut FvarTable, *mut FvarTable) -> (),
-        ),
         dispose: Some(table_fvar_dispose as unsafe extern "C" fn(*mut FvarTable) -> ()),
-        replace: Some(
-            table_fvar_replace as unsafe extern "C" fn(*mut FvarTable, FvarTable) -> (),
-        ),
-        copy_replace: Some(
-            table_fvar_copy_replace as unsafe extern "C" fn(*mut FvarTable, FvarTable) -> (),
-        ),
         create: Some(table_fvar_create),
         free: Some(table_fvar_free as unsafe extern "C" fn(*mut FvarTable) -> ()),
         register_region: Some(

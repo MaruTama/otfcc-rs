@@ -148,54 +148,6 @@ unsafe extern "C" fn sdssetlen(mut s: SdsRaw, mut newlen: usize) {
     };
 }
 #[inline]
-unsafe extern "C" fn sdsinclen(mut s: SdsRaw, mut inc: usize) {
-    let mut flags: ::core::ffi::c_uchar =
-        *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
-    match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => {
-            let mut fp: *mut ::core::ffi::c_uchar =
-                (s as *mut ::core::ffi::c_uchar).offset(-(1 as ::core::ffi::c_int as isize));
-            let mut newlen: ::core::ffi::c_uchar =
-                ((flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize).wrapping_add(inc)
-                    as ::core::ffi::c_uchar;
-            *fp = (SDS_TYPE_5 | (newlen as ::core::ffi::c_int) << SDS_TYPE_BITS)
-                as ::core::ffi::c_uchar;
-        }
-        SDS_TYPE_8 => {
-            let fresh0 = &raw mut
-                (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
-                    as *mut SdsHdr8))
-                    .len;
-            *fresh0 =
-                (*fresh0 as ::core::ffi::c_int + inc as u8 as ::core::ffi::c_int) as u8;
-        }
-        SDS_TYPE_16 => {
-            let fresh1 = &raw mut (*(s
-                .offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
-                as *mut SdsHdr16))
-                .len;
-            *fresh1 =
-                (*fresh1 as ::core::ffi::c_int + inc as u16 as ::core::ffi::c_int) as u16;
-        }
-        SDS_TYPE_32 => {
-            let fresh2 = &raw mut (*(s
-                .offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
-                as *mut SdsHdr32))
-                .len;
-            *fresh2 = (*fresh2).wrapping_add(inc as u32);
-        }
-        SDS_TYPE_64 => {
-            let fresh3 = &raw mut (*(s
-                .offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
-                as *mut SdsHdr64))
-                .len;
-            *fresh3 = (*fresh3 as ::core::ffi::c_ulong).wrapping_add(inc as ::core::ffi::c_ulong)
-                as u64 as u64;
-        }
-        _ => {}
-    };
-}
-#[inline]
 unsafe extern "C" fn sdsalloc(s: SdsRaw) -> usize {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;

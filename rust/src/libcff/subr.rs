@@ -64,10 +64,7 @@ pub struct CffSubrGraph {
 pub struct CffSubrGraphElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CffSubrGraph) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CffSubrGraph, *const CffSubrGraph) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CffSubrGraph, *mut CffSubrGraph) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CffSubrGraph) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CffSubrGraph, CffSubrGraph) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CffSubrGraph, CffSubrGraph) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CffSubrGraph>,
     pub free: Option<unsafe extern "C" fn(*mut CffSubrGraph) -> ()>,
 }
@@ -226,18 +223,7 @@ pub static CFF_I_SUBR_GRAPH: CffSubrGraphElementInterface = {
             cff_subr_graph_copy
                 as unsafe extern "C" fn(*mut CffSubrGraph, *const CffSubrGraph) -> (),
         ),
-        move_0: Some(
-            cff_subr_graph_move
-                as unsafe extern "C" fn(*mut CffSubrGraph, *mut CffSubrGraph) -> (),
-        ),
         dispose: Some(cff_subr_graph_dispose as unsafe extern "C" fn(*mut CffSubrGraph) -> ()),
-        replace: Some(
-            cff_subr_graph_replace as unsafe extern "C" fn(*mut CffSubrGraph, CffSubrGraph) -> (),
-        ),
-        copy_replace: Some(
-            cff_subr_graph_copy_replace
-                as unsafe extern "C" fn(*mut CffSubrGraph, CffSubrGraph) -> (),
-        ),
         create: Some(cff_subr_graph_create),
         free: Some(cff_subr_graph_free as unsafe extern "C" fn(*mut CffSubrGraph) -> ()),
     }
@@ -258,11 +244,6 @@ unsafe extern "C" fn cff_subr_graph_create() -> *mut CffSubrGraph {
     return x;
 }
 #[inline]
-unsafe extern "C" fn cff_subr_graph_copy_replace(mut dst: *mut CffSubrGraph, src: CffSubrGraph) {
-    cff_subr_graph_dispose(dst);
-    cff_subr_graph_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn cff_subr_graph_init(mut x: *mut CffSubrGraph) {
     init_subr_graph(x);
 }
@@ -278,24 +259,6 @@ unsafe extern "C" fn cff_subr_graph_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CffSubrGraph>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn cff_subr_graph_move(mut dst: *mut CffSubrGraph, mut src: *mut CffSubrGraph) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CffSubrGraph>() as usize,
-    );
-    cff_subr_graph_init(src);
-}
-#[inline]
-unsafe extern "C" fn cff_subr_graph_replace(mut dst: *mut CffSubrGraph, src: CffSubrGraph) {
-    cff_subr_graph_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<CffSubrGraph>() as usize,
     );
 }

@@ -1,9 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort, strcmp, strlen};
-unsafe extern "C" {
-    fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
-
+use libc::{exit, free, malloc, memcmp, memset, qsort, strcmp, strlen};
 use crate::support::json_funcs::{json_new_position, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback, preserialize};
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
@@ -16,7 +12,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_push};
 use crate::support::{NULL, ComparFn};
 use crate::table::otl::{MarkArrayVectorInterface, Anchor, MarkArray, MarkRecord, PositionValue};
@@ -29,10 +25,7 @@ use crate::vendor::sds::{sdsfree, sdsnewlen};
 pub struct MarkRecordElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut MarkRecord) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut MarkRecord, *const MarkRecord) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut MarkRecord, *mut MarkRecord) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MarkRecord) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut MarkRecord, MarkRecord) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut MarkRecord, MarkRecord) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -48,10 +41,7 @@ static GSS_TYPEINFO: MarkRecordElementInterface = {
     MarkRecordElementInterface {
         init: None,
         copy: None,
-        move_0: None,
         dispose: Some(delete_mark_array_item as unsafe extern "C" fn(*mut MarkRecord) -> ()),
-        replace: None,
-        copy_replace: None,
     }
 };
 #[inline]
@@ -70,11 +60,6 @@ unsafe extern "C" fn otl_mark_array_grow_to(arr: *mut MarkArray, target: usize) 
 #[inline]
 unsafe extern "C" fn otl_mark_array_pop(arr: *mut MarkArray) -> MarkRecord {
     cvec_pop(otl_mark_array_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn otl_mark_array_copy_replace(mut dst: *mut MarkArray, src: MarkArray) {
-    otl_mark_array_dispose(dst);
-    otl_mark_array_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn otl_mark_array_copy(
@@ -125,15 +110,6 @@ unsafe extern "C" fn otl_mark_array_dispose(mut arr: *mut MarkArray) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn otl_mark_array_replace(mut dst: *mut MarkArray, src: MarkArray) {
-    otl_mark_array_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<MarkArray>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn otl_mark_array_init_cap_n(mut arr: *mut MarkArray, mut n: usize) {
     otl_mark_array_init(arr);
     otl_mark_array_grow_to_n(arr, n);
@@ -169,10 +145,6 @@ unsafe extern "C" fn otl_mark_array_create() -> *mut MarkArray {
         malloc(::core::mem::size_of::<MarkArray>() as usize) as *mut MarkArray;
     otl_mark_array_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn otl_mark_array_move(dst: *mut MarkArray, src: *mut MarkArray) {
-    cvec_move(otl_mark_array_as_cvec(dst), otl_mark_array_as_cvec(src));
 }
 #[inline]
 unsafe fn otl_mark_array_as_cvec(arr: *mut MarkArray) -> *mut CVecRaw<MarkRecord> {
@@ -218,18 +190,7 @@ pub static OTL_I_MARK_ARRAY: MarkArrayVectorInterface = {
             otl_mark_array_copy
                 as unsafe extern "C" fn(*mut MarkArray, *const MarkArray) -> (),
         ),
-        move_0: Some(
-            otl_mark_array_move
-                as unsafe extern "C" fn(*mut MarkArray, *mut MarkArray) -> (),
-        ),
         dispose: Some(otl_mark_array_dispose as unsafe extern "C" fn(*mut MarkArray) -> ()),
-        replace: Some(
-            otl_mark_array_replace as unsafe extern "C" fn(*mut MarkArray, MarkArray) -> (),
-        ),
-        copy_replace: Some(
-            otl_mark_array_copy_replace
-                as unsafe extern "C" fn(*mut MarkArray, MarkArray) -> (),
-        ),
         create: Some(otl_mark_array_create),
         free: Some(otl_mark_array_free as unsafe extern "C" fn(*mut MarkArray) -> ()),
         init_n: Some(otl_mark_array_init_n as unsafe extern "C" fn(*mut MarkArray, usize) -> ()),
@@ -337,10 +298,6 @@ unsafe extern "C" fn otl_mark_array_fill(mut arr: *mut MarkArray, mut n: usize) 
 #[inline]
 unsafe extern "C" fn otl_mark_array_push(arr: *mut MarkArray, elem: MarkRecord) {
     cvec_push(otl_mark_array_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn otl_mark_array_grow(arr: *mut MarkArray) {
-    cvec_grow(otl_mark_array_as_cvec(arr));
 }
 pub unsafe extern "C" fn otl_read_mark_array(
     mut array: *mut MarkArray,

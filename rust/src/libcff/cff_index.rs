@@ -27,10 +27,7 @@ pub struct CffIndex {
 pub struct CffIndexElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CffIndex, *const CffIndex) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CffIndex, *mut CffIndex) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CffIndex, CffIndex) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CffIndex, CffIndex) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CffIndex>,
     pub free: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
     pub empty: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
@@ -101,11 +98,6 @@ unsafe extern "C" fn dispose_cff_index(mut in_0: *mut CffIndex) {
     }
 }
 #[inline]
-unsafe extern "C" fn cff_index_copy_replace(mut dst: *mut CffIndex, src: CffIndex) {
-    cff_index_dispose(dst);
-    cff_index_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn cff_index_dispose(mut x: *mut CffIndex) {
     dispose_cff_index(x);
 }
@@ -139,24 +131,6 @@ unsafe extern "C" fn cff_index_init(mut x: *mut CffIndex) {
         0 as ::core::ffi::c_int,
         ::core::mem::size_of::<CffIndex>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn cff_index_replace(mut dst: *mut CffIndex, src: CffIndex) {
-    cff_index_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CffIndex>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn cff_index_move(mut dst: *mut CffIndex, mut src: *mut CffIndex) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CffIndex>() as usize,
-    );
-    cff_index_init(src);
 }
 unsafe extern "C" fn get_index_length(mut i: *const CffIndex) -> u32 {
     if (*i).count != 0 as Arity {
@@ -435,12 +409,7 @@ pub static CFF_I_INDEX: CffIndexElementInterface = {
     CffIndexElementInterface {
         init: Some(cff_index_init as unsafe extern "C" fn(*mut CffIndex) -> ()),
         copy: Some(cff_index_copy as unsafe extern "C" fn(*mut CffIndex, *const CffIndex) -> ()),
-        move_0: Some(cff_index_move as unsafe extern "C" fn(*mut CffIndex, *mut CffIndex) -> ()),
         dispose: Some(cff_index_dispose as unsafe extern "C" fn(*mut CffIndex) -> ()),
-        replace: Some(cff_index_replace as unsafe extern "C" fn(*mut CffIndex, CffIndex) -> ()),
-        copy_replace: Some(
-            cff_index_copy_replace as unsafe extern "C" fn(*mut CffIndex, CffIndex) -> (),
-        ),
         create: Some(cff_index_create),
         free: Some(cff_index_free as unsafe extern "C" fn(*mut CffIndex) -> ()),
         empty: Some(empty_index as unsafe extern "C" fn(*mut CffIndex) -> ()),

@@ -11,7 +11,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, Pos, ShapeId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
@@ -34,10 +34,7 @@ pub struct CaretValue {
 pub struct CaretValueElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CaretValue) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CaretValue, *const CaretValue) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CaretValue, *mut CaretValue) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CaretValue) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CaretValue, CaretValue) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CaretValue, CaretValue) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -55,9 +52,6 @@ pub struct CaretValueListVectorInterface {
     pub move_0:
         Option<unsafe extern "C" fn(*mut CaretValueList, *mut CaretValueList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CaretValueList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CaretValueList, CaretValueList) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut CaretValueList, CaretValueList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CaretValueList>,
     pub free: Option<unsafe extern "C" fn(*mut CaretValueList) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut CaretValueList, usize) -> ()>,
@@ -100,13 +94,7 @@ pub struct CaretValueRecordElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CaretValueRecord) -> ()>,
     pub copy:
         Option<unsafe extern "C" fn(*mut CaretValueRecord, *const CaretValueRecord) -> ()>,
-    pub move_0:
-        Option<unsafe extern "C" fn(*mut CaretValueRecord, *mut CaretValueRecord) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CaretValueRecord) -> ()>,
-    pub replace:
-        Option<unsafe extern "C" fn(*mut CaretValueRecord, CaretValueRecord) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut CaretValueRecord, CaretValueRecord) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -120,10 +108,7 @@ pub struct LigCaretTable {
 pub struct LigCaretTableVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut LigCaretTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut LigCaretTable, *const LigCaretTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut LigCaretTable, *mut LigCaretTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut LigCaretTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut LigCaretTable, LigCaretTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut LigCaretTable, LigCaretTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LigCaretTable>,
     pub free: Option<unsafe extern "C" fn(*mut LigCaretTable) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut LigCaretTable, usize) -> ()>,
@@ -168,10 +153,7 @@ pub struct GdefTable {
 pub struct GdefTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut GdefTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut GdefTable, *const GdefTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut GdefTable, *mut GdefTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GdefTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut GdefTable, GdefTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut GdefTable, GdefTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GdefTable>,
     pub free: Option<unsafe extern "C" fn(*mut GdefTable) -> ()>,
 }
@@ -179,15 +161,8 @@ pub static OTL_I_CARET_VALUE: CaretValueElementInterface =
     CaretValueElementInterface {
         init: None,
         copy: None,
-        move_0: None,
         dispose: None,
-        replace: None,
-        copy_replace: None,
     };
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_grow(arr: *mut CaretValueList) {
-    cvec_grow(otl_caret_value_list_as_cvec(arr));
-}
 #[inline]
 unsafe extern "C" fn otl_caret_value_list_grow_to(arr: *mut CaretValueList, target: usize) {
     cvec_grow_to(otl_caret_value_list_as_cvec(arr), target);
@@ -195,14 +170,6 @@ unsafe extern "C" fn otl_caret_value_list_grow_to(arr: *mut CaretValueList, targ
 #[inline]
 unsafe extern "C" fn otl_caret_value_list_pop(arr: *mut CaretValueList) -> CaretValue {
     cvec_pop(otl_caret_value_list_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_copy_replace(
-    mut dst: *mut CaretValueList,
-    src: CaretValueList,
-) {
-    otl_caret_value_list_dispose(dst);
-    otl_caret_value_list_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn otl_caret_value_list_copy(
@@ -251,18 +218,6 @@ unsafe extern "C" fn otl_caret_value_list_dispose(mut arr: *mut CaretValueList) 
     (*arr).items = ::core::ptr::null_mut::<CaretValue>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_replace(
-    mut dst: *mut CaretValueList,
-    src: CaretValueList,
-) {
-    otl_caret_value_list_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CaretValueList>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn otl_caret_value_list_init_cap_n(mut arr: *mut CaretValueList, mut n: usize) {
@@ -367,14 +322,6 @@ pub static OTL_I_CARET_VALUE_LIST: CaretValueListVectorInterface = {
         ),
         dispose: Some(
             otl_caret_value_list_dispose as unsafe extern "C" fn(*mut CaretValueList) -> (),
-        ),
-        replace: Some(
-            otl_caret_value_list_replace
-                as unsafe extern "C" fn(*mut CaretValueList, CaretValueList) -> (),
-        ),
-        copy_replace: Some(
-            otl_caret_value_list_copy_replace
-                as unsafe extern "C" fn(*mut CaretValueList, CaretValueList) -> (),
         ),
         create: Some(otl_caret_value_list_create),
         free: Some(otl_caret_value_list_free as unsafe extern "C" fn(*mut CaretValueList) -> ()),
@@ -505,12 +452,9 @@ pub static OTL_I_CARET_VALUE_RECORD: CaretValueRecordElementInterface = {
     CaretValueRecordElementInterface {
         init: Some(init_gdef_lig_caret_rec as unsafe extern "C" fn(*mut CaretValueRecord) -> ()),
         copy: None,
-        move_0: None,
         dispose: Some(
             delete_gdef_lig_caret_rec as unsafe extern "C" fn(*mut CaretValueRecord) -> (),
         ),
-        replace: None,
-        copy_replace: None,
     }
 };
 #[inline]
@@ -528,20 +472,8 @@ pub static OTL_I_LIG_CARET_TABLE: LigCaretTableVectorInterface = {
             otl_lig_caret_table_copy
                 as unsafe extern "C" fn(*mut LigCaretTable, *const LigCaretTable) -> (),
         ),
-        move_0: Some(
-            otl_lig_caret_table_move
-                as unsafe extern "C" fn(*mut LigCaretTable, *mut LigCaretTable) -> (),
-        ),
         dispose: Some(
             otl_lig_caret_table_dispose as unsafe extern "C" fn(*mut LigCaretTable) -> (),
-        ),
-        replace: Some(
-            otl_lig_caret_table_replace
-                as unsafe extern "C" fn(*mut LigCaretTable, LigCaretTable) -> (),
-        ),
-        copy_replace: Some(
-            otl_lig_caret_table_copy_replace
-                as unsafe extern "C" fn(*mut LigCaretTable, LigCaretTable) -> (),
         ),
         create: Some(otl_lig_caret_table_create),
         free: Some(otl_lig_caret_table_free as unsafe extern "C" fn(*mut LigCaretTable) -> ()),
@@ -610,10 +542,6 @@ unsafe extern "C" fn otl_lig_caret_table_shrink_to_fit(mut arr: *mut LigCaretTab
 #[inline]
 unsafe extern "C" fn otl_lig_caret_table_resize_to(arr: *mut LigCaretTable, target: usize) {
     cvec_resize_to(otl_lig_caret_table_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_move(dst: *mut LigCaretTable, src: *mut LigCaretTable) {
-    cvec_move(otl_lig_caret_table_as_cvec(dst), otl_lig_caret_table_as_cvec(src));
 }
 #[inline]
 unsafe extern "C" fn otl_lig_caret_table_filter_env(
@@ -718,24 +646,12 @@ unsafe extern "C" fn otl_lig_caret_table_push(arr: *mut LigCaretTable, elem: Car
     cvec_push(otl_lig_caret_table_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn otl_lig_caret_table_grow(arr: *mut LigCaretTable) {
-    cvec_grow(otl_lig_caret_table_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn otl_lig_caret_table_grow_to(arr: *mut LigCaretTable, target: usize) {
     cvec_grow_to(otl_lig_caret_table_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn otl_lig_caret_table_pop(arr: *mut LigCaretTable) -> CaretValueRecord {
     cvec_pop(otl_lig_caret_table_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_copy_replace(
-    mut dst: *mut LigCaretTable,
-    src: LigCaretTable,
-) {
-    otl_lig_caret_table_dispose(dst);
-    otl_lig_caret_table_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn otl_lig_caret_table_copy(
@@ -789,18 +705,6 @@ unsafe extern "C" fn otl_lig_caret_table_dispose(mut arr: *mut LigCaretTable) {
     (*arr).items = ::core::ptr::null_mut::<CaretValueRecord>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_replace(
-    mut dst: *mut LigCaretTable,
-    src: LigCaretTable,
-) {
-    otl_lig_caret_table_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<LigCaretTable>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn otl_lig_caret_table_init_cap_n(mut arr: *mut LigCaretTable, mut n: usize) {
@@ -874,16 +778,7 @@ pub static TABLE_I_GDEF: GdefTableElementInterface = {
         copy: Some(
             table_gdef_copy as unsafe extern "C" fn(*mut GdefTable, *const GdefTable) -> (),
         ),
-        move_0: Some(
-            table_gdef_move as unsafe extern "C" fn(*mut GdefTable, *mut GdefTable) -> (),
-        ),
         dispose: Some(table_gdef_dispose as unsafe extern "C" fn(*mut GdefTable) -> ()),
-        replace: Some(
-            table_gdef_replace as unsafe extern "C" fn(*mut GdefTable, GdefTable) -> (),
-        ),
-        copy_replace: Some(
-            table_gdef_copy_replace as unsafe extern "C" fn(*mut GdefTable, GdefTable) -> (),
-        ),
         create: Some(table_gdef_create),
         free: Some(table_gdef_free as unsafe extern "C" fn(*mut GdefTable) -> ()),
     }
@@ -896,15 +791,6 @@ unsafe extern "C" fn table_gdef_create() -> *mut GdefTable {
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_gdef_move(mut dst: *mut GdefTable, mut src: *mut GdefTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GdefTable>() as usize,
-    );
-    table_gdef_init(src);
-}
-#[inline]
 unsafe extern "C" fn table_gdef_free(mut x: *mut GdefTable) {
     if x.is_null() {
         return;
@@ -913,24 +799,10 @@ unsafe extern "C" fn table_gdef_free(mut x: *mut GdefTable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_gdef_copy_replace(mut dst: *mut GdefTable, src: GdefTable) {
-    table_gdef_dispose(dst);
-    table_gdef_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_gdef_copy(mut dst: *mut GdefTable, mut src: *const GdefTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GdefTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_gdef_replace(mut dst: *mut GdefTable, src: GdefTable) {
-    table_gdef_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<GdefTable>() as usize,
     );
 }

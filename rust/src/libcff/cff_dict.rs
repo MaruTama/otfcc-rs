@@ -26,10 +26,7 @@ pub struct CffDict {
 pub struct CffDictElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CffDict) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CffDict, *const CffDict) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CffDict, *mut CffDict) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CffDict) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CffDict, CffDict) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CffDict, CffDict) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CffDict>,
     pub free: Option<unsafe extern "C" fn(*mut CffDict) -> ()>,
     pub parse: Option<unsafe extern "C" fn(*const u8, u32) -> *mut CffDict>,
@@ -73,11 +70,6 @@ unsafe extern "C" fn dispose_dict(mut dict: *mut CffDict) {
     (*dict).ents = ::core::ptr::null_mut::<CffDictEntry>();
 }
 #[inline]
-unsafe extern "C" fn cff_dict_copy_replace(mut dst: *mut CffDict, src: CffDict) {
-    cff_dict_dispose(dst);
-    cff_dict_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn cff_dict_create() -> *mut CffDict {
     let mut x: *mut CffDict =
         malloc(::core::mem::size_of::<CffDict>() as usize) as *mut CffDict;
@@ -111,24 +103,6 @@ unsafe extern "C" fn cff_dict_copy(mut dst: *mut CffDict, mut src: *const CffDic
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<CffDict>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn cff_dict_replace(mut dst: *mut CffDict, src: CffDict) {
-    cff_dict_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CffDict>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn cff_dict_move(mut dst: *mut CffDict, mut src: *mut CffDict) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CffDict>() as usize,
-    );
-    cff_dict_init(src);
 }
 unsafe extern "C" fn parse_dict(mut data: *const u8, len: u32) -> *mut CffDict {
     let mut dict: *mut CffDict = ::core::ptr::null_mut::<CffDict>();
@@ -316,12 +290,7 @@ pub static CFF_I_DICT: CffDictElementInterface = {
     CffDictElementInterface {
         init: Some(cff_dict_init as unsafe extern "C" fn(*mut CffDict) -> ()),
         copy: Some(cff_dict_copy as unsafe extern "C" fn(*mut CffDict, *const CffDict) -> ()),
-        move_0: Some(cff_dict_move as unsafe extern "C" fn(*mut CffDict, *mut CffDict) -> ()),
         dispose: Some(cff_dict_dispose as unsafe extern "C" fn(*mut CffDict) -> ()),
-        replace: Some(cff_dict_replace as unsafe extern "C" fn(*mut CffDict, CffDict) -> ()),
-        copy_replace: Some(
-            cff_dict_copy_replace as unsafe extern "C" fn(*mut CffDict, CffDict) -> (),
-        ),
         create: Some(cff_dict_create),
         free: Some(cff_dict_free as unsafe extern "C" fn(*mut CffDict) -> ()),
         parse: Some(parse_dict as unsafe extern "C" fn(*const u8, u32) -> *mut CffDict),

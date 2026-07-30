@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort, strcmp};
+use libc::{free, malloc, memset, qsort, strcmp};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint, json_obj_getsds, json_obj_getstr_share};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
@@ -8,7 +8,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{ComparFn};
@@ -31,10 +31,7 @@ pub struct SvgAssignment {
 pub struct SvgAssignmentElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut SvgAssignment) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut SvgAssignment, *const SvgAssignment) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut SvgAssignment, *mut SvgAssignment) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut SvgAssignment) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> SvgAssignment>,
     pub dup: Option<unsafe extern "C" fn(SvgAssignment) -> SvgAssignment>,
 }
@@ -50,10 +47,7 @@ pub struct SvgTable {
 pub struct SvgTableVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut SvgTable, *const SvgTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut SvgTable, *mut SvgTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut SvgTable, SvgTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut SvgTable, SvgTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut SvgTable>,
     pub free: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
@@ -136,27 +130,6 @@ unsafe extern "C" fn copy_svg_assigment(
 unsafe extern "C" fn dispose_svg_assignment(mut a: *mut SvgAssignment) {
     buffree((*a).document);
 }
-#[inline]
-unsafe extern "C" fn svg_assignment_move(
-    mut dst: *mut SvgAssignment,
-    mut src: *mut SvgAssignment,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<SvgAssignment>() as usize,
-    );
-    svg_assignment_init(src);
-}
-#[inline]
-unsafe extern "C" fn svg_assignment_replace(mut dst: *mut SvgAssignment, src: SvgAssignment) {
-    svg_assignment_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<SvgAssignment>() as usize,
-    );
-}
 pub static SVG_I_ASSIGNMENT: SvgAssignmentElementInterface = {
     SvgAssignmentElementInterface {
         init: Some(svg_assignment_init as unsafe extern "C" fn(*mut SvgAssignment) -> ()),
@@ -164,19 +137,7 @@ pub static SVG_I_ASSIGNMENT: SvgAssignmentElementInterface = {
             svg_assignment_copy
                 as unsafe extern "C" fn(*mut SvgAssignment, *const SvgAssignment) -> (),
         ),
-        move_0: Some(
-            svg_assignment_move
-                as unsafe extern "C" fn(*mut SvgAssignment, *mut SvgAssignment) -> (),
-        ),
         dispose: Some(svg_assignment_dispose as unsafe extern "C" fn(*mut SvgAssignment) -> ()),
-        replace: Some(
-            svg_assignment_replace
-                as unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> (),
-        ),
-        copy_replace: Some(
-            svg_assignment_copy_replace
-                as unsafe extern "C" fn(*mut SvgAssignment, SvgAssignment) -> (),
-        ),
         empty: Some(svg_assignment_empty),
         dup: Some(svg_assignment_dup as unsafe extern "C" fn(SvgAssignment) -> SvgAssignment),
     }
@@ -206,11 +167,6 @@ unsafe extern "C" fn svg_assignment_dup(src: SvgAssignment) -> SvgAssignment {
     return dst;
 }
 #[inline]
-unsafe extern "C" fn svg_assignment_copy_replace(mut dst: *mut SvgAssignment, src: SvgAssignment) {
-    svg_assignment_dispose(dst);
-    svg_assignment_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn svg_assignment_copy(
     mut dst: *mut SvgAssignment,
     mut src: *const SvgAssignment,
@@ -229,10 +185,6 @@ unsafe extern "C" fn table_svg_create_n(mut n: usize) -> *mut SvgTable {
     return t;
 }
 #[inline]
-unsafe extern "C" fn table_svg_move(dst: *mut SvgTable, src: *mut SvgTable) {
-    cvec_move(table_svg_as_cvec(dst), table_svg_as_cvec(src));
-}
-#[inline]
 unsafe fn table_svg_as_cvec(arr: *mut SvgTable) -> *mut CVecRaw<SvgAssignment> {
     arr as *mut CVecRaw<SvgAssignment>
 }
@@ -244,12 +196,7 @@ pub static TABLE_I_SVG: SvgTableVectorInterface = {
     SvgTableVectorInterface {
         init: Some(table_svg_init as unsafe extern "C" fn(*mut SvgTable) -> ()),
         copy: Some(table_svg_copy as unsafe extern "C" fn(*mut SvgTable, *const SvgTable) -> ()),
-        move_0: Some(table_svg_move as unsafe extern "C" fn(*mut SvgTable, *mut SvgTable) -> ()),
         dispose: Some(table_svg_dispose as unsafe extern "C" fn(*mut SvgTable) -> ()),
-        replace: Some(table_svg_replace as unsafe extern "C" fn(*mut SvgTable, SvgTable) -> ()),
-        copy_replace: Some(
-            table_svg_copy_replace as unsafe extern "C" fn(*mut SvgTable, SvgTable) -> (),
-        ),
         create: Some(table_svg_create),
         free: Some(table_svg_free as unsafe extern "C" fn(*mut SvgTable) -> ()),
         init_n: Some(table_svg_init_n as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
@@ -375,21 +322,12 @@ unsafe extern "C" fn table_svg_push(arr: *mut SvgTable, elem: SvgAssignment) {
     cvec_push(table_svg_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn table_svg_grow(arr: *mut SvgTable) {
-    cvec_grow(table_svg_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn table_svg_grow_to(arr: *mut SvgTable, target: usize) {
     cvec_grow_to(table_svg_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn table_svg_pop(arr: *mut SvgTable) -> SvgAssignment {
     cvec_pop(table_svg_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn table_svg_copy_replace(mut dst: *mut SvgTable, src: SvgTable) {
-    table_svg_dispose(dst);
-    table_svg_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn table_svg_copy(mut dst: *mut SvgTable, mut src: *const SvgTable) {
@@ -435,15 +373,6 @@ unsafe extern "C" fn table_svg_dispose(mut arr: *mut SvgTable) {
     (*arr).items = ::core::ptr::null_mut::<SvgAssignment>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn table_svg_replace(mut dst: *mut SvgTable, src: SvgTable) {
-    table_svg_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<SvgTable>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn table_svg_init_cap_n(mut arr: *mut SvgTable, mut n: usize) {

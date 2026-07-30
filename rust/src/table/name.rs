@@ -8,7 +8,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{ComparFn};
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
@@ -32,10 +32,7 @@ pub struct NameRecord {
 pub struct NameRecordElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut NameRecord) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut NameRecord, *const NameRecord) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut NameRecord, *mut NameRecord) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut NameRecord) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut NameRecord, NameRecord) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut NameRecord, NameRecord) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -49,10 +46,7 @@ pub struct NameTable {
 pub struct NameTableVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut NameTable, *const NameTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut NameTable, *mut NameTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut NameTable, NameTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut NameTable, NameTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut NameTable>,
     pub free: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut NameTable, usize) -> ()>,
@@ -119,44 +113,12 @@ unsafe extern "C" fn name_record_dtor(mut entry: *mut NameRecord) {
     (*entry).name_string = ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
 #[inline]
-unsafe extern "C" fn otfcc_name_record_move(
-    mut dst: *mut NameRecord,
-    mut src: *mut NameRecord,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<NameRecord>() as usize,
-    );
-    otfcc_name_record_init(src);
-}
-#[inline]
 unsafe extern "C" fn otfcc_name_record_init(mut x: *mut NameRecord) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
         ::core::mem::size_of::<NameRecord>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn otfcc_name_record_replace(
-    mut dst: *mut NameRecord,
-    src: NameRecord,
-) {
-    otfcc_name_record_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<NameRecord>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn otfcc_name_record_copy_replace(
-    mut dst: *mut NameRecord,
-    src: NameRecord,
-) {
-    otfcc_name_record_dispose(dst);
-    otfcc_name_record_copy(dst, &raw const src);
 }
 pub static OTFCC_I_NAME_RECORD: NameRecordElementInterface = {
     NameRecordElementInterface {
@@ -165,20 +127,8 @@ pub static OTFCC_I_NAME_RECORD: NameRecordElementInterface = {
             otfcc_name_record_copy
                 as unsafe extern "C" fn(*mut NameRecord, *const NameRecord) -> (),
         ),
-        move_0: Some(
-            otfcc_name_record_move
-                as unsafe extern "C" fn(*mut NameRecord, *mut NameRecord) -> (),
-        ),
         dispose: Some(
             otfcc_name_record_dispose as unsafe extern "C" fn(*mut NameRecord) -> (),
-        ),
-        replace: Some(
-            otfcc_name_record_replace
-                as unsafe extern "C" fn(*mut NameRecord, NameRecord) -> (),
-        ),
-        copy_replace: Some(
-            otfcc_name_record_copy_replace
-                as unsafe extern "C" fn(*mut NameRecord, NameRecord) -> (),
         ),
     }
 };
@@ -304,26 +254,13 @@ unsafe extern "C" fn table_name_fill(mut arr: *mut NameTable, mut n: usize) {
 unsafe extern "C" fn table_name_push(arr: *mut NameTable, elem: NameRecord) {
     cvec_push(table_name_as_cvec(arr), elem);
 }
-#[inline]
-unsafe extern "C" fn table_name_grow(arr: *mut NameTable) {
-    cvec_grow(table_name_as_cvec(arr));
-}
 pub static TABLE_I_NAME: NameTableVectorInterface = {
     NameTableVectorInterface {
         init: Some(table_name_init as unsafe extern "C" fn(*mut NameTable) -> ()),
         copy: Some(
             table_name_copy as unsafe extern "C" fn(*mut NameTable, *const NameTable) -> (),
         ),
-        move_0: Some(
-            table_name_move as unsafe extern "C" fn(*mut NameTable, *mut NameTable) -> (),
-        ),
         dispose: Some(table_name_dispose as unsafe extern "C" fn(*mut NameTable) -> ()),
-        replace: Some(
-            table_name_replace as unsafe extern "C" fn(*mut NameTable, NameTable) -> (),
-        ),
-        copy_replace: Some(
-            table_name_copy_replace as unsafe extern "C" fn(*mut NameTable, NameTable) -> (),
-        ),
         create: Some(table_name_create),
         free: Some(table_name_free as unsafe extern "C" fn(*mut NameTable) -> ()),
         init_n: Some(table_name_init_n as unsafe extern "C" fn(*mut NameTable, usize) -> ()),
@@ -369,11 +306,6 @@ pub static TABLE_I_NAME: NameTableVectorInterface = {
 #[inline]
 unsafe extern "C" fn table_name_pop(arr: *mut NameTable) -> NameRecord {
     cvec_pop(table_name_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn table_name_copy_replace(mut dst: *mut NameTable, src: NameTable) {
-    table_name_dispose(dst);
-    table_name_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn table_name_copy(mut dst: *mut NameTable, mut src: *const NameTable) {
@@ -423,15 +355,6 @@ unsafe extern "C" fn table_name_dispose(mut arr: *mut NameTable) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn table_name_replace(mut dst: *mut NameTable, src: NameTable) {
-    table_name_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<NameTable>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn table_name_init_cap_n(mut arr: *mut NameTable, mut n: usize) {
     table_name_init(arr);
     table_name_grow_to_n(arr, n);
@@ -475,10 +398,6 @@ unsafe extern "C" fn table_name_shrink_to_fit(mut arr: *mut NameTable) {
 #[inline]
 unsafe extern "C" fn table_name_resize_to(arr: *mut NameTable, target: usize) {
     cvec_resize_to(table_name_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn table_name_move(dst: *mut NameTable, src: *mut NameTable) {
-    cvec_move(table_name_as_cvec(dst), table_name_as_cvec(src));
 }
 unsafe extern "C" fn should_decode_as_utf16(mut record: *const NameRecord) -> bool {
     return (*record).platform_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int

@@ -1,9 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
-
 use crate::support::json_funcs::{json_new_position, json_obj_get, json_obj_get_type, preserialize};
 use crate::table::otl::classdef::{expand_class_def, ClassDef, otl_class_def_free, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_free, read_coverage, shrink_coverage};
@@ -80,32 +76,8 @@ unsafe extern "C" fn dispose_gpos_pair(mut subtable: *mut GposPairSubtable) {
     (*subtable).second = ::core::ptr::null_mut::<ClassDef>();
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_pair_move(
-    mut dst: *mut GposPairSubtable,
-    mut src: *mut GposPairSubtable,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GposPairSubtable>() as usize,
-    );
-    subtable_gpos_pair_init(src);
-}
-#[inline]
 unsafe extern "C" fn subtable_gpos_pair_dispose(mut x: *mut GposPairSubtable) {
     dispose_gpos_pair(x);
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_pair_replace(
-    mut dst: *mut GposPairSubtable,
-    src: GposPairSubtable,
-) {
-    subtable_gpos_pair_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GposPairSubtable>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_pair_copy(
@@ -117,14 +89,6 @@ unsafe extern "C" fn subtable_gpos_pair_copy(
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<GposPairSubtable>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_pair_copy_replace(
-    mut dst: *mut GposPairSubtable,
-    src: GposPairSubtable,
-) {
-    subtable_gpos_pair_dispose(dst);
-    subtable_gpos_pair_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
@@ -144,20 +108,8 @@ pub static I_SUBTABLE_GPOS_PAIR: GposPairSubtableElementInterface = {
             subtable_gpos_pair_copy
                 as unsafe extern "C" fn(*mut GposPairSubtable, *const GposPairSubtable) -> (),
         ),
-        move_0: Some(
-            subtable_gpos_pair_move
-                as unsafe extern "C" fn(*mut GposPairSubtable, *mut GposPairSubtable) -> (),
-        ),
         dispose: Some(
             subtable_gpos_pair_dispose as unsafe extern "C" fn(*mut GposPairSubtable) -> (),
-        ),
-        replace: Some(
-            subtable_gpos_pair_replace
-                as unsafe extern "C" fn(*mut GposPairSubtable, GposPairSubtable) -> (),
-        ),
-        copy_replace: Some(
-            subtable_gpos_pair_copy_replace
-                as unsafe extern "C" fn(*mut GposPairSubtable, GposPairSubtable) -> (),
         ),
         create: Some(subtable_gpos_pair_create),
         free: Some(subtable_gpos_pair_free as unsafe extern "C" fn(*mut GposPairSubtable) -> ()),

@@ -62,20 +62,8 @@ pub static I_SUBTABLE_CHAINING: ChainingSubtableElementInterface = {
             subtable_chaining_copy
                 as unsafe extern "C" fn(*mut ChainingSubtable, *const ChainingSubtable) -> (),
         ),
-        move_0: Some(
-            subtable_chaining_move
-                as unsafe extern "C" fn(*mut ChainingSubtable, *mut ChainingSubtable) -> (),
-        ),
         dispose: Some(
             subtable_chaining_dispose as unsafe extern "C" fn(*mut ChainingSubtable) -> (),
-        ),
-        replace: Some(
-            subtable_chaining_replace
-                as unsafe extern "C" fn(*mut ChainingSubtable, ChainingSubtable) -> (),
-        ),
-        copy_replace: Some(
-            subtable_chaining_copy_replace
-                as unsafe extern "C" fn(*mut ChainingSubtable, ChainingSubtable) -> (),
         ),
         create: Some(subtable_chaining_create),
         free: Some(subtable_chaining_free as unsafe extern "C" fn(*mut ChainingSubtable) -> ()),
@@ -105,26 +93,6 @@ unsafe extern "C" fn subtable_chaining_create() -> *mut ChainingSubtable {
     return x;
 }
 #[inline]
-unsafe extern "C" fn subtable_chaining_copy_replace(
-    mut dst: *mut ChainingSubtable,
-    src: ChainingSubtable,
-) {
-    subtable_chaining_dispose(dst);
-    subtable_chaining_copy(dst, &raw const src);
-}
-#[inline]
-unsafe extern "C" fn subtable_chaining_replace(
-    mut dst: *mut ChainingSubtable,
-    src: ChainingSubtable,
-) {
-    subtable_chaining_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ChainingSubtable>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn subtable_chaining_copy(
     mut dst: *mut ChainingSubtable,
     mut src: *const ChainingSubtable,
@@ -134,18 +102,6 @@ unsafe extern "C" fn subtable_chaining_copy(
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<ChainingSubtable>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn subtable_chaining_move(
-    mut dst: *mut ChainingSubtable,
-    mut src: *mut ChainingSubtable,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ChainingSubtable>() as usize,
-    );
-    subtable_chaining_init(src);
 }
 #[inline]
 unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {

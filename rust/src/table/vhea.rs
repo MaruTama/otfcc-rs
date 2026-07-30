@@ -42,10 +42,7 @@ pub struct VheaTable {
 pub struct VheaTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut VheaTable, *const VheaTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VheaTable, *mut VheaTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VheaTable, VheaTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut VheaTable, VheaTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VheaTable>,
     pub free: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
 }
@@ -89,48 +86,16 @@ pub static TABLE_I_VHEA: VheaTableElementInterface = {
         copy: Some(
             table_vhea_copy as unsafe extern "C" fn(*mut VheaTable, *const VheaTable) -> (),
         ),
-        move_0: Some(
-            table_vhea_move as unsafe extern "C" fn(*mut VheaTable, *mut VheaTable) -> (),
-        ),
         dispose: Some(table_vhea_dispose as unsafe extern "C" fn(*mut VheaTable) -> ()),
-        replace: Some(
-            table_vhea_replace as unsafe extern "C" fn(*mut VheaTable, VheaTable) -> (),
-        ),
-        copy_replace: Some(
-            table_vhea_copy_replace as unsafe extern "C" fn(*mut VheaTable, VheaTable) -> (),
-        ),
         create: Some(table_vhea_create),
         free: Some(table_vhea_free as unsafe extern "C" fn(*mut VheaTable) -> ()),
     }
 };
 #[inline]
-unsafe extern "C" fn table_vhea_copy_replace(mut dst: *mut VheaTable, src: VheaTable) {
-    table_vhea_dispose(dst);
-    table_vhea_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_vhea_copy(mut dst: *mut VheaTable, mut src: *const VheaTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VheaTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_vhea_move(mut dst: *mut VheaTable, mut src: *mut VheaTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VheaTable>() as usize,
-    );
-    table_vhea_init(src);
-}
-#[inline]
-unsafe extern "C" fn table_vhea_replace(mut dst: *mut VheaTable, src: VheaTable) {
-    table_vhea_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<VheaTable>() as usize,
     );
 }

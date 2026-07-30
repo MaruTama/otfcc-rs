@@ -5,7 +5,6 @@ pub mod read;
 use libc::{fprintf, free, malloc, memcmp, memcpy, memset, qsort, strcmp};
 unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
 use crate::support::handle::{HandleState, handle_from_name, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose, otfcc_handle_empty};
@@ -16,7 +15,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonValue, JsonType};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::support::buffer::{Buffer};
 use crate::support::{ComparFn, TRUE_0};
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
@@ -45,10 +44,7 @@ pub struct Point {
 pub struct PointElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut Point) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut Point, *const Point) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut Point, *mut Point) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Point) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut Point, Point) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut Point, Point) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> Point>,
     pub dup: Option<unsafe extern "C" fn(Point) -> Point>,
 }
@@ -64,10 +60,7 @@ pub struct Contour {
 pub struct ContourVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut Contour, *const Contour) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut Contour, *mut Contour) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut Contour, Contour) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut Contour, Contour) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut Contour>,
     pub free: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut Contour, usize) -> ()>,
@@ -105,10 +98,7 @@ pub struct ContourList {
 pub struct ContourListVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut ContourList, *const ContourList) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut ContourList, *mut ContourList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut ContourList, ContourList) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut ContourList, ContourList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut ContourList>,
     pub free: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut ContourList, usize) -> ()>,
@@ -153,14 +143,7 @@ pub struct PostscriptStemDefElementInterface {
     pub copy: Option<
         unsafe extern "C" fn(*mut PostscriptStemDef, *const PostscriptStemDef) -> (),
     >,
-    pub move_0: Option<
-        unsafe extern "C" fn(*mut PostscriptStemDef, *mut PostscriptStemDef) -> (),
-    >,
     pub dispose: Option<unsafe extern "C" fn(*mut PostscriptStemDef) -> ()>,
-    pub replace:
-        Option<unsafe extern "C" fn(*mut PostscriptStemDef, PostscriptStemDef) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut PostscriptStemDef, PostscriptStemDef) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -174,10 +157,7 @@ pub struct StemDefList {
 pub struct StemDefListVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut StemDefList) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut StemDefList, *const StemDefList) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut StemDefList, *mut StemDefList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut StemDefList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut StemDefList, StemDefList) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut StemDefList, StemDefList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut StemDefList>,
     pub free: Option<unsafe extern "C" fn(*mut StemDefList) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut StemDefList, usize) -> ()>,
@@ -228,14 +208,7 @@ pub struct PostscriptHintMaskElementInterface {
     pub copy: Option<
         unsafe extern "C" fn(*mut PostscriptHintMask, *const PostscriptHintMask) -> (),
     >,
-    pub move_0: Option<
-        unsafe extern "C" fn(*mut PostscriptHintMask, *mut PostscriptHintMask) -> (),
-    >,
     pub dispose: Option<unsafe extern "C" fn(*mut PostscriptHintMask) -> ()>,
-    pub replace:
-        Option<unsafe extern "C" fn(*mut PostscriptHintMask, PostscriptHintMask) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut PostscriptHintMask, PostscriptHintMask) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -249,10 +222,7 @@ pub struct MaskList {
 pub struct MaskListVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut MaskList) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut MaskList, *const MaskList) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut MaskList, *mut MaskList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MaskList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut MaskList, MaskList) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut MaskList, MaskList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut MaskList>,
     pub free: Option<unsafe extern "C" fn(*mut MaskList) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut MaskList, usize) -> ()>,
@@ -321,14 +291,7 @@ pub struct ComponentReferenceElementInterface {
     pub copy: Option<
         unsafe extern "C" fn(*mut ComponentReference, *const ComponentReference) -> (),
     >,
-    pub move_0: Option<
-        unsafe extern "C" fn(*mut ComponentReference, *mut ComponentReference) -> (),
-    >,
     pub dispose: Option<unsafe extern "C" fn(*mut ComponentReference) -> ()>,
-    pub replace:
-        Option<unsafe extern "C" fn(*mut ComponentReference, ComponentReference) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut ComponentReference, ComponentReference) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> ComponentReference>,
     pub dup: Option<unsafe extern "C" fn(ComponentReference) -> ComponentReference>,
 }
@@ -345,12 +308,7 @@ pub struct ReferenceListVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
     pub copy:
         Option<unsafe extern "C" fn(*mut ReferenceList, *const ReferenceList) -> ()>,
-    pub move_0:
-        Option<unsafe extern "C" fn(*mut ReferenceList, *mut ReferenceList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut ReferenceList, ReferenceList) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut ReferenceList, ReferenceList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut ReferenceList>,
     pub free: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut ReferenceList, usize) -> ()>,
@@ -426,10 +384,7 @@ pub type GlyphPtr = *mut Glyph;
 pub struct GlyphPtrElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut GlyphPtr) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut GlyphPtr, *const GlyphPtr) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut GlyphPtr, *mut GlyphPtr) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GlyphPtr) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut GlyphPtr, GlyphPtr) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut GlyphPtr, GlyphPtr) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -443,10 +398,7 @@ pub struct GlyfTable {
 pub struct GlyfTableVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut GlyfTable, *const GlyfTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut GlyfTable, *mut GlyfTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut GlyfTable, GlyfTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut GlyfTable, GlyfTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GlyfTable>,
     pub free: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut GlyfTable, usize) -> ()>,
@@ -539,11 +491,6 @@ unsafe extern "C" fn dispose_point(mut p: *mut Point) {
     I_VQ.dispose.expect("non-null function pointer")(&raw mut (*p).y);
 }
 #[inline]
-unsafe extern "C" fn glyf_point_copy_replace(mut dst: *mut Point, src: Point) {
-    glyf_point_dispose(dst);
-    glyf_point_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn glyf_point_dispose(mut x: *mut Point) {
     dispose_point(x);
 }
@@ -572,15 +519,6 @@ unsafe extern "C" fn glyf_point_empty() -> Point {
     return x;
 }
 #[inline]
-unsafe extern "C" fn glyf_point_replace(mut dst: *mut Point, src: Point) {
-    glyf_point_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Point>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn glyf_point_init(mut x: *mut Point) {
     create_point(x);
 }
@@ -590,16 +528,7 @@ pub static GLYF_I_POINT: PointElementInterface = {
         copy: Some(
             glyf_point_copy as unsafe extern "C" fn(*mut Point, *const Point) -> (),
         ),
-        move_0: Some(
-            glyf_point_move as unsafe extern "C" fn(*mut Point, *mut Point) -> (),
-        ),
         dispose: Some(glyf_point_dispose as unsafe extern "C" fn(*mut Point) -> ()),
-        replace: Some(
-            glyf_point_replace as unsafe extern "C" fn(*mut Point, Point) -> (),
-        ),
-        copy_replace: Some(
-            glyf_point_copy_replace as unsafe extern "C" fn(*mut Point, Point) -> (),
-        ),
         empty: Some(glyf_point_empty),
         dup: Some(glyf_point_dup as unsafe extern "C" fn(Point) -> Point),
     }
@@ -627,15 +556,6 @@ unsafe extern "C" fn glyf_point_dup(src: Point) -> Point {
     };
     glyf_point_copy(&raw mut dst, &raw const src);
     return dst;
-}
-#[inline]
-unsafe extern "C" fn glyf_point_move(mut dst: *mut Point, mut src: *mut Point) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Point>() as usize,
-    );
-    glyf_point_init(src);
 }
 #[inline]
 unsafe extern "C" fn glyf_point_copy(mut dst: *mut Point, mut src: *const Point) {
@@ -675,16 +595,7 @@ pub static GLYF_I_CONTOUR: ContourVectorInterface = {
         copy: Some(
             glyf_contour_copy as unsafe extern "C" fn(*mut Contour, *const Contour) -> (),
         ),
-        move_0: Some(
-            glyf_contour_move as unsafe extern "C" fn(*mut Contour, *mut Contour) -> (),
-        ),
         dispose: Some(glyf_contour_dispose as unsafe extern "C" fn(*mut Contour) -> ()),
-        replace: Some(
-            glyf_contour_replace as unsafe extern "C" fn(*mut Contour, Contour) -> (),
-        ),
-        copy_replace: Some(
-            glyf_contour_copy_replace as unsafe extern "C" fn(*mut Contour, Contour) -> (),
-        ),
         create: Some(glyf_contour_create),
         free: Some(glyf_contour_free as unsafe extern "C" fn(*mut Contour) -> ()),
         init_n: Some(glyf_contour_init_n as unsafe extern "C" fn(*mut Contour, usize) -> ()),
@@ -733,10 +644,6 @@ unsafe extern "C" fn glyf_contour_shrink_to_fit(mut arr: *mut Contour) {
 #[inline]
 unsafe extern "C" fn glyf_contour_resize_to(arr: *mut Contour, target: usize) {
     cvec_resize_to(glyf_contour_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_move(dst: *mut Contour, src: *mut Contour) {
-    cvec_move(glyf_contour_as_cvec(dst), glyf_contour_as_cvec(src));
 }
 #[inline]
 unsafe fn glyf_contour_as_cvec(arr: *mut Contour) -> *mut CVecRaw<Point> {
@@ -842,21 +749,12 @@ unsafe extern "C" fn glyf_contour_push(arr: *mut Contour, elem: Point) {
     cvec_push(glyf_contour_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn glyf_contour_grow(arr: *mut Contour) {
-    cvec_grow(glyf_contour_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn glyf_contour_grow_to(arr: *mut Contour, target: usize) {
     cvec_grow_to(glyf_contour_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn glyf_contour_pop(arr: *mut Contour) -> Point {
     cvec_pop(glyf_contour_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_copy_replace(mut dst: *mut Contour, src: Contour) {
-    glyf_contour_dispose(dst);
-    glyf_contour_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn glyf_contour_copy(mut dst: *mut Contour, mut src: *const Contour) {
@@ -902,15 +800,6 @@ unsafe extern "C" fn glyf_contour_dispose(mut arr: *mut Contour) {
     (*arr).items = ::core::ptr::null_mut::<Point>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_replace(mut dst: *mut Contour, src: Contour) {
-    glyf_contour_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Contour>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn glyf_contour_init_cap_n(mut arr: *mut Contour, mut n: usize) {
@@ -964,26 +853,6 @@ unsafe extern "C" fn glyf_contour_list_dispose_item(mut arr: *mut ContourList, m
         );
     } else {
     };
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_replace(
-    mut dst: *mut ContourList,
-    src: ContourList,
-) {
-    glyf_contour_list_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ContourList>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_copy_replace(
-    mut dst: *mut ContourList,
-    src: ContourList,
-) {
-    glyf_contour_list_dispose(dst);
-    glyf_contour_list_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn glyf_contour_list_grow_to_n(arr: *mut ContourList, target: usize) {
@@ -1088,20 +957,8 @@ pub static GLYF_I_CONTOUR_LIST: ContourListVectorInterface = {
             glyf_contour_list_copy
                 as unsafe extern "C" fn(*mut ContourList, *const ContourList) -> (),
         ),
-        move_0: Some(
-            glyf_contour_list_move
-                as unsafe extern "C" fn(*mut ContourList, *mut ContourList) -> (),
-        ),
         dispose: Some(
             glyf_contour_list_dispose as unsafe extern "C" fn(*mut ContourList) -> (),
-        ),
-        replace: Some(
-            glyf_contour_list_replace
-                as unsafe extern "C" fn(*mut ContourList, ContourList) -> (),
-        ),
-        copy_replace: Some(
-            glyf_contour_list_copy_replace
-                as unsafe extern "C" fn(*mut ContourList, ContourList) -> (),
         ),
         create: Some(glyf_contour_list_create),
         free: Some(glyf_contour_list_free as unsafe extern "C" fn(*mut ContourList) -> ()),
@@ -1185,10 +1042,6 @@ unsafe extern "C" fn glyf_contour_list_push(arr: *mut ContourList, elem: Contour
     cvec_push(glyf_contour_list_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn glyf_contour_list_grow(arr: *mut ContourList) {
-    cvec_grow(glyf_contour_list_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn glyf_contour_list_grow_to(arr: *mut ContourList, target: usize) {
     cvec_grow_to(glyf_contour_list_as_cvec(arr), target);
 }
@@ -1199,10 +1052,6 @@ unsafe extern "C" fn glyf_contour_list_pop(arr: *mut ContourList) -> Contour {
 #[inline]
 unsafe extern "C" fn glyf_contour_list_resize_to(arr: *mut ContourList, target: usize) {
     cvec_resize_to(glyf_contour_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_move(dst: *mut ContourList, src: *mut ContourList) {
-    cvec_move(glyf_contour_list_as_cvec(dst), glyf_contour_list_as_cvec(src));
 }
 #[inline]
 unsafe fn glyf_contour_list_as_cvec(arr: *mut ContourList) -> *mut CVecRaw<Contour> {
@@ -1265,18 +1114,6 @@ unsafe extern "C" fn glyf_component_reference_dispose(mut x: *mut ComponentRefer
     dispose_glyf_reference(x);
 }
 #[inline]
-unsafe extern "C" fn glyf_component_reference_replace(
-    mut dst: *mut ComponentReference,
-    src: ComponentReference,
-) {
-    glyf_component_reference_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ComponentReference>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn glyf_component_reference_dup(
     src: ComponentReference,
 ) -> ComponentReference {
@@ -1321,18 +1158,6 @@ unsafe extern "C" fn glyf_component_reference_copy(
     mut src: *const ComponentReference,
 ) {
     copy_glyf_reference(dst, src);
-}
-#[inline]
-unsafe extern "C" fn glyf_component_reference_move(
-    mut dst: *mut ComponentReference,
-    mut src: *mut ComponentReference,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ComponentReference>() as usize,
-    );
-    glyf_component_reference_init(src);
 }
 #[inline]
 unsafe extern "C" fn glyf_component_reference_empty() -> ComponentReference {
@@ -1388,30 +1213,9 @@ pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
                     *const ComponentReference,
                 ) -> (),
         ),
-        move_0: Some(
-            glyf_component_reference_move
-                as unsafe extern "C" fn(
-                    *mut ComponentReference,
-                    *mut ComponentReference,
-                ) -> (),
-        ),
         dispose: Some(
             glyf_component_reference_dispose
                 as unsafe extern "C" fn(*mut ComponentReference) -> (),
-        ),
-        replace: Some(
-            glyf_component_reference_replace
-                as unsafe extern "C" fn(
-                    *mut ComponentReference,
-                    ComponentReference,
-                ) -> (),
-        ),
-        copy_replace: Some(
-            glyf_component_reference_copy_replace
-                as unsafe extern "C" fn(
-                    *mut ComponentReference,
-                    ComponentReference,
-                ) -> (),
         ),
         empty: Some(glyf_component_reference_empty),
         dup: Some(
@@ -1420,22 +1224,6 @@ pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
         ),
     }
 };
-#[inline]
-unsafe extern "C" fn glyf_component_reference_copy_replace(
-    mut dst: *mut ComponentReference,
-    src: ComponentReference,
-) {
-    glyf_component_reference_dispose(dst);
-    glyf_component_reference_copy(dst, &raw const src);
-}
-#[inline]
-unsafe extern "C" fn glyf_reference_list_copy_replace(
-    mut dst: *mut ReferenceList,
-    src: ReferenceList,
-) {
-    glyf_reference_list_dispose(dst);
-    glyf_reference_list_copy(dst, &raw const src);
-}
 #[inline]
 unsafe extern "C" fn glyf_reference_list_init_n(mut arr: *mut ReferenceList, mut n: usize) {
     glyf_reference_list_init(arr);
@@ -1494,10 +1282,6 @@ unsafe extern "C" fn glyf_reference_list_fill(mut arr: *mut ReferenceList, mut n
 #[inline]
 unsafe extern "C" fn glyf_reference_list_push(arr: *mut ReferenceList, elem: ComponentReference) {
     cvec_push(glyf_reference_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn glyf_reference_list_grow(arr: *mut ReferenceList) {
-    cvec_grow(glyf_reference_list_as_cvec(arr));
 }
 #[inline]
 unsafe extern "C" fn glyf_reference_list_grow_to(arr: *mut ReferenceList, target: usize) {
@@ -1566,18 +1350,6 @@ unsafe extern "C" fn glyf_reference_list_init_cap_n(mut arr: *mut ReferenceList,
     glyf_reference_list_grow_to_n(arr, n);
 }
 #[inline]
-unsafe extern "C" fn glyf_reference_list_replace(
-    mut dst: *mut ReferenceList,
-    src: ReferenceList,
-) {
-    glyf_reference_list_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ReferenceList>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn glyf_reference_list_grow_to_n(arr: *mut ReferenceList, target: usize) {
     cvec_grow_to_n(glyf_reference_list_as_cvec(arr), target);
 }
@@ -1604,10 +1376,6 @@ unsafe extern "C" fn glyf_reference_list_create() -> *mut ReferenceList {
     return x;
 }
 #[inline]
-unsafe extern "C" fn glyf_reference_list_move(dst: *mut ReferenceList, src: *mut ReferenceList) {
-    cvec_move(glyf_reference_list_as_cvec(dst), glyf_reference_list_as_cvec(src));
-}
-#[inline]
 unsafe extern "C" fn glyf_reference_list_shrink_to_fit(mut arr: *mut ReferenceList) {
     glyf_reference_list_resize_to(arr, (*arr).length);
 }
@@ -1618,20 +1386,8 @@ pub static GLYF_I_REFERENCE_LIST: ReferenceListVectorInterface = {
             glyf_reference_list_copy
                 as unsafe extern "C" fn(*mut ReferenceList, *const ReferenceList) -> (),
         ),
-        move_0: Some(
-            glyf_reference_list_move
-                as unsafe extern "C" fn(*mut ReferenceList, *mut ReferenceList) -> (),
-        ),
         dispose: Some(
             glyf_reference_list_dispose as unsafe extern "C" fn(*mut ReferenceList) -> (),
-        ),
-        replace: Some(
-            glyf_reference_list_replace
-                as unsafe extern "C" fn(*mut ReferenceList, ReferenceList) -> (),
-        ),
-        copy_replace: Some(
-            glyf_reference_list_copy_replace
-                as unsafe extern "C" fn(*mut ReferenceList, ReferenceList) -> (),
         ),
         create: Some(glyf_reference_list_create),
         free: Some(glyf_reference_list_free as unsafe extern "C" fn(*mut ReferenceList) -> ()),
@@ -1777,14 +1533,6 @@ unsafe extern "C" fn glyf_reference_list_sort(
         >(fn_0),
     );
 }
-#[inline]
-unsafe extern "C" fn glyf_postscript_stem_def_copy_replace(
-    mut dst: *mut PostscriptStemDef,
-    src: PostscriptStemDef,
-) {
-    glyf_postscript_stem_def_dispose(dst);
-    glyf_postscript_stem_def_copy(dst, &raw const src);
-}
 pub static GLYF_I_POSTSCRIPT_STEM_DEF: PostscriptStemDefElementInterface = {
     PostscriptStemDefElementInterface {
         init: Some(
@@ -1797,51 +1545,12 @@ pub static GLYF_I_POSTSCRIPT_STEM_DEF: PostscriptStemDefElementInterface = {
                     *const PostscriptStemDef,
                 ) -> (),
         ),
-        move_0: Some(
-            glyf_postscript_stem_def_move
-                as unsafe extern "C" fn(
-                    *mut PostscriptStemDef,
-                    *mut PostscriptStemDef,
-                ) -> (),
-        ),
         dispose: Some(
             glyf_postscript_stem_def_dispose
                 as unsafe extern "C" fn(*mut PostscriptStemDef) -> (),
         ),
-        replace: Some(
-            glyf_postscript_stem_def_replace
-                as unsafe extern "C" fn(*mut PostscriptStemDef, PostscriptStemDef) -> (),
-        ),
-        copy_replace: Some(
-            glyf_postscript_stem_def_copy_replace
-                as unsafe extern "C" fn(*mut PostscriptStemDef, PostscriptStemDef) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn glyf_postscript_stem_def_replace(
-    mut dst: *mut PostscriptStemDef,
-    src: PostscriptStemDef,
-) {
-    glyf_postscript_stem_def_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<PostscriptStemDef>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn glyf_postscript_stem_def_move(
-    mut dst: *mut PostscriptStemDef,
-    mut src: *mut PostscriptStemDef,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<PostscriptStemDef>() as usize,
-    );
-    glyf_postscript_stem_def_init(src);
-}
 #[inline]
 unsafe extern "C" fn glyf_postscript_stem_def_copy(
     mut dst: *mut PostscriptStemDef,
@@ -1877,10 +1586,6 @@ unsafe extern "C" fn glyf_stem_def_list_shrink_to_fit(mut arr: *mut StemDefList)
 #[inline]
 unsafe extern "C" fn glyf_stem_def_list_resize_to(arr: *mut StemDefList, target: usize) {
     cvec_resize_to(glyf_stem_def_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn glyf_stem_def_list_move(dst: *mut StemDefList, src: *mut StemDefList) {
-    cvec_move(glyf_stem_def_list_as_cvec(dst), glyf_stem_def_list_as_cvec(src));
 }
 #[inline]
 unsafe fn glyf_stem_def_list_as_cvec(arr: *mut StemDefList) -> *mut CVecRaw<PostscriptStemDef> {
@@ -1986,24 +1691,12 @@ unsafe extern "C" fn glyf_stem_def_list_push(arr: *mut StemDefList, elem: Postsc
     cvec_push(glyf_stem_def_list_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn glyf_stem_def_list_grow(arr: *mut StemDefList) {
-    cvec_grow(glyf_stem_def_list_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn glyf_stem_def_list_grow_to(arr: *mut StemDefList, target: usize) {
     cvec_grow_to(glyf_stem_def_list_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn glyf_stem_def_list_pop(arr: *mut StemDefList) -> PostscriptStemDef {
     cvec_pop(glyf_stem_def_list_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn glyf_stem_def_list_copy_replace(
-    mut dst: *mut StemDefList,
-    src: StemDefList,
-) {
-    glyf_stem_def_list_dispose(dst);
-    glyf_stem_def_list_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn glyf_stem_def_list_copy(
@@ -2059,18 +1752,6 @@ unsafe extern "C" fn glyf_stem_def_list_dispose(mut arr: *mut StemDefList) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn glyf_stem_def_list_replace(
-    mut dst: *mut StemDefList,
-    src: StemDefList,
-) {
-    glyf_stem_def_list_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<StemDefList>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn glyf_stem_def_list_init_cap_n(mut arr: *mut StemDefList, mut n: usize) {
     glyf_stem_def_list_init(arr);
     glyf_stem_def_list_grow_to_n(arr, n);
@@ -2107,20 +1788,8 @@ pub static GLYF_I_STEM_DEF_LIST: StemDefListVectorInterface = {
             glyf_stem_def_list_copy
                 as unsafe extern "C" fn(*mut StemDefList, *const StemDefList) -> (),
         ),
-        move_0: Some(
-            glyf_stem_def_list_move
-                as unsafe extern "C" fn(*mut StemDefList, *mut StemDefList) -> (),
-        ),
         dispose: Some(
             glyf_stem_def_list_dispose as unsafe extern "C" fn(*mut StemDefList) -> (),
-        ),
-        replace: Some(
-            glyf_stem_def_list_replace
-                as unsafe extern "C" fn(*mut StemDefList, StemDefList) -> (),
-        ),
-        copy_replace: Some(
-            glyf_stem_def_list_copy_replace
-                as unsafe extern "C" fn(*mut StemDefList, StemDefList) -> (),
         ),
         create: Some(glyf_stem_def_list_create),
         free: Some(glyf_stem_def_list_free as unsafe extern "C" fn(*mut StemDefList) -> ()),
@@ -2192,41 +1861,12 @@ pub static GLYF_I_POSTSCRIPT_HINT_MASK: PostscriptHintMaskElementInterface = {
                     *const PostscriptHintMask,
                 ) -> (),
         ),
-        move_0: Some(
-            glyf_postscript_hint_mask_move
-                as unsafe extern "C" fn(
-                    *mut PostscriptHintMask,
-                    *mut PostscriptHintMask,
-                ) -> (),
-        ),
         dispose: Some(
             glyf_postscript_hint_mask_dispose
                 as unsafe extern "C" fn(*mut PostscriptHintMask) -> (),
         ),
-        replace: Some(
-            glyf_postscript_hint_mask_replace
-                as unsafe extern "C" fn(
-                    *mut PostscriptHintMask,
-                    PostscriptHintMask,
-                ) -> (),
-        ),
-        copy_replace: Some(
-            glyf_postscript_hint_mask_copy_replace
-                as unsafe extern "C" fn(
-                    *mut PostscriptHintMask,
-                    PostscriptHintMask,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn glyf_postscript_hint_mask_copy_replace(
-    mut dst: *mut PostscriptHintMask,
-    src: PostscriptHintMask,
-) {
-    glyf_postscript_hint_mask_dispose(dst);
-    glyf_postscript_hint_mask_copy(dst, &raw const src);
-}
 #[inline]
 unsafe extern "C" fn glyf_postscript_hint_mask_copy(
     mut dst: *mut PostscriptHintMask,
@@ -2240,30 +1880,6 @@ unsafe extern "C" fn glyf_postscript_hint_mask_copy(
 }
 #[inline]
 unsafe extern "C" fn glyf_postscript_hint_mask_dispose(mut _x: *mut PostscriptHintMask) {}
-#[inline]
-unsafe extern "C" fn glyf_postscript_hint_mask_replace(
-    mut dst: *mut PostscriptHintMask,
-    src: PostscriptHintMask,
-) {
-    glyf_postscript_hint_mask_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<PostscriptHintMask>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn glyf_postscript_hint_mask_move(
-    mut dst: *mut PostscriptHintMask,
-    mut src: *mut PostscriptHintMask,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<PostscriptHintMask>() as usize,
-    );
-    glyf_postscript_hint_mask_init(src);
-}
 #[inline]
 unsafe extern "C" fn glyf_postscript_hint_mask_init(mut x: *mut PostscriptHintMask) {
     memset(
@@ -2307,18 +1923,7 @@ pub static GLYF_I_MASK_LIST: MaskListVectorInterface = {
             glyf_mask_list_copy
                 as unsafe extern "C" fn(*mut MaskList, *const MaskList) -> (),
         ),
-        move_0: Some(
-            glyf_mask_list_move
-                as unsafe extern "C" fn(*mut MaskList, *mut MaskList) -> (),
-        ),
         dispose: Some(glyf_mask_list_dispose as unsafe extern "C" fn(*mut MaskList) -> ()),
-        replace: Some(
-            glyf_mask_list_replace as unsafe extern "C" fn(*mut MaskList, MaskList) -> (),
-        ),
-        copy_replace: Some(
-            glyf_mask_list_copy_replace
-                as unsafe extern "C" fn(*mut MaskList, MaskList) -> (),
-        ),
         create: Some(glyf_mask_list_create),
         free: Some(glyf_mask_list_free as unsafe extern "C" fn(*mut MaskList) -> ()),
         init_n: Some(glyf_mask_list_init_n as unsafe extern "C" fn(*mut MaskList, usize) -> ()),
@@ -2376,10 +1981,6 @@ unsafe extern "C" fn glyf_mask_list_shrink_to_fit(mut arr: *mut MaskList) {
 #[inline]
 unsafe extern "C" fn glyf_mask_list_resize_to(arr: *mut MaskList, target: usize) {
     cvec_resize_to(glyf_mask_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn glyf_mask_list_move(dst: *mut MaskList, src: *mut MaskList) {
-    cvec_move(glyf_mask_list_as_cvec(dst), glyf_mask_list_as_cvec(src));
 }
 #[inline]
 unsafe fn glyf_mask_list_as_cvec(arr: *mut MaskList) -> *mut CVecRaw<PostscriptHintMask> {
@@ -2486,21 +2087,12 @@ unsafe extern "C" fn glyf_mask_list_push(arr: *mut MaskList, elem: PostscriptHin
     cvec_push(glyf_mask_list_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn glyf_mask_list_grow(arr: *mut MaskList) {
-    cvec_grow(glyf_mask_list_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn glyf_mask_list_grow_to(arr: *mut MaskList, target: usize) {
     cvec_grow_to(glyf_mask_list_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn glyf_mask_list_pop(arr: *mut MaskList) -> PostscriptHintMask {
     cvec_pop(glyf_mask_list_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn glyf_mask_list_copy_replace(mut dst: *mut MaskList, src: MaskList) {
-    glyf_mask_list_dispose(dst);
-    glyf_mask_list_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn glyf_mask_list_init_n(mut arr: *mut MaskList, mut n: usize) {
@@ -2512,15 +2104,6 @@ unsafe extern "C" fn glyf_mask_list_init_n(mut arr: *mut MaskList, mut n: usize)
 unsafe extern "C" fn glyf_mask_list_init_cap_n(mut arr: *mut MaskList, mut n: usize) {
     glyf_mask_list_init(arr);
     glyf_mask_list_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn glyf_mask_list_replace(mut dst: *mut MaskList, src: MaskList) {
-    glyf_mask_list_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<MaskList>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn glyf_mask_list_dispose(mut arr: *mut MaskList) {
@@ -2654,10 +2237,7 @@ pub static GLYF_I_GLYPH_PTR: GlyphPtrElementInterface = {
         copy: Some(
             copy_glyf_ptr as unsafe extern "C" fn(*mut GlyphPtr, *const GlyphPtr) -> (),
         ),
-        move_0: None,
         dispose: Some(dispose_glyf_ptr as unsafe extern "C" fn(*mut GlyphPtr) -> ()),
-        replace: None,
-        copy_replace: None,
     }
 };
 #[inline]
@@ -2673,10 +2253,6 @@ unsafe extern "C" fn table_glyf_shrink_to_fit(mut arr: *mut GlyfTable) {
 #[inline]
 unsafe extern "C" fn table_glyf_resize_to(arr: *mut GlyfTable, target: usize) {
     cvec_resize_to(table_glyf_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn table_glyf_move(dst: *mut GlyfTable, src: *mut GlyfTable) {
-    cvec_move(table_glyf_as_cvec(dst), table_glyf_as_cvec(src));
 }
 #[inline]
 unsafe fn table_glyf_as_cvec(arr: *mut GlyfTable) -> *mut CVecRaw<GlyphPtr> {
@@ -2768,21 +2344,12 @@ unsafe extern "C" fn table_glyf_push(arr: *mut GlyfTable, elem: GlyphPtr) {
     cvec_push(table_glyf_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn table_glyf_grow(arr: *mut GlyfTable) {
-    cvec_grow(table_glyf_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn table_glyf_grow_to(arr: *mut GlyfTable, target: usize) {
     cvec_grow_to(table_glyf_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn table_glyf_pop(arr: *mut GlyfTable) -> GlyphPtr {
     cvec_pop(table_glyf_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn table_glyf_copy_replace(mut dst: *mut GlyfTable, src: GlyfTable) {
-    table_glyf_dispose(dst);
-    table_glyf_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn table_glyf_copy(mut dst: *mut GlyfTable, mut src: *const GlyfTable) {
@@ -2831,15 +2398,6 @@ unsafe extern "C" fn table_glyf_dispose(mut arr: *mut GlyfTable) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn table_glyf_replace(mut dst: *mut GlyfTable, src: GlyfTable) {
-    table_glyf_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GlyfTable>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn table_glyf_init_cap_n(mut arr: *mut GlyfTable, mut n: usize) {
     table_glyf_init(arr);
     table_glyf_grow_to_n(arr, n);
@@ -2876,16 +2434,7 @@ pub static TABLE_I_GLYF: GlyfTableVectorInterface = {
         copy: Some(
             table_glyf_copy as unsafe extern "C" fn(*mut GlyfTable, *const GlyfTable) -> (),
         ),
-        move_0: Some(
-            table_glyf_move as unsafe extern "C" fn(*mut GlyfTable, *mut GlyfTable) -> (),
-        ),
         dispose: Some(table_glyf_dispose as unsafe extern "C" fn(*mut GlyfTable) -> ()),
-        replace: Some(
-            table_glyf_replace as unsafe extern "C" fn(*mut GlyfTable, GlyfTable) -> (),
-        ),
-        copy_replace: Some(
-            table_glyf_copy_replace as unsafe extern "C" fn(*mut GlyfTable, GlyfTable) -> (),
-        ),
         create: Some(table_glyf_create),
         free: Some(table_glyf_free as unsafe extern "C" fn(*mut GlyfTable) -> ()),
         init_n: Some(table_glyf_init_n as unsafe extern "C" fn(*mut GlyfTable, usize) -> ()),
