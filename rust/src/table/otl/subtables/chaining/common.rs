@@ -1,8 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-use crate::table::otl::classdef::otl_ClassDef_free;
-use crate::table::otl::coverage::{Coverage, otl_Coverage_free};
-use crate::support::handle::{otfcc_Handle_dispose};
+use crate::table::otl::classdef::otl_class_def_free;
+use crate::table::otl::coverage::{Coverage, otl_coverage_free};
+use crate::support::handle::{otfcc_handle_dispose};
 
 use crate::support::primitives::{TableId};
 
@@ -23,7 +23,7 @@ pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut ChainingSubtabl
             while (j as ::core::ffi::c_int)
                 < (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount as ::core::ffi::c_int
             {
-                deleteRule(
+                delete_rule(
                     *(*subtable)
                         .c2rust_unnamed
                         .c2rust_unnamed
@@ -37,22 +37,22 @@ pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut ChainingSubtabl
                 ::core::ptr::null_mut::<*mut ChainingRule>();
         }
         if !(*subtable).c2rust_unnamed.c2rust_unnamed.bc.is_null() {
-            otl_ClassDef_free(
+            otl_class_def_free(
                 (*subtable).c2rust_unnamed.c2rust_unnamed.bc,
             );
         }
         if !(*subtable).c2rust_unnamed.c2rust_unnamed.ic.is_null() {
-            otl_ClassDef_free(
+            otl_class_def_free(
                 (*subtable).c2rust_unnamed.c2rust_unnamed.ic,
             );
         }
         if !(*subtable).c2rust_unnamed.c2rust_unnamed.fc.is_null() {
-            otl_ClassDef_free(
+            otl_class_def_free(
                 (*subtable).c2rust_unnamed.c2rust_unnamed.fc,
             );
         }
     } else {
-        closeRule(&raw mut (*subtable).c2rust_unnamed.rule);
+        close_rule(&raw mut (*subtable).c2rust_unnamed.rule);
     };
 }
 pub static I_SUBTABLE_CHAINING: ChainingSubtableElementInterface = {
@@ -74,7 +74,7 @@ pub static I_SUBTABLE_CHAINING: ChainingSubtableElementInterface = {
                 as unsafe extern "C" fn(*mut ChainingSubtable, ChainingSubtable) -> (),
         ),
         copyReplace: Some(
-            subtable_chaining_copyReplace
+            subtable_chaining_copy_replace
                 as unsafe extern "C" fn(*mut ChainingSubtable, ChainingSubtable) -> (),
         ),
         create: Some(subtable_chaining_create),
@@ -105,7 +105,7 @@ unsafe extern "C" fn subtable_chaining_create() -> *mut ChainingSubtable {
     return x;
 }
 #[inline]
-unsafe extern "C" fn subtable_chaining_copyReplace(
+unsafe extern "C" fn subtable_chaining_copy_replace(
     mut dst: *mut ChainingSubtable,
     src: ChainingSubtable,
 ) {
@@ -148,14 +148,14 @@ unsafe extern "C" fn subtable_chaining_move(
     subtable_chaining_init(src);
 }
 #[inline]
-unsafe extern "C" fn closeRule(mut rule: *mut ChainingRule) {
+unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
     if !rule.is_null()
         && !(*rule).match_0.is_null()
         && (*rule).matchCount as ::core::ffi::c_int != 0
     {
         let mut k: TableId = 0 as TableId;
         while (k as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
-            otl_Coverage_free(
+            otl_coverage_free(
                 *(*rule).match_0.offset(k as isize),
             );
             k = k.wrapping_add(1);
@@ -166,7 +166,7 @@ unsafe extern "C" fn closeRule(mut rule: *mut ChainingRule) {
     if !rule.is_null() && !(*rule).apply.is_null() {
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
-            otfcc_Handle_dispose(
+            otfcc_handle_dispose(
                 &raw mut (*(*rule).apply.offset(j as isize)).lookup,
             );
             j = j.wrapping_add(1);
@@ -176,11 +176,11 @@ unsafe extern "C" fn closeRule(mut rule: *mut ChainingRule) {
     }
 }
 #[inline]
-unsafe extern "C" fn deleteRule(mut rule: *mut ChainingRule) {
+unsafe extern "C" fn delete_rule(mut rule: *mut ChainingRule) {
     if rule.is_null() {
         return;
     }
-    closeRule(rule);
+    close_rule(rule);
     free(rule as *mut ::core::ffi::c_void);
     rule = ::core::ptr::null_mut::<ChainingRule>();
 }

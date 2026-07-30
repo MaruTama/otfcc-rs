@@ -3,7 +3,7 @@ use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
 
 use crate::support::json_funcs::{preserialize};
 use crate::table::otl::coverage::{CoverageEntry, Coverage};
-use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, Handle, GlyphHandle};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u};
@@ -52,11 +52,11 @@ pub struct ClassDefSortRecord {
     pub cid: GlyphClass,
 }
 #[inline]
-unsafe extern "C" fn disposeClassDef(mut cd: *mut ClassDef) {
+unsafe extern "C" fn dispose_class_def(mut cd: *mut ClassDef) {
     if !(*cd).glyphs.is_null() {
         let mut j: GlyphId = 0 as GlyphId;
         while (j as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
-            otfcc_Handle_dispose(
+            otfcc_handle_dispose(
                 (*cd).glyphs.offset(j as isize) as *mut Handle,
             );
             j = j.wrapping_add(1);
@@ -68,8 +68,8 @@ unsafe extern "C" fn disposeClassDef(mut cd: *mut ClassDef) {
     (*cd).classes = ::core::ptr::null_mut::<GlyphClass>();
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otl_ClassDef_replace(mut dst: *mut ClassDef, src: ClassDef) {
-    otl_ClassDef_dispose(dst);
+pub(crate) unsafe extern "C" fn otl_class_def_replace(mut dst: *mut ClassDef, src: ClassDef) {
+    otl_class_def_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -77,7 +77,7 @@ pub(crate) unsafe extern "C" fn otl_ClassDef_replace(mut dst: *mut ClassDef, src
     );
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otl_ClassDef_copy(mut dst: *mut ClassDef, mut src: *const ClassDef) {
+pub(crate) unsafe extern "C" fn otl_class_def_copy(mut dst: *mut ClassDef, mut src: *const ClassDef) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
@@ -85,19 +85,19 @@ pub(crate) unsafe extern "C" fn otl_ClassDef_copy(mut dst: *mut ClassDef, mut sr
     );
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otl_ClassDef_free(mut x: *mut ClassDef) {
+pub(crate) unsafe extern "C" fn otl_class_def_free(mut x: *mut ClassDef) {
     if x.is_null() {
         return;
     }
-    otl_ClassDef_dispose(x);
+    otl_class_def_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otl_ClassDef_dispose(mut x: *mut ClassDef) {
-    disposeClassDef(x);
+pub(crate) unsafe extern "C" fn otl_class_def_dispose(mut x: *mut ClassDef) {
+    dispose_class_def(x);
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otl_ClassDef_init(mut x: *mut ClassDef) {
+pub(crate) unsafe extern "C" fn otl_class_def_init(mut x: *mut ClassDef) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -105,27 +105,27 @@ pub(crate) unsafe extern "C" fn otl_ClassDef_init(mut x: *mut ClassDef) {
     );
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otl_ClassDef_create() -> *mut ClassDef {
+pub(crate) unsafe extern "C" fn otl_class_def_create() -> *mut ClassDef {
     let mut x: *mut ClassDef =
         malloc(::core::mem::size_of::<ClassDef>() as usize) as *mut ClassDef;
-    otl_ClassDef_init(x);
+    otl_class_def_init(x);
     return x;
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otl_ClassDef_copyReplace(mut dst: *mut ClassDef, src: ClassDef) {
-    otl_ClassDef_dispose(dst);
-    otl_ClassDef_copy(dst, &raw const src);
+pub(crate) unsafe extern "C" fn otl_class_def_copy_replace(mut dst: *mut ClassDef, src: ClassDef) {
+    otl_class_def_dispose(dst);
+    otl_class_def_copy(dst, &raw const src);
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otl_ClassDef_move(mut dst: *mut ClassDef, mut src: *mut ClassDef) {
+pub(crate) unsafe extern "C" fn otl_class_def_move(mut dst: *mut ClassDef, mut src: *mut ClassDef) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<ClassDef>() as usize,
     );
-    otl_ClassDef_init(src);
+    otl_class_def_init(src);
 }
-unsafe extern "C" fn growClassdef(mut cd: *mut ClassDef, mut n: u32) {
+unsafe extern "C" fn grow_classdef(mut cd: *mut ClassDef, mut n: u32) {
     if n == 0 {
         return;
     }
@@ -152,14 +152,14 @@ unsafe extern "C" fn growClassdef(mut cd: *mut ClassDef, mut n: u32) {
         ) as *mut GlyphClass;
     }
 }
-pub(crate) unsafe extern "C" fn pushClassDef(
+pub(crate) unsafe extern "C" fn push_class_def(
     mut cd: *mut ClassDef,
     mut h: GlyphHandle,
     mut cls: GlyphClass,
 ) {
     (*cd).numGlyphs =
         ((*cd).numGlyphs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
-    growClassdef(cd, (*cd).numGlyphs as u32);
+    grow_classdef(cd, (*cd).numGlyphs as u32);
     *(*cd)
         .glyphs
         .offset(((*cd).numGlyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize) = h;
@@ -170,18 +170,18 @@ pub(crate) unsafe extern "C" fn pushClassDef(
         (*cd).maxclass = cls;
     }
 }
-unsafe extern "C" fn by_covIndex(
+unsafe extern "C" fn by_cov_index(
     mut a: *mut CoverageEntry,
     mut b: *mut CoverageEntry,
 ) -> ::core::ffi::c_int {
     return (*a).covIndex - (*b).covIndex;
 }
-pub(crate) unsafe extern "C" fn readClassDef(
+pub(crate) unsafe extern "C" fn read_class_def(
     mut data: *const u8,
     mut table_length: u32,
     mut offset: u32,
 ) -> *mut ClassDef {
-    let mut cd: *mut ClassDef = otl_ClassDef_create();
+    let mut cd: *mut ClassDef = otl_class_def_create();
     if table_length < offset.wrapping_add(4 as u32) {
         return cd;
     }
@@ -205,9 +205,9 @@ pub(crate) unsafe extern "C" fn readClassDef(
         {
             let mut j: GlyphId = 0 as GlyphId;
             while (j as ::core::ffi::c_int) < count as ::core::ffi::c_int {
-                pushClassDef(
+                push_class_def(
                     cd,
-                    handle_fromIndex(
+                    handle_from_index(
                         (start_gid as ::core::ffi::c_int + j as ::core::ffi::c_int) as GlyphId,
                     ) as GlyphHandle,
                     read_16u(
@@ -1108,7 +1108,7 @@ pub(crate) unsafe extern "C" fn readClassDef(
                                 }) as *mut UtHashHandle;
                             }
                             _hs_psize = _hs_psize.wrapping_sub(1);
-                        } else if by_covIndex(
+                        } else if by_cov_index(
                             (_hs_p as *mut ::core::ffi::c_char)
                                 .offset(-(*(*hash).hh.tbl).hho)
                                 as *mut ::core::ffi::c_void
@@ -1188,9 +1188,9 @@ pub(crate) unsafe extern "C" fn readClassDef(
             NULL
         }) as *mut CoverageEntry as *mut CoverageEntry;
         while !e.is_null() {
-            pushClassDef(
+            push_class_def(
                 cd,
-                handle_fromIndex((*e).gid as GlyphId)
+                handle_from_index((*e).gid as GlyphId)
                     as GlyphHandle,
                 (*e).covIndex as GlyphClass,
             );
@@ -1251,11 +1251,11 @@ pub(crate) unsafe extern "C" fn readClassDef(
     }
     return cd;
 }
-pub(crate) unsafe extern "C" fn expandClassDef(
+pub(crate) unsafe extern "C" fn expand_class_def(
     mut cov: *mut Coverage,
     mut ocd: *mut ClassDef,
 ) -> *mut ClassDef {
-    let mut cd: *mut ClassDef = otl_ClassDef_create();
+    let mut cd: *mut ClassDef = otl_class_def_create();
     let mut hash: *mut CoverageEntry = ::core::ptr::null_mut::<CoverageEntry>();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < (*ocd).numGlyphs as ::core::ffi::c_int {
@@ -2788,9 +2788,9 @@ pub(crate) unsafe extern "C" fn expandClassDef(
         NULL
     }) as *mut CoverageEntry as *mut CoverageEntry;
     while !e.is_null() {
-        pushClassDef(
+        push_class_def(
             cd,
-            handle_fromIndex((*e).gid as GlyphId)
+            handle_from_index((*e).gid as GlyphId)
                 as GlyphHandle,
             (*e).covIndex as GlyphClass,
         );
@@ -2847,10 +2847,10 @@ pub(crate) unsafe extern "C" fn expandClassDef(
         tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut CoverageEntry
             as *mut CoverageEntry;
     }
-    otl_ClassDef_free(ocd);
+    otl_class_def_free(ocd);
     return cd;
 }
-pub(crate) unsafe extern "C" fn dumpClassDef(mut cd: *const ClassDef) -> *mut JsonValue {
+pub(crate) unsafe extern "C" fn dump_class_def(mut cd: *const ClassDef) -> *mut JsonValue {
     let mut a: *mut JsonValue = json_object_new((*cd).numGlyphs as usize);
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
@@ -2863,17 +2863,17 @@ pub(crate) unsafe extern "C" fn dumpClassDef(mut cd: *const ClassDef) -> *mut Js
     }
     return preserialize(a);
 }
-pub(crate) unsafe extern "C" fn parseClassDef(mut _cd: *const JsonValue) -> *mut ClassDef {
+pub(crate) unsafe extern "C" fn parse_class_def(mut _cd: *const JsonValue) -> *mut ClassDef {
     if _cd.is_null()
         || (*_cd).type_0 != JsonType::Object
     {
         return ::core::ptr::null_mut::<ClassDef>();
     }
-    let mut cd: *mut ClassDef = otl_ClassDef_create();
+    let mut cd: *mut ClassDef = otl_class_def_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < (*_cd).u.object.length {
         let mut h: GlyphHandle =
-            handle_fromName(sdsnewlen(
+            handle_from_name(sdsnewlen(
                 (*(*_cd).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
                 (*(*_cd).u.object.values.offset(j as isize)).name_length as usize,
             )) as GlyphHandle;
@@ -2887,7 +2887,7 @@ pub(crate) unsafe extern "C" fn parseClassDef(mut _cd: *const JsonValue) -> *mut
         {
             cls = (*_cid).u.dbl as GlyphClass;
         }
-        pushClassDef(cd, h as GlyphHandle, cls);
+        push_class_def(cd, h as GlyphHandle, cls);
         j = j.wrapping_add(1);
     }
     return cd;
@@ -2899,7 +2899,7 @@ unsafe extern "C" fn by_gid(
     return (*(a as *mut ClassDefSortRecord)).gid as ::core::ffi::c_int
         - (*(b as *mut ClassDefSortRecord)).gid as ::core::ffi::c_int;
 }
-pub(crate) unsafe extern "C" fn buildClassDef(mut cd: *const ClassDef) -> *mut Buffer {
+pub(crate) unsafe extern "C" fn build_class_def(mut cd: *const ClassDef) -> *mut Buffer {
     let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 2 as u16);
     if (*cd).numGlyphs == 0 {
@@ -2979,7 +2979,7 @@ pub(crate) unsafe extern "C" fn buildClassDef(mut cd: *const ClassDef) -> *mut B
     r = ::core::ptr::null_mut::<ClassDefSortRecord>();
     return buf;
 }
-pub(crate) unsafe extern "C" fn shrinkClassDef(mut cd: *mut ClassDef) {
+pub(crate) unsafe extern "C" fn shrink_class_def(mut cd: *mut ClassDef) {
     let mut k: GlyphId = 0 as GlyphId;
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
@@ -2988,7 +2988,7 @@ pub(crate) unsafe extern "C" fn shrinkClassDef(mut cd: *mut ClassDef) {
             *(*cd).classes.offset(k as isize) = *(*cd).classes.offset(j as isize);
             k = k.wrapping_add(1);
         } else {
-            otfcc_Handle_dispose(
+            otfcc_handle_dispose(
                 (*cd).glyphs.offset(j as isize) as *mut Handle,
             );
         }
@@ -2998,39 +2998,39 @@ pub(crate) unsafe extern "C" fn shrinkClassDef(mut cd: *mut ClassDef) {
 }
 pub static OTL_I_CLASS_DEF: IClassDef = {
     IClassDef {
-        init: Some(otl_ClassDef_init as unsafe extern "C" fn(*mut ClassDef) -> ()),
+        init: Some(otl_class_def_init as unsafe extern "C" fn(*mut ClassDef) -> ()),
         copy: Some(
-            otl_ClassDef_copy as unsafe extern "C" fn(*mut ClassDef, *const ClassDef) -> (),
+            otl_class_def_copy as unsafe extern "C" fn(*mut ClassDef, *const ClassDef) -> (),
         ),
         move_0: Some(
-            otl_ClassDef_move as unsafe extern "C" fn(*mut ClassDef, *mut ClassDef) -> (),
+            otl_class_def_move as unsafe extern "C" fn(*mut ClassDef, *mut ClassDef) -> (),
         ),
-        dispose: Some(otl_ClassDef_dispose as unsafe extern "C" fn(*mut ClassDef) -> ()),
+        dispose: Some(otl_class_def_dispose as unsafe extern "C" fn(*mut ClassDef) -> ()),
         replace: Some(
-            otl_ClassDef_replace as unsafe extern "C" fn(*mut ClassDef, ClassDef) -> (),
+            otl_class_def_replace as unsafe extern "C" fn(*mut ClassDef, ClassDef) -> (),
         ),
         copyReplace: Some(
-            otl_ClassDef_copyReplace as unsafe extern "C" fn(*mut ClassDef, ClassDef) -> (),
+            otl_class_def_copy_replace as unsafe extern "C" fn(*mut ClassDef, ClassDef) -> (),
         ),
-        create: Some(otl_ClassDef_create),
-        free: Some(otl_ClassDef_free as unsafe extern "C" fn(*mut ClassDef) -> ()),
+        create: Some(otl_class_def_create),
+        free: Some(otl_class_def_free as unsafe extern "C" fn(*mut ClassDef) -> ()),
         push: Some(
-            pushClassDef
+            push_class_def
                 as unsafe extern "C" fn(*mut ClassDef, GlyphHandle, GlyphClass) -> (),
         ),
         read: Some(
-            readClassDef
+            read_class_def
                 as unsafe extern "C" fn(*const u8, u32, u32) -> *mut ClassDef,
         ),
         expand: Some(
-            expandClassDef
+            expand_class_def
                 as unsafe extern "C" fn(*mut Coverage, *mut ClassDef) -> *mut ClassDef,
         ),
-        dump: Some(dumpClassDef as unsafe extern "C" fn(*const ClassDef) -> *mut JsonValue),
-        parse: Some(parseClassDef as unsafe extern "C" fn(*const JsonValue) -> *mut ClassDef),
+        dump: Some(dump_class_def as unsafe extern "C" fn(*const ClassDef) -> *mut JsonValue),
+        parse: Some(parse_class_def as unsafe extern "C" fn(*const JsonValue) -> *mut ClassDef),
         build: Some(
-            buildClassDef as unsafe extern "C" fn(*const ClassDef) -> *mut Buffer,
+            build_class_def as unsafe extern "C" fn(*const ClassDef) -> *mut Buffer,
         ),
-        shrink: Some(shrinkClassDef as unsafe extern "C" fn(*mut ClassDef) -> ()),
+        shrink: Some(shrink_class_def as unsafe extern "C" fn(*mut ClassDef) -> ()),
     }
 };

@@ -35,7 +35,7 @@ pub struct CvtTableElementInterface {
     pub free: Option<unsafe extern "C" fn(*mut CvtTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn disposeCvt(mut table: *mut CvtTable) {
+unsafe extern "C" fn dispose_cvt(mut table: *mut CvtTable) {
     if !(*table).words.is_null() {
         free((*table).words as *mut ::core::ffi::c_void);
         (*table).words = ::core::ptr::null_mut::<u16>();
@@ -73,7 +73,7 @@ unsafe extern "C" fn table_cvt_init(mut x: *mut CvtTable) {
     );
 }
 #[inline]
-unsafe extern "C" fn table_cvt_copyReplace(mut dst: *mut CvtTable, src: CvtTable) {
+unsafe extern "C" fn table_cvt_copy_replace(mut dst: *mut CvtTable, src: CvtTable) {
     table_cvt_dispose(dst);
     table_cvt_copy(dst, &raw const src);
 }
@@ -97,7 +97,7 @@ unsafe extern "C" fn table_cvt_replace(mut dst: *mut CvtTable, src: CvtTable) {
 }
 #[inline]
 unsafe extern "C" fn table_cvt_dispose(mut x: *mut CvtTable) {
-    disposeCvt(x);
+    dispose_cvt(x);
 }
 pub static TABLE_I_CVT: CvtTableElementInterface = {
     CvtTableElementInterface {
@@ -107,13 +107,13 @@ pub static TABLE_I_CVT: CvtTableElementInterface = {
         dispose: Some(table_cvt_dispose as unsafe extern "C" fn(*mut CvtTable) -> ()),
         replace: Some(table_cvt_replace as unsafe extern "C" fn(*mut CvtTable, CvtTable) -> ()),
         copyReplace: Some(
-            table_cvt_copyReplace as unsafe extern "C" fn(*mut CvtTable, CvtTable) -> (),
+            table_cvt_copy_replace as unsafe extern "C" fn(*mut CvtTable, CvtTable) -> (),
         ),
         create: Some(table_cvt_create),
         free: Some(table_cvt_free as unsafe extern "C" fn(*mut CvtTable) -> ()),
     }
 };
-pub unsafe extern "C" fn otfcc_readCvt(
+pub unsafe extern "C" fn otfcc_read_cvt(
     packet: Packet,
     mut _options: *const Options,
     mut tag: u32,
@@ -161,7 +161,7 @@ pub unsafe extern "C" fn otfcc_readCvt(
     }
     return ::core::ptr::null_mut::<CvtTable>();
 }
-pub unsafe extern "C" fn otfcc_dumpCvt(
+pub unsafe extern "C" fn otfcc_dump_cvt(
     mut table: *const CvtTable,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -194,7 +194,7 @@ pub unsafe extern "C" fn otfcc_dumpCvt(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parseCvt(
+pub unsafe extern "C" fn otfcc_parse_cvt(
     mut root: *const JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
@@ -290,7 +290,7 @@ pub unsafe extern "C" fn otfcc_parseCvt(
     }
     return t;
 }
-pub unsafe extern "C" fn otfcc_buildCvt(
+pub unsafe extern "C" fn otfcc_build_cvt(
     mut table: *const CvtTable,
     mut _options: *const Options,
 ) -> *mut Buffer {

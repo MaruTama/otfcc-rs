@@ -9,14 +9,14 @@ use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphClass, TableId};
 
 
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{ChainingRule, Lookup, Subtable, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, ChainingSubtable};
-use crate::bk::bkblock::{bk_newBlockFromBuffer};
-use crate::bk::bkgraph::{bk_build_Block};
+use crate::bk::bkblock::{bk_new_block_from_buffer};
+use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-pub unsafe extern "C" fn otfcc_chainingLookupIsContextualLookup(
+pub unsafe extern "C" fn otfcc_chaining_lookup_is_contextual_lookup(
     mut lookup: *const Lookup,
 ) -> bool {
     if !((*lookup).type_0 == OTL_TYPE_GPOS_CHAINING
@@ -74,12 +74,12 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
     let mut n_lookahead: TableId = ((*rule).matchCount as ::core::ffi::c_int
         - (*rule).inputEnds as ::core::ffi::c_int) as TableId;
     let mut n_subst: TableId = (*rule).applyCount;
-    reverseBacktracks(rule);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 3 as u32)]);
+    reverse_backtracks(rule);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 3 as u32)]);
     bk_push(root, &[bk_int(BkCellType::B16, (n_backtrack as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).inputBegins as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j as isize),
             )))]);
         j = j.wrapping_add(1);
@@ -87,7 +87,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
     bk_push(root, &[bk_int(BkCellType::B16, (n_input as ::core::ffi::c_int) as u32)]);
     let mut j_0: TableId = (*rule).inputBegins;
     while (j_0 as ::core::ffi::c_int) < (*rule).inputEnds as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j_0 as isize),
             )))]);
         j_0 = j_0.wrapping_add(1);
@@ -95,7 +95,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
     bk_push(root, &[bk_int(BkCellType::B16, (n_lookahead as ::core::ffi::c_int) as u32)]);
     let mut j_1: TableId = (*rule).inputEnds;
     while (j_1 as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j_1 as isize),
             )))]);
         j_1 = j_1.wrapping_add(1);
@@ -107,7 +107,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
                 - n_backtrack as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*rule).apply.offset(j_2 as isize)).lookup.index as ::core::ffi::c_int) as u32)]);
         j_2 = j_2.wrapping_add(1);
     }
-    return bk_build_Block(root);
+    return bk_build_block(root);
 }
 pub unsafe extern "C" fn otfcc_build_chaining_classes(
     mut _subtable: *const Subtable,
@@ -120,13 +120,13 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     ) as *mut Coverage;
     (*coverage).numGlyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).numGlyphs;
     (*coverage).glyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).glyphs;
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             coverage,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.bc,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.ic,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.fc,
         ))), bk_int(BkCellType::B16, ((*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as u32)]);
@@ -178,7 +178,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
         <= (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
     {
         if *rcpg.offset(j_1 as isize) != 0 {
-            let mut cset: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
+            let mut cset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
             let mut k: TableId = 0 as TableId;
             while (k as ::core::ffi::c_int)
                 < (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount as ::core::ffi::c_int
@@ -194,7 +194,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
                         .offset(0 as ::core::ffi::c_int as isize))
                     .index as GlyphClass;
                 if !(start_class_0 as ::core::ffi::c_int != j_1 as ::core::ffi::c_int) {
-                    reverseBacktracks(rule);
+                    reverse_backtracks(rule);
                     let mut n_backtrack: TableId = (*rule).inputBegins;
                     let mut n_input: TableId = ((*rule).inputEnds as ::core::ffi::c_int
                         - (*rule).inputBegins as ::core::ffi::c_int)
@@ -203,7 +203,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
                         - (*rule).inputEnds as ::core::ffi::c_int)
                         as TableId;
                     let mut n_subst: TableId = (*rule).applyCount;
-                    let mut r: *mut BkBlock = bk_new_Block(&[]);
+                    let mut r: *mut BkBlock = bk_new_block(&[]);
                     bk_push(r, &[bk_int(BkCellType::B16, (n_backtrack as ::core::ffi::c_int) as u32)]);
                     let mut m: TableId = 0 as TableId;
                     while (m as ::core::ffi::c_int) < (*rule).inputBegins as ::core::ffi::c_int {
@@ -255,7 +255,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     coverage = ::core::ptr::null_mut::<Coverage>();
     free(rcpg as *mut ::core::ffi::c_void);
     rcpg = ::core::ptr::null_mut::<GlyphClass>();
-    return bk_build_Block(root);
+    return bk_build_block(root);
 }
 pub unsafe extern "C" fn otfcc_build_chaining(
     mut _subtable: *const Subtable,
@@ -276,13 +276,13 @@ pub unsafe extern "C" fn otfcc_build_contextual_coverage(
     let mut n_input: TableId = ((*rule).inputEnds as ::core::ffi::c_int
         - (*rule).inputBegins as ::core::ffi::c_int) as TableId;
     let mut n_subst: TableId = (*rule).applyCount;
-    reverseBacktracks(rule);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 3 as u32)]);
+    reverse_backtracks(rule);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 3 as u32)]);
     bk_push(root, &[bk_int(BkCellType::B16, (n_input as ::core::ffi::c_int) as u32)]);
     bk_push(root, &[bk_int(BkCellType::B16, (n_subst as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = (*rule).inputBegins;
     while (j as ::core::ffi::c_int) < (*rule).inputEnds as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*rule).match_0.offset(j as isize),
             )))]);
         j = j.wrapping_add(1);
@@ -292,7 +292,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_coverage(
         bk_push(root, &[bk_int(BkCellType::B16, ((*(*rule).apply.offset(j_0 as isize)).index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*rule).apply.offset(j_0 as isize)).lookup.index as ::core::ffi::c_int) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
-    return bk_build_Block(root);
+    return bk_build_block(root);
 }
 pub unsafe extern "C" fn otfcc_build_contextual_classes(
     mut _subtable: *const Subtable,
@@ -305,9 +305,9 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     ) as *mut Coverage;
     (*coverage).numGlyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).numGlyphs;
     (*coverage).glyphs = (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).glyphs;
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             coverage,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).c2rust_unnamed.c2rust_unnamed.ic,
         ))), bk_int(BkCellType::B16, ((*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as u32)]);
@@ -359,7 +359,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
         <= (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
     {
         if *rcpg.offset(j_1 as isize) != 0 {
-            let mut cset: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
+            let mut cset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
             let mut k: TableId = 0 as TableId;
             while (k as ::core::ffi::c_int)
                 < (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount as ::core::ffi::c_int
@@ -375,12 +375,12 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
                         .offset(0 as ::core::ffi::c_int as isize))
                     .index as GlyphClass;
                 if !(start_class_0 as ::core::ffi::c_int != j_1 as ::core::ffi::c_int) {
-                    reverseBacktracks(rule);
+                    reverse_backtracks(rule);
                     let mut n_input: TableId = ((*rule).inputEnds as ::core::ffi::c_int
                         - (*rule).inputBegins as ::core::ffi::c_int)
                         as TableId;
                     let mut n_subst: TableId = (*rule).applyCount;
-                    let mut r: *mut BkBlock = bk_new_Block(&[]);
+                    let mut r: *mut BkBlock = bk_new_block(&[]);
                     bk_push(r, &[bk_int(BkCellType::B16, (n_input as ::core::ffi::c_int) as u32)]);
                     bk_push(r, &[bk_int(BkCellType::B16, (n_subst as ::core::ffi::c_int) as u32)]);
                     let mut m: TableId = ((*rule).inputBegins as ::core::ffi::c_int
@@ -413,7 +413,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     coverage = ::core::ptr::null_mut::<Coverage>();
     free(rcpg as *mut ::core::ffi::c_void);
     rcpg = ::core::ptr::null_mut::<GlyphClass>();
-    return bk_build_Block(root);
+    return bk_build_block(root);
 }
 pub unsafe extern "C" fn otfcc_build_contextual(
     mut _subtable: *const Subtable,
@@ -426,7 +426,7 @@ pub unsafe extern "C" fn otfcc_build_contextual(
     };
 }
 #[inline]
-unsafe extern "C" fn reverseBacktracks(mut rule: *mut ChainingRule) {
+unsafe extern "C" fn reverse_backtracks(mut rule: *mut ChainingRule) {
     if (*rule).inputBegins as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
         let mut start: TableId = 0 as TableId;
         let mut end: TableId =

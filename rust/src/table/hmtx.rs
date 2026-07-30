@@ -39,7 +39,7 @@ pub struct HmtxTableElementInterface {
     pub free: Option<unsafe extern "C" fn(*mut HmtxTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn disposeHmtx(mut table: *mut HmtxTable) {
+unsafe extern "C" fn dispose_hmtx(mut table: *mut HmtxTable) {
     if !(*table).metrics.is_null() {
         free((*table).metrics as *mut ::core::ffi::c_void);
         (*table).metrics = ::core::ptr::null_mut::<HorizontalMetric>();
@@ -51,7 +51,7 @@ unsafe extern "C" fn disposeHmtx(mut table: *mut HmtxTable) {
 }
 #[inline]
 unsafe extern "C" fn table_hmtx_dispose(mut x: *mut HmtxTable) {
-    disposeHmtx(x);
+    dispose_hmtx(x);
 }
 #[inline]
 unsafe extern "C" fn table_hmtx_copy(mut dst: *mut HmtxTable, mut src: *const HmtxTable) {
@@ -77,7 +77,7 @@ unsafe extern "C" fn table_hmtx_init(mut x: *mut HmtxTable) {
     );
 }
 #[inline]
-unsafe extern "C" fn table_hmtx_copyReplace(mut dst: *mut HmtxTable, src: HmtxTable) {
+unsafe extern "C" fn table_hmtx_copy_replace(mut dst: *mut HmtxTable, src: HmtxTable) {
     table_hmtx_dispose(dst);
     table_hmtx_copy(dst, &raw const src);
 }
@@ -113,7 +113,7 @@ pub static TABLE_I_HMTX: HmtxTableElementInterface = {
             table_hmtx_replace as unsafe extern "C" fn(*mut HmtxTable, HmtxTable) -> (),
         ),
         copyReplace: Some(
-            table_hmtx_copyReplace as unsafe extern "C" fn(*mut HmtxTable, HmtxTable) -> (),
+            table_hmtx_copy_replace as unsafe extern "C" fn(*mut HmtxTable, HmtxTable) -> (),
         ),
         create: Some(table_hmtx_create),
         free: Some(table_hmtx_free as unsafe extern "C" fn(*mut HmtxTable) -> ()),
@@ -127,7 +127,7 @@ unsafe extern "C" fn table_hmtx_free(mut x: *mut HmtxTable) {
     table_hmtx_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_readHmtx(
+pub unsafe extern "C" fn otfcc_read_hmtx(
     packet: Packet,
     mut options: *const Options,
     mut hhea: *mut HheaTable,
@@ -234,7 +234,7 @@ pub unsafe extern "C" fn otfcc_readHmtx(
     }
     return ::core::ptr::null_mut::<HmtxTable>();
 }
-pub unsafe extern "C" fn otfcc_buildHmtx(
+pub unsafe extern "C" fn otfcc_build_hmtx(
     mut hmtx: *const HmtxTable,
     mut count_a: GlyphId,
     mut count_k: GlyphId,

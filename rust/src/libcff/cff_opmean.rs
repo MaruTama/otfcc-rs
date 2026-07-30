@@ -397,7 +397,7 @@ pub unsafe extern "C" fn op_cs2_name(mut op: u32) -> *mut ::core::ffi::c_char {
         }
     };
 }
-pub unsafe extern "C" fn cff_getStandardArity(mut op: u32) -> u8 {
+pub unsafe extern "C" fn cff_get_standard_arity(mut op: u32) -> u8 {
     match op {
         5 | 21 => return 2 as u8,
         6 | 7 => return 1 as u8,

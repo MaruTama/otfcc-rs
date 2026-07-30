@@ -68,7 +68,7 @@ pub struct Os2TableElementInterface {
     pub free: Option<unsafe extern "C" fn(*mut Os2Table) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn initOS2(mut table: *mut Os2Table) {
+unsafe extern "C" fn init_os2(mut table: *mut Os2Table) {
     memset(
         table as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -77,49 +77,49 @@ unsafe extern "C" fn initOS2(mut table: *mut Os2Table) {
     (*table).version = 4 as u16;
 }
 #[inline]
-unsafe extern "C" fn disposeOS2(mut _table: *mut Os2Table) {}
+unsafe extern "C" fn dispose_os2(mut _table: *mut Os2Table) {}
 #[inline]
-unsafe extern "C" fn table_OS_2_dispose(mut x: *mut Os2Table) {
-    disposeOS2(x);
+unsafe extern "C" fn table_os_2_dispose(mut x: *mut Os2Table) {
+    dispose_os2(x);
 }
 #[inline]
-unsafe extern "C" fn table_OS_2_create() -> *mut Os2Table {
+unsafe extern "C" fn table_os_2_create() -> *mut Os2Table {
     let mut x: *mut Os2Table =
         malloc(::core::mem::size_of::<Os2Table>() as usize) as *mut Os2Table;
-    table_OS_2_init(x);
+    table_os_2_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_OS_2_copyReplace(mut dst: *mut Os2Table, src: Os2Table) {
-    table_OS_2_dispose(dst);
-    table_OS_2_copy(dst, &raw const src);
+unsafe extern "C" fn table_os_2_copy_replace(mut dst: *mut Os2Table, src: Os2Table) {
+    table_os_2_dispose(dst);
+    table_os_2_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_OS_2_init(mut x: *mut Os2Table) {
-    initOS2(x);
+unsafe extern "C" fn table_os_2_init(mut x: *mut Os2Table) {
+    init_os2(x);
 }
 pub static TABLE_I_OS_2: Os2TableElementInterface = {
     Os2TableElementInterface {
-        init: Some(table_OS_2_init as unsafe extern "C" fn(*mut Os2Table) -> ()),
+        init: Some(table_os_2_init as unsafe extern "C" fn(*mut Os2Table) -> ()),
         copy: Some(
-            table_OS_2_copy as unsafe extern "C" fn(*mut Os2Table, *const Os2Table) -> (),
+            table_os_2_copy as unsafe extern "C" fn(*mut Os2Table, *const Os2Table) -> (),
         ),
         move_0: Some(
-            table_OS_2_move as unsafe extern "C" fn(*mut Os2Table, *mut Os2Table) -> (),
+            table_os_2_move as unsafe extern "C" fn(*mut Os2Table, *mut Os2Table) -> (),
         ),
-        dispose: Some(table_OS_2_dispose as unsafe extern "C" fn(*mut Os2Table) -> ()),
+        dispose: Some(table_os_2_dispose as unsafe extern "C" fn(*mut Os2Table) -> ()),
         replace: Some(
-            table_OS_2_replace as unsafe extern "C" fn(*mut Os2Table, Os2Table) -> (),
+            table_os_2_replace as unsafe extern "C" fn(*mut Os2Table, Os2Table) -> (),
         ),
         copyReplace: Some(
-            table_OS_2_copyReplace as unsafe extern "C" fn(*mut Os2Table, Os2Table) -> (),
+            table_os_2_copy_replace as unsafe extern "C" fn(*mut Os2Table, Os2Table) -> (),
         ),
-        create: Some(table_OS_2_create),
-        free: Some(table_OS_2_free as unsafe extern "C" fn(*mut Os2Table) -> ()),
+        create: Some(table_os_2_create),
+        free: Some(table_os_2_free as unsafe extern "C" fn(*mut Os2Table) -> ()),
     }
 };
 #[inline]
-unsafe extern "C" fn table_OS_2_copy(mut dst: *mut Os2Table, mut src: *const Os2Table) {
+unsafe extern "C" fn table_os_2_copy(mut dst: *mut Os2Table, mut src: *const Os2Table) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
@@ -127,8 +127,8 @@ unsafe extern "C" fn table_OS_2_copy(mut dst: *mut Os2Table, mut src: *const Os2
     );
 }
 #[inline]
-unsafe extern "C" fn table_OS_2_replace(mut dst: *mut Os2Table, src: Os2Table) {
-    table_OS_2_dispose(dst);
+unsafe extern "C" fn table_os_2_replace(mut dst: *mut Os2Table, src: Os2Table) {
+    table_os_2_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -136,23 +136,23 @@ unsafe extern "C" fn table_OS_2_replace(mut dst: *mut Os2Table, src: Os2Table) {
     );
 }
 #[inline]
-unsafe extern "C" fn table_OS_2_move(mut dst: *mut Os2Table, mut src: *mut Os2Table) {
+unsafe extern "C" fn table_os_2_move(mut dst: *mut Os2Table, mut src: *mut Os2Table) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<Os2Table>() as usize,
     );
-    table_OS_2_init(src);
+    table_os_2_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_OS_2_free(mut x: *mut Os2Table) {
+unsafe extern "C" fn table_os_2_free(mut x: *mut Os2Table) {
     if x.is_null() {
         return;
     }
-    table_OS_2_dispose(x);
+    table_os_2_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_readOS_2(
+pub unsafe extern "C" fn otfcc_read_os_2(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut Os2Table {
@@ -580,7 +580,7 @@ pub static UNICODE_RANGE_LABELS4: [&::core::ffi::CStr; 27] = [
     c"Carian_and_Lycian",
     c"Domino_and_Mahjong_Tiles",
 ];
-pub unsafe extern "C" fn otfcc_dumpOS_2(
+pub unsafe extern "C" fn otfcc_dump_os_2(
     mut table: *const Os2Table,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -841,7 +841,7 @@ pub unsafe extern "C" fn otfcc_dumpOS_2(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parseOS_2(
+pub unsafe extern "C" fn otfcc_parse_os_2(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut Os2Table {
@@ -1125,7 +1125,7 @@ pub unsafe extern "C" fn otfcc_parseOS_2(
     }
     return os_2;
 }
-pub unsafe extern "C" fn otfcc_buildOS_2(
+pub unsafe extern "C" fn otfcc_build_os_2(
     mut os_2: *const Os2Table,
     mut _options: *const Options,
 ) -> *mut Buffer {

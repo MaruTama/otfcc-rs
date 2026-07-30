@@ -14,10 +14,10 @@ use crate::table::otl::{Feature, FeatureList, FeaturePtr, FeatureRef, LanguageSy
 use crate::table::otl::{otfcc_delete_lookup, OTL_I_FEATURE_LIST, OTL_I_FEATURE_PTR, OTL_I_FEATURE_REF_LIST, OTL_I_LANG_SYSTEM_LIST, OTL_I_LANGUAGE_SYSTEM, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_PTR, OTL_I_LOOKUP_REF_LIST, OTL_I_SUBTABLE_LIST, TABLE_I_OTL};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
-use crate::table::otl::subtables::extend::{otfcc_readOtl_gpos_extend, otfcc_readOtl_gsub_extend};
+use crate::table::otl::subtables::extend::{otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend};
 use crate::table::otl::subtables::gpos_cursive::{otl_read_gpos_cursive};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_read_gpos_markToLigature};
-use crate::table::otl::subtables::gpos_mark_to_single::{otl_read_gpos_markToSingle};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_read_gpos_mark_to_ligature};
+use crate::table::otl::subtables::gpos_mark_to_single::{otl_read_gpos_mark_to_single};
 use crate::table::otl::subtables::gpos_pair::{otl_read_gpos_pair};
 use crate::table::otl::subtables::gpos_single::{otl_read_gpos_single};
 use crate::table::otl::subtables::gsub_ligature::{otl_read_gsub_ligature};
@@ -25,7 +25,7 @@ use crate::table::otl::subtables::gsub_multi::{otl_read_gsub_multi};
 use crate::table::otl::subtables::gsub_reverse::{otl_read_gsub_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_read_gsub_single};
 use crate::vendor::sds::{sdsempty};
-pub unsafe extern "C" fn otfcc_readOtl_subtable(
+pub unsafe extern "C" fn otfcc_read_otl_subtable(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut subtable_offset: u32,
@@ -71,7 +71,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
             return otl_read_gpos_cursive(data, table_length, subtable_offset, max_glyphs, options);
         }
         OTL_TYPE_GPOS_MARK_TO_BASE => {
-            return otl_read_gpos_markToSingle(
+            return otl_read_gpos_mark_to_single(
                 data,
                 table_length,
                 subtable_offset,
@@ -80,7 +80,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
             );
         }
         OTL_TYPE_GPOS_MARK_TO_MARK => {
-            return otl_read_gpos_markToSingle(
+            return otl_read_gpos_mark_to_single(
                 data,
                 table_length,
                 subtable_offset,
@@ -89,7 +89,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
             );
         }
         OTL_TYPE_GPOS_MARK_TO_LIGATURE => {
-            return otl_read_gpos_markToLigature(
+            return otl_read_gpos_mark_to_ligature(
                 data,
                 table_length,
                 subtable_offset,
@@ -98,7 +98,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
             );
         }
         OTL_TYPE_GSUB_EXTEND => {
-            return otfcc_readOtl_gsub_extend(
+            return otfcc_read_otl_gsub_extend(
                 data,
                 table_length,
                 subtable_offset,
@@ -107,7 +107,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
             );
         }
         OTL_TYPE_GPOS_EXTEND => {
-            return otfcc_readOtl_gpos_extend(
+            return otfcc_read_otl_gpos_extend(
                 data,
                 table_length,
                 subtable_offset,
@@ -118,7 +118,7 @@ pub unsafe extern "C" fn otfcc_readOtl_subtable(
         _ => return ::core::ptr::null_mut::<Subtable>(),
     };
 }
-unsafe extern "C" fn parseLanguage(
+unsafe extern "C" fn parse_language(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut base: u32,
@@ -149,16 +149,16 @@ unsafe extern "C" fn parseLanguage(
         ) as TableId;
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < feature_count as ::core::ffi::c_int {
-            let mut featureIndex: TableId = read_16u(
+            let mut feature_index: TableId = read_16u(
                 data.offset(base as isize)
                     .offset(6 as ::core::ffi::c_int as isize)
                     .offset((2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize)
                     as *const u8,
             ) as TableId;
-            if (featureIndex as usize) < (*features).length {
+            if (feature_index as usize) < (*features).length {
                 OTL_I_FEATURE_REF_LIST.push.expect("non-null function pointer")(
                     &raw mut (*lang).features,
-                    *(*features).items.offset(featureIndex as isize) as FeatureRef,
+                    *(*features).items.offset(feature_index as isize) as FeatureRef,
                 );
             }
             j = j.wrapping_add(1);
@@ -166,7 +166,7 @@ unsafe extern "C" fn parseLanguage(
         return;
     };
 }
-unsafe extern "C" fn otfcc_readOtl_common(
+unsafe extern "C" fn otfcc_read_otl_common(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut lookup_type_base: LookupType,
@@ -556,7 +556,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                         Byte((SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int) as u8),
                                                                         b"DFLT",
                                                                     );
-                                                                    parseLanguage(
+                                                                    parse_language(
                                                                         data,
                                                                         table_length,
                                                                         script_offset_0
@@ -635,7 +635,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
                                                                         Byte((lang_tag >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
                                                                         Byte((lang_tag & 0xff as u32) as u8),
                                                                     );
-                                                                    parseLanguage(
+                                                                    parse_language(
                                                                         data,
                                                                         table_length,
                                                                         script_offset_0
@@ -729,7 +729,7 @@ unsafe extern "C" fn otfcc_readOtl_common(
     }
     return ::core::ptr::null_mut::<OtlTable>();
 }
-unsafe extern "C" fn otfcc_readOtl_lookup(
+unsafe extern "C" fn otfcc_read_otl_lookup(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut lookup: *mut Lookup,
@@ -761,7 +761,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
                 .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
                 as *const u8,
         ) as u32);
-        let mut subtable: *mut Subtable = otfcc_readOtl_subtable(
+        let mut subtable: *mut Subtable = otfcc_read_otl_subtable(
             data,
             table_length,
             subtable_offset,
@@ -850,7 +850,7 @@ unsafe extern "C" fn otfcc_readOtl_lookup(
         (*lookup).type_0 = OTL_TYPE_GPOS_CHAINING;
     }
 }
-pub unsafe extern "C" fn otfcc_readOtl(
+pub unsafe extern "C" fn otfcc_read_otl(
     mut packet: Packet,
     mut options: *const Options,
     mut tag: u32,
@@ -871,7 +871,7 @@ pub unsafe extern "C" fn otfcc_readOtl(
                 while __fortable_k2 != 0 {
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
-                    otl = otfcc_readOtl_common(
+                    otl = otfcc_read_otl_common(
                         data,
                         length,
                         if tag == 1196643650i32 as u32 {
@@ -891,7 +891,7 @@ pub unsafe extern "C" fn otfcc_readOtl(
                     } else {
                         let mut j: TableId = 0 as TableId;
                         while (j as usize) < (*otl).lookups.length {
-                            otfcc_readOtl_lookup(
+                            otfcc_read_otl_lookup(
                                 data,
                                 length,
                                 *(*otl).lookups.items.offset(j as isize) as *mut Lookup,

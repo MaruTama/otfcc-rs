@@ -10,7 +10,7 @@ use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_decode};
 use crate::table::meta::types::{META_I_ENTRIES, TABLE_I_META};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
-pub unsafe extern "C" fn parseMetaData(mut v: *const JsonValue) -> SdsRaw {
+pub unsafe extern "C" fn parse_meta_data(mut v: *const JsonValue) -> SdsRaw {
     if (*v).type_0 == JsonType::String
     {
         return sdsnewlen(
@@ -50,7 +50,7 @@ pub unsafe extern "C" fn parseMetaData(mut v: *const JsonValue) -> SdsRaw {
     }
     return ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
-pub unsafe extern "C" fn otfcc_parseMeta(
+pub unsafe extern "C" fn otfcc_parse_meta(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut MetaTable {
@@ -93,7 +93,7 @@ pub unsafe extern "C" fn otfcc_parseMeta(
             );
             if !(_tag.is_null() || (*_tag).u.string.length != 4 as ::core::ffi::c_uint) {
                 let mut tag: u32 = str2tag((*_tag).u.string.ptr);
-                let mut str: SdsRaw = parseMetaData(_e);
+                let mut str: SdsRaw = parse_meta_data(_e);
                 if !str.is_null() {
                     META_I_ENTRIES.push.expect("non-null function pointer")(
                         &raw mut (*meta).entries,

@@ -7,7 +7,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::table::meta::types::{META_I_ENTRIES, TABLE_I_META};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
-pub unsafe extern "C" fn otfcc_readMeta(
+pub unsafe extern "C" fn otfcc_read_meta(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut MetaTable {

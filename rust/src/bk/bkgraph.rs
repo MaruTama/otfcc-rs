@@ -20,8 +20,8 @@ pub struct BkGraph {
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{Buffer};
-use crate::bk::bkblock::{BkCellVisitState, BkBlock, BkCellType, BkCell, bk_new_Block, bk_ptr};
-use crate::bk::bkblock::{bk_cellIsPointer};
+use crate::bk::bkblock::{BkCellVisitState, BkBlock, BkCellType, BkCell, bk_new_block, bk_ptr};
+use crate::bk::bkblock::{bk_cell_is_pointer};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8};
 
 
@@ -58,7 +58,7 @@ unsafe extern "C" fn dfs_insert_cells(
     let mut height: u32 = 0;
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
-        if bk_cellIsPointer(cell) && !(*cell).c2rust_unnamed.p.is_null() {
+        if bk_cell_is_pointer(cell) && !(*cell).c2rust_unnamed.p.is_null() {
             let that_height = dfs_insert_cells((*cell).c2rust_unnamed.p as *mut BkBlock, f, order);
             if that_height.wrapping_add(1) > height {
                 height = that_height.wrapping_add(1);
@@ -108,7 +108,7 @@ unsafe extern "C" fn _by_order(
         (*b).order.wrapping_sub((*a).order)
     }) as ::core::ffi::c_int;
 }
-pub unsafe extern "C" fn bk_newGraphFromRootBlock(b: *mut BkBlock) -> *mut BkGraph {
+pub unsafe extern "C" fn bk_new_graph_from_root_block(b: *mut BkBlock) -> *mut BkGraph {
     let forest: *mut BkGraph = __caryll_allocate_clean(
         ::core::mem::size_of::<BkGraph>() as usize,
         55 as ::core::ffi::c_ulong,
@@ -134,7 +134,7 @@ pub unsafe extern "C" fn bk_newGraphFromRootBlock(b: *mut BkBlock) -> *mut BkGra
     }
     return forest;
 }
-pub unsafe extern "C" fn bk_delete_Graph(f: *mut BkGraph) {
+pub unsafe extern "C" fn bk_delete_graph(f: *mut BkGraph) {
     if f.is_null() || (*f).entries.is_null() {
         return;
     }
@@ -202,7 +202,7 @@ unsafe extern "C" fn compareblock(a: *mut BkBlock, b: *mut BkBlock) -> bool {
     }
     return true;
 }
-unsafe extern "C" fn compareEntry(a: *mut BkGraphNode, b: *mut BkGraphNode) -> bool {
+unsafe extern "C" fn compare_entry(a: *mut BkGraphNode, b: *mut BkGraphNode) -> bool {
     if (*a).hash != (*b).hash {
         return false;
     }
@@ -226,7 +226,7 @@ unsafe extern "C" fn replaceptr(f: *mut BkGraph, b: *mut BkBlock) {
         }
     }
 }
-pub unsafe extern "C" fn bk_minimizeGraph(f: *mut BkGraph) {
+pub unsafe extern "C" fn bk_minimize_graph(f: *mut BkGraph) {
     let mut rear: u32 = (*f).length.wrapping_sub(1);
     while rear > 0 {
         // front/rear bracket a run of same-height entries; the run's extent
@@ -250,7 +250,7 @@ pub unsafe extern "C" fn bk_minimizeGraph(f: *mut BkGraph) {
             if (*a).alias == j {
                 for k in (j + 1)..=rear {
                     let b: *mut BkGraphNode = (*f).entries.offset(k as isize);
-                    if (*b).alias == k && compareEntry(a, b) {
+                    if (*b).alias == k && compare_entry(a, b) {
                         (*b).alias = j;
                     }
                 }
@@ -321,7 +321,7 @@ unsafe extern "C" fn escalate_sppointers(
     }
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
-        if bk_cellIsPointer(cell) && !(*cell).c2rust_unnamed.p.is_null() && (*cell).t >= BkCellType::Sp16 {
+        if bk_cell_is_pointer(cell) && !(*cell).c2rust_unnamed.p.is_null() && (*cell).t >= BkCellType::Sp16 {
             escalate_sppointers((*cell).c2rust_unnamed.p as *mut BkBlock, f, order, depth);
         }
     }
@@ -350,7 +350,7 @@ unsafe extern "C" fn dfs_attract_cells(
     // break } ... use fresh-1 ... }` underflow-sentinel trick.
     for j in (0..(*b).length).rev() {
         let cell = (*b).cells.offset(j as isize);
-        if bk_cellIsPointer(cell) && !(*cell).c2rust_unnamed.p.is_null() {
+        if bk_cell_is_pointer(cell) && !(*cell).c2rust_unnamed.p.is_null() {
             dfs_attract_cells(
                 (*cell).c2rust_unnamed.p as *mut BkBlock,
                 f,
@@ -408,7 +408,7 @@ unsafe extern "C" fn try_untabgle_block(
                         let e: *mut BkGraphNode = _bkgraph_grow(f);
                         (*e).order = 0;
                         (*e).alias = 0;
-                        (*e).block = bk_new_Block(&[bk_ptr(BkCellType::Copy, (*cell).c2rust_unnamed.p)]);
+                        (*e).block = bk_new_block(&[bk_ptr(BkCellType::Copy, (*cell).c2rust_unnamed.p)]);
                         (*cell).t = BkCellType::Sp16;
                         (*cell).c2rust_unnamed.p = (*e).block as *mut BkBlock;
                         did_copy = true;
@@ -421,10 +421,10 @@ unsafe extern "C" fn try_untabgle_block(
     return did_copy;
 }
 // Computes offsets[i+1] = offsets[i] + (serialized size of graph entry i, or
-// 0 if bk_minimizeGraph already merged it away and it's no longer
+// 0 if bk_minimize_graph already merged it away and it's no longer
 // BkCellVisitState::Black) for every entry, i.e. the running byte offset each surviving
 // block will land at once serialized in order. Shared by try_untangle,
-// bk_build_Graph, and bk_estimateSizeOfGraph, which each need this table
+// bk_build_graph, and bk_estimate_size_of_graph, which each need this table
 // before their own pass over the graph. `line` is forwarded to
 // __caryll_allocate_clean only to keep its OOM message's [line] tag matching
 // what each original call site reported.
@@ -494,7 +494,7 @@ unsafe extern "C" fn otfcc_build_bkblock(buf: *mut Buffer, b: *mut BkBlock, offs
         }
     }
 }
-pub unsafe extern "C" fn bk_build_Graph(f: *mut BkGraph) -> *mut Buffer {
+pub unsafe extern "C" fn bk_build_graph(f: *mut BkGraph) -> *mut Buffer {
     let buf: *mut Buffer = bufnew();
     let offsets: *mut usize = compute_block_offsets(f, 352);
     for j in 0..(*f).length {
@@ -506,13 +506,13 @@ pub unsafe extern "C" fn bk_build_Graph(f: *mut BkGraph) -> *mut Buffer {
     free(offsets as *mut ::core::ffi::c_void);
     return buf;
 }
-pub unsafe extern "C" fn bk_estimateSizeOfGraph(f: *mut BkGraph) -> usize {
+pub unsafe extern "C" fn bk_estimate_size_of_graph(f: *mut BkGraph) -> usize {
     let offsets: *mut usize = compute_block_offsets(f, 373);
     let estimated_size: usize = *offsets.offset((*f).length as isize);
     free(offsets as *mut ::core::ffi::c_void);
     return estimated_size;
 }
-pub unsafe extern "C" fn bk_untangleGraph(f: *mut BkGraph) {
+pub unsafe extern "C" fn bk_untangle_graph(f: *mut BkGraph) {
     let mut passes: u16 = 0;
     attract_bkgraph(f);
     loop {
@@ -526,18 +526,18 @@ pub unsafe extern "C" fn bk_untangleGraph(f: *mut BkGraph) {
         }
     }
 }
-pub unsafe extern "C" fn bk_build_Block(root: *mut BkBlock) -> *mut Buffer {
-    let f: *mut BkGraph = bk_newGraphFromRootBlock(root);
-    bk_minimizeGraph(f);
-    bk_untangleGraph(f);
-    let buf: *mut Buffer = bk_build_Graph(f);
-    bk_delete_Graph(f);
+pub unsafe extern "C" fn bk_build_block(root: *mut BkBlock) -> *mut Buffer {
+    let f: *mut BkGraph = bk_new_graph_from_root_block(root);
+    bk_minimize_graph(f);
+    bk_untangle_graph(f);
+    let buf: *mut Buffer = bk_build_graph(f);
+    bk_delete_graph(f);
     return buf;
 }
-pub unsafe extern "C" fn bk_build_Block_noMinimize(root: *mut BkBlock) -> *mut Buffer {
-    let f: *mut BkGraph = bk_newGraphFromRootBlock(root);
-    bk_untangleGraph(f);
-    let buf: *mut Buffer = bk_build_Graph(f);
-    bk_delete_Graph(f);
+pub unsafe extern "C" fn bk_build_block_no_minimize(root: *mut BkBlock) -> *mut Buffer {
+    let f: *mut BkGraph = bk_new_graph_from_root_block(root);
+    bk_untangle_graph(f);
+    let buf: *mut Buffer = bk_build_graph(f);
+    bk_delete_graph(f);
     return buf;
 }

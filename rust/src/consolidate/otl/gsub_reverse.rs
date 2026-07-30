@@ -2,7 +2,7 @@
 use libc::{exit, free, malloc, memcmp, memset};
 
 use crate::table::otl::coverage::{Coverage};
-use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
+use crate::support::handle::{handle_from_consolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -44,7 +44,7 @@ use crate::table::otl::subtables::gsub_single::{GsubSingleMapHash};
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::consolidate::otl::common::{fontop_consolidateCoverage};
+use crate::consolidate::otl::common::{fontop_consolidate_coverage};
 use crate::vendor::sds::{sdsempty};
 
 
@@ -65,10 +65,10 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     let mut subtable: *mut GsubReverseSubtable = &raw mut (*_subtable).gsub_reverse;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
-        fontop_consolidateCoverage(font, *(*subtable).match_0.offset(j as isize), options);
+        fontop_consolidate_coverage(font, *(*subtable).match_0.offset(j as isize), options);
         j = j.wrapping_add(1);
     }
-    fontop_consolidateCoverage(font, (*subtable).to, options);
+    fontop_consolidate_coverage(font, (*subtable).to, options);
     if (*subtable).inputIndex as ::core::ffi::c_int >= (*subtable).matchCount as ::core::ffi::c_int
     {
         (*subtable).inputIndex =
@@ -1023,10 +1023,10 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut GsubSingleMapHash
         as *mut GsubSingleMapHash;
     while !s_0.is_null() {
-        *(*from).glyphs.offset(j_0 as isize) = handle_fromConsolidated(
+        *(*from).glyphs.offset(j_0 as isize) = handle_from_consolidated(
             (*s_0).fromid as GlyphId, (*s_0).fromname
         ) as GlyphHandle;
-        *(*(*subtable).to).glyphs.offset(j_0 as isize) = handle_fromConsolidated(
+        *(*(*subtable).to).glyphs.offset(j_0 as isize) = handle_from_consolidated(
             (*s_0).toid as GlyphId, (*s_0).toname
         ) as GlyphHandle;
         j_0 = j_0.wrapping_add(1);

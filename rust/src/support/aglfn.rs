@@ -5,7 +5,7 @@ use crate::support::glyph_order::GlyphOrder;
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::vendor::sds::{sdsnew};
 
-pub unsafe extern "C" fn aglfn_setupNames(mut map: *mut GlyphOrder) {
+pub unsafe extern "C" fn aglfn_setup_names(mut map: *mut GlyphOrder) {
     OTFCC_PKG_GLYPH_ORDER
         .setByGID
         .expect("non-null function pointer")(

@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort, strcmp};
 use crate::support::json_funcs::{json_obj_get_type};
-use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_copy, otfcc_Handle_dispose, otfcc_Handle_empty, otfcc_Handle_init, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_copy, otfcc_handle_dispose, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
@@ -120,14 +120,14 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     return 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn initTSIEntry(mut entry: *mut TsiEntry) {
-    otfcc_Handle_init(&raw mut (*entry).glyph);
+unsafe extern "C" fn init_tsi_entry(mut entry: *mut TsiEntry) {
+    otfcc_handle_init(&raw mut (*entry).glyph);
     (*entry).type_0 = TsiEntryType::Glyph;
     (*entry).content = ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
 #[inline]
-unsafe extern "C" fn copyTSIEntry(mut dst: *mut TsiEntry, mut src: *const TsiEntry) {
-    otfcc_Handle_copy(
+unsafe extern "C" fn copy_tsi_entry(mut dst: *mut TsiEntry, mut src: *const TsiEntry) {
+    otfcc_handle_copy(
         &raw mut (*dst).glyph,
         &raw const (*src).glyph,
     );
@@ -135,13 +135,13 @@ unsafe extern "C" fn copyTSIEntry(mut dst: *mut TsiEntry, mut src: *const TsiEnt
     (*dst).content = sdsdup((*src).content);
 }
 #[inline]
-unsafe extern "C" fn disposeTSIEntry(mut entry: *mut TsiEntry) {
-    otfcc_Handle_dispose(&raw mut (*entry).glyph);
+unsafe extern "C" fn dispose_tsi_entry(mut entry: *mut TsiEntry) {
+    otfcc_handle_dispose(&raw mut (*entry).glyph);
     sdsfree((*entry).content);
 }
 #[inline]
-unsafe extern "C" fn tsi_Entry_replace(mut dst: *mut TsiEntry, src: TsiEntry) {
-    tsi_Entry_dispose(dst);
+unsafe extern "C" fn tsi_entry_replace(mut dst: *mut TsiEntry, src: TsiEntry) {
+    tsi_entry_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -149,45 +149,45 @@ unsafe extern "C" fn tsi_Entry_replace(mut dst: *mut TsiEntry, src: TsiEntry) {
     );
 }
 #[inline]
-unsafe extern "C" fn tsi_Entry_init(mut x: *mut TsiEntry) {
-    initTSIEntry(x);
+unsafe extern "C" fn tsi_entry_init(mut x: *mut TsiEntry) {
+    init_tsi_entry(x);
 }
 #[inline]
-unsafe extern "C" fn tsi_Entry_move(mut dst: *mut TsiEntry, mut src: *mut TsiEntry) {
+unsafe extern "C" fn tsi_entry_move(mut dst: *mut TsiEntry, mut src: *mut TsiEntry) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<TsiEntry>() as usize,
     );
-    tsi_Entry_init(src);
+    tsi_entry_init(src);
 }
 pub static TSI_I_ENTRY: TsiEntryElementInterface = {
     TsiEntryElementInterface {
-        init: Some(tsi_Entry_init as unsafe extern "C" fn(*mut TsiEntry) -> ()),
-        copy: Some(tsi_Entry_copy as unsafe extern "C" fn(*mut TsiEntry, *const TsiEntry) -> ()),
-        move_0: Some(tsi_Entry_move as unsafe extern "C" fn(*mut TsiEntry, *mut TsiEntry) -> ()),
-        dispose: Some(tsi_Entry_dispose as unsafe extern "C" fn(*mut TsiEntry) -> ()),
-        replace: Some(tsi_Entry_replace as unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> ()),
+        init: Some(tsi_entry_init as unsafe extern "C" fn(*mut TsiEntry) -> ()),
+        copy: Some(tsi_entry_copy as unsafe extern "C" fn(*mut TsiEntry, *const TsiEntry) -> ()),
+        move_0: Some(tsi_entry_move as unsafe extern "C" fn(*mut TsiEntry, *mut TsiEntry) -> ()),
+        dispose: Some(tsi_entry_dispose as unsafe extern "C" fn(*mut TsiEntry) -> ()),
+        replace: Some(tsi_entry_replace as unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> ()),
         copyReplace: Some(
-            tsi_Entry_copyReplace as unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> (),
+            tsi_entry_copy_replace as unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> (),
         ),
     }
 };
 #[inline]
-unsafe extern "C" fn tsi_Entry_dispose(mut x: *mut TsiEntry) {
-    disposeTSIEntry(x);
+unsafe extern "C" fn tsi_entry_dispose(mut x: *mut TsiEntry) {
+    dispose_tsi_entry(x);
 }
 #[inline]
-unsafe extern "C" fn tsi_Entry_copy(mut dst: *mut TsiEntry, mut src: *const TsiEntry) {
-    copyTSIEntry(dst, src);
+unsafe extern "C" fn tsi_entry_copy(mut dst: *mut TsiEntry, mut src: *const TsiEntry) {
+    copy_tsi_entry(dst, src);
 }
 #[inline]
-unsafe extern "C" fn tsi_Entry_copyReplace(mut dst: *mut TsiEntry, src: TsiEntry) {
-    tsi_Entry_dispose(dst);
-    tsi_Entry_copy(dst, &raw const src);
+unsafe extern "C" fn tsi_entry_copy_replace(mut dst: *mut TsiEntry, src: TsiEntry) {
+    tsi_entry_dispose(dst);
+    tsi_entry_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_fill(mut arr: *mut TsiTable, mut n: usize) {
+unsafe extern "C" fn table_tsi_fill(mut arr: *mut TsiTable, mut n: usize) {
     while (*arr).length < n {
         let mut x: TsiEntry = TsiEntry {
             type_0: TsiEntryType::Glyph,
@@ -207,23 +207,23 @@ unsafe extern "C" fn table_TSI_fill(mut arr: *mut TsiTable, mut n: usize) {
                 ::core::mem::size_of::<TsiEntry>() as usize,
             );
         }
-        table_TSI_push(arr, x);
+        table_tsi_push(arr, x);
     }
 }
 #[inline]
-unsafe extern "C" fn table_TSI_move(dst: *mut TsiTable, src: *mut TsiTable) {
-    cvec_move(table_TSI_as_cvec(dst), table_TSI_as_cvec(src));
+unsafe extern "C" fn table_tsi_move(dst: *mut TsiTable, src: *mut TsiTable) {
+    cvec_move(table_tsi_as_cvec(dst), table_tsi_as_cvec(src));
 }
 #[inline]
-unsafe fn table_TSI_as_cvec(arr: *mut TsiTable) -> *mut CVecRaw<TsiEntry> {
+unsafe fn table_tsi_as_cvec(arr: *mut TsiTable) -> *mut CVecRaw<TsiEntry> {
     arr as *mut CVecRaw<TsiEntry>
 }
 #[inline]
-unsafe extern "C" fn table_TSI_init(arr: *mut TsiTable) {
-    cvec_init(table_TSI_as_cvec(arr));
+unsafe extern "C" fn table_tsi_init(arr: *mut TsiTable) {
+    cvec_init(table_tsi_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn table_TSI_filterEnv(
+unsafe extern "C" fn table_tsi_filter_env(
     mut arr: *mut TsiTable,
     mut fn_0: Option<unsafe extern "C" fn(*const TsiEntry, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
@@ -252,7 +252,7 @@ unsafe extern "C" fn table_TSI_filterEnv(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn table_TSI_disposeItem(mut arr: *mut TsiTable, mut n: usize) {
+unsafe extern "C" fn table_tsi_dispose_item(mut arr: *mut TsiTable, mut n: usize) {
     if TSI_I_ENTRY.dispose.is_some() {
         TSI_I_ENTRY.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut TsiEntry
@@ -261,7 +261,7 @@ unsafe extern "C" fn table_TSI_disposeItem(mut arr: *mut TsiTable, mut n: usize)
     };
 }
 #[inline]
-unsafe extern "C" fn table_TSI_sort(
+unsafe extern "C" fn table_tsi_sort(
     mut arr: *mut TsiTable,
     mut fn_0: Option<
         unsafe extern "C" fn(*const TsiEntry, *const TsiEntry) -> ::core::ffi::c_int,
@@ -279,29 +279,29 @@ unsafe extern "C" fn table_TSI_sort(
 }
 pub static TABLE_I_TSI: TsiTableVectorInterface = {
     TsiTableVectorInterface {
-        init: Some(table_TSI_init as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        copy: Some(table_TSI_copy as unsafe extern "C" fn(*mut TsiTable, *const TsiTable) -> ()),
-        move_0: Some(table_TSI_move as unsafe extern "C" fn(*mut TsiTable, *mut TsiTable) -> ()),
-        dispose: Some(table_TSI_dispose as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        replace: Some(table_TSI_replace as unsafe extern "C" fn(*mut TsiTable, TsiTable) -> ()),
+        init: Some(table_tsi_init as unsafe extern "C" fn(*mut TsiTable) -> ()),
+        copy: Some(table_tsi_copy as unsafe extern "C" fn(*mut TsiTable, *const TsiTable) -> ()),
+        move_0: Some(table_tsi_move as unsafe extern "C" fn(*mut TsiTable, *mut TsiTable) -> ()),
+        dispose: Some(table_tsi_dispose as unsafe extern "C" fn(*mut TsiTable) -> ()),
+        replace: Some(table_tsi_replace as unsafe extern "C" fn(*mut TsiTable, TsiTable) -> ()),
         copyReplace: Some(
-            table_TSI_copyReplace as unsafe extern "C" fn(*mut TsiTable, TsiTable) -> (),
+            table_tsi_copy_replace as unsafe extern "C" fn(*mut TsiTable, TsiTable) -> (),
         ),
-        create: Some(table_TSI_create),
-        free: Some(table_TSI_free as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        initN: Some(table_TSI_initN as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
-        initCapN: Some(table_TSI_initCapN as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
-        createN: Some(table_TSI_createN as unsafe extern "C" fn(usize) -> *mut TsiTable),
-        fill: Some(table_TSI_fill as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
-        clear: Some(table_TSI_dispose as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        push: Some(table_TSI_push as unsafe extern "C" fn(*mut TsiTable, TsiEntry) -> ()),
-        shrinkToFit: Some(table_TSI_shrinkToFit as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        pop: Some(table_TSI_pop as unsafe extern "C" fn(*mut TsiTable) -> TsiEntry),
+        create: Some(table_tsi_create),
+        free: Some(table_tsi_free as unsafe extern "C" fn(*mut TsiTable) -> ()),
+        initN: Some(table_tsi_init_n as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
+        initCapN: Some(table_tsi_init_cap_n as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
+        createN: Some(table_tsi_create_n as unsafe extern "C" fn(usize) -> *mut TsiTable),
+        fill: Some(table_tsi_fill as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
+        clear: Some(table_tsi_dispose as unsafe extern "C" fn(*mut TsiTable) -> ()),
+        push: Some(table_tsi_push as unsafe extern "C" fn(*mut TsiTable, TsiEntry) -> ()),
+        shrinkToFit: Some(table_tsi_shrink_to_fit as unsafe extern "C" fn(*mut TsiTable) -> ()),
+        pop: Some(table_tsi_pop as unsafe extern "C" fn(*mut TsiTable) -> TsiEntry),
         disposeItem: Some(
-            table_TSI_disposeItem as unsafe extern "C" fn(*mut TsiTable, usize) -> (),
+            table_tsi_dispose_item as unsafe extern "C" fn(*mut TsiTable, usize) -> (),
         ),
         filterEnv: Some(
-            table_TSI_filterEnv
+            table_tsi_filter_env
                 as unsafe extern "C" fn(
                     *mut TsiTable,
                     Option<unsafe extern "C" fn(*const TsiEntry, *mut ::core::ffi::c_void) -> bool>,
@@ -309,7 +309,7 @@ pub static TABLE_I_TSI: TsiTableVectorInterface = {
                 ) -> (),
         ),
         sort: Some(
-            table_TSI_sort
+            table_tsi_sort
                 as unsafe extern "C" fn(
                     *mut TsiTable,
                     Option<
@@ -323,30 +323,30 @@ pub static TABLE_I_TSI: TsiTableVectorInterface = {
     }
 };
 #[inline]
-unsafe extern "C" fn table_TSI_push(arr: *mut TsiTable, elem: TsiEntry) {
-    cvec_push(table_TSI_as_cvec(arr), elem);
+unsafe extern "C" fn table_tsi_push(arr: *mut TsiTable, elem: TsiEntry) {
+    cvec_push(table_tsi_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_grow(arr: *mut TsiTable) {
-    cvec_grow(table_TSI_as_cvec(arr));
+unsafe extern "C" fn table_tsi_grow(arr: *mut TsiTable) {
+    cvec_grow(table_tsi_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn table_TSI_growTo(arr: *mut TsiTable, target: usize) {
-    cvec_grow_to(table_TSI_as_cvec(arr), target);
+unsafe extern "C" fn table_tsi_grow_to(arr: *mut TsiTable, target: usize) {
+    cvec_grow_to(table_tsi_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_pop(arr: *mut TsiTable) -> TsiEntry {
-    cvec_pop(table_TSI_as_cvec(arr))
+unsafe extern "C" fn table_tsi_pop(arr: *mut TsiTable) -> TsiEntry {
+    cvec_pop(table_tsi_as_cvec(arr))
 }
 #[inline]
-unsafe extern "C" fn table_TSI_copyReplace(mut dst: *mut TsiTable, src: TsiTable) {
-    table_TSI_dispose(dst);
-    table_TSI_copy(dst, &raw const src);
+unsafe extern "C" fn table_tsi_copy_replace(mut dst: *mut TsiTable, src: TsiTable) {
+    table_tsi_dispose(dst);
+    table_tsi_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_copy(mut dst: *mut TsiTable, mut src: *const TsiTable) {
-    table_TSI_init(dst);
-    table_TSI_growTo(dst, (*src).length);
+unsafe extern "C" fn table_tsi_copy(mut dst: *mut TsiTable, mut src: *const TsiTable) {
+    table_tsi_init(dst);
+    table_tsi_grow_to(dst, (*src).length);
     (*dst).length = (*src).length;
     if TSI_I_ENTRY.copy.is_some() {
         let mut j: usize = 0 as usize;
@@ -366,7 +366,7 @@ unsafe extern "C" fn table_TSI_copy(mut dst: *mut TsiTable, mut src: *const TsiT
     };
 }
 #[inline]
-unsafe extern "C" fn table_TSI_dispose(mut arr: *mut TsiTable) {
+unsafe extern "C" fn table_tsi_dispose(mut arr: *mut TsiTable) {
     if arr.is_null() {
         return;
     }
@@ -389,8 +389,8 @@ unsafe extern "C" fn table_TSI_dispose(mut arr: *mut TsiTable) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn table_TSI_replace(mut dst: *mut TsiTable, src: TsiTable) {
-    table_TSI_dispose(dst);
+unsafe extern "C" fn table_tsi_replace(mut dst: *mut TsiTable, src: TsiTable) {
+    table_tsi_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -398,52 +398,52 @@ unsafe extern "C" fn table_TSI_replace(mut dst: *mut TsiTable, src: TsiTable) {
     );
 }
 #[inline]
-unsafe extern "C" fn table_TSI_initCapN(mut arr: *mut TsiTable, mut n: usize) {
-    table_TSI_init(arr);
-    table_TSI_growToN(arr, n);
+unsafe extern "C" fn table_tsi_init_cap_n(mut arr: *mut TsiTable, mut n: usize) {
+    table_tsi_init(arr);
+    table_tsi_grow_to_n(arr, n);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_growToN(arr: *mut TsiTable, target: usize) {
-    cvec_grow_to_n(table_TSI_as_cvec(arr), target);
+unsafe extern "C" fn table_tsi_grow_to_n(arr: *mut TsiTable, target: usize) {
+    cvec_grow_to_n(table_tsi_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_initN(mut arr: *mut TsiTable, mut n: usize) {
-    table_TSI_init(arr);
-    table_TSI_growToN(arr, n);
-    table_TSI_fill(arr, n);
+unsafe extern "C" fn table_tsi_init_n(mut arr: *mut TsiTable, mut n: usize) {
+    table_tsi_init(arr);
+    table_tsi_grow_to_n(arr, n);
+    table_tsi_fill(arr, n);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_free(mut x: *mut TsiTable) {
+unsafe extern "C" fn table_tsi_free(mut x: *mut TsiTable) {
     if x.is_null() {
         return;
     }
-    table_TSI_dispose(x);
+    table_tsi_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_createN(mut n: usize) -> *mut TsiTable {
+unsafe extern "C" fn table_tsi_create_n(mut n: usize) -> *mut TsiTable {
     let mut t: *mut TsiTable =
         malloc(::core::mem::size_of::<TsiTable>() as usize) as *mut TsiTable;
-    table_TSI_initN(t, n);
+    table_tsi_init_n(t, n);
     return t;
 }
 #[inline]
-unsafe extern "C" fn table_TSI_create() -> *mut TsiTable {
+unsafe extern "C" fn table_tsi_create() -> *mut TsiTable {
     let mut x: *mut TsiTable =
         malloc(::core::mem::size_of::<TsiTable>() as usize) as *mut TsiTable;
-    table_TSI_init(x);
+    table_tsi_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_TSI_shrinkToFit(mut arr: *mut TsiTable) {
-    table_TSI_resizeTo(arr, (*arr).length);
+unsafe extern "C" fn table_tsi_shrink_to_fit(mut arr: *mut TsiTable) {
+    table_tsi_resize_to(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn table_TSI_resizeTo(arr: *mut TsiTable, target: usize) {
-    cvec_resize_to(table_TSI_as_cvec(arr), target);
+unsafe extern "C" fn table_tsi_resize_to(arr: *mut TsiTable, target: usize) {
+    cvec_resize_to(table_tsi_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn isValidGID(mut gid: u16, mut tag_index: u32) -> bool {
+unsafe extern "C" fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
     if tag_index == 1414744368i32 as u32 {
         return gid as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
             && gid as ::core::ffi::c_int != 0xfffc as ::core::ffi::c_int;
@@ -451,7 +451,7 @@ unsafe extern "C" fn isValidGID(mut gid: u16, mut tag_index: u32) -> bool {
         return (gid as ::core::ffi::c_int) < 0xfffa as ::core::ffi::c_int;
     };
 }
-pub unsafe extern "C" fn otfcc_readTSI(
+pub unsafe extern "C" fn otfcc_read_tsi(
     packet: Packet,
     mut _options: *const Options,
     mut tag_index: u32,
@@ -541,7 +541,7 @@ pub unsafe extern "C" fn otfcc_readTSI(
                 .offset(j.wrapping_mul(8 as u32) as isize)
                 .offset(4 as ::core::ffi::c_int as isize),
         );
-        if !(!isValidGID(gid, tag_index) || text_offset >= textPart.length || text_length == 0) {
+        if !(!is_valid_gid(gid, tag_index) || text_offset >= textPart.length || text_length == 0) {
             let mut predicted_text_length: u32 = textPart.length.wrapping_sub(text_offset);
             let mut k: GlyphId = j.wrapping_add(1 as u32) as GlyphId;
             while ((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as u32)
@@ -583,19 +583,19 @@ pub unsafe extern "C" fn otfcc_readTSI(
             match gid as ::core::ffi::c_int {
                 65530 => {
                     entry.type_0 = TsiEntryType::Prep;
-                    otfcc_Handle_init(&raw mut entry.glyph);
+                    otfcc_handle_init(&raw mut entry.glyph);
                 }
                 65531 => {
                     entry.type_0 = TsiEntryType::Cvt;
-                    otfcc_Handle_init(&raw mut entry.glyph);
+                    otfcc_handle_init(&raw mut entry.glyph);
                 }
                 65533 => {
                     entry.type_0 = TsiEntryType::Fpgm;
-                    otfcc_Handle_init(&raw mut entry.glyph);
+                    otfcc_handle_init(&raw mut entry.glyph);
                 }
                 _ => {
                     entry.type_0 = TsiEntryType::Glyph;
-                    entry.glyph = handle_fromIndex(
+                    entry.glyph = handle_from_index(
                         gid as GlyphId,
                     ) as GlyphHandle;
                 }
@@ -610,7 +610,7 @@ pub unsafe extern "C" fn otfcc_readTSI(
     }
     return tsi;
 }
-pub unsafe extern "C" fn otfcc_dumpTSI(
+pub unsafe extern "C" fn otfcc_dump_tsi(
     mut tsi: *const TsiTable,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -711,7 +711,7 @@ pub unsafe extern "C" fn otfcc_dumpTSI(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parseTSI(
+pub unsafe extern "C" fn otfcc_parse_tsi(
     mut root: *const JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
@@ -752,7 +752,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                         tsi,
                         TsiEntry {
                             type_0: TsiEntryType::Glyph,
-                            glyph: handle_fromName(
+                            glyph: handle_from_name(
                                 sdsnewlen(_gid as *const ::core::ffi::c_void, _gidlen),
                             ) as GlyphHandle,
                             content: sdsnewlen(
@@ -787,7 +787,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                             tsi,
                             TsiEntry {
                                 type_0: TsiEntryType::Cvt,
-                                glyph: otfcc_Handle_empty() as GlyphHandle,
+                                glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
                                     (*_content_0).u.string.length as usize,
@@ -801,7 +801,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                             tsi,
                             TsiEntry {
                                 type_0: TsiEntryType::Fpgm,
-                                glyph: otfcc_Handle_empty() as GlyphHandle,
+                                glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
                                     (*_content_0).u.string.length as usize,
@@ -815,7 +815,7 @@ pub unsafe extern "C" fn otfcc_parseTSI(
                             tsi,
                             TsiEntry {
                                 type_0: TsiEntryType::Prep,
-                                glyph: otfcc_Handle_empty() as GlyphHandle,
+                                glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
                                     (*_content_0).u.string.length as usize,
@@ -845,7 +845,7 @@ unsafe extern "C" fn propergid(mut entry: *mut TsiEntry, type_0: TsiEntryType) -
     }
     panic!("Reached end of non-void function without returning");
 }
-unsafe extern "C" fn pushTSIEntries(
+unsafe extern "C" fn push_tsi_entries(
     mut target: *mut TsiBuildTarget,
     mut tsi: *const TsiTable,
     type_0: TsiEntryType,
@@ -892,7 +892,7 @@ unsafe extern "C" fn pushTSIEntries(
         items_pushed = (items_pushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
     }
 }
-pub unsafe extern "C" fn otfcc_buildTSI(
+pub unsafe extern "C" fn otfcc_build_tsi(
     mut tsi: *const TsiTable,
     mut _options: *const Options,
 ) -> TsiBuildTarget {
@@ -906,14 +906,14 @@ pub unsafe extern "C" fn otfcc_buildTSI(
     } else {
         target.textPart = bufnew();
         target.indexPart = bufnew();
-        pushTSIEntries(&raw mut target, tsi, TsiEntryType::Glyph, 0 as GlyphId);
+        push_tsi_entries(&raw mut target, tsi, TsiEntryType::Glyph, 0 as GlyphId);
         bufwrite16b(target.indexPart, 0xfffe as u16);
         bufwrite16b(target.indexPart, 0 as u16);
         bufwrite32b(target.indexPart, 0xabfc1f34 as u32);
-        pushTSIEntries(&raw mut target, tsi, TsiEntryType::Prep, 1 as GlyphId);
-        pushTSIEntries(&raw mut target, tsi, TsiEntryType::Cvt, 1 as GlyphId);
-        pushTSIEntries(&raw mut target, tsi, TsiEntryType::ReservedFffc, 1 as GlyphId);
-        pushTSIEntries(&raw mut target, tsi, TsiEntryType::Fpgm, 1 as GlyphId);
+        push_tsi_entries(&raw mut target, tsi, TsiEntryType::Prep, 1 as GlyphId);
+        push_tsi_entries(&raw mut target, tsi, TsiEntryType::Cvt, 1 as GlyphId);
+        push_tsi_entries(&raw mut target, tsi, TsiEntryType::ReservedFffc, 1 as GlyphId);
+        push_tsi_entries(&raw mut target, tsi, TsiEntryType::Fpgm, 1 as GlyphId);
     }
     return target;
 }

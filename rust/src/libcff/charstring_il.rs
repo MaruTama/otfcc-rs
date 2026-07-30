@@ -14,8 +14,8 @@ use crate::support::{TRUE_0};
 use crate::table::glyf::{Contour, Glyph, MaskList, StemDefList};
 
 use crate::vf::vq::VQ;
-use crate::libcff::cff_opmean::{cff_getStandardArity};
-use crate::libcff::cff_writer::{cff_mergeCS2Operand, cff_mergeCS2Operator, cff_mergeCS2Special};
+use crate::libcff::cff_opmean::{cff_get_standard_arity};
+use crate::libcff::cff_writer::{cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special};
 use crate::support::buffer::{bufnew};
 use crate::table::glyf::{GLYF_I_CONTOUR, GLYF_I_POINT};
 use crate::vf::vq::{I_VQ};
@@ -48,7 +48,7 @@ pub struct CffCharstringIl {
     pub free: u32,
     pub instr: *mut CffCharstringInstruction,
 }
-unsafe extern "C" fn ensureThereIsSpace(mut il: *mut CffCharstringIl) {
+unsafe extern "C" fn ensure_there_is_space(mut il: *mut CffCharstringIl) {
     if (*il).free != 0 {
         return;
     }
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn il_push_operand(
     mut il: *mut CffCharstringIl,
     mut x: ::core::ffi::c_double,
 ) {
-    ensureThereIsSpace(il);
+    ensure_there_is_space(il);
     (*(*il).instr.offset((*il).length as isize)).type_0 = CffInstructionType::Operand;
     (*(*il).instr.offset((*il).length as isize))
         .c2rust_unnamed
@@ -73,14 +73,14 @@ pub unsafe extern "C" fn il_push_operand(
     (*il).length = (*il).length.wrapping_add(1);
     (*il).free = (*il).free.wrapping_sub(1);
 }
-pub unsafe extern "C" fn il_push_VQ(mut il: *mut CffCharstringIl, mut x: VQ) {
+pub unsafe extern "C" fn il_push_vq(mut il: *mut CffCharstringIl, mut x: VQ) {
     il_push_operand(
         il,
         I_VQ.getStill.expect("non-null function pointer")(x) as ::core::ffi::c_double,
     );
 }
 pub unsafe extern "C" fn il_push_special(mut il: *mut CffCharstringIl, mut s: i32) {
-    ensureThereIsSpace(il);
+    ensure_there_is_space(il);
     (*(*il).instr.offset((*il).length as isize)).type_0 = CffInstructionType::Special;
     (*(*il).instr.offset((*il).length as isize))
         .c2rust_unnamed
@@ -90,24 +90,24 @@ pub unsafe extern "C" fn il_push_special(mut il: *mut CffCharstringIl, mut s: i3
     (*il).free = (*il).free.wrapping_sub(1);
 }
 pub unsafe extern "C" fn il_push_op(mut il: *mut CffCharstringIl, mut op: i32) {
-    ensureThereIsSpace(il);
+    ensure_there_is_space(il);
     (*(*il).instr.offset((*il).length as isize)).type_0 = CffInstructionType::Operator;
     (*(*il).instr.offset((*il).length as isize))
         .c2rust_unnamed
         .i = op;
     (*(*il).instr.offset((*il).length as isize)).arity =
-        cff_getStandardArity(op as u32) as Arity;
+        cff_get_standard_arity(op as u32) as Arity;
     (*il).length = (*il).length.wrapping_add(1);
     (*il).free = (*il).free.wrapping_sub(1);
 }
 unsafe extern "C" fn il_moveto(mut il: *mut CffCharstringIl, mut dx: VQ, mut dy: VQ) {
-    il_push_VQ(il, dx);
-    il_push_VQ(il, dy);
+    il_push_vq(il, dx);
+    il_push_vq(il, dy);
     il_push_op(il, OP_RMOVETO);
 }
 unsafe extern "C" fn il_lineto(mut il: *mut CffCharstringIl, mut dx: VQ, mut dy: VQ) {
-    il_push_VQ(il, dx);
-    il_push_VQ(il, dy);
+    il_push_vq(il, dx);
+    il_push_vq(il, dy);
     il_push_op(il, OP_RLINETO);
 }
 unsafe extern "C" fn il_curveto(
@@ -119,12 +119,12 @@ unsafe extern "C" fn il_curveto(
     mut dx3: VQ,
     mut dy3: VQ,
 ) {
-    il_push_VQ(il, dx1);
-    il_push_VQ(il, dy1);
-    il_push_VQ(il, dx2);
-    il_push_VQ(il, dy2);
-    il_push_VQ(il, dx3);
-    il_push_VQ(il, dy3);
+    il_push_vq(il, dx1);
+    il_push_vq(il, dy1);
+    il_push_vq(il, dx2);
+    il_push_vq(il, dy2);
+    il_push_vq(il, dx3);
+    il_push_vq(il, dy3);
     il_push_op(il, OP_RRCURVETO);
 }
 unsafe extern "C" fn _il_push_maskgroup(
@@ -292,7 +292,7 @@ unsafe extern "C" fn il_push_stems(
         OP_VSTEM,
     );
 }
-pub unsafe extern "C" fn cff_compileGlyphToIL(
+pub unsafe extern "C" fn cff_compile_glyph_to_il(
     mut g: *mut Glyph,
     mut defaultWidth: u16,
     mut nominal_width: u16,
@@ -544,7 +544,7 @@ unsafe extern "C" fn il_matchop(
 /// Collapse `op` into `op2` when the operands flagged in `zeros` are all zero.
 ///
 /// `zeros` was a vararg list of `arity` ints -- the count implied by
-/// `cff_getStandardArity(op)` and trusted, never checked. As a slice the two can
+/// `cff_get_standard_arity(op)` and trusted, never checked. As a slice the two can
 /// be compared, and the flags read as the booleans they always were.
 unsafe fn zroll(
     mut il: *mut CffCharstringIl,
@@ -553,7 +553,7 @@ unsafe fn zroll(
     mut op2: i32,
     zeros: &[bool],
 ) -> u8 {
-    let mut arity: u8 = cff_getStandardArity(op as u32);
+    let mut arity: u8 = cff_get_standard_arity(op as u32);
     if arity as ::core::ffi::c_int > 16 as ::core::ffi::c_int
         || j.wrapping_add(arity as u32) >= (*il).length
     {
@@ -879,7 +879,7 @@ unsafe extern "C" fn nextstop(mut il: *mut CffCharstringIl, mut j: u32) -> u32 {
     }
     return delta;
 }
-unsafe extern "C" fn decideAdvance(
+unsafe extern "C" fn decide_advance(
     mut il: *mut CffCharstringIl,
     mut j: u32,
     mut _optimize_level: u8,
@@ -1023,7 +1023,7 @@ unsafe extern "C" fn decideAdvance(
     }
     return 1 as u8;
 }
-pub unsafe extern "C" fn cff_optimizeIL(
+pub unsafe extern "C" fn cff_optimize_il(
     mut il: *mut CffCharstringIl,
     mut options: *const Options,
 ) {
@@ -1033,23 +1033,23 @@ pub unsafe extern "C" fn cff_optimizeIL(
     let mut j: u32 = 0 as u32;
     while j < (*il).length {
         j = j.wrapping_add(
-            decideAdvance(il, j, (*options).cff_rollCharString as u8) as u32,
+            decide_advance(il, j, (*options).cff_rollCharString as u8) as u32,
         );
     }
 }
-pub unsafe extern "C" fn cff_build_IL(mut il: *mut CffCharstringIl) -> *mut Buffer {
+pub unsafe extern "C" fn cff_build_il(mut il: *mut CffCharstringIl) -> *mut Buffer {
     let mut blob: *mut Buffer = bufnew();
     let mut j: u16 = 0 as u16;
     while (j as u32) < (*il).length {
         match (*(*il).instr.offset(j as isize)).type_0 as ::core::ffi::c_uint {
             0 => {
-                cff_mergeCS2Operand(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.d);
+                cff_merge_cs2_operand(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.d);
             }
             1 => {
-                cff_mergeCS2Operator(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.i);
+                cff_merge_cs2_operator(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.i);
             }
             2 => {
-                cff_mergeCS2Special(
+                cff_merge_cs2_special(
                     blob,
                     (*(*il).instr.offset(j as isize)).c2rust_unnamed.i as u8,
                 );
@@ -1060,7 +1060,7 @@ pub unsafe extern "C" fn cff_build_IL(mut il: *mut CffCharstringIl) -> *mut Buff
     }
     return blob;
 }
-pub unsafe extern "C" fn cff_shrinkIL(mut il: *mut CffCharstringIl) -> *mut CffCharstringIl {
+pub unsafe extern "C" fn cff_shrink_il(mut il: *mut CffCharstringIl) -> *mut CffCharstringIl {
     let mut out: *mut CffCharstringIl = ::core::ptr::null_mut::<CffCharstringIl>();
     out = __caryll_allocate_clean(
         ::core::mem::size_of::<CffCharstringIl>() as usize,
@@ -1084,7 +1084,7 @@ pub unsafe extern "C" fn cff_shrinkIL(mut il: *mut CffCharstringIl) -> *mut CffC
     }
     return out;
 }
-pub unsafe extern "C" fn cff_ILmergeIL(
+pub unsafe extern "C" fn cff_i_lmerge_il(
     mut self_0: *mut CffCharstringIl,
     mut il: *mut CffCharstringIl,
 ) {
@@ -1121,7 +1121,7 @@ pub unsafe extern "C" fn instruction_eq(
         return false;
     };
 }
-pub unsafe extern "C" fn cff_ilEqual(
+pub unsafe extern "C" fn cff_il_equal(
     mut a: *mut CffCharstringIl,
     mut b: *mut CffCharstringIl,
 ) -> bool {

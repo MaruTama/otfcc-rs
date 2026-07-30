@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::table::otl::coverage::{Coverage};
-use crate::support::handle::{GlyphHandle, Handle, otfcc_Handle_dispose};
+use crate::support::handle::{GlyphHandle, Handle, otfcc_handle_dispose};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
@@ -43,7 +43,7 @@ use crate::vendor::sds::{sdsempty};
 
 
 
-pub unsafe extern "C" fn fontop_consolidateCoverage(
+pub unsafe extern "C" fn fontop_consolidate_coverage(
     mut font: *mut Font,
     mut coverage: *mut Coverage,
     mut options: *const Options,
@@ -72,12 +72,12 @@ pub unsafe extern "C" fn fontop_consolidateCoverage(
                     b".\n",
                 ),
             );
-            otfcc_Handle_dispose(h as *mut Handle);
+            otfcc_handle_dispose(h as *mut Handle);
         }
         j = j.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn fontop_consolidateClassDef(
+pub unsafe extern "C" fn fontop_consolidate_class_def(
     mut font: *mut Font,
     mut cd: *mut ClassDef,
     mut options: *const Options,
@@ -106,7 +106,7 @@ pub unsafe extern "C" fn fontop_consolidateClassDef(
                     b".\n",
                 ),
             );
-            otfcc_Handle_dispose(h as *mut Handle);
+            otfcc_handle_dispose(h as *mut Handle);
             *(*cd).classes.offset(j as isize) = 0 as GlyphClass;
         }
         j = j.wrapping_add(1);

@@ -1,9 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
 
-use crate::table::otl::classdef::{ClassDef, otl_ClassDef_free, readClassDef};
-use crate::table::otl::coverage::{Coverage, otl_Coverage_free, readCoverage};
-use crate::support::handle::{handle_fromIndex, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, LookupHandle};
+use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
+use crate::table::otl::coverage::{Coverage, otl_coverage_free, read_coverage};
+use crate::support::handle::{handle_from_index, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
@@ -34,7 +34,7 @@ pub struct ClassDefs {
     pub ic: *mut ClassDef,
     pub fc: *mut ClassDef,
 }
-pub unsafe extern "C" fn singleCoverage(
+pub unsafe extern "C" fn single_coverage(
     mut _data: FontFilePointer,
     mut _table_length: u32,
     mut gid: u16,
@@ -54,10 +54,10 @@ pub unsafe extern "C" fn singleCoverage(
         16 as ::core::ffi::c_ulong,
     ) as *mut GlyphHandle;
     *(*cov).glyphs.offset(0 as ::core::ffi::c_int as isize) =
-        handle_fromIndex(gid) as GlyphHandle;
+        handle_from_index(gid) as GlyphHandle;
     return cov;
 }
-pub unsafe extern "C" fn classCoverage(
+pub unsafe extern "C" fn class_coverage(
     mut _data: FontFilePointer,
     mut _table_length: u32,
     mut cls: u16,
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn classCoverage(
                 let fresh12 = jj;
                 jj = jj.wrapping_add(1);
                 *(*cov).glyphs.offset(fresh12 as isize) =
-                    handle_fromIndex(k_0)
+                    handle_from_index(k_0)
                         as GlyphHandle;
             }
             k_0 = k_0.wrapping_add(1);
@@ -158,7 +158,7 @@ pub unsafe extern "C" fn classCoverage(
                 let fresh13 = jj;
                 jj = jj.wrapping_add(1);
                 *(*cov).glyphs.offset(fresh13 as isize) =
-                    otfcc_Handle_dup(
+                    otfcc_handle_dup(
                         *(*cd).glyphs.offset(j_2 as isize) as Handle,
                     ) as GlyphHandle;
             }
@@ -167,7 +167,7 @@ pub unsafe extern "C" fn classCoverage(
     }
     return cov;
 }
-pub unsafe extern "C" fn format3Coverage(
+pub unsafe extern "C" fn format3_coverage(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut shift: u16,
@@ -176,7 +176,7 @@ pub unsafe extern "C" fn format3Coverage(
     _max_glyphs: GlyphId,
     mut _userdata: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
-    return readCoverage(
+    return read_coverage(
         data as *const u8,
         table_length,
         _offset
@@ -184,7 +184,7 @@ pub unsafe extern "C" fn format3Coverage(
             .wrapping_sub(2 as u32),
     );
 }
-pub unsafe extern "C" fn GeneralReadContextualRule(
+pub unsafe extern "C" fn general_read_contextual_rule(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -292,7 +292,7 @@ pub unsafe extern "C" fn GeneralReadContextualRule(
                     ) as ::core::ffi::c_int)
                     as TableId;
                 (*(*rule).apply.offset(j_0 as isize)).lookup =
-                    handle_fromIndex(read_16u(
+                    handle_from_index(read_16u(
                         data.offset(offset as isize)
                             .offset(4 as ::core::ffi::c_int as isize)
                             .offset(
@@ -308,15 +308,15 @@ pub unsafe extern "C" fn GeneralReadContextualRule(
                         as GlyphId) as LookupHandle;
                 j_0 = j_0.wrapping_add(1);
             }
-            reverseBacktracks(rule);
+            reverse_backtracks(rule);
             return rule;
         }
     }
-    deleteRule(rule);
+    delete_rule(rule);
     rule = ::core::ptr::null_mut::<ChainingRule>();
     return ::core::ptr::null_mut::<ChainingRule>();
 }
-unsafe extern "C" fn readContextualFormat1(
+unsafe extern "C" fn read_contextual_format1(
     mut subtable: *mut ChainingSubtable,
     data: FontFilePointer,
     mut table_length: u32,
@@ -334,7 +334,7 @@ unsafe extern "C" fn readContextualFormat1(
             data.offset(offset as isize)
                 .offset(2 as ::core::ffi::c_int as isize) as *const u8,
         ) as u32) as u16;
-        first_coverage = readCoverage(
+        first_coverage = read_coverage(
             data as *const u8,
             table_length,
             cov_offset as u32,
@@ -428,7 +428,7 @@ unsafe extern "C" fn readContextualFormat1(
                                     .c2rust_unnamed
                                     .rules
                                     .offset(jj as isize);
-                                *fresh21 = GeneralReadContextualRule(
+                                *fresh21 = general_read_contextual_rule(
                                     data,
                                     table_length,
                                     sr_offset,
@@ -436,7 +436,7 @@ unsafe extern "C" fn readContextualFormat1(
                                         as u16,
                                     true,
                                     Some(
-                                        singleCoverage
+                                        single_coverage
                                             as unsafe extern "C" fn(
                                                 FontFilePointer,
                                                 u32,
@@ -457,7 +457,7 @@ unsafe extern "C" fn readContextualFormat1(
                             }
                             j_0 = j_0.wrapping_add(1);
                         }
-                        otl_Coverage_free(first_coverage);
+                        otl_coverage_free(first_coverage);
                         return subtable;
                     }
                 }
@@ -467,7 +467,7 @@ unsafe extern "C" fn readContextualFormat1(
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
-unsafe extern "C" fn readContextualFormat2(
+unsafe extern "C" fn read_contextual_format2(
     mut subtable: *mut ChainingSubtable,
     data: FontFilePointer,
     mut table_length: u32,
@@ -485,7 +485,7 @@ unsafe extern "C" fn readContextualFormat2(
             172 as ::core::ffi::c_ulong,
         ) as *mut ClassDefs;
         (*cds).bc = ::core::ptr::null_mut::<ClassDef>();
-        (*cds).ic = readClassDef(
+        (*cds).ic = read_class_def(
             data as *const u8,
             table_length,
             offset.wrapping_add(read_16u(
@@ -558,14 +558,14 @@ unsafe extern "C" fn readContextualFormat2(
                             .c2rust_unnamed
                             .rules
                             .offset(jj as isize);
-                        *fresh20 = GeneralReadContextualRule(
+                        *fresh20 = general_read_contextual_rule(
                             data,
                             table_length,
                             sr_offset,
                             j_0 as u16,
                             true,
                             Some(
-                                classCoverage
+                                class_coverage
                                     as unsafe extern "C" fn(
                                         FontFilePointer,
                                         u32,
@@ -588,13 +588,13 @@ unsafe extern "C" fn readContextualFormat2(
             }
             if !cds.is_null() {
                 if !(*cds).bc.is_null() {
-                    otl_ClassDef_free((*cds).bc);
+                    otl_class_def_free((*cds).bc);
                 }
                 if !(*cds).ic.is_null() {
-                    otl_ClassDef_free((*cds).ic);
+                    otl_class_def_free((*cds).ic);
                 }
                 if !(*cds).fc.is_null() {
-                    otl_ClassDef_free((*cds).fc);
+                    otl_class_def_free((*cds).fc);
                 }
                 free(cds as *mut ::core::ffi::c_void);
                 cds = ::core::ptr::null_mut::<ClassDefs>();
@@ -622,10 +622,10 @@ pub unsafe extern "C" fn otl_read_contextual(
     if !(table_length < offset.wrapping_add(2 as u32)) {
         format = read_16u(data.offset(offset as isize) as *const u8);
         if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-            return readContextualFormat1(subtable, data, table_length, offset, max_glyphs)
+            return read_contextual_format1(subtable, data, table_length, offset, max_glyphs)
                 as *mut Subtable;
         } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-            return readContextualFormat2(subtable, data, table_length, offset, max_glyphs)
+            return read_contextual_format2(subtable, data, table_length, offset, max_glyphs)
                 as *mut Subtable;
         } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
             (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount = 1 as TableId;
@@ -640,14 +640,14 @@ pub unsafe extern "C" fn otl_read_contextual(
                 .c2rust_unnamed
                 .rules
                 .offset(0 as ::core::ffi::c_int as isize);
-            *fresh15 = GeneralReadContextualRule(
+            *fresh15 = general_read_contextual_rule(
                 data,
                 table_length,
                 offset.wrapping_add(2 as u32),
                 0 as u16,
                 false,
                 Some(
-                    format3Coverage
+                    format3_coverage
                         as unsafe extern "C" fn(
                             FontFilePointer,
                             u32,
@@ -675,7 +675,7 @@ pub unsafe extern "C" fn otl_read_contextual(
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
-pub unsafe extern "C" fn GeneralReadChainingRule(
+pub unsafe extern "C" fn general_read_chaining_rule(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -915,7 +915,7 @@ pub unsafe extern "C" fn GeneralReadChainingRule(
                                 ) as ::core::ffi::c_int)
                                 as TableId;
                             (*(*rule).apply.offset(j_2 as isize)).lookup =
-                                handle_fromIndex(
+                                handle_from_index(
                                     read_16u(
                                         data.offset(offset as isize)
                                             .offset(8 as ::core::ffi::c_int as isize)
@@ -936,18 +936,18 @@ pub unsafe extern "C" fn GeneralReadChainingRule(
                                 ) as LookupHandle;
                             j_2 = j_2.wrapping_add(1);
                         }
-                        reverseBacktracks(rule);
+                        reverse_backtracks(rule);
                         return rule;
                     }
                 }
             }
         }
     }
-    deleteRule(rule);
+    delete_rule(rule);
     rule = ::core::ptr::null_mut::<ChainingRule>();
     return ::core::ptr::null_mut::<ChainingRule>();
 }
-unsafe extern "C" fn readChainingFormat1(
+unsafe extern "C" fn read_chaining_format1(
     mut subtable: *mut ChainingSubtable,
     data: FontFilePointer,
     mut table_length: u32,
@@ -965,7 +965,7 @@ unsafe extern "C" fn readChainingFormat1(
             data.offset(offset as isize)
                 .offset(2 as ::core::ffi::c_int as isize) as *const u8,
         ) as u32) as u16;
-        first_coverage = readCoverage(
+        first_coverage = read_coverage(
             data as *const u8,
             table_length,
             cov_offset as u32,
@@ -1059,7 +1059,7 @@ unsafe extern "C" fn readChainingFormat1(
                                     .c2rust_unnamed
                                     .rules
                                     .offset(jj as isize);
-                                *fresh14 = GeneralReadChainingRule(
+                                *fresh14 = general_read_chaining_rule(
                                     data,
                                     table_length,
                                     sr_offset,
@@ -1067,7 +1067,7 @@ unsafe extern "C" fn readChainingFormat1(
                                         as u16,
                                     true,
                                     Some(
-                                        singleCoverage
+                                        single_coverage
                                             as unsafe extern "C" fn(
                                                 FontFilePointer,
                                                 u32,
@@ -1088,7 +1088,7 @@ unsafe extern "C" fn readChainingFormat1(
                             }
                             j_0 = j_0.wrapping_add(1);
                         }
-                        otl_Coverage_free(first_coverage);
+                        otl_coverage_free(first_coverage);
                         return subtable;
                     }
                 }
@@ -1098,7 +1098,7 @@ unsafe extern "C" fn readChainingFormat1(
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
-unsafe extern "C" fn readChainingFormat2(
+unsafe extern "C" fn read_chaining_format2(
     mut subtable: *mut ChainingSubtable,
     data: FontFilePointer,
     mut table_length: u32,
@@ -1115,7 +1115,7 @@ unsafe extern "C" fn readChainingFormat2(
             ::core::mem::size_of::<ClassDefs>() as usize,
             349 as ::core::ffi::c_ulong,
         ) as *mut ClassDefs;
-        (*cds).bc = readClassDef(
+        (*cds).bc = read_class_def(
             data as *const u8,
             table_length,
             offset.wrapping_add(read_16u(
@@ -1123,7 +1123,7 @@ unsafe extern "C" fn readChainingFormat2(
                     .offset(4 as ::core::ffi::c_int as isize) as *const u8,
             ) as u32),
         );
-        (*cds).ic = readClassDef(
+        (*cds).ic = read_class_def(
             data as *const u8,
             table_length,
             offset.wrapping_add(read_16u(
@@ -1131,7 +1131,7 @@ unsafe extern "C" fn readChainingFormat2(
                     .offset(6 as ::core::ffi::c_int as isize) as *const u8,
             ) as u32),
         );
-        (*cds).fc = readClassDef(
+        (*cds).fc = read_class_def(
             data as *const u8,
             table_length,
             offset.wrapping_add(read_16u(
@@ -1202,14 +1202,14 @@ unsafe extern "C" fn readChainingFormat2(
                             .c2rust_unnamed
                             .rules
                             .offset(jj as isize);
-                        *fresh11 = GeneralReadChainingRule(
+                        *fresh11 = general_read_chaining_rule(
                             data,
                             table_length,
                             sr_offset,
                             j_0 as u16,
                             true,
                             Some(
-                                classCoverage
+                                class_coverage
                                     as unsafe extern "C" fn(
                                         FontFilePointer,
                                         u32,
@@ -1232,13 +1232,13 @@ unsafe extern "C" fn readChainingFormat2(
             }
             if !cds.is_null() {
                 if !(*cds).bc.is_null() {
-                    otl_ClassDef_free((*cds).bc);
+                    otl_class_def_free((*cds).bc);
                 }
                 if !(*cds).ic.is_null() {
-                    otl_ClassDef_free((*cds).ic);
+                    otl_class_def_free((*cds).ic);
                 }
                 if !(*cds).fc.is_null() {
-                    otl_ClassDef_free((*cds).fc);
+                    otl_class_def_free((*cds).fc);
                 }
                 free(cds as *mut ::core::ffi::c_void);
                 cds = ::core::ptr::null_mut::<ClassDefs>();
@@ -1266,10 +1266,10 @@ pub unsafe extern "C" fn otl_read_chaining(
     if !(table_length < offset.wrapping_add(2 as u32)) {
         format = read_16u(data.offset(offset as isize) as *const u8);
         if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-            return readChainingFormat1(subtable, data, table_length, offset, max_glyphs)
+            return read_chaining_format1(subtable, data, table_length, offset, max_glyphs)
                 as *mut Subtable;
         } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-            return readChainingFormat2(subtable, data, table_length, offset, max_glyphs)
+            return read_chaining_format2(subtable, data, table_length, offset, max_glyphs)
                 as *mut Subtable;
         } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
             (*subtable).c2rust_unnamed.c2rust_unnamed.rulesCount = 1 as TableId;
@@ -1284,14 +1284,14 @@ pub unsafe extern "C" fn otl_read_chaining(
                 .c2rust_unnamed
                 .rules
                 .offset(0 as ::core::ffi::c_int as isize);
-            *fresh0 = GeneralReadChainingRule(
+            *fresh0 = general_read_chaining_rule(
                 data,
                 table_length,
                 offset.wrapping_add(2 as u32),
                 0 as u16,
                 false,
                 Some(
-                    format3Coverage
+                    format3_coverage
                         as unsafe extern "C" fn(
                             FontFilePointer,
                             u32,
@@ -1320,14 +1320,14 @@ pub unsafe extern "C" fn otl_read_chaining(
     return ::core::ptr::null_mut::<Subtable>();
 }
 #[inline]
-unsafe extern "C" fn closeRule(mut rule: *mut ChainingRule) {
+unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
     if !rule.is_null()
         && !(*rule).match_0.is_null()
         && (*rule).matchCount as ::core::ffi::c_int != 0
     {
         let mut k: TableId = 0 as TableId;
         while (k as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
-            otl_Coverage_free(
+            otl_coverage_free(
                 *(*rule).match_0.offset(k as isize),
             );
             k = k.wrapping_add(1);
@@ -1338,7 +1338,7 @@ unsafe extern "C" fn closeRule(mut rule: *mut ChainingRule) {
     if !rule.is_null() && !(*rule).apply.is_null() {
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
-            otfcc_Handle_dispose(
+            otfcc_handle_dispose(
                 &raw mut (*(*rule).apply.offset(j as isize)).lookup,
             );
             j = j.wrapping_add(1);
@@ -1348,16 +1348,16 @@ unsafe extern "C" fn closeRule(mut rule: *mut ChainingRule) {
     }
 }
 #[inline]
-unsafe extern "C" fn deleteRule(mut rule: *mut ChainingRule) {
+unsafe extern "C" fn delete_rule(mut rule: *mut ChainingRule) {
     if rule.is_null() {
         return;
     }
-    closeRule(rule);
+    close_rule(rule);
     free(rule as *mut ::core::ffi::c_void);
     rule = ::core::ptr::null_mut::<ChainingRule>();
 }
 #[inline]
-unsafe extern "C" fn reverseBacktracks(mut rule: *mut ChainingRule) {
+unsafe extern "C" fn reverse_backtracks(mut rule: *mut ChainingRule) {
     if (*rule).inputBegins as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
         let mut start: TableId = 0 as TableId;
         let mut end: TableId =

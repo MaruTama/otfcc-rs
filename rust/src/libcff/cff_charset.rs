@@ -11,7 +11,7 @@ use crate::support::buffer::{bufnew};
 ///
 /// Like [`CffFdSelectType`](crate::libcff::cff_fdselect::CffFdSelectType),
 /// this is the crate's own classification and not the byte from the file --
-/// `cff_extract_Charset` reads the format and stores one of these.
+/// `cff_extract_charset` reads the format and stores one of these.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum CffCharsetType {
@@ -87,7 +87,7 @@ unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
         .offset(1 as ::core::ffi::c_int as isize) as u32;
     return b0 | b1;
 }
-pub unsafe extern "C" fn cff_extract_Charset(
+pub unsafe extern "C" fn cff_extract_charset(
     mut data: *mut u8,
     mut offset: i32,
     mut nchars: u16,
@@ -207,7 +207,7 @@ pub unsafe extern "C" fn cff_extract_Charset(
         }
     };
 }
-pub unsafe extern "C" fn cff_build_Charset(mut cset: CffCharset) -> *mut Buffer {
+pub unsafe extern "C" fn cff_build_charset(mut cset: CffCharset) -> *mut Buffer {
     match cset.t {
         CffCharsetType::IsoAdobe | CffCharsetType::Expert | CffCharsetType::ExpertSubset => return bufnew(),
         CffCharsetType::Format0 => {
@@ -300,7 +300,7 @@ pub unsafe extern "C" fn cff_build_Charset(mut cset: CffCharset) -> *mut Buffer 
         }
     }
 }
-pub unsafe extern "C" fn cff_close_Charset(mut cset: CffCharset) {
+pub unsafe extern "C" fn cff_close_charset(mut cset: CffCharset) {
     match cset.t {
         CffCharsetType::Format0 => {
             if !cset.c2rust_unnamed.f0.glyph.is_null() {

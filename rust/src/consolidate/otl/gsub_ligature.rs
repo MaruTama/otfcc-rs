@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::table::otl::coverage::{Coverage, shrinkCoverage};
-use crate::support::handle::{GlyphHandle, Handle, otfcc_Handle_dup};
+use crate::table::otl::coverage::{Coverage, shrink_coverage};
+use crate::support::handle::{GlyphHandle, Handle, otfcc_handle_dup};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
@@ -33,7 +33,7 @@ use crate::font::caryll_font::{Font};
 
 
 use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable, OtlTable};
-use crate::consolidate::otl::common::{fontop_consolidateCoverage};
+use crate::consolidate::otl::common::{fontop_consolidate_coverage};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gsub_ligature::{I_SUBTABLE_GSUB_LIGATURE};
 use crate::vendor::sds::{sdsempty};
@@ -84,8 +84,8 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                 ),
             );
         } else {
-            fontop_consolidateCoverage(font, (*(*subtable).items.offset(k as isize)).from, options);
-            shrinkCoverage(
+            fontop_consolidate_coverage(font, (*(*subtable).items.offset(k as isize)).from, options);
+            shrink_coverage(
                 (*(*subtable).items.offset(k as isize)).from,
                 false,
             );
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                     &raw mut nt,
                     GsubLigatureEntry {
                         from: (*(*subtable).items.offset(k as isize)).from,
-                        to: otfcc_Handle_dup(
+                        to: otfcc_handle_dup(
                             (*(*subtable).items.offset(k as isize)).to as Handle,
                         ) as GlyphHandle,
                     },

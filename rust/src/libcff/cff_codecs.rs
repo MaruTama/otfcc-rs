@@ -11,14 +11,14 @@ use crate::support::buffer::{bufnew};
 unsafe extern "C" fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_double {
     return strtod(__nptr, NULL as *mut *mut ::core::ffi::c_char);
 }
-pub unsafe extern "C" fn cff_encodeCffOperator(mut val: i32) -> *mut Buffer {
+pub unsafe extern "C" fn cff_encode_cff_operator(mut val: i32) -> *mut Buffer {
     if val > 256 as i32 {
         return bufninit(&[(val / 256 as i32) as u8, (val % 256 as i32) as u8]);
     } else {
         return bufninit(&[val as u8]);
     };
 }
-pub unsafe extern "C" fn cff_encodeCffInteger(mut val: i32) -> *mut Buffer {
+pub unsafe extern "C" fn cff_encode_cff_integer(mut val: i32) -> *mut Buffer {
     if val >= -(107 as i32) && val <= 107 as i32 {
         return bufninit(&[(val + 139 as i32) as u8]);
     } else if val >= 108 as i32 && val <= 1131 as i32 {
@@ -33,7 +33,7 @@ pub unsafe extern "C" fn cff_encodeCffInteger(mut val: i32) -> *mut Buffer {
         return bufninit(&[29 as u8, (val >> 24 as ::core::ffi::c_int & 0xff as i32) as u8, (val >> 16 as ::core::ffi::c_int & 0xff as i32) as u8, (val >> 8 as ::core::ffi::c_int & 0xff as i32) as u8, (val & 0xff as i32) as u8]);
     };
 }
-pub unsafe extern "C" fn cff_encodeCffFloat(mut val: ::core::ffi::c_double) -> *mut Buffer {
+pub unsafe extern "C" fn cff_encode_cff_float(mut val: ::core::ffi::c_double) -> *mut Buffer {
     let mut blob: *mut Buffer = bufnew();
     let mut i: u32 = 0;
     let mut j: u32 = 0 as u32;
@@ -188,7 +188,7 @@ pub unsafe extern "C" fn cff_encodeCffFloat(mut val: ::core::ffi::c_double) -> *
     }
     return blob;
 }
-pub unsafe extern "C" fn cff_decodeCS2Token(
+pub unsafe extern "C" fn cff_decode_cs2_token(
     mut start: *const u8,
     mut val: *mut CffValue,
 ) -> u32 {
@@ -772,7 +772,7 @@ static DE_T2: [Option<unsafe extern "C" fn(*const u8, *mut CffValue) -> u32>; 25
         Some(cff_dec_e as unsafe extern "C" fn(*const u8, *mut CffValue) -> u32),
     ]
 };
-pub unsafe extern "C" fn cff_decodeCffToken(
+pub unsafe extern "C" fn cff_decode_cff_token(
     mut start: *const u8,
     mut val: *mut CffValue,
 ) -> u32 {

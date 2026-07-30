@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset};
 
-use crate::support::handle::{handle_consolidateTo, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_consolidate_to, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{GlyphId};
@@ -10,9 +10,9 @@ use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::vendor::sds::{sdsempty, sdsfree};
 /// Which pass of a JSON font's glyph naming placed a glyph, and therefore how
-/// strongly it is placed: the *lowest* pass wins, because `setOrderByName`
+/// strongly it is placed: the *lowest* pass wins, because `set_order_by_name`
 /// escalates an entry only when the new pass ranks below the one on record and
-/// `_byOrder` sorts ascending. That makes the ordering the meaning, so `Ord` is
+/// `_by_order` sorts ascending. That makes the ordering the meaning, so `Ord` is
 /// derived -- and since it compares by *declaration* order, the variants are
 /// declared in ascending discriminant order and
 /// `glyphorderpass_order_is_its_encoding` pins that the two agree.
@@ -20,7 +20,7 @@ use crate::vendor::sds::{sdsempty, sdsfree};
 /// `GlyphOrderPass::Unset` is a name this port adds; C had none. Its `enum` lives inside
 /// `json-reader.c` while this struct's field is a plain `uint8_t` in the shared
 /// header, so the OTF path could leave the field at whatever `calloc` gave it --
-/// and it does: `otfcc_setGlyphOrderByGID` and `otfcc_setGlyphOrderByName`
+/// and it does: `otfcc_set_glyph_order_by_gid` and `otfcc_set_glyph_order_by_name`
 /// allocate an entry and set only `gid` and `name`. An enum without a zero
 /// variant would make both of them UB. The state is meaningful, not padding:
 /// zero outranks every named pass, so an entry placed by GID can never be
@@ -104,12 +104,12 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     return 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn initGlyphOrder(mut go: *mut GlyphOrder) {
+unsafe extern "C" fn init_glyph_order(mut go: *mut GlyphOrder) {
     (*go).byGID = ::core::ptr::null_mut::<GlyphOrderEntry>();
     (*go).byName = ::core::ptr::null_mut::<GlyphOrderEntry>();
 }
 #[inline]
-unsafe extern "C" fn disposeGlyphOrder(mut go: *mut GlyphOrder) {
+unsafe extern "C" fn dispose_glyph_order(mut go: *mut GlyphOrder) {
     let mut current: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
     let mut temp: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
     current = (*go).byGID;
@@ -233,34 +233,34 @@ unsafe extern "C" fn disposeGlyphOrder(mut go: *mut GlyphOrder) {
     }
 }
 #[inline]
-unsafe extern "C" fn otfcc_GlyphOrder_init(mut x: *mut GlyphOrder) {
-    initGlyphOrder(x);
+unsafe extern "C" fn otfcc_glyph_order_init(mut x: *mut GlyphOrder) {
+    init_glyph_order(x);
 }
 #[inline]
-unsafe extern "C" fn otfcc_GlyphOrder_dispose(mut x: *mut GlyphOrder) {
-    disposeGlyphOrder(x);
+unsafe extern "C" fn otfcc_glyph_order_dispose(mut x: *mut GlyphOrder) {
+    dispose_glyph_order(x);
 }
 #[inline]
-unsafe extern "C" fn otfcc_GlyphOrder_free(mut x: *mut GlyphOrder) {
+unsafe extern "C" fn otfcc_glyph_order_free(mut x: *mut GlyphOrder) {
     if x.is_null() {
         return;
     }
-    otfcc_GlyphOrder_dispose(x);
+    otfcc_glyph_order_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otfcc_GlyphOrder_create() -> *mut GlyphOrder {
+unsafe extern "C" fn otfcc_glyph_order_create() -> *mut GlyphOrder {
     let mut x: *mut GlyphOrder =
         malloc(::core::mem::size_of::<GlyphOrder>() as usize) as *mut GlyphOrder;
-    otfcc_GlyphOrder_init(x);
+    otfcc_glyph_order_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn otfcc_GlyphOrder_replace(
+unsafe extern "C" fn otfcc_glyph_order_replace(
     mut dst: *mut GlyphOrder,
     src: GlyphOrder,
 ) {
-    otfcc_GlyphOrder_dispose(dst);
+    otfcc_glyph_order_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -268,7 +268,7 @@ unsafe extern "C" fn otfcc_GlyphOrder_replace(
     );
 }
 #[inline]
-unsafe extern "C" fn otfcc_GlyphOrder_move(
+unsafe extern "C" fn otfcc_glyph_order_move(
     mut dst: *mut GlyphOrder,
     mut src: *mut GlyphOrder,
 ) {
@@ -277,10 +277,10 @@ unsafe extern "C" fn otfcc_GlyphOrder_move(
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<GlyphOrder>() as usize,
     );
-    otfcc_GlyphOrder_init(src);
+    otfcc_glyph_order_init(src);
 }
 #[inline]
-unsafe extern "C" fn otfcc_GlyphOrder_copy(
+unsafe extern "C" fn otfcc_glyph_order_copy(
     mut dst: *mut GlyphOrder,
     mut src: *const GlyphOrder,
 ) {
@@ -291,14 +291,14 @@ unsafe extern "C" fn otfcc_GlyphOrder_copy(
     );
 }
 #[inline]
-unsafe extern "C" fn otfcc_GlyphOrder_copyReplace(
+unsafe extern "C" fn otfcc_glyph_order_copy_replace(
     mut dst: *mut GlyphOrder,
     src: GlyphOrder,
 ) {
-    otfcc_GlyphOrder_dispose(dst);
-    otfcc_GlyphOrder_copy(dst, &raw const src);
+    otfcc_glyph_order_dispose(dst);
+    otfcc_glyph_order_copy(dst, &raw const src);
 }
-unsafe extern "C" fn otfcc_setGlyphOrderByGID(
+unsafe extern "C" fn otfcc_set_glyph_order_by_gid(
     mut go: *mut GlyphOrder,
     mut gid: GlyphId,
     mut name: SdsRaw,
@@ -1792,7 +1792,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByGID(
     }
     return name;
 }
-unsafe extern "C" fn otfcc_setGlyphOrderByName(
+unsafe extern "C" fn otfcc_set_glyph_order_by_name(
     mut go: *mut GlyphOrder,
     mut name: SdsRaw,
     mut gid: GlyphId,
@@ -2968,7 +2968,7 @@ unsafe extern "C" fn otfcc_setGlyphOrderByName(
         return true;
     };
 }
-unsafe extern "C" fn otfcc_gordNameAFieldShared(
+unsafe extern "C" fn otfcc_gord_name_a_field_shared(
     mut go: *mut GlyphOrder,
     mut gid: GlyphId,
     mut field: *mut SdsRaw,
@@ -3280,7 +3280,7 @@ unsafe extern "C" fn otfcc_gordNameAFieldShared(
         return false;
     };
 }
-unsafe extern "C" fn otfcc_gordConsolidateHandle(
+unsafe extern "C" fn otfcc_gord_consolidate_handle(
     mut go: *mut GlyphOrder,
     mut h: *mut GlyphHandle,
 ) -> bool {
@@ -3593,7 +3593,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
             }
         }
         if !t.is_null() {
-            handle_consolidateTo(
+            handle_consolidate_to(
                 h as *mut Handle, (*t).gid, (*t).name
             );
             return true;
@@ -3916,7 +3916,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
             }
         }
         if !t.is_null() {
-            handle_consolidateTo(
+            handle_consolidate_to(
                 h as *mut Handle, (*t).gid, (*t).name
             );
             return true;
@@ -4239,7 +4239,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
             }
         }
         if !t_0.is_null() {
-            handle_consolidateTo(
+            handle_consolidate_to(
                 h as *mut Handle,
                 (*t_0).gid,
                 (*t_0).name,
@@ -4249,9 +4249,9 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
     } else if (*h).state == HandleState::Index
     {
         let mut name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-        otfcc_gordNameAFieldShared(go, (*h).index, &raw mut name);
+        otfcc_gord_name_a_field_shared(go, (*h).index, &raw mut name);
         if !name.is_null() {
-            handle_consolidateTo(
+            handle_consolidate_to(
                 h as *mut Handle, (*h).index, name
             );
             return true;
@@ -4259,7 +4259,7 @@ unsafe extern "C" fn otfcc_gordConsolidateHandle(
     }
     return false;
 }
-unsafe extern "C" fn gordLookupName(mut go: *mut GlyphOrder, mut name: SdsRaw) -> bool {
+unsafe extern "C" fn gord_lookup_name(mut go: *mut GlyphOrder, mut name: SdsRaw) -> bool {
     let mut t: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
     let mut _hj_i: ::core::ffi::c_uint = 0;
@@ -4568,46 +4568,46 @@ unsafe extern "C" fn gordLookupName(mut go: *mut GlyphOrder, mut name: SdsRaw) -
 }
 pub static OTFCC_PKG_GLYPH_ORDER: GlyphOrderPackage = {
     GlyphOrderPackage {
-        init: Some(otfcc_GlyphOrder_init as unsafe extern "C" fn(*mut GlyphOrder) -> ()),
+        init: Some(otfcc_glyph_order_init as unsafe extern "C" fn(*mut GlyphOrder) -> ()),
         copy: Some(
-            otfcc_GlyphOrder_copy
+            otfcc_glyph_order_copy
                 as unsafe extern "C" fn(*mut GlyphOrder, *const GlyphOrder) -> (),
         ),
         move_0: Some(
-            otfcc_GlyphOrder_move
+            otfcc_glyph_order_move
                 as unsafe extern "C" fn(*mut GlyphOrder, *mut GlyphOrder) -> (),
         ),
         dispose: Some(
-            otfcc_GlyphOrder_dispose as unsafe extern "C" fn(*mut GlyphOrder) -> (),
+            otfcc_glyph_order_dispose as unsafe extern "C" fn(*mut GlyphOrder) -> (),
         ),
         replace: Some(
-            otfcc_GlyphOrder_replace
+            otfcc_glyph_order_replace
                 as unsafe extern "C" fn(*mut GlyphOrder, GlyphOrder) -> (),
         ),
         copyReplace: Some(
-            otfcc_GlyphOrder_copyReplace
+            otfcc_glyph_order_copy_replace
                 as unsafe extern "C" fn(*mut GlyphOrder, GlyphOrder) -> (),
         ),
-        create: Some(otfcc_GlyphOrder_create),
-        free: Some(otfcc_GlyphOrder_free as unsafe extern "C" fn(*mut GlyphOrder) -> ()),
+        create: Some(otfcc_glyph_order_create),
+        free: Some(otfcc_glyph_order_free as unsafe extern "C" fn(*mut GlyphOrder) -> ()),
         setByGID: Some(
-            otfcc_setGlyphOrderByGID
+            otfcc_set_glyph_order_by_gid
                 as unsafe extern "C" fn(*mut GlyphOrder, GlyphId, SdsRaw) -> SdsRaw,
         ),
         setByName: Some(
-            otfcc_setGlyphOrderByName
+            otfcc_set_glyph_order_by_name
                 as unsafe extern "C" fn(*mut GlyphOrder, SdsRaw, GlyphId) -> bool,
         ),
         nameAField_Shared: Some(
-            otfcc_gordNameAFieldShared
+            otfcc_gord_name_a_field_shared
                 as unsafe extern "C" fn(*mut GlyphOrder, GlyphId, *mut SdsRaw) -> bool,
         ),
         consolidateHandle: Some(
-            otfcc_gordConsolidateHandle
+            otfcc_gord_consolidate_handle
                 as unsafe extern "C" fn(*mut GlyphOrder, *mut GlyphHandle) -> bool,
         ),
         lookupName: Some(
-            gordLookupName as unsafe extern "C" fn(*mut GlyphOrder, SdsRaw) -> bool,
+            gord_lookup_name as unsafe extern "C" fn(*mut GlyphOrder, SdsRaw) -> bool,
         ),
     }
 };
@@ -4619,7 +4619,7 @@ mod tests {
     // The passes are a priority, so `Ord` is the whole point of the type -- but
     // derived `Ord` compares by declaration order, which is only the encoding
     // because the declarations happen to be in ascending order. Pin that, and
-    // pin the zero: `otfcc_setGlyphOrderByGID` calloc's an entry and never
+    // pin the zero: `otfcc_set_glyph_order_by_gid` calloc's an entry and never
     // assigns this field, so `GlyphOrderPass::Unset` has to be the all-zero value for the
     // field to be a valid `GlyphOrderPass` at all.
     #[test]

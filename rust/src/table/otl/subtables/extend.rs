@@ -12,7 +12,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 
 use crate::table::otl::{LookupType, Subtable, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_UNKNOWN, ExtendSubtable};
-use crate::table::otl::read::{otfcc_readOtl_subtable};
+use crate::table::otl::read::{otfcc_read_otl_subtable};
 
 unsafe extern "C" fn _caryll_read_otl_extend(
     mut data: FontFilePointer,
@@ -40,7 +40,7 @@ unsafe extern "C" fn _caryll_read_otl_extend(
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             ),
         );
-        (*subtable).subtable = otfcc_readOtl_subtable(
+        (*subtable).subtable = otfcc_read_otl_subtable(
             data as *mut u8,
             table_length,
             subtable_offset.wrapping_add(read_32u(
@@ -54,7 +54,7 @@ unsafe extern "C" fn _caryll_read_otl_extend(
     }
     return _subtable;
 }
-pub unsafe extern "C" fn otfcc_readOtl_gsub_extend(
+pub unsafe extern "C" fn otfcc_read_otl_gsub_extend(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut subtable_offset: u32,
@@ -70,7 +70,7 @@ pub unsafe extern "C" fn otfcc_readOtl_gsub_extend(
         options,
     );
 }
-pub unsafe extern "C" fn otfcc_readOtl_gpos_extend(
+pub unsafe extern "C" fn otfcc_read_otl_gpos_extend(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut subtable_offset: u32,

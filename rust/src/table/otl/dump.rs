@@ -11,8 +11,8 @@ use crate::support::json_funcs::{otfcc_dump_flags, preserialize};
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::table::otl::subtables::chaining::dump::{otl_dump_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_dump_cursive};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_gpos_dump_markToLigature};
-use crate::table::otl::subtables::gpos_mark_to_single::{otl_gpos_dump_markToSingle};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_gpos_dump_mark_to_ligature};
+use crate::table::otl::subtables::gpos_mark_to_single::{otl_gpos_dump_mark_to_single};
 use crate::table::otl::subtables::gpos_pair::{otl_gpos_dump_pair};
 use crate::table::otl::subtables::gpos_single::{otl_gpos_dump_single};
 use crate::table::otl::subtables::gsub_ligature::{otl_gsub_dump_ligature};
@@ -136,7 +136,7 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut Lookup, mut dump: *mut JsonVa
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_MARK_TO_BASE,
         Some(
-            otl_gpos_dump_markToSingle
+            otl_gpos_dump_mark_to_single
                 as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,
         ),
         lookup,
@@ -145,7 +145,7 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut Lookup, mut dump: *mut JsonVa
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_MARK_TO_MARK,
         Some(
-            otl_gpos_dump_markToSingle
+            otl_gpos_dump_mark_to_single
                 as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,
         ),
         lookup,
@@ -154,14 +154,14 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *mut Lookup, mut dump: *mut JsonVa
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_MARK_TO_LIGATURE,
         Some(
-            otl_gpos_dump_markToLigature
+            otl_gpos_dump_mark_to_ligature
                 as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,
         ),
         lookup,
         dump,
     );
 }
-pub unsafe extern "C" fn otfcc_dumpOtl(
+pub unsafe extern "C" fn otfcc_dump_otl(
     mut table: *const OtlTable,
     mut root: *mut JsonValue,
     mut options: *const Options,

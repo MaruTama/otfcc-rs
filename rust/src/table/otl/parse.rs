@@ -22,8 +22,8 @@ use crate::table::otl::{otfcc_delete_lookup, OTL_I_FEATURE_LIST, OTL_I_FEATURE_P
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::parse::{otl_parse_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_parse_cursive};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_gpos_parse_markToLigature};
-use crate::table::otl::subtables::gpos_mark_to_single::{otl_gpos_parse_markToSingle};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_gpos_parse_mark_to_ligature};
+use crate::table::otl::subtables::gpos_mark_to_single::{otl_gpos_parse_mark_to_single};
 use crate::table::otl::subtables::gpos_pair::{otl_gpos_parse_pair};
 use crate::table::otl::subtables::gpos_single::{otl_gpos_parse_single};
 use crate::table::otl::subtables::gsub_ligature::{otl_gsub_parse_ligature};
@@ -71,7 +71,7 @@ unsafe extern "C" fn _parse_lookup(
 ) -> bool {
     let mut parsed: bool = false;
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_SINGLE,
             Some(
                 otl_gsub_parse_single
@@ -87,7 +87,7 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_MULTIPLE,
             Some(
                 otl_gsub_parse_multi
@@ -103,7 +103,7 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_ALTERNATE,
             Some(
                 otl_gsub_parse_multi
@@ -119,7 +119,7 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_LIGATURE,
             Some(
                 otl_gsub_parse_ligature
@@ -135,7 +135,7 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_CHAINING,
             Some(
                 otl_parse_chaining
@@ -151,7 +151,7 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_REVERSE,
             Some(
                 otl_gsub_parse_reverse
@@ -167,7 +167,7 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_SINGLE,
             Some(
                 otl_gpos_parse_single
@@ -183,7 +183,7 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_PAIR,
             Some(
                 otl_gpos_parse_pair
@@ -199,7 +199,7 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_CURSIVE,
             Some(
                 otl_gpos_parse_cursive
@@ -215,7 +215,7 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_CHAINING,
             Some(
                 otl_parse_chaining
@@ -231,10 +231,10 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_MARK_TO_BASE,
             Some(
-                otl_gpos_parse_markToSingle
+                otl_gpos_parse_mark_to_single
                     as unsafe extern "C" fn(
                         *const JsonValue,
                         *const Options,
@@ -247,10 +247,10 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_MARK_TO_MARK,
             Some(
-                otl_gpos_parse_markToSingle
+                otl_gpos_parse_mark_to_single
                     as unsafe extern "C" fn(
                         *const JsonValue,
                         *const Options,
@@ -263,10 +263,10 @@ unsafe extern "C" fn _parse_lookup(
         );
     }
     if !parsed {
-        parsed = _declareLookupParser(
+        parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_MARK_TO_LIGATURE,
             Some(
-                otl_gpos_parse_markToLigature
+                otl_gpos_parse_mark_to_ligature
                     as unsafe extern "C" fn(
                         *const JsonValue,
                         *const Options,
@@ -280,7 +280,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     return parsed;
 }
-unsafe extern "C" fn _declareLookupParser(
+unsafe extern "C" fn _declare_lookup_parser(
     mut llt: LookupType,
     mut parser: Option<
         unsafe extern "C" fn(*const JsonValue, *const Options) -> *mut Subtable,
@@ -1132,7 +1132,7 @@ unsafe extern "C" fn _declareLookupParser(
     }
     return true;
 }
-unsafe extern "C" fn figureOutLookupsFromJSON(
+unsafe extern "C" fn figure_out_lookups_from_json(
     mut lookups: *mut JsonValue,
     mut options: *const Options,
 ) -> *mut LookupHash {
@@ -2009,7 +2009,7 @@ unsafe extern "C" fn feature_merger_activate(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn figureOutFeaturesFromJSON(
+unsafe extern "C" fn figure_out_features_from_json(
     mut features: *mut JsonValue,
     mut lh: *mut LookupHash,
     mut tag: *const ::core::ffi::c_char,
@@ -4016,7 +4016,7 @@ unsafe extern "C" fn figureOutFeaturesFromJSON(
     }
     return fh;
 }
-pub unsafe extern "C" fn isValidLanguageName(
+pub unsafe extern "C" fn is_valid_language_name(
     mut name: *const ::core::ffi::c_char,
     length: usize,
 ) -> bool {
@@ -4024,7 +4024,7 @@ pub unsafe extern "C" fn isValidLanguageName(
         && *name.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
             == SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int;
 }
-unsafe extern "C" fn figureOutLanguagesFromJson(
+unsafe extern "C" fn figure_out_languages_from_json(
     mut languages: *mut JsonValue,
     mut fh: *mut FeatureHash,
     mut tag: *const ::core::ffi::c_char,
@@ -4039,7 +4039,7 @@ unsafe extern "C" fn figureOutLanguagesFromJson(
             (*(*languages).u.object.values.offset(j as isize)).name_length as usize;
         let mut _language: *mut JsonValue =
             (*(*languages).u.object.values.offset(j as isize)).value as *mut JsonValue;
-        if isValidLanguageName(language_name, language_name_len) as ::core::ffi::c_int != 0
+        if is_valid_language_name(language_name, language_name_len) as ::core::ffi::c_int != 0
             && (*_language).type_0 == JsonType::Object
         {
             let mut requiredFeature: *mut Feature = ::core::ptr::null_mut::<Feature>();
@@ -5597,7 +5597,7 @@ unsafe extern "C" fn by_language_name(
 ) -> ::core::ffi::c_int {
     return strcmp((*a).name, (*b).name);
 }
-pub unsafe extern "C" fn otfcc_parseOtl(
+pub unsafe extern "C" fn otfcc_parse_otl(
     mut root: *const JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
@@ -5639,7 +5639,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                     current_block = 5279571973604048562;
                     break;
                 }
-                let mut lh: *mut LookupHash = figureOutLookupsFromJSON(lookups, options);
+                let mut lh: *mut LookupHash = figure_out_lookups_from_json(lookups, options);
                 let mut lookup_order: *mut JsonValue = json_obj_get_type(
                     table,
                     b"lookupOrder\0" as *const u8 as *const ::core::ffi::c_char,
@@ -6132,7 +6132,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                     }
                 }
                 let mut fh: *mut FeatureHash =
-                    figureOutFeaturesFromJSON(features, lh, tag, options);
+                    figure_out_features_from_json(features, lh, tag, options);
                 let mut _hs_i_0: ::core::ffi::c_uint = 0;
                 let mut _hs_looping_0: ::core::ffi::c_uint = 0;
                 let mut _hs_nmerges_0: ::core::ffi::c_uint = 0;
@@ -6277,7 +6277,7 @@ pub unsafe extern "C" fn otfcc_parseOtl(
                     }
                 }
                 let mut sh: *mut LanguageHash =
-                    figureOutLanguagesFromJson(languages, fh, tag, options);
+                    figure_out_languages_from_json(languages, fh, tag, options);
                 let mut _hs_i_1: ::core::ffi::c_uint = 0;
                 let mut _hs_looping_1: ::core::ffi::c_uint = 0;
                 let mut _hs_nmerges_1: ::core::ffi::c_uint = 0;

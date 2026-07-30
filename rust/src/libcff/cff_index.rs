@@ -90,7 +90,7 @@ unsafe extern "C" fn gu4(mut s: *mut u8, mut p: u32) -> u32 {
     return b0 | b1 | b2 | b3;
 }
 #[inline]
-unsafe extern "C" fn disposeCffIndex(mut in_0: *mut CffIndex) {
+unsafe extern "C" fn dispose_cff_index(mut in_0: *mut CffIndex) {
     if !(*in_0).offset.is_null() {
         free((*in_0).offset as *mut ::core::ffi::c_void);
         (*in_0).offset = ::core::ptr::null_mut::<u32>();
@@ -101,16 +101,16 @@ unsafe extern "C" fn disposeCffIndex(mut in_0: *mut CffIndex) {
     }
 }
 #[inline]
-unsafe extern "C" fn cff_Index_copyReplace(mut dst: *mut CffIndex, src: CffIndex) {
-    cff_Index_dispose(dst);
-    cff_Index_copy(dst, &raw const src);
+unsafe extern "C" fn cff_index_copy_replace(mut dst: *mut CffIndex, src: CffIndex) {
+    cff_index_dispose(dst);
+    cff_index_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn cff_Index_dispose(mut x: *mut CffIndex) {
-    disposeCffIndex(x);
+unsafe extern "C" fn cff_index_dispose(mut x: *mut CffIndex) {
+    dispose_cff_index(x);
 }
 #[inline]
-unsafe extern "C" fn cff_Index_copy(mut dst: *mut CffIndex, mut src: *const CffIndex) {
+unsafe extern "C" fn cff_index_copy(mut dst: *mut CffIndex, mut src: *const CffIndex) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
@@ -118,22 +118,22 @@ unsafe extern "C" fn cff_Index_copy(mut dst: *mut CffIndex, mut src: *const CffI
     );
 }
 #[inline]
-unsafe extern "C" fn cff_Index_free(mut x: *mut CffIndex) {
+unsafe extern "C" fn cff_index_free(mut x: *mut CffIndex) {
     if x.is_null() {
         return;
     }
-    cff_Index_dispose(x);
+    cff_index_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn cff_Index_create() -> *mut CffIndex {
+unsafe extern "C" fn cff_index_create() -> *mut CffIndex {
     let mut x: *mut CffIndex =
         malloc(::core::mem::size_of::<CffIndex>() as usize) as *mut CffIndex;
-    cff_Index_init(x);
+    cff_index_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn cff_Index_init(mut x: *mut CffIndex) {
+unsafe extern "C" fn cff_index_init(mut x: *mut CffIndex) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -141,8 +141,8 @@ unsafe extern "C" fn cff_Index_init(mut x: *mut CffIndex) {
     );
 }
 #[inline]
-unsafe extern "C" fn cff_Index_replace(mut dst: *mut CffIndex, src: CffIndex) {
-    cff_Index_dispose(dst);
+unsafe extern "C" fn cff_index_replace(mut dst: *mut CffIndex, src: CffIndex) {
+    cff_index_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -150,15 +150,15 @@ unsafe extern "C" fn cff_Index_replace(mut dst: *mut CffIndex, src: CffIndex) {
     );
 }
 #[inline]
-unsafe extern "C" fn cff_Index_move(mut dst: *mut CffIndex, mut src: *mut CffIndex) {
+unsafe extern "C" fn cff_index_move(mut dst: *mut CffIndex, mut src: *mut CffIndex) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<CffIndex>() as usize,
     );
-    cff_Index_init(src);
+    cff_index_init(src);
 }
-unsafe extern "C" fn getIndexLength(mut i: *const CffIndex) -> u32 {
+unsafe extern "C" fn get_index_length(mut i: *const CffIndex) -> u32 {
     if (*i).count != 0 as Arity {
         return (3 as u32)
             .wrapping_add((*(*i).offset.offset((*i).count as isize)).wrapping_sub(1 as u32))
@@ -171,7 +171,7 @@ unsafe extern "C" fn getIndexLength(mut i: *const CffIndex) -> u32 {
         return 3 as u32;
     };
 }
-unsafe extern "C" fn emptyIndex(mut i: *mut CffIndex) {
+unsafe extern "C" fn empty_index(mut i: *mut CffIndex) {
     CFF_I_INDEX.dispose.expect("non-null function pointer")(i);
     memset(
         i as *mut ::core::ffi::c_void,
@@ -179,7 +179,7 @@ unsafe extern "C" fn emptyIndex(mut i: *mut CffIndex) {
         ::core::mem::size_of::<CffIndex>() as usize,
     );
 }
-unsafe extern "C" fn extractIndex(
+unsafe extern "C" fn extract_index(
     mut data: *mut u8,
     mut pos: u32,
     mut in_0: *mut CffIndex,
@@ -255,7 +255,7 @@ unsafe extern "C" fn extractIndex(
         (*in_0).data = ::core::ptr::null_mut::<u8>();
     };
 }
-unsafe extern "C" fn newIndexByCallback(
+unsafe extern "C" fn new_index_by_callback(
     mut context: *mut ::core::ffi::c_void,
     mut length: u32,
     mut fn_0: Option<
@@ -310,7 +310,7 @@ unsafe extern "C" fn newIndexByCallback(
     (*idx).offSize = 4 as u8;
     return idx;
 }
-unsafe extern "C" fn buildIndex(mut index: *const CffIndex) -> *mut Buffer {
+unsafe extern "C" fn build_index(mut index: *const CffIndex) -> *mut Buffer {
     let mut blob: *mut Buffer = bufnew();
     if (*index).count == 0 {
         bufwrite8(blob, 0 as u8);
@@ -433,23 +433,23 @@ unsafe extern "C" fn buildIndex(mut index: *const CffIndex) -> *mut Buffer {
 }
 pub static CFF_I_INDEX: CffIndexElementInterface = {
     CffIndexElementInterface {
-        init: Some(cff_Index_init as unsafe extern "C" fn(*mut CffIndex) -> ()),
-        copy: Some(cff_Index_copy as unsafe extern "C" fn(*mut CffIndex, *const CffIndex) -> ()),
-        move_0: Some(cff_Index_move as unsafe extern "C" fn(*mut CffIndex, *mut CffIndex) -> ()),
-        dispose: Some(cff_Index_dispose as unsafe extern "C" fn(*mut CffIndex) -> ()),
-        replace: Some(cff_Index_replace as unsafe extern "C" fn(*mut CffIndex, CffIndex) -> ()),
+        init: Some(cff_index_init as unsafe extern "C" fn(*mut CffIndex) -> ()),
+        copy: Some(cff_index_copy as unsafe extern "C" fn(*mut CffIndex, *const CffIndex) -> ()),
+        move_0: Some(cff_index_move as unsafe extern "C" fn(*mut CffIndex, *mut CffIndex) -> ()),
+        dispose: Some(cff_index_dispose as unsafe extern "C" fn(*mut CffIndex) -> ()),
+        replace: Some(cff_index_replace as unsafe extern "C" fn(*mut CffIndex, CffIndex) -> ()),
         copyReplace: Some(
-            cff_Index_copyReplace as unsafe extern "C" fn(*mut CffIndex, CffIndex) -> (),
+            cff_index_copy_replace as unsafe extern "C" fn(*mut CffIndex, CffIndex) -> (),
         ),
-        create: Some(cff_Index_create),
-        free: Some(cff_Index_free as unsafe extern "C" fn(*mut CffIndex) -> ()),
-        empty: Some(emptyIndex as unsafe extern "C" fn(*mut CffIndex) -> ()),
-        getLength: Some(getIndexLength as unsafe extern "C" fn(*const CffIndex) -> u32),
+        create: Some(cff_index_create),
+        free: Some(cff_index_free as unsafe extern "C" fn(*mut CffIndex) -> ()),
+        empty: Some(empty_index as unsafe extern "C" fn(*mut CffIndex) -> ()),
+        getLength: Some(get_index_length as unsafe extern "C" fn(*const CffIndex) -> u32),
         parse: Some(
-            extractIndex as unsafe extern "C" fn(*mut u8, u32, *mut CffIndex) -> (),
+            extract_index as unsafe extern "C" fn(*mut u8, u32, *mut CffIndex) -> (),
         ),
         fromCallback: Some(
-            newIndexByCallback
+            new_index_by_callback
                 as unsafe extern "C" fn(
                     *mut ::core::ffi::c_void,
                     u32,
@@ -461,6 +461,6 @@ pub static CFF_I_INDEX: CffIndexElementInterface = {
                     >,
                 ) -> *mut CffIndex,
         ),
-        build: Some(buildIndex as unsafe extern "C" fn(*const CffIndex) -> *mut Buffer),
+        build: Some(build_index as unsafe extern "C" fn(*const CffIndex) -> *mut Buffer),
     }
 };

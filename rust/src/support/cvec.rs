@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 // Generic implementation of otfcc's C-style growable vector
 // (`length`/`capacity`/`items: *mut T`), factored out of the per-container
-// boilerplate (`subtable_gsub_multi_growTo`, `_resizeTo`, `_grow`, `_init`,
+// boilerplate (`subtable_gsub_multi_grow_to`, `_resizeTo`, `_grow`, `_init`,
 // `_push`, `_pop`, `_move`, and their ~65 siblings across every other
 // container type in the crate). c2rust generated one full copy of this
 // arithmetic per container element type, since the original C used an

@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-use crate::table::otl::classdef::{ClassDef, otl_ClassDef_free};
+use crate::table::otl::classdef::{ClassDef, otl_class_def_free};
 
 
 
@@ -41,7 +41,7 @@ use crate::table::post::PostTable;
 use crate::table::vdmx::types::{VdmxTable};
 use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
-use crate::consolidate::{otfcc_consolidateFont};
+use crate::consolidate::{otfcc_consolidate_font};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::BASE::{TABLE_I_BASE};
 use crate::table::CFF::{TABLE_I_CFF};
@@ -133,7 +133,7 @@ pub struct FontElementInterface {
         Option<unsafe extern "C" fn(*mut Font, u32) -> *mut ::core::ffi::c_void>,
     pub deleteTable: Option<unsafe extern "C" fn(*mut Font, u32) -> ()>,
 }
-unsafe extern "C" fn createFontTable(
+unsafe extern "C" fn create_font_table(
     mut _font: *mut Font,
     tag: u32,
 ) -> *mut ::core::ffi::c_void {
@@ -149,7 +149,7 @@ unsafe extern "C" fn createFontTable(
         _ => return NULL,
     };
 }
-unsafe extern "C" fn deleteFontTable(mut font: *mut Font, tag: u32) {
+unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
     match tag {
         1751474532 => {
             if !(*font).head.is_null() {
@@ -349,7 +349,7 @@ unsafe extern "C" fn deleteFontTable(mut font: *mut Font, tag: u32) {
         }
         1414744373 => {
             if !(*font).TSI5.is_null() {
-                otl_ClassDef_free(
+                otl_class_def_free(
                     (*font).TSI5 as *mut ClassDef,
                 );
                 (*font).TSI5 = ::core::ptr::null_mut::<Tsi5Table>();
@@ -360,7 +360,7 @@ unsafe extern "C" fn deleteFontTable(mut font: *mut Font, tag: u32) {
     };
 }
 #[inline]
-unsafe extern "C" fn initFont(mut font: *mut Font) {
+unsafe extern "C" fn init_font(mut font: *mut Font) {
     memset(
         font as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -368,69 +368,69 @@ unsafe extern "C" fn initFont(mut font: *mut Font) {
     );
 }
 #[inline]
-unsafe extern "C" fn disposeFont(mut font: *mut Font) {
-    deleteFontTable(font, 1751474532i32 as u32);
-    deleteFontTable(font, 1751672161i32 as u32);
-    deleteFontTable(font, 1835104368i32 as u32);
-    deleteFontTable(font, 1330863922i32 as u32);
-    deleteFontTable(font, 1851878757i32 as u32);
-    deleteFontTable(font, 1835365473i32 as u32);
-    deleteFontTable(font, 1752003704i32 as u32);
-    deleteFontTable(font, 1986884728i32 as u32);
-    deleteFontTable(font, 1886352244i32 as u32);
-    deleteFontTable(font, 1751412088i32 as u32);
-    deleteFontTable(font, 1986553185i32 as u32);
-    deleteFontTable(font, 1718642541i32 as u32);
-    deleteFontTable(font, 1886545264i32 as u32);
-    deleteFontTable(font, 1668707423i32 as u32);
-    deleteFontTable(font, 1734439792i32 as u32);
-    deleteFontTable(font, 1128679007i32 as u32);
-    deleteFontTable(font, 1735162214i32 as u32);
-    deleteFontTable(font, 1668112752i32 as u32);
-    deleteFontTable(font, 1280594760i32 as u32);
-    deleteFontTable(font, 1196643650i32 as u32);
-    deleteFontTable(font, 1196445523i32 as u32);
-    deleteFontTable(font, 1195656518i32 as u32);
-    deleteFontTable(font, 1111577413i32 as u32);
-    deleteFontTable(font, 1448038983i32 as u32);
-    deleteFontTable(font, 1129333068i32 as u32);
-    deleteFontTable(font, 1129270354i32 as u32);
-    deleteFontTable(font, 1398163295i32 as u32);
-    deleteFontTable(font, 1414744368i32 as u32);
-    deleteFontTable(font, 1414744370i32 as u32);
-    deleteFontTable(font, 1414744373i32 as u32);
+unsafe extern "C" fn dispose_font(mut font: *mut Font) {
+    delete_font_table(font, 1751474532i32 as u32);
+    delete_font_table(font, 1751672161i32 as u32);
+    delete_font_table(font, 1835104368i32 as u32);
+    delete_font_table(font, 1330863922i32 as u32);
+    delete_font_table(font, 1851878757i32 as u32);
+    delete_font_table(font, 1835365473i32 as u32);
+    delete_font_table(font, 1752003704i32 as u32);
+    delete_font_table(font, 1986884728i32 as u32);
+    delete_font_table(font, 1886352244i32 as u32);
+    delete_font_table(font, 1751412088i32 as u32);
+    delete_font_table(font, 1986553185i32 as u32);
+    delete_font_table(font, 1718642541i32 as u32);
+    delete_font_table(font, 1886545264i32 as u32);
+    delete_font_table(font, 1668707423i32 as u32);
+    delete_font_table(font, 1734439792i32 as u32);
+    delete_font_table(font, 1128679007i32 as u32);
+    delete_font_table(font, 1735162214i32 as u32);
+    delete_font_table(font, 1668112752i32 as u32);
+    delete_font_table(font, 1280594760i32 as u32);
+    delete_font_table(font, 1196643650i32 as u32);
+    delete_font_table(font, 1196445523i32 as u32);
+    delete_font_table(font, 1195656518i32 as u32);
+    delete_font_table(font, 1111577413i32 as u32);
+    delete_font_table(font, 1448038983i32 as u32);
+    delete_font_table(font, 1129333068i32 as u32);
+    delete_font_table(font, 1129270354i32 as u32);
+    delete_font_table(font, 1398163295i32 as u32);
+    delete_font_table(font, 1414744368i32 as u32);
+    delete_font_table(font, 1414744370i32 as u32);
+    delete_font_table(font, 1414744373i32 as u32);
     OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")((*font).glyph_order);
 }
 #[inline]
-unsafe extern "C" fn otfcc_Font_dispose(mut x: *mut Font) {
-    disposeFont(x);
+unsafe extern "C" fn otfcc_font_dispose(mut x: *mut Font) {
+    dispose_font(x);
 }
 #[inline]
-unsafe extern "C" fn otfcc_Font_create() -> *mut Font {
+unsafe extern "C" fn otfcc_font_create() -> *mut Font {
     let mut x: *mut Font =
         malloc(::core::mem::size_of::<Font>() as usize) as *mut Font;
-    otfcc_Font_init(x);
+    otfcc_font_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn otfcc_Font_init(mut x: *mut Font) {
-    initFont(x);
+unsafe extern "C" fn otfcc_font_init(mut x: *mut Font) {
+    init_font(x);
 }
 #[inline]
-unsafe extern "C" fn otfcc_Font_free(mut x: *mut Font) {
+unsafe extern "C" fn otfcc_font_free(mut x: *mut Font) {
     if x.is_null() {
         return;
     }
-    otfcc_Font_dispose(x);
+    otfcc_font_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otfcc_Font_copyReplace(mut dst: *mut Font, src: Font) {
-    otfcc_Font_dispose(dst);
-    otfcc_Font_copy(dst, &raw const src);
+unsafe extern "C" fn otfcc_font_copy_replace(mut dst: *mut Font, src: Font) {
+    otfcc_font_dispose(dst);
+    otfcc_font_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn otfcc_Font_copy(mut dst: *mut Font, mut src: *const Font) {
+unsafe extern "C" fn otfcc_font_copy(mut dst: *mut Font, mut src: *const Font) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
@@ -438,8 +438,8 @@ unsafe extern "C" fn otfcc_Font_copy(mut dst: *mut Font, mut src: *const Font) {
     );
 }
 #[inline]
-unsafe extern "C" fn otfcc_Font_replace(mut dst: *mut Font, src: Font) {
-    otfcc_Font_dispose(dst);
+unsafe extern "C" fn otfcc_font_replace(mut dst: *mut Font, src: Font) {
+    otfcc_font_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -447,41 +447,41 @@ unsafe extern "C" fn otfcc_Font_replace(mut dst: *mut Font, src: Font) {
     );
 }
 #[inline]
-unsafe extern "C" fn otfcc_Font_move(mut dst: *mut Font, mut src: *mut Font) {
+unsafe extern "C" fn otfcc_font_move(mut dst: *mut Font, mut src: *mut Font) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<Font>() as usize,
     );
-    otfcc_Font_init(src);
+    otfcc_font_init(src);
 }
 pub static OTFCC_I_FONT: FontElementInterface = {
     FontElementInterface {
-        init: Some(otfcc_Font_init as unsafe extern "C" fn(*mut Font) -> ()),
+        init: Some(otfcc_font_init as unsafe extern "C" fn(*mut Font) -> ()),
         copy: Some(
-            otfcc_Font_copy as unsafe extern "C" fn(*mut Font, *const Font) -> (),
+            otfcc_font_copy as unsafe extern "C" fn(*mut Font, *const Font) -> (),
         ),
         move_0: Some(
-            otfcc_Font_move as unsafe extern "C" fn(*mut Font, *mut Font) -> (),
+            otfcc_font_move as unsafe extern "C" fn(*mut Font, *mut Font) -> (),
         ),
-        dispose: Some(otfcc_Font_dispose as unsafe extern "C" fn(*mut Font) -> ()),
+        dispose: Some(otfcc_font_dispose as unsafe extern "C" fn(*mut Font) -> ()),
         replace: Some(
-            otfcc_Font_replace as unsafe extern "C" fn(*mut Font, Font) -> (),
+            otfcc_font_replace as unsafe extern "C" fn(*mut Font, Font) -> (),
         ),
         copyReplace: Some(
-            otfcc_Font_copyReplace as unsafe extern "C" fn(*mut Font, Font) -> (),
+            otfcc_font_copy_replace as unsafe extern "C" fn(*mut Font, Font) -> (),
         ),
-        create: Some(otfcc_Font_create),
-        free: Some(otfcc_Font_free as unsafe extern "C" fn(*mut Font) -> ()),
+        create: Some(otfcc_font_create),
+        free: Some(otfcc_font_free as unsafe extern "C" fn(*mut Font) -> ()),
         consolidate: Some(
-            otfcc_consolidateFont
+            otfcc_consolidate_font
                 as unsafe extern "C" fn(*mut Font, *const Options) -> (),
         ),
         createTable: Some(
-            createFontTable
+            create_font_table
                 as unsafe extern "C" fn(*mut Font, u32) -> *mut ::core::ffi::c_void,
         ),
-        deleteTable: Some(deleteFontTable as unsafe extern "C" fn(*mut Font, u32) -> ()),
+        deleteTable: Some(delete_font_table as unsafe extern "C" fn(*mut Font, u32) -> ()),
     }
 };
 

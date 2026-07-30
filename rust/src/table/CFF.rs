@@ -4,7 +4,7 @@ unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{handle_fromIndex, FdHandle};
+use crate::support::handle::{handle_from_index, FdHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::logger::{ILogger};
@@ -31,21 +31,21 @@ use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, 
 
 use crate::vf::vq::{VQ, VqSegList, VqSegment};
 use crate::support::json_funcs::{json_numof, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds};
-use crate::libcff::cff_charset::{cff_build_Charset};
-use crate::libcff::cff_codecs::{cff_encodeCffOperator};
+use crate::libcff::cff_charset::{cff_build_charset};
+use crate::libcff::cff_codecs::{cff_encode_cff_operator};
 use crate::libcff::cff_dict::{CFF_I_DICT};
-use crate::libcff::cff_fdselect::{cff_build_FDSelect, cff_close_FDSelect};
+use crate::libcff::cff_fdselect::{cff_build_fd_select, cff_close_fd_select};
 use crate::libcff::cff_index::{CFF_I_INDEX};
-use crate::libcff::cff_parser::{cff_close, cff_openStream, cff_parseOutline, cff_parseSubr};
+use crate::libcff::cff_parser::{cff_close, cff_open_stream, cff_parse_outline, cff_parse_subr};
 use crate::libcff::cff_string::{sdsget_cff_sid};
 use crate::libcff::cff_value::{cffnum};
-use crate::libcff::cff_writer::{cff_buildHeader, cff_buildOffset};
-use crate::libcff::charstring_il::{cff_compileGlyphToIL, cff_optimizeIL};
-use crate::libcff::subr::{CFF_I_SUBR_GRAPH, cff_ilGraphToBuffers, cff_insertILToGraph};
+use crate::libcff::cff_writer::{cff_build_header, cff_build_offset};
+use crate::libcff::charstring_il::{cff_compile_glyph_to_il, cff_optimize_il};
+use crate::libcff::subr::{CFF_I_SUBR_GRAPH, cff_il_graph_to_buffers, cff_insert_il_to_graph};
 use crate::support::buffer::{buffree, bufnew, bufwrite_bufdel, bufwrite_sds};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
-use crate::table::fvar::{json_new_VQ};
-use crate::table::glyf::{GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_MASK_LIST, GLYF_I_POINT, GLYF_I_STEM_DEF_LIST, otfcc_newGlyf_glyph, TABLE_I_GLYF};
+use crate::table::fvar::{json_new_vq};
+use crate::table::glyf::{GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_MASK_LIST, GLYF_I_POINT, GLYF_I_STEM_DEF_LIST, otfcc_new_glyf_glyph, TABLE_I_GLYF};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdscat, sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
 use crate::vf::vq::{I_VQ};
@@ -224,7 +224,7 @@ pub static DEFAULT_BLUE_SHIFT: ::core::ffi::c_double =
 pub static DEFAULT_BLUE_FUZZ: ::core::ffi::c_double =
     1 as ::core::ffi::c_int as ::core::ffi::c_double;
 pub static DEFAULT_EXPANSION_FACTOR: ::core::ffi::c_double = 0.06f64;
-unsafe extern "C" fn otfcc_newCff_private() -> *mut CffPrivateDict {
+unsafe extern "C" fn otfcc_new_cff_private() -> *mut CffPrivateDict {
     let mut pd: *mut CffPrivateDict = ::core::ptr::null_mut::<CffPrivateDict>();
     pd = __caryll_allocate_clean(
         ::core::mem::size_of::<CffPrivateDict>() as usize,
@@ -237,7 +237,7 @@ unsafe extern "C" fn otfcc_newCff_private() -> *mut CffPrivateDict {
     return pd;
 }
 #[inline]
-unsafe extern "C" fn initFD(mut fd: *mut CffTable) {
+unsafe extern "C" fn init_fd(mut fd: *mut CffTable) {
     memset(
         fd as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -266,7 +266,7 @@ unsafe extern "C" fn otfcc_delete_privatedict(mut priv_0: *mut CffPrivateDict) {
     priv_0 = ::core::ptr::null_mut::<CffPrivateDict>();
 }
 #[inline]
-unsafe extern "C" fn disposeFontMatrix(mut fm: *mut CffFontMatrix) {
+unsafe extern "C" fn dispose_font_matrix(mut fm: *mut CffFontMatrix) {
     if fm.is_null() {
         return;
     }
@@ -274,7 +274,7 @@ unsafe extern "C" fn disposeFontMatrix(mut fm: *mut CffFontMatrix) {
     I_VQ.dispose.expect("non-null function pointer")(&raw mut (*fm).y);
 }
 #[inline]
-unsafe extern "C" fn disposeFD(mut fd: *mut CffTable) {
+unsafe extern "C" fn dispose_fd(mut fd: *mut CffTable) {
     sdsfree((*fd).version);
     sdsfree((*fd).notice);
     sdsfree((*fd).copyright);
@@ -284,7 +284,7 @@ unsafe extern "C" fn disposeFD(mut fd: *mut CffTable) {
     sdsfree((*fd).fontName);
     sdsfree((*fd).cidRegistry);
     sdsfree((*fd).cidOrdering);
-    disposeFontMatrix((*fd).fontMatrix);
+    dispose_font_matrix((*fd).fontMatrix);
     free((*fd).fontMatrix as *mut ::core::ffi::c_void);
     (*fd).fontMatrix = ::core::ptr::null_mut::<CffFontMatrix>();
     otfcc_delete_privatedict((*fd).privateDict);
@@ -299,16 +299,16 @@ unsafe extern "C" fn disposeFD(mut fd: *mut CffTable) {
     }
 }
 #[inline]
-unsafe extern "C" fn table_CFF_free(mut x: *mut CffTable) {
+unsafe extern "C" fn table_cff_free(mut x: *mut CffTable) {
     if x.is_null() {
         return;
     }
-    table_CFF_dispose(x);
+    table_cff_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_CFF_replace(mut dst: *mut CffTable, src: CffTable) {
-    table_CFF_dispose(dst);
+unsafe extern "C" fn table_cff_replace(mut dst: *mut CffTable, src: CffTable) {
+    table_cff_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -317,49 +317,49 @@ unsafe extern "C" fn table_CFF_replace(mut dst: *mut CffTable, src: CffTable) {
 }
 pub static TABLE_I_CFF: CffTableElementInterface = {
     CffTableElementInterface {
-        init: Some(table_CFF_init as unsafe extern "C" fn(*mut CffTable) -> ()),
-        copy: Some(table_CFF_copy as unsafe extern "C" fn(*mut CffTable, *const CffTable) -> ()),
-        move_0: Some(table_CFF_move as unsafe extern "C" fn(*mut CffTable, *mut CffTable) -> ()),
-        dispose: Some(table_CFF_dispose as unsafe extern "C" fn(*mut CffTable) -> ()),
-        replace: Some(table_CFF_replace as unsafe extern "C" fn(*mut CffTable, CffTable) -> ()),
+        init: Some(table_cff_init as unsafe extern "C" fn(*mut CffTable) -> ()),
+        copy: Some(table_cff_copy as unsafe extern "C" fn(*mut CffTable, *const CffTable) -> ()),
+        move_0: Some(table_cff_move as unsafe extern "C" fn(*mut CffTable, *mut CffTable) -> ()),
+        dispose: Some(table_cff_dispose as unsafe extern "C" fn(*mut CffTable) -> ()),
+        replace: Some(table_cff_replace as unsafe extern "C" fn(*mut CffTable, CffTable) -> ()),
         copyReplace: Some(
-            table_CFF_copyReplace as unsafe extern "C" fn(*mut CffTable, CffTable) -> (),
+            table_cff_copy_replace as unsafe extern "C" fn(*mut CffTable, CffTable) -> (),
         ),
-        create: Some(table_CFF_create),
-        free: Some(table_CFF_free as unsafe extern "C" fn(*mut CffTable) -> ()),
+        create: Some(table_cff_create),
+        free: Some(table_cff_free as unsafe extern "C" fn(*mut CffTable) -> ()),
     }
 };
 #[inline]
-unsafe extern "C" fn table_CFF_move(mut dst: *mut CffTable, mut src: *mut CffTable) {
+unsafe extern "C" fn table_cff_move(mut dst: *mut CffTable, mut src: *mut CffTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<CffTable>() as usize,
     );
-    table_CFF_init(src);
+    table_cff_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_CFF_create() -> *mut CffTable {
+unsafe extern "C" fn table_cff_create() -> *mut CffTable {
     let mut x: *mut CffTable =
         malloc(::core::mem::size_of::<CffTable>() as usize) as *mut CffTable;
-    table_CFF_init(x);
+    table_cff_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_CFF_init(mut x: *mut CffTable) {
-    initFD(x);
+unsafe extern "C" fn table_cff_init(mut x: *mut CffTable) {
+    init_fd(x);
 }
 #[inline]
-unsafe extern "C" fn table_CFF_copyReplace(mut dst: *mut CffTable, src: CffTable) {
-    table_CFF_dispose(dst);
-    table_CFF_copy(dst, &raw const src);
+unsafe extern "C" fn table_cff_copy_replace(mut dst: *mut CffTable, src: CffTable) {
+    table_cff_dispose(dst);
+    table_cff_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_CFF_dispose(mut x: *mut CffTable) {
-    disposeFD(x);
+unsafe extern "C" fn table_cff_dispose(mut x: *mut CffTable) {
+    dispose_fd(x);
 }
 #[inline]
-unsafe extern "C" fn table_CFF_copy(mut dst: *mut CffTable, mut src: *const CffTable) {
+unsafe extern "C" fn table_cff_copy(mut dst: *mut CffTable, mut src: *const CffTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
@@ -715,7 +715,7 @@ unsafe extern "C" fn callback_extract_fd(
                 let mut private_offset: u32 = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) as u32;
-                (*meta).privateDict = otfcc_newCff_private();
+                (*meta).privateDict = otfcc_new_cff_private();
                 CFF_I_DICT
                     .parseToCallback
                     .expect("non-null function pointer")(
@@ -1101,13 +1101,13 @@ static DRAW_PASS: CffIOutlineBuilder = {
         ),
     }
 };
-unsafe extern "C" fn buildOutline(
+unsafe extern "C" fn build_outline(
     mut i: GlyphId,
     mut context: *mut CffExtractContext,
     mut options: *const Options,
 ) {
     let mut f: *mut CffFile = (*context).cffFile;
-    let mut g: *mut Glyph = otfcc_newGlyf_glyph();
+    let mut g: *mut Glyph = otfcc_new_glyf_glyph();
     let ref mut fresh8 = *(*(*context).glyphs).items.offset(i as isize);
     *fresh8 = g as GlyphPtr;
     let mut seed: u64 = (*context).seed;
@@ -1150,7 +1150,7 @@ unsafe extern "C" fn buildOutline(
     };
     let mut fd: u8 = 0 as u8;
     if (*f).fdselect.t != CffFdSelectType::Unspecified {
-        fd = cff_parseSubr(
+        fd = cff_parse_subr(
             i as u16,
             (*f).raw_data,
             (*f).font_dict,
@@ -1158,7 +1158,7 @@ unsafe extern "C" fn buildOutline(
             &raw mut local_subrs,
         );
     } else {
-        fd = cff_parseSubr(
+        fd = cff_parse_subr(
             i as u16,
             (*f).raw_data,
             (*f).top_dict,
@@ -1166,7 +1166,7 @@ unsafe extern "C" fn buildOutline(
             &raw mut local_subrs,
         );
     }
-    (*g).fdSelect = handle_fromIndex(fd as GlyphId)
+    (*g).fdSelect = handle_from_index(fd as GlyphId)
         as FdHandle;
     if !(*(*context).meta).fdArray.is_null()
         && (fd as ::core::ffi::c_int) < (*(*context).meta).fdArrayCount as ::core::ffi::c_int
@@ -1201,7 +1201,7 @@ unsafe extern "C" fn buildOutline(
     bc.jContour = 0 as ShapeId;
     bc.jPoint = 0 as ShapeId;
     bc.randx = seed;
-    cff_parseOutline(
+    cff_parse_outline(
         char_string_ptr,
         char_string_length,
         (*f).global_subr,
@@ -1268,13 +1268,13 @@ unsafe extern "C" fn buildOutline(
     stack.stack = ::core::ptr::null_mut::<CffValue>();
     (*context).seed = bc.randx;
 }
-unsafe extern "C" fn formCIDString(mut cid: CffSid) -> SdsRaw {
+unsafe extern "C" fn form_cid_string(mut cid: CffSid) -> SdsRaw {
     return crate::sdsbuild!(
         sdsnew(b"CID\0" as *const u8 as *const ::core::ffi::c_char),
         cid as ::core::ffi::c_int,
     );
 }
-unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContext) {
+unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractContext) {
     let mut cffFile: *mut CffFile = (*context).cffFile;
     let mut glyphs: *mut GlyfTable = (*context).glyphs;
     let mut charset: *mut CffCharset = &raw mut (*cffFile).charsets;
@@ -1314,7 +1314,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                     {
                         let mut sid_0: CffSid =
                             (first as ::core::ffi::c_int + k as ::core::ffi::c_int) as CffSid;
-                        let mut glyphname_0: SdsRaw = formCIDString(sid_0);
+                        let mut glyphname_0: SdsRaw = form_cid_string(sid_0);
                         if (glyphs_named_sofar as usize) < (*glyphs).length && !glyphname_0.is_null()
                         {
                             let ref mut fresh3 =
@@ -1343,7 +1343,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
                     {
                         let mut sid_1: CffSid =
                             (first_0 as ::core::ffi::c_int + k_0 as ::core::ffi::c_int) as CffSid;
-                        let mut glyphname_1: SdsRaw = formCIDString(sid_1);
+                        let mut glyphname_1: SdsRaw = form_cid_string(sid_1);
                         if (glyphs_named_sofar_0 as usize) < (*glyphs).length
                             && !glyphname_1.is_null()
                         {
@@ -1444,7 +1444,7 @@ unsafe extern "C" fn nameGlyphsAccordingToCFF(mut context: *mut CffExtractContex
 unsafe extern "C" fn qround(x: ::core::ffi::c_double) -> ::core::ffi::c_double {
     return otfcc_from_fixed(otfcc_to_fixed(x));
 }
-unsafe extern "C" fn applyCffMatrix(
+unsafe extern "C" fn apply_cff_matrix(
     mut CFF_: *mut CffTable,
     mut glyf: *mut GlyfTable,
     mut head: *const HeadTable,
@@ -1522,7 +1522,7 @@ unsafe extern "C" fn applyCffMatrix(
         jj = jj.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn otfcc_readCFFAndGlyfTables(
+pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
     packet: Packet,
     mut options: *const Options,
     mut head: *const HeadTable,
@@ -1559,7 +1559,7 @@ pub unsafe extern "C" fn otfcc_readCFFAndGlyfTables(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     let mut cffFile: *mut CffFile =
-                        cff_openStream(data as *mut u8, length, options);
+                        cff_open_stream(data as *mut u8, length, options);
                     context.cffFile = cffFile;
                     context.meta = (
                         TABLE_I_CFF.create.expect("non-null function pointer"))();
@@ -1662,11 +1662,11 @@ pub unsafe extern "C" fn otfcc_readCFFAndGlyfTables(
                     context.glyphs = glyphs;
                     let mut j_0: GlyphId = 0 as GlyphId;
                     while (j_0 as usize) < (*glyphs).length {
-                        buildOutline(j_0, &raw mut context, options);
+                        build_outline(j_0, &raw mut context, options);
                         j_0 = j_0.wrapping_add(1);
                     }
-                    applyCffMatrix(context.meta, context.glyphs, head);
-                    nameGlyphsAccordingToCFF(&raw mut context);
+                    apply_cff_matrix(context.meta, context.glyphs, head);
+                    name_glyphs_according_to_cff(&raw mut context);
                     ret.glyphs = context.glyphs;
                     cff_close(cffFile);
                     __fortable_k2 = 0 as ::core::ffi::c_int;
@@ -1680,7 +1680,7 @@ pub unsafe extern "C" fn otfcc_readCFFAndGlyfTables(
     }
     return ret;
 }
-unsafe extern "C" fn pdDeltaToJson(
+unsafe extern "C" fn pd_delta_to_json(
     mut target: *mut JsonValue,
     mut field: *const ::core::ffi::c_char,
     mut count: Arity,
@@ -1697,39 +1697,39 @@ unsafe extern "C" fn pdDeltaToJson(
     }
     json_object_push(target, field, a);
 }
-unsafe extern "C" fn pdToJson(mut pd: *const CffPrivateDict) -> *mut JsonValue {
+unsafe extern "C" fn pd_to_json(mut pd: *const CffPrivateDict) -> *mut JsonValue {
     let mut _pd: *mut JsonValue = json_object_new(24 as usize);
-    pdDeltaToJson(
+    pd_delta_to_json(
         _pd,
         b"blueValues\0" as *const u8 as *const ::core::ffi::c_char,
         (*pd).blueValuesCount,
         (*pd).blueValues,
     );
-    pdDeltaToJson(
+    pd_delta_to_json(
         _pd,
         b"otherBlues\0" as *const u8 as *const ::core::ffi::c_char,
         (*pd).otherBluesCount,
         (*pd).otherBlues,
     );
-    pdDeltaToJson(
+    pd_delta_to_json(
         _pd,
         b"familyBlues\0" as *const u8 as *const ::core::ffi::c_char,
         (*pd).familyBluesCount,
         (*pd).familyBlues,
     );
-    pdDeltaToJson(
+    pd_delta_to_json(
         _pd,
         b"familyOtherBlues\0" as *const u8 as *const ::core::ffi::c_char,
         (*pd).familyOtherBluesCount,
         (*pd).familyOtherBlues,
     );
-    pdDeltaToJson(
+    pd_delta_to_json(
         _pd,
         b"stemSnapH\0" as *const u8 as *const ::core::ffi::c_char,
         (*pd).stemSnapHCount,
         (*pd).stemSnapH,
     );
-    pdDeltaToJson(
+    pd_delta_to_json(
         _pd,
         b"stemSnapV\0" as *const u8 as *const ::core::ffi::c_char,
         (*pd).stemSnapVCount,
@@ -1814,7 +1814,7 @@ unsafe extern "C" fn pdToJson(mut pd: *const CffPrivateDict) -> *mut JsonValue {
     }
     return _pd;
 }
-unsafe extern "C" fn fdToJson(mut table: *const CffTable) -> *mut JsonValue {
+unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
     let mut _CFF_: *mut JsonValue = json_object_new(24 as usize);
     if (*table).isCID {
         json_object_push(
@@ -1960,12 +1960,12 @@ unsafe extern "C" fn fdToJson(mut table: *const CffTable) -> *mut JsonValue {
         json_object_push(
             _fontMatrix,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_VQ((*(*table).fontMatrix).x, ::core::ptr::null::<FvarTable>()),
+            json_new_vq((*(*table).fontMatrix).x, ::core::ptr::null::<FvarTable>()),
         );
         json_object_push(
             _fontMatrix,
             b"y\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_VQ((*(*table).fontMatrix).y, ::core::ptr::null::<FvarTable>()),
+            json_new_vq((*(*table).fontMatrix).y, ::core::ptr::null::<FvarTable>()),
         );
         json_object_push(
             _CFF_,
@@ -1977,7 +1977,7 @@ unsafe extern "C" fn fdToJson(mut table: *const CffTable) -> *mut JsonValue {
         json_object_push(
             _CFF_,
             b"privates\0" as *const u8 as *const ::core::ffi::c_char,
-            pdToJson((*table).privateDict),
+            pd_to_json((*table).privateDict),
         );
     }
     if !(*table).cidRegistry.is_null() && !(*table).cidOrdering.is_null() {
@@ -2007,7 +2007,7 @@ unsafe extern "C" fn fdToJson(mut table: *const CffTable) -> *mut JsonValue {
             json_object_push(
                 _fdArray,
                 name as *const ::core::ffi::c_char,
-                fdToJson(*(*table).fdArray.offset(j as isize)),
+                fd_to_json(*(*table).fdArray.offset(j as isize)),
             );
             let ref mut fresh10 = (**(*table).fdArray.offset(j as isize)).fontName;
             *fresh10 = name;
@@ -2021,7 +2021,7 @@ unsafe extern "C" fn fdToJson(mut table: *const CffTable) -> *mut JsonValue {
     }
     return _CFF_;
 }
-pub unsafe extern "C" fn otfcc_dumpCFF(
+pub unsafe extern "C" fn otfcc_dump_cff(
     mut table: *const CffTable,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -2040,7 +2040,7 @@ pub unsafe extern "C" fn otfcc_dumpCFF(
         json_object_push(
             root,
             b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
-            fdToJson(table),
+            fd_to_json(table),
         );
         ___loggedstep_v = false;
         (*(*options).logger)
@@ -2048,7 +2048,7 @@ pub unsafe extern "C" fn otfcc_dumpCFF(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-unsafe extern "C" fn pdDeltaFromJson(
+unsafe extern "C" fn pd_delta_from_json(
     mut dump: *mut JsonValue,
     mut count: *mut Arity,
     mut array: *mut *mut ::core::ffi::c_double,
@@ -2069,14 +2069,14 @@ unsafe extern "C" fn pdDeltaFromJson(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn pdFromJson(mut dump: *mut JsonValue) -> *mut CffPrivateDict {
+unsafe extern "C" fn pd_from_json(mut dump: *mut JsonValue) -> *mut CffPrivateDict {
     if dump.is_null()
         || (*dump).type_0 != JsonType::Object
     {
         return ::core::ptr::null_mut::<CffPrivateDict>();
     }
-    let mut pd: *mut CffPrivateDict = otfcc_newCff_private();
-    pdDeltaFromJson(
+    let mut pd: *mut CffPrivateDict = otfcc_new_cff_private();
+    pd_delta_from_json(
         json_obj_get(
             dump,
             b"blueValues\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2084,7 +2084,7 @@ unsafe extern "C" fn pdFromJson(mut dump: *mut JsonValue) -> *mut CffPrivateDict
         &raw mut (*pd).blueValuesCount,
         &raw mut (*pd).blueValues,
     );
-    pdDeltaFromJson(
+    pd_delta_from_json(
         json_obj_get(
             dump,
             b"otherBlues\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2092,7 +2092,7 @@ unsafe extern "C" fn pdFromJson(mut dump: *mut JsonValue) -> *mut CffPrivateDict
         &raw mut (*pd).otherBluesCount,
         &raw mut (*pd).otherBlues,
     );
-    pdDeltaFromJson(
+    pd_delta_from_json(
         json_obj_get(
             dump,
             b"familyBlues\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2100,7 +2100,7 @@ unsafe extern "C" fn pdFromJson(mut dump: *mut JsonValue) -> *mut CffPrivateDict
         &raw mut (*pd).familyBluesCount,
         &raw mut (*pd).familyBlues,
     );
-    pdDeltaFromJson(
+    pd_delta_from_json(
         json_obj_get(
             dump,
             b"familyOtherBlues\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2108,7 +2108,7 @@ unsafe extern "C" fn pdFromJson(mut dump: *mut JsonValue) -> *mut CffPrivateDict
         &raw mut (*pd).familyOtherBluesCount,
         &raw mut (*pd).familyOtherBlues,
     );
-    pdDeltaFromJson(
+    pd_delta_from_json(
         json_obj_get(
             dump,
             b"stemSnapH\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2116,7 +2116,7 @@ unsafe extern "C" fn pdFromJson(mut dump: *mut JsonValue) -> *mut CffPrivateDict
         &raw mut (*pd).stemSnapHCount,
         &raw mut (*pd).stemSnapH,
     );
-    pdDeltaFromJson(
+    pd_delta_from_json(
         json_obj_get(
             dump,
             b"stemSnapV\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2160,7 +2160,7 @@ unsafe extern "C" fn pdFromJson(mut dump: *mut JsonValue) -> *mut CffPrivateDict
     );
     return pd;
 }
-unsafe extern "C" fn fdFromJson(
+unsafe extern "C" fn fd_from_json(
     mut dump: *const JsonValue,
     mut options: *const Options,
     mut top_level: bool,
@@ -2232,7 +2232,7 @@ unsafe extern "C" fn fdFromJson(
         dump,
         b"fontBBoxTop\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    (*table).privateDict = pdFromJson(json_obj_get_type(
+    (*table).privateDict = pd_from_json(json_obj_get_type(
         dump,
         b"privates\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,
@@ -2281,7 +2281,7 @@ unsafe extern "C" fn fdFromJson(
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*table).fdArrayCount as ::core::ffi::c_int {
             let ref mut fresh11 = *(*table).fdArray.offset(j as isize);
-            *fresh11 = fdFromJson(
+            *fresh11 = fd_from_json(
                 (*(*fdarraydump).u.object.values.offset(j as isize)).value,
                 options,
                 false,
@@ -2302,7 +2302,7 @@ unsafe extern "C" fn fdFromJson(
         (*table).fontName = sdsnew(b"CARYLL_CFFFONT\0" as *const u8 as *const ::core::ffi::c_char);
     }
     if (*table).privateDict.is_null() {
-        (*table).privateDict = otfcc_newCff_private();
+        (*table).privateDict = otfcc_new_cff_private();
     }
     if top_level as ::core::ffi::c_int != 0
         && (*options).force_cid as ::core::ffi::c_int != 0
@@ -2319,7 +2319,7 @@ unsafe extern "C" fn fdFromJson(
             TABLE_I_CFF.create.expect("non-null function pointer"))();
         let mut fd0: *mut CffTable = *(*table).fdArray.offset(0 as ::core::ffi::c_int as isize);
         (*fd0).privateDict = (*table).privateDict;
-        (*table).privateDict = otfcc_newCff_private();
+        (*table).privateDict = otfcc_new_cff_private();
         (*fd0).fontName = sdscat(
             sdsdup((*table).fontName),
             b"-subfont0\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2334,7 +2334,7 @@ unsafe extern "C" fn fdFromJson(
     }
     return table;
 }
-pub unsafe extern "C" fn otfcc_parseCFF(
+pub unsafe extern "C" fn otfcc_parse_cff(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut CffTable {
@@ -2355,7 +2355,7 @@ pub unsafe extern "C" fn otfcc_parseCFF(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            cff = fdFromJson(dump, options, true);
+            cff = fd_from_json(dump, options, true);
             ___loggedstep_v = false;
             (*(*options).logger)
                 .finish
@@ -2377,20 +2377,20 @@ unsafe extern "C" fn cff_make_charstrings(
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*(*context).glyf).length {
-        let mut il: *mut CffCharstringIl = cff_compileGlyphToIL(
+        let mut il: *mut CffCharstringIl = cff_compile_glyph_to_il(
             *(*(*context).glyf).items.offset(j as isize) as *mut Glyph,
             (*context).defaultWidth,
             (*context).nominalWidthX,
         );
-        cff_optimizeIL(il, (*context).options);
-        cff_insertILToGraph(&raw mut (*context).graph, il);
+        cff_optimize_il(il, (*context).options);
+        cff_insert_il_to_graph(&raw mut (*context).graph, il);
         free((*il).instr as *mut ::core::ffi::c_void);
         (*il).instr = ::core::ptr::null_mut::<CffCharstringInstruction>();
         free(il as *mut ::core::ffi::c_void);
         il = ::core::ptr::null_mut::<CffCharstringIl>();
         j = j.wrapping_add(1);
     }
-    cff_ilGraphToBuffers(&raw mut (*context).graph, s, gs, ls, (*context).options);
+    cff_il_graph_to_buffers(&raw mut (*context).graph, s, gs, ls, (*context).options);
 }
 unsafe extern "C" fn sidof(mut h: *mut *mut CffSidEntry, mut s: SdsRaw) -> ::core::ffi::c_int {
     let mut item: *mut CffSidEntry = ::core::ptr::null_mut::<CffSidEntry>();
@@ -3675,7 +3675,7 @@ unsafe extern "C" fn cff_make_charset(
     } else {
         (*charset).t = CffCharsetType::IsoAdobe;
     }
-    let mut c: *mut Buffer = cff_build_Charset(*charset);
+    let mut c: *mut Buffer = cff_build_charset(*charset);
     if (*charset).t == CffCharsetType::Format2 {
         free((*charset).c2rust_unnamed.f2.range2 as *mut ::core::ffi::c_void);
         (*charset).c2rust_unnamed.f2.range2 = ::core::ptr::null_mut::<CffCharsetRangeFormat2>();
@@ -3762,8 +3762,8 @@ unsafe extern "C" fn cff_make_fdselect(
         (*fds).c2rust_unnamed.f3.nranges = ranges as u16;
         (*fds).c2rust_unnamed.f3.sentinel = (*glyf).length as u16;
     }
-    let mut e: *mut Buffer = cff_build_FDSelect(*fds);
-    cff_close_FDSelect(*fds);
+    let mut e: *mut Buffer = cff_build_fd_select(*fds);
+    cff_close_fd_select(*fds);
     free(fds as *mut ::core::ffi::c_void);
     fds = ::core::ptr::null_mut::<CffFdSelect>();
     return e;
@@ -3780,15 +3780,15 @@ unsafe extern "C" fn callback_makefd(
     let mut blob: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(fd);
     bufwrite_bufdel(
         blob,
-        cff_buildOffset(0xeeeeeeee as ::core::ffi::c_uint as i32),
+        cff_build_offset(0xeeeeeeee as ::core::ffi::c_uint as i32),
     );
     bufwrite_bufdel(
         blob,
-        cff_buildOffset(0xffffffff as ::core::ffi::c_uint as i32),
+        cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32),
     );
     bufwrite_bufdel(
         blob,
-        cff_encodeCffOperator(OP_PRIVATE),
+        cff_encode_cff_operator(OP_PRIVATE),
     );
     CFF_I_DICT.build.expect("non-null function pointer")(fd);
     return blob;
@@ -3813,14 +3813,14 @@ unsafe extern "C" fn cff_make_fdarray(
         ),
     );
 }
-unsafe extern "C" fn writecff_CIDKeyed(
+unsafe extern "C" fn writecff_cid_keyed(
     mut cff: *mut CffTable,
     mut glyf: *mut GlyfTable,
     mut options: *const Options,
 ) -> *mut Buffer {
     let mut blob: *mut Buffer = bufnew();
     let mut stringHash: *mut CffSidEntry = ::core::ptr::null_mut::<CffSidEntry>();
-    let mut h: *mut Buffer = cff_buildHeader();
+    let mut h: *mut Buffer = cff_build_header();
     let mut n: *mut Buffer = cff_compile_nameindex(cff);
     let mut top: *mut CffDict = cff_make_fd_dict(cff, &raw mut stringHash);
     let mut t: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(top);
@@ -3829,11 +3829,11 @@ unsafe extern "C" fn writecff_CIDKeyed(
     let mut p: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(top_pd);
     bufwrite_bufdel(
         p,
-        cff_buildOffset(0xffffffff as ::core::ffi::c_uint as i32),
+        cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32),
     );
     bufwrite_bufdel(
         p,
-        cff_encodeCffOperator(OP_SUBRS),
+        cff_encode_cff_operator(OP_SUBRS),
     );
     CFF_I_DICT.free.expect("non-null function pointer")(top_pd);
     let mut e: *mut Buffer = cff_make_fdselect(cff, glyf);
@@ -3913,43 +3913,43 @@ unsafe extern "C" fn writecff_CIDKeyed(
             .wrapping_add((*gs).size),
     ) as u32 as u32;
     if (*c).size != 0 as usize {
-        bufwrite_bufdel(blob, cff_buildOffset(off as i32));
+        bufwrite_bufdel(blob, cff_build_offset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(OP_CHARSET),
+            cff_encode_cff_operator(OP_CHARSET),
         );
         off = (off as usize).wrapping_add((*c).size) as u32 as u32;
     }
     if (*e).size != 0 as usize {
-        bufwrite_bufdel(blob, cff_buildOffset(off as i32));
+        bufwrite_bufdel(blob, cff_build_offset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(OP_FD_SELECT),
+            cff_encode_cff_operator(OP_FD_SELECT),
         );
         off = (off as usize).wrapping_add((*e).size) as u32 as u32;
     }
     if (*s).size != 0 as usize {
-        bufwrite_bufdel(blob, cff_buildOffset(off as i32));
+        bufwrite_bufdel(blob, cff_build_offset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(OP_CHAR_STRINGS),
+            cff_encode_cff_operator(OP_CHAR_STRINGS),
         );
         off = (off as usize).wrapping_add((*s).size) as u32 as u32;
     }
     if (*p).size != 0 as usize {
-        bufwrite_bufdel(blob, cff_buildOffset((*p).size as u32 as i32));
-        bufwrite_bufdel(blob, cff_buildOffset(off as i32));
+        bufwrite_bufdel(blob, cff_build_offset((*p).size as u32 as i32));
+        bufwrite_bufdel(blob, cff_build_offset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(OP_PRIVATE),
+            cff_encode_cff_operator(OP_PRIVATE),
         );
         off = (off as usize).wrapping_add((*p).size) as u32 as u32;
     }
     if (*r).size != 0 as usize {
-        bufwrite_bufdel(blob, cff_buildOffset(off as i32));
+        bufwrite_bufdel(blob, cff_build_offset(off as i32));
         bufwrite_bufdel(
             blob,
-            cff_encodeCffOperator(OP_FD_ARRAY),
+            cff_encode_cff_operator(OP_FD_ARRAY),
         );
         off = (off as usize).wrapping_add((*r).size) as u32 as u32;
     }
@@ -3992,11 +3992,11 @@ unsafe extern "C" fn writecff_CIDKeyed(
                 CFF_I_DICT.build.expect("non-null function pointer")(pd);
             bufwrite_bufdel(
                 p_0,
-                cff_buildOffset(0xffffffff as ::core::ffi::c_uint as i32),
+                cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32),
             );
             bufwrite_bufdel(
                 p_0,
-                cff_encodeCffOperator(OP_SUBRS),
+                cff_encode_cff_operator(OP_SUBRS),
             );
             CFF_I_DICT.free.expect("non-null function pointer")(pd);
             let ref mut fresh14 = *fd_array_privates.offset(j as isize);
@@ -4085,11 +4085,11 @@ unsafe extern "C" fn writecff_CIDKeyed(
     ending_position_of_privates = ::core::ptr::null_mut::<usize>();
     return blob;
 }
-pub unsafe extern "C" fn otfcc_buildCFF(
+pub unsafe extern "C" fn otfcc_build_cff(
     cff_and_glyf: CffAndGlyf,
     mut options: *const Options,
 ) -> *mut Buffer {
-    return writecff_CIDKeyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options);
+    return writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options);
 }
 #[inline]
 unsafe extern "C" fn json_from_sds(str: SdsRaw) -> *mut JsonValue {

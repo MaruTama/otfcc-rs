@@ -39,7 +39,7 @@ pub struct VmtxTableElementInterface {
     pub free: Option<unsafe extern "C" fn(*mut VmtxTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn disposeVmtx(mut table: *mut VmtxTable) {
+unsafe extern "C" fn dispose_vmtx(mut table: *mut VmtxTable) {
     if !(*table).metrics.is_null() {
         free((*table).metrics as *mut ::core::ffi::c_void);
         (*table).metrics = ::core::ptr::null_mut::<VerticalMetric>();
@@ -51,7 +51,7 @@ unsafe extern "C" fn disposeVmtx(mut table: *mut VmtxTable) {
 }
 #[inline]
 unsafe extern "C" fn table_vmtx_dispose(mut x: *mut VmtxTable) {
-    disposeVmtx(x);
+    dispose_vmtx(x);
 }
 #[inline]
 unsafe extern "C" fn table_vmtx_copy(mut dst: *mut VmtxTable, mut src: *const VmtxTable) {
@@ -77,7 +77,7 @@ unsafe extern "C" fn table_vmtx_init(mut x: *mut VmtxTable) {
     );
 }
 #[inline]
-unsafe extern "C" fn table_vmtx_copyReplace(mut dst: *mut VmtxTable, src: VmtxTable) {
+unsafe extern "C" fn table_vmtx_copy_replace(mut dst: *mut VmtxTable, src: VmtxTable) {
     table_vmtx_dispose(dst);
     table_vmtx_copy(dst, &raw const src);
 }
@@ -113,7 +113,7 @@ pub static TABLE_I_VMTX: VmtxTableElementInterface = {
             table_vmtx_replace as unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> (),
         ),
         copyReplace: Some(
-            table_vmtx_copyReplace as unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> (),
+            table_vmtx_copy_replace as unsafe extern "C" fn(*mut VmtxTable, VmtxTable) -> (),
         ),
         create: Some(table_vmtx_create),
         free: Some(table_vmtx_free as unsafe extern "C" fn(*mut VmtxTable) -> ()),
@@ -127,7 +127,7 @@ unsafe extern "C" fn table_vmtx_free(mut x: *mut VmtxTable) {
     table_vmtx_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_readVmtx(
+pub unsafe extern "C" fn otfcc_read_vmtx(
     packet: Packet,
     mut options: *const Options,
     mut vhea: *mut VheaTable,
@@ -235,7 +235,7 @@ pub unsafe extern "C" fn otfcc_readVmtx(
     }
     return ::core::ptr::null_mut::<VmtxTable>();
 }
-pub unsafe extern "C" fn otfcc_buildVmtx(
+pub unsafe extern "C" fn otfcc_build_vmtx(
     mut vmtx: *const VmtxTable,
     mut count_a: GlyphId,
     mut count_k: GlyphId,

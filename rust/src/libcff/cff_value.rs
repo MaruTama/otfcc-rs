@@ -27,7 +27,7 @@ pub enum CffValueType {
 /// The CharString reader's name for [`CffValueType::Operator`].
 pub const CS2_OPERATOR: CffValueType = CffValueType::Operator;
 /// The CharString reader's name for [`CffValueType::Integer`] — an operand still in
-/// integer form. `cff_decodeCS2Token` converts every one of these to
+/// integer form. `cff_decode_cs2_token` converts every one of these to
 /// [`CS2_FRACTION`] before it returns, so it is only ever seen mid-decode.
 pub const CS2_OPERAND: CffValueType = CffValueType::Integer;
 /// The CharString reader's name for [`CffValueType::Double`].
@@ -61,7 +61,7 @@ mod tests {
     // Six names, four states. The DICT reader and the CharString reader each have
     // their own word for the same three of them, which is why half of these are
     // consts rather than variants -- and the code relies on the two spellings
-    // being interchangeable: `cff_decodeCS2Token` writes `CS2_FRACTION` and
+    // being interchangeable: `cff_decode_cs2_token` writes `CS2_FRACTION` and
     // `cffnum` reads `CffValueType::Double`.
     #[test]
     fn the_two_spellings_are_the_same_states() {

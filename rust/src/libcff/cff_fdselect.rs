@@ -9,7 +9,7 @@ use crate::support::buffer::{bufnew};
 /// Which FDSelect format a CID font uses, or `UNSPECED` for a font that has
 /// none and for a format byte otfcc does not recognise.
 ///
-/// Not the format byte itself: `cff_extract_FDSelect` matches the byte from the
+/// Not the format byte itself: `cff_extract_fd_select` matches the byte from the
 /// file and stores one of these three, so the value is the crate's own and every
 /// unknown byte lands on `UNSPECED`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -66,7 +66,7 @@ unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
         .offset(1 as ::core::ffi::c_int as isize) as u32;
     return b0 | b1;
 }
-pub unsafe extern "C" fn cff_close_FDSelect(mut fds: CffFdSelect) {
+pub unsafe extern "C" fn cff_close_fd_select(mut fds: CffFdSelect) {
     match fds.t {
         CffFdSelectType::Format0 => {
             if !fds.c2rust_unnamed.f0.fds.is_null() {
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn cff_close_FDSelect(mut fds: CffFdSelect) {
         _ => {}
     };
 }
-pub unsafe extern "C" fn cff_build_FDSelect(mut fd: CffFdSelect) -> *mut Buffer {
+pub unsafe extern "C" fn cff_build_fd_select(mut fd: CffFdSelect) -> *mut Buffer {
     match fd.t {
         CffFdSelectType::Unspecified => return bufnew(),
         CffFdSelectType::Format0 => {
@@ -148,7 +148,7 @@ pub unsafe extern "C" fn cff_build_FDSelect(mut fd: CffFdSelect) -> *mut Buffer 
         }
     };
 }
-pub unsafe extern "C" fn cff_extract_FDSelect(
+pub unsafe extern "C" fn cff_extract_fd_select(
     mut data: *mut u8,
     mut offset: i32,
     mut nchars: u16,

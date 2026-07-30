@@ -48,7 +48,7 @@ use crate::table::vmtx::VmtxTable;
 
 use crate::vf::region::{VqAxisSpan};
 use crate::vf::vq::{VQ, VQSegType, VqSegment};
-use crate::support::aglfn::{aglfn_setupNames};
+use crate::support::aglfn::{aglfn_setup_names};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
@@ -65,7 +65,7 @@ use crate::vf::vq::{I_VQ};
 pub struct GlyphHash {
     pub hash: [u8; 20],
 }
-unsafe extern "C" fn hashVQS(buf: *mut Buffer, s: VqSegment) {
+unsafe extern "C" fn hash_vqs(buf: *mut Buffer, s: VqSegment) {
     bufwrite8(buf, s.type_0 as u8);
     match s.type_0 {
         VQSegType::Still => {
@@ -100,29 +100,29 @@ unsafe extern "C" fn hashVQS(buf: *mut Buffer, s: VqSegment) {
         }
     }
 }
-unsafe extern "C" fn hashVQ(buf: *mut Buffer, x: VQ) {
+unsafe extern "C" fn hash_vq(buf: *mut Buffer, x: VQ) {
     bufwrite32b(
         buf,
         otfcc_to_fixed(x.kernel as ::core::ffi::c_double) as u32,
     );
     bufwrite32b(buf, x.shift.length as u32);
     for j in 0..x.shift.length {
-        hashVQS(buf, *x.shift.items.offset(j as isize));
+        hash_vqs(buf, *x.shift.items.offset(j as isize));
     }
 }
-pub unsafe extern "C" fn nameGlyphByHash(
+pub unsafe extern "C" fn name_glyph_by_hash(
     mut g: *mut Glyph,
     mut glyf: *mut GlyfTable,
 ) -> GlyphHash {
     let buf: *mut Buffer = bufnew();
     bufwrite8(buf, 'H' as i32 as u8);
-    hashVQ(buf, (*g).advanceWidth);
+    hash_vq(buf, (*g).advanceWidth);
     bufwrite8(buf, 'h' as i32 as u8);
-    hashVQ(buf, (*g).horizontalOrigin);
+    hash_vq(buf, (*g).horizontalOrigin);
     bufwrite8(buf, 'V' as i32 as u8);
-    hashVQ(buf, (*g).advanceHeight);
+    hash_vq(buf, (*g).advanceHeight);
     bufwrite8(buf, 'v' as i32 as u8);
-    hashVQ(buf, (*g).verticalOrigin);
+    hash_vq(buf, (*g).verticalOrigin);
     bufwrite8(buf, 'C' as i32 as u8);
     bufwrite8(buf, '(' as i32 as u8);
     for j in 0..(*g).contours.length {
@@ -130,8 +130,8 @@ pub unsafe extern "C" fn nameGlyphByHash(
         let c: *mut Contour = (*g).contours.items.offset(j as isize) as *mut Contour;
         for k in 0..(*c).length {
             let point = (*c).items.offset(k as isize);
-            hashVQ(buf, (*point).x);
-            hashVQ(buf, (*point).y);
+            hash_vq(buf, (*point).x);
+            hash_vq(buf, (*point).y);
             bufwrite8(buf, ((*point).onCurve != 0) as u8);
         }
         bufwrite8(buf, ')' as i32 as u8);
@@ -142,7 +142,7 @@ pub unsafe extern "C" fn nameGlyphByHash(
     for j in 0..(*g).references.length {
         let r: *mut ComponentReference =
             (*g).references.items.offset(j as isize) as *mut ComponentReference;
-        let mut h: GlyphHash = nameGlyphByHash(
+        let mut h: GlyphHash = name_glyph_by_hash(
             *(*glyf).items.offset((*r).glyph.index as isize) as *mut Glyph,
             glyf,
         );
@@ -151,8 +151,8 @@ pub unsafe extern "C" fn nameGlyphByHash(
             SHA1_BLOCK_SIZE as usize,
             &raw mut h.hash as *mut u8,
         );
-        hashVQ(buf, (*r).x);
-        hashVQ(buf, (*r).y);
+        hash_vq(buf, (*r).x);
+        hash_vq(buf, (*r).y);
         bufwrite32b(
             buf,
             otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u32,
@@ -240,7 +240,7 @@ pub unsafe extern "C" fn nameGlyphByHash(
     buffree(buf);
     return h_0;
 }
-unsafe extern "C" fn createGlyphOrder(
+unsafe extern "C" fn create_glyph_order(
     mut font: *mut Font,
     mut options: *const Options,
 ) -> *mut GlyphOrder {
@@ -259,7 +259,7 @@ unsafe extern "C" fn createGlyphOrder(
     for j in 0..numGlyphs {
         let mut g: *mut Glyph = *(*(*font).glyf).items.offset(j as isize) as *mut Glyph;
         if (*options).name_glyphs_by_hash {
-            let h: GlyphHash = nameGlyphByHash(g, (*font).glyf);
+            let h: GlyphHash = name_glyph_by_hash(g, (*font).glyf);
             let mut gname: SdsRaw = sdsempty();
             for j_0 in 0..SHA1_BLOCK_SIZE as u16 {
                 if j_0 % 4 == 0 && j_0 / 4 != 0 {
@@ -365,7 +365,7 @@ unsafe extern "C" fn createGlyphOrder(
                 OTFCC_PKG_GLYPH_ORDER
                     .create
                     .expect("non-null function pointer"))();
-        aglfn_setupNames(aglfn);
+        aglfn_setup_names(aglfn);
         let mut s_0: *mut CmapEntry = ::core::ptr::null_mut::<CmapEntry>();
         s_0 = (*(*font).cmap).unicodes;
         while !s_0.is_null() {
@@ -433,7 +433,7 @@ unsafe extern "C" fn createGlyphOrder(
     sdsfree(prefix);
     return glyph_order;
 }
-unsafe extern "C" fn nameGlyphs(mut font: *mut Font, mut gord: *mut GlyphOrder) {
+unsafe extern "C" fn name_glyphs(mut font: *mut Font, mut gord: *mut GlyphOrder) {
     if gord.is_null() {
         return;
     }
@@ -519,7 +519,7 @@ unsafe extern "C" fn unconsolidate_chaining(
         .expect("non-null function pointer")(&raw mut (*lookup).subtables, lookup);
     (*lookup).subtables = newsts;
 }
-unsafe extern "C" fn expandChain(font: *mut Font, lookup: *mut Lookup, table: *mut OtlTable) {
+unsafe extern "C" fn expand_chain(font: *mut Font, lookup: *mut Lookup, table: *mut OtlTable) {
     match (*lookup).type_0 {
         OTL_TYPE_GSUB_CHAINING | OTL_TYPE_GPOS_CHAINING => {
             unconsolidate_chaining(font, lookup, table);
@@ -527,21 +527,21 @@ unsafe extern "C" fn expandChain(font: *mut Font, lookup: *mut Lookup, table: *m
         _ => {}
     };
 }
-unsafe extern "C" fn expandChainingLookups(font: *mut Font) {
+unsafe extern "C" fn expand_chaining_lookups(font: *mut Font) {
     if !(*font).GSUB.is_null() {
         for j in 0..(*(*font).GSUB).lookups.length {
             let lookup: *mut Lookup = *(*(*font).GSUB).lookups.items.offset(j as isize) as *mut Lookup;
-            expandChain(font, lookup, (*font).GSUB);
+            expand_chain(font, lookup, (*font).GSUB);
         }
     }
     if !(*font).GPOS.is_null() {
         for j in 0..(*(*font).GPOS).lookups.length {
             let lookup: *mut Lookup = *(*(*font).GPOS).lookups.items.offset(j as isize) as *mut Lookup;
-            expandChain(font, lookup, (*font).GPOS);
+            expand_chain(font, lookup, (*font).GPOS);
         }
     }
 }
-unsafe extern "C" fn mergeHmtx(font: *mut Font) {
+unsafe extern "C" fn merge_hmtx(font: *mut Font) {
     if !(!(*font).hhea.is_null() && !(*font).hmtx.is_null() && !(*font).glyf.is_null()) {
         return;
     }
@@ -575,7 +575,7 @@ unsafe extern "C" fn mergeHmtx(font: *mut Font) {
     TABLE_I_HMTX.free.expect("non-null function pointer")((*font).hmtx);
     (*font).hmtx = ::core::ptr::null_mut::<HmtxTable>();
 }
-unsafe extern "C" fn mergeVmtx(font: *mut Font) {
+unsafe extern "C" fn merge_vmtx(font: *mut Font) {
     if !(!(*font).vhea.is_null() && !(*font).vmtx.is_null() && !(*font).glyf.is_null()) {
         return;
     }
@@ -637,7 +637,7 @@ unsafe extern "C" fn mergeVmtx(font: *mut Font) {
     TABLE_I_VMTX.free.expect("non-null function pointer")((*font).vmtx);
     (*font).vmtx = ::core::ptr::null_mut::<VmtxTable>();
 }
-unsafe extern "C" fn mergeLTSH(font: *mut Font) {
+unsafe extern "C" fn merge_ltsh(font: *mut Font) {
     if !(*font).glyf.is_null() && !(*font).LTSH.is_null() {
         let n = ((*(*font).glyf).length as GlyphId).min((*(*font).LTSH).numGlyphs);
         for j in 0..n {
@@ -646,17 +646,17 @@ unsafe extern "C" fn mergeLTSH(font: *mut Font) {
         }
     }
 }
-pub unsafe extern "C" fn otfcc_unconsolidateFont(
+pub unsafe extern "C" fn otfcc_unconsolidate_font(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
-    mergeHmtx(font);
-    mergeVmtx(font);
-    mergeLTSH(font);
-    expandChainingLookups(font);
+    merge_hmtx(font);
+    merge_vmtx(font);
+    merge_ltsh(font);
+    expand_chaining_lookups(font);
     if !(*font).glyf.is_null() {
-        let mut gord: *mut GlyphOrder = createGlyphOrder(font, options);
-        nameGlyphs(font, gord);
+        let mut gord: *mut GlyphOrder = create_glyph_order(font, options);
+        name_glyphs(font, gord);
         OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")(gord);
     }
 }
