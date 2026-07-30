@@ -16,7 +16,7 @@ bitflags::bitflags! {
     /// encoded, never *what* it means.
     ///
     /// A bit set rather than an enum because that is how it is used:
-    /// `getLookupHeuristics` starts from nothing and ors bits in as it finds
+    /// `get_lookup_heuristics` starts from nothing and ors bits in as it finds
     /// reasons to. C's `OTL_BH_NORMAL = 0` is spelled `empty()` here -- naming
     /// the empty set invites `contains(NORMAL)`, which would be vacuously true.
     ///

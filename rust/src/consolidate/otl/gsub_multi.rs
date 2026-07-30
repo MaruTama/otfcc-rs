@@ -1,8 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
 
-use crate::table::otl::coverage::{Coverage, shrinkCoverage};
-use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
+use crate::table::otl::coverage::{Coverage, shrink_coverage};
+use crate::support::handle::{handle_from_consolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -44,7 +44,7 @@ use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable, OtlTable};
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::consolidate::otl::common::{fontop_consolidateCoverage};
+use crate::consolidate::otl::common::{fontop_consolidate_coverage};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gsub_multi::{I_SUBTABLE_GSUB_MULTI};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
@@ -96,8 +96,8 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                 ),
             );
         } else {
-            fontop_consolidateCoverage(font, (*(*subtable).items.offset(k as isize)).to, options);
-            shrinkCoverage(
+            fontop_consolidate_coverage(font, (*(*subtable).items.offset(k as isize)).to, options);
+            shrink_coverage(
                 (*(*subtable).items.offset(k as isize)).to,
                 false,
             );
@@ -1059,7 +1059,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
             .expect("non-null function pointer")(
             subtable,
             GsubMultiEntry {
-                from: handle_fromConsolidated(
+                from: handle_from_consolidated(
                     (*s_0).fromid as GlyphId,
                     (*s_0).fromname,
                 ) as GlyphHandle,

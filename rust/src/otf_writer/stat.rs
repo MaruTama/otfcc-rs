@@ -5,7 +5,7 @@ unsafe extern "C" {
 }
 
 
-use crate::support::handle::{HandleState, handle_fromIndex, GlyphHandle, Handle, otfcc_Handle_replace};
+use crate::support::handle::{HandleState, handle_from_index, GlyphHandle, Handle, otfcc_handle_replace};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -193,9 +193,9 @@ pub unsafe extern "C" fn stat_single_glyph(
             .expect("non-null function pointer")(&raw mut ref_0);
         let rr: *mut ComponentReference =
             (*g).references.items.offset(r as isize) as *mut ComponentReference;
-        otfcc_Handle_replace(
+        otfcc_handle_replace(
             &raw mut ref_0.glyph,
-            handle_fromIndex((*rr).glyph.index)
+            handle_from_index((*rr).glyph.index)
                 as Handle,
         );
         ref_0.a = (*gr).a * (*rr).a + (*rr).b * (*gr).c;
@@ -271,7 +271,7 @@ pub unsafe extern "C" fn stat_single_glyph(
     *stated.offset(j as isize) = StatStatus::Completed;
     return stat;
 }
-pub unsafe extern "C" fn statGlyf(mut font: *mut Font, mut options: *const Options) {
+pub unsafe extern "C" fn stat_glyf(mut font: *mut Font, mut options: *const Options) {
     let mut stated: *mut StatStatus = ::core::ptr::null_mut::<StatStatus>();
     stated = __caryll_allocate_clean(
         (::core::mem::size_of::<StatStatus>() as usize).wrapping_mul((*(*font).glyf).length),
@@ -315,7 +315,7 @@ pub unsafe extern "C" fn statGlyf(mut font: *mut Font, mut options: *const Optio
             outer: 0,
         };
         gr.glyph =
-            handle_fromIndex(j) as GlyphHandle;
+            handle_from_index(j) as GlyphHandle;
         gr.x =
             I_VQ.createStill.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
         gr.y =
@@ -347,7 +347,7 @@ pub unsafe extern "C" fn statGlyf(mut font: *mut Font, mut options: *const Optio
     free(stated as *mut ::core::ffi::c_void);
     stated = ::core::ptr::null_mut::<StatStatus>();
 }
-pub unsafe extern "C" fn statMaxp(mut font: *mut Font) {
+pub unsafe extern "C" fn stat_maxp(mut font: *mut Font) {
     let mut nestDepth: u16 = 0 as u16;
     let mut nPoints: u16 = 0 as u16;
     let mut nContours: u16 = 0 as u16;
@@ -394,7 +394,7 @@ pub unsafe extern "C" fn statMaxp(mut font: *mut Font) {
     (*(*font).maxp).maxComponentElements = n_components;
     (*(*font).maxp).maxSizeOfInstructions = inst_size;
 }
-unsafe extern "C" fn statHmtx(mut font: *mut Font, mut _options: *const Options) {
+unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options) {
     if (*font).glyf.is_null() {
         return;
     }
@@ -486,7 +486,7 @@ unsafe extern "C" fn statHmtx(mut font: *mut Font, mut _options: *const Options)
         | (if lsb_at_x_0 { 0x2 as ::core::ffi::c_int } else { 0 as ::core::ffi::c_int }))
         as u16;
 }
-unsafe extern "C" fn statVmtx(mut font: *mut Font, mut options: *const Options) {
+unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options) {
     if (*font).glyf.is_null() {
         return;
     }
@@ -563,7 +563,7 @@ unsafe extern "C" fn statVmtx(mut font: *mut Font, mut options: *const Options) 
     (*(*font).vhea).advanceHeightMax = max_height as i16;
     (*font).vmtx = vmtx;
 }
-unsafe extern "C" fn statOS_2UnicodeRanges(
+unsafe extern "C" fn stat_os_2_unicode_ranges(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
@@ -1045,7 +1045,7 @@ unsafe extern "C" fn statOS_2UnicodeRanges(
         (*(*font).OS_2).usLastCharIndex = 0xffff as u16;
     };
 }
-unsafe extern "C" fn statOS_2AverageWidth(
+unsafe extern "C" fn stat_os_2_average_width(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
@@ -1064,7 +1064,7 @@ unsafe extern "C" fn statOS_2AverageWidth(
     (*(*font).OS_2).xAvgCharWidth =
         (total_width as usize).wrapping_div((*(*font).glyf).length) as i16;
 }
-unsafe extern "C" fn statMaxContextOTL(table: *const OtlTable) -> u16 {
+unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
     // c2rust's translation of otfcc's own `foreach(item, vector) { ... }`
     // macro (c/lib/otf-writer/stat.c): the __caryll_index*/keep* variables
     // simulate a single-iteration inner while purely so the macro body can
@@ -1118,29 +1118,29 @@ unsafe extern "C" fn statMaxContextOTL(table: *const OtlTable) -> u16 {
     }
     return maxc;
 }
-unsafe extern "C" fn statMaxContext(mut font: *mut Font, mut _options: *const Options) {
+unsafe extern "C" fn stat_max_context(mut font: *mut Font, mut _options: *const Options) {
     let mut maxc: u16 = 1 as u16;
     if !(*font).GSUB.is_null() {
-        let mut maxc_gsub: u16 = statMaxContextOTL((*font).GSUB);
+        let mut maxc_gsub: u16 = stat_max_context_otl((*font).GSUB);
         if maxc_gsub as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
             maxc = maxc_gsub;
         }
     }
     if !(*font).GPOS.is_null() {
-        let mut maxc_gpos: u16 = statMaxContextOTL((*font).GPOS);
+        let mut maxc_gpos: u16 = stat_max_context_otl((*font).GPOS);
         if maxc_gpos as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
             maxc = maxc_gpos;
         }
     }
     (*(*font).OS_2).usMaxContext = maxc;
 }
-unsafe extern "C" fn statOS_2(mut font: *mut Font, mut options: *const Options) {
-    statOS_2UnicodeRanges(font, options);
-    statOS_2AverageWidth(font, options);
-    statMaxContext(font, options);
+unsafe extern "C" fn stat_os_2(mut font: *mut Font, mut options: *const Options) {
+    stat_os_2_unicode_ranges(font, options);
+    stat_os_2_average_width(font, options);
+    stat_max_context(font, options);
 }
 pub const MAX_STAT_METRIC: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
-unsafe extern "C" fn statCFFWidths(mut font: *mut Font) {
+unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
     if (*font).glyf.is_null() || (*font).CFF_.is_null() {
         return;
     }
@@ -1196,7 +1196,7 @@ unsafe extern "C" fn statCFFWidths(mut font: *mut Font) {
     }
     free(frequency as *mut ::core::ffi::c_void);
 }
-unsafe extern "C" fn statVORG(mut font: *mut Font) {
+unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
     if (*font).glyf.is_null()
         || (*font).CFF_.is_null()
         || (*font).vhea.is_null()
@@ -1260,7 +1260,7 @@ unsafe extern "C" fn statVORG(mut font: *mut Font) {
     free(frequency as *mut ::core::ffi::c_void);
     (*font).VORG = vorg;
 }
-unsafe extern "C" fn statLTSH(mut font: *mut Font) {
+unsafe extern "C" fn stat_ltsh(mut font: *mut Font) {
     if (*font).glyf.is_null() {
         return;
     }
@@ -1290,12 +1290,12 @@ unsafe extern "C" fn statLTSH(mut font: *mut Font) {
     }
     (*font).LTSH = ltsh;
 }
-pub unsafe extern "C" fn otfcc_statFont(
+pub unsafe extern "C" fn otfcc_stat_font(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
     if !(*font).glyf.is_null() && !(*font).head.is_null() {
-        statGlyf(font, options);
+        stat_glyf(font, options);
         if !(*options).keep_modified_time {
             (*(*font).head).modified =
                 2082844800 as i64 + time(::core::ptr::null_mut::<time_t>()) as i64;
@@ -1380,7 +1380,7 @@ pub unsafe extern "C" fn otfcc_statFont(
             (*(*cff).fontMatrix).y = (
                 I_VQ.neutral.expect("non-null function pointer"))();
         }
-        statCFFWidths(font);
+        stat_cff_widths(font);
     }
     if !(*font).glyf.is_null() && !(*font).maxp.is_null() {
         (*(*font).maxp).numGlyphs = (*(*font).glyf).length as u16;
@@ -1392,7 +1392,7 @@ pub unsafe extern "C" fn otfcc_statFont(
         && !(*font).maxp.is_null()
         && (*(*font).maxp).version == 0x10000 as F16Dot16
     {
-        statMaxp(font);
+        stat_maxp(font);
         if !(*font).fpgm.is_null()
             && (*(*font).fpgm).length > (*(*font).maxp).maxSizeOfInstructions as u32
         {
@@ -1405,7 +1405,7 @@ pub unsafe extern "C" fn otfcc_statFont(
         }
     }
     if !(*font).OS_2.is_null() && !(*font).cmap.is_null() && !(*font).glyf.is_null() {
-        statOS_2(font, options);
+        stat_os_2(font, options);
     }
     if (*font).subtype == FontSubtype::Ttf {
         if !(*font).maxp.is_null() {
@@ -1415,15 +1415,15 @@ pub unsafe extern "C" fn otfcc_statFont(
         (*(*font).maxp).version = 0x5000 as ::core::ffi::c_int as F16Dot16;
     }
     if !(*font).glyf.is_null() && !(*font).hhea.is_null() {
-        statHmtx(font, options);
+        stat_hmtx(font, options);
     }
     if !(*font).glyf.is_null() && !(*font).vhea.is_null() {
-        statVmtx(font, options);
-        statVORG(font);
+        stat_vmtx(font, options);
+        stat_vorg(font);
     }
-    statLTSH(font);
+    stat_ltsh(font);
 }
-pub unsafe extern "C" fn otfcc_unstatFont(
+pub unsafe extern "C" fn otfcc_unstat_font(
     mut font: *mut Font,
     mut _options: *const Options,
 ) {

@@ -32,53 +32,53 @@ pub struct LtshTableElementInterface {
     pub free: Option<unsafe extern "C" fn(*mut LtshTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn disposeLTSH(mut ltsh: *mut LtshTable) {
+unsafe extern "C" fn dispose_ltsh(mut ltsh: *mut LtshTable) {
     if !ltsh.is_null() {
         free((*ltsh).yPels as *mut ::core::ffi::c_void);
         (*ltsh).yPels = ::core::ptr::null_mut::<u8>();
     }
 }
 #[inline]
-unsafe extern "C" fn table_LTSH_free(mut x: *mut LtshTable) {
+unsafe extern "C" fn table_ltsh_free(mut x: *mut LtshTable) {
     if x.is_null() {
         return;
     }
-    table_LTSH_dispose(x);
+    table_ltsh_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
 pub static TABLE_I_LTSH: LtshTableElementInterface = {
     LtshTableElementInterface {
-        init: Some(table_LTSH_init as unsafe extern "C" fn(*mut LtshTable) -> ()),
+        init: Some(table_ltsh_init as unsafe extern "C" fn(*mut LtshTable) -> ()),
         copy: Some(
-            table_LTSH_copy as unsafe extern "C" fn(*mut LtshTable, *const LtshTable) -> (),
+            table_ltsh_copy as unsafe extern "C" fn(*mut LtshTable, *const LtshTable) -> (),
         ),
         move_0: Some(
-            table_LTSH_move as unsafe extern "C" fn(*mut LtshTable, *mut LtshTable) -> (),
+            table_ltsh_move as unsafe extern "C" fn(*mut LtshTable, *mut LtshTable) -> (),
         ),
-        dispose: Some(table_LTSH_dispose as unsafe extern "C" fn(*mut LtshTable) -> ()),
+        dispose: Some(table_ltsh_dispose as unsafe extern "C" fn(*mut LtshTable) -> ()),
         replace: Some(
-            table_LTSH_replace as unsafe extern "C" fn(*mut LtshTable, LtshTable) -> (),
+            table_ltsh_replace as unsafe extern "C" fn(*mut LtshTable, LtshTable) -> (),
         ),
         copyReplace: Some(
-            table_LTSH_copyReplace as unsafe extern "C" fn(*mut LtshTable, LtshTable) -> (),
+            table_ltsh_copy_replace as unsafe extern "C" fn(*mut LtshTable, LtshTable) -> (),
         ),
-        create: Some(table_LTSH_create),
-        free: Some(table_LTSH_free as unsafe extern "C" fn(*mut LtshTable) -> ()),
+        create: Some(table_ltsh_create),
+        free: Some(table_ltsh_free as unsafe extern "C" fn(*mut LtshTable) -> ()),
     }
 };
 #[inline]
-unsafe extern "C" fn table_LTSH_dispose(mut x: *mut LtshTable) {
-    disposeLTSH(x);
+unsafe extern "C" fn table_ltsh_dispose(mut x: *mut LtshTable) {
+    dispose_ltsh(x);
 }
 #[inline]
-unsafe extern "C" fn table_LTSH_create() -> *mut LtshTable {
+unsafe extern "C" fn table_ltsh_create() -> *mut LtshTable {
     let mut x: *mut LtshTable =
         malloc(::core::mem::size_of::<LtshTable>() as usize) as *mut LtshTable;
-    table_LTSH_init(x);
+    table_ltsh_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_LTSH_init(mut x: *mut LtshTable) {
+unsafe extern "C" fn table_ltsh_init(mut x: *mut LtshTable) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -86,7 +86,7 @@ unsafe extern "C" fn table_LTSH_init(mut x: *mut LtshTable) {
     );
 }
 #[inline]
-unsafe extern "C" fn table_LTSH_copy(mut dst: *mut LtshTable, mut src: *const LtshTable) {
+unsafe extern "C" fn table_ltsh_copy(mut dst: *mut LtshTable, mut src: *const LtshTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
@@ -94,29 +94,29 @@ unsafe extern "C" fn table_LTSH_copy(mut dst: *mut LtshTable, mut src: *const Lt
     );
 }
 #[inline]
-unsafe extern "C" fn table_LTSH_copyReplace(mut dst: *mut LtshTable, src: LtshTable) {
-    table_LTSH_dispose(dst);
-    table_LTSH_copy(dst, &raw const src);
+unsafe extern "C" fn table_ltsh_copy_replace(mut dst: *mut LtshTable, src: LtshTable) {
+    table_ltsh_dispose(dst);
+    table_ltsh_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_LTSH_move(mut dst: *mut LtshTable, mut src: *mut LtshTable) {
+unsafe extern "C" fn table_ltsh_move(mut dst: *mut LtshTable, mut src: *mut LtshTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<LtshTable>() as usize,
     );
-    table_LTSH_init(src);
+    table_ltsh_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_LTSH_replace(mut dst: *mut LtshTable, src: LtshTable) {
-    table_LTSH_dispose(dst);
+unsafe extern "C" fn table_ltsh_replace(mut dst: *mut LtshTable, src: LtshTable) {
+    table_ltsh_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<LtshTable>() as usize,
     );
 }
-pub unsafe extern "C" fn otfcc_readLTSH(
+pub unsafe extern "C" fn otfcc_read_ltsh(
     packet: Packet,
     mut _options: *const Options,
 ) -> *mut LtshTable {
@@ -162,7 +162,7 @@ pub unsafe extern "C" fn otfcc_readLTSH(
     }
     return ::core::ptr::null_mut::<LtshTable>();
 }
-pub unsafe extern "C" fn otfcc_buildLTSH(
+pub unsafe extern "C" fn otfcc_build_ltsh(
     mut ltsh: *const LtshTable,
     mut _options: *const Options,
 ) -> *mut Buffer {

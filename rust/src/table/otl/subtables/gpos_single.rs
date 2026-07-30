@@ -1,8 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
 
-use crate::table::otl::coverage::{Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
-use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HandleState};
+use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
+use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u};
 
 use crate::support::buffer::{Buffer};
@@ -11,13 +11,13 @@ use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GposSingleSubtableVectorInterface, GposSingleEntry, PositionValue, Subtable, GposSingleSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::support::{ComparFn};
-use crate::bk::bkblock::{bk_newBlockFromBuffer};
-use crate::bk::bkgraph::{bk_build_Block};
+use crate::bk::bkblock::{bk_new_block_from_buffer};
+use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value, required_position_format};
 use crate::vendor::json_builder::{json_object_new, json_object_push};
@@ -35,8 +35,8 @@ pub struct GposSingleEntryElementInterface {
     pub copyReplace:
         Option<unsafe extern "C" fn(*mut GposSingleEntry, GposSingleEntry) -> ()>,
 }
-unsafe extern "C" fn deleteGposSingleEntry(mut entry: *mut GposSingleEntry) {
-    otfcc_Handle_dispose(&raw mut (*entry).target);
+unsafe extern "C" fn delete_gpos_single_entry(mut entry: *mut GposSingleEntry) {
+    otfcc_handle_dispose(&raw mut (*entry).target);
 }
 static GSS_TYPEINFO: GposSingleEntryElementInterface = {
     GposSingleEntryElementInterface {
@@ -44,7 +44,7 @@ static GSS_TYPEINFO: GposSingleEntryElementInterface = {
         copy: None,
         move_0: None,
         dispose: Some(
-            deleteGposSingleEntry as unsafe extern "C" fn(*mut GposSingleEntry) -> (),
+            delete_gpos_single_entry as unsafe extern "C" fn(*mut GposSingleEntry) -> (),
         ),
         replace: None,
         copyReplace: None,
@@ -55,11 +55,11 @@ unsafe extern "C" fn subtable_gpos_single_move(dst: *mut GposSingleSubtable, src
     cvec_move(as_cvec(dst), as_cvec(src));
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_resizeTo(arr: *mut GposSingleSubtable, target: usize) {
+unsafe extern "C" fn subtable_gpos_single_resize_to(arr: *mut GposSingleSubtable, target: usize) {
     cvec_resize_to(as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_filterEnv(
+unsafe extern "C" fn subtable_gpos_single_filter_env(
     mut arr: *mut GposSingleSubtable,
     mut fn_0: Option<
         unsafe extern "C" fn(*const GposSingleEntry, *mut ::core::ffi::c_void) -> bool,
@@ -98,7 +98,7 @@ unsafe extern "C" fn subtable_gpos_single_init(arr: *mut GposSingleSubtable) {
     cvec_init(as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_disposeItem(
+unsafe extern "C" fn subtable_gpos_single_dispose_item(
     mut arr: *mut GposSingleSubtable,
     mut n: usize,
 ) {
@@ -171,7 +171,7 @@ unsafe extern "C" fn subtable_gpos_single_grow(arr: *mut GposSingleSubtable) {
     cvec_grow(as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_growTo(arr: *mut GposSingleSubtable, target: usize) {
+unsafe extern "C" fn subtable_gpos_single_grow_to(arr: *mut GposSingleSubtable, target: usize) {
     cvec_grow_to(as_cvec(arr), target);
 }
 #[inline]
@@ -179,7 +179,7 @@ unsafe extern "C" fn subtable_gpos_single_pop(arr: *mut GposSingleSubtable) -> G
     cvec_pop(as_cvec(arr))
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_copyReplace(
+unsafe extern "C" fn subtable_gpos_single_copy_replace(
     mut dst: *mut GposSingleSubtable,
     src: GposSingleSubtable,
 ) {
@@ -192,7 +192,7 @@ unsafe extern "C" fn subtable_gpos_single_copy(
     mut src: *const GposSingleSubtable,
 ) {
     subtable_gpos_single_init(dst);
-    subtable_gpos_single_growTo(dst, (*src).length);
+    subtable_gpos_single_grow_to(dst, (*src).length);
     (*dst).length = (*src).length;
     if GSS_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
@@ -248,21 +248,21 @@ unsafe extern "C" fn subtable_gpos_single_replace(
     );
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_initCapN(
+unsafe extern "C" fn subtable_gpos_single_init_cap_n(
     mut arr: *mut GposSingleSubtable,
     mut n: usize,
 ) {
     subtable_gpos_single_init(arr);
-    subtable_gpos_single_growToN(arr, n);
+    subtable_gpos_single_grow_to_n(arr, n);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_growToN(arr: *mut GposSingleSubtable, target: usize) {
+unsafe extern "C" fn subtable_gpos_single_grow_to_n(arr: *mut GposSingleSubtable, target: usize) {
     cvec_grow_to_n(as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_initN(mut arr: *mut GposSingleSubtable, mut n: usize) {
+unsafe extern "C" fn subtable_gpos_single_init_n(mut arr: *mut GposSingleSubtable, mut n: usize) {
     subtable_gpos_single_init(arr);
-    subtable_gpos_single_growToN(arr, n);
+    subtable_gpos_single_grow_to_n(arr, n);
     subtable_gpos_single_fill(arr, n);
 }
 #[inline]
@@ -274,11 +274,11 @@ unsafe extern "C" fn subtable_gpos_single_free(mut x: *mut GposSingleSubtable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_createN(mut n: usize) -> *mut GposSingleSubtable {
+unsafe extern "C" fn subtable_gpos_single_create_n(mut n: usize) -> *mut GposSingleSubtable {
     let mut t: *mut GposSingleSubtable =
         malloc(::core::mem::size_of::<GposSingleSubtable>() as usize)
             as *mut GposSingleSubtable;
-    subtable_gpos_single_initN(t, n);
+    subtable_gpos_single_init_n(t, n);
     return t;
 }
 #[inline]
@@ -313,7 +313,7 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
                 as unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleSubtable) -> (),
         ),
         copyReplace: Some(
-            subtable_gpos_single_copyReplace
+            subtable_gpos_single_copy_replace
                 as unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleSubtable) -> (),
         ),
         create: Some(subtable_gpos_single_create),
@@ -321,15 +321,15 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
             subtable_gpos_single_free as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
         ),
         initN: Some(
-            subtable_gpos_single_initN
+            subtable_gpos_single_init_n
                 as unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> (),
         ),
         initCapN: Some(
-            subtable_gpos_single_initCapN
+            subtable_gpos_single_init_cap_n
                 as unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> (),
         ),
         createN: Some(
-            subtable_gpos_single_createN
+            subtable_gpos_single_create_n
                 as unsafe extern "C" fn(usize) -> *mut GposSingleSubtable,
         ),
         fill: Some(
@@ -344,7 +344,7 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
                 as unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleEntry) -> (),
         ),
         shrinkToFit: Some(
-            subtable_gpos_single_shrinkToFit
+            subtable_gpos_single_shrink_to_fit
                 as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
         ),
         pop: Some(
@@ -352,11 +352,11 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
                 as unsafe extern "C" fn(*mut GposSingleSubtable) -> GposSingleEntry,
         ),
         disposeItem: Some(
-            subtable_gpos_single_disposeItem
+            subtable_gpos_single_dispose_item
                 as unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> (),
         ),
         filterEnv: Some(
-            subtable_gpos_single_filterEnv
+            subtable_gpos_single_filter_env
                 as unsafe extern "C" fn(
                     *mut GposSingleSubtable,
                     Option<
@@ -383,8 +383,8 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
     }
 };
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_shrinkToFit(mut arr: *mut GposSingleSubtable) {
-    subtable_gpos_single_resizeTo(arr, (*arr).length);
+unsafe extern "C" fn subtable_gpos_single_shrink_to_fit(mut arr: *mut GposSingleSubtable) {
+    subtable_gpos_single_resize_to(arr, (*arr).length);
 }
 pub unsafe extern "C" fn otl_read_gpos_single(
     data: FontFilePointer,
@@ -403,7 +403,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
     let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     if !(table_length < offset.wrapping_add(6 as u32)) {
         subtable_format = read_16u(data.offset(offset as isize) as *const u8);
-        targets = readCoverage(
+        targets = read_coverage(
             data as *const u8,
             table_length,
             offset.wrapping_add(read_16u(
@@ -432,7 +432,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                         .expect("non-null function pointer")(
                         subtable,
                         GposSingleEntry {
-                            target: otfcc_Handle_dup(
+                            target: otfcc_handle_dup(
                                 *(*targets).glyphs.offset(j as isize) as Handle,
                             ) as GlyphHandle,
                             value: v,
@@ -471,7 +471,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                             .expect("non-null function pointer")(
                             subtable,
                             GposSingleEntry {
-                                target: otfcc_Handle_dup(
+                                target: otfcc_handle_dup(
                                     *(*targets).glyphs.offset(j_0 as isize) as Handle,
                                 ) as GlyphHandle,
                                 value: read_gpos_value(
@@ -496,7 +496,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                 18154618883129817269 => {}
                 _ => {
                     if !targets.is_null() {
-                        otl_Coverage_free(targets);
+                        otl_coverage_free(targets);
                     }
                     return subtable as *mut Subtable;
                 }
@@ -504,7 +504,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
         }
     }
     if !targets.is_null() {
-        otl_Coverage_free(targets);
+        otl_coverage_free(targets);
     }
     I_SUBTABLE_GPOS_SINGLE
         .free
@@ -555,7 +555,7 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
                 .expect("non-null function pointer")(
                 subtable,
                 GposSingleEntry {
-                    target: handle_fromName(gname)
+                    target: handle_from_name(gname)
                         as GlyphHandle,
                     value: gpos_parse_value(
                         (*(*_subtable).u.object.values.offset(j as isize)).value as *mut JsonValue,
@@ -600,12 +600,12 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
             j = j.wrapping_add(1);
         }
     }
-    let mut cov: *mut Coverage = otl_Coverage_create();
+    let mut cov: *mut Coverage = otl_coverage_create();
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).length {
-        pushToCoverage(
+        push_to_coverage(
             cov,
-            otfcc_Handle_dup(
+            otfcc_handle_dup(
                 (*(*subtable).items.offset(j_0 as isize)).target as Handle,
             ) as GlyphHandle,
         );
@@ -614,20 +614,20 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
     let mut coverage_buf: *mut Buffer =
         OTL_I_COVERAGE.build.expect("non-null function pointer")(cov);
     if is_const {
-        let mut b: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(
+        let mut b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(
                 (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize)).value,
                 format,
             ))]);
-        otl_Coverage_free(cov);
-        return bk_build_Block(b);
+        otl_coverage_free(cov);
+        return bk_build_block(b);
     } else {
-        let mut b_0: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*subtable).length) as u32)]);
+        let mut b_0: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*subtable).length) as u32)]);
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < (*subtable).length {
             bk_push(b_0, &[bk_ptr(BkCellType::Embed, bk_gpos_value((*(*subtable).items.offset(k as isize)).value, format))]);
             k = k.wrapping_add(1);
         }
-        otl_Coverage_free(cov);
-        return bk_build_Block(b_0);
+        otl_coverage_free(cov);
+        return bk_build_block(b_0);
     };
 }

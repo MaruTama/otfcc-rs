@@ -3,8 +3,8 @@ use libc::{free, malloc, memcmp, memcpy, memset, qsort, strlen};
 
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
-use crate::table::otl::coverage::{Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
-use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HandleState};
+use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
+use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
@@ -15,16 +15,16 @@ use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::{NULL, ComparFn};
 use crate::table::otl::{GposMarkToLigatureSubtableElementInterface, LigatureArrayVectorInterface, Anchor, LigatureArray, LigatureBaseRecord, Subtable, GposMarkToLigatureSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::table::otl::subtables::gpos_common::{ClassNameHash};
 use crate::vendor::uthash::{UtHashBucket, UtHashHandle};
-use crate::bk::bkblock::{bk_newBlockFromBuffer};
-use crate::bk::bkgraph::{bk_build_Block};
+use crate::bk::bkblock::{bk_new_block_from_buffer};
+use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::table::otl::subtables::gpos_common::{bkFromAnchor, otl_anchor_absent, OTL_I_MARK_ARRAY, otl_parseMarkArray, otl_parse_anchor, otl_readMarkArray, otl_read_anchor};
+use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, OTL_I_MARK_ARRAY, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_length, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 #[derive(Copy, Clone)]
@@ -73,8 +73,8 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     }
     return 0 as usize;
 }
-unsafe extern "C" fn deleteLigArrayItem(mut entry: *mut LigatureBaseRecord) {
-    otfcc_Handle_dispose(&raw mut (*entry).glyph);
+unsafe extern "C" fn delete_lig_array_item(mut entry: *mut LigatureBaseRecord) {
+    otfcc_handle_dispose(&raw mut (*entry).glyph);
     if !(*entry).anchors.is_null() {
         let mut k: GlyphId = 0 as GlyphId;
         while (k as ::core::ffi::c_int) < (*entry).componentCount as ::core::ffi::c_int {
@@ -93,47 +93,47 @@ static LA_TYPEINFO: LigatureBaseRecordElementInterface = {
         copy: None,
         move_0: None,
         dispose: Some(
-            deleteLigArrayItem as unsafe extern "C" fn(*mut LigatureBaseRecord) -> (),
+            delete_lig_array_item as unsafe extern "C" fn(*mut LigatureBaseRecord) -> (),
         ),
         replace: None,
         copyReplace: None,
     }
 };
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_growToN(arr: *mut LigatureArray, target: usize) {
-    cvec_grow_to_n(otl_LigatureArray_as_cvec(arr), target);
+unsafe extern "C" fn otl_ligature_array_grow_to_n(arr: *mut LigatureArray, target: usize) {
+    cvec_grow_to_n(otl_ligature_array_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_push(arr: *mut LigatureArray, elem: LigatureBaseRecord) {
-    cvec_push(otl_LigatureArray_as_cvec(arr), elem);
+unsafe extern "C" fn otl_ligature_array_push(arr: *mut LigatureArray, elem: LigatureBaseRecord) {
+    cvec_push(otl_ligature_array_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_grow(arr: *mut LigatureArray) {
-    cvec_grow(otl_LigatureArray_as_cvec(arr));
+unsafe extern "C" fn otl_ligature_array_grow(arr: *mut LigatureArray) {
+    cvec_grow(otl_ligature_array_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_growTo(arr: *mut LigatureArray, target: usize) {
-    cvec_grow_to(otl_LigatureArray_as_cvec(arr), target);
+unsafe extern "C" fn otl_ligature_array_grow_to(arr: *mut LigatureArray, target: usize) {
+    cvec_grow_to(otl_ligature_array_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_pop(arr: *mut LigatureArray) -> LigatureBaseRecord {
-    cvec_pop(otl_LigatureArray_as_cvec(arr))
+unsafe extern "C" fn otl_ligature_array_pop(arr: *mut LigatureArray) -> LigatureBaseRecord {
+    cvec_pop(otl_ligature_array_as_cvec(arr))
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_copyReplace(
+unsafe extern "C" fn otl_ligature_array_copy_replace(
     mut dst: *mut LigatureArray,
     src: LigatureArray,
 ) {
-    otl_LigatureArray_dispose(dst);
-    otl_LigatureArray_copy(dst, &raw const src);
+    otl_ligature_array_dispose(dst);
+    otl_ligature_array_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_copy(
+unsafe extern "C" fn otl_ligature_array_copy(
     mut dst: *mut LigatureArray,
     mut src: *const LigatureArray,
 ) {
-    otl_LigatureArray_init(dst);
-    otl_LigatureArray_growTo(dst, (*src).length);
+    otl_ligature_array_init(dst);
+    otl_ligature_array_grow_to(dst, (*src).length);
     (*dst).length = (*src).length;
     if LA_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
@@ -154,7 +154,7 @@ unsafe extern "C" fn otl_LigatureArray_copy(
     };
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_dispose(mut arr: *mut LigatureArray) {
+unsafe extern "C" fn otl_ligature_array_dispose(mut arr: *mut LigatureArray) {
     if arr.is_null() {
         return;
     }
@@ -177,11 +177,11 @@ unsafe extern "C" fn otl_LigatureArray_dispose(mut arr: *mut LigatureArray) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_replace(
+unsafe extern "C" fn otl_ligature_array_replace(
     mut dst: *mut LigatureArray,
     src: LigatureArray,
 ) {
-    otl_LigatureArray_dispose(dst);
+    otl_ligature_array_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -189,48 +189,48 @@ unsafe extern "C" fn otl_LigatureArray_replace(
     );
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_initCapN(mut arr: *mut LigatureArray, mut n: usize) {
-    otl_LigatureArray_init(arr);
-    otl_LigatureArray_growToN(arr, n);
+unsafe extern "C" fn otl_ligature_array_init_cap_n(mut arr: *mut LigatureArray, mut n: usize) {
+    otl_ligature_array_init(arr);
+    otl_ligature_array_grow_to_n(arr, n);
 }
 #[inline]
-unsafe fn otl_LigatureArray_as_cvec(arr: *mut LigatureArray) -> *mut CVecRaw<LigatureBaseRecord> {
+unsafe fn otl_ligature_array_as_cvec(arr: *mut LigatureArray) -> *mut CVecRaw<LigatureBaseRecord> {
     arr as *mut CVecRaw<LigatureBaseRecord>
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_init(arr: *mut LigatureArray) {
-    cvec_init(otl_LigatureArray_as_cvec(arr));
+unsafe extern "C" fn otl_ligature_array_init(arr: *mut LigatureArray) {
+    cvec_init(otl_ligature_array_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_initN(mut arr: *mut LigatureArray, mut n: usize) {
-    otl_LigatureArray_init(arr);
-    otl_LigatureArray_growToN(arr, n);
-    otl_LigatureArray_fill(arr, n);
+unsafe extern "C" fn otl_ligature_array_init_n(mut arr: *mut LigatureArray, mut n: usize) {
+    otl_ligature_array_init(arr);
+    otl_ligature_array_grow_to_n(arr, n);
+    otl_ligature_array_fill(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_free(mut x: *mut LigatureArray) {
+unsafe extern "C" fn otl_ligature_array_free(mut x: *mut LigatureArray) {
     if x.is_null() {
         return;
     }
-    otl_LigatureArray_dispose(x);
+    otl_ligature_array_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_createN(mut n: usize) -> *mut LigatureArray {
+unsafe extern "C" fn otl_ligature_array_create_n(mut n: usize) -> *mut LigatureArray {
     let mut t: *mut LigatureArray =
         malloc(::core::mem::size_of::<LigatureArray>() as usize) as *mut LigatureArray;
-    otl_LigatureArray_initN(t, n);
+    otl_ligature_array_init_n(t, n);
     return t;
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_create() -> *mut LigatureArray {
+unsafe extern "C" fn otl_ligature_array_create() -> *mut LigatureArray {
     let mut x: *mut LigatureArray =
         malloc(::core::mem::size_of::<LigatureArray>() as usize) as *mut LigatureArray;
-    otl_LigatureArray_init(x);
+    otl_ligature_array_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_filterEnv(
+unsafe extern "C" fn otl_ligature_array_filter_env(
     mut arr: *mut LigatureArray,
     mut fn_0: Option<
         unsafe extern "C" fn(*const LigatureBaseRecord, *mut ::core::ffi::c_void) -> bool,
@@ -262,61 +262,61 @@ unsafe extern "C" fn otl_LigatureArray_filterEnv(
 }
 pub static OTL_I_LIGATURE_ARRAY: LigatureArrayVectorInterface = {
     LigatureArrayVectorInterface {
-        init: Some(otl_LigatureArray_init as unsafe extern "C" fn(*mut LigatureArray) -> ()),
+        init: Some(otl_ligature_array_init as unsafe extern "C" fn(*mut LigatureArray) -> ()),
         copy: Some(
-            otl_LigatureArray_copy
+            otl_ligature_array_copy
                 as unsafe extern "C" fn(*mut LigatureArray, *const LigatureArray) -> (),
         ),
         move_0: Some(
-            otl_LigatureArray_move
+            otl_ligature_array_move
                 as unsafe extern "C" fn(*mut LigatureArray, *mut LigatureArray) -> (),
         ),
         dispose: Some(
-            otl_LigatureArray_dispose as unsafe extern "C" fn(*mut LigatureArray) -> (),
+            otl_ligature_array_dispose as unsafe extern "C" fn(*mut LigatureArray) -> (),
         ),
         replace: Some(
-            otl_LigatureArray_replace
+            otl_ligature_array_replace
                 as unsafe extern "C" fn(*mut LigatureArray, LigatureArray) -> (),
         ),
         copyReplace: Some(
-            otl_LigatureArray_copyReplace
+            otl_ligature_array_copy_replace
                 as unsafe extern "C" fn(*mut LigatureArray, LigatureArray) -> (),
         ),
-        create: Some(otl_LigatureArray_create),
-        free: Some(otl_LigatureArray_free as unsafe extern "C" fn(*mut LigatureArray) -> ()),
+        create: Some(otl_ligature_array_create),
+        free: Some(otl_ligature_array_free as unsafe extern "C" fn(*mut LigatureArray) -> ()),
         initN: Some(
-            otl_LigatureArray_initN as unsafe extern "C" fn(*mut LigatureArray, usize) -> (),
+            otl_ligature_array_init_n as unsafe extern "C" fn(*mut LigatureArray, usize) -> (),
         ),
         initCapN: Some(
-            otl_LigatureArray_initCapN
+            otl_ligature_array_init_cap_n
                 as unsafe extern "C" fn(*mut LigatureArray, usize) -> (),
         ),
         createN: Some(
-            otl_LigatureArray_createN as unsafe extern "C" fn(usize) -> *mut LigatureArray,
+            otl_ligature_array_create_n as unsafe extern "C" fn(usize) -> *mut LigatureArray,
         ),
         fill: Some(
-            otl_LigatureArray_fill as unsafe extern "C" fn(*mut LigatureArray, usize) -> (),
+            otl_ligature_array_fill as unsafe extern "C" fn(*mut LigatureArray, usize) -> (),
         ),
         clear: Some(
-            otl_LigatureArray_dispose as unsafe extern "C" fn(*mut LigatureArray) -> (),
+            otl_ligature_array_dispose as unsafe extern "C" fn(*mut LigatureArray) -> (),
         ),
         push: Some(
-            otl_LigatureArray_push
+            otl_ligature_array_push
                 as unsafe extern "C" fn(*mut LigatureArray, LigatureBaseRecord) -> (),
         ),
         shrinkToFit: Some(
-            otl_LigatureArray_shrinkToFit as unsafe extern "C" fn(*mut LigatureArray) -> (),
+            otl_ligature_array_shrink_to_fit as unsafe extern "C" fn(*mut LigatureArray) -> (),
         ),
         pop: Some(
-            otl_LigatureArray_pop
+            otl_ligature_array_pop
                 as unsafe extern "C" fn(*mut LigatureArray) -> LigatureBaseRecord,
         ),
         disposeItem: Some(
-            otl_LigatureArray_disposeItem
+            otl_ligature_array_dispose_item
                 as unsafe extern "C" fn(*mut LigatureArray, usize) -> (),
         ),
         filterEnv: Some(
-            otl_LigatureArray_filterEnv
+            otl_ligature_array_filter_env
                 as unsafe extern "C" fn(
                     *mut LigatureArray,
                     Option<
@@ -329,7 +329,7 @@ pub static OTL_I_LIGATURE_ARRAY: LigatureArrayVectorInterface = {
                 ) -> (),
         ),
         sort: Some(
-            otl_LigatureArray_sort
+            otl_ligature_array_sort
                 as unsafe extern "C" fn(
                     *mut LigatureArray,
                     Option<
@@ -343,19 +343,19 @@ pub static OTL_I_LIGATURE_ARRAY: LigatureArrayVectorInterface = {
     }
 };
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_shrinkToFit(mut arr: *mut LigatureArray) {
-    otl_LigatureArray_resizeTo(arr, (*arr).length);
+unsafe extern "C" fn otl_ligature_array_shrink_to_fit(mut arr: *mut LigatureArray) {
+    otl_ligature_array_resize_to(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_resizeTo(arr: *mut LigatureArray, target: usize) {
-    cvec_resize_to(otl_LigatureArray_as_cvec(arr), target);
+unsafe extern "C" fn otl_ligature_array_resize_to(arr: *mut LigatureArray, target: usize) {
+    cvec_resize_to(otl_ligature_array_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_move(dst: *mut LigatureArray, src: *mut LigatureArray) {
-    cvec_move(otl_LigatureArray_as_cvec(dst), otl_LigatureArray_as_cvec(src));
+unsafe extern "C" fn otl_ligature_array_move(dst: *mut LigatureArray, src: *mut LigatureArray) {
+    cvec_move(otl_ligature_array_as_cvec(dst), otl_ligature_array_as_cvec(src));
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_disposeItem(mut arr: *mut LigatureArray, mut n: usize) {
+unsafe extern "C" fn otl_ligature_array_dispose_item(mut arr: *mut LigatureArray, mut n: usize) {
     if LA_TYPEINFO.dispose.is_some() {
         LA_TYPEINFO.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut LigatureBaseRecord
@@ -364,7 +364,7 @@ unsafe extern "C" fn otl_LigatureArray_disposeItem(mut arr: *mut LigatureArray, 
     };
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_sort(
+unsafe extern "C" fn otl_ligature_array_sort(
     mut arr: *mut LigatureArray,
     mut fn_0: Option<
         unsafe extern "C" fn(
@@ -389,7 +389,7 @@ unsafe extern "C" fn otl_LigatureArray_sort(
     );
 }
 #[inline]
-unsafe extern "C" fn otl_LigatureArray_fill(mut arr: *mut LigatureArray, mut n: usize) {
+unsafe extern "C" fn otl_ligature_array_fill(mut arr: *mut LigatureArray, mut n: usize) {
     while (*arr).length < n {
         let mut x: LigatureBaseRecord = LigatureBaseRecord {
             glyph: Handle {
@@ -409,35 +409,35 @@ unsafe extern "C" fn otl_LigatureArray_fill(mut arr: *mut LigatureArray, mut n: 
                 ::core::mem::size_of::<LigatureBaseRecord>() as usize,
             );
         }
-        otl_LigatureArray_push(arr, x);
+        otl_ligature_array_push(arr, x);
     }
 }
 #[inline]
-unsafe extern "C" fn initMarkToLigature(mut subtable: *mut GposMarkToLigatureSubtable) {
+unsafe extern "C" fn init_mark_to_ligature(mut subtable: *mut GposMarkToLigatureSubtable) {
     OTL_I_MARK_ARRAY.init.expect("non-null function pointer")(&raw mut (*subtable).markArray);
     OTL_I_LIGATURE_ARRAY.init.expect("non-null function pointer")(&raw mut (*subtable).ligArray);
 }
 #[inline]
-unsafe extern "C" fn disposeMarkToLigature(mut subtable: *mut GposMarkToLigatureSubtable) {
+unsafe extern "C" fn dispose_mark_to_ligature(mut subtable: *mut GposMarkToLigatureSubtable) {
     OTL_I_MARK_ARRAY.dispose.expect("non-null function pointer")(&raw mut (*subtable).markArray);
     OTL_I_LIGATURE_ARRAY
         .dispose
         .expect("non-null function pointer")(&raw mut (*subtable).ligArray);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToLigature_init(mut x: *mut GposMarkToLigatureSubtable) {
-    initMarkToLigature(x);
+unsafe extern "C" fn subtable_gpos_mark_to_ligature_init(mut x: *mut GposMarkToLigatureSubtable) {
+    init_mark_to_ligature(x);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToLigature_copyReplace(
+unsafe extern "C" fn subtable_gpos_mark_to_ligature_copy_replace(
     mut dst: *mut GposMarkToLigatureSubtable,
     src: GposMarkToLigatureSubtable,
 ) {
-    subtable_gpos_markToLigature_dispose(dst);
-    subtable_gpos_markToLigature_copy(dst, &raw const src);
+    subtable_gpos_mark_to_ligature_dispose(dst);
+    subtable_gpos_mark_to_ligature_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToLigature_copy(
+unsafe extern "C" fn subtable_gpos_mark_to_ligature_copy(
     mut dst: *mut GposMarkToLigatureSubtable,
     mut src: *const GposMarkToLigatureSubtable,
 ) {
@@ -448,11 +448,11 @@ unsafe extern "C" fn subtable_gpos_markToLigature_copy(
     );
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToLigature_replace(
+unsafe extern "C" fn subtable_gpos_mark_to_ligature_replace(
     mut dst: *mut GposMarkToLigatureSubtable,
     src: GposMarkToLigatureSubtable,
 ) {
-    subtable_gpos_markToLigature_dispose(dst);
+    subtable_gpos_mark_to_ligature_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -460,7 +460,7 @@ unsafe extern "C" fn subtable_gpos_markToLigature_replace(
     );
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToLigature_move(
+unsafe extern "C" fn subtable_gpos_mark_to_ligature_move(
     mut dst: *mut GposMarkToLigatureSubtable,
     mut src: *mut GposMarkToLigatureSubtable,
 ) {
@@ -469,77 +469,77 @@ unsafe extern "C" fn subtable_gpos_markToLigature_move(
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<GposMarkToLigatureSubtable>() as usize,
     );
-    subtable_gpos_markToLigature_init(src);
+    subtable_gpos_mark_to_ligature_init(src);
 }
 pub static I_SUBTABLE_GPOS_MARK_TO_LIGATURE:
     GposMarkToLigatureSubtableElementInterface = {
     GposMarkToLigatureSubtableElementInterface {
         init: Some(
-            subtable_gpos_markToLigature_init
+            subtable_gpos_mark_to_ligature_init
                 as unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> (),
         ),
         copy: Some(
-            subtable_gpos_markToLigature_copy
+            subtable_gpos_mark_to_ligature_copy
                 as unsafe extern "C" fn(
                     *mut GposMarkToLigatureSubtable,
                     *const GposMarkToLigatureSubtable,
                 ) -> (),
         ),
         move_0: Some(
-            subtable_gpos_markToLigature_move
+            subtable_gpos_mark_to_ligature_move
                 as unsafe extern "C" fn(
                     *mut GposMarkToLigatureSubtable,
                     *mut GposMarkToLigatureSubtable,
                 ) -> (),
         ),
         dispose: Some(
-            subtable_gpos_markToLigature_dispose
+            subtable_gpos_mark_to_ligature_dispose
                 as unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> (),
         ),
         replace: Some(
-            subtable_gpos_markToLigature_replace
+            subtable_gpos_mark_to_ligature_replace
                 as unsafe extern "C" fn(
                     *mut GposMarkToLigatureSubtable,
                     GposMarkToLigatureSubtable,
                 ) -> (),
         ),
         copyReplace: Some(
-            subtable_gpos_markToLigature_copyReplace
+            subtable_gpos_mark_to_ligature_copy_replace
                 as unsafe extern "C" fn(
                     *mut GposMarkToLigatureSubtable,
                     GposMarkToLigatureSubtable,
                 ) -> (),
         ),
-        create: Some(subtable_gpos_markToLigature_create),
+        create: Some(subtable_gpos_mark_to_ligature_create),
         free: Some(
-            subtable_gpos_markToLigature_free
+            subtable_gpos_mark_to_ligature_free
                 as unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> (),
         ),
     }
 };
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToLigature_create() -> *mut GposMarkToLigatureSubtable {
+unsafe extern "C" fn subtable_gpos_mark_to_ligature_create() -> *mut GposMarkToLigatureSubtable {
     let mut x: *mut GposMarkToLigatureSubtable =
         malloc(::core::mem::size_of::<GposMarkToLigatureSubtable>() as usize)
             as *mut GposMarkToLigatureSubtable;
-    subtable_gpos_markToLigature_init(x);
+    subtable_gpos_mark_to_ligature_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToLigature_free(mut x: *mut GposMarkToLigatureSubtable) {
+unsafe extern "C" fn subtable_gpos_mark_to_ligature_free(mut x: *mut GposMarkToLigatureSubtable) {
     if x.is_null() {
         return;
     }
-    subtable_gpos_markToLigature_dispose(x);
+    subtable_gpos_mark_to_ligature_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_markToLigature_dispose(
+unsafe extern "C" fn subtable_gpos_mark_to_ligature_dispose(
     mut x: *mut GposMarkToLigatureSubtable,
 ) {
-    disposeMarkToLigature(x);
+    dispose_mark_to_ligature(x);
 }
-pub unsafe extern "C" fn otl_read_gpos_markToLigature(
+pub unsafe extern "C" fn otl_read_gpos_mark_to_ligature(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -557,7 +557,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
     let mut marks: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let mut bases: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     if !(table_length < offset.wrapping_add(12 as u32)) {
-        marks = readCoverage(
+        marks = read_coverage(
             data as *const u8,
             table_length,
             offset.wrapping_add(read_16u(
@@ -565,7 +565,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             ) as u32),
         );
-        bases = readCoverage(
+        bases = read_coverage(
             data as *const u8,
             table_length,
             offset.wrapping_add(read_16u(
@@ -586,7 +586,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
                 data.offset(offset as isize)
                     .offset(8 as ::core::ffi::c_int as isize) as *const u8,
             ) as u32);
-            otl_readMarkArray(
+            otl_read_mark_array(
                 &raw mut (*subtable).markArray,
                 marks,
                 data,
@@ -622,7 +622,7 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
                             componentCount: 0,
                             anchors: ::core::ptr::null_mut::<*mut Anchor>(),
                         };
-                        lig.glyph = otfcc_Handle_dup(
+                        lig.glyph = otfcc_handle_dup(
                             *(*bases).glyphs.offset(j as isize) as Handle,
                         ) as GlyphHandle;
                         let mut lig_attach_offset: u32 = lig_array_offset.wrapping_add(read_16u(
@@ -698,10 +698,10 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
                         14470250473917821325 => {}
                         _ => {
                             if !marks.is_null() {
-                                otl_Coverage_free(marks);
+                                otl_coverage_free(marks);
                             }
                             if !bases.is_null() {
-                                otl_Coverage_free(bases);
+                                otl_coverage_free(bases);
                             }
                             return subtable as *mut Subtable;
                         }
@@ -711,17 +711,17 @@ pub unsafe extern "C" fn otl_read_gpos_markToLigature(
         }
     }
     if !marks.is_null() {
-        otl_Coverage_free(marks);
+        otl_coverage_free(marks);
     }
     if !bases.is_null() {
-        otl_Coverage_free(bases);
+        otl_coverage_free(bases);
     }
     I_SUBTABLE_GPOS_MARK_TO_LIGATURE
         .free
         .expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
-pub unsafe extern "C" fn otl_gpos_dump_markToLigature(
+pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
     mut st: *const Subtable,
 ) -> *mut JsonValue {
     let mut subtable: *const GposMarkToLigatureSubtable = &raw const (*st).gpos_markToLigature;
@@ -829,7 +829,7 @@ pub unsafe extern "C" fn otl_gpos_dump_markToLigature(
     );
     return _subtable;
 }
-unsafe extern "C" fn parseBases(
+unsafe extern "C" fn parse_bases(
     mut _bases: *mut JsonValue,
     mut subtable: *mut GposMarkToLigatureSubtable,
     mut h: *mut *mut ClassNameHash,
@@ -855,7 +855,7 @@ unsafe extern "C" fn parseBases(
         };
         lig.componentCount = 0 as GlyphId;
         lig.anchors = ::core::ptr::null_mut::<*mut Anchor>();
-        lig.glyph = handle_fromName(sdsnewlen(
+        lig.glyph = handle_from_name(sdsnewlen(
             (*(*_bases).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
             (*(*_bases).u.object.values.offset(j as isize)).name_length as usize,
         )) as GlyphHandle;
@@ -1273,7 +1273,7 @@ unsafe extern "C" fn parseBases(
         j = j.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn otl_gpos_parse_markToLigature(
+pub unsafe extern "C" fn otl_gpos_parse_mark_to_ligature(
     mut _subtable: *const JsonValue,
     mut options: *const Options,
 ) -> *mut Subtable {
@@ -1296,13 +1296,13 @@ pub unsafe extern "C" fn otl_gpos_parse_markToLigature(
                 .create
                 .expect("non-null function pointer"))();
     let mut h: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
-    otl_parseMarkArray(_marks, &raw mut (*st).markArray, &raw mut h, options);
+    otl_parse_mark_array(_marks, &raw mut (*st).markArray, &raw mut h, options);
     (*st).classCount = (if !h.is_null() {
         (*(*h).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
     }) as GlyphClass;
-    parseBases(_bases, st, &raw mut h, options);
+    parse_bases(_bases, st, &raw mut h, options);
     let mut s: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
     let mut tmp: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
     s = h;
@@ -1365,49 +1365,49 @@ pub unsafe extern "C" fn otl_gpos_parse_markToLigature(
     }
     return st as *mut Subtable;
 }
-pub unsafe extern "C" fn otfcc_build_gpos_markToLigature(
+pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
     let mut subtable: *const GposMarkToLigatureSubtable =
         &raw const (*_subtable).gpos_markToLigature;
-    let mut marks: *mut Coverage = otl_Coverage_create();
+    let mut marks: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).markArray.length {
-        pushToCoverage(
+        push_to_coverage(
             marks,
-            otfcc_Handle_dup(
+            otfcc_handle_dup(
                 (*(*subtable).markArray.items.offset(j as isize)).glyph as Handle,
             ) as GlyphHandle,
         );
         j = j.wrapping_add(1);
     }
-    let mut bases: *mut Coverage = otl_Coverage_create();
+    let mut bases: *mut Coverage = otl_coverage_create();
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).ligArray.length {
-        pushToCoverage(
+        push_to_coverage(
             bases,
-            otfcc_Handle_dup(
+            otfcc_handle_dup(
                 (*(*subtable).ligArray.items.offset(j_0 as isize)).glyph as Handle,
             ) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             marks,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             bases,
         ))), bk_int(BkCellType::B16, ((*subtable).classCount as ::core::ffi::c_int) as u32)]);
-    let mut markArray: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*subtable).markArray.length) as u32)]);
+    let mut markArray: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).markArray.length) as u32)]);
     let mut j_1: GlyphId = 0 as GlyphId;
     while (j_1 as usize) < (*subtable).markArray.length {
-        bk_push(markArray, &[bk_int(BkCellType::B16, ((*(*subtable).markArray.items.offset(j_1 as isize)).markClass as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bkFromAnchor((*(*subtable).markArray.items.offset(j_1 as isize)).anchor))]);
+        bk_push(markArray, &[bk_int(BkCellType::B16, ((*(*subtable).markArray.items.offset(j_1 as isize)).markClass as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_from_anchor((*(*subtable).markArray.items.offset(j_1 as isize)).anchor))]);
         j_1 = j_1.wrapping_add(1);
     }
-    let mut ligature_array: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*subtable).ligArray.length) as u32)]);
+    let mut ligature_array: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).ligArray.length) as u32)]);
     let mut j_2: GlyphId = 0 as GlyphId;
     while (j_2 as usize) < (*subtable).ligArray.length {
-        let mut attach: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*(*subtable).ligArray.items.offset(j_2 as isize)).componentCount as ::core::ffi::c_int) as u32)]);
+        let mut attach: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*(*subtable).ligArray.items.offset(j_2 as isize)).componentCount as ::core::ffi::c_int) as u32)]);
         let mut k: GlyphId = 0 as GlyphId;
         while (k as ::core::ffi::c_int)
             < (*(*subtable).ligArray.items.offset(j_2 as isize)).componentCount
@@ -1415,7 +1415,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_markToLigature(
         {
             let mut m: GlyphClass = 0 as GlyphClass;
             while (m as ::core::ffi::c_int) < (*subtable).classCount as ::core::ffi::c_int {
-                bk_push(attach, &[bk_ptr(BkCellType::P16, bkFromAnchor(
+                bk_push(attach, &[bk_ptr(BkCellType::P16, bk_from_anchor(
                         *(*(*(*subtable).ligArray.items.offset(j_2 as isize))
                             .anchors
                             .offset(k as isize))
@@ -1429,7 +1429,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_markToLigature(
         j_2 = j_2.wrapping_add(1);
     }
     bk_push(root, &[bk_ptr(BkCellType::P16, markArray), bk_ptr(BkCellType::P16, ligature_array)]);
-    otl_Coverage_free(marks);
-    otl_Coverage_free(bases);
-    return bk_build_Block(root);
+    otl_coverage_free(marks);
+    otl_coverage_free(bases);
+    return bk_build_block(root);
 }

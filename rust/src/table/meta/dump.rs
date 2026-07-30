@@ -40,10 +40,10 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     return 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn isStringTag(mut tag: u32) -> bool {
+unsafe extern "C" fn is_string_tag(mut tag: u32) -> bool {
     return tag == 1684827751i32 as u32 || tag == 1936485991i32 as u32;
 }
-pub unsafe extern "C" fn otfcc_dumpMeta(
+pub unsafe extern "C" fn otfcc_dump_meta(
     mut meta: *const MetaTable,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn otfcc_dumpMeta(
                         &raw mut _tag as *mut ::core::ffi::c_char,
                     ),
                 );
-                if isStringTag((*e).tag) {
+                if is_string_tag((*e).tag) {
                     json_object_push(
                         _e,
                         b"string\0" as *const u8 as *const ::core::ffi::c_char,

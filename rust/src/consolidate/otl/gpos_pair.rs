@@ -34,7 +34,7 @@ use crate::font::caryll_font::{Font};
 
 
 use crate::table::otl::{Subtable, GposPairSubtable, OtlTable};
-use crate::consolidate::otl::common::{fontop_consolidateClassDef};
+use crate::consolidate::otl::common::{fontop_consolidate_class_def};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 
 
@@ -52,8 +52,8 @@ pub unsafe extern "C" fn consolidate_gpos_pair(
     mut options: *const Options,
 ) -> bool {
     let mut subtable: *mut GposPairSubtable = &raw mut (*_subtable).gpos_pair;
-    fontop_consolidateClassDef(font, (*subtable).first, options);
-    fontop_consolidateClassDef(font, (*subtable).second, options);
+    fontop_consolidate_class_def(font, (*subtable).first, options);
+    fontop_consolidate_class_def(font, (*subtable).second, options);
     OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*subtable).first);
     OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*subtable).second);
     return (*(*subtable).first).numGlyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int;

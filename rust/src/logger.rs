@@ -20,9 +20,9 @@ pub enum LoggerType {
     Info = 2,
     Progress = 3,
 }
-// How noisy a message is: `loggerLogSDS` prints it when
+// How noisy a message is: `logger_log_sds` prints it when
 // `verbosity <= self->verbosityLimit`, so these are thresholds on a scale, not
-// members of a set -- and `loggerStart`/`loggerFinish` do arithmetic on one
+// members of a set -- and `logger_start`/`logger_finish` do arithmetic on one
 // (`LOG_VL_PROGRESS + level`, deeper nesting being more verbose), which an enum
 // could not express. So they stay plain integers, typed as the `u8` every
 // logging entry point takes; that is what drops the `as c_int as u8` pair from
@@ -107,7 +107,7 @@ pub static OTFCC_LOGGER_TYPE_NAMES: [&::core::ffi::CStr; 3] = [
     c"[WARNING]",
     c"[NOTE]",
 ];
-unsafe extern "C" fn loggerIndent(
+unsafe extern "C" fn logger_indent(
     mut _self: *mut ILogger,
     mut segment: *const ::core::ffi::c_char,
 ) {
@@ -116,7 +116,7 @@ unsafe extern "C" fn loggerIndent(
         sdsnew(segment),
     );
 }
-unsafe extern "C" fn loggerIndentSDS(mut _self: *mut ILogger, mut segment: SdsRaw) {
+unsafe extern "C" fn logger_indent_sds(mut _self: *mut ILogger, mut segment: SdsRaw) {
     let mut self_0: *mut Logger = _self as *mut Logger;
     let mut new_level: u8 =
         ((*self_0).level as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
@@ -136,7 +136,7 @@ unsafe extern "C" fn loggerIndentSDS(mut _self: *mut ILogger, mut segment: SdsRa
         .offset(((*self_0).level as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize);
     *fresh0 = segment;
 }
-unsafe extern "C" fn loggerDedent(mut _self: *mut ILogger) {
+unsafe extern "C" fn logger_dedent(mut _self: *mut ILogger) {
     let mut self_0: *mut Logger = _self as *mut Logger;
     if (*self_0).level == 0 {
         return;
@@ -151,7 +151,7 @@ unsafe extern "C" fn loggerDedent(mut _self: *mut ILogger) {
         (*self_0).lastLoggedLevel = (*self_0).level;
     }
 }
-unsafe extern "C" fn loggerFinish(mut self_0: *mut ILogger) {
+unsafe extern "C" fn logger_finish(mut self_0: *mut ILogger) {
     (*self_0).logSDS.expect("non-null function pointer")(
         self_0 as *mut ILogger,
         (LOG_VL_PROGRESS as ::core::ffi::c_int
@@ -161,7 +161,7 @@ unsafe extern "C" fn loggerFinish(mut self_0: *mut ILogger) {
     );
     (*self_0).dedent.expect("non-null function pointer")(self_0 as *mut ILogger);
 }
-unsafe extern "C" fn loggerStart(
+unsafe extern "C" fn logger_start(
     mut self_0: *mut ILogger,
     mut segment: *const ::core::ffi::c_char,
 ) {
@@ -177,7 +177,7 @@ unsafe extern "C" fn loggerStart(
         sdsnew(b"Begin\0" as *const u8 as *const ::core::ffi::c_char),
     );
 }
-unsafe extern "C" fn loggerStartSDS(mut self_0: *mut ILogger, mut segment: SdsRaw) {
+unsafe extern "C" fn logger_start_sds(mut self_0: *mut ILogger, mut segment: SdsRaw) {
     (*self_0).indentSDS.expect("non-null function pointer")(self_0 as *mut ILogger, segment);
     (*self_0).logSDS.expect("non-null function pointer")(
         self_0 as *mut ILogger,
@@ -187,7 +187,7 @@ unsafe extern "C" fn loggerStartSDS(mut self_0: *mut ILogger, mut segment: SdsRa
         sdsnew(b"Begin\0" as *const u8 as *const ::core::ffi::c_char),
     );
 }
-unsafe extern "C" fn loggerLog(
+unsafe extern "C" fn logger_log(
     mut self_0: *mut ILogger,
     mut verbosity: u8,
     mut type_0: LoggerType,
@@ -200,7 +200,7 @@ unsafe extern "C" fn loggerLog(
         sdsnew(data),
     );
 }
-unsafe extern "C" fn loggerLogSDS(
+unsafe extern "C" fn logger_log_sds(
     mut _self: *mut ILogger,
     mut verbosity: u8,
     mut type_0: LoggerType,
@@ -248,16 +248,16 @@ unsafe extern "C" fn loggerLogSDS(
         sdsfree(demand);
     };
 }
-unsafe extern "C" fn loggerGetTarget(mut _self: *mut ILogger) -> *mut ILoggerTarget {
+unsafe extern "C" fn logger_get_target(mut _self: *mut ILogger) -> *mut ILoggerTarget {
     let mut self_0: *mut Logger = _self as *mut Logger;
     return (*self_0).target as *mut ILoggerTarget;
 }
-unsafe extern "C" fn loggerSetVerbosity(mut _self: *mut ILogger, mut verbosity: u8) {
+unsafe extern "C" fn logger_set_verbosity(mut _self: *mut ILogger, mut verbosity: u8) {
     let mut self_0: *mut Logger = _self as *mut Logger;
     (*self_0).verbosityLimit = verbosity;
 }
 #[inline]
-unsafe extern "C" fn loggerDispose(mut _self: *mut ILogger) {
+unsafe extern "C" fn logger_dispose(mut _self: *mut ILogger) {
     let mut self_0: *mut Logger = _self as *mut Logger;
     if self_0.is_null() {
         return;
@@ -277,19 +277,19 @@ unsafe extern "C" fn loggerDispose(mut _self: *mut ILogger) {
 }
 pub static VTABLE_LOGGER: ILogger = {
     ILogger {
-        dispose: Some(loggerDispose as unsafe extern "C" fn(*mut ILogger) -> ()),
+        dispose: Some(logger_dispose as unsafe extern "C" fn(*mut ILogger) -> ()),
         indent: Some(
-            loggerIndent
+            logger_indent
                 as unsafe extern "C" fn(*mut ILogger, *const ::core::ffi::c_char) -> (),
         ),
-        indentSDS: Some(loggerIndentSDS as unsafe extern "C" fn(*mut ILogger, SdsRaw) -> ()),
+        indentSDS: Some(logger_indent_sds as unsafe extern "C" fn(*mut ILogger, SdsRaw) -> ()),
         start: Some(
-            loggerStart
+            logger_start
                 as unsafe extern "C" fn(*mut ILogger, *const ::core::ffi::c_char) -> (),
         ),
-        startSDS: Some(loggerStartSDS as unsafe extern "C" fn(*mut ILogger, SdsRaw) -> ()),
+        startSDS: Some(logger_start_sds as unsafe extern "C" fn(*mut ILogger, SdsRaw) -> ()),
         log: Some(
-            loggerLog
+            logger_log
                 as unsafe extern "C" fn(
                     *mut ILogger,
                     u8,
@@ -298,21 +298,21 @@ pub static VTABLE_LOGGER: ILogger = {
                 ) -> (),
         ),
         logSDS: Some(
-            loggerLogSDS
+            logger_log_sds
                 as unsafe extern "C" fn(*mut ILogger, u8, LoggerType, SdsRaw) -> (),
         ),
-        dedent: Some(loggerDedent as unsafe extern "C" fn(*mut ILogger) -> ()),
-        finish: Some(loggerFinish as unsafe extern "C" fn(*mut ILogger) -> ()),
+        dedent: Some(logger_dedent as unsafe extern "C" fn(*mut ILogger) -> ()),
+        finish: Some(logger_finish as unsafe extern "C" fn(*mut ILogger) -> ()),
         end: None,
         setVerbosity: Some(
-            loggerSetVerbosity as unsafe extern "C" fn(*mut ILogger, u8) -> (),
+            logger_set_verbosity as unsafe extern "C" fn(*mut ILogger, u8) -> (),
         ),
         getTarget: Some(
-            loggerGetTarget as unsafe extern "C" fn(*mut ILogger) -> *mut ILoggerTarget,
+            logger_get_target as unsafe extern "C" fn(*mut ILogger) -> *mut ILoggerTarget,
         ),
     }
 };
-pub unsafe extern "C" fn otfcc_newLogger(
+pub unsafe extern "C" fn otfcc_new_logger(
     mut target: *mut ILoggerTarget,
 ) -> *mut ILogger {
     let mut logger: *mut Logger = ::core::ptr::null_mut::<Logger>();
@@ -352,19 +352,19 @@ impl LoggerTarget for StderrLoggerTarget {
         sdsfree(data);
     }
 }
-pub unsafe extern "C" fn stderrTargetDispose(mut _self: *mut ILoggerTarget) {
+pub unsafe extern "C" fn stderr_target_dispose(mut _self: *mut ILoggerTarget) {
     <StderrLoggerTarget as LoggerTarget>::dispose(_self);
 }
-pub unsafe extern "C" fn stderrTargetPush(mut _self: *mut ILoggerTarget, mut data: SdsRaw) {
+pub unsafe extern "C" fn stderr_target_push(mut _self: *mut ILoggerTarget, mut data: SdsRaw) {
     <StderrLoggerTarget as LoggerTarget>::push(_self, data);
 }
 pub static VTABLE_STDERR_TARGET: ILoggerTarget = {
     ILoggerTarget {
-        dispose: Some(stderrTargetDispose as unsafe extern "C" fn(*mut ILoggerTarget) -> ()),
-        push: Some(stderrTargetPush as unsafe extern "C" fn(*mut ILoggerTarget, SdsRaw) -> ()),
+        dispose: Some(stderr_target_dispose as unsafe extern "C" fn(*mut ILoggerTarget) -> ()),
+        push: Some(stderr_target_push as unsafe extern "C" fn(*mut ILoggerTarget, SdsRaw) -> ()),
     }
 };
-pub unsafe extern "C" fn otfcc_newStdErrTarget() -> *mut ILoggerTarget {
+pub unsafe extern "C" fn otfcc_new_std_err_target() -> *mut ILoggerTarget {
     let mut target: *mut StderrTarget = ::core::ptr::null_mut::<StderrTarget>();
     target = __caryll_allocate_clean(
         ::core::mem::size_of::<StderrTarget>() as usize,
@@ -387,19 +387,19 @@ impl LoggerTarget for EmptyLoggerTarget {
         sdsfree(data);
     }
 }
-pub unsafe extern "C" fn emptyTargetDispose(mut _self: *mut ILoggerTarget) {
+pub unsafe extern "C" fn empty_target_dispose(mut _self: *mut ILoggerTarget) {
     <EmptyLoggerTarget as LoggerTarget>::dispose(_self);
 }
-pub unsafe extern "C" fn emptyTargetPush(mut _self: *mut ILoggerTarget, mut data: SdsRaw) {
+pub unsafe extern "C" fn empty_target_push(mut _self: *mut ILoggerTarget, mut data: SdsRaw) {
     <EmptyLoggerTarget as LoggerTarget>::push(_self, data);
 }
 pub static VTABLE_EMPTY_TARGET: ILoggerTarget = {
     ILoggerTarget {
-        dispose: Some(emptyTargetDispose as unsafe extern "C" fn(*mut ILoggerTarget) -> ()),
-        push: Some(emptyTargetPush as unsafe extern "C" fn(*mut ILoggerTarget, SdsRaw) -> ()),
+        dispose: Some(empty_target_dispose as unsafe extern "C" fn(*mut ILoggerTarget) -> ()),
+        push: Some(empty_target_push as unsafe extern "C" fn(*mut ILoggerTarget, SdsRaw) -> ()),
     }
 };
-pub unsafe extern "C" fn otfcc_newEmptyTarget() -> *mut ILoggerTarget {
+pub unsafe extern "C" fn otfcc_new_empty_target() -> *mut ILoggerTarget {
     let mut target: *mut StderrTarget = ::core::ptr::null_mut::<StderrTarget>();
     target = __caryll_allocate_clean(
         ::core::mem::size_of::<StderrTarget>() as usize,

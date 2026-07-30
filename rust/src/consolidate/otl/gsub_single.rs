@@ -2,7 +2,7 @@
 use libc::{exit, free, malloc, memcmp, memset};
 
 
-use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
+use crate::support::handle::{handle_from_consolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -1060,11 +1060,11 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             .expect("non-null function pointer")(
             subtable,
             GsubSingleEntry {
-                from: handle_fromConsolidated(
+                from: handle_from_consolidated(
                     (*s_0).fromid as GlyphId,
                     (*s_0).fromname,
                 ) as GlyphHandle,
-                to: handle_fromConsolidated(
+                to: handle_from_consolidated(
                     (*s_0).toid as GlyphId, (*s_0).toname
                 ) as GlyphHandle,
             },

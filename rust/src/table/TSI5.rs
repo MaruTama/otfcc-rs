@@ -2,9 +2,9 @@
 use libc::free;
 
 use crate::support::json_funcs::{json_obj_get_type};
-use crate::table::otl::classdef::{ClassDef, otl_ClassDef_create, pushClassDef};
+use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
 
-use crate::support::handle::{handle_fromIndex, GlyphHandle};
+use crate::support::handle::{handle_from_index, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
@@ -20,7 +20,7 @@ use crate::vendor::json_builder::{json_object_push};
 
 
 pub type Tsi5Table = ClassDef;
-pub unsafe extern "C" fn otfcc_readTSI5(
+pub unsafe extern "C" fn otfcc_read_tsi5(
     packet: Packet,
     mut _options: *const Options,
 ) -> *mut Tsi5Table {
@@ -37,14 +37,14 @@ pub unsafe extern "C" fn otfcc_readTSI5(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
                     let mut tsi5: *mut Tsi5Table =
-                        otl_ClassDef_create() as *mut Tsi5Table;
+                        otl_class_def_create() as *mut Tsi5Table;
                     let mut j: GlyphId = 0 as GlyphId;
                     while ((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32)
                         < table.length
                     {
-                        pushClassDef(
+                        push_class_def(
                             tsi5 as *mut ClassDef,
-                            handle_fromIndex(j)
+                            handle_from_index(j)
                                 as GlyphHandle,
                             read_16u(table.data.offset(
                                 (j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
@@ -62,7 +62,7 @@ pub unsafe extern "C" fn otfcc_readTSI5(
     }
     return ::core::ptr::null_mut::<Tsi5Table>();
 }
-pub unsafe extern "C" fn otfcc_dumpTSI5(
+pub unsafe extern "C" fn otfcc_dump_tsi5(
     mut table: *const Tsi5Table,
     mut root: *mut JsonValue,
     mut _options: *const Options,
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn otfcc_dumpTSI5(
         OTL_I_CLASS_DEF.dump.expect("non-null function pointer")(table as *const ClassDef),
     );
 }
-pub unsafe extern "C" fn otfcc_parseTSI5(
+pub unsafe extern "C" fn otfcc_parse_tsi5(
     mut root: *const JsonValue,
     mut _options: *const Options,
 ) -> *mut Tsi5Table {
@@ -91,7 +91,7 @@ pub unsafe extern "C" fn otfcc_parseTSI5(
     }
     return OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(_tsi) as *mut Tsi5Table;
 }
-pub unsafe extern "C" fn otfcc_buildTSI5(
+pub unsafe extern "C" fn otfcc_build_tsi5(
     mut tsi5: *const Tsi5Table,
     mut _options: *const Options,
     mut numGlyphs: GlyphId,

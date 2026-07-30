@@ -2,7 +2,7 @@
 use libc::{exit, free, malloc, memcmp, memcpy, memset, strtol};
 
 use crate::support::json_funcs::{json_obj_get_type};
-use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, GlyphHandle};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_16u, read_24u, read_32u};
@@ -12,12 +12,12 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId, Unicode};
 use crate::vendor::sds::{Hex4Upper, SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::bk::bkblock::{bk_newBlockFromBuffer, bk_newBlockFromBufferCopy};
-use crate::bk::bkgraph::{bk_build_Block};
+use crate::bk::bkblock::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
+use crate::bk::bkgraph::{bk_build_block};
 use crate::support::buffer::{buffree, buflen, bufnew, bufseek, bufwrite16b, bufwrite24b, bufwrite32b, bufwrite8, bufwrite_buf};
 use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsfromlonglong, sdsnewlen};
@@ -113,12 +113,12 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     return 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn initCmap(mut cmap: *mut CmapTable) {
+unsafe extern "C" fn init_cmap(mut cmap: *mut CmapTable) {
     (*cmap).unicodes = ::core::ptr::null_mut::<CmapEntry>();
     (*cmap).uvs = ::core::ptr::null_mut::<CmapUvsEntry>();
 }
 #[inline]
-unsafe extern "C" fn disposeCmap(mut cmap: *mut CmapTable) {
+unsafe extern "C" fn dispose_cmap(mut cmap: *mut CmapTable) {
     let mut s: *mut CmapEntry = ::core::ptr::null_mut::<CmapEntry>();
     let mut tmp: *mut CmapEntry = ::core::ptr::null_mut::<CmapEntry>();
     s = (*cmap).unicodes;
@@ -128,7 +128,7 @@ unsafe extern "C" fn disposeCmap(mut cmap: *mut CmapTable) {
         NULL
     }) as *mut CmapEntry as *mut CmapEntry;
     while !s.is_null() {
-        otfcc_Handle_dispose(&raw mut (*s).glyph);
+        otfcc_handle_dispose(&raw mut (*s).glyph);
         let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
             free((*(*(*cmap).unicodes).hh.tbl).buckets as *mut ::core::ffi::c_void);
@@ -197,7 +197,7 @@ unsafe extern "C" fn disposeCmap(mut cmap: *mut CmapTable) {
         NULL
     }) as *mut CmapUvsEntry as *mut CmapUvsEntry;
     while !s_0.is_null() {
-        otfcc_Handle_dispose(&raw mut (*s_0).glyph);
+        otfcc_handle_dispose(&raw mut (*s_0).glyph);
         let mut _hd_hh_del_0: *mut UtHashHandle = &raw mut (*s_0).hh;
         if (*_hd_hh_del_0).prev.is_null() && (*_hd_hh_del_0).next.is_null() {
             free((*(*(*cmap).uvs).hh.tbl).buckets as *mut ::core::ffi::c_void);
@@ -257,7 +257,7 @@ unsafe extern "C" fn disposeCmap(mut cmap: *mut CmapTable) {
 }
 #[inline]
 unsafe extern "C" fn table_cmap_dispose(mut x: *mut CmapTable) {
-    disposeCmap(x);
+    dispose_cmap(x);
 }
 #[inline]
 unsafe extern "C" fn table_cmap_create() -> *mut CmapTable {
@@ -275,7 +275,7 @@ unsafe extern "C" fn table_cmap_free(mut x: *mut CmapTable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_cmap_copyReplace(mut dst: *mut CmapTable, src: CmapTable) {
+unsafe extern "C" fn table_cmap_copy_replace(mut dst: *mut CmapTable, src: CmapTable) {
     table_cmap_dispose(dst);
     table_cmap_copy(dst, &raw const src);
 }
@@ -307,9 +307,9 @@ unsafe extern "C" fn table_cmap_move(mut dst: *mut CmapTable, mut src: *mut Cmap
 }
 #[inline]
 unsafe extern "C" fn table_cmap_init(mut x: *mut CmapTable) {
-    initCmap(x);
+    init_cmap(x);
 }
-pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
+pub unsafe extern "C" fn otfcc_encode_cmap_by_index(
     mut cmap: *mut CmapTable,
     mut c: ::core::ffi::c_int,
     mut gid: u16,
@@ -623,7 +623,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
             ::core::mem::size_of::<CmapEntry>() as usize,
             38 as ::core::ffi::c_ulong,
         ) as *mut CmapEntry;
-        (*s).glyph = handle_fromIndex(gid as GlyphId)
+        (*s).glyph = handle_from_index(gid as GlyphId)
             as GlyphHandle;
         (*s).unicode = c;
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
@@ -1060,7 +1060,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByIndex(
         return false;
     };
 }
-pub unsafe extern "C" fn otfcc_encodeCmapByName(
+pub unsafe extern "C" fn otfcc_encode_cmap_by_name(
     mut cmap: *mut CmapTable,
     mut c: ::core::ffi::c_int,
     mut name: SdsRaw,
@@ -1375,7 +1375,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
             51 as ::core::ffi::c_ulong,
         ) as *mut CmapEntry;
         (*s).glyph =
-            handle_fromName(name) as GlyphHandle;
+            handle_from_name(name) as GlyphHandle;
         (*s).unicode = c;
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
         let mut _hj_i_0: ::core::ffi::c_uint = 0;
@@ -1811,7 +1811,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapByName(
         return false;
     };
 }
-pub unsafe extern "C" fn otfcc_unmapCmap(
+pub unsafe extern "C" fn otfcc_unmap_cmap(
     mut cmap: *mut CmapTable,
     mut c: ::core::ffi::c_int,
 ) -> bool {
@@ -2120,7 +2120,7 @@ pub unsafe extern "C" fn otfcc_unmapCmap(
         }
     }
     if !s.is_null() {
-        otfcc_Handle_dispose(&raw mut (*s).glyph);
+        otfcc_handle_dispose(&raw mut (*s).glyph);
         let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
             free((*(*(*cmap).unicodes).hh.tbl).buckets as *mut ::core::ffi::c_void);
@@ -2178,7 +2178,7 @@ pub unsafe extern "C" fn otfcc_unmapCmap(
         return false;
     };
 }
-pub unsafe extern "C" fn otfcc_cmapLookup(
+pub unsafe extern "C" fn otfcc_cmap_lookup(
     mut cmap: *const CmapTable,
     mut c: ::core::ffi::c_int,
 ) -> *mut GlyphHandle {
@@ -2492,7 +2492,7 @@ pub unsafe extern "C" fn otfcc_cmapLookup(
         return ::core::ptr::null_mut::<GlyphHandle>();
     };
 }
-pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
+pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_index(
     mut cmap: *mut CmapTable,
     mut c: CmapUvsKey,
     mut gid: u16,
@@ -2801,7 +2801,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
             ::core::mem::size_of::<CmapUvsEntry>() as usize,
             87 as ::core::ffi::c_ulong,
         ) as *mut CmapUvsEntry;
-        (*s).glyph = handle_fromIndex(gid as GlyphId)
+        (*s).glyph = handle_from_index(gid as GlyphId)
             as GlyphHandle;
         (*s).key = c;
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
@@ -3235,7 +3235,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByIndex(
         return false;
     };
 }
-pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
+pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_name(
     mut cmap: *mut CmapTable,
     mut c: CmapUvsKey,
     mut name: SdsRaw,
@@ -3545,7 +3545,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
             100 as ::core::ffi::c_ulong,
         ) as *mut CmapUvsEntry;
         (*s).glyph =
-            handle_fromName(name) as GlyphHandle;
+            handle_from_name(name) as GlyphHandle;
         (*s).key = c;
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
         let mut _hj_i_0: ::core::ffi::c_uint = 0;
@@ -3978,7 +3978,7 @@ pub unsafe extern "C" fn otfcc_encodeCmapUVSByName(
         return false;
     };
 }
-pub unsafe extern "C" fn otfcc_unmapCmapUVS(
+pub unsafe extern "C" fn otfcc_unmap_cmap_uvs(
     mut cmap: *mut CmapTable,
     mut c: CmapUvsKey,
 ) -> bool {
@@ -4282,7 +4282,7 @@ pub unsafe extern "C" fn otfcc_unmapCmapUVS(
         }
     }
     if !s.is_null() {
-        otfcc_Handle_dispose(&raw mut (*s).glyph);
+        otfcc_handle_dispose(&raw mut (*s).glyph);
         let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
             free((*(*(*cmap).uvs).hh.tbl).buckets as *mut ::core::ffi::c_void);
@@ -4337,7 +4337,7 @@ pub unsafe extern "C" fn otfcc_unmapCmapUVS(
         return false;
     };
 }
-pub unsafe extern "C" fn otfcc_cmapLookupUVS(
+pub unsafe extern "C" fn otfcc_cmap_lookup_uvs(
     mut cmap: *const CmapTable,
     mut c: CmapUvsKey,
 ) -> *mut GlyphHandle {
@@ -4660,46 +4660,46 @@ pub static TABLE_I_CMAP: CmapTableElementInterface = {
             table_cmap_replace as unsafe extern "C" fn(*mut CmapTable, CmapTable) -> (),
         ),
         copyReplace: Some(
-            table_cmap_copyReplace as unsafe extern "C" fn(*mut CmapTable, CmapTable) -> (),
+            table_cmap_copy_replace as unsafe extern "C" fn(*mut CmapTable, CmapTable) -> (),
         ),
         create: Some(table_cmap_create),
         free: Some(table_cmap_free as unsafe extern "C" fn(*mut CmapTable) -> ()),
         encodeByIndex: Some(
-            otfcc_encodeCmapByIndex
+            otfcc_encode_cmap_by_index
                 as unsafe extern "C" fn(*mut CmapTable, ::core::ffi::c_int, u16) -> bool,
         ),
         encodeByName: Some(
-            otfcc_encodeCmapByName
+            otfcc_encode_cmap_by_name
                 as unsafe extern "C" fn(*mut CmapTable, ::core::ffi::c_int, SdsRaw) -> bool,
         ),
         unmap: Some(
-            otfcc_unmapCmap as unsafe extern "C" fn(*mut CmapTable, ::core::ffi::c_int) -> bool,
+            otfcc_unmap_cmap as unsafe extern "C" fn(*mut CmapTable, ::core::ffi::c_int) -> bool,
         ),
         lookup: Some(
-            otfcc_cmapLookup
+            otfcc_cmap_lookup
                 as unsafe extern "C" fn(
                     *const CmapTable,
                     ::core::ffi::c_int,
                 ) -> *mut GlyphHandle,
         ),
         encodeUVSByIndex: Some(
-            otfcc_encodeCmapUVSByIndex
+            otfcc_encode_cmap_uvs_by_index
                 as unsafe extern "C" fn(*mut CmapTable, CmapUvsKey, u16) -> bool,
         ),
         encodeUVSByName: Some(
-            otfcc_encodeCmapUVSByName
+            otfcc_encode_cmap_uvs_by_name
                 as unsafe extern "C" fn(*mut CmapTable, CmapUvsKey, SdsRaw) -> bool,
         ),
         unmapUVS: Some(
-            otfcc_unmapCmapUVS as unsafe extern "C" fn(*mut CmapTable, CmapUvsKey) -> bool,
+            otfcc_unmap_cmap_uvs as unsafe extern "C" fn(*mut CmapTable, CmapUvsKey) -> bool,
         ),
         lookupUVS: Some(
-            otfcc_cmapLookupUVS
+            otfcc_cmap_lookup_uvs
                 as unsafe extern "C" fn(*const CmapTable, CmapUvsKey) -> *mut GlyphHandle,
         ),
     }
 };
-unsafe extern "C" fn readFormat12(
+unsafe extern "C" fn read_format12(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut cmap: *mut CmapTable,
@@ -4733,7 +4733,7 @@ unsafe extern "C" fn readFormat12(
         );
         let mut c: u32 = start_code;
         while c <= end_code {
-            otfcc_encodeCmapByIndex(
+            otfcc_encode_cmap_by_index(
                 cmap,
                 c as ::core::ffi::c_int,
                 c.wrapping_sub(start_code).wrapping_add(start_gid) as u16,
@@ -4743,7 +4743,7 @@ unsafe extern "C" fn readFormat12(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn readFormat4(
+unsafe extern "C" fn read_format4(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut cmap: *mut CmapTable,
@@ -4797,7 +4797,7 @@ unsafe extern "C" fn readFormat4(
             while c < 0xffff as u32 && c <= end_code as u32 {
                 let mut gid: u16 =
                     (c.wrapping_add(id_delta as u32) & 0xffff as u32) as u16;
-                otfcc_encodeCmapByIndex(cmap, c as ::core::ffi::c_int, gid);
+                otfcc_encode_cmap_by_index(cmap, c as ::core::ffi::c_int, gid);
                 c = c.wrapping_add(1);
             }
         } else {
@@ -4815,7 +4815,7 @@ unsafe extern "C" fn readFormat4(
                             as ::core::ffi::c_int
                             + id_delta as ::core::ffi::c_int
                             & 0xffff as ::core::ffi::c_int) as u16;
-                    otfcc_encodeCmapByIndex(cmap, c_0 as ::core::ffi::c_int, gid_0);
+                    otfcc_encode_cmap_by_index(cmap, c_0 as ::core::ffi::c_int, gid_0);
                 }
                 c_0 = c_0.wrapping_add(1);
             }
@@ -4823,7 +4823,7 @@ unsafe extern "C" fn readFormat4(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn readUVSDefault(
+unsafe extern "C" fn read_uvs_default(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut selector: Unicode,
@@ -4870,7 +4870,7 @@ unsafe extern "C" fn readUVSDefault(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn readUVSNonDefault(
+unsafe extern "C" fn read_uvs_non_default(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut selector: Unicode,
@@ -4904,7 +4904,7 @@ unsafe extern "C" fn readUVSNonDefault(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn readFormat14(
+unsafe extern "C" fn read_format14(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut cmap: *mut CmapTable,
@@ -4928,7 +4928,7 @@ unsafe extern "C" fn readFormat14(
         let mut non_default_uvs_offset: u32 =
             read_32u(vsr.offset(7 as ::core::ffi::c_int as isize) as *const u8);
         if default_uvs_offset != 0 {
-            readUVSDefault(
+            read_uvs_default(
                 start.offset(default_uvs_offset as isize),
                 length_limit.wrapping_sub(default_uvs_offset),
                 selector,
@@ -4936,7 +4936,7 @@ unsafe extern "C" fn readFormat14(
             );
         }
         if non_default_uvs_offset != 0 {
-            readUVSNonDefault(
+            read_uvs_non_default(
                 start.offset(non_default_uvs_offset as isize),
                 length_limit.wrapping_sub(non_default_uvs_offset),
                 selector,
@@ -4946,7 +4946,7 @@ unsafe extern "C" fn readFormat14(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn readCmapMappingTable(
+unsafe extern "C" fn read_cmap_mapping_table(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut cmap: *mut CmapTable,
@@ -4955,20 +4955,20 @@ unsafe extern "C" fn readCmapMappingTable(
     let mut format: u16 = read_16u(start as *const u8);
     if format as ::core::ffi::c_int == required_format as ::core::ffi::c_int {
         if format as ::core::ffi::c_int == 4 as ::core::ffi::c_int {
-            readFormat4(start, length_limit, cmap);
+            read_format4(start, length_limit, cmap);
         } else if format as ::core::ffi::c_int == 12 as ::core::ffi::c_int {
-            readFormat12(start, length_limit, cmap);
+            read_format12(start, length_limit, cmap);
         }
     }
 }
-unsafe extern "C" fn readCmapMappingTableUVS(
+unsafe extern "C" fn read_cmap_mapping_table_uvs(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut cmap: *mut CmapTable,
 ) {
     let mut format: u16 = read_16u(start as *const u8);
     if format as ::core::ffi::c_int == 14 as ::core::ffi::c_int {
-        readFormat14(start, length_limit, cmap);
+        read_format14(start, length_limit, cmap);
     }
 }
 unsafe extern "C" fn by_unicode(
@@ -4988,7 +4988,7 @@ unsafe extern "C" fn by_uvs_key(
     };
 }
 #[inline]
-unsafe extern "C" fn isValidCmapEncoding(mut platform: u16, mut encoding: u16) -> bool {
+unsafe extern "C" fn is_valid_cmap_encoding(mut platform: u16, mut encoding: u16) -> bool {
     return platform as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         && encoding as ::core::ffi::c_int == 3 as ::core::ffi::c_int
         || platform as ::core::ffi::c_int == 0 as ::core::ffi::c_int
@@ -5005,7 +5005,7 @@ pub static FORMAT_PRIORITIES: [TableId; 3] = [
     4 as ::core::ffi::c_int as TableId,
     0 as ::core::ffi::c_int as TableId,
 ];
-pub unsafe extern "C" fn otfcc_readCmap(
+pub unsafe extern "C" fn otfcc_read_cmap(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut CmapTable {
@@ -5055,7 +5055,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                             .offset(2 as ::core::ffi::c_int as isize)
                                             as *const u8,
                                     );
-                                    if isValidCmapEncoding(platform, encoding) {
+                                    if is_valid_cmap_encoding(platform, encoding) {
                                         let mut table_offset: u32 = read_32u(
                                             data.offset(4 as ::core::ffi::c_int as isize)
                                                 .offset(
@@ -5066,7 +5066,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                                 .offset(4 as ::core::ffi::c_int as isize)
                                                 as *const u8,
                                         );
-                                        readCmapMappingTable(
+                                        read_cmap_mapping_table(
                                             data.offset(table_offset as isize),
                                             length.wrapping_sub(table_offset),
                                             cmap,
@@ -5257,7 +5257,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                         .offset(2 as ::core::ffi::c_int as isize)
                                         as *const u8,
                                 );
-                                if isValidCmapEncoding(platform_0, encoding_0) {
+                                if is_valid_cmap_encoding(platform_0, encoding_0) {
                                     let mut table_offset_0: u32 = read_32u(
                                         data.offset(4 as ::core::ffi::c_int as isize)
                                             .offset(
@@ -5268,7 +5268,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
                                             .offset(4 as ::core::ffi::c_int as isize)
                                             as *const u8,
                                     );
-                                    readCmapMappingTableUVS(
+                                    read_cmap_mapping_table_uvs(
                                         data.offset(table_offset_0 as isize),
                                         length.wrapping_sub(table_offset_0),
                                         cmap,
@@ -5468,7 +5468,7 @@ pub unsafe extern "C" fn otfcc_readCmap(
     }
     return ::core::ptr::null_mut::<CmapTable>();
 }
-pub unsafe extern "C" fn otfcc_dumpCmap(
+pub unsafe extern "C" fn otfcc_dump_cmap(
     mut table: *const CmapTable,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -5574,7 +5574,7 @@ pub unsafe extern "C" fn otfcc_dumpCmap(
     }
 }
 #[inline]
-unsafe extern "C" fn parseUnicode(unicode_str: SdsRaw) -> Unicode {
+unsafe extern "C" fn parse_unicode(unicode_str: SdsRaw) -> Unicode {
     if sdslen(unicode_str) > 2 as usize
         && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int == 'U' as i32
         && *unicode_str.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int == '+' as i32
@@ -5588,7 +5588,7 @@ unsafe extern "C" fn parseUnicode(unicode_str: SdsRaw) -> Unicode {
         return atoi(unicode_str as *const ::core::ffi::c_char) as Unicode;
     };
 }
-unsafe extern "C" fn parseCmapUnicodes(
+unsafe extern "C" fn parse_cmap_unicodes(
     mut cmap: *mut CmapTable,
     mut table: *const JsonValue,
     mut options: *const Options,
@@ -5606,7 +5606,7 @@ unsafe extern "C" fn parseCmapUnicodes(
         );
         let mut item: *mut JsonValue =
             (*(*table).u.object.values.offset(j as isize)).value as *mut JsonValue;
-        let mut unicode: Unicode = parseUnicode(unicode_str);
+        let mut unicode: Unicode = parse_unicode(unicode_str);
         sdsfree(unicode_str);
         if (*item).type_0 == JsonType::String
             && unicode > 0 as Unicode
@@ -5616,9 +5616,9 @@ unsafe extern "C" fn parseCmapUnicodes(
                 (*item).u.string.ptr as *const ::core::ffi::c_void,
                 (*item).u.string.length as usize,
             );
-            if !otfcc_encodeCmapByName(cmap, unicode as ::core::ffi::c_int, gname) {
+            if !otfcc_encode_cmap_by_name(cmap, unicode as ::core::ffi::c_int, gname) {
                 let mut current_map: *mut GlyphHandle =
-                    otfcc_cmapLookup(cmap, unicode as ::core::ffi::c_int) as *mut GlyphHandle;
+                    otfcc_cmap_lookup(cmap, unicode as ::core::ffi::c_int) as *mut GlyphHandle;
                 (*(*options).logger)
                     .logSDS
                     .expect("non-null function pointer")(
@@ -5642,7 +5642,7 @@ unsafe extern "C" fn parseCmapUnicodes(
     }
 }
 #[inline]
-unsafe extern "C" fn parseUVSKey(uvs_str: SdsRaw) -> CmapUvsKey {
+unsafe extern "C" fn parse_uvs_key(uvs_str: SdsRaw) -> CmapUvsKey {
     let mut len: usize = sdslen(uvs_str);
     let mut k: CmapUvsKey = CmapUvsKey {
         unicode: 0 as u32,
@@ -5651,15 +5651,15 @@ unsafe extern "C" fn parseUVSKey(uvs_str: SdsRaw) -> CmapUvsKey {
     let mut scan: SdsRaw = uvs_str;
     while scan < uvs_str.offset(len as isize) {
         if *scan as ::core::ffi::c_int == ' ' as i32 {
-            k.unicode = parseUnicode(uvs_str) as u32;
-            k.selector = parseUnicode(scan.offset(1 as ::core::ffi::c_int as isize)) as u32;
+            k.unicode = parse_unicode(uvs_str) as u32;
+            k.selector = parse_unicode(scan.offset(1 as ::core::ffi::c_int as isize)) as u32;
             return k;
         }
         scan = scan.offset(1);
     }
     return k;
 }
-unsafe extern "C" fn parseCmapUVS(
+unsafe extern "C" fn parse_cmap_uvs(
     mut cmap: *mut CmapTable,
     mut table: *const JsonValue,
     mut options: *const Options,
@@ -5675,7 +5675,7 @@ unsafe extern "C" fn parseCmapUVS(
             (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
             (*(*table).u.object.values.offset(j as isize)).name_length as usize,
         );
-        let mut k: CmapUvsKey = parseUVSKey(uvs_str);
+        let mut k: CmapUvsKey = parse_uvs_key(uvs_str);
         let mut item: *mut JsonValue =
             (*(*table).u.object.values.offset(j as isize)).value as *mut JsonValue;
         if (*item).type_0 == JsonType::String
@@ -5688,9 +5688,9 @@ unsafe extern "C" fn parseCmapUVS(
                 (*item).u.string.ptr as *const ::core::ffi::c_void,
                 (*item).u.string.length as usize,
             );
-            if !otfcc_encodeCmapUVSByName(cmap, k, gname) {
+            if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname) {
                 let mut current_map: *mut GlyphHandle =
-                    otfcc_cmapLookupUVS(cmap, k) as *mut GlyphHandle;
+                    otfcc_cmap_lookup_uvs(cmap, k) as *mut GlyphHandle;
                 (*(*options).logger)
                     .logSDS
                     .expect("non-null function pointer")(
@@ -5715,7 +5715,7 @@ unsafe extern "C" fn parseCmapUVS(
         j = j.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn otfcc_parseCmap(
+pub unsafe extern "C" fn otfcc_parse_cmap(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut CmapTable {
@@ -5733,7 +5733,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        parseCmapUnicodes(
+        parse_cmap_unicodes(
             cmap,
             json_obj_get_type(
                 root,
@@ -5755,7 +5755,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        parseCmapUVS(
+        parse_cmap_uvs(
             cmap,
             json_obj_get_type(
                 root,
@@ -6041,7 +6041,7 @@ pub unsafe extern "C" fn otfcc_parseCmap(
     }
     return cmap;
 }
-unsafe extern "C" fn otfcc_buildCmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
+unsafe extern "C" fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
     let mut buf: *mut Buffer = bufnew();
     let mut end_count: *mut Buffer = bufnew();
     let mut start_count: *mut Buffer = bufnew();
@@ -6190,8 +6190,8 @@ unsafe extern "C" fn otfcc_buildCmap_format4(mut cmap: *const CmapTable) -> *mut
     buffree(glyph_id_array);
     return buf;
 }
-unsafe extern "C" fn otfcc_tryBuildCmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
-    let mut buf: *mut Buffer = otfcc_buildCmap_format4(cmap);
+unsafe extern "C" fn otfcc_try_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
+    let mut buf: *mut Buffer = otfcc_build_cmap_format4(cmap);
     if buflen(buf) > UINT16_MAX as usize {
         buffree(buf);
         return ::core::ptr::null_mut::<Buffer>();
@@ -6199,7 +6199,7 @@ unsafe extern "C" fn otfcc_tryBuildCmap_format4(mut cmap: *const CmapTable) -> *
         return buf;
     };
 }
-unsafe extern "C" fn otfcc_buildCmap_format12(mut cmap: *const CmapTable) -> *mut Buffer {
+unsafe extern "C" fn otfcc_build_cmap_format12(mut cmap: *const CmapTable) -> *mut Buffer {
     let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 12 as u16);
     bufwrite16b(buf, 0 as u16);
@@ -6252,7 +6252,7 @@ pub const MAX_UNICODE: ::core::ffi::c_int = 0x110001 as ::core::ffi::c_int;
 pub const HAS_DEFAULT: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 pub const HAS_NON_DEFAULT: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn writeDefaultRange(
+unsafe extern "C" fn write_default_range(
     mut dflt: *mut Buffer,
     mut n_ranges: *mut u32,
     mut start: Unicode,
@@ -6268,7 +6268,7 @@ unsafe extern "C" fn writeDefaultRange(
     bufwrite8(dflt, end.wrapping_sub(start) as u8);
     *n_ranges = (*n_ranges).wrapping_add(1 as u32);
 }
-unsafe extern "C" fn buildFormat14ForSelector(
+unsafe extern "C" fn build_format14_for_selector(
     mut cmap: *const CmapTable,
     mut selector: Unicode,
     mut dflt: *mut Buffer,
@@ -6338,7 +6338,7 @@ unsafe extern "C" fn buildFormat14ForSelector(
             && *defaults.offset(u_0.wrapping_sub(1 as Unicode) as isize) as ::core::ffi::c_int
                 != 0xffff as ::core::ffi::c_int
         {
-            writeDefaultRange(
+            write_default_range(
                 dflt,
                 &raw mut num_unicode_value_ranges,
                 start_unicode_value,
@@ -6370,7 +6370,7 @@ unsafe extern "C" fn buildFormat14ForSelector(
         0 as ::core::ffi::c_int
     })) as u8;
 }
-unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
+unsafe extern "C" fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
     let mut valid_selectors: *mut bool = ::core::ptr::null_mut::<bool>();
     valid_selectors = __caryll_allocate_clean(
         (::core::mem::size_of::<bool>() as usize)
@@ -6393,13 +6393,13 @@ unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const CmapTable) -> *mu
         }
         selector = selector.wrapping_add(1);
     }
-    let mut st: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 14 as u32), bk_int(BkCellType::B32, 0 as u32), bk_int(BkCellType::B32, n_selectors as u32)]);
+    let mut st: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 14 as u32), bk_int(BkCellType::B32, 0 as u32), bk_int(BkCellType::B32, n_selectors as u32)]);
     let mut selector_0: Unicode = 0 as Unicode;
     while selector_0 < MAX_UNICODE as Unicode {
         if *valid_selectors.offset(selector_0 as isize) {
             let mut dflt: *mut Buffer = bufnew();
             let mut nondflt: *mut Buffer = bufnew();
-            let mut results: u8 = buildFormat14ForSelector(cmap, selector_0, dflt, nondflt);
+            let mut results: u8 = build_format14_for_selector(cmap, selector_0, dflt, nondflt);
             if results as ::core::ffi::c_int & HAS_DEFAULT == 0 {
                 buffree(dflt);
                 dflt = ::core::ptr::null_mut::<Buffer>();
@@ -6408,16 +6408,16 @@ unsafe extern "C" fn otfcc_buildCmap_format14(mut cmap: *const CmapTable) -> *mu
                 buffree(nondflt);
                 nondflt = ::core::ptr::null_mut::<Buffer>();
             }
-            bk_push(st, &[bk_int(BkCellType::B8, (selector_0 >> 16 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_int(BkCellType::B8, (selector_0 >> 8 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_int(BkCellType::B8, (selector_0 >> 0 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBuffer(dflt)), bk_ptr(BkCellType::P32, bk_newBlockFromBuffer(nondflt))]);
+            bk_push(st, &[bk_int(BkCellType::B8, (selector_0 >> 16 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_int(BkCellType::B8, (selector_0 >> 8 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_int(BkCellType::B8, (selector_0 >> 0 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer(dflt)), bk_ptr(BkCellType::P32, bk_new_block_from_buffer(nondflt))]);
         }
         selector_0 = selector_0.wrapping_add(1);
     }
-    let mut buf: *mut Buffer = bk_build_Block(st);
+    let mut buf: *mut Buffer = bk_build_block(st);
     bufseek(buf, 2 as usize);
     bufwrite32b(buf, buflen(buf) as u32);
     return buf;
 }
-pub unsafe extern "C" fn otfcc_buildCmap(
+pub unsafe extern "C" fn otfcc_build_cmap(
     mut cmap: *const CmapTable,
     mut options: *const Options,
 ) -> *mut Buffer {
@@ -6441,7 +6441,7 @@ pub unsafe extern "C" fn otfcc_buildCmap(
     }
     let mut format4: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     if !requires_format12 || !(*options).stub_cmap4 {
-        format4 = otfcc_tryBuildCmap_format4(cmap);
+        format4 = otfcc_try_build_cmap_format4(cmap);
         if format4.is_null() {
             requires_format12 = true;
         }
@@ -6473,21 +6473,21 @@ pub unsafe extern "C" fn otfcc_buildCmap(
         bufwrite16b(format4, 0 as u16);
         bufwrite16b(format4, 0 as u16);
     }
-    let mut format12: *mut Buffer = otfcc_buildCmap_format12(cmap);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (n_tables as ::core::ffi::c_int) as u32)]);
-    bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 3 as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBufferCopy(format4))]);
+    let mut format12: *mut Buffer = otfcc_build_cmap_format12(cmap);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (n_tables as ::core::ffi::c_int) as u32)]);
+    bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 3 as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format4))]);
     if requires_format12 {
-        bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 4 as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBufferCopy(format12))]);
+        bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 4 as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format12))]);
     }
     if has_uvs {
-        let mut format14: *mut Buffer = otfcc_buildCmap_format14(cmap);
-        bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 5 as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBuffer(format14))]);
+        let mut format14: *mut Buffer = otfcc_build_cmap_format14(cmap);
+        bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 5 as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer(format14))]);
     }
-    bk_push(root, &[bk_int(BkCellType::B16, 3 as u32), bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBufferCopy(format4))]);
+    bk_push(root, &[bk_int(BkCellType::B16, 3 as u32), bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format4))]);
     if requires_format12 {
-        bk_push(root, &[bk_int(BkCellType::B16, 3 as u32), bk_int(BkCellType::B16, 10 as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBufferCopy(format12))]);
+        bk_push(root, &[bk_int(BkCellType::B16, 3 as u32), bk_int(BkCellType::B16, 10 as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format12))]);
     }
     buffree(format4);
     buffree(format12);
-    return bk_build_Block(root);
+    return bk_build_block(root);
 }

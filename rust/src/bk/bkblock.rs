@@ -27,7 +27,7 @@ pub union BkCellValue {
 /// What a [`BkCell`] holds, and -- because the values are ordered, not just
 /// distinct -- how wide it is and whether it is a pointer.
 ///
-/// C classifies cells by comparing the raw number: `bk_cellIsPointer` is
+/// C classifies cells by comparing the raw number: `bk_cell_is_pointer` is
 /// `cell->t >= BkCellType::P16`, `bkpushitems` takes the integer path for `t < BkCellType::P16`, and
 /// `escalate_sppointers` walks the pointers with `t >= BkCellType::Sp16`. Those comparisons
 /// survive here as `Ord`, which compares by *declaration* order -- so the
@@ -74,7 +74,7 @@ unsafe extern "C" fn bkblock_acells(mut b: *mut BkBlock, mut len: u32) {
         ) as *mut BkCell;
     };
 }
-pub unsafe extern "C" fn bk_cellIsPointer(mut cell: *mut BkCell) -> bool {
+pub unsafe extern "C" fn bk_cell_is_pointer(mut cell: *mut BkCell) -> bool {
     return (*cell).t >= BkCellType::P16;
 }
 unsafe extern "C" fn bkblock_grow(mut b: *mut BkBlock, mut len: u32) -> *mut BkCell {
@@ -109,7 +109,7 @@ pub unsafe extern "C" fn bkblock_pushptr(
     (*cell).t = type_0;
     (*cell).c2rust_unnamed.p = p as *mut BkBlock;
 }
-/// One (type, value) pair for [`bk_push`] / [`bk_new_Block`].
+/// One (type, value) pair for [`bk_push`] / [`bk_new_block`].
 ///
 /// C passed these as varargs -- `bk_push(b, BkCellType::B16, count, BkCellType::P16, child, BkCellType::Over)` --
 /// with a sentinel to say where the list ended and the caller responsible for
@@ -146,7 +146,7 @@ unsafe fn bkpushitems(b: *mut BkBlock, items: &[BkCell]) {
                 if !par.is_null() && !(*par).cells.is_null() {
                     for j in 0..(*par).length {
                         let cell = (*par).cells.offset(j as isize);
-                        if bk_cellIsPointer(cell) {
+                        if bk_cell_is_pointer(cell) {
                             bkblock_pushptr(b, (*cell).t, (*cell).c2rust_unnamed.p as *mut BkBlock);
                         } else {
                             bkblock_pushint(b, (*cell).t, (*cell).c2rust_unnamed.z);
@@ -166,7 +166,7 @@ unsafe fn bkpushitems(b: *mut BkBlock, items: &[BkCell]) {
 }
 
 /// A fresh block holding `items`.
-pub unsafe fn bk_new_Block(items: &[BkCell]) -> *mut BkBlock {
+pub unsafe fn bk_new_block(items: &[BkCell]) -> *mut BkBlock {
     let b: *mut BkBlock = _bkblock_init();
     bkpushitems(b, items);
     return b;
@@ -177,41 +177,41 @@ pub unsafe fn bk_push(b: *mut BkBlock, items: &[BkCell]) -> *mut BkBlock {
     bkpushitems(b, items);
     return b;
 }
-pub unsafe extern "C" fn bk_newBlockFromStringLen(
+pub unsafe extern "C" fn bk_new_block_from_string_len(
     len: usize,
     str: *const ::core::ffi::c_char,
 ) -> *mut BkBlock {
     if str.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let b: *mut BkBlock = bk_new_Block(&[]);
+    let b: *mut BkBlock = bk_new_block(&[]);
     for j in 0..len {
         bkblock_pushint(b, BkCellType::B8, *str.offset(j as isize) as u32);
     }
     return b;
 }
-pub unsafe extern "C" fn bk_newBlockFromBuffer(buf: *mut Buffer) -> *mut BkBlock {
+pub unsafe extern "C" fn bk_new_block_from_buffer(buf: *mut Buffer) -> *mut BkBlock {
     if buf.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let b: *mut BkBlock = bk_new_Block(&[]);
+    let b: *mut BkBlock = bk_new_block(&[]);
     for j in 0..(*buf).size {
         bkblock_pushint(b, BkCellType::B8, *(*buf).data.offset(j as isize) as u32);
     }
     buffree(buf);
     return b;
 }
-pub unsafe extern "C" fn bk_newBlockFromBufferCopy(buf: *const Buffer) -> *mut BkBlock {
+pub unsafe extern "C" fn bk_new_block_from_buffer_copy(buf: *const Buffer) -> *mut BkBlock {
     if buf.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let b: *mut BkBlock = bk_new_Block(&[]);
+    let b: *mut BkBlock = bk_new_block(&[]);
     for j in 0..(*buf).size {
         bkblock_pushint(b, BkCellType::B8, *(*buf).data.offset(j as isize) as u32);
     }
     return b;
 }
-pub unsafe extern "C" fn bk_printBlock(b: *mut BkBlock) {
+pub unsafe extern "C" fn bk_print_block(b: *mut BkBlock) {
     fprintf(
         stderr,
         b"Block size %08x\n\0" as *const u8 as *const ::core::ffi::c_char,
@@ -223,7 +223,7 @@ pub unsafe extern "C" fn bk_printBlock(b: *mut BkBlock) {
     );
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
-        if bk_cellIsPointer(cell) {
+        if bk_cell_is_pointer(cell) {
             if !(*cell).c2rust_unnamed.p.is_null() {
                 fprintf(
                     stderr,

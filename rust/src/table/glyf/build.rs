@@ -27,7 +27,7 @@ pub union ComponentArg {
     pub pointid: u16,
     pub coord: i16,
 }
-pub unsafe extern "C" fn shrinkFlags(mut flags: *mut Buffer) -> *mut Buffer {
+pub unsafe extern "C" fn shrink_flags(mut flags: *mut Buffer) -> *mut Buffer {
     if buflen(flags) == 0 {
         return flags;
     }
@@ -155,7 +155,7 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffe
         }
         cj = cj.wrapping_add(1);
     }
-    flags = shrinkFlags(flags);
+    flags = shrink_flags(flags);
     bufwrite_buf(gbuf, flags);
     bufwrite_buf(gbuf, xs);
     bufwrite_buf(gbuf, ys);
@@ -279,7 +279,7 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
         }
     }
 }
-pub unsafe extern "C" fn otfcc_buildGlyf(
+pub unsafe extern "C" fn otfcc_build_glyf(
     mut table: *const GlyfTable,
     mut head: *mut HeadTable,
     mut _options: *const Options,

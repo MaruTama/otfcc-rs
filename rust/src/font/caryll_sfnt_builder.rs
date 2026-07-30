@@ -69,7 +69,7 @@ unsafe extern "C" fn buf_checksum(mut buffer: *mut Buffer) -> u32 {
     }
     return sum;
 }
-unsafe extern "C" fn createSegment(
+unsafe extern "C" fn create_segment(
     mut tag: u32,
     mut buffer: *mut Buffer,
 ) -> *mut SfntTableEntry {
@@ -97,7 +97,7 @@ unsafe extern "C" fn createSegment(
     (*table).checksum = sum;
     return table;
 }
-pub unsafe extern "C" fn otfcc_newSFNTBuilder(
+pub unsafe extern "C" fn otfcc_new_sfnt_builder(
     mut header: u32,
     mut options: *const Options,
 ) -> *mut SfntBuilder {
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn otfcc_newSFNTBuilder(
     (*builder).options = options;
     return builder;
 }
-pub unsafe extern "C" fn otfcc_deleteSFNTBuilder(mut builder: *mut SfntBuilder) {
+pub unsafe extern "C" fn otfcc_delete_sfnt_builder(mut builder: *mut SfntBuilder) {
     if builder.is_null() {
         return;
     }
@@ -186,7 +186,7 @@ pub unsafe extern "C" fn otfcc_deleteSFNTBuilder(mut builder: *mut SfntBuilder) 
     free(builder as *mut ::core::ffi::c_void);
     builder = ::core::ptr::null_mut::<SfntBuilder>();
 }
-pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
+pub unsafe extern "C" fn otfcc_sfnt_builder_push_table(
     mut builder: *mut SfntBuilder,
     mut tag: u32,
     mut buffer: *mut Buffer,
@@ -501,7 +501,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
         }
     }
     if item.is_null() {
-        item = createSegment(tag, buffer);
+        item = create_segment(tag, buffer);
         let mut _ha_hashv: ::core::ffi::c_uint = 0;
         let mut _hj_i_0: ::core::ffi::c_uint = 0;
         let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -953,13 +953,13 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_pushTable(
         buffree(buffer);
     };
 }
-unsafe extern "C" fn byTag(
+unsafe extern "C" fn by_tag(
     mut a: *mut SfntTableEntry,
     mut b: *mut SfntTableEntry,
 ) -> ::core::ffi::c_int {
     return (*a).tag - (*b).tag;
 }
-pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
+pub unsafe extern "C" fn otfcc_sfnt_builder_serialize(
     mut builder: *mut SfntBuilder,
 ) -> *mut Buffer {
     let mut buffer: *mut Buffer = bufnew();
@@ -1075,7 +1075,7 @@ pub unsafe extern "C" fn otfcc_SFNTBuilder_serialize(
                             }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
-                    } else if byTag(
+                    } else if by_tag(
                         (_hs_p as *mut ::core::ffi::c_char)
                             .offset(-(*(*(*builder).tables).hh.tbl).hho)
                             as *mut ::core::ffi::c_void

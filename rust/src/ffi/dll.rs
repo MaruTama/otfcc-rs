@@ -9,11 +9,11 @@ use crate::support::options::{Options};
 use crate::vendor::json::{JsonValue};
 use crate::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
 use crate::font::caryll_font::{OTFCC_I_FONT};
-use crate::json_reader::{otfcc_newJsonReader};
-use crate::logger::{otfcc_newEmptyTarget, otfcc_newLogger};
-use crate::otf_writer::{otfcc_newOTFWriter};
+use crate::json_reader::{otfcc_new_json_reader};
+use crate::logger::{otfcc_new_empty_target, otfcc_new_logger};
+use crate::otf_writer::{otfcc_new_otf_writer};
 use crate::support::buffer::{buffree};
-use crate::support::options::{otfcc_Options_optimizeTo, otfcc_newOptions};
+use crate::support::options::{otfcc_options_optimize_to, otfcc_new_options};
 use crate::vendor::json::{json_parse, json_value_free};
 
 
@@ -59,15 +59,15 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     mut olevel: u8,
     mut for_webfont: bool,
 ) -> *mut Buffer {
-    let mut options: *mut Options = otfcc_newOptions();
-    (*options).logger = otfcc_newLogger(otfcc_newEmptyTarget());
+    let mut options: *mut Options = otfcc_new_options();
+    (*options).logger = otfcc_new_logger(otfcc_new_empty_target());
     (*(*options).logger)
         .indent
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    otfcc_Options_optimizeTo(options, olevel);
+    otfcc_options_optimize_to(options, olevel);
     if for_webfont {
         (*options).ignore_glyph_order = true;
         (*options).force_cid = true;
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     if json_root.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut parser: *mut IFontBuilder = otfcc_newJsonReader();
+    let mut parser: *mut IFontBuilder = otfcc_new_json_reader();
     let mut font: *mut Font = (*parser).read.expect("non-null function pointer")(
         json_root as *mut ::core::ffi::c_void,
         0 as u32,
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         return ::core::ptr::null_mut::<Buffer>();
     }
     OTFCC_I_FONT.consolidate.expect("non-null function pointer")(font, options);
-    let mut writer: *mut IFontSerializer = otfcc_newOTFWriter();
+    let mut writer: *mut IFontSerializer = otfcc_new_otf_writer();
     let mut otf: *mut Buffer =
         (*writer).serialize.expect("non-null function pointer")(font, options)
             as *mut Buffer;

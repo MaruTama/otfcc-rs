@@ -335,7 +335,7 @@ static STANDARD_MAC_NAMES: [&::core::ffi::CStr; 258] = [
     c"dcroat",
 ];
 #[inline]
-unsafe extern "C" fn initPost(mut post: *mut PostTable) {
+unsafe extern "C" fn init_post(mut post: *mut PostTable) {
     memset(
         post as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -344,14 +344,14 @@ unsafe extern "C" fn initPost(mut post: *mut PostTable) {
     (*post).version = 0x30000 as ::core::ffi::c_int as F16Dot16;
 }
 #[inline]
-unsafe extern "C" fn disposePost(mut post: *mut PostTable) {
+unsafe extern "C" fn dispose_post(mut post: *mut PostTable) {
     if !(*post).post_name_map.is_null() {
         OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")((*post).post_name_map);
     }
 }
 #[inline]
 unsafe extern "C" fn table_post_dispose(mut x: *mut PostTable) {
-    disposePost(x);
+    dispose_post(x);
 }
 #[inline]
 unsafe extern "C" fn table_post_free(mut x: *mut PostTable) {
@@ -370,7 +370,7 @@ unsafe extern "C" fn table_post_create() -> *mut PostTable {
 }
 #[inline]
 unsafe extern "C" fn table_post_init(mut x: *mut PostTable) {
-    initPost(x);
+    init_post(x);
 }
 #[inline]
 unsafe extern "C" fn table_post_copy(mut dst: *mut PostTable, mut src: *const PostTable) {
@@ -381,7 +381,7 @@ unsafe extern "C" fn table_post_copy(mut dst: *mut PostTable, mut src: *const Po
     );
 }
 #[inline]
-unsafe extern "C" fn table_post_copyReplace(mut dst: *mut PostTable, src: PostTable) {
+unsafe extern "C" fn table_post_copy_replace(mut dst: *mut PostTable, src: PostTable) {
     table_post_dispose(dst);
     table_post_copy(dst, &raw const src);
 }
@@ -417,13 +417,13 @@ pub static I_TABLE_POST: PostTableElementInterface = {
             table_post_replace as unsafe extern "C" fn(*mut PostTable, PostTable) -> (),
         ),
         copyReplace: Some(
-            table_post_copyReplace as unsafe extern "C" fn(*mut PostTable, PostTable) -> (),
+            table_post_copy_replace as unsafe extern "C" fn(*mut PostTable, PostTable) -> (),
         ),
         create: Some(table_post_create),
         free: Some(table_post_free as unsafe extern "C" fn(*mut PostTable) -> ()),
     }
 };
-pub unsafe extern "C" fn otfcc_readPost(
+pub unsafe extern "C" fn otfcc_read_post(
     packet: Packet,
     mut _options: *const Options,
 ) -> *mut PostTable {
@@ -553,7 +553,7 @@ pub unsafe extern "C" fn otfcc_readPost(
     }
     return ::core::ptr::null_mut::<PostTable>();
 }
-pub unsafe extern "C" fn otfcc_dumpPost(
+pub unsafe extern "C" fn otfcc_dump_post(
     mut table: *const PostTable,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -626,7 +626,7 @@ pub unsafe extern "C" fn otfcc_dumpPost(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parsePost(
+pub unsafe extern "C" fn otfcc_parse_post(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut PostTable {
@@ -697,7 +697,7 @@ pub unsafe extern "C" fn otfcc_parsePost(
     }
     return post;
 }
-pub unsafe extern "C" fn otfcc_buildPost(
+pub unsafe extern "C" fn otfcc_build_post(
     mut post: *const PostTable,
     mut glyphorder: *mut GlyphOrder,
     mut _options: *const Options,

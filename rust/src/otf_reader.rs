@@ -21,41 +21,41 @@ use crate::table::CFF::{CffAndGlyf};
 use crate::table::glyf::GlyfIOContext;
 
 use crate::font::caryll_font::{OTFCC_I_FONT};
-use crate::otf_reader::unconsolidate::{otfcc_unconsolidateFont};
-use crate::table::BASE::{otfcc_readBASE};
-use crate::table::CFF::{otfcc_readCFFAndGlyfTables};
-use crate::table::COLR::{otfcc_readCOLR};
-use crate::table::CPAL::{otfcc_readCPAL};
-use crate::table::GDEF::{otfcc_readGDEF};
-use crate::table::LTSH::{otfcc_readLTSH};
-use crate::table::OS_2::{otfcc_readOS_2};
-use crate::table::SVG::{otfcc_readSVG};
-use crate::table::TSI5::{otfcc_readTSI5};
-use crate::table::VORG::{otfcc_readVORG};
-use crate::table::_TSI::{otfcc_readTSI};
-use crate::table::cmap::{otfcc_readCmap};
-use crate::table::cvt::{otfcc_readCvt};
-use crate::table::fpgm_prep::{otfcc_readFpgmPrep};
-use crate::table::fvar::{otfcc_readFvar};
-use crate::table::gasp::{otfcc_readGasp};
-use crate::table::glyf::read::{otfcc_readGlyf};
-use crate::table::head::{otfcc_readHead};
-use crate::table::hhea::{otfcc_readHhea};
-use crate::table::hmtx::{otfcc_readHmtx};
-use crate::table::maxp::{otfcc_readMaxp};
-use crate::table::meta::read::{otfcc_readMeta};
-use crate::table::name::{otfcc_readName};
-use crate::table::otl::read::{otfcc_readOtl};
-use crate::table::post::{otfcc_readPost};
-use crate::table::vdmx::funcs::{otfcc_readVDMX};
-use crate::table::vhea::{otfcc_readVhea};
-use crate::table::vmtx::{otfcc_readVmtx};
+use crate::otf_reader::unconsolidate::{otfcc_unconsolidate_font};
+use crate::table::BASE::{otfcc_read_base};
+use crate::table::CFF::{otfcc_read_cff_and_glyf_tables};
+use crate::table::COLR::{otfcc_read_colr};
+use crate::table::CPAL::{otfcc_read_cpal};
+use crate::table::GDEF::{otfcc_read_gdef};
+use crate::table::LTSH::{otfcc_read_ltsh};
+use crate::table::OS_2::{otfcc_read_os_2};
+use crate::table::SVG::{otfcc_read_svg};
+use crate::table::TSI5::{otfcc_read_tsi5};
+use crate::table::VORG::{otfcc_read_vorg};
+use crate::table::_TSI::{otfcc_read_tsi};
+use crate::table::cmap::{otfcc_read_cmap};
+use crate::table::cvt::{otfcc_read_cvt};
+use crate::table::fpgm_prep::{otfcc_read_fpgm_prep};
+use crate::table::fvar::{otfcc_read_fvar};
+use crate::table::gasp::{otfcc_read_gasp};
+use crate::table::glyf::read::{otfcc_read_glyf};
+use crate::table::head::{otfcc_read_head};
+use crate::table::hhea::{otfcc_read_hhea};
+use crate::table::hmtx::{otfcc_read_hmtx};
+use crate::table::maxp::{otfcc_read_maxp};
+use crate::table::meta::read::{otfcc_read_meta};
+use crate::table::name::{otfcc_read_name};
+use crate::table::otl::read::{otfcc_read_otl};
+use crate::table::post::{otfcc_read_post};
+use crate::table::vdmx::funcs::{otfcc_read_vdmx};
+use crate::table::vhea::{otfcc_read_vhea};
+use crate::table::vmtx::{otfcc_read_vmtx};
 
 
 
 
 
-unsafe extern "C" fn decideFontSubtypeOTF(
+unsafe extern "C" fn decide_font_subtype_otf(
     sfnt: *mut SplineFontContainer,
     index: u32,
 ) -> FontSubtype {
@@ -101,28 +101,28 @@ impl FontBuilder for OtfReader {
         let font: *mut Font = (
             OTFCC_I_FONT.create.expect("non-null function pointer"))();
         let packet: Packet = *(*sfnt).packets.offset(index as isize);
-        (*font).subtype = decideFontSubtypeOTF(sfnt, index);
-        (*font).fvar = otfcc_readFvar(packet, options);
-        (*font).head = otfcc_readHead(packet, options);
-        (*font).maxp = otfcc_readMaxp(packet, options);
-        (*font).name = otfcc_readName(packet, options);
-        (*font).meta = otfcc_readMeta(packet, options);
-        (*font).OS_2 = otfcc_readOS_2(packet, options);
-        (*font).post = otfcc_readPost(packet, options);
-        (*font).hhea = otfcc_readHhea(packet, options);
-        (*font).cmap = otfcc_readCmap(packet, options);
+        (*font).subtype = decide_font_subtype_otf(sfnt, index);
+        (*font).fvar = otfcc_read_fvar(packet, options);
+        (*font).head = otfcc_read_head(packet, options);
+        (*font).maxp = otfcc_read_maxp(packet, options);
+        (*font).name = otfcc_read_name(packet, options);
+        (*font).meta = otfcc_read_meta(packet, options);
+        (*font).OS_2 = otfcc_read_os_2(packet, options);
+        (*font).post = otfcc_read_post(packet, options);
+        (*font).hhea = otfcc_read_hhea(packet, options);
+        (*font).cmap = otfcc_read_cmap(packet, options);
         if (*font).subtype == FontSubtype::Ttf {
-            (*font).hmtx = otfcc_readHmtx(packet, options, (*font).hhea, (*font).maxp);
-            (*font).vhea = otfcc_readVhea(packet, options);
+            (*font).hmtx = otfcc_read_hmtx(packet, options, (*font).hhea, (*font).maxp);
+            (*font).vhea = otfcc_read_vhea(packet, options);
             if !(*font).vhea.is_null() {
-                (*font).vmtx = otfcc_readVmtx(packet, options, (*font).vhea, (*font).maxp);
+                (*font).vmtx = otfcc_read_vmtx(packet, options, (*font).vhea, (*font).maxp);
             }
-            (*font).fpgm = otfcc_readFpgmPrep(packet, options, 1718642541i32 as u32);
-            (*font).prep = otfcc_readFpgmPrep(packet, options, 1886545264i32 as u32);
-            (*font).cvt_ = otfcc_readCvt(packet, options, 1668707360i32 as u32);
-            (*font).gasp = otfcc_readGasp(packet, options);
-            (*font).VDMX = otfcc_readVDMX(packet, options);
-            (*font).LTSH = otfcc_readLTSH(packet, options);
+            (*font).fpgm = otfcc_read_fpgm_prep(packet, options, 1718642541i32 as u32);
+            (*font).prep = otfcc_read_fpgm_prep(packet, options, 1886545264i32 as u32);
+            (*font).cvt_ = otfcc_read_cvt(packet, options, 1668707360i32 as u32);
+            (*font).gasp = otfcc_read_gasp(packet, options);
+            (*font).VDMX = otfcc_read_vdmx(packet, options);
+            (*font).LTSH = otfcc_read_ltsh(packet, options);
             let mut ctx: GlyfIOContext = GlyfIOContext {
                 locaIsLong: (*(*font).head).indexToLocFormat != 0,
                 numGlyphs: (*(*font).maxp).numGlyphs as GlyphId,
@@ -131,56 +131,56 @@ impl FontBuilder for OtfReader {
                 hasVerticalMetrics: false,
                 exportFDSelect: false,
             };
-            (*font).glyf = otfcc_readGlyf(packet, options, &raw mut ctx);
+            (*font).glyf = otfcc_read_glyf(packet, options, &raw mut ctx);
         } else {
             let mut cffpr: CffAndGlyf =
-                otfcc_readCFFAndGlyfTables(packet, options, (*font).head);
+                otfcc_read_cff_and_glyf_tables(packet, options, (*font).head);
             (*font).CFF_ = cffpr.meta;
             (*font).glyf = cffpr.glyphs;
-            (*font).vhea = otfcc_readVhea(packet, options);
+            (*font).vhea = otfcc_read_vhea(packet, options);
             if !(*font).vhea.is_null() {
-                (*font).vmtx = otfcc_readVmtx(packet, options, (*font).vhea, (*font).maxp);
-                (*font).VORG = otfcc_readVORG(packet, options);
+                (*font).vmtx = otfcc_read_vmtx(packet, options, (*font).vhea, (*font).maxp);
+                (*font).VORG = otfcc_read_vorg(packet, options);
             }
         }
         if !(*font).glyf.is_null() {
-            (*font).GSUB = otfcc_readOtl(
+            (*font).GSUB = otfcc_read_otl(
                 packet,
                 options,
                 1196643650i32 as u32,
                 (*(*font).glyf).length as GlyphId,
             );
-            (*font).GPOS = otfcc_readOtl(
+            (*font).GPOS = otfcc_read_otl(
                 packet,
                 options,
                 1196445523i32 as u32,
                 (*(*font).glyf).length as GlyphId,
             );
-            (*font).GDEF = otfcc_readGDEF(packet, options);
+            (*font).GDEF = otfcc_read_gdef(packet, options);
         }
-        (*font).BASE = otfcc_readBASE(packet, options);
-        (*font).CPAL = otfcc_readCPAL(packet, options);
-        (*font).COLR = otfcc_readCOLR(packet, options);
-        (*font).SVG_ = otfcc_readSVG(packet, options);
-        (*font).TSI_01 = otfcc_readTSI(
+        (*font).BASE = otfcc_read_base(packet, options);
+        (*font).CPAL = otfcc_read_cpal(packet, options);
+        (*font).COLR = otfcc_read_colr(packet, options);
+        (*font).SVG_ = otfcc_read_svg(packet, options);
+        (*font).TSI_01 = otfcc_read_tsi(
             packet,
             options,
             1414744368i32 as u32,
             1414744369i32 as u32,
         );
-        (*font).TSI_23 = otfcc_readTSI(
+        (*font).TSI_23 = otfcc_read_tsi(
             packet,
             options,
             1414744370i32 as u32,
             1414744371i32 as u32,
         );
-        (*font).TSI5 = otfcc_readTSI5(packet, options);
-        otfcc_unconsolidateFont(font, options);
+        (*font).TSI5 = otfcc_read_tsi5(packet, options);
+        otfcc_unconsolidate_font(font, options);
         return font as *mut ::core::ffi::c_void;
     };
     }
 }
-unsafe extern "C" fn readOtf(
+unsafe extern "C" fn read_otf(
     mut _sfnt: *mut ::core::ffi::c_void,
     mut index: u32,
     mut options: *const Options,
@@ -189,17 +189,17 @@ unsafe extern "C" fn readOtf(
         as *mut Font
 }
 #[inline]
-unsafe extern "C" fn freeReader(mut self_0: *mut IFontBuilder) {
+unsafe extern "C" fn free_reader(mut self_0: *mut IFontBuilder) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_newOTFReader() -> *mut IFontBuilder {
+pub unsafe extern "C" fn otfcc_new_otf_reader() -> *mut IFontBuilder {
     let mut reader: *mut IFontBuilder = ::core::ptr::null_mut::<IFontBuilder>();
     reader = __caryll_allocate_clean(
         ::core::mem::size_of::<IFontBuilder>() as usize,
         85 as ::core::ffi::c_ulong,
     ) as *mut IFontBuilder;
     (*reader).read = Some(
-        readOtf
+        read_otf
             as unsafe extern "C" fn(
                 *mut ::core::ffi::c_void,
                 u32,
@@ -213,7 +213,7 @@ pub unsafe extern "C" fn otfcc_newOTFReader() -> *mut IFontBuilder {
                 *const Options,
             ) -> *mut Font,
         >;
-    (*reader).free = Some(freeReader as unsafe extern "C" fn(*mut IFontBuilder) -> ())
+    (*reader).free = Some(free_reader as unsafe extern "C" fn(*mut IFontBuilder) -> ())
         as Option<unsafe extern "C" fn(*mut IFontBuilder) -> ()>;
     return reader;
 }

@@ -17,10 +17,10 @@ use crate::libcff::cff_charset::CFF_CHARSET_UNSPECED;
 use crate::libcff::cff_fdselect::{CffFdSelectType, CffFdSelect};
 use crate::libcff::cff_index::CffIndex;
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
-use crate::libcff::cff_charset::{cff_close_Charset, cff_extract_Charset};
-use crate::libcff::cff_codecs::{cff_decodeCS2Token};
+use crate::libcff::cff_charset::{cff_close_charset, cff_extract_charset};
+use crate::libcff::cff_codecs::{cff_decode_cs2_token};
 use crate::libcff::cff_dict::{CFF_I_DICT};
-use crate::libcff::cff_fdselect::{cff_close_FDSelect, cff_extract_FDSelect};
+use crate::libcff::cff_fdselect::{cff_close_fd_select, cff_extract_fd_select};
 use crate::libcff::cff_index::{CFF_I_INDEX};
 use crate::vendor::sds::{sdsempty};
 
@@ -277,7 +277,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         .c2rust_unnamed
         .i;
         if offset_0 != -(1 as i32) {
-            cff_extract_Charset(
+            cff_extract_charset(
                 (*cff).raw_data,
                 offset_0,
                 (*cff).char_strings.count as u16,
@@ -304,7 +304,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         .c2rust_unnamed
         .i;
         if (*cff).char_strings.count != 0 && offset_0 != -(1 as i32) {
-            cff_extract_FDSelect(
+            cff_extract_fd_select(
                 (*cff).raw_data,
                 offset_0,
                 (*cff).char_strings.count as u16,
@@ -400,7 +400,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).local_subr);
     };
 }
-pub unsafe extern "C" fn cff_openStream(
+pub unsafe extern "C" fn cff_open_stream(
     mut data: *mut u8,
     mut len: u32,
     mut options: *const Options,
@@ -462,13 +462,13 @@ pub unsafe extern "C" fn cff_close(mut file: *mut CffFile) {
             }
             _ => {}
         }
-        cff_close_Charset((*file).charsets);
-        cff_close_FDSelect((*file).fdselect);
+        cff_close_charset((*file).charsets);
+        cff_close_fd_select((*file).fdselect);
         free(file as *mut ::core::ffi::c_void);
         file = ::core::ptr::null_mut::<CffFile>();
     }
 }
-pub unsafe extern "C" fn cff_parseSubr(
+pub unsafe extern "C" fn cff_parse_subr(
     mut idx: u16,
     mut raw: *mut u8,
     mut fdarray: CffIndex,
@@ -584,7 +584,7 @@ unsafe extern "C" fn compute_subr_bias(mut cnt: u16) -> u16 {
         return 32768 as u16;
     };
 }
-unsafe extern "C" fn reverseStack(
+unsafe extern "C" fn reverse_stack(
     mut stack: *mut CffStack,
     mut left: u8,
     mut right: u8,
@@ -599,19 +599,19 @@ unsafe extern "C" fn reverseStack(
         p2 = p2.offset(-1);
     }
 }
-unsafe extern "C" fn callback_nopSetWidth(
+unsafe extern "C" fn callback_nop_set_width(
     mut _context: *mut ::core::ffi::c_void,
     mut _width: ::core::ffi::c_double,
 ) {
 }
-unsafe extern "C" fn callback_nopNewContour(mut _context: *mut ::core::ffi::c_void) {}
-unsafe extern "C" fn callback_nopLineTo(
+unsafe extern "C" fn callback_nop_new_contour(mut _context: *mut ::core::ffi::c_void) {}
+unsafe extern "C" fn callback_nop_line_to(
     mut _context: *mut ::core::ffi::c_void,
     mut _x1: ::core::ffi::c_double,
     mut _y1: ::core::ffi::c_double,
 ) {
 }
-unsafe extern "C" fn callback_nopCurveTo(
+unsafe extern "C" fn callback_nop_curve_to(
     mut _context: *mut ::core::ffi::c_void,
     mut _x1: ::core::ffi::c_double,
     mut _y1: ::core::ffi::c_double,
@@ -621,14 +621,14 @@ unsafe extern "C" fn callback_nopCurveTo(
     mut _y3: ::core::ffi::c_double,
 ) {
 }
-unsafe extern "C" fn callback_nopsetHint(
+unsafe extern "C" fn callback_nopset_hint(
     mut _context: *mut ::core::ffi::c_void,
     mut _is_vertical: bool,
     mut _position: ::core::ffi::c_double,
     mut _width: ::core::ffi::c_double,
 ) {
 }
-unsafe extern "C" fn callback_nopsetMask(
+unsafe extern "C" fn callback_nopset_mask(
     mut _context: *mut ::core::ffi::c_void,
     mut _is_contour_mask: bool,
     mut mask: *mut bool,
@@ -641,7 +641,7 @@ unsafe extern "C" fn callback_nopgetrand(
 ) -> ::core::ffi::c_double {
     return 0 as ::core::ffi::c_int as ::core::ffi::c_double;
 }
-pub unsafe extern "C" fn cff_parseOutline(
+pub unsafe extern "C" fn cff_parse_outline(
     mut data: *mut u8,
     mut len: u32,
     mut gsubr: CffIndex,
@@ -699,19 +699,19 @@ pub unsafe extern "C" fn cff_parseOutline(
     > = methods.getrand;
     if setWidth.is_none() {
         setWidth = Some(
-            callback_nopSetWidth
+            callback_nop_set_width
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> (),
         )
             as Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> ()>;
     }
     if newContour.is_none() {
         newContour =
-            Some(callback_nopNewContour as unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ())
+            Some(callback_nop_new_contour as unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ())
                 as Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ()>;
     }
     if lineTo.is_none() {
         lineTo = Some(
-            callback_nopLineTo
+            callback_nop_line_to
                 as unsafe extern "C" fn(
                     *mut ::core::ffi::c_void,
                     ::core::ffi::c_double,
@@ -728,7 +728,7 @@ pub unsafe extern "C" fn cff_parseOutline(
     }
     if curveTo.is_none() {
         curveTo = Some(
-            callback_nopCurveTo
+            callback_nop_curve_to
                 as unsafe extern "C" fn(
                     *mut ::core::ffi::c_void,
                     ::core::ffi::c_double,
@@ -753,7 +753,7 @@ pub unsafe extern "C" fn cff_parseOutline(
     }
     if setHint.is_none() {
         setHint = Some(
-            callback_nopsetHint
+            callback_nopset_hint
                 as unsafe extern "C" fn(
                     *mut ::core::ffi::c_void,
                     bool,
@@ -772,7 +772,7 @@ pub unsafe extern "C" fn cff_parseOutline(
     }
     if setMask.is_none() {
         setMask = Some(
-            callback_nopsetMask
+            callback_nopset_mask
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, bool, *mut bool) -> (),
         )
             as Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, bool, *mut bool) -> ()>;
@@ -785,7 +785,7 @@ pub unsafe extern "C" fn cff_parseOutline(
             as Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ::core::ffi::c_double>;
     }
     while start < data.offset(len as isize) {
-        advance = cff_decodeCS2Token(start, &raw mut val);
+        advance = cff_decode_cs2_token(start, &raw mut val);
         match val.t {
             CffValueType::Operator => {
                 let mut hint_base: ::core::ffi::c_double = 0.;
@@ -2743,13 +2743,13 @@ pub unsafe extern "C" fn cff_parseOutline(
                                         .wrapping_sub(2 as Arity)
                                         .wrapping_sub(n_0 as Arity)
                                         as u8;
-                                    reverseStack(stack, first, last);
-                                    reverseStack(
+                                    reverse_stack(stack, first, last);
+                                    reverse_stack(
                                         stack,
                                         (last as i32 - j_2 + 1 as i32) as u8,
                                         last,
                                     );
-                                    reverseStack(stack, first, (last as i32 - j_2) as u8);
+                                    reverse_stack(stack, first, (last as i32 - j_2) as u8);
                                     (*stack).index = (*stack).index.wrapping_sub(2 as Arity);
                                 }
                             }
@@ -2781,7 +2781,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*(*stack).stack.offset((*stack).index as isize))
                                     .c2rust_unnamed
                                     .d as u32;
-                            cff_parseOutline(
+                            cff_parse_outline(
                                 lsubr
                                     .data
                                     .offset(
@@ -2837,7 +2837,7 @@ pub unsafe extern "C" fn cff_parseOutline(
                                 (*(*stack).stack.offset((*stack).index as isize))
                                     .c2rust_unnamed
                                     .d as u32;
-                            cff_parseOutline(
+                            cff_parse_outline(
                                 gsubr
                                     .data
                                     .offset(*gsubr.offset.offset(

@@ -6,15 +6,15 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ShapeId};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::vdmx::types::{VdmxTable, VdmxGroup, VdmxRatioRange, VdmxRecord};
-use crate::bk::bkgraph::{bk_build_Block_noMinimize};
+use crate::bk::bkgraph::{bk_build_block_no_minimize};
 use crate::table::vdmx::types::{TABLE_I_VDMX, VDMX_I_GROUP, VDMX_I_RATIO_RANGE, VDMX_I_RATIO_RANGE_LIST};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 use crate::vendor::sds::{sdsempty};
-pub unsafe extern "C" fn otfcc_readVDMX(
+pub unsafe extern "C" fn otfcc_read_vdmx(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut VdmxTable {
@@ -176,7 +176,7 @@ pub unsafe extern "C" fn otfcc_readVDMX(
     }
     return vdmx;
 }
-pub unsafe extern "C" fn otfcc_dumpVDMX(
+pub unsafe extern "C" fn otfcc_dump_vdmx(
     mut vdmx: *const VdmxTable,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -281,7 +281,7 @@ pub unsafe extern "C" fn otfcc_dumpVDMX(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parseVDMX(
+pub unsafe extern "C" fn otfcc_parse_vdmx(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut VdmxTable {
@@ -398,14 +398,14 @@ pub unsafe extern "C" fn otfcc_parseVDMX(
     }
     return vdmx;
 }
-pub unsafe extern "C" fn otfcc_buildVDMX(
+pub unsafe extern "C" fn otfcc_build_vdmx(
     mut vdmx: *const VdmxTable,
     mut _options: *const Options,
 ) -> *mut Buffer {
     if vdmx.is_null() || (*vdmx).ratios.length == 0 {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*vdmx).version as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*vdmx).ratios.length) as u32), bk_int(BkCellType::B16, ((*vdmx).ratios.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*vdmx).version as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*vdmx).ratios.length) as u32), bk_int(BkCellType::B16, ((*vdmx).ratios.length) as u32)]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < (*vdmx).ratios.length {
@@ -441,7 +441,7 @@ pub unsafe extern "C" fn otfcc_buildVDMX(
                 keep_1 = (keep_1 == 0) as ::core::ffi::c_int as usize;
                 __caryll_index_1 = __caryll_index_1.wrapping_add(1);
             }
-            let mut group: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*rr_0).records.length) as u32), bk_int(BkCellType::B8, (startsz as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, (endsz as ::core::ffi::c_int) as u32)]);
+            let mut group: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*rr_0).records.length) as u32), bk_int(BkCellType::B8, (startsz as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, (endsz as ::core::ffi::c_int) as u32)]);
             let mut __caryll_index_2: usize = 0 as usize;
             let mut keep_2: usize = 1 as usize;
             while keep_2 != 0 && __caryll_index_2 < (*rr_0).records.length {
@@ -460,5 +460,5 @@ pub unsafe extern "C" fn otfcc_buildVDMX(
         keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
         __caryll_index_0 = __caryll_index_0.wrapping_add(1);
     }
-    return bk_build_Block_noMinimize(root);
+    return bk_build_block_no_minimize(root);
 }

@@ -37,11 +37,11 @@ use libc::timespec;
 use otfcc_rust::support::getopt::{NO_ARGUMENT, LongOption, REQUIRED_ARGUMENT};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use otfcc_rust::font::caryll_font::{OTFCC_I_FONT};
-use otfcc_rust::json_reader::{otfcc_newJsonReader};
-use otfcc_rust::logger::{otfcc_newLogger, otfcc_newStdErrTarget};
-use otfcc_rust::otf_writer::{otfcc_newOTFWriter};
+use otfcc_rust::json_reader::{otfcc_new_json_reader};
+use otfcc_rust::logger::{otfcc_new_logger, otfcc_new_std_err_target};
+use otfcc_rust::otf_writer::{otfcc_new_otf_writer};
 use otfcc_rust::support::buffer::{buffree, buflen};
-use otfcc_rust::support::options::{otfcc_Options_optimizeTo, otfcc_deleteOptions, otfcc_newOptions};
+use otfcc_rust::support::options::{otfcc_options_optimize_to, otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::vendor::json::{json_parse, json_value_free};
 use otfcc_rust::vendor::sds::{sdsempty, sdsfree, sdsnew};
@@ -195,15 +195,15 @@ unsafe fn main_0(
     let mut inPath: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut option_index: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut c: ::core::ffi::c_int = 0;
-    let mut options: *mut Options = otfcc_newOptions();
-    (*options).logger = otfcc_newLogger(otfcc_newStdErrTarget());
+    let mut options: *mut Options = otfcc_new_options();
+    (*options).logger = otfcc_new_logger(otfcc_new_std_err_target());
     (*(*options).logger)
         .indent
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    otfcc_Options_optimizeTo(options, 1 as u8);
+    otfcc_options_optimize_to(options, 1 as u8);
     let mut longopts: [LongOption; 25] = [
         LongOption {
             name: b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -511,7 +511,7 @@ unsafe fn main_0(
                 (*options).quiet = true;
             }
             79 => {
-                otfcc_Options_optimizeTo(options, atoi(optarg) as u8);
+                otfcc_options_optimize_to(options, atoi(optarg) as u8);
             }
             _ => {}
         }
@@ -669,7 +669,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
-        let mut parser: *mut IFontBuilder = otfcc_newJsonReader();
+        let mut parser: *mut IFontBuilder = otfcc_new_json_reader();
         font = (*parser).read.expect("non-null function pointer")(
             json_root as *mut ::core::ffi::c_void,
             0 as u32,
@@ -736,7 +736,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
-        let mut writer: *mut IFontSerializer = otfcc_newOTFWriter();
+        let mut writer: *mut IFontSerializer = otfcc_new_otf_writer();
         let mut otf: *mut Buffer =
             (*writer).serialize.expect("non-null function pointer")(font, options)
                 as *mut Buffer;
@@ -799,7 +799,7 @@ unsafe fn main_0(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    otfcc_deleteOptions(options);
+    otfcc_delete_options(options);
     return 0 as ::core::ffi::c_int;
 }
 pub fn main() {

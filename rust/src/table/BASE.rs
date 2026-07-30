@@ -13,9 +13,9 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, Pos, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::bk::bkgraph::{bk_build_Block};
+use crate::bk::bkgraph::{bk_build_block};
 use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdsempty};
 
@@ -63,7 +63,7 @@ pub struct BaseTagList {
     pub size: TableId,
     pub items: *mut u32,
 }
-unsafe extern "C" fn deleteBaseAxis(mut axis: *mut BaseAxis) {
+unsafe extern "C" fn delete_base_axis(mut axis: *mut BaseAxis) {
     if axis.is_null() {
         return;
     }
@@ -82,23 +82,23 @@ unsafe extern "C" fn deleteBaseAxis(mut axis: *mut BaseAxis) {
     }
 }
 #[inline]
-unsafe extern "C" fn disposeBASE(mut base: *mut BaseTable) {
-    deleteBaseAxis((*base).horizontal);
-    deleteBaseAxis((*base).vertical);
+unsafe extern "C" fn dispose_base(mut base: *mut BaseTable) {
+    delete_base_axis((*base).horizontal);
+    delete_base_axis((*base).vertical);
 }
 #[inline]
-unsafe extern "C" fn table_BASE_dispose(mut x: *mut BaseTable) {
-    disposeBASE(x);
+unsafe extern "C" fn table_base_dispose(mut x: *mut BaseTable) {
+    dispose_base(x);
 }
 #[inline]
-unsafe extern "C" fn table_BASE_create() -> *mut BaseTable {
+unsafe extern "C" fn table_base_create() -> *mut BaseTable {
     let mut x: *mut BaseTable =
         malloc(::core::mem::size_of::<BaseTable>() as usize) as *mut BaseTable;
-    table_BASE_init(x);
+    table_base_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_BASE_init(mut x: *mut BaseTable) {
+unsafe extern "C" fn table_base_init(mut x: *mut BaseTable) {
     memset(
         x as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -106,12 +106,12 @@ unsafe extern "C" fn table_BASE_init(mut x: *mut BaseTable) {
     );
 }
 #[inline]
-unsafe extern "C" fn table_BASE_copyReplace(mut dst: *mut BaseTable, src: BaseTable) {
-    table_BASE_dispose(dst);
-    table_BASE_copy(dst, &raw const src);
+unsafe extern "C" fn table_base_copy_replace(mut dst: *mut BaseTable, src: BaseTable) {
+    table_base_dispose(dst);
+    table_base_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn table_BASE_copy(mut dst: *mut BaseTable, mut src: *const BaseTable) {
+unsafe extern "C" fn table_base_copy(mut dst: *mut BaseTable, mut src: *const BaseTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
@@ -119,8 +119,8 @@ unsafe extern "C" fn table_BASE_copy(mut dst: *mut BaseTable, mut src: *const Ba
     );
 }
 #[inline]
-unsafe extern "C" fn table_BASE_replace(mut dst: *mut BaseTable, src: BaseTable) {
-    table_BASE_dispose(dst);
+unsafe extern "C" fn table_base_replace(mut dst: *mut BaseTable, src: BaseTable) {
+    table_base_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -129,42 +129,42 @@ unsafe extern "C" fn table_BASE_replace(mut dst: *mut BaseTable, src: BaseTable)
 }
 pub static TABLE_I_BASE: BaseTableElementInterface = {
     BaseTableElementInterface {
-        init: Some(table_BASE_init as unsafe extern "C" fn(*mut BaseTable) -> ()),
+        init: Some(table_base_init as unsafe extern "C" fn(*mut BaseTable) -> ()),
         copy: Some(
-            table_BASE_copy as unsafe extern "C" fn(*mut BaseTable, *const BaseTable) -> (),
+            table_base_copy as unsafe extern "C" fn(*mut BaseTable, *const BaseTable) -> (),
         ),
         move_0: Some(
-            table_BASE_move as unsafe extern "C" fn(*mut BaseTable, *mut BaseTable) -> (),
+            table_base_move as unsafe extern "C" fn(*mut BaseTable, *mut BaseTable) -> (),
         ),
-        dispose: Some(table_BASE_dispose as unsafe extern "C" fn(*mut BaseTable) -> ()),
+        dispose: Some(table_base_dispose as unsafe extern "C" fn(*mut BaseTable) -> ()),
         replace: Some(
-            table_BASE_replace as unsafe extern "C" fn(*mut BaseTable, BaseTable) -> (),
+            table_base_replace as unsafe extern "C" fn(*mut BaseTable, BaseTable) -> (),
         ),
         copyReplace: Some(
-            table_BASE_copyReplace as unsafe extern "C" fn(*mut BaseTable, BaseTable) -> (),
+            table_base_copy_replace as unsafe extern "C" fn(*mut BaseTable, BaseTable) -> (),
         ),
-        create: Some(table_BASE_create),
-        free: Some(table_BASE_free as unsafe extern "C" fn(*mut BaseTable) -> ()),
+        create: Some(table_base_create),
+        free: Some(table_base_free as unsafe extern "C" fn(*mut BaseTable) -> ()),
     }
 };
 #[inline]
-unsafe extern "C" fn table_BASE_move(mut dst: *mut BaseTable, mut src: *mut BaseTable) {
+unsafe extern "C" fn table_base_move(mut dst: *mut BaseTable, mut src: *mut BaseTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<BaseTable>() as usize,
     );
-    table_BASE_init(src);
+    table_base_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_BASE_free(mut x: *mut BaseTable) {
+unsafe extern "C" fn table_base_free(mut x: *mut BaseTable) {
     if x.is_null() {
         return;
     }
-    table_BASE_dispose(x);
+    table_base_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-unsafe extern "C" fn readBaseValue(
+unsafe extern "C" fn read_base_value(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u16,
@@ -178,7 +178,7 @@ unsafe extern "C" fn readBaseValue(
         );
     };
 }
-unsafe extern "C" fn readBaseScript(
+unsafe extern "C" fn read_base_script(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u16,
@@ -239,7 +239,7 @@ unsafe extern "C" fn readBaseScript(
                                     ) as *const u8,
                             );
                             if _val_offset != 0 {
-                                (*(*entry).baseValues.offset(j as isize)).coordinate = readBaseValue(
+                                (*(*entry).baseValues.offset(j as isize)).coordinate = read_base_value(
                                     data,
                                     table_length,
                                     (base_values_offset as ::core::ffi::c_int
@@ -267,7 +267,7 @@ unsafe extern "C" fn readBaseScript(
     (*entry).baseValues = ::core::ptr::null_mut::<BaseValue>();
     (*entry).defaultBaselineTag = 0 as u32;
 }
-unsafe extern "C" fn readAxis(
+unsafe extern "C" fn read_axis(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u16,
@@ -381,7 +381,7 @@ unsafe extern "C" fn readAxis(
                                                 as *const u8,
                                         );
                                         if base_script_offset != 0 {
-                                            readBaseScript(
+                                            read_base_script(
                                                 data,
                                                 table_length,
                                                 (base_script_list_offset as ::core::ffi::c_int
@@ -416,11 +416,11 @@ unsafe extern "C" fn readAxis(
         free(base_tag_list as *mut ::core::ffi::c_void);
         base_tag_list = ::core::ptr::null_mut::<u32>();
     }
-    deleteBaseAxis(axis);
+    delete_base_axis(axis);
     axis = ::core::ptr::null_mut::<BaseAxis>();
     return axis;
 }
-pub unsafe extern "C" fn otfcc_readBASE(
+pub unsafe extern "C" fn otfcc_read_base(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut BaseTable {
@@ -461,13 +461,13 @@ pub unsafe extern "C" fn otfcc_readBASE(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
                         if offset_h != 0 {
-                            (*base).horizontal = readAxis(data, table_length, offset_h);
+                            (*base).horizontal = read_axis(data, table_length, offset_h);
                         }
                         offset_v = read_16u(
                             data.offset(6 as ::core::ffi::c_int as isize) as *const u8
                         );
                         if offset_v != 0 {
-                            (*base).vertical = readAxis(data, table_length, offset_v);
+                            (*base).vertical = read_axis(data, table_length, offset_v);
                         }
                         return base;
                     }
@@ -482,7 +482,7 @@ pub unsafe extern "C" fn otfcc_readBASE(
     }
     return base;
 }
-unsafe extern "C" fn axisToJson(mut axis: *const BaseAxis) -> *mut JsonValue {
+unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut JsonValue {
     let mut _axis: *mut JsonValue = json_object_new((*axis).scriptCount as usize);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
@@ -541,7 +541,7 @@ unsafe extern "C" fn axisToJson(mut axis: *const BaseAxis) -> *mut JsonValue {
     }
     return _axis;
 }
-pub unsafe extern "C" fn otfcc_dumpBASE(
+pub unsafe extern "C" fn otfcc_dump_base(
     mut base: *const BaseTable,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -562,14 +562,14 @@ pub unsafe extern "C" fn otfcc_dumpBASE(
             json_object_push(
                 _base,
                 b"horizontal\0" as *const u8 as *const ::core::ffi::c_char,
-                axisToJson((*base).horizontal),
+                axis_to_json((*base).horizontal),
             );
         }
         if !(*base).vertical.is_null() {
             json_object_push(
                 _base,
                 b"vertical\0" as *const u8 as *const ::core::ffi::c_char,
-                axisToJson((*base).vertical),
+                axis_to_json((*base).vertical),
             );
         }
         json_object_push(
@@ -583,7 +583,7 @@ pub unsafe extern "C" fn otfcc_dumpBASE(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-unsafe extern "C" fn baseScriptFromJson(
+unsafe extern "C" fn base_script_from_json(
     mut _sr: *const JsonValue,
     mut entry: *mut BaseScriptEntry,
 ) {
@@ -624,7 +624,7 @@ unsafe extern "C" fn by_script_tag(
         .tag
         .wrapping_sub((*(b as *mut BaseScriptEntry)).tag) as ::core::ffi::c_int;
 }
-unsafe extern "C" fn axisFromJson(mut _axis: *const JsonValue) -> *mut BaseAxis {
+unsafe extern "C" fn axis_from_json(mut _axis: *const JsonValue) -> *mut BaseAxis {
     if _axis.is_null() {
         return ::core::ptr::null_mut::<BaseAxis>();
     }
@@ -649,7 +649,7 @@ unsafe extern "C" fn axisFromJson(mut _axis: *const JsonValue) -> *mut BaseAxis 
         {
             (*(*axis).entries.offset(jj as isize)).tag =
                 str2tag((*(*_axis).u.object.values.offset(j as isize)).name);
-            baseScriptFromJson(
+            base_script_from_json(
                 (*(*_axis).u.object.values.offset(j as isize)).value,
                 (*axis).entries.offset(jj as isize) as *mut BaseScriptEntry,
             );
@@ -672,7 +672,7 @@ unsafe extern "C" fn axisFromJson(mut _axis: *const JsonValue) -> *mut BaseAxis 
     );
     return axis;
 }
-pub unsafe extern "C" fn otfcc_parseBASE(
+pub unsafe extern "C" fn otfcc_parse_base(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut BaseTable {
@@ -696,12 +696,12 @@ pub unsafe extern "C" fn otfcc_parseBASE(
                 ::core::mem::size_of::<BaseTable>() as usize,
                 208 as ::core::ffi::c_ulong,
             ) as *mut BaseTable;
-            (*base).horizontal = axisFromJson(json_obj_get_type(
+            (*base).horizontal = axis_from_json(json_obj_get_type(
                 table,
                 b"horizontal\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Object,
             ));
-            (*base).vertical = axisFromJson(json_obj_get_type(
+            (*base).vertical = axis_from_json(json_obj_get_type(
                 table,
                 b"vertical\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Object,
@@ -722,7 +722,7 @@ unsafe extern "C" fn by_tag(
 ) -> ::core::ffi::c_int {
     return (*(a as *mut u32)).wrapping_sub(*(b as *mut u32)) as ::core::ffi::c_int;
 }
-pub unsafe extern "C" fn axisToBk(mut axis: *const BaseAxis) -> *mut BkBlock {
+pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
     if axis.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
@@ -803,18 +803,18 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const BaseAxis) -> *mut BkBlock {
                 ) -> ::core::ffi::c_int,
         ),
     );
-    let mut base_tag_list: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (taglist.size as ::core::ffi::c_int) as u32)]);
+    let mut base_tag_list: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (taglist.size as ::core::ffi::c_int) as u32)]);
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
         bk_push(base_tag_list, &[bk_int(BkCellType::B32, (*taglist.items.offset(j_0 as isize)) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
-    let mut base_script_list: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*axis).scriptCount as ::core::ffi::c_int) as u32)]);
+    let mut base_script_list: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*axis).scriptCount as ::core::ffi::c_int) as u32)]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as ::core::ffi::c_int) < (*axis).scriptCount as ::core::ffi::c_int {
         let mut entry_0: *mut BaseScriptEntry =
             (*axis).entries.offset(j_1 as isize) as *mut BaseScriptEntry;
-        let mut baseValues: *mut BkBlock = bk_new_Block(&[]);
+        let mut baseValues: *mut BkBlock = bk_new_block(&[]);
         let mut default_index: TableId = 0 as TableId;
         let mut m: TableId = 0 as TableId;
         while (m as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
@@ -844,30 +844,30 @@ pub unsafe extern "C" fn axisToBk(mut axis: *const BaseAxis) -> *mut BkBlock {
                 }
             }
             if found_1 {
-                bk_push(baseValues, &[bk_ptr(BkCellType::P16, bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, ((*(*entry_0).baseValues.offset(found_index as isize)).coordinate as i16
+                bk_push(baseValues, &[bk_ptr(BkCellType::P16, bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, ((*(*entry_0).baseValues.offset(found_index as isize)).coordinate as i16
                             as ::core::ffi::c_int) as u32)]))]);
             } else {
-                bk_push(baseValues, &[bk_ptr(BkCellType::P16, bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, 0 as u32)]))]);
+                bk_push(baseValues, &[bk_ptr(BkCellType::P16, bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, 0 as u32)]))]);
             }
             m_0 = m_0.wrapping_add(1);
         }
-        let mut script_record: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, baseValues), bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, 0 as u32)]);
+        let mut script_record: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, baseValues), bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, 0 as u32)]);
         bk_push(base_script_list, &[bk_int(BkCellType::B32, ((*entry_0).tag) as u32), bk_ptr(BkCellType::P16, script_record)]);
         j_1 = j_1.wrapping_add(1);
     }
     free(taglist.items as *mut ::core::ffi::c_void);
     taglist.items = ::core::ptr::null_mut::<u32>();
-    return bk_new_Block(&[bk_ptr(BkCellType::P16, base_tag_list), bk_ptr(BkCellType::P16, base_script_list)]);
+    return bk_new_block(&[bk_ptr(BkCellType::P16, base_tag_list), bk_ptr(BkCellType::P16, base_script_list)]);
 }
-pub unsafe extern "C" fn otfcc_buildBASE(
+pub unsafe extern "C" fn otfcc_build_base(
     mut base: *const BaseTable,
     mut _options: *const Options,
 ) -> *mut Buffer {
     if base.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, axisToBk((*base).horizontal)), bk_ptr(BkCellType::P16, axisToBk((*base).vertical))]);
-    return bk_build_Block(root);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, axis_to_bk((*base).horizontal)), bk_ptr(BkCellType::P16, axis_to_bk((*base).vertical))]);
+    return bk_build_block(root);
 }
 #[inline]
 unsafe extern "C" fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {

@@ -49,7 +49,7 @@ pub struct HeadTableElementInterface {
     pub free: Option<unsafe extern "C" fn(*mut HeadTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn initHead(mut head: *mut HeadTable) {
+unsafe extern "C" fn init_head(mut head: *mut HeadTable) {
     memset(
         head as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -59,7 +59,7 @@ unsafe extern "C" fn initHead(mut head: *mut HeadTable) {
     (*head).unitsPerEm = 1000 as u16;
 }
 #[inline]
-unsafe extern "C" fn disposeHead(mut _head: *mut HeadTable) {}
+unsafe extern "C" fn dispose_head(mut _head: *mut HeadTable) {}
 #[inline]
 unsafe extern "C" fn table_head_replace(mut dst: *mut HeadTable, src: HeadTable) {
     table_head_dispose(dst);
@@ -78,7 +78,7 @@ unsafe extern "C" fn table_head_free(mut x: *mut HeadTable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_head_copyReplace(mut dst: *mut HeadTable, src: HeadTable) {
+unsafe extern "C" fn table_head_copy_replace(mut dst: *mut HeadTable, src: HeadTable) {
     table_head_dispose(dst);
     table_head_copy(dst, &raw const src);
 }
@@ -92,7 +92,7 @@ unsafe extern "C" fn table_head_copy(mut dst: *mut HeadTable, mut src: *const He
 }
 #[inline]
 unsafe extern "C" fn table_head_dispose(mut x: *mut HeadTable) {
-    disposeHead(x);
+    dispose_head(x);
 }
 #[inline]
 unsafe extern "C" fn table_head_move(mut dst: *mut HeadTable, mut src: *mut HeadTable) {
@@ -117,7 +117,7 @@ pub static TABLE_I_HEAD: HeadTableElementInterface = {
             table_head_replace as unsafe extern "C" fn(*mut HeadTable, HeadTable) -> (),
         ),
         copyReplace: Some(
-            table_head_copyReplace as unsafe extern "C" fn(*mut HeadTable, HeadTable) -> (),
+            table_head_copy_replace as unsafe extern "C" fn(*mut HeadTable, HeadTable) -> (),
         ),
         create: Some(table_head_create),
         free: Some(table_head_free as unsafe extern "C" fn(*mut HeadTable) -> ()),
@@ -132,9 +132,9 @@ unsafe extern "C" fn table_head_create() -> *mut HeadTable {
 }
 #[inline]
 unsafe extern "C" fn table_head_init(mut x: *mut HeadTable) {
-    initHead(x);
+    init_head(x);
 }
-pub unsafe extern "C" fn otfcc_readHead(
+pub unsafe extern "C" fn otfcc_read_head(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut HeadTable {
@@ -255,7 +255,7 @@ static MAC_STYLE_LABELS: [&::core::ffi::CStr; 7] = [
     c"condensed",
     c"extended",
 ];
-pub unsafe extern "C" fn otfcc_dumpHead(
+pub unsafe extern "C" fn otfcc_dump_head(
     mut table: *const HeadTable,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -364,7 +364,7 @@ pub unsafe extern "C" fn otfcc_dumpHead(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parseHead(
+pub unsafe extern "C" fn otfcc_parse_head(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut HeadTable {
@@ -471,7 +471,7 @@ pub unsafe extern "C" fn otfcc_parseHead(
     }
     return head;
 }
-pub unsafe extern "C" fn otfcc_buildHead(
+pub unsafe extern "C" fn otfcc_build_head(
     mut head: *const HeadTable,
     mut _options: *const Options,
 ) -> *mut Buffer {

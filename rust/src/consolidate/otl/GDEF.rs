@@ -2,7 +2,7 @@
 use libc::{exit, free, malloc, memcmp, memset};
 
 
-use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
+use crate::support::handle::{handle_from_consolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -44,7 +44,7 @@ use crate::table::otl::classdef::ClassDef;
 
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::consolidate::otl::common::{fontop_consolidateClassDef};
+use crate::consolidate::otl::common::{fontop_consolidate_class_def};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::GDEF::{OTL_I_CARET_VALUE_LIST, OTL_I_LIG_CARET_TABLE};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
@@ -67,7 +67,7 @@ unsafe extern "C" fn by_gid(
 ) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
-pub unsafe extern "C" fn consolidate_GDEF(
+pub unsafe extern "C" fn consolidate_gdef(
     mut font: *mut Font,
     mut gdef: *mut GdefTable,
     mut options: *const Options,
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn consolidate_GDEF(
         return;
     }
     if !(*gdef).glyphClassDef.is_null() {
-        fontop_consolidateClassDef(font, (*gdef).glyphClassDef, options);
+        fontop_consolidate_class_def(font, (*gdef).glyphClassDef, options);
         OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*gdef).glyphClassDef);
         if (*(*gdef).glyphClassDef).numGlyphs == 0 {
             OTL_I_CLASS_DEF.free.expect("non-null function pointer")((*gdef).glyphClassDef);
@@ -84,7 +84,7 @@ pub unsafe extern "C" fn consolidate_GDEF(
         }
     }
     if !(*gdef).markAttachClassDef.is_null() {
-        fontop_consolidateClassDef(font, (*gdef).markAttachClassDef, options);
+        fontop_consolidate_class_def(font, (*gdef).markAttachClassDef, options);
         OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*gdef).markAttachClassDef);
         if (*(*gdef).markAttachClassDef).numGlyphs == 0 {
             OTL_I_CLASS_DEF.free.expect("non-null function pointer")((*gdef).markAttachClassDef);
@@ -1073,7 +1073,7 @@ pub unsafe extern "C" fn consolidate_GDEF(
             as *mut GdefLigCaretHash;
         while !s_0.is_null() {
             let mut v: CaretValueRecord = CaretValueRecord {
-                glyph: handle_fromConsolidated(
+                glyph: handle_from_consolidated(
                     (*s_0).gid as GlyphId, (*s_0).name
                 ) as GlyphHandle,
                 carets: CaretValueList {

@@ -1,9 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memset};
 
-use crate::table::otl::classdef::{ClassDef, otl_ClassDef_create, pushClassDef};
+use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
 use crate::table::otl::coverage::{Coverage};
-use crate::support::handle::{handle_fromConsolidated, handle_fromIndex, otfcc_Handle_dup, Handle, GlyphHandle, LookupHandle};
+use crate::support::handle::{handle_from_consolidated, handle_from_index, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
@@ -13,7 +13,7 @@ use crate::vendor::sds::{SdsRaw};
 use crate::support::{NULL};
 use crate::table::otl::{ChainLookupApplication, ChainingRule, Lookup, Subtable, ChainingType, ChainingSubtable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::table::otl::subtables::chaining::build::{otfcc_build_chaining, otfcc_build_contextual, otfcc_chainingLookupIsContextualLookup};
+use crate::table::otl::subtables::chaining::build::{otfcc_build_chaining, otfcc_build_contextual, otfcc_chaining_lookup_is_contextual_lookup};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -29,7 +29,7 @@ unsafe extern "C" fn by_gid_clsh(
 ) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
-unsafe extern "C" fn classCompatible(
+unsafe extern "C" fn class_compatible(
     mut h: *mut *mut ClassifierHash,
     mut cov: *mut Coverage,
     mut past: *mut ::core::ffi::c_int,
@@ -2977,7 +2977,7 @@ unsafe extern "C" fn classCompatible(
         return 1 as ::core::ffi::c_int;
     };
 }
-unsafe extern "C" fn buildRule(
+unsafe extern "C" fn build_rule(
     mut rule: *mut ChainingRule,
     mut hb: *mut ClassifierHash,
     mut hi: *mut ClassifierHash,
@@ -3339,13 +3339,13 @@ unsafe extern "C" fn buildRule(
             *(**(*new_rule).match_0.offset(m as isize))
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize) =
-                handle_fromIndex((*s).cls as GlyphId)
+                handle_from_index((*s).cls as GlyphId)
                     as GlyphHandle;
         } else {
             *(**(*new_rule).match_0.offset(m as isize))
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize) =
-                handle_fromIndex(0 as GlyphId)
+                handle_from_index(0 as GlyphId)
                     as GlyphHandle;
         }
         m = m.wrapping_add(1);
@@ -3360,15 +3360,15 @@ unsafe extern "C" fn buildRule(
     while (j as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
         (*(*new_rule).apply.offset(j as isize)).index = (*(*rule).apply.offset(j as isize)).index;
         (*(*new_rule).apply.offset(j as isize)).lookup =
-            otfcc_Handle_dup(
+            otfcc_handle_dup(
                 (*(*rule).apply.offset(j as isize)).lookup as Handle,
             ) as LookupHandle;
         j = j.wrapping_add(1);
     }
     return new_rule;
 }
-unsafe extern "C" fn toClass(mut h: *mut *mut ClassifierHash) -> *mut ClassDef {
-    let mut cd: *mut ClassDef = otl_ClassDef_create();
+unsafe extern "C" fn to_class(mut h: *mut *mut ClassifierHash) -> *mut ClassDef {
+    let mut cd: *mut ClassDef = otl_class_def_create();
     let mut item: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
     let mut _hs_i: ::core::ffi::c_uint = 0;
     let mut _hs_looping: ::core::ffi::c_uint = 0;
@@ -3505,9 +3505,9 @@ unsafe extern "C" fn toClass(mut h: *mut *mut ClassifierHash) -> *mut ClassDef {
     }
     item = *h;
     while !item.is_null() {
-        pushClassDef(
+        push_class_def(
             cd,
-            handle_fromConsolidated(
+            handle_from_consolidated(
                 (*item).gid as GlyphId, (*item).gname
             ) as GlyphHandle,
             (*item).cls as GlyphClass,
@@ -3516,7 +3516,7 @@ unsafe extern "C" fn toClass(mut h: *mut *mut ClassifierHash) -> *mut ClassDef {
     }
     return cd;
 }
-pub unsafe extern "C" fn tryClassifyAround(
+pub unsafe extern "C" fn try_classify_around(
     mut lookup: *const Lookup,
     mut j: TableId,
     mut classified_st: *mut *mut ChainingSubtable,
@@ -3540,19 +3540,19 @@ pub unsafe extern "C" fn tryClassifyAround(
         }
         let mut check: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
         if (m as ::core::ffi::c_int) < (*rule0).inputBegins as ::core::ffi::c_int {
-            check = classCompatible(
+            check = class_compatible(
                 &raw mut hb,
                 *(*rule0).match_0.offset(m as isize),
                 &raw mut classno_b,
             );
         } else if (m as ::core::ffi::c_int) < (*rule0).inputEnds as ::core::ffi::c_int {
-            check = classCompatible(
+            check = class_compatible(
                 &raw mut hi,
                 *(*rule0).match_0.offset(m as isize),
                 &raw mut classno_i,
             );
         } else {
-            check = classCompatible(
+            check = class_compatible(
                 &raw mut hf,
                 *(*rule0).match_0.offset(m as isize),
                 &raw mut classno_f,
@@ -3578,20 +3578,20 @@ pub unsafe extern "C" fn tryClassifyAround(
                 while (m_0 as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
                     let mut check_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
                     if (m_0 as ::core::ffi::c_int) < (*rule).inputBegins as ::core::ffi::c_int {
-                        check_0 = classCompatible(
+                        check_0 = class_compatible(
                             &raw mut hb,
                             *(*rule).match_0.offset(m_0 as isize),
                             &raw mut classno_b,
                         );
                     } else if (m_0 as ::core::ffi::c_int) < (*rule).inputEnds as ::core::ffi::c_int
                     {
-                        check_0 = classCompatible(
+                        check_0 = class_compatible(
                             &raw mut hi,
                             *(*rule).match_0.offset(m_0 as isize),
                             &raw mut classno_i,
                         );
                     } else {
-                        check_0 = classCompatible(
+                        check_0 = class_compatible(
                             &raw mut hf,
                             *(*rule).match_0.offset(m_0 as isize),
                             &raw mut classno_f,
@@ -3630,7 +3630,7 @@ pub unsafe extern "C" fn tryClassifyAround(
                     .c2rust_unnamed
                     .rules
                     .offset(0 as ::core::ffi::c_int as isize);
-                *fresh1 = buildRule(rule0, hb, hi, hf);
+                *fresh1 = build_rule(rule0, hb, hi, hf);
                 let mut kk: TableId = 1 as TableId;
                 let mut k_0: TableId =
                     (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
@@ -3648,14 +3648,14 @@ pub unsafe extern "C" fn tryClassifyAround(
                         .c2rust_unnamed
                         .rules
                         .offset(kk as isize);
-                    *fresh2 = buildRule(rule_0, hb, hi, hf);
+                    *fresh2 = build_rule(rule_0, hb, hi, hf);
                     kk = kk.wrapping_add(1);
                     k_0 = k_0.wrapping_add(1);
                 }
                 (*subtable0).type_0 = ChainingType::Classified;
-                (*subtable0).c2rust_unnamed.c2rust_unnamed.bc = toClass(&raw mut hb);
-                (*subtable0).c2rust_unnamed.c2rust_unnamed.ic = toClass(&raw mut hi);
-                (*subtable0).c2rust_unnamed.c2rust_unnamed.fc = toClass(&raw mut hf);
+                (*subtable0).c2rust_unnamed.c2rust_unnamed.bc = to_class(&raw mut hb);
+                (*subtable0).c2rust_unnamed.c2rust_unnamed.ic = to_class(&raw mut hi);
+                (*subtable0).c2rust_unnamed.c2rust_unnamed.fc = to_class(&raw mut hf);
                 *classified_st = subtable0;
             }
         }
@@ -3856,12 +3856,12 @@ pub unsafe extern "C" fn tryClassifyAround(
         return 0 as TableId;
     };
 }
-pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
+pub unsafe extern "C" fn otfcc_classified_build_chaining(
     mut lookup: *const Lookup,
     mut subtable_buffers: *mut *mut *mut Buffer,
     mut last_offset: *mut usize,
 ) -> TableId {
-    let mut is_contextual: bool = otfcc_chainingLookupIsContextualLookup(lookup);
+    let mut is_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup);
     let mut subtables_written: TableId = 0 as TableId;
     *subtable_buffers = __caryll_allocate_clean(
         (::core::mem::size_of::<*mut Buffer>() as usize)
@@ -3875,7 +3875,7 @@ pub unsafe extern "C" fn otfcc_classifiedBuildChaining(
         if !((*st0).type_0 as u64 != 0) {
             let mut st: *mut ChainingSubtable = st0;
             j = (j as ::core::ffi::c_int
-                + tryClassifyAround(lookup, j, &raw mut st) as ::core::ffi::c_int)
+                + try_classify_around(lookup, j, &raw mut st) as ::core::ffi::c_int)
                 as TableId;
             let mut buf: *mut Buffer = if is_contextual as ::core::ffi::c_int != 0 {
                 otfcc_build_contextual(st as *mut Subtable)

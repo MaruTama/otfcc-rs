@@ -50,13 +50,13 @@ pub struct HandlePackage {
     pub consolidateTo: Option<unsafe extern "C" fn(*mut Handle, GlyphId, SdsRaw) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn initHandle(mut h: *mut Handle) {
+unsafe extern "C" fn init_handle(mut h: *mut Handle) {
     (*h).state = HandleState::Empty;
     (*h).index = 0 as GlyphId;
     (*h).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
 #[inline]
-unsafe extern "C" fn disposeHandle(mut h: *mut Handle) {
+unsafe extern "C" fn dispose_handle(mut h: *mut Handle) {
     if !(*h).name.is_null() {
         sdsfree((*h).name);
         (*h).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -64,7 +64,7 @@ unsafe extern "C" fn disposeHandle(mut h: *mut Handle) {
     (*h).index = 0 as GlyphId;
     (*h).state = HandleState::Empty;
 }
-unsafe extern "C" fn copyHandle(mut dst: *mut Handle, mut src: *const Handle) {
+unsafe extern "C" fn copy_handle(mut dst: *mut Handle, mut src: *const Handle) {
     (*dst).state = (*src).state;
     (*dst).index = (*src).index;
     if !(*src).name.is_null() {
@@ -74,45 +74,45 @@ unsafe extern "C" fn copyHandle(mut dst: *mut Handle, mut src: *const Handle) {
     };
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_Handle_empty() -> Handle {
+pub(crate) unsafe extern "C" fn otfcc_handle_empty() -> Handle {
     let mut x: Handle = Handle {
         state: HandleState::Empty,
         index: 0,
         name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
     };
-    otfcc_Handle_init(&raw mut x);
+    otfcc_handle_init(&raw mut x);
     return x;
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_Handle_copy(mut dst: *mut Handle, mut src: *const Handle) {
-    copyHandle(dst, src);
+pub(crate) unsafe extern "C" fn otfcc_handle_copy(mut dst: *mut Handle, mut src: *const Handle) {
+    copy_handle(dst, src);
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_Handle_copyReplace(mut dst: *mut Handle, src: Handle) {
-    otfcc_Handle_dispose(dst);
-    otfcc_Handle_copy(dst, &raw const src);
+pub(crate) unsafe extern "C" fn otfcc_handle_copy_replace(mut dst: *mut Handle, src: Handle) {
+    otfcc_handle_dispose(dst);
+    otfcc_handle_copy(dst, &raw const src);
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_Handle_dup(src: Handle) -> Handle {
+pub(crate) unsafe extern "C" fn otfcc_handle_dup(src: Handle) -> Handle {
     let mut dst: Handle = Handle {
         state: HandleState::Empty,
         index: 0,
         name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
     };
-    otfcc_Handle_copy(&raw mut dst, &raw const src);
+    otfcc_handle_copy(&raw mut dst, &raw const src);
     return dst;
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_Handle_init(mut x: *mut Handle) {
-    initHandle(x);
+pub(crate) unsafe extern "C" fn otfcc_handle_init(mut x: *mut Handle) {
+    init_handle(x);
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_Handle_dispose(mut x: *mut Handle) {
-    disposeHandle(x as *mut Handle);
+pub(crate) unsafe extern "C" fn otfcc_handle_dispose(mut x: *mut Handle) {
+    dispose_handle(x as *mut Handle);
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_Handle_replace(mut dst: *mut Handle, src: Handle) {
-    otfcc_Handle_dispose(dst);
+pub(crate) unsafe extern "C" fn otfcc_handle_replace(mut dst: *mut Handle, src: Handle) {
+    otfcc_handle_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -120,15 +120,15 @@ pub(crate) unsafe extern "C" fn otfcc_Handle_replace(mut dst: *mut Handle, src: 
     );
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_Handle_move(mut dst: *mut Handle, mut src: *mut Handle) {
+pub(crate) unsafe extern "C" fn otfcc_handle_move(mut dst: *mut Handle, mut src: *mut Handle) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<Handle>() as usize,
     );
-    otfcc_Handle_init(src);
+    otfcc_handle_init(src);
 }
-pub(crate) unsafe extern "C" fn handle_fromIndex(mut id: GlyphId) -> Handle {
+pub(crate) unsafe extern "C" fn handle_from_index(mut id: GlyphId) -> Handle {
     let mut h: Handle = Handle {
         state: HandleState::Index,
         index: id,
@@ -136,7 +136,7 @@ pub(crate) unsafe extern "C" fn handle_fromIndex(mut id: GlyphId) -> Handle {
     };
     return h;
 }
-pub(crate) unsafe extern "C" fn handle_fromName(mut s: SdsRaw) -> Handle {
+pub(crate) unsafe extern "C" fn handle_from_name(mut s: SdsRaw) -> Handle {
     let mut h: Handle = Handle {
         state: HandleState::Empty,
         index: 0 as GlyphId,
@@ -148,7 +148,7 @@ pub(crate) unsafe extern "C" fn handle_fromName(mut s: SdsRaw) -> Handle {
     }
     return h;
 }
-pub(crate) unsafe extern "C" fn handle_fromConsolidated(mut id: GlyphId, mut s: SdsRaw) -> Handle {
+pub(crate) unsafe extern "C" fn handle_from_consolidated(mut id: GlyphId, mut s: SdsRaw) -> Handle {
     let mut h: Handle = Handle {
         state: HandleState::Consolidated,
         index: id,
@@ -156,41 +156,41 @@ pub(crate) unsafe extern "C" fn handle_fromConsolidated(mut id: GlyphId, mut s: 
     };
     return h;
 }
-pub(crate) unsafe extern "C" fn handle_consolidateTo(
+pub(crate) unsafe extern "C" fn handle_consolidate_to(
     mut h: *mut Handle,
     mut id: GlyphId,
     mut name: SdsRaw,
 ) {
-    otfcc_Handle_dispose(h as *mut Handle);
+    otfcc_handle_dispose(h as *mut Handle);
     (*h).state = HandleState::Consolidated;
     (*h).index = id;
     (*h).name = sdsdup(name);
 }
 pub static OTFCC_I_HANDLE: HandlePackage = {
     HandlePackage {
-        init: Some(otfcc_Handle_init as unsafe extern "C" fn(*mut Handle) -> ()),
+        init: Some(otfcc_handle_init as unsafe extern "C" fn(*mut Handle) -> ()),
         copy: Some(
-            otfcc_Handle_copy as unsafe extern "C" fn(*mut Handle, *const Handle) -> (),
+            otfcc_handle_copy as unsafe extern "C" fn(*mut Handle, *const Handle) -> (),
         ),
         move_0: Some(
-            otfcc_Handle_move as unsafe extern "C" fn(*mut Handle, *mut Handle) -> (),
+            otfcc_handle_move as unsafe extern "C" fn(*mut Handle, *mut Handle) -> (),
         ),
-        dispose: Some(otfcc_Handle_dispose as unsafe extern "C" fn(*mut Handle) -> ()),
+        dispose: Some(otfcc_handle_dispose as unsafe extern "C" fn(*mut Handle) -> ()),
         replace: Some(
-            otfcc_Handle_replace as unsafe extern "C" fn(*mut Handle, Handle) -> (),
+            otfcc_handle_replace as unsafe extern "C" fn(*mut Handle, Handle) -> (),
         ),
         copyReplace: Some(
-            otfcc_Handle_copyReplace as unsafe extern "C" fn(*mut Handle, Handle) -> (),
+            otfcc_handle_copy_replace as unsafe extern "C" fn(*mut Handle, Handle) -> (),
         ),
-        empty: Some(otfcc_Handle_empty),
-        dup: Some(otfcc_Handle_dup as unsafe extern "C" fn(Handle) -> Handle),
-        fromIndex: Some(handle_fromIndex as unsafe extern "C" fn(GlyphId) -> Handle),
-        fromName: Some(handle_fromName as unsafe extern "C" fn(SdsRaw) -> Handle),
+        empty: Some(otfcc_handle_empty),
+        dup: Some(otfcc_handle_dup as unsafe extern "C" fn(Handle) -> Handle),
+        fromIndex: Some(handle_from_index as unsafe extern "C" fn(GlyphId) -> Handle),
+        fromName: Some(handle_from_name as unsafe extern "C" fn(SdsRaw) -> Handle),
         fromConsolidated: Some(
-            handle_fromConsolidated as unsafe extern "C" fn(GlyphId, SdsRaw) -> Handle,
+            handle_from_consolidated as unsafe extern "C" fn(GlyphId, SdsRaw) -> Handle,
         ),
         consolidateTo: Some(
-            handle_consolidateTo as unsafe extern "C" fn(*mut Handle, GlyphId, SdsRaw) -> (),
+            handle_consolidate_to as unsafe extern "C" fn(*mut Handle, GlyphId, SdsRaw) -> (),
         ),
     }
 };
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn a_fresh_handle_is_empty() {
         unsafe {
-            let h = otfcc_Handle_empty();
+            let h = otfcc_handle_empty();
             assert_eq!(h.state, HandleState::Empty);
             assert_eq!(h.index, 0);
             assert!(h.name.is_null());
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn from_index_records_the_index_and_no_name() {
         unsafe {
-            let h = handle_fromIndex(42);
+            let h = handle_from_index(42);
             assert_eq!(h.state, HandleState::Index);
             assert_eq!(h.index, 42);
             assert!(h.name.is_null());

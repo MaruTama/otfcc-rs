@@ -6,7 +6,7 @@ unsafe extern "C" {
 
 use crate::support::json_funcs::{json_new_position, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback, preserialize};
 use crate::table::otl::coverage::{Coverage};
-use crate::support::handle::{handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
@@ -17,7 +17,7 @@ use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_push};
 use crate::support::{NULL, ComparFn};
 use crate::table::otl::{MarkArrayVectorInterface, Anchor, MarkArray, MarkRecord, PositionValue};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
@@ -41,21 +41,21 @@ pub struct ClassNameHash {
     pub classID: GlyphClass,
     pub hh: UtHashHandle,
 }
-unsafe extern "C" fn deleteMarkArrayItem(mut entry: *mut MarkRecord) {
-    otfcc_Handle_dispose(&raw mut (*entry).glyph);
+unsafe extern "C" fn delete_mark_array_item(mut entry: *mut MarkRecord) {
+    otfcc_handle_dispose(&raw mut (*entry).glyph);
 }
 static GSS_TYPEINFO: MarkRecordElementInterface = {
     MarkRecordElementInterface {
         init: None,
         copy: None,
         move_0: None,
-        dispose: Some(deleteMarkArrayItem as unsafe extern "C" fn(*mut MarkRecord) -> ()),
+        dispose: Some(delete_mark_array_item as unsafe extern "C" fn(*mut MarkRecord) -> ()),
         replace: None,
         copyReplace: None,
     }
 };
 #[inline]
-unsafe extern "C" fn otl_MarkArray_disposeItem(mut arr: *mut MarkArray, mut n: usize) {
+unsafe extern "C" fn otl_mark_array_dispose_item(mut arr: *mut MarkArray, mut n: usize) {
     if GSS_TYPEINFO.dispose.is_some() {
         GSS_TYPEINFO.dispose.expect("non-null function pointer")(
             (*arr).items.offset(n as isize) as *mut MarkRecord
@@ -64,25 +64,25 @@ unsafe extern "C" fn otl_MarkArray_disposeItem(mut arr: *mut MarkArray, mut n: u
     };
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_growTo(arr: *mut MarkArray, target: usize) {
-    cvec_grow_to(otl_MarkArray_as_cvec(arr), target);
+unsafe extern "C" fn otl_mark_array_grow_to(arr: *mut MarkArray, target: usize) {
+    cvec_grow_to(otl_mark_array_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_pop(arr: *mut MarkArray) -> MarkRecord {
-    cvec_pop(otl_MarkArray_as_cvec(arr))
+unsafe extern "C" fn otl_mark_array_pop(arr: *mut MarkArray) -> MarkRecord {
+    cvec_pop(otl_mark_array_as_cvec(arr))
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_copyReplace(mut dst: *mut MarkArray, src: MarkArray) {
-    otl_MarkArray_dispose(dst);
-    otl_MarkArray_copy(dst, &raw const src);
+unsafe extern "C" fn otl_mark_array_copy_replace(mut dst: *mut MarkArray, src: MarkArray) {
+    otl_mark_array_dispose(dst);
+    otl_mark_array_copy(dst, &raw const src);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_copy(
+unsafe extern "C" fn otl_mark_array_copy(
     mut dst: *mut MarkArray,
     mut src: *const MarkArray,
 ) {
-    otl_MarkArray_init(dst);
-    otl_MarkArray_growTo(dst, (*src).length);
+    otl_mark_array_init(dst);
+    otl_mark_array_grow_to(dst, (*src).length);
     (*dst).length = (*src).length;
     if GSS_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
@@ -102,7 +102,7 @@ unsafe extern "C" fn otl_MarkArray_copy(
     };
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_dispose(mut arr: *mut MarkArray) {
+unsafe extern "C" fn otl_mark_array_dispose(mut arr: *mut MarkArray) {
     if arr.is_null() {
         return;
     }
@@ -125,8 +125,8 @@ unsafe extern "C" fn otl_MarkArray_dispose(mut arr: *mut MarkArray) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_replace(mut dst: *mut MarkArray, src: MarkArray) {
-    otl_MarkArray_dispose(dst);
+unsafe extern "C" fn otl_mark_array_replace(mut dst: *mut MarkArray, src: MarkArray) {
+    otl_mark_array_dispose(dst);
     memcpy(
         dst as *mut ::core::ffi::c_void,
         &raw const src as *const ::core::ffi::c_void,
@@ -134,56 +134,56 @@ unsafe extern "C" fn otl_MarkArray_replace(mut dst: *mut MarkArray, src: MarkArr
     );
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_initCapN(mut arr: *mut MarkArray, mut n: usize) {
-    otl_MarkArray_init(arr);
-    otl_MarkArray_growToN(arr, n);
+unsafe extern "C" fn otl_mark_array_init_cap_n(mut arr: *mut MarkArray, mut n: usize) {
+    otl_mark_array_init(arr);
+    otl_mark_array_grow_to_n(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_growToN(arr: *mut MarkArray, target: usize) {
-    cvec_grow_to_n(otl_MarkArray_as_cvec(arr), target);
+unsafe extern "C" fn otl_mark_array_grow_to_n(arr: *mut MarkArray, target: usize) {
+    cvec_grow_to_n(otl_mark_array_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_initN(mut arr: *mut MarkArray, mut n: usize) {
-    otl_MarkArray_init(arr);
-    otl_MarkArray_growToN(arr, n);
-    otl_MarkArray_fill(arr, n);
+unsafe extern "C" fn otl_mark_array_init_n(mut arr: *mut MarkArray, mut n: usize) {
+    otl_mark_array_init(arr);
+    otl_mark_array_grow_to_n(arr, n);
+    otl_mark_array_fill(arr, n);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_free(mut x: *mut MarkArray) {
+unsafe extern "C" fn otl_mark_array_free(mut x: *mut MarkArray) {
     if x.is_null() {
         return;
     }
-    otl_MarkArray_dispose(x);
+    otl_mark_array_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_createN(mut n: usize) -> *mut MarkArray {
+unsafe extern "C" fn otl_mark_array_create_n(mut n: usize) -> *mut MarkArray {
     let mut t: *mut MarkArray =
         malloc(::core::mem::size_of::<MarkArray>() as usize) as *mut MarkArray;
-    otl_MarkArray_initN(t, n);
+    otl_mark_array_init_n(t, n);
     return t;
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_create() -> *mut MarkArray {
+unsafe extern "C" fn otl_mark_array_create() -> *mut MarkArray {
     let mut x: *mut MarkArray =
         malloc(::core::mem::size_of::<MarkArray>() as usize) as *mut MarkArray;
-    otl_MarkArray_init(x);
+    otl_mark_array_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_move(dst: *mut MarkArray, src: *mut MarkArray) {
-    cvec_move(otl_MarkArray_as_cvec(dst), otl_MarkArray_as_cvec(src));
+unsafe extern "C" fn otl_mark_array_move(dst: *mut MarkArray, src: *mut MarkArray) {
+    cvec_move(otl_mark_array_as_cvec(dst), otl_mark_array_as_cvec(src));
 }
 #[inline]
-unsafe fn otl_MarkArray_as_cvec(arr: *mut MarkArray) -> *mut CVecRaw<MarkRecord> {
+unsafe fn otl_mark_array_as_cvec(arr: *mut MarkArray) -> *mut CVecRaw<MarkRecord> {
     arr as *mut CVecRaw<MarkRecord>
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_init(arr: *mut MarkArray) {
-    cvec_init(otl_MarkArray_as_cvec(arr));
+unsafe extern "C" fn otl_mark_array_init(arr: *mut MarkArray) {
+    cvec_init(otl_mark_array_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_filterEnv(
+unsafe extern "C" fn otl_mark_array_filter_env(
     mut arr: *mut MarkArray,
     mut fn_0: Option<unsafe extern "C" fn(*const MarkRecord, *mut ::core::ffi::c_void) -> bool>,
     mut env: *mut ::core::ffi::c_void,
@@ -213,44 +213,44 @@ unsafe extern "C" fn otl_MarkArray_filterEnv(
 }
 pub static OTL_I_MARK_ARRAY: MarkArrayVectorInterface = {
     MarkArrayVectorInterface {
-        init: Some(otl_MarkArray_init as unsafe extern "C" fn(*mut MarkArray) -> ()),
+        init: Some(otl_mark_array_init as unsafe extern "C" fn(*mut MarkArray) -> ()),
         copy: Some(
-            otl_MarkArray_copy
+            otl_mark_array_copy
                 as unsafe extern "C" fn(*mut MarkArray, *const MarkArray) -> (),
         ),
         move_0: Some(
-            otl_MarkArray_move
+            otl_mark_array_move
                 as unsafe extern "C" fn(*mut MarkArray, *mut MarkArray) -> (),
         ),
-        dispose: Some(otl_MarkArray_dispose as unsafe extern "C" fn(*mut MarkArray) -> ()),
+        dispose: Some(otl_mark_array_dispose as unsafe extern "C" fn(*mut MarkArray) -> ()),
         replace: Some(
-            otl_MarkArray_replace as unsafe extern "C" fn(*mut MarkArray, MarkArray) -> (),
+            otl_mark_array_replace as unsafe extern "C" fn(*mut MarkArray, MarkArray) -> (),
         ),
         copyReplace: Some(
-            otl_MarkArray_copyReplace
+            otl_mark_array_copy_replace
                 as unsafe extern "C" fn(*mut MarkArray, MarkArray) -> (),
         ),
-        create: Some(otl_MarkArray_create),
-        free: Some(otl_MarkArray_free as unsafe extern "C" fn(*mut MarkArray) -> ()),
-        initN: Some(otl_MarkArray_initN as unsafe extern "C" fn(*mut MarkArray, usize) -> ()),
+        create: Some(otl_mark_array_create),
+        free: Some(otl_mark_array_free as unsafe extern "C" fn(*mut MarkArray) -> ()),
+        initN: Some(otl_mark_array_init_n as unsafe extern "C" fn(*mut MarkArray, usize) -> ()),
         initCapN: Some(
-            otl_MarkArray_initCapN as unsafe extern "C" fn(*mut MarkArray, usize) -> (),
+            otl_mark_array_init_cap_n as unsafe extern "C" fn(*mut MarkArray, usize) -> (),
         ),
-        createN: Some(otl_MarkArray_createN as unsafe extern "C" fn(usize) -> *mut MarkArray),
-        fill: Some(otl_MarkArray_fill as unsafe extern "C" fn(*mut MarkArray, usize) -> ()),
-        clear: Some(otl_MarkArray_dispose as unsafe extern "C" fn(*mut MarkArray) -> ()),
+        createN: Some(otl_mark_array_create_n as unsafe extern "C" fn(usize) -> *mut MarkArray),
+        fill: Some(otl_mark_array_fill as unsafe extern "C" fn(*mut MarkArray, usize) -> ()),
+        clear: Some(otl_mark_array_dispose as unsafe extern "C" fn(*mut MarkArray) -> ()),
         push: Some(
-            otl_MarkArray_push as unsafe extern "C" fn(*mut MarkArray, MarkRecord) -> (),
+            otl_mark_array_push as unsafe extern "C" fn(*mut MarkArray, MarkRecord) -> (),
         ),
         shrinkToFit: Some(
-            otl_MarkArray_shrinkToFit as unsafe extern "C" fn(*mut MarkArray) -> (),
+            otl_mark_array_shrink_to_fit as unsafe extern "C" fn(*mut MarkArray) -> (),
         ),
-        pop: Some(otl_MarkArray_pop as unsafe extern "C" fn(*mut MarkArray) -> MarkRecord),
+        pop: Some(otl_mark_array_pop as unsafe extern "C" fn(*mut MarkArray) -> MarkRecord),
         disposeItem: Some(
-            otl_MarkArray_disposeItem as unsafe extern "C" fn(*mut MarkArray, usize) -> (),
+            otl_mark_array_dispose_item as unsafe extern "C" fn(*mut MarkArray, usize) -> (),
         ),
         filterEnv: Some(
-            otl_MarkArray_filterEnv
+            otl_mark_array_filter_env
                 as unsafe extern "C" fn(
                     *mut MarkArray,
                     Option<
@@ -263,7 +263,7 @@ pub static OTL_I_MARK_ARRAY: MarkArrayVectorInterface = {
                 ) -> (),
         ),
         sort: Some(
-            otl_MarkArray_sort
+            otl_mark_array_sort
                 as unsafe extern "C" fn(
                     *mut MarkArray,
                     Option<
@@ -277,15 +277,15 @@ pub static OTL_I_MARK_ARRAY: MarkArrayVectorInterface = {
     }
 };
 #[inline]
-unsafe extern "C" fn otl_MarkArray_shrinkToFit(mut arr: *mut MarkArray) {
-    otl_MarkArray_resizeTo(arr, (*arr).length);
+unsafe extern "C" fn otl_mark_array_shrink_to_fit(mut arr: *mut MarkArray) {
+    otl_mark_array_resize_to(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_resizeTo(arr: *mut MarkArray, target: usize) {
-    cvec_resize_to(otl_MarkArray_as_cvec(arr), target);
+unsafe extern "C" fn otl_mark_array_resize_to(arr: *mut MarkArray, target: usize) {
+    cvec_resize_to(otl_mark_array_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_sort(
+unsafe extern "C" fn otl_mark_array_sort(
     mut arr: *mut MarkArray,
     mut fn_0: Option<
         unsafe extern "C" fn(*const MarkRecord, *const MarkRecord) -> ::core::ffi::c_int,
@@ -307,7 +307,7 @@ unsafe extern "C" fn otl_MarkArray_sort(
     );
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_fill(mut arr: *mut MarkArray, mut n: usize) {
+unsafe extern "C" fn otl_mark_array_fill(mut arr: *mut MarkArray, mut n: usize) {
     while (*arr).length < n {
         let mut x: MarkRecord = MarkRecord {
             glyph: Handle {
@@ -331,18 +331,18 @@ unsafe extern "C" fn otl_MarkArray_fill(mut arr: *mut MarkArray, mut n: usize) {
                 ::core::mem::size_of::<MarkRecord>() as usize,
             );
         }
-        otl_MarkArray_push(arr, x);
+        otl_mark_array_push(arr, x);
     }
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_push(arr: *mut MarkArray, elem: MarkRecord) {
-    cvec_push(otl_MarkArray_as_cvec(arr), elem);
+unsafe extern "C" fn otl_mark_array_push(arr: *mut MarkArray, elem: MarkRecord) {
+    cvec_push(otl_mark_array_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn otl_MarkArray_grow(arr: *mut MarkArray) {
-    cvec_grow(otl_MarkArray_as_cvec(arr));
+unsafe extern "C" fn otl_mark_array_grow(arr: *mut MarkArray) {
+    cvec_grow(otl_mark_array_as_cvec(arr));
 }
-pub unsafe extern "C" fn otl_readMarkArray(
+pub unsafe extern "C" fn otl_read_mark_array(
     mut array: *mut MarkArray,
     mut cov: *mut Coverage,
     mut data: FontFilePointer,
@@ -370,7 +370,7 @@ pub unsafe extern "C" fn otl_readMarkArray(
                 OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(
                     array,
                     MarkRecord {
-                        glyph: otfcc_Handle_dup(
+                        glyph: otfcc_handle_dup(
                             *(*cov).glyphs.offset(j as isize) as Handle,
                         ) as GlyphHandle,
                         markClass: markClass,
@@ -385,7 +385,7 @@ pub unsafe extern "C" fn otl_readMarkArray(
                 OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(
                     array,
                     MarkRecord {
-                        glyph: otfcc_Handle_dup(
+                        glyph: otfcc_handle_dup(
                             *(*cov).glyphs.offset(j as isize) as Handle,
                         ) as GlyphHandle,
                         markClass: markClass,
@@ -397,7 +397,7 @@ pub unsafe extern "C" fn otl_readMarkArray(
         }
     }
 }
-unsafe extern "C" fn compare_classHash(
+unsafe extern "C" fn compare_class_hash(
     mut a: *mut ClassNameHash,
     mut b: *mut ClassNameHash,
 ) -> ::core::ffi::c_int {
@@ -406,7 +406,7 @@ unsafe extern "C" fn compare_classHash(
         (*b).className as *const ::core::ffi::c_char,
     );
 }
-pub unsafe extern "C" fn otl_parseMarkArray(
+pub unsafe extern "C" fn otl_parse_mark_array(
     mut _marks: *mut JsonValue,
     mut array: *mut MarkArray,
     mut h: *mut *mut ClassNameHash,
@@ -431,7 +431,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
             (*(*_marks).u.object.values.offset(j as isize)).name;
         let mut anchor_record: *mut JsonValue =
             (*(*_marks).u.object.values.offset(j as isize)).value as *mut JsonValue;
-        mark.glyph = handle_fromName(sdsnewlen(
+        mark.glyph = handle_from_name(sdsnewlen(
             gname as *const ::core::ffi::c_void,
             (*(*_marks).u.object.values.offset(j as isize)).name_length as usize,
         )) as GlyphHandle;
@@ -1331,7 +1331,7 @@ pub unsafe extern "C" fn otl_parseMarkArray(
                             }) as *mut UtHashHandle;
                         }
                         _hs_psize = _hs_psize.wrapping_sub(1);
-                    } else if compare_classHash(
+                    } else if compare_class_hash(
                         (_hs_p as *mut ::core::ffi::c_char).offset(-(*(**h).hh.tbl).hho)
                             as *mut ::core::ffi::c_void
                             as *mut ClassNameHash,
@@ -1834,11 +1834,11 @@ pub unsafe extern "C" fn otl_parse_anchor(mut v: *mut JsonValue) -> Anchor {
     ) as Pos;
     return anchor;
 }
-pub unsafe extern "C" fn bkFromAnchor(mut a: Anchor) -> *mut BkBlock {
+pub unsafe extern "C" fn bk_from_anchor(mut a: Anchor) -> *mut BkBlock {
     if !a.present {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    return bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, (a.x as i16 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (a.y as i16 as ::core::ffi::c_int) as u32)]);
+    return bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, (a.x as i16 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (a.y as i16 as ::core::ffi::c_int) as u32)]);
 }
 pub static FORMAT_DX: u8 = 1 as u8;
 pub static FORMAT_DY: u8 = 2 as u8;
@@ -3266,7 +3266,7 @@ pub unsafe extern "C" fn bk_gpos_value(
     mut v: PositionValue,
     mut format: u16,
 ) -> *mut BkBlock {
-    let mut b: *mut BkBlock = bk_new_Block(&[]);
+    let mut b: *mut BkBlock = bk_new_block(&[]);
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
         bk_push(b, &[bk_int(BkCellType::B16, (v.dx as i16 as ::core::ffi::c_int) as u32)]);
     }

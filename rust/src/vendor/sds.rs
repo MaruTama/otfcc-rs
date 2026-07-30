@@ -253,7 +253,7 @@ unsafe extern "C" fn sdssetalloc(mut s: SdsRaw, mut newlen: usize) {
     };
 }
 #[inline]
-unsafe extern "C" fn sdsHdrSize(mut type_0: ::core::ffi::c_char) -> ::core::ffi::c_int {
+unsafe extern "C" fn sds_hdr_size(mut type_0: ::core::ffi::c_char) -> ::core::ffi::c_int {
     match type_0 as ::core::ffi::c_int & SDS_TYPE_MASK {
         SDS_TYPE_5 => return ::core::mem::size_of::<SdsHdr5>() as ::core::ffi::c_int,
         SDS_TYPE_8 => return ::core::mem::size_of::<SdsHdr8>() as ::core::ffi::c_int,
@@ -265,7 +265,7 @@ unsafe extern "C" fn sdsHdrSize(mut type_0: ::core::ffi::c_char) -> ::core::ffi:
     return 0 as ::core::ffi::c_int;
 }
 #[inline]
-unsafe extern "C" fn sdsReqType(mut string_size: usize) -> ::core::ffi::c_char {
+unsafe extern "C" fn sds_req_type(mut string_size: usize) -> ::core::ffi::c_char {
     if string_size < 32 as usize {
         return SDS_TYPE_5 as ::core::ffi::c_char;
     }
@@ -286,11 +286,11 @@ pub unsafe extern "C" fn sdsnewlen(
 ) -> SdsRaw {
     let mut sh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut s: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut type_0: ::core::ffi::c_char = sdsReqType(initlen);
+    let mut type_0: ::core::ffi::c_char = sds_req_type(initlen);
     if type_0 as ::core::ffi::c_int == SDS_TYPE_5 && initlen == 0 as usize {
         type_0 = SDS_TYPE_8 as ::core::ffi::c_char;
     }
-    let mut hdrlen: ::core::ffi::c_int = sdsHdrSize(type_0);
+    let mut hdrlen: ::core::ffi::c_int = sds_hdr_size(type_0);
     let mut fp: *mut ::core::ffi::c_uchar = ::core::ptr::null_mut::<::core::ffi::c_uchar>();
     sh = malloc(
         (hdrlen as usize)
@@ -377,7 +377,7 @@ pub unsafe extern "C" fn sdsfree(mut s: SdsRaw) {
         return;
     }
     free(
-        s.offset(-(sdsHdrSize(*s.offset(-(1 as ::core::ffi::c_int) as isize)) as isize))
+        s.offset(-(sds_hdr_size(*s.offset(-(1 as ::core::ffi::c_int) as isize)) as isize))
             as *mut ::core::ffi::c_void,
     );
 }
@@ -390,7 +390,7 @@ pub unsafe extern "C" fn sdsclear(mut s: SdsRaw) {
     sdssetlen(s, 0 as usize);
     *s.offset(0 as ::core::ffi::c_int as isize) = '\0' as i32 as ::core::ffi::c_char;
 }
-pub unsafe extern "C" fn sdsMakeRoomFor(mut s: SdsRaw, mut addlen: usize) -> SdsRaw {
+pub unsafe extern "C" fn sds_make_room_for(mut s: SdsRaw, mut addlen: usize) -> SdsRaw {
     let mut sh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut newsh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut avail: usize = sdsavail(s);
@@ -405,18 +405,18 @@ pub unsafe extern "C" fn sdsMakeRoomFor(mut s: SdsRaw, mut addlen: usize) -> Sds
         return s;
     }
     len = sdslen(s);
-    sh = s.offset(-(sdsHdrSize(oldtype) as isize)) as *mut ::core::ffi::c_void;
+    sh = s.offset(-(sds_hdr_size(oldtype) as isize)) as *mut ::core::ffi::c_void;
     newlen = len.wrapping_add(addlen);
     if newlen < SDS_MAX_PREALLOC as usize {
         newlen = newlen.wrapping_mul(2 as usize);
     } else {
         newlen = newlen.wrapping_add(SDS_MAX_PREALLOC as usize);
     }
-    type_0 = sdsReqType(newlen);
+    type_0 = sds_req_type(newlen);
     if type_0 as ::core::ffi::c_int == SDS_TYPE_5 {
         type_0 = SDS_TYPE_8 as ::core::ffi::c_char;
     }
-    hdrlen = sdsHdrSize(type_0);
+    hdrlen = sds_hdr_size(type_0);
     if oldtype as ::core::ffi::c_int == type_0 as ::core::ffi::c_int {
         newsh = realloc(
             sh,
@@ -450,7 +450,7 @@ pub unsafe extern "C" fn sdsMakeRoomFor(mut s: SdsRaw, mut addlen: usize) -> Sds
     sdssetalloc(s, newlen);
     return s;
 }
-pub unsafe extern "C" fn sdsRemoveFreeSpace(mut s: SdsRaw) -> SdsRaw {
+pub unsafe extern "C" fn sds_remove_free_space(mut s: SdsRaw) -> SdsRaw {
     let mut sh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut newsh: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
     let mut type_0: ::core::ffi::c_char = 0;
@@ -459,9 +459,9 @@ pub unsafe extern "C" fn sdsRemoveFreeSpace(mut s: SdsRaw) -> SdsRaw {
         & SDS_TYPE_MASK) as ::core::ffi::c_char;
     let mut hdrlen: ::core::ffi::c_int = 0;
     let mut len: usize = sdslen(s);
-    sh = s.offset(-(sdsHdrSize(oldtype) as isize)) as *mut ::core::ffi::c_void;
-    type_0 = sdsReqType(len);
-    hdrlen = sdsHdrSize(type_0);
+    sh = s.offset(-(sds_hdr_size(oldtype) as isize)) as *mut ::core::ffi::c_void;
+    type_0 = sds_req_type(len);
+    hdrlen = sds_hdr_size(type_0);
     if oldtype as ::core::ffi::c_int == type_0 as ::core::ffi::c_int {
         newsh = realloc(
             sh,
@@ -495,17 +495,17 @@ pub unsafe extern "C" fn sdsRemoveFreeSpace(mut s: SdsRaw) -> SdsRaw {
     sdssetalloc(s, len);
     return s;
 }
-pub unsafe extern "C" fn sdsAllocSize(mut s: SdsRaw) -> usize {
+pub unsafe extern "C" fn sds_alloc_size(mut s: SdsRaw) -> usize {
     let mut alloc: usize = sdsalloc(s);
-    return (sdsHdrSize(*s.offset(-(1 as ::core::ffi::c_int) as isize)) as usize)
+    return (sds_hdr_size(*s.offset(-(1 as ::core::ffi::c_int) as isize)) as usize)
         .wrapping_add(alloc)
         .wrapping_add(1 as usize);
 }
-pub unsafe extern "C" fn sdsAllocPtr(mut s: SdsRaw) -> *mut ::core::ffi::c_void {
-    return s.offset(-(sdsHdrSize(*s.offset(-(1 as ::core::ffi::c_int) as isize)) as isize))
+pub unsafe extern "C" fn sds_alloc_ptr(mut s: SdsRaw) -> *mut ::core::ffi::c_void {
+    return s.offset(-(sds_hdr_size(*s.offset(-(1 as ::core::ffi::c_int) as isize)) as isize))
         as *mut ::core::ffi::c_void;
 }
-pub unsafe extern "C" fn sdsIncrLen(mut s: SdsRaw, mut incr: ::core::ffi::c_int) {
+pub unsafe extern "C" fn sds_incr_len(mut s: SdsRaw, mut incr: ::core::ffi::c_int) {
     let mut flags: ::core::ffi::c_uchar =
         *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
     let mut len: usize = 0;
@@ -558,7 +558,7 @@ pub unsafe extern "C" fn sdsgrowzero(mut s: SdsRaw, mut len: usize) -> SdsRaw {
     if len <= curlen {
         return s;
     }
-    s = sdsMakeRoomFor(s, len.wrapping_sub(curlen));
+    s = sds_make_room_for(s, len.wrapping_sub(curlen));
     if s.is_null() {
         return ::core::ptr::null_mut::<::core::ffi::c_char>();
     }
@@ -576,7 +576,7 @@ pub unsafe extern "C" fn sdscatlen(
     mut len: usize,
 ) -> SdsRaw {
     let mut curlen: usize = sdslen(s);
-    s = sdsMakeRoomFor(s, len);
+    s = sds_make_room_for(s, len);
     if s.is_null() {
         return ::core::ptr::null_mut::<::core::ffi::c_char>();
     }
@@ -601,7 +601,7 @@ pub unsafe extern "C" fn sdscpylen(
     mut len: usize,
 ) -> SdsRaw {
     if sdsalloc(s) < len {
-        s = sdsMakeRoomFor(s, len.wrapping_sub(sdslen(s)));
+        s = sds_make_room_for(s, len.wrapping_sub(sdslen(s)));
         if s.is_null() {
             return ::core::ptr::null_mut::<::core::ffi::c_char>();
         }

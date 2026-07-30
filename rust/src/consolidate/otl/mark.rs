@@ -2,7 +2,7 @@
 use libc::{exit, free, malloc, memcmp, memset};
 
 
-use crate::support::handle::{handle_fromConsolidated, GlyphHandle};
+use crate::support::handle::{handle_from_consolidated, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -93,7 +93,7 @@ unsafe extern "C" fn base_by_gid(
 unsafe extern "C" fn lig_by_gid(mut a: *mut LigHash, mut b: *mut LigHash) -> ::core::ffi::c_int {
     return (*a).gid - (*b).gid;
 }
-unsafe extern "C" fn consolidateMarkArray(
+unsafe extern "C" fn consolidate_mark_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut options: *const Options,
@@ -1057,7 +1057,7 @@ unsafe extern "C" fn consolidateMarkArray(
         OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(
             markArray,
             MarkRecord {
-                glyph: handle_fromConsolidated(
+                glyph: handle_from_consolidated(
                     (*s_0).gid as GlyphId, (*s_0).name
                 ) as GlyphHandle,
                 markClass: (*s_0).markClass,
@@ -1119,7 +1119,7 @@ unsafe extern "C" fn consolidateMarkArray(
             as *mut MarkHash;
     }
 }
-unsafe extern "C" fn consolidateBaseArray(
+unsafe extern "C" fn consolidate_base_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut options: *const Options,
@@ -2076,7 +2076,7 @@ unsafe extern "C" fn consolidateBaseArray(
         OTL_I_BASE_ARRAY.push.expect("non-null function pointer")(
             baseArray,
             BaseRecord {
-                glyph: handle_fromConsolidated(
+                glyph: handle_from_consolidated(
                     (*s_0).gid as GlyphId, (*s_0).name
                 ) as GlyphHandle,
                 anchors: (*s_0).anchors,
@@ -2137,7 +2137,7 @@ unsafe extern "C" fn consolidateBaseArray(
             as *mut BaseHash;
     }
 }
-unsafe extern "C" fn consolidateLigArray(
+unsafe extern "C" fn consolidate_lig_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut options: *const Options,
@@ -3095,7 +3095,7 @@ unsafe extern "C" fn consolidateLigArray(
         OTL_I_LIGATURE_ARRAY.push.expect("non-null function pointer")(
             ligArray,
             LigatureBaseRecord {
-                glyph: handle_fromConsolidated(
+                glyph: handle_from_consolidated(
                     (*s_0).gid as GlyphId, (*s_0).name
                 ) as GlyphHandle,
                 componentCount: (*s_0).componentCount,
@@ -3164,14 +3164,14 @@ pub unsafe extern "C" fn consolidate_mark_to_single(
     mut options: *const Options,
 ) -> bool {
     let mut subtable: *mut GposMarkToSingleSubtable = &raw mut (*_subtable).gpos_markToSingle;
-    consolidateMarkArray(
+    consolidate_mark_array(
         font,
         table,
         options,
         &raw mut (*subtable).markArray,
         (*subtable).classCount,
     );
-    consolidateBaseArray(font, table, options, &raw mut (*subtable).baseArray);
+    consolidate_base_array(font, table, options, &raw mut (*subtable).baseArray);
     return (*subtable).markArray.length == 0 as usize
         || (*subtable).baseArray.length == 0 as usize;
 }
@@ -3182,14 +3182,14 @@ pub unsafe extern "C" fn consolidate_mark_to_ligature(
     mut options: *const Options,
 ) -> bool {
     let mut subtable: *mut GposMarkToLigatureSubtable = &raw mut (*_subtable).gpos_markToLigature;
-    consolidateMarkArray(
+    consolidate_mark_array(
         font,
         table,
         options,
         &raw mut (*subtable).markArray,
         (*subtable).classCount,
     );
-    consolidateLigArray(font, table, options, &raw mut (*subtable).ligArray);
+    consolidate_lig_array(font, table, options, &raw mut (*subtable).ligArray);
     return (*subtable).markArray.length == 0 as usize
         || (*subtable).ligArray.length == 0 as usize;
 }

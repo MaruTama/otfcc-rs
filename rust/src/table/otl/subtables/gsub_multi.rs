@@ -2,8 +2,8 @@
 use libc::{free, malloc, memcpy, memset, qsort};
 
 
-use crate::table::otl::coverage::{Coverage, otl_Coverage_create, otl_Coverage_free, pushToCoverage, readCoverage};
-use crate::support::handle::{handle_fromIndex, handle_fromName, otfcc_Handle_dispose, otfcc_Handle_dup, Handle, GlyphHandle, HandleState};
+use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::__caryll_reallocate;
 use crate::support::binio::{read_16u};
@@ -13,13 +13,13 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubMultiSubtableVectorInterface, GsubMultiEntry, Subtable, GsubMultiSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::support::{ComparFn};
-use crate::bk::bkblock::{bk_newBlockFromBuffer};
-use crate::bk::bkgraph::{bk_build_Block};
+use crate::bk::bkblock::{bk_new_block_from_buffer};
+use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_object_new, json_object_push};
 use crate::vendor::sds::{sdsnewlen};
@@ -36,9 +36,9 @@ pub struct GsubMultiEntryElementInterface {
     pub copyReplace:
         Option<unsafe extern "C" fn(*mut GsubMultiEntry, GsubMultiEntry) -> ()>,
 }
-unsafe extern "C" fn deleteGsubMultiEntry(mut entry: *mut GsubMultiEntry) {
-    otfcc_Handle_dispose(&raw mut (*entry).from);
-    otl_Coverage_free((*entry).to);
+unsafe extern "C" fn delete_gsub_multi_entry(mut entry: *mut GsubMultiEntry) {
+    otfcc_handle_dispose(&raw mut (*entry).from);
+    otl_coverage_free((*entry).to);
     (*entry).to = ::core::ptr::null_mut::<Coverage>();
 }
 static GSM_TYPEINFO: GsubMultiEntryElementInterface = {
@@ -46,7 +46,7 @@ static GSM_TYPEINFO: GsubMultiEntryElementInterface = {
         init: None,
         copy: None,
         move_0: None,
-        dispose: Some(deleteGsubMultiEntry as unsafe extern "C" fn(*mut GsubMultiEntry) -> ()),
+        dispose: Some(delete_gsub_multi_entry as unsafe extern "C" fn(*mut GsubMultiEntry) -> ()),
         replace: None,
         copyReplace: None,
     }
@@ -56,7 +56,7 @@ unsafe fn as_cvec(arr: *mut GsubMultiSubtable) -> *mut CVecRaw<GsubMultiEntry> {
     arr as *mut CVecRaw<GsubMultiEntry>
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_growTo(arr: *mut GsubMultiSubtable, target: usize) {
+unsafe extern "C" fn subtable_gsub_multi_grow_to(arr: *mut GsubMultiSubtable, target: usize) {
     cvec_grow_to(as_cvec(arr), target);
 }
 pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
@@ -80,7 +80,7 @@ pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiSubtable) -> (),
         ),
         copyReplace: Some(
-            subtable_gsub_multi_copyReplace
+            subtable_gsub_multi_copy_replace
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiSubtable) -> (),
         ),
         create: Some(subtable_gsub_multi_create),
@@ -88,15 +88,15 @@ pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
             subtable_gsub_multi_free as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
         ),
         initN: Some(
-            subtable_gsub_multi_initN
+            subtable_gsub_multi_init_n
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> (),
         ),
         initCapN: Some(
-            subtable_gsub_multi_initCapN
+            subtable_gsub_multi_init_cap_n
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> (),
         ),
         createN: Some(
-            subtable_gsub_multi_createN as unsafe extern "C" fn(usize) -> *mut GsubMultiSubtable,
+            subtable_gsub_multi_create_n as unsafe extern "C" fn(usize) -> *mut GsubMultiSubtable,
         ),
         fill: Some(
             subtable_gsub_multi_fill
@@ -110,18 +110,18 @@ pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiEntry) -> (),
         ),
         shrinkToFit: Some(
-            subtable_gsub_multi_shrinkToFit as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
+            subtable_gsub_multi_shrink_to_fit as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
         ),
         pop: Some(
             subtable_gsub_multi_pop
                 as unsafe extern "C" fn(*mut GsubMultiSubtable) -> GsubMultiEntry,
         ),
         disposeItem: Some(
-            subtable_gsub_multi_disposeItem
+            subtable_gsub_multi_dispose_item
                 as unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> (),
         ),
         filterEnv: Some(
-            subtable_gsub_multi_filterEnv
+            subtable_gsub_multi_filter_env
                 as unsafe extern "C" fn(
                     *mut GsubMultiSubtable,
                     Option<
@@ -148,11 +148,11 @@ pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
     }
 };
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_shrinkToFit(mut arr: *mut GsubMultiSubtable) {
-    subtable_gsub_multi_resizeTo(arr, (*arr).length);
+unsafe extern "C" fn subtable_gsub_multi_shrink_to_fit(mut arr: *mut GsubMultiSubtable) {
+    subtable_gsub_multi_resize_to(arr, (*arr).length);
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_resizeTo(arr: *mut GsubMultiSubtable, target: usize) {
+unsafe extern "C" fn subtable_gsub_multi_resize_to(arr: *mut GsubMultiSubtable, target: usize) {
     cvec_resize_to(as_cvec(arr), target);
 }
 #[inline]
@@ -163,7 +163,7 @@ unsafe extern "C" fn subtable_gsub_multi_move(
     cvec_move(as_cvec(dst), as_cvec(src));
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_disposeItem(
+unsafe extern "C" fn subtable_gsub_multi_dispose_item(
     mut arr: *mut GsubMultiSubtable,
     mut n: usize,
 ) {
@@ -235,7 +235,7 @@ unsafe extern "C" fn subtable_gsub_multi_init(arr: *mut GsubMultiSubtable) {
     cvec_init(as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_copyReplace(
+unsafe extern "C" fn subtable_gsub_multi_copy_replace(
     mut dst: *mut GsubMultiSubtable,
     src: GsubMultiSubtable,
 ) {
@@ -252,7 +252,7 @@ unsafe extern "C" fn subtable_gsub_multi_copy(
     mut src: *const GsubMultiSubtable,
 ) {
     subtable_gsub_multi_init(dst);
-    subtable_gsub_multi_growTo(dst, (*src).length);
+    subtable_gsub_multi_grow_to(dst, (*src).length);
     (*dst).length = (*src).length;
     if GSM_TYPEINFO.copy.is_some() {
         let mut j: usize = 0 as usize;
@@ -308,21 +308,21 @@ unsafe extern "C" fn subtable_gsub_multi_replace(
     );
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_initCapN(
+unsafe extern "C" fn subtable_gsub_multi_init_cap_n(
     mut arr: *mut GsubMultiSubtable,
     mut n: usize,
 ) {
     subtable_gsub_multi_init(arr);
-    subtable_gsub_multi_growToN(arr, n);
+    subtable_gsub_multi_grow_to_n(arr, n);
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_growToN(arr: *mut GsubMultiSubtable, target: usize) {
+unsafe extern "C" fn subtable_gsub_multi_grow_to_n(arr: *mut GsubMultiSubtable, target: usize) {
     cvec_grow_to_n(as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_initN(mut arr: *mut GsubMultiSubtable, mut n: usize) {
+unsafe extern "C" fn subtable_gsub_multi_init_n(mut arr: *mut GsubMultiSubtable, mut n: usize) {
     subtable_gsub_multi_init(arr);
-    subtable_gsub_multi_growToN(arr, n);
+    subtable_gsub_multi_grow_to_n(arr, n);
     subtable_gsub_multi_fill(arr, n);
 }
 #[inline]
@@ -334,10 +334,10 @@ unsafe extern "C" fn subtable_gsub_multi_free(mut x: *mut GsubMultiSubtable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_createN(mut n: usize) -> *mut GsubMultiSubtable {
+unsafe extern "C" fn subtable_gsub_multi_create_n(mut n: usize) -> *mut GsubMultiSubtable {
     let mut t: *mut GsubMultiSubtable =
         malloc(::core::mem::size_of::<GsubMultiSubtable>() as usize) as *mut GsubMultiSubtable;
-    subtable_gsub_multi_initN(t, n);
+    subtable_gsub_multi_init_n(t, n);
     return t;
 }
 #[inline]
@@ -348,7 +348,7 @@ unsafe extern "C" fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
     return x;
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_multi_filterEnv(
+unsafe extern "C" fn subtable_gsub_multi_filter_env(
     mut arr: *mut GsubMultiSubtable,
     mut fn_0: Option<
         unsafe extern "C" fn(*const GsubMultiEntry, *mut ::core::ffi::c_void) -> bool,
@@ -393,7 +393,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
                 .expect("non-null function pointer"))();
     let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     if !(table_length < offset.wrapping_add(6 as u32)) {
-        from = readCoverage(
+        from = read_coverage(
             data as *const u8,
             table_length,
             offset.wrapping_add(read_16u(
@@ -420,13 +420,13 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
                     )
                         as u32);
                     let cov: *mut Coverage =
-                        otl_Coverage_create();
+                        otl_coverage_create();
                     let n: GlyphId =
                         read_16u(data.offset(seq_offset as isize) as *const u8) as GlyphId;
                     for k in 0..n {
-                        pushToCoverage(
+                        push_to_coverage(
                             cov,
-                            handle_fromIndex(read_16u(
+                            handle_from_index(read_16u(
                                 data.offset(seq_offset as isize)
                                     .offset(2 as ::core::ffi::c_int as isize)
                                     .offset(
@@ -442,20 +442,20 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
                         .expect("non-null function pointer")(
                         subtable,
                         GsubMultiEntry {
-                            from: otfcc_Handle_dup(
+                            from: otfcc_handle_dup(
                                 *(*from).glyphs.offset(j as isize) as Handle,
                             ) as GlyphHandle,
                             to: cov,
                         },
                     );
                 }
-                otl_Coverage_free(from);
+                otl_coverage_free(from);
                 return subtable as *mut Subtable;
             }
         }
     }
     if !from.is_null() {
-        otl_Coverage_free(from);
+        otl_coverage_free(from);
     }
     I_SUBTABLE_GSUB_MULTI
         .free
@@ -495,7 +495,7 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
                 .expect("non-null function pointer")(
                 st,
                 GsubMultiEntry {
-                    from: handle_fromName(sdsnewlen(
+                    from: handle_from_name(sdsnewlen(
                         (*entry).name as *const ::core::ffi::c_void,
                         (*entry).name_length as usize,
                     )) as GlyphHandle,
@@ -506,31 +506,31 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
     }
     return st as *mut Subtable;
 }
-unsafe extern "C" fn buildGsubMultiSubtableRange(
+unsafe extern "C" fn build_gsub_multi_subtable_range(
     subtable: *const GsubMultiSubtable,
     start: GlyphId,
     end: GlyphId,
 ) -> *mut Buffer {
-    let cov: *mut Coverage = otl_Coverage_create();
+    let cov: *mut Coverage = otl_coverage_create();
     for j in start..end {
-        pushToCoverage(
+        push_to_coverage(
             cov,
-            otfcc_Handle_dup(
+            otfcc_handle_dup(
                 (*(*subtable).items.offset(j as isize)).from as Handle,
             ) as GlyphHandle,
         );
     }
-    let root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
+    let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
     for j_0 in start..end {
         let to = (*(*subtable).items.offset(j_0 as isize)).to;
-        let b: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*to).numGlyphs as ::core::ffi::c_int) as u32)]);
+        let b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*to).numGlyphs as ::core::ffi::c_int) as u32)]);
         for k in 0..(*to).numGlyphs {
             bk_push(b, &[bk_int(BkCellType::B16, ((*(*to).glyphs.offset(k as isize)).index as ::core::ffi::c_int) as u32)]);
         }
         bk_push(root, &[bk_ptr(BkCellType::P16, b)]);
     }
-    otl_Coverage_free(cov);
-    return bk_build_Block(root);
+    otl_coverage_free(cov);
+    return bk_build_block(root);
 }
 pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: ::core::ffi::c_int = 0xff00 as ::core::ffi::c_int;
 pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
@@ -568,7 +568,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
             125 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
         let ref mut fresh2 = *parts.offset(n_parts as isize);
-        *fresh2 = buildGsubMultiSubtableRange(subtable, start, end);
+        *fresh2 = build_gsub_multi_subtable_range(subtable, start, end);
         n_parts = n_parts.wrapping_add(1);
         start = end;
     }
@@ -579,7 +579,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
             132 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
         let ref mut fresh3 = *parts.offset(0 as ::core::ffi::c_int as isize);
-        *fresh3 = buildGsubMultiSubtableRange(subtable, 0 as GlyphId, 0 as GlyphId);
+        *fresh3 = build_gsub_multi_subtable_range(subtable, 0 as GlyphId, 0 as GlyphId);
         n_parts = 1 as TableId;
     }
     *count = n_parts;
@@ -590,5 +590,5 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable(
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
     let mut subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi;
-    return buildGsubMultiSubtableRange(subtable, 0 as GlyphId, (*subtable).length as GlyphId);
+    return build_gsub_multi_subtable_range(subtable, 0 as GlyphId, (*subtable).length as GlyphId);
 }

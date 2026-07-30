@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, memcpy};
 
-use crate::support::handle::{handle_fromIndex, GlyphHandle};
+use crate::support::handle::{handle_from_index, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_8s, read_16u, read_16s, read_32u};
@@ -18,9 +18,9 @@ use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VQSegType, VqSegment};
 use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{TABLE_I_FVAR};
-use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_REFERENCE_LIST, otfcc_newGlyf_glyph, TABLE_I_GLYF};
+use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_REFERENCE_LIST, otfcc_new_glyf_glyph, TABLE_I_GLYF};
 use crate::vendor::sds::{sdsempty};
-use crate::vf::region::{vq_createRegion};
+use crate::vf::region::{vq_create_region};
 use crate::vf::vq::{I_VQ, VQ_I_SEG_LIST};
 
 #[derive(Copy, Clone)]
@@ -93,7 +93,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
     mut number_of_contours: ShapeId,
     mut _options: *const Options,
 ) -> *mut Glyph {
-    let mut g: *mut Glyph = otfcc_newGlyf_glyph();
+    let mut g: *mut Glyph = otfcc_new_glyf_glyph();
     let mut contours: *mut ContourList = &raw mut (*g).contours;
     let mut points_in_glyph: ShapeId = 0 as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
@@ -302,7 +302,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
     mut start: FontFilePointer,
     mut options: *const Options,
 ) -> *mut Glyph {
-    let mut g: *mut Glyph = otfcc_newGlyf_glyph();
+    let mut g: *mut Glyph = otfcc_new_glyf_glyph();
     let mut flags: ComponentFlags = ComponentFlags::empty();
     let mut offset: u32 = 0 as u32;
     let mut glyph_has_instruction: bool = false;
@@ -321,7 +321,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                     .empty
                     .expect("non-null function pointer"))();
         ref_0.glyph =
-            handle_fromIndex(index) as GlyphHandle;
+            handle_from_index(index) as GlyphHandle;
         offset = offset.wrapping_add(4 as u32);
         if flags.contains(ComponentFlags::ARGS_ARE_XY_VALUES) {
             ref_0.isAnchored = RefAnchorStatus::Xy;
@@ -502,7 +502,7 @@ pub const INTERMEDIATE_REGION: ::core::ffi::c_int = 0x4000 as ::core::ffi::c_int
 pub const PRIVATE_POINT_NUMBERS: ::core::ffi::c_int = 0x2000 as ::core::ffi::c_int;
 pub const TUPLE_INDEX_MASK: ::core::ffi::c_int = 0xfff as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn nextTVH(
+unsafe extern "C" fn next_tvh(
     mut current_header: *mut TupleVariationHeader,
     mut ctx: *const TuplePolymorphizerCtx,
 ) -> *mut TupleVariationHeader {
@@ -529,7 +529,7 @@ pub const POINT_COUNT_LONG_MASK: ::core::ffi::c_int = 0x7fff as ::core::ffi::c_i
 pub const POINT_RUN_COUNT_MASK: ::core::ffi::c_int = 0x7f as ::core::ffi::c_int;
 pub const POINTS_ARE_WORDS: ::core::ffi::c_int = 0x80 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn parsePointNumbers(
+unsafe extern "C" fn parse_point_numbers(
     mut data: FontFilePointer,
     mut point_indeces: *mut *mut ShapeId,
     mut pc: *mut ShapeId,
@@ -603,7 +603,7 @@ pub const DELTAS_ARE_ZERO: ::core::ffi::c_int = 0x80 as ::core::ffi::c_int;
 pub const DELTAS_ARE_WORDS: ::core::ffi::c_int = 0x40 as ::core::ffi::c_int;
 pub const DELTA_RUN_COUNT_MASK: ::core::ffi::c_int = 0x3f as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn readPackedDelta(
+unsafe extern "C" fn read_packed_delta(
     mut data: FontFilePointer,
     mut nPoints: ShapeId,
     mut deltas: *mut Pos,
@@ -640,14 +640,14 @@ unsafe extern "C" fn readPackedDelta(
     }
     return data;
 }
-pub unsafe extern "C" fn getX(mut z: *mut Point) -> *mut VQ {
+pub unsafe extern "C" fn get_x(mut z: *mut Point) -> *mut VQ {
     return &raw mut (*z).x;
 }
-pub unsafe extern "C" fn getY(mut z: *mut Point) -> *mut VQ {
+pub unsafe extern "C" fn get_y(mut z: *mut Point) -> *mut VQ {
     return &raw mut (*z).y;
 }
 #[inline]
-unsafe extern "C" fn fillTheGaps(
+unsafe extern "C" fn fill_the_gaps(
     mut j_min: ShapeId,
     mut j_max: ShapeId,
     mut nudges: *mut VqSegment,
@@ -729,7 +729,7 @@ unsafe extern "C" fn fillTheGaps(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn applyCoords(
+unsafe extern "C" fn apply_coords(
     total_points: ShapeId,
     mut glyph: *mut Glyph,
     mut glyph_refs: *mut *mut Point,
@@ -775,12 +775,12 @@ unsafe extern "C" fn applyCoords(
     while keep != 0 && __caryll_index < (*glyph).contours.length {
         let mut c: *mut Contour = (*glyph).contours.items.offset(__caryll_index as isize);
         while keep != 0 {
-            fillTheGaps(
+            fill_the_gaps(
                 j_first,
                 (j_first as usize).wrapping_add((*c).length) as ShapeId,
                 nudges,
                 glyph_refs,
-                Some(getX as unsafe extern "C" fn(*mut Point) -> *mut VQ),
+                Some(get_x as unsafe extern "C" fn(*mut Point) -> *mut VQ),
             );
             j_first = (j_first as usize).wrapping_add((*c).length) as ShapeId as ShapeId;
             keep = (keep == 0) as ::core::ffi::c_int as usize;
@@ -806,7 +806,7 @@ unsafe extern "C" fn applyCoords(
     nudges = ::core::ptr::null_mut::<VqSegment>();
 }
 #[inline]
-unsafe extern "C" fn applyPolymorphism(
+unsafe extern "C" fn apply_polymorphism(
     total_points: ShapeId,
     mut glyph: GlyphPtr,
     n_touched_points: ShapeId,
@@ -860,7 +860,7 @@ unsafe extern "C" fn applyPolymorphism(
         keep_1 = (keep_1 == 0) as ::core::ffi::c_int as usize;
         __caryll_index_1 = __caryll_index_1.wrapping_add(1);
     }
-    applyCoords(
+    apply_coords(
         total_points,
         glyph as *mut Glyph,
         glyph_refs,
@@ -868,9 +868,9 @@ unsafe extern "C" fn applyPolymorphism(
         delta_x,
         points,
         r,
-        Some(getX as unsafe extern "C" fn(*mut Point) -> *mut VQ),
+        Some(get_x as unsafe extern "C" fn(*mut Point) -> *mut VQ),
     );
-    applyCoords(
+    apply_coords(
         total_points,
         glyph as *mut Glyph,
         glyph_refs,
@@ -878,7 +878,7 @@ unsafe extern "C" fn applyPolymorphism(
         delta_y,
         points,
         r,
-        Some(getY as unsafe extern "C" fn(*mut Point) -> *mut VQ),
+        Some(get_y as unsafe extern "C" fn(*mut Point) -> *mut VQ),
     );
     if (total_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
         < n_touched_points as ::core::ffi::c_int
@@ -918,13 +918,13 @@ unsafe extern "C" fn applyPolymorphism(
     free(glyph_refs as *mut ::core::ffi::c_void);
     glyph_refs = ::core::ptr::null_mut::<*mut Point>();
 }
-unsafe extern "C" fn createRegionFromTuples(
+unsafe extern "C" fn create_region_from_tuples(
     mut dimensions: u16,
     mut peak: *mut F2Dot14,
     mut start: *mut F2Dot14,
     mut end: *mut F2Dot14,
 ) -> *mut VqRegion {
-    let mut r: *mut VqRegion = vq_createRegion(dimensions as ShapeId);
+    let mut r: *mut VqRegion = vq_create_region(dimensions as ShapeId);
     let mut d: u16 = 0 as u16;
     while (d as ::core::ffi::c_int) < dimensions as ::core::ffi::c_int {
         let mut peak_val: Pos =
@@ -954,7 +954,7 @@ unsafe extern "C" fn createRegionFromTuples(
     return r;
 }
 #[inline]
-unsafe extern "C" fn polymorphizeGlyph(
+unsafe extern "C" fn polymorphize_glyph(
     mut _gid: GlyphId,
     mut glyph: GlyphPtr,
     mut ctx: *const TuplePolymorphizerCtx,
@@ -989,7 +989,7 @@ unsafe extern "C" fn polymorphizeGlyph(
     let mut data: FontFilePointer =
         (gvd as FontFilePointer).offset(be16((*gvd).dataOffset) as ::core::ffi::c_int as isize);
     if has_shared_point_numbers {
-        data = parsePointNumbers(
+        data = parse_point_numbers(
             data,
             &raw mut shared_point_indeces,
             &raw mut shared_point_count,
@@ -1045,7 +1045,7 @@ unsafe extern "C" fn polymorphizeGlyph(
             .registerRegion
             .expect("non-null function pointer")(
             (*ctx).fvar,
-            createRegionFromTuples((*ctx).dimensions, peak, start, end),
+            create_region_from_tuples((*ctx).dimensions, peak, start, end),
         );
         let mut tsd: FontFilePointer = data.offset(tsd_start as isize);
         let mut nPoints: ShapeId = shared_point_count;
@@ -1053,7 +1053,7 @@ unsafe extern "C" fn polymorphizeGlyph(
         if be16((*tvh).tupleIndex) as ::core::ffi::c_int & PRIVATE_POINT_NUMBERS != 0 {
             let mut private_point_count: ShapeId = 0 as ShapeId;
             let mut private_point_numbers: *mut ShapeId = ::core::ptr::null_mut::<ShapeId>();
-            tsd = parsePointNumbers(
+            tsd = parse_point_numbers(
                 tsd,
                 &raw mut private_point_numbers,
                 &raw mut private_point_count,
@@ -1073,9 +1073,9 @@ unsafe extern "C" fn polymorphizeGlyph(
                 (::core::mem::size_of::<Pos>() as usize).wrapping_mul(nPoints as usize),
                 587 as ::core::ffi::c_ulong,
             ) as *mut Pos;
-            tsd = readPackedDelta(tsd, nPoints, delta_x);
-            tsd = readPackedDelta(tsd, nPoints, delta_y);
-            applyPolymorphism(total_points, glyph, nPoints, point_indeces, delta_x, delta_y, r);
+            tsd = read_packed_delta(tsd, nPoints, delta_x);
+            tsd = read_packed_delta(tsd, nPoints, delta_y);
+            apply_polymorphism(total_points, glyph, nPoints, point_indeces, delta_x, delta_y, r);
             free(delta_x as *mut ::core::ffi::c_void);
             delta_x = ::core::ptr::null_mut::<Pos>();
             free(delta_y as *mut ::core::ffi::c_void);
@@ -1086,7 +1086,7 @@ unsafe extern "C" fn polymorphizeGlyph(
             point_indeces = ::core::ptr::null_mut::<ShapeId>();
         }
         tsd_start = tsd_start.wrapping_add(be16((*tvh).variationDataSize) as usize);
-        tvh = nextTVH(tvh, ctx);
+        tvh = next_tvh(tvh, ctx);
         j = j.wrapping_add(1);
     }
     free(shared_point_indeces as *mut ::core::ffi::c_void);
@@ -1169,7 +1169,7 @@ unsafe extern "C" fn polymorphize(
                             .offset(be32((*header).glyphVariationDataArrayOffset) as isize)
                             .offset(glyph_variation_data_offset as isize)
                             as *mut GlyphVariationData;
-                        polymorphizeGlyph(
+                        polymorphize_glyph(
                             j,
                             *(*glyf).items.offset(j as isize),
                             &raw mut tpctx,
@@ -1188,7 +1188,7 @@ unsafe extern "C" fn polymorphize(
         __fortable_count += 1;
     }
 }
-pub unsafe extern "C" fn otfcc_readGlyf(
+pub unsafe extern "C" fn otfcc_read_glyf(
     packet: Packet,
     mut options: *const Options,
     mut ctx: *const GlyfIOContext,
@@ -1348,7 +1348,7 @@ pub unsafe extern "C" fn otfcc_readGlyf(
                                     } else {
                                         TABLE_I_GLYF.push.expect("non-null function pointer")(
                                             glyf,
-                                            otfcc_newGlyf_glyph() as GlyphPtr,
+                                            otfcc_new_glyf_glyph() as GlyphPtr,
                                         );
                                     }
                                     j_0 = j_0.wrapping_add(1);

@@ -47,7 +47,7 @@ pub struct HheaTableElementInterface {
     pub free: Option<unsafe extern "C" fn(*mut HheaTable) -> ()>,
 }
 #[inline]
-unsafe extern "C" fn initHhea(mut hhea: *mut HheaTable) {
+unsafe extern "C" fn init_hhea(mut hhea: *mut HheaTable) {
     memset(
         hhea as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -56,7 +56,7 @@ unsafe extern "C" fn initHhea(mut hhea: *mut HheaTable) {
     (*hhea).version = 0x10000 as ::core::ffi::c_int as F16Dot16;
 }
 #[inline]
-unsafe extern "C" fn disposeHhea(mut _hhea: *mut HheaTable) {}
+unsafe extern "C" fn dispose_hhea(mut _hhea: *mut HheaTable) {}
 #[inline]
 unsafe extern "C" fn table_hhea_free(mut x: *mut HheaTable) {
     if x.is_null() {
@@ -79,7 +79,7 @@ pub static TABLE_I_HHEA: HheaTableElementInterface = {
             table_hhea_replace as unsafe extern "C" fn(*mut HheaTable, HheaTable) -> (),
         ),
         copyReplace: Some(
-            table_hhea_copyReplace as unsafe extern "C" fn(*mut HheaTable, HheaTable) -> (),
+            table_hhea_copy_replace as unsafe extern "C" fn(*mut HheaTable, HheaTable) -> (),
         ),
         create: Some(table_hhea_create),
         free: Some(table_hhea_free as unsafe extern "C" fn(*mut HheaTable) -> ()),
@@ -87,7 +87,7 @@ pub static TABLE_I_HHEA: HheaTableElementInterface = {
 };
 #[inline]
 unsafe extern "C" fn table_hhea_dispose(mut x: *mut HheaTable) {
-    disposeHhea(x);
+    dispose_hhea(x);
 }
 #[inline]
 unsafe extern "C" fn table_hhea_create() -> *mut HheaTable {
@@ -98,7 +98,7 @@ unsafe extern "C" fn table_hhea_create() -> *mut HheaTable {
 }
 #[inline]
 unsafe extern "C" fn table_hhea_init(mut x: *mut HheaTable) {
-    initHhea(x);
+    init_hhea(x);
 }
 #[inline]
 unsafe extern "C" fn table_hhea_replace(mut dst: *mut HheaTable, src: HheaTable) {
@@ -127,11 +127,11 @@ unsafe extern "C" fn table_hhea_move(mut dst: *mut HheaTable, mut src: *mut Hhea
     table_hhea_init(src);
 }
 #[inline]
-unsafe extern "C" fn table_hhea_copyReplace(mut dst: *mut HheaTable, src: HheaTable) {
+unsafe extern "C" fn table_hhea_copy_replace(mut dst: *mut HheaTable, src: HheaTable) {
     table_hhea_dispose(dst);
     table_hhea_copy(dst, &raw const src);
 }
-pub unsafe extern "C" fn otfcc_readHhea(
+pub unsafe extern "C" fn otfcc_read_hhea(
     packet: Packet,
     mut options: *const Options,
 ) -> *mut HheaTable {
@@ -230,7 +230,7 @@ pub unsafe extern "C" fn otfcc_readHhea(
     }
     return ::core::ptr::null_mut::<HheaTable>();
 }
-pub unsafe extern "C" fn otfcc_dumpHhea(
+pub unsafe extern "C" fn otfcc_dump_hhea(
     mut table: *const HheaTable,
     mut root: *mut JsonValue,
     mut options: *const Options,
@@ -313,7 +313,7 @@ pub unsafe extern "C" fn otfcc_dumpHhea(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parseHhea(
+pub unsafe extern "C" fn otfcc_parse_hhea(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut HheaTable {
@@ -399,7 +399,7 @@ pub unsafe extern "C" fn otfcc_parseHhea(
     }
     return hhea;
 }
-pub unsafe extern "C" fn otfcc_buildHhea(
+pub unsafe extern "C" fn otfcc_build_hhea(
     mut hhea: *const HheaTable,
     mut _options: *const Options,
 ) -> *mut Buffer {

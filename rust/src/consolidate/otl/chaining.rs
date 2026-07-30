@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strcmp};
-use crate::table::otl::coverage::shrinkCoverage;
-use crate::support::handle::{HandleState, handle_consolidateTo, Handle, otfcc_Handle_dispose, LookupHandle};
+use crate::table::otl::coverage::shrink_coverage;
+use crate::support::handle::{HandleState, handle_consolidate_to, Handle, otfcc_handle_dispose, LookupHandle};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
@@ -35,7 +35,7 @@ use crate::font::caryll_font::{Font};
 
 
 use crate::table::otl::{ChainingRule, Subtable, ChainingSubtable, OtlTable};
-use crate::consolidate::otl::common::{fontop_consolidateCoverage};
+use crate::consolidate::otl::common::{fontop_consolidate_coverage};
 use crate::vendor::sds::{sdsempty};
 
 
@@ -69,8 +69,8 @@ pub unsafe extern "C" fn consolidate_chaining(
     let mut possible: bool = true;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).matchCount as ::core::ffi::c_int {
-        fontop_consolidateCoverage(font, *(*rule).match_0.offset(j as isize), options);
-        shrinkCoverage(
+        fontop_consolidate_coverage(font, *(*rule).match_0.offset(j as isize), options);
+        shrink_coverage(
             *(*rule).match_0.offset(j as isize),
             true,
         );
@@ -105,7 +105,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                         ) != 0 as ::core::ffi::c_int)
                         {
                             found_lookup = true;
-                            handle_consolidateTo(
+                            handle_consolidate_to(
                                 h as *mut Handle,
                                 k as GlyphId,
                                 (**(*table).lookups.items.offset(k as isize)).name,
@@ -131,7 +131,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                         b". This lookup application is ignored.",
                     ),
                 );
-                otfcc_Handle_dispose(
+                otfcc_handle_dispose(
                     &raw mut (*(*rule).apply.offset(j_0 as isize)).lookup,
                 );
             }
@@ -153,7 +153,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                 );
                 (*h).index = 0 as GlyphId;
             }
-            handle_consolidateTo(
+            handle_consolidate_to(
                 h as *mut Handle,
                 (*h).index,
                 (**(*table).lookups.items.offset((*h).index as isize)).name,

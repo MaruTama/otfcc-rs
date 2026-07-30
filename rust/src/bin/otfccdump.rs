@@ -12,7 +12,7 @@ use ::otfcc_rust;
 
 use otfcc_rust::support::stdio::{stdin, stdout, FILE};
 use libc::{calloc, exit, fclose, fgetc, fileno, fopen, fprintf, fputc, fputs, free, fwrite, isatty, strcmp, strdup, strtol};
-// `otfcc_readSFNT` and friends are this crate's own functions, still reached
+// `otfcc_read_sfnt` and friends are this crate's own functions, still reached
 // through `extern "C"` rather than `use otfcc_rust::…` because the binary also
 // carries its own copies of the types in their signatures. Once those types
 // are unified the declarations go away and so does this allow, which is only
@@ -77,11 +77,11 @@ use libc::timespec;
 use otfcc_rust::support::getopt::{NO_ARGUMENT, LongOption, REQUIRED_ARGUMENT};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use otfcc_rust::font::caryll_font::{OTFCC_I_FONT};
-use otfcc_rust::font::caryll_sfnt::{otfcc_deleteSFNT, otfcc_readSFNT};
-use otfcc_rust::json_writer::{otfcc_newJsonWriter};
-use otfcc_rust::logger::{otfcc_newLogger, otfcc_newStdErrTarget};
-use otfcc_rust::otf_reader::{otfcc_newOTFReader};
-use otfcc_rust::support::options::{otfcc_deleteOptions, otfcc_newOptions};
+use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt};
+use otfcc_rust::json_writer::{otfcc_new_json_writer};
+use otfcc_rust::logger::{otfcc_new_logger, otfcc_new_std_err_target};
+use otfcc_rust::otf_reader::{otfcc_new_otf_reader};
+use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::vendor::json_builder::{json_builder_free, json_measure_ex, json_serialize_ex};
 use otfcc_rust::vendor::sds::{sdsempty, sdsfree, sdsnew};
@@ -258,8 +258,8 @@ unsafe fn main_0(
             val: 0 as ::core::ffi::c_int,
         },
     ];
-    let mut options: *mut Options = otfcc_newOptions();
-    (*options).logger = otfcc_newLogger(otfcc_newStdErrTarget());
+    let mut options: *mut Options = otfcc_new_options();
+    (*options).logger = otfcc_new_logger(otfcc_new_std_err_target());
     (*(*options).logger)
         .indent
         .expect("non-null function pointer")(
@@ -467,7 +467,7 @@ unsafe fn main_0(
             inPath as *const ::core::ffi::c_char,
             b"rb\0" as *const u8 as *const ::core::ffi::c_char,
         ) as *mut FILE;
-        sfnt = otfcc_readSFNT(file);
+        sfnt = otfcc_read_sfnt(file);
         if sfnt.is_null() || (*sfnt).count == 0 as u32 {
             (*(*options).logger)
                 .logSDS
@@ -526,7 +526,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        let mut reader: *mut IFontBuilder = otfcc_newOTFReader();
+        let mut reader: *mut IFontBuilder = otfcc_new_otf_reader();
         font = (*reader).read.expect("non-null function pointer")(
             sfnt as *mut ::core::ffi::c_void,
             ttcindex,
@@ -550,7 +550,7 @@ unsafe fn main_0(
         }
         (*reader).free.expect("non-null function pointer")(reader as *mut IFontBuilder);
         if !sfnt.is_null() {
-            otfcc_deleteSFNT(sfnt);
+            otfcc_delete_sfnt(sfnt);
         }
         (*(*options).logger)
             .logSDS
@@ -596,7 +596,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
-        let mut dumper: *mut IFontSerializer = otfcc_newJsonWriter();
+        let mut dumper: *mut IFontSerializer = otfcc_new_json_writer();
         root = (*dumper).serialize.expect("non-null function pointer")(font, options)
             as *mut JsonValue;
         if root.is_null() {
@@ -771,7 +771,7 @@ unsafe fn main_0(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    otfcc_deleteOptions(options);
+    otfcc_delete_options(options);
     return 0 as ::core::ffi::c_int;
 }
 pub fn main() {

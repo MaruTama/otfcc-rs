@@ -5,9 +5,9 @@ unsafe extern "C" {
 }
 
 use crate::support::json_funcs::{json_new_position, json_obj_get, json_obj_get_type, preserialize};
-use crate::table::otl::classdef::{expandClassDef, ClassDef, otl_ClassDef_free, readClassDef};
-use crate::table::otl::coverage::{Coverage, otl_Coverage_free, readCoverage, shrinkCoverage};
-use crate::support::handle::{handle_fromIndex, otfcc_Handle_dup, Handle, GlyphHandle};
+use crate::table::otl::classdef::{expand_class_def, ClassDef, otl_class_def_free, read_class_def};
+use crate::table::otl::coverage::{Coverage, otl_coverage_free, read_coverage, shrink_coverage};
+use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
@@ -16,14 +16,14 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::{BkGraph};
 use crate::support::{NULL};
 use crate::table::otl::{GposPairSubtableElementInterface, PositionValue, Subtable, GposPairSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::bk::bkblock::{bk_newBlockFromBuffer};
-use crate::bk::bkgraph::{bk_build_Graph, bk_delete_Graph, bk_estimateSizeOfGraph, bk_minimizeGraph, bk_newGraphFromRootBlock, bk_untangleGraph};
+use crate::bk::bkblock::{bk_new_block_from_buffer};
+use crate::bk::bkgraph::{bk_build_graph, bk_delete_graph, bk_estimate_size_of_graph, bk_minimize_graph, bk_new_graph_from_root_block, bk_untangle_graph};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{FORMAT_DWIDTH, bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, position_zero, read_gpos_value, required_position_format};
@@ -44,14 +44,14 @@ pub struct IndividualGposPair {
     pub sv: *mut PositionValue,
 }
 #[inline]
-unsafe extern "C" fn initGposPair(mut subtable: *mut GposPairSubtable) {
+unsafe extern "C" fn init_gpos_pair(mut subtable: *mut GposPairSubtable) {
     (*subtable).first = ::core::ptr::null_mut::<ClassDef>();
     (*subtable).second = ::core::ptr::null_mut::<ClassDef>();
     (*subtable).firstValues = ::core::ptr::null_mut::<*mut PositionValue>();
     (*subtable).secondValues = ::core::ptr::null_mut::<*mut PositionValue>();
 }
 #[inline]
-unsafe extern "C" fn disposeGposPair(mut subtable: *mut GposPairSubtable) {
+unsafe extern "C" fn dispose_gpos_pair(mut subtable: *mut GposPairSubtable) {
     if !(*subtable).firstValues.is_null() {
         let mut j: GlyphClass = 0 as GlyphClass;
         while j as ::core::ffi::c_int <= (*(*subtable).first).maxclass as ::core::ffi::c_int {
@@ -74,9 +74,9 @@ unsafe extern "C" fn disposeGposPair(mut subtable: *mut GposPairSubtable) {
         free((*subtable).secondValues as *mut ::core::ffi::c_void);
         (*subtable).secondValues = ::core::ptr::null_mut::<*mut PositionValue>();
     }
-    otl_ClassDef_free((*subtable).first);
+    otl_class_def_free((*subtable).first);
     (*subtable).first = ::core::ptr::null_mut::<ClassDef>();
-    otl_ClassDef_free((*subtable).second);
+    otl_class_def_free((*subtable).second);
     (*subtable).second = ::core::ptr::null_mut::<ClassDef>();
 }
 #[inline]
@@ -93,7 +93,7 @@ unsafe extern "C" fn subtable_gpos_pair_move(
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_pair_dispose(mut x: *mut GposPairSubtable) {
-    disposeGposPair(x);
+    dispose_gpos_pair(x);
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_pair_replace(
@@ -119,7 +119,7 @@ unsafe extern "C" fn subtable_gpos_pair_copy(
     );
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_pair_copyReplace(
+unsafe extern "C" fn subtable_gpos_pair_copy_replace(
     mut dst: *mut GposPairSubtable,
     src: GposPairSubtable,
 ) {
@@ -135,7 +135,7 @@ unsafe extern "C" fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_pair_init(mut x: *mut GposPairSubtable) {
-    initGposPair(x);
+    init_gpos_pair(x);
 }
 pub static I_SUBTABLE_GPOS_PAIR: GposPairSubtableElementInterface = {
     GposPairSubtableElementInterface {
@@ -156,7 +156,7 @@ pub static I_SUBTABLE_GPOS_PAIR: GposPairSubtableElementInterface = {
                 as unsafe extern "C" fn(*mut GposPairSubtable, GposPairSubtable) -> (),
         ),
         copyReplace: Some(
-            subtable_gpos_pair_copyReplace
+            subtable_gpos_pair_copy_replace
                 as unsafe extern "C" fn(*mut GposPairSubtable, GposPairSubtable) -> (),
         ),
         create: Some(subtable_gpos_pair_create),
@@ -188,7 +188,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
     if !(table_length < offset.wrapping_add(2 as u32)) {
         subtable_format = read_16u(data.offset(offset as isize) as *const u8);
         if subtable_format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-            let mut cov: *mut Coverage = readCoverage(
+            let mut cov: *mut Coverage = read_coverage(
                 data as *const u8,
                 table_length,
                 offset.wrapping_add(read_16u(
@@ -1753,7 +1753,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                 as *mut PairClassifierHash;
                             while !s_1.is_null() {
                                 *(*(*subtable).second).glyphs.offset(jj as isize) =
-                                    handle_fromIndex(
+                                    handle_from_index(
                                         (*s_1).gid as GlyphId,
                                     ) as GlyphHandle;
                                 *(*(*subtable).second).classes.offset(jj as isize) =
@@ -1840,7 +1840,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                 let mut len1_0: u8 = position_format_length(format1_0);
                 let mut len2_0: u8 = position_format_length(format2_0);
                 let mut cov_0: *mut Coverage =
-                    readCoverage(
+                    read_coverage(
                         data as *const u8,
                         table_length,
                         offset.wrapping_add(read_16u(
@@ -1849,7 +1849,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                 as *const u8,
                         ) as u32),
                     );
-                (*subtable).first = readClassDef(
+                (*subtable).first = read_class_def(
                     data as *const u8,
                     table_length,
                     offset.wrapping_add(read_16u(
@@ -1858,13 +1858,13 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                             as *const u8,
                     ) as u32),
                 );
-                (*subtable).first = expandClassDef(
+                (*subtable).first = expand_class_def(
                     cov_0,
                     (*subtable).first,
                 );
-                otl_Coverage_free(cov_0);
+                otl_coverage_free(cov_0);
                 cov_0 = ::core::ptr::null_mut::<Coverage>();
-                (*subtable).second = readClassDef(
+                (*subtable).second = read_class_def(
                     data as *const u8,
                     table_length,
                     offset.wrapping_add(read_16u(
@@ -2173,7 +2173,7 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
         return subtable as *mut Subtable;
     };
 }
-unsafe extern "C" fn covFromCD(mut cd: *mut ClassDef) -> *mut Coverage {
+unsafe extern "C" fn cov_from_cd(mut cd: *mut ClassDef) -> *mut Coverage {
     let mut cov: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     cov = __caryll_allocate_clean(
         ::core::mem::size_of::<Coverage>() as usize,
@@ -2187,14 +2187,14 @@ unsafe extern "C" fn covFromCD(mut cd: *mut ClassDef) -> *mut Coverage {
     ) as *mut GlyphHandle;
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < (*cd).numGlyphs as ::core::ffi::c_int {
-        *(*cov).glyphs.offset(j as isize) = otfcc_Handle_dup(
+        *(*cov).glyphs.offset(j as isize) = otfcc_handle_dup(
             *(*cd).glyphs.offset(j as isize) as Handle,
         ) as GlyphHandle;
         j = j.wrapping_add(1);
     }
     return cov;
 }
-unsafe extern "C" fn by_pairSecondGlyph(
+unsafe extern "C" fn by_pair_second_glyph(
     mut a: *const ::core::ffi::c_void,
     mut b: *const ::core::ffi::c_void,
 ) -> ::core::ffi::c_int {
@@ -2255,9 +2255,9 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
         }
         j_0 = j_0.wrapping_add(1);
     }
-    let mut cov: *mut Coverage = covFromCD((*subtable).first);
-    shrinkCoverage(cov, true);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*subtable).first).numGlyphs as ::core::ffi::c_int) as u32)]);
+    let mut cov: *mut Coverage = cov_from_cd((*subtable).first);
+    shrink_coverage(cov, true);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*subtable).first).numGlyphs as ::core::ffi::c_int) as u32)]);
     let mut j_1: GlyphId = 0 as GlyphId;
     while (j_1 as ::core::ffi::c_int) < (*cov).numGlyphs as ::core::ffi::c_int {
         let mut current_pair_count: TableId = 0 as TableId;
@@ -2272,7 +2272,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
             }
             k_1 = k_1.wrapping_add(1);
         }
-        let mut pair_set: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (current_pair_count as ::core::ffi::c_int) as u32)]);
+        let mut pair_set: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (current_pair_count as ::core::ffi::c_int) as u32)]);
         let mut pairs: *mut IndividualGposPair = ::core::ptr::null_mut::<IndividualGposPair>();
         pairs = __caryll_allocate_clean(
             (::core::mem::size_of::<IndividualGposPair>() as usize)
@@ -2308,7 +2308,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
             current_pair_count as usize,
             ::core::mem::size_of::<IndividualGposPair>() as usize,
             Some(
-                by_pairSecondGlyph
+                by_pair_second_glyph
                     as unsafe extern "C" fn(
                         *const ::core::ffi::c_void,
                         *const ::core::ffi::c_void,
@@ -2325,7 +2325,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
         bk_push(root, &[bk_ptr(BkCellType::P16, pair_set)]);
         j_1 = j_1.wrapping_add(1);
     }
-    otl_Coverage_free(cov);
+    otl_coverage_free(cov);
     cov = ::core::ptr::null_mut::<Coverage>();
     free(pair_counts as *mut ::core::ffi::c_void);
     pair_counts = ::core::ptr::null_mut::<GlyphId>();
@@ -2357,10 +2357,10 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
         }
         j = j.wrapping_add(1);
     }
-    let mut cov: *mut Coverage = covFromCD((*subtable).first);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+    let mut cov: *mut Coverage = cov_from_cd((*subtable).first);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).first,
-        ))), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
             (*subtable).second,
         ))), bk_int(BkCellType::B16, (class1_count as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (class2_count as ::core::ffi::c_int) as u32)]);
     let mut j_0: GlyphClass = 0 as GlyphClass;
@@ -2378,7 +2378,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
         }
         j_0 = j_0.wrapping_add(1);
     }
-    otl_Coverage_free(cov);
+    otl_coverage_free(cov);
     cov = ::core::ptr::null_mut::<Coverage>();
     return root;
 }
@@ -2388,21 +2388,21 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair(
 ) -> *mut Buffer {
     let mut format1: *mut BkBlock = otfcc_build_gpos_pair_individual(_subtable);
     let mut format2: *mut BkBlock = otfcc_build_gpos_pair_classes(_subtable);
-    let mut g1: *mut BkGraph = bk_newGraphFromRootBlock(format1);
-    let mut g2: *mut BkGraph = bk_newGraphFromRootBlock(format2);
-    bk_minimizeGraph(g1);
-    bk_minimizeGraph(g2);
-    if bk_estimateSizeOfGraph(g1) > bk_estimateSizeOfGraph(g2) {
-        bk_delete_Graph(g1);
-        bk_untangleGraph(g2);
-        let mut buf: *mut Buffer = bk_build_Graph(g2);
-        bk_delete_Graph(g2);
+    let mut g1: *mut BkGraph = bk_new_graph_from_root_block(format1);
+    let mut g2: *mut BkGraph = bk_new_graph_from_root_block(format2);
+    bk_minimize_graph(g1);
+    bk_minimize_graph(g2);
+    if bk_estimate_size_of_graph(g1) > bk_estimate_size_of_graph(g2) {
+        bk_delete_graph(g1);
+        bk_untangle_graph(g2);
+        let mut buf: *mut Buffer = bk_build_graph(g2);
+        bk_delete_graph(g2);
         return buf;
     } else {
-        bk_delete_Graph(g2);
-        bk_untangleGraph(g1);
-        let mut buf_0: *mut Buffer = bk_build_Graph(g1);
-        bk_delete_Graph(g1);
+        bk_delete_graph(g2);
+        bk_untangle_graph(g1);
+        let mut buf_0: *mut Buffer = bk_build_graph(g1);
+        bk_delete_graph(g1);
         return buf_0;
     };
 }

@@ -3,7 +3,7 @@
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
 use crate::table::otl::coverage::Coverage;
-use crate::support::handle::{handle_fromName, otfcc_Handle_empty, LookupHandle};
+use crate::support::handle::{handle_from_name, otfcc_handle_empty, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
     while (j_0 as ::core::ffi::c_int) < (*rule).applyCount as ::core::ffi::c_int {
         (*(*rule).apply.offset(j_0 as isize)).index = 0 as TableId;
         (*(*rule).apply.offset(j_0 as isize)).lookup =
-            otfcc_Handle_empty() as LookupHandle;
+            otfcc_handle_empty() as LookupHandle;
         let mut _application: *mut JsonValue =
             *(*_apply).u.array.values.offset(j_0 as isize) as *mut JsonValue;
         if (*_application).type_0 == JsonType::Object
@@ -86,7 +86,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
             );
             if !_ln.is_null() {
                 (*(*rule).apply.offset(j_0 as isize)).lookup =
-                    handle_fromName(sdsnewlen(
+                    handle_from_name(sdsnewlen(
                         (*_ln).u.string.ptr as *const ::core::ffi::c_void,
                         (*_ln).u.string.length as usize,
                     )) as LookupHandle;

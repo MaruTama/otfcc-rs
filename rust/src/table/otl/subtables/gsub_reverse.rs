@@ -3,8 +3,8 @@ use libc::{free, malloc, memcpy};
 
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum_fallback};
-use crate::table::otl::coverage::{Coverage, otl_Coverage_free, readCoverage};
-use crate::support::handle::{handle_fromIndex, GlyphHandle};
+use crate::table::otl::coverage::{Coverage, otl_coverage_free, read_coverage};
+use crate::support::handle::{handle_from_index, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
@@ -13,38 +13,38 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubReverseSubtableElementInterface, Subtable, GsubReverseSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
-use crate::bk::bkblock::{bk_newBlockFromBuffer};
-use crate::bk::bkgraph::{bk_build_Block};
+use crate::bk::bkblock::{bk_new_block_from_buffer};
+use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 
 #[inline]
-unsafe extern "C" fn initGsubReverse(mut subtable: *mut GsubReverseSubtable) {
+unsafe extern "C" fn init_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
     (*subtable).match_0 = ::core::ptr::null_mut::<*mut Coverage>();
     (*subtable).to = ::core::ptr::null_mut::<Coverage>();
 }
 #[inline]
-unsafe extern "C" fn disposeGsubReverse(mut subtable: *mut GsubReverseSubtable) {
+unsafe extern "C" fn dispose_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
     if !(*subtable).match_0.is_null() {
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
-            otl_Coverage_free(
+            otl_coverage_free(
                 *(*subtable).match_0.offset(j as isize),
             );
             j = j.wrapping_add(1);
         }
     }
     if !(*subtable).to.is_null() {
-        otl_Coverage_free((*subtable).to);
+        otl_coverage_free((*subtable).to);
     }
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_reverse_dispose(mut x: *mut GsubReverseSubtable) {
-    disposeGsubReverse(x);
+    dispose_gsub_reverse(x);
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_reverse_free(mut x: *mut GsubReverseSubtable) {
@@ -81,7 +81,7 @@ pub static I_SUBTABLE_GSUB_REVERSE: GsubReverseSubtableElementInterface = {
                 as unsafe extern "C" fn(*mut GsubReverseSubtable, GsubReverseSubtable) -> (),
         ),
         copyReplace: Some(
-            subtable_gsub_reverse_copyReplace
+            subtable_gsub_reverse_copy_replace
                 as unsafe extern "C" fn(*mut GsubReverseSubtable, GsubReverseSubtable) -> (),
         ),
         create: Some(subtable_gsub_reverse_create),
@@ -100,7 +100,7 @@ unsafe extern "C" fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable 
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_reverse_init(mut x: *mut GsubReverseSubtable) {
-    initGsubReverse(x);
+    init_gsub_reverse(x);
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_reverse_copy(
@@ -114,7 +114,7 @@ unsafe extern "C" fn subtable_gsub_reverse_copy(
     );
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_reverse_copyReplace(
+unsafe extern "C" fn subtable_gsub_reverse_copy_replace(
     mut dst: *mut GsubReverseSubtable,
     src: GsubReverseSubtable,
 ) {
@@ -145,7 +145,7 @@ unsafe extern "C" fn subtable_gsub_reverse_replace(
         ::core::mem::size_of::<GsubReverseSubtable>() as usize,
     );
 }
-unsafe extern "C" fn reverseBacktracks(
+unsafe extern "C" fn reverse_backtracks(
     mut match_0: *mut *mut Coverage,
     mut inputIndex: TableId,
 ) {
@@ -238,7 +238,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                         )
                             as u32);
                         let ref mut fresh0 = *(*subtable).match_0.offset(j as isize);
-                        *fresh0 = readCoverage(
+                        *fresh0 = read_coverage(
                             data as *const u8,
                             table_length,
                             cov_offset,
@@ -253,7 +253,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                         as u32);
                     let ref mut fresh1 =
                         *(*subtable).match_0.offset((*subtable).inputIndex as isize);
-                    *fresh1 = readCoverage(
+                    *fresh1 = read_coverage(
                         data as *const u8,
                         table_length,
                         cov_offset_0,
@@ -283,7 +283,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                                     + j_0 as ::core::ffi::c_int)
                                     as isize,
                             );
-                            *fresh2 = readCoverage(
+                            *fresh2 = read_coverage(
                                 data as *const u8,
                                 table_length,
                                 cov_offset_1,
@@ -304,7 +304,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                         let mut j_1: TableId = 0 as TableId;
                         while (j_1 as ::core::ffi::c_int) < n_replacement as ::core::ffi::c_int {
                             *(*(*subtable).to).glyphs.offset(j_1 as isize) =
-                                handle_fromIndex(
+                                handle_from_index(
                                     read_16u(
                                         data.offset(offset as isize)
                                             .offset(10 as ::core::ffi::c_int as isize)
@@ -320,7 +320,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                                 ) as GlyphHandle;
                             j_1 = j_1.wrapping_add(1);
                         }
-                        reverseBacktracks((*subtable).match_0, (*subtable).inputIndex);
+                        reverse_backtracks((*subtable).match_0, (*subtable).inputIndex);
                         return subtable as *mut Subtable;
                     }
                 }
@@ -414,14 +414,14 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
     let mut subtable: *const GsubReverseSubtable = &raw const (*_subtable).gsub_reverse;
-    reverseBacktracks((*subtable).match_0, (*subtable).inputIndex);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+    reverse_backtracks((*subtable).match_0, (*subtable).inputIndex);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             *(*subtable).match_0.offset((*subtable).inputIndex as isize),
         )))]);
     bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).inputIndex as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).inputIndex as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j as isize),
             )))]);
         j = j.wrapping_add(1);
@@ -432,7 +432,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
     let mut j_0: TableId =
         ((*subtable).inputIndex as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
     while (j_0 as ::core::ffi::c_int) < (*subtable).matchCount as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
                 *(*subtable).match_0.offset(j_0 as isize),
             )))]);
         j_0 = j_0.wrapping_add(1);
@@ -443,5 +443,5 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
         bk_push(root, &[bk_int(BkCellType::B16, ((*(*(*subtable).to).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int) as u32)]);
         j_1 = j_1.wrapping_add(1);
     }
-    return bk_build_Block(root);
+    return bk_build_block(root);
 }

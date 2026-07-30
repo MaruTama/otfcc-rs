@@ -11,18 +11,18 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_Block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::{NULL};
 use crate::table::otl::{Feature, FeaturePtr, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
-use crate::bk::bkblock::{bk_newBlockFromBuffer};
-use crate::bk::bkgraph::{bk_build_Block};
-use crate::table::otl::subtables::chaining::build::{otfcc_chainingLookupIsContextualLookup};
-use crate::table::otl::subtables::chaining::classifier::{otfcc_classifiedBuildChaining};
+use crate::bk::bkblock::{bk_new_block_from_buffer};
+use crate::bk::bkgraph::{bk_build_block};
+use crate::table::otl::subtables::chaining::build::{otfcc_chaining_lookup_is_contextual_lookup};
+use crate::table::otl::subtables::chaining::classifier::{otfcc_classified_build_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otfcc_build_gpos_cursive};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{otfcc_build_gpos_markToLigature};
-use crate::table::otl::subtables::gpos_mark_to_single::{otfcc_build_gpos_markToSingle};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{otfcc_build_gpos_mark_to_ligature};
+use crate::table::otl::subtables::gpos_mark_to_single::{otfcc_build_gpos_mark_to_single};
 use crate::table::otl::subtables::gpos_pair::{otfcc_build_gpos_pair};
 use crate::table::otl::subtables::gpos_single::{otfcc_build_gpos_single};
 use crate::table::otl::subtables::gsub_ligature::{otfcc_build_gsub_ligature_subtable};
@@ -79,7 +79,7 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     return 0 as usize;
 }
 pub const LARGE_SUBTABLE_LIMIT: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
-unsafe extern "C" fn featureNameToTag(name: SdsRaw) -> u32 {
+unsafe extern "C" fn feature_name_to_tag(name: SdsRaw) -> u32 {
     let mut tag: u32 = 0 as u32;
     if sdslen(name) > 0 as usize {
         tag |= ((*name.offset(0 as ::core::ffi::c_int as isize) as u8 as ::core::ffi::c_int)
@@ -215,7 +215,7 @@ unsafe extern "C" fn _build_lookup(
     if (*lookup).type_0 == OTL_TYPE_GPOS_CHAINING
         || (*lookup).type_0 == OTL_TYPE_GSUB_CHAINING
     {
-        return otfcc_classifiedBuildChaining(lookup, subtables, last_offset);
+        return otfcc_classified_build_chaining(lookup, subtables, last_offset);
     }
     let mut written: TableId = 0 as TableId;
     if written == 0 {
@@ -360,7 +360,7 @@ unsafe extern "C" fn _build_lookup(
         written = _declare_lookup_writer(
             OTL_TYPE_GPOS_MARK_TO_BASE,
             Some(
-                otfcc_build_gpos_markToSingle
+                otfcc_build_gpos_mark_to_single
                     as unsafe extern "C" fn(
                         *const Subtable,
                         BuildHeuristics,
@@ -377,7 +377,7 @@ unsafe extern "C" fn _build_lookup(
         written = _declare_lookup_writer(
             OTL_TYPE_GPOS_MARK_TO_MARK,
             Some(
-                otfcc_build_gpos_markToSingle
+                otfcc_build_gpos_mark_to_single
                     as unsafe extern "C" fn(
                         *const Subtable,
                         BuildHeuristics,
@@ -394,7 +394,7 @@ unsafe extern "C" fn _build_lookup(
         written = _declare_lookup_writer(
             OTL_TYPE_GPOS_MARK_TO_LIGATURE,
             Some(
-                otfcc_build_gpos_markToLigature
+                otfcc_build_gpos_mark_to_ligature
                     as unsafe extern "C" fn(
                         *const Subtable,
                         BuildHeuristics,
@@ -409,7 +409,7 @@ unsafe extern "C" fn _build_lookup(
     }
     return written;
 }
-unsafe extern "C" fn getLookupHeuristics(
+unsafe extern "C" fn get_lookup_heuristics(
     mut table: *const OtlTable,
     mut lut: *const Lookup,
 ) -> BuildHeuristics {
@@ -420,7 +420,7 @@ unsafe extern "C" fn getLookupHeuristics(
         while (j as usize) < (*table).features.length {
             let mut fea: *const Feature =
                 *(*table).features.items.offset(j as isize) as *const Feature;
-            if !(featureNameToTag((*fea).name) != 1986359924i32 as u32) {
+            if !(feature_name_to_tag((*fea).name) != 1986359924i32 as u32) {
                 let mut k: TableId = 0 as TableId;
                 while (k as usize) < (*fea).lookups.length {
                     if *(*fea).lookups.items.offset(k as isize) == lut {
@@ -434,7 +434,7 @@ unsafe extern "C" fn getLookupHeuristics(
     }
     return heu;
 }
-unsafe extern "C" fn writeOTLLookups(
+unsafe extern "C" fn write_otl_lookups(
     mut table: *const OtlTable,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
@@ -461,7 +461,7 @@ unsafe extern "C" fn writeOTLLookups(
     while (j as usize) < (*table).lookups.length {
         let mut lookup: *mut Lookup =
             *(*table).lookups.items.offset(j as isize) as *mut Lookup;
-        let mut heu: BuildHeuristics = getLookupHeuristics(table, lookup);
+        let mut heu: BuildHeuristics = get_lookup_heuristics(table, lookup);
         (*(*options).logger)
             .logSDS
             .expect("non-null function pointer")(
@@ -503,7 +503,7 @@ unsafe extern "C" fn writeOTLLookups(
         j_0 = j_0.wrapping_add(1);
     }
     let mut use_extended: bool = last_offset >= (0xff00 as usize).wrapping_sub(header_size);
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*table).lookups.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*table).lookups.length) as u32)]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as usize) < (*table).lookups.length {
         if *subtable_quantity.offset(j_1 as isize) == 0 {
@@ -523,7 +523,7 @@ unsafe extern "C" fn writeOTLLookups(
         }
         let mut lookup_0: *mut Lookup =
             *(*table).lookups.items.offset(j_1 as isize) as *mut Lookup;
-        let can_be_contextual: bool = otfcc_chainingLookupIsContextualLookup(lookup_0);
+        let can_be_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup_0);
         let use_extended_for_it: bool = use_extended as ::core::ffi::c_int != 0
             || *prefer_ext_for_this_lut.offset(j_1 as isize) as ::core::ffi::c_int != 0;
         if use_extended_for_it {
@@ -560,7 +560,7 @@ unsafe extern "C" fn writeOTLLookups(
                 .file_format()
                 .wrapping_sub(can_be_contextual as u32)
         }) as u16;
-        let mut blk: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (lookup_type as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lookup_0).flags as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (*subtable_quantity.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
+        let mut blk: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (lookup_type as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lookup_0).flags as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (*subtable_quantity.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
         let mut k: TableId = 0 as TableId;
         while (k as ::core::ffi::c_int)
             < *subtable_quantity.offset(j_1 as isize) as ::core::ffi::c_int
@@ -570,10 +570,10 @@ unsafe extern "C" fn writeOTLLookups(
                     .type_0
                     .file_format()
                     .wrapping_sub(can_be_contextual as u32) as u16;
-                let mut stub: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, (extension_lookup_type as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P32, bk_newBlockFromBuffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
+                let mut stub: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, (extension_lookup_type as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
                 bk_push(blk, &[bk_ptr(BkCellType::P16, stub)]);
             } else {
-                bk_push(blk, &[bk_ptr(BkCellType::P16, bk_newBlockFromBuffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
+                bk_push(blk, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(*(*subtables.offset(j_1 as isize)).offset(k as isize)))]);
             }
             k = k.wrapping_add(1);
         }
@@ -592,14 +592,14 @@ unsafe extern "C" fn writeOTLLookups(
     prefer_ext_for_this_lut = ::core::ptr::null_mut::<bool>();
     return root;
 }
-unsafe extern "C" fn writeOTLFeatures(
+unsafe extern "C" fn write_otl_features(
     mut table: *const OtlTable,
     mut _options: *const Options,
 ) -> *mut BkBlock {
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, ((*table).features.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*table).features.length) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).features.length {
-        let mut fea: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, ((**(*table).features.items.offset(j as isize))
+        let mut fea: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, ((**(*table).features.items.offset(j as isize))
                 .lookups
                 .length) as u32)]);
         let mut k: TableId = 0 as TableId;
@@ -624,12 +624,12 @@ unsafe extern "C" fn writeOTLFeatures(
             }
             k = k.wrapping_add(1);
         }
-        bk_push(root, &[bk_int(BkCellType::B32, (featureNameToTag((**(*table).features.items.offset(j as isize)).name)) as u32), bk_ptr(BkCellType::P16, fea)]);
+        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag((**(*table).features.items.offset(j as isize)).name)) as u32), bk_ptr(BkCellType::P16, fea)]);
         j = j.wrapping_add(1);
     }
     return root;
 }
-unsafe extern "C" fn featureIndex(
+unsafe extern "C" fn feature_index(
     mut feature: *const Feature,
     mut table: *const OtlTable,
 ) -> TableId {
@@ -642,17 +642,17 @@ unsafe extern "C" fn featureIndex(
     }
     return 0xffff as TableId;
 }
-unsafe extern "C" fn writeLanguage(
+unsafe extern "C" fn write_language(
     mut lang: *mut LanguageSystem,
     mut table: *const OtlTable,
 ) -> *mut BkBlock {
     if lang.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, (featureIndex((*lang).requiredFeature as *const Feature, table) as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lang).features.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, (feature_index((*lang).requiredFeature as *const Feature, table) as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lang).features.length) as u32)]);
     let mut k: TableId = 0 as TableId;
     while (k as usize) < (*lang).features.length {
-        bk_push(root, &[bk_int(BkCellType::B16, (featureIndex(
+        bk_push(root, &[bk_int(BkCellType::B16, (feature_index(
                 *(*lang).features.items.offset(k as isize) as *const Feature,
                 table,
             ) as ::core::ffi::c_int) as u32)]);
@@ -660,11 +660,11 @@ unsafe extern "C" fn writeLanguage(
     }
     return root;
 }
-unsafe extern "C" fn writeScript(
+unsafe extern "C" fn write_script(
     mut script: *mut ScriptStatHash,
     mut table: *const OtlTable,
 ) -> *mut BkBlock {
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_ptr(BkCellType::P16, writeLanguage((*script).dl, table)), bk_int(BkCellType::B16, ((*script).lc as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, write_language((*script).dl, table)), bk_int(BkCellType::B16, ((*script).lc as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*script).lc as ::core::ffi::c_int {
         let mut tag: SdsRaw = sdsnewlen(
@@ -673,13 +673,13 @@ unsafe extern "C" fn writeScript(
                 .offset(5 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_void,
             4 as usize,
         );
-        bk_push(root, &[bk_int(BkCellType::B32, (featureNameToTag(tag)) as u32), bk_ptr(BkCellType::P16, writeLanguage(*(*script).ll.offset(j as isize), table))]);
+        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag(tag)) as u32), bk_ptr(BkCellType::P16, write_language(*(*script).ll.offset(j as isize), table))]);
         sdsfree(tag);
         j = j.wrapping_add(1);
     }
     return root;
 }
-unsafe extern "C" fn writeOTLScriptAndLanguages(
+unsafe extern "C" fn write_otl_script_and_languages(
     mut table: *const OtlTable,
     mut _options: *const Options,
 ) -> *mut BkBlock {
@@ -1482,7 +1482,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
         }
         j = j.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B16, (if !h.is_null() {
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (if !h.is_null() {
             (*(*h).hh.tbl).num_items
         } else {
             0 as ::core::ffi::c_uint
@@ -1493,7 +1493,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut ScriptStatHash
         as *mut ScriptStatHash;
     while !s_0.is_null() {
-        bk_push(root, &[bk_int(BkCellType::B32, (featureNameToTag((*s_0).tag)) as u32), bk_ptr(BkCellType::P16, writeScript(s_0, table))]);
+        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag((*s_0).tag)) as u32), bk_ptr(BkCellType::P16, write_script(s_0, table))]);
         let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s_0).hh;
         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
             free((*(*h).hh.tbl).buckets as *mut ::core::ffi::c_void);
@@ -1552,7 +1552,7 @@ unsafe extern "C" fn writeOTLScriptAndLanguages(
     }
     return root;
 }
-pub unsafe extern "C" fn otfcc_buildOtl(
+pub unsafe extern "C" fn otfcc_build_otl(
     mut table: *const OtlTable,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
@@ -1569,11 +1569,11 @@ pub unsafe extern "C" fn otfcc_buildOtl(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut lookups: *mut BkBlock = writeOTLLookups(table, options, tag);
-        let mut features: *mut BkBlock = writeOTLFeatures(table, options);
-        let mut languages: *mut BkBlock = writeOTLScriptAndLanguages(table, options);
-        let mut root: *mut BkBlock = bk_new_Block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, languages), bk_ptr(BkCellType::P16, features), bk_ptr(BkCellType::P16, lookups)]);
-        buf = bk_build_Block(root);
+        let mut lookups: *mut BkBlock = write_otl_lookups(table, options, tag);
+        let mut features: *mut BkBlock = write_otl_features(table, options);
+        let mut languages: *mut BkBlock = write_otl_script_and_languages(table, options);
+        let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, languages), bk_ptr(BkCellType::P16, features), bk_ptr(BkCellType::P16, lookups)]);
+        buf = bk_build_block(root);
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
