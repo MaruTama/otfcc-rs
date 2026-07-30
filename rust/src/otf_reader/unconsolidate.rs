@@ -23,7 +23,7 @@ use crate::support::sha1::{BYTE, Sha1Ctx};
 
 
 
-use crate::table::VORG::VorgTable;
+use crate::table::vorg::VorgTable;
 
 use crate::table::cmap::{CmapEntry};
 
@@ -53,7 +53,7 @@ use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, 
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
 use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
-use crate::table::VORG::{TABLE_I_VORG};
+use crate::table::vorg::{TABLE_I_VORG};
 use crate::table::hmtx::{TABLE_I_HMTX};
 use crate::table::otl::{OTL_I_SUBTABLE_LIST};
 use crate::table::vmtx::{TABLE_I_VMTX};
@@ -581,24 +581,24 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
     }
     let count_a: u32 = (*(*font).vhea).num_of_long_ver_metrics as u32;
     let mut vorgs: *mut Pos = ::core::ptr::null_mut::<Pos>();
-    if !(*font).VORG.is_null() {
+    if !(*font).vorg.is_null() {
         vorgs = __caryll_allocate_clean(
             (::core::mem::size_of::<Pos>() as usize).wrapping_mul((*(*font).glyf).length),
             351 as ::core::ffi::c_ulong,
         ) as *mut Pos;
         for j in 0..(*(*font).glyf).length as GlyphId {
-            *vorgs.offset(j as isize) = (*(*font).VORG).default_vertical_origin;
+            *vorgs.offset(j as isize) = (*(*font).vorg).default_vertical_origin;
         }
-        for j_0 in 0..(*(*font).VORG).num_vert_origin_y_metrics as GlyphId {
-            if ((*(*(*font).VORG).entries.offset(j_0 as isize)).gid as usize)
+        for j_0 in 0..(*(*font).vorg).num_vert_origin_y_metrics as GlyphId {
+            if ((*(*(*font).vorg).entries.offset(j_0 as isize)).gid as usize)
                 < (*(*font).glyf).length
             {
-                *vorgs.offset((*(*(*font).VORG).entries.offset(j_0 as isize)).gid as isize) =
-                    (*(*(*font).VORG).entries.offset(j_0 as isize)).vertical_origin as Pos;
+                *vorgs.offset((*(*(*font).vorg).entries.offset(j_0 as isize)).gid as isize) =
+                    (*(*(*font).vorg).entries.offset(j_0 as isize)).vertical_origin as Pos;
             }
         }
-        TABLE_I_VORG.free.expect("non-null function pointer")((*font).VORG);
-        (*font).VORG = ::core::ptr::null_mut::<VorgTable>();
+        TABLE_I_VORG.free.expect("non-null function pointer")((*font).vorg);
+        (*font).vorg = ::core::ptr::null_mut::<VorgTable>();
     }
     for j_1 in 0..(*(*font).glyf).length as GlyphId {
         let g: *mut Glyph = *(*(*font).glyf).items.offset(j_1 as isize) as *mut Glyph;
@@ -638,11 +638,11 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
     (*font).vmtx = ::core::ptr::null_mut::<VmtxTable>();
 }
 unsafe extern "C" fn merge_ltsh(font: *mut Font) {
-    if !(*font).glyf.is_null() && !(*font).LTSH.is_null() {
-        let n = ((*(*font).glyf).length as GlyphId).min((*(*font).LTSH).num_glyphs);
+    if !(*font).glyf.is_null() && !(*font).ltsh.is_null() {
+        let n = ((*(*font).glyf).length as GlyphId).min((*(*font).ltsh).num_glyphs);
         for j in 0..n {
             (**(*(*font).glyf).items.offset(j as isize)).y_pel =
-                *(*(*font).LTSH).y_pels.offset(j as isize);
+                *(*(*font).ltsh).y_pels.offset(j as isize);
         }
     }
 }

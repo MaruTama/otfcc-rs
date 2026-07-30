@@ -26,15 +26,15 @@ use crate::support::glyph_order::{GlyphOrderPass, GlyphOrder, GlyphOrderEntry};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::font::caryll_font::{OTFCC_I_FONT};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::BASE::{otfcc_parse_base};
-use crate::table::CFF::{otfcc_parse_cff};
-use crate::table::COLR::{otfcc_parse_colr};
-use crate::table::CPAL::{otfcc_parse_cpal};
-use crate::table::GDEF::{otfcc_parse_gdef};
-use crate::table::OS_2::{otfcc_parse_os_2};
-use crate::table::SVG::{otfcc_parse_svg};
-use crate::table::TSI5::{otfcc_parse_tsi5};
-use crate::table::_TSI::{otfcc_parse_tsi};
+use crate::table::base::{otfcc_parse_base};
+use crate::table::cff::{otfcc_parse_cff};
+use crate::table::colr::{otfcc_parse_colr};
+use crate::table::cpal::{otfcc_parse_cpal};
+use crate::table::gdef::{otfcc_parse_gdef};
+use crate::table::os_2::{otfcc_parse_os_2};
+use crate::table::svg::{otfcc_parse_svg};
+use crate::table::tsi5::{otfcc_parse_tsi5};
+use crate::table::_tsi::{otfcc_parse_tsi};
 use crate::table::cmap::{otfcc_parse_cmap};
 use crate::table::cvt::{otfcc_parse_cvt};
 use crate::table::fpgm_prep::{otfcc_parse_fpgm_prep};
@@ -1964,7 +1964,7 @@ impl FontBuilder for JsonReader {
     (*font).cff = otfcc_parse_cff(root, options);
     (*font).head = otfcc_parse_head(root, options);
     (*font).hhea = otfcc_parse_hhea(root, options);
-    (*font).OS_2 = otfcc_parse_os_2(root, options);
+    (*font).os_2 = otfcc_parse_os_2(root, options);
     (*font).maxp = otfcc_parse_maxp(root, options);
     (*font).post = otfcc_parse_post(root, options);
     (*font).name = otfcc_parse_name(root, options);
@@ -2001,11 +2001,11 @@ impl FontBuilder for JsonReader {
             options,
             b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
         );
-        (*font).GDEF = otfcc_parse_gdef(root, options);
+        (*font).gdef = otfcc_parse_gdef(root, options);
     }
-    (*font).BASE = otfcc_parse_base(root, options);
-    (*font).CPAL = otfcc_parse_cpal(root, options);
-    (*font).COLR = otfcc_parse_colr(root, options);
+    (*font).base = otfcc_parse_base(root, options);
+    (*font).cpal = otfcc_parse_cpal(root, options);
+    (*font).colr = otfcc_parse_colr(root, options);
     (*font).svg = otfcc_parse_svg(root, options);
     (*font).tsi_01 = otfcc_parse_tsi(
         root,
@@ -2017,7 +2017,7 @@ impl FontBuilder for JsonReader {
         options,
         b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    (*font).TSI5 = otfcc_parse_tsi5(root, options);
+    (*font).tsi5 = otfcc_parse_tsi5(root, options);
     return font as *mut ::core::ffi::c_void;
     }
 }

@@ -133,26 +133,26 @@ pub unsafe extern "C" fn otfcc_read_ltsh(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
                     let mut data: FontFilePointer = table.data as FontFilePointer;
-                    let mut LTSH: *mut LtshTable = ::core::ptr::null_mut::<LtshTable>();
-                    LTSH = __caryll_allocate_clean(
+                    let mut ltsh: *mut LtshTable = ::core::ptr::null_mut::<LtshTable>();
+                    ltsh = __caryll_allocate_clean(
                         ::core::mem::size_of::<LtshTable>() as usize,
                         15 as ::core::ffi::c_ulong,
                     ) as *mut LtshTable;
-                    (*LTSH).version = read_16u(data as *const u8);
-                    (*LTSH).num_glyphs =
+                    (*ltsh).version = read_16u(data as *const u8);
+                    (*ltsh).num_glyphs =
                         read_16u(data.offset(2 as ::core::ffi::c_int as isize) as *const u8)
                             as GlyphId;
-                    (*LTSH).y_pels = __caryll_allocate_clean(
+                    (*ltsh).y_pels = __caryll_allocate_clean(
                         (::core::mem::size_of::<u8>() as usize)
-                            .wrapping_mul((*LTSH).num_glyphs as usize),
+                            .wrapping_mul((*ltsh).num_glyphs as usize),
                         18 as ::core::ffi::c_ulong,
                     ) as *mut u8;
                     memcpy(
-                        (*LTSH).y_pels as *mut ::core::ffi::c_void,
+                        (*ltsh).y_pels as *mut ::core::ffi::c_void,
                         data.offset(4 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_void,
-                        (*LTSH).num_glyphs as usize,
+                        (*ltsh).num_glyphs as usize,
                     );
-                    return LTSH;
+                    return ltsh;
                 }
             }
             __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;

@@ -21,15 +21,15 @@ use crate::support::{NULL};
 use crate::table::glyf::GlyfIOContext;
 
 
-use crate::table::BASE::{otfcc_dump_base};
-use crate::table::CFF::{otfcc_dump_cff};
-use crate::table::COLR::{otfcc_dump_colr};
-use crate::table::CPAL::{otfcc_dump_cpal};
-use crate::table::GDEF::{otfcc_dump_gdef};
-use crate::table::OS_2::{otfcc_dump_os_2};
-use crate::table::SVG::{otfcc_dump_svg};
-use crate::table::TSI5::{otfcc_dump_tsi5};
-use crate::table::_TSI::{otfcc_dump_tsi};
+use crate::table::base::{otfcc_dump_base};
+use crate::table::cff::{otfcc_dump_cff};
+use crate::table::colr::{otfcc_dump_colr};
+use crate::table::cpal::{otfcc_dump_cpal};
+use crate::table::gdef::{otfcc_dump_gdef};
+use crate::table::os_2::{otfcc_dump_os_2};
+use crate::table::svg::{otfcc_dump_svg};
+use crate::table::tsi5::{otfcc_dump_tsi5};
+use crate::table::_tsi::{otfcc_dump_tsi};
 use crate::table::cmap::{otfcc_dump_cmap};
 use crate::table::cvt::{otfcc_dump_cvt};
 use crate::table::fpgm_prep::{table_dump_table_fpgm_prep};
@@ -70,7 +70,7 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_maxp((*font).maxp, root, options);
     otfcc_dump_vhea((*font).vhea, root, options);
     otfcc_dump_post((*font).post, root, options);
-    otfcc_dump_os_2((*font).OS_2, root, options);
+    otfcc_dump_os_2((*font).os_2, root, options);
     otfcc_dump_name((*font).name, root, options);
     otfcc_dump_meta((*font).meta, root, options);
     otfcc_dump_cmap((*font).cmap, root, options);
@@ -118,10 +118,10 @@ impl FontSerializer for JsonSerializer {
         options,
         b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    otfcc_dump_gdef((*font).GDEF, root, options);
-    otfcc_dump_base((*font).BASE, root, options);
-    otfcc_dump_cpal((*font).CPAL, root, options);
-    otfcc_dump_colr((*font).COLR, root, options);
+    otfcc_dump_gdef((*font).gdef, root, options);
+    otfcc_dump_base((*font).base, root, options);
+    otfcc_dump_cpal((*font).cpal, root, options);
+    otfcc_dump_colr((*font).colr, root, options);
     otfcc_dump_svg((*font).svg, root, options);
     otfcc_dump_tsi(
         (*font).tsi_01,
@@ -135,7 +135,7 @@ impl FontSerializer for JsonSerializer {
         options,
         b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    otfcc_dump_tsi5((*font).TSI5, root, options);
+    otfcc_dump_tsi5((*font).tsi5, root, options);
     return root as *mut ::core::ffi::c_void;
     }
 }

@@ -1,4 +1,4 @@
-pub mod GDEF;
+pub mod gdef;
 pub mod chaining;
 pub mod common;
 pub mod gpos_cursive;

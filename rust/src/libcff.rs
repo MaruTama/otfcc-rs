@@ -17,7 +17,7 @@ pub mod cff_writer;
 pub mod charstring_il;
 pub mod subr;
 
-/// A CFF DICT operator, in otfcc's own encoding: the operator byte, or
+/// A cff DICT operator, in otfcc's own encoding: the operator byte, or
 /// `12 << 8 | b` for the two-byte operators the spec escapes with 12.
 ///
 /// `i32` because that is what these are compared against -- a decoded operator

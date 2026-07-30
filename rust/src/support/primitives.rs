@@ -32,9 +32,9 @@ pub type TableId = u16;
 pub type ColorId = u16;
 /// Shape index.
 pub type ShapeId = u16;
-/// CFF/CFF2 string index.
+/// cff/CFF2 string index.
 pub type CffSid = u16;
-/// CFF arity / stack depth.
+/// cff arity / stack depth.
 pub type Arity = u32;
 /// Unicode code point.
 pub type Unicode = u32;

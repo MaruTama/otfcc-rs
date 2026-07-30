@@ -16,25 +16,25 @@ use crate::support::primitives::{GlyphId};
 use crate::font::caryll_font::{FontSubtype, Font, IFontSerializer};
 use crate::font::caryll_sfnt_builder::{SfntBuilder};
 
-use crate::table::CFF::{CffAndGlyf};
-use crate::table::_TSI::TsiBuildTarget;
+use crate::table::cff::{CffAndGlyf};
+use crate::table::_tsi::TsiBuildTarget;
 
 use crate::table::glyf::GlyfAndLocaBuffers;
 
 use crate::font::caryll_sfnt_builder::{otfcc_sfnt_builder_push_table, otfcc_sfnt_builder_serialize, otfcc_delete_sfnt_builder, otfcc_new_sfnt_builder};
 use crate::otf_writer::stat::{otfcc_stat_font, otfcc_unstat_font};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
-use crate::table::BASE::{otfcc_build_base};
-use crate::table::CFF::{otfcc_build_cff};
-use crate::table::COLR::{otfcc_build_colr};
-use crate::table::CPAL::{otfcc_build_cpal};
-use crate::table::GDEF::{otfcc_build_gdef};
-use crate::table::LTSH::{otfcc_build_ltsh};
-use crate::table::OS_2::{otfcc_build_os_2};
-use crate::table::SVG::{otfcc_build_svg};
-use crate::table::TSI5::{otfcc_build_tsi5};
-use crate::table::VORG::{otfcc_build_vorg};
-use crate::table::_TSI::{otfcc_build_tsi};
+use crate::table::base::{otfcc_build_base};
+use crate::table::cff::{otfcc_build_cff};
+use crate::table::colr::{otfcc_build_colr};
+use crate::table::cpal::{otfcc_build_cpal};
+use crate::table::gdef::{otfcc_build_gdef};
+use crate::table::ltsh::{otfcc_build_ltsh};
+use crate::table::os_2::{otfcc_build_os_2};
+use crate::table::svg::{otfcc_build_svg};
+use crate::table::tsi5::{otfcc_build_tsi5};
+use crate::table::vorg::{otfcc_build_vorg};
+use crate::table::_tsi::{otfcc_build_tsi};
 use crate::table::cmap::{otfcc_build_cmap};
 use crate::table::cvt::{otfcc_build_cvt};
 use crate::table::fpgm_prep::{otfcc_build_fpgm_prep};
@@ -112,7 +112,7 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1330851634i32 as u32,
-        otfcc_build_os_2((*font).OS_2, options),
+        otfcc_build_os_2((*font).os_2, options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
@@ -163,7 +163,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             1280594760i32 as u32,
-            otfcc_build_ltsh((*font).LTSH, options),
+            otfcc_build_ltsh((*font).ltsh, options),
         );
         otfcc_sfnt_builder_push_table(
             builder,
@@ -211,7 +211,7 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1448038983i32 as u32,
-        otfcc_build_vorg((*font).VORG, options),
+        otfcc_build_vorg((*font).vorg, options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
@@ -234,22 +234,22 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1195656518i32 as u32,
-        otfcc_build_gdef((*font).GDEF, options),
+        otfcc_build_gdef((*font).gdef, options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         1111577413i32 as u32,
-        otfcc_build_base((*font).BASE, options),
+        otfcc_build_base((*font).base, options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         1129333068i32 as u32,
-        otfcc_build_cpal((*font).CPAL, options),
+        otfcc_build_cpal((*font).cpal, options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         1129270354i32 as u32,
-        otfcc_build_colr((*font).COLR, options),
+        otfcc_build_colr((*font).colr, options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
@@ -266,7 +266,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             1414744373i32 as u32,
-            otfcc_build_tsi5((*font).TSI5, options, (*(*font).glyf).length as GlyphId),
+            otfcc_build_tsi5((*font).tsi5, options, (*(*font).glyf).length as GlyphId),
         );
     }
     if (*options).dummy_dsig {
