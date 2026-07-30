@@ -582,6 +582,31 @@ the CI-matching Linux container:
   which c2rust carried over verbatim. All-payload byte comparison covered
   this: `vf/vq.rs` backs variable-font interpolation, one of the tested
   payloads.
+- **Struct fields are `snake_case`** — 344 names, 6,038 occurrences over 97
+  files: 337 fields plus 7 locals (`_className`, `_fdArray`, `_fontMatrix`,
+  `_className_0`, `className_0`, `nameString_0`, `_CFF_`) that were held back
+  from the locals/functions passes for colliding with one of these fields.
+  This was meant to be the careful one, and it earned it:
+  - **Two fields landing on the same name inside one struct** would be a
+    compile error at best — or, if the crate used field-init shorthand or
+    positional literals anywhere, a silent field swap. It doesn't (every
+    struct literal here is `Struct { field: value, ... }`), and a per-struct
+    check found no same-struct collisions regardless.
+  - **JSON keys had to come out untouched**, which meant first confirming
+    nothing in the crate ties a Rust identifier to its JSON spelling by
+    reflection — no `stringify!`, no macro doing it implicitly. Every key is
+    its own string or byte-string literal sitting next to the field it
+    serializes (`b"numGlyphs\0"` beside a `numGlyphs` field), so the rename
+    tool's existing literal-skip guard was already sufficient; confirmed by
+    an all-payload byte comparison of `otfccdump`'s JSON output, not just
+    argued from reading the code.
+  - **8 fields — `BASE`, `COLR`, `CPAL`, `GDEF`, `LTSH`, `OS_2`, `TSI5`,
+    `VORG` — spell exactly the module that owns the matching table**
+    (`mod BASE;`, soon `mod base;`). `record.BASE` and `crate::table::BASE`
+    are unambiguous to the compiler, but the rename tool is textual and
+    can't tell a field access from a path segment — the same hazard as `sds`
+    the type vs. `sds` the module in PR #44. Deferred to the module pass,
+    which has to touch those files anyway.
 - **Standard cargo layout**: `src/lib.rs` + `src/bin/` + `src/ffi/` +
   `src/vendor/`, replacing c2rust's `src::lib::` / `src::dep::r#extern::` /
   `src::src::` scaffolding. See "Crate layout" above.
@@ -872,27 +897,17 @@ on the other platform before a commit is trusted.
   one name — but it needs a `pub sdslen` in `vendor/sds.rs`, which is also what
   `json_from_sds` is waiting for.
 - **Rust naming for the rest of the crate.** Types, enum variants, constants,
-  statics, local variables/parameters and functions are done (above); what is
-  left: **717 struct fields, 12 modules**, plus **61 names deferred from the
-  variable and function passes** (`className` the local vs. `className` the
-  field; `byGID`/`parseDictKey`/`parseToCallback` the functions vs. the same
-  spelling as fields) — those land on whichever of the next two passes claims
-  the name, so each rename covers every site at once. Plus one hand case,
-  `emyg_dtoa.rs`'s `K`. Counts are a real measurement, not the plan's
-  original guess (every category so far has come in higher, PR #43's
-  `no_mangle` removal being the reason each time) — but re-measure again at
-  each step rather than trusting even these, since a rename pass can itself
-  shrink or reshuffle what's left (the function pass deleted 8 whole
-  functions it found colliding).
-  - Struct fields, last and most carefully: **JSON keys are string literals
-    and must not move with the field names**, so each site needs checking.
-    The rename tool skips string and char literals for exactly this reason,
-    which mattered for none of the type or constant names and will matter
-    here — `BASE`, `GDEF`, `OS_2` and `glyf` are all both identifiers and
-    JSON keys.
-  - Modules (`table::CFF` → `table::cff`), which is also a file rename.
-  Then `allow(non_snake_case)` comes out, and "this is idiomatic now" stops
-  being an opinion.
+  statics, local variables/parameters, functions and struct fields are done
+  (above); what is left is **12 modules** (`table::CFF` → `table::cff`,
+  which is also a file rename) plus **8 fields deferred from this pass**
+  (`BASE`, `COLR`, `CPAL`, `GDEF`, `LTSH`, `OS_2`, `TSI5`, `VORG` — each
+  spells the module it lives next to) and the matching **2 leftover
+  diagnostics** (`emyg_dtoa.rs`'s `K`, and the local variable `LTSH`). This
+  pass touches those same files anyway, so it should absorb all of them at
+  once rather than leave a residue. Then `allow(non_snake_case)` comes out
+  — the last of the three naming allows, after `non_camel_case_types` (PR
+  #44) and `non_upper_case_globals` (PR #45) — and "this crate is Rust-named"
+  stops being an opinion.
 - **Then safe Rust, type by type**: `CVecRaw<T>` → `Vec<T>` first (one
   implementation backs ~37 container types), then `sds` → `String`,
   `caryll_Buffer` → `Vec<u8>`, `malloc`/`dispose` → `Box` + `Drop`, and the
