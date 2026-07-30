@@ -522,6 +522,20 @@ the CI-matching Linux container:
     `sds` was both `pub type sds` and `pub mod sds`, and a whole-identifier
     rename rewrote 123 path segments along with the type. The build caught it,
     and the rename tool now refuses any name that is also a module name.
+- **Constants and statics are `SCREAMING_SNAKE_CASE`.** 322 unique names were
+  still C-cased (366 definition sites — the plan's 339 was a stale count from
+  before PR #43 removed `no_mangle` from 350 more items, the same effect that
+  hit the type pass) — 3,452 occurrences over 104 files.
+  `#![allow(non_upper_case_globals)]` is gone, and this time the lint really
+  does drive and check the whole thing: unlike `non_camel_case_types`, nothing
+  here is `repr(C)`-exempt. `f16dot16_negativeIntinity` gets its typo fixed
+  (`F16DOT16_NEGATIVE_INFINITY`) on the way, the same call as the two type-name
+  typos in PR #44. Digits stay attached to the word they're already touching
+  rather than getting their own segment — `f16dot16_precision` (the type is
+  `F16Dot16`) becomes `F16DOT16_PRECISION`, not `F_16_DOT_16_PRECISION`, and
+  `type2_max_subrs` becomes `TYPE2_MAX_SUBRS` — because a naive case-transition
+  splitter fragments digit-bearing names the source doesn't actually treat as
+  multi-word.
 - **Standard cargo layout**: `src/lib.rs` + `src/bin/` + `src/ffi/` +
   `src/vendor/`, replacing c2rust's `src::lib::` / `src::dep::r#extern::` /
   `src::src::` scaffolding. See "Crate layout" above.
@@ -811,13 +825,12 @@ on the other platform before a commit is trusted.
   inlines (`sdsavail`, `sdssetlen`, `sdsalloc`, …) are already single, so this is
   one name — but it needs a `pub sdslen` in `vendor/sds.rs`, which is also what
   `json_from_sds` is waiting for.
-- **Rust naming for the rest of the crate.** Types and enum variants are done
-  (above); what is left is 3,547 diagnostics over 109 files, split by what the
-  compiler can check rather than by module:
-  - 339 constants and statics (`f16dot16_precision`, the enum-adjacent consts
-    like `cff_CHARSET_UNSPECED`, the label tables) → `SCREAMING_SNAKE_CASE`,
-    ending with `allow(non_upper_case_globals)`. `f16dot16_negativeIntinity`
-    gets its C typo fixed on the way.
+- **Rust naming for the rest of the crate.** Types, enum variants, constants
+  and statics are done (above); what is left, split by what the compiler can
+  check rather than by module — counts below are the plan's original estimate
+  and, like the constants pass, likely undercounts by however much of
+  `nonstandard_style` PR #43 unmasked; re-measure at each step rather than
+  trusting these:
   - 480 local variables and parameters — file-local, so each file stands alone.
   - 1,738 functions, then inherent methods where a function is a type's
     operation (`otfcc_iHandle`'s group → `impl Handle`).
