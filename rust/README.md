@@ -563,6 +563,25 @@ the CI-matching Linux container:
     notation from the Grisu2 paper and coexist in the same function —
     `to_snake("K") == "k"` would have shadowed the real `k`. `K` stays
     C-cased for now.
+- **Functions are `snake_case`** — 1,727 names, 5,561 occurrences over 107
+  files. 3 more names (`byGID`, `parseDictKey`, `parseToCallback`) deferred to
+  the field pass for the same collide-with-a-field reason as the locals pass.
+  One file needed surgery first: `src/vf/vq.rs` had **8 pairs of functions
+  that would have collided once recased** — a `VQ_x` wrapper and an `x`
+  (lowercase) implementation, both still real, separate functions
+  (`VQ_compare`/`vqCompare`, `VQ_copy`/`vqCopy`, …). Each pair was checked
+  individually rather than assumed identical: `vqInit`/`vqCopy`/`vqDispose`
+  turned out to have no caller besides their own `VQ_` wrapper, so the
+  wrapper absorbed the body and the duplicate was deleted; `vqCompare`,
+  `vqInplacePlus`, `vqInplaceScale`, `vqInplaceNegate` and `vqNeutral` are
+  each called from *other* functions too (`vqCompare` also backs
+  `VQ_compareRef` and `VQ_equal`), so there the trivial one-line `VQ_`
+  wrapper was deleted instead and its call sites redirected to the real
+  implementation. Net effect: 8 redundant forwarding functions gone — dead
+  weight from a C source that had both an inline helper and a wrapper for it,
+  which c2rust carried over verbatim. All-payload byte comparison covered
+  this: `vf/vq.rs` backs variable-font interpolation, one of the tested
+  payloads.
 - **Standard cargo layout**: `src/lib.rs` + `src/bin/` + `src/ffi/` +
   `src/vendor/`, replacing c2rust's `src::lib::` / `src::dep::r#extern::` /
   `src::src::` scaffolding. See "Crate layout" above.
@@ -853,18 +872,18 @@ on the other platform before a commit is trusted.
   one name — but it needs a `pub sdslen` in `vendor/sds.rs`, which is also what
   `json_from_sds` is waiting for.
 - **Rust naming for the rest of the crate.** Types, enum variants, constants,
-  statics and local variables/parameters are done (above); what is left, from
-  a real measurement of `non_snake_case` (it drives functions, struct fields,
-  modules and variables together, unlike the type-only and global-only
-  lints): **1,745 functions, 717 struct fields, 12 modules** — all higher
-  than the plan's estimate, same reason as every other category (PR #43's
-  `no_mangle` removal). Plus **58 names deferred from the variable pass**
-  because their spelling is shared with a field or a function elsewhere
-  (`className` the local vs. `className` the field) — those land on whichever
-  of the next two passes claims the name, so each rename covers both sites at
-  once. Plus one hand case, `emyg_dtoa.rs`'s `K`.
-  - Functions, then inherent methods where a function is a type's operation
-    (`otfcc_iHandle`'s group → `impl Handle`).
+  statics, local variables/parameters and functions are done (above); what is
+  left: **717 struct fields, 12 modules**, plus **61 names deferred from the
+  variable and function passes** (`className` the local vs. `className` the
+  field; `byGID`/`parseDictKey`/`parseToCallback` the functions vs. the same
+  spelling as fields) — those land on whichever of the next two passes claims
+  the name, so each rename covers every site at once. Plus one hand case,
+  `emyg_dtoa.rs`'s `K`. Counts are a real measurement, not the plan's
+  original guess (every category so far has come in higher, PR #43's
+  `no_mangle` removal being the reason each time) — but re-measure again at
+  each step rather than trusting even these, since a rename pass can itself
+  shrink or reshuffle what's left (the function pass deleted 8 whole
+  functions it found colliding).
   - Struct fields, last and most carefully: **JSON keys are string literals
     and must not move with the field names**, so each site needs checking.
     The rename tool skips string and char literals for exactly this reason,
