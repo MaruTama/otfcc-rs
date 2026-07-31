@@ -47,7 +47,7 @@ use crate::table::base::{TABLE_I_BASE};
 use crate::table::cff::{TABLE_I_CFF};
 use crate::table::colr::{table_colr_free};
 use crate::table::cpal::{table_cpal_free};
-use crate::table::gdef::{TABLE_I_GDEF};
+use crate::table::gdef::{table_gdef_free};
 use crate::table::ltsh::{TABLE_I_LTSH};
 use crate::table::os_2::{TABLE_I_OS_2};
 use crate::table::svg::{TABLE_I_SVG};
@@ -290,7 +290,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
         }
         1195656518 => {
             if !(*font).gdef.is_null() {
-                TABLE_I_GDEF.free.expect("non-null function pointer")((*font).gdef);
+                table_gdef_free((*font).gdef);
                 (*font).gdef = ::core::ptr::null_mut::<GdefTable>();
             }
             return;

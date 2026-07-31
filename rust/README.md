@@ -1252,5 +1252,97 @@ on the other platform before a commit is trusted.
       read-from-charstring directions, plus `consolidate_glyph_hints`'s
       remap logic, ran for real on every `compare-with-c.sh` and
       `run-cycles.sh` invocation — no synthetic payload needed here either.
+  - **The reclassified `otl.rs` four turned out to be blocked by something the
+    survey script has no axis for at all: a `#[derive(Copy, Clone)] union`.**
+    Investigated as the next candidate after `MaskList`/`StemDefList`, since
+    the script (post-fix) said all four (`GposCursiveSubtable`,
+    `GposSingleSubtable`, `GsubSingleSubtable`, `MarkArray`) were merely
+    `Handle`-owning, same shape as `ColrLayer`/`CaretValueRecord`. But
+    `otl.rs`'s `Subtable` is `#[derive(Copy, Clone)] pub union Subtable { pub
+    gsub_single: GsubSingleSubtable, pub gpos_cursive: GposCursiveSubtable,
+    pub gpos_mark_to_single: GposMarkToSingleSubtable, … }` — every one of its
+    ten variants must stay `Copy` for the union itself to derive `Copy`/
+    `Clone` (a Rust union can't hold a non-`Copy` field without
+    `ManuallyDrop` and losing the derive entirely). `MarkArray` is embedded
+    by value inside `GposMarkToSingleSubtable`, which is itself a variant of
+    `Subtable` — so `Vec`-ifying `MarkArray` alone would cascade into
+    un-deriving the union, which cascades into every other variant type
+    across the file, which is a different and much larger undertaking than a
+    single-container conversion (likely turning `Subtable` into a tagged
+    enum eventually, but that's its own project). `GposCursiveSubtable`/
+    `GposSingleSubtable`/`GsubSingleSubtable` are variants too, so they're
+    blocked the same way. None of the three axes in `survey-containers.py`
+    (element ownership, byval-outside-file embedding, byval call signatures)
+    look inside same-file unions, so this was invisible until read by hand.
+    **Parked until `Subtable` itself is tackled** — not attempted this round.
+  - **`CaretValueList`/`LigCaretTable` → `Vec<CaretValue>`/
+    `Vec<CaretValueRecord>` (`table/gdef.rs`), picked instead once the
+    `otl.rs` four turned out blocked.** Chosen in part *because* `GdefTable`
+    (the file's outer table struct, embedding `LigCaretTable` by value) is
+    only ever touched through `*mut`/`*const` pointers crate-wide, confirmed
+    by grep before starting — no union, no by-value embedding anywhere
+    outside `table/gdef.rs` and `consolidate/otl/gdef.rs`.
+    - `CaretValue` (the innermost element) owns nothing, so `CaretValueList`
+      becomes `pub type CaretValueList = Vec<CaretValue>;` outright, same as
+      `ColrTable`/`MaskList`. `CaretValueRecord` embeds `GlyphHandle` (owns an
+      `sds` name, stays `Copy` crate-wide pending Stage 6-4) exactly like
+      `ColrMapping`, so it drops the derived `Clone`/`Copy` — but *unlike*
+      `ColrMapping`, no explicit dup function was needed: every reachability
+      check (`.copy`, `.replace`) came back dead, and the two live element
+      producers (`otfcc_read_gdef`, `lig_caret_from_json`) always build a
+      fresh `CaretValueRecord` and move it, never duplicate one.
+    - `OTL_I_CARET_VALUE`'s `init`/`copy`/`dispose` were all `None` in the
+      static initializer itself — not merely unreachable through some other
+      path, but *literally never `Some` anywhere in the file* — so the
+      per-element callback branches in the old list-copy/dispose functions
+      were dead in a stronger sense than usual. `.clear` on
+      `LigCaretTable`'s vtable turned out to share its function pointer with
+      `.dispose` (`clear: Some(otl_lig_caret_table_dispose as …)`), and
+      `.clear` *is* live from `consolidate_gdef` — so the dispose logic
+      (walk every record, dispose its `Handle`, only *then* truncate) had to
+      survive even though `.dispose` itself, called as its own field, is
+      dead. Ported as one shared `clear_lig_carets` helper used by both
+      `dispose_gdef` (whole-table teardown) and `consolidate_gdef`'s rebuild.
+    - `table_gdef_create` was still using `malloc`, and `init_gdef` assigns
+      straight into `(*gdef).lig_carets` (`= Vec::new()`) — the exact
+      `GaspTable` hazard (rust/README.md), caught and fixed proactively
+      *before* building this time by switching to `calloc`, not discovered
+      by a crash afterward.
+    - `table_gdef_copy`'s `memcpy`-based body was confirmed dead by the same
+      grep-for-the-vtable-field-call method as every prior target (only ever
+      assigned into the vtable static, never invoked through it or by name)
+      and deleted outright rather than ported to `.clone()` — a bitwise copy
+      would double-free `lig_carets` now that it owns a `Vec`.
+    - `consolidate/otl/gdef.rs`'s `GdefLigCaretHash` (a uthash-style
+      intermediate node used only while re-keying carets by consolidated
+      glyph ID) embeds `CaretValueList` by value too, and is always
+      allocated via `__caryll_allocate_clean` (calloc) — so the `.move_0`
+      calls that swap a `CaretValueList` in and out of it convert cleanly to
+      `std::mem::take`, same safe-by-convention story as `GaspTable`/
+      `CpalTable`'s calloc'd `_create` functions, not a new bug. Dropped its
+      `#[derive(Copy, Clone)]` (verified by grep: always touched through
+      `*mut`/`*const`, never copied by value).
+    - Following the `ColrTable`/`CpalTable` precedent of not stopping at the
+      element level: `GdefTableElementInterface`/`TABLE_I_GDEF` (the whole
+      outer vtable) was deleted too, even though its `.create`/`.free` were
+      live and called cross-file from `font/caryll_font.rs` — replaced with
+      plain `pub(crate)` `table_gdef_create`/`table_gdef_free` functions,
+      matching how `caryll_font.rs` already calls `table_colr_free`/
+      `table_cpal_free`/`table_vdmx_free` directly instead of through a
+      vtable.
+    - `read_lig_caret_record` returns `CaretValueRecord` by value from an
+      `extern "C" fn` — not real FFI (only ever called from
+      `otfcc_read_gdef` in the same crate), but the now-non-`repr(C)`,
+      `Vec`-owning return type trips `improper_ctypes_definitions` the same
+      way `VqSegList`'s vtable dispatch did in `vf/vq.rs` (PR #52). Silenced
+      with a function-level `#[allow(improper_ctypes_definitions)]`, not a
+      file-level one — this is the only site in the file that needs it.
+    - Verified against real, live data on both platforms:
+      `NotoNastaliqUrdu-Regular.ttf` genuinely has a non-empty `"ligCarets"`
+      block, so `otfcc_read_gdef`/`otfcc_dump_gdef`/`otfcc_parse_gdef`/
+      `otfcc_build_gdef` *and* `consolidate_gdef`'s hash-merge/mergesort path
+      (which is what actually exercises `GdefLigCaretHash` and the
+      `mem::take` moves) all ran for real on every `compare-with-c.sh` and
+      `run-cycles.sh` invocation — no synthetic payload needed.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.
