@@ -99,17 +99,22 @@ pub(crate) unsafe fn cvec_grow<T>(arr: *mut CVecRaw<T>) {
     cvec_grow_to(arr, (*arr).length.wrapping_add(1));
 }
 
+// No `T: Copy` bound: `ptr::write`/`ptr::read` move the value in and out of
+// the backing allocation without going through an implicit Copy, which is
+// what lets a container hold a non-Copy element (e.g. `Point`, once its `VQ`
+// fields own a real `Vec`). Byte-identical to the old assignment/dereference
+// form for the Copy element types that still use this.
 #[inline]
-pub(crate) unsafe fn cvec_push<T: Copy>(arr: *mut CVecRaw<T>, elem: T) {
+pub(crate) unsafe fn cvec_push<T>(arr: *mut CVecRaw<T>, elem: T) {
     cvec_grow(arr);
     let fresh = (*arr).length;
     (*arr).length = (*arr).length.wrapping_add(1);
-    *(*arr).items.offset(fresh as isize) = elem;
+    (*arr).items.offset(fresh as isize).write(elem);
 }
 
 #[inline]
-pub(crate) unsafe fn cvec_pop<T: Copy>(arr: *mut CVecRaw<T>) -> T {
-    let t = *(*arr).items.offset((*arr).length.wrapping_sub(1) as isize);
+pub(crate) unsafe fn cvec_pop<T>(arr: *mut CVecRaw<T>) -> T {
+    let t = (*arr).items.offset((*arr).length.wrapping_sub(1) as isize).read();
     (*arr).length = (*arr).length.wrapping_sub(1);
     t
 }

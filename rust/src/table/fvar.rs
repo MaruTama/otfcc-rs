@@ -1,4 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+#![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset};
 
 use crate::support::json_funcs::{json_new_position, json_numof, json_object_push_tag, preserialize};
@@ -1957,21 +1958,21 @@ pub unsafe extern "C" fn json_new_vq_segment(
         _ => return json_integer_new(0 as i64),
     };
 }
-pub unsafe extern "C" fn json_new_vq(z: VQ, mut fvar: *const FvarTable) -> *mut JsonValue {
-    if z.shift.length == 0 {
+pub unsafe extern "C" fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *mut JsonValue {
+    if z.shift.is_empty() {
         return preserialize(json_new_position(I_VQ
             .get_still
             .expect("non-null function pointer")(
             z
         )));
     } else {
-        let mut a: *mut JsonValue = json_array_new(z.shift.length.wrapping_add(1 as usize));
+        let mut a: *mut JsonValue = json_array_new(z.shift.len().wrapping_add(1 as usize));
         json_array_push(a, json_new_position(z.kernel));
         let mut j: usize = 0 as usize;
-        while j < z.shift.length {
+        while j < z.shift.len() {
             json_array_push(
                 a,
-                json_new_vq_segment(z.shift.items.offset(j as isize) as *mut VqSegment, fvar),
+                json_new_vq_segment(&raw mut z.shift[j] as *mut VqSegment, fvar),
             );
             j = j.wrapping_add(1);
         }

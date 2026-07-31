@@ -111,10 +111,10 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffe
                 PointFlags::empty()
             };
             let mut px: i32 =
-                round(I_VQ.get_still.expect("non-null function pointer")((*p).x)
+                round(I_VQ.get_still.expect("non-null function pointer")((*p).x.clone())
                     as ::core::ffi::c_double) as i32;
             let mut py: i32 =
-                round(I_VQ.get_still.expect("non-null function pointer")((*p).y)
+                round(I_VQ.get_still.expect("non-null function pointer")((*p).y.clone())
                     as ::core::ffi::c_double) as i32;
             let mut dx: i16 = (px - cx) as i16;
             let mut dy: i16 = (py - cy) as i16;
@@ -194,8 +194,8 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
             }
         } else {
             flags.insert(ComponentFlags::ARGS_ARE_XY_VALUES);
-            arg1.coord = I_VQ.get_still.expect("non-null function pointer")((*r).x) as i16;
-            arg2.coord = I_VQ.get_still.expect("non-null function pointer")((*r).y) as i16;
+            arg1.coord = I_VQ.get_still.expect("non-null function pointer")((*r).x.clone()) as i16;
+            arg2.coord = I_VQ.get_still.expect("non-null function pointer")((*r).y.clone()) as i16;
             if !((arg1.coord as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
                 && arg1.coord as ::core::ffi::c_int >= -(128 as ::core::ffi::c_int)
                 && (arg2.coord as ::core::ffi::c_int) < 128 as ::core::ffi::c_int

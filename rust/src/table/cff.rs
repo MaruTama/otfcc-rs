@@ -29,7 +29,7 @@ use crate::table::head::{HeadTable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 
 
-use crate::vf::vq::{VQ, VqSegList, VqSegment};
+use crate::vf::vq::{VQ};
 use crate::support::json_funcs::{json_numof, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds};
 use crate::libcff::cff_charset::{cff_build_charset};
 use crate::libcff::cff_codecs::{cff_encode_cff_operator};
@@ -50,7 +50,7 @@ use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_
 use crate::vendor::sds::{sdscat, sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct CffFontMatrix {
     pub a: Scale,
@@ -767,19 +767,11 @@ unsafe extern "C" fn callback_draw_lineto(
         let mut z: Point = Point {
             x: VQ {
                 kernel: 0.,
-                shift: VqSegList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<VqSegment>(),
-                },
+                shift: Vec::new(),
             },
             y: VQ {
                 kernel: 0.,
-                shift: VqSegList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<VqSegment>(),
-                },
+                shift: Vec::new(),
             },
             on_curve: 0,
         };
@@ -816,19 +808,11 @@ unsafe extern "C" fn callback_draw_curveto(
         let mut z: Point = Point {
             x: VQ {
                 kernel: 0.,
-                shift: VqSegList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<VqSegment>(),
-                },
+                shift: Vec::new(),
             },
             y: VQ {
                 kernel: 0.,
-                shift: VqSegList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<VqSegment>(),
-                },
+                shift: Vec::new(),
             },
             on_curve: 0,
         };
@@ -846,19 +830,11 @@ unsafe extern "C" fn callback_draw_curveto(
         let mut z_0: Point = Point {
             x: VQ {
                 kernel: 0.,
-                shift: VqSegList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<VqSegment>(),
-                },
+                shift: Vec::new(),
             },
             y: VQ {
                 kernel: 0.,
-                shift: VqSegList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<VqSegment>(),
-                },
+                shift: Vec::new(),
             },
             on_curve: 0,
         };
@@ -876,19 +852,11 @@ unsafe extern "C" fn callback_draw_curveto(
         let mut z_1: Point = Point {
             x: VQ {
                 kernel: 0.,
-                shift: VqSegList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<VqSegment>(),
-                },
+                shift: Vec::new(),
             },
             y: VQ {
                 kernel: 0.,
-                shift: VqSegList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<VqSegment>(),
-                },
+                shift: Vec::new(),
             },
             on_curve: 0,
         };
@@ -1191,25 +1159,25 @@ unsafe extern "C" fn build_outline(
         let mut k: ShapeId = 0 as ShapeId;
         while (k as usize) < (*contour).length {
             let mut z: *mut Point = (*contour).items.offset(k as isize) as *mut Point;
-            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cx, (*z).x);
-            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cy, (*z).y);
-            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).x, cx);
-            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).y, cy);
+            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cx, (*z).x.clone());
+            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cy, (*z).y.clone());
+            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).x, cx.clone());
+            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).y, cy.clone());
             k = k.wrapping_add(1);
         }
         if I_VQ.compare.expect("non-null function pointer")(
-            (*(*contour).items.offset(0 as ::core::ffi::c_int as isize)).x,
+            (*(*contour).items.offset(0 as ::core::ffi::c_int as isize)).x.clone(),
             (*(*contour)
                 .items
                 .offset((*contour).length.wrapping_sub(1 as usize) as isize))
-            .x,
+            .x.clone(),
         ) == 0
             && I_VQ.compare.expect("non-null function pointer")(
-                (*(*contour).items.offset(0 as ::core::ffi::c_int as isize)).y,
+                (*(*contour).items.offset(0 as ::core::ffi::c_int as isize)).y.clone(),
                 (*(*contour)
                     .items
                     .offset((*contour).length.wrapping_sub(1 as usize) as isize))
-                .y,
+                .y.clone(),
             ) == 0
             && ((*(*contour).items.offset(0 as ::core::ffi::c_int as isize)).on_curve
                 as ::core::ffi::c_int
@@ -1446,12 +1414,12 @@ unsafe extern "C" fn apply_cff_matrix(
                     * (*(*fd).font_matrix).d as ::core::ffi::c_double,
             ) as Scale;
             let mut x: VQ = I_VQ.scale.expect("non-null function pointer")(
-                (*(*fd).font_matrix).x,
+                (*(*fd).font_matrix).x.clone(),
                 (*head).units_per_em as Scale,
             );
             x.kernel = qround(x.kernel as ::core::ffi::c_double) as Pos;
             let mut y: VQ = I_VQ.scale.expect("non-null function pointer")(
-                (*(*fd).font_matrix).y,
+                (*(*fd).font_matrix).y.clone(),
                 (*head).units_per_em as Scale,
             );
             y.kernel = qround(y.kernel as ::core::ffi::c_double) as Pos;
@@ -1462,21 +1430,21 @@ unsafe extern "C" fn apply_cff_matrix(
                 let mut k: ShapeId = 0 as ShapeId;
                 while (k as usize) < (*contour).length {
                     let mut zx: VQ = I_VQ.dup.expect("non-null function pointer")(
-                        (*(*contour).items.offset(k as isize)).x,
+                        (*(*contour).items.offset(k as isize)).x.clone(),
                     );
                     let mut zy: VQ = I_VQ.dup.expect("non-null function pointer")(
-                        (*(*contour).items.offset(k as isize)).y,
+                        (*(*contour).items.offset(k as isize)).y.clone(),
                     );
                     I_VQ.replace.expect("non-null function pointer")(
                         &raw mut (*(*contour).items.offset(k as isize)).x,
                         I_VQ.point_linear_tfm.expect("non-null function pointer")(
-                            x, a as Pos, zx, b as Pos, zy,
+                            x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone(),
                         ) as VQ,
                     );
                     I_VQ.replace.expect("non-null function pointer")(
                         &raw mut (*(*contour).items.offset(k as isize)).y,
                         I_VQ.point_linear_tfm.expect("non-null function pointer")(
-                            y, c as Pos, zx, d as Pos, zy,
+                            y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone(),
                         ) as VQ,
                     );
                     I_VQ.dispose.expect("non-null function pointer")(&raw mut zx);
@@ -1929,12 +1897,12 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
         json_object_push(
             _font_matrix,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*(*table).font_matrix).x, ::core::ptr::null::<FvarTable>()),
+            json_new_vq((*(*table).font_matrix).x.clone(), ::core::ptr::null::<FvarTable>()),
         );
         json_object_push(
             _font_matrix,
             b"y\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*(*table).font_matrix).y, ::core::ptr::null::<FvarTable>()),
+            json_new_vq((*(*table).font_matrix).y.clone(), ::core::ptr::null::<FvarTable>()),
         );
         json_object_push(
             _cff,
@@ -3233,7 +3201,7 @@ unsafe extern "C" fn cff_make_fd_dict(
     cffdict_input_doubles(dict, OP_UNDERLINE_THICKNESS as u32, &[((*fd).underline_thickness) as f64]);
     cffdict_input_doubles(dict, OP_STROKE_WIDTH as u32, &[((*fd).stroke_width) as f64]);
     if !(*fd).font_matrix.is_null() {
-        cffdict_input_doubles(dict, OP_FONT_MATRIX as u32, &[((*(*fd).font_matrix).a) as f64, ((*(*fd).font_matrix).b) as f64, ((*(*fd).font_matrix).c) as f64, ((*(*fd).font_matrix).d) as f64, (I_VQ.get_still.expect("non-null function pointer")((*(*fd).font_matrix).x)) as f64, (I_VQ.get_still.expect("non-null function pointer")((*(*fd).font_matrix).y)) as f64]);
+        cffdict_input_doubles(dict, OP_FONT_MATRIX as u32, &[((*(*fd).font_matrix).a) as f64, ((*(*fd).font_matrix).b) as f64, ((*(*fd).font_matrix).c) as f64, ((*(*fd).font_matrix).d) as f64, (I_VQ.get_still.expect("non-null function pointer")((*(*fd).font_matrix).x.clone())) as f64, (I_VQ.get_still.expect("non-null function pointer")((*(*fd).font_matrix).y.clone())) as f64]);
     }
     if !(*fd).font_name.is_null() {
         cffdict_input_ints(dict, OP_FONT_NAME as u32, &[(sidof(h, (*fd).font_name)) as i32]);
