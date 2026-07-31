@@ -954,6 +954,25 @@ on the other platform before a commit is trusted.
     survivors of this category; converting `VqSegList` to a real `Vec`
     is real, careful work — everything else in this list can just use
     `Vec`'s own `Clone`/`Drop`.
+  - **Second pass, same method, next ten slot names**:
+    `pop`/`init_n`/`init_cap_n`/`create_n`/`fill`/`dispose_item`/
+    `filter_env`/`shrink_to_fit`/`sort`/`clear`. 339 of 370 instances
+    across these ten are dead by the same reachability check; the 31
+    real survivors are concentrated in `glyf` (`Contour`/`ContourList`
+    get sorted, filtered, popped and shrunk during consolidation — the
+    one table where these operations are actually exercised), a few
+    `filter_env` calls pruning unreferenced OTL lookups/features, and a
+    handful of `.sort` calls that fix dump order. Deleted the 339 dead
+    entries, then 373 functions the compiler confirmed unreachable as a
+    result (some second-order — a `_grow_to_n` helper that existed only
+    to back the `_init_n` wrapper just deleted also goes), converging in
+    one pass again. `init`/`dispose`/`copy`/`create`/`free` are left
+    alone here: mostly live (56/63/38/35/40 of ~96), so auditing them
+    down to their dead minority isn't worth it the way it was for slots
+    that are 80–100% dead. What's left of the vtable surface after these
+    two PRs is either genuinely load-bearing or small enough that a
+    per-type `Vec<T>` conversion PR can absorb whatever's left of it
+    directly.
 - Before `c/` can be deleted, freeze each payload's expected output into
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.

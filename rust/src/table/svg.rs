@@ -8,7 +8,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{ComparFn};
@@ -50,22 +50,7 @@ pub struct SvgTableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut SvgTable>,
     pub free: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut SvgTable>,
-    pub fill: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut SvgTable, SvgAssignment) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut SvgTable) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut SvgTable) -> SvgAssignment>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut SvgTable, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut SvgTable,
-            Option<unsafe extern "C" fn(*const SvgAssignment, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
     pub sort: Option<
         unsafe extern "C" fn(
             *mut SvgTable,
@@ -178,13 +163,6 @@ unsafe extern "C" fn svg_assignment_dispose(mut x: *mut SvgAssignment) {
     dispose_svg_assignment(x);
 }
 #[inline]
-unsafe extern "C" fn table_svg_create_n(mut n: usize) -> *mut SvgTable {
-    let mut t: *mut SvgTable =
-        malloc(::core::mem::size_of::<SvgTable>() as usize) as *mut SvgTable;
-    table_svg_init_n(t, n);
-    return t;
-}
-#[inline]
 unsafe fn table_svg_as_cvec(arr: *mut SvgTable) -> *mut CVecRaw<SvgAssignment> {
     arr as *mut CVecRaw<SvgAssignment>
 }
@@ -199,30 +177,7 @@ pub static TABLE_I_SVG: SvgTableVectorInterface = {
         dispose: Some(table_svg_dispose as unsafe extern "C" fn(*mut SvgTable) -> ()),
         create: Some(table_svg_create),
         free: Some(table_svg_free as unsafe extern "C" fn(*mut SvgTable) -> ()),
-        init_n: Some(table_svg_init_n as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
-        init_cap_n: Some(table_svg_init_cap_n as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
-        create_n: Some(table_svg_create_n as unsafe extern "C" fn(usize) -> *mut SvgTable),
-        fill: Some(table_svg_fill as unsafe extern "C" fn(*mut SvgTable, usize) -> ()),
-        clear: Some(table_svg_dispose as unsafe extern "C" fn(*mut SvgTable) -> ()),
         push: Some(table_svg_push as unsafe extern "C" fn(*mut SvgTable, SvgAssignment) -> ()),
-        shrink_to_fit: Some(table_svg_shrink_to_fit as unsafe extern "C" fn(*mut SvgTable) -> ()),
-        pop: Some(table_svg_pop as unsafe extern "C" fn(*mut SvgTable) -> SvgAssignment),
-        dispose_item: Some(
-            table_svg_dispose_item as unsafe extern "C" fn(*mut SvgTable, usize) -> (),
-        ),
-        filter_env: Some(
-            table_svg_filter_env
-                as unsafe extern "C" fn(
-                    *mut SvgTable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const SvgAssignment,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
         sort: Some(
             table_svg_sort
                 as unsafe extern "C" fn(
@@ -237,44 +192,6 @@ pub static TABLE_I_SVG: SvgTableVectorInterface = {
         ),
     }
 };
-#[inline]
-unsafe extern "C" fn table_svg_filter_env(
-    mut arr: *mut SvgTable,
-    mut fn_0: Option<unsafe extern "C" fn(*const SvgAssignment, *mut ::core::ffi::c_void) -> bool>,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut SvgAssignment,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if SVG_I_ASSIGNMENT.dispose.is_some() {
-                SVG_I_ASSIGNMENT.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut SvgAssignment,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
-unsafe extern "C" fn table_svg_dispose_item(mut arr: *mut SvgTable, mut n: usize) {
-    if SVG_I_ASSIGNMENT.dispose.is_some() {
-        SVG_I_ASSIGNMENT.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut SvgAssignment,
-        );
-    } else {
-    };
-}
 #[inline]
 unsafe extern "C" fn table_svg_sort(
     mut arr: *mut SvgTable,
@@ -298,36 +215,12 @@ unsafe extern "C" fn table_svg_sort(
     );
 }
 #[inline]
-unsafe extern "C" fn table_svg_fill(mut arr: *mut SvgTable, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: SvgAssignment = SvgAssignment {
-            start: 0,
-            end: 0,
-            document: ::core::ptr::null_mut::<Buffer>(),
-        };
-        if SVG_I_ASSIGNMENT.init.is_some() {
-            SVG_I_ASSIGNMENT.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<SvgAssignment>() as usize,
-            );
-        }
-        table_svg_push(arr, x);
-    }
-}
-#[inline]
 unsafe extern "C" fn table_svg_push(arr: *mut SvgTable, elem: SvgAssignment) {
     cvec_push(table_svg_as_cvec(arr), elem);
 }
 #[inline]
 unsafe extern "C" fn table_svg_grow_to(arr: *mut SvgTable, target: usize) {
     cvec_grow_to(table_svg_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn table_svg_pop(arr: *mut SvgTable) -> SvgAssignment {
-    cvec_pop(table_svg_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn table_svg_copy(mut dst: *mut SvgTable, mut src: *const SvgTable) {
@@ -375,21 +268,6 @@ unsafe extern "C" fn table_svg_dispose(mut arr: *mut SvgTable) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn table_svg_init_cap_n(mut arr: *mut SvgTable, mut n: usize) {
-    table_svg_init(arr);
-    table_svg_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn table_svg_grow_to_n(arr: *mut SvgTable, target: usize) {
-    cvec_grow_to_n(table_svg_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn table_svg_init_n(mut arr: *mut SvgTable, mut n: usize) {
-    table_svg_init(arr);
-    table_svg_grow_to_n(arr, n);
-    table_svg_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn table_svg_free(mut x: *mut SvgTable) {
     if x.is_null() {
         return;
@@ -398,19 +276,11 @@ unsafe extern "C" fn table_svg_free(mut x: *mut SvgTable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_svg_shrink_to_fit(mut arr: *mut SvgTable) {
-    table_svg_resize_to(arr, (*arr).length);
-}
-#[inline]
 unsafe extern "C" fn table_svg_create() -> *mut SvgTable {
     let mut x: *mut SvgTable =
         malloc(::core::mem::size_of::<SvgTable>() as usize) as *mut SvgTable;
     table_svg_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn table_svg_resize_to(arr: *mut SvgTable, target: usize) {
-    cvec_resize_to(table_svg_as_cvec(arr), target);
 }
 pub unsafe extern "C" fn otfcc_read_svg(
     packet: Packet,

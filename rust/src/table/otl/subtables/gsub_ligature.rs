@@ -1,10 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
+use libc::{exit, free, malloc, memcmp, memcpy, memset};
 
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
@@ -14,9 +14,9 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::support::{NULL, ComparFn};
+use crate::support::{NULL};
 use crate::table::otl::{GsubLigatureSubtableVectorInterface, GsubLigatureEntry, Subtable, GsubLigatureSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
@@ -97,10 +97,6 @@ unsafe extern "C" fn subtable_gsub_ligature_free(mut x: *mut GsubLigatureSubtabl
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_ligature_pop(arr: *mut GsubLigatureSubtable) -> GsubLigatureEntry {
-    cvec_pop(as_cvec(arr))
-}
-#[inline]
 unsafe extern "C" fn subtable_gsub_ligature_copy(
     mut dst: *mut GsubLigatureSubtable,
     mut src: *const GsubLigatureSubtable,
@@ -162,72 +158,12 @@ unsafe extern "C" fn subtable_gsub_ligature_replace(
     );
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_ligature_init_cap_n(
-    mut arr: *mut GsubLigatureSubtable,
-    mut n: usize,
-) {
-    subtable_gsub_ligature_init(arr);
-    subtable_gsub_ligature_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_grow_to_n(arr: *mut GsubLigatureSubtable, target: usize) {
-    cvec_grow_to_n(as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_init_n(
-    mut arr: *mut GsubLigatureSubtable,
-    mut n: usize,
-) {
-    subtable_gsub_ligature_init(arr);
-    subtable_gsub_ligature_grow_to_n(arr, n);
-    subtable_gsub_ligature_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
     let mut x: *mut GsubLigatureSubtable =
         malloc(::core::mem::size_of::<GsubLigatureSubtable>() as usize)
             as *mut GsubLigatureSubtable;
     subtable_gsub_ligature_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_create_n(mut n: usize) -> *mut GsubLigatureSubtable {
-    let mut t: *mut GsubLigatureSubtable =
-        malloc(::core::mem::size_of::<GsubLigatureSubtable>() as usize)
-            as *mut GsubLigatureSubtable;
-    subtable_gsub_ligature_init_n(t, n);
-    return t;
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_filter_env(
-    mut arr: *mut GsubLigatureSubtable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const GsubLigatureEntry, *mut ::core::ffi::c_void) -> bool,
-    >,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut GsubLigatureEntry,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if GSS_TYPEINFO.dispose.is_some() {
-                GSS_TYPEINFO.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut GsubLigatureEntry,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
 }
 #[inline]
 unsafe fn as_cvec(arr: *mut GsubLigatureSubtable) -> *mut CVecRaw<GsubLigatureEntry> {
@@ -261,140 +197,12 @@ pub static I_SUBTABLE_GSUB_LIGATURE: GsubLigatureSubtableVectorInterface = {
         free: Some(
             subtable_gsub_ligature_free as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> (),
         ),
-        init_n: Some(
-            subtable_gsub_ligature_init_n
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> (),
-        ),
-        init_cap_n: Some(
-            subtable_gsub_ligature_init_cap_n
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> (),
-        ),
-        create_n: Some(
-            subtable_gsub_ligature_create_n
-                as unsafe extern "C" fn(usize) -> *mut GsubLigatureSubtable,
-        ),
-        fill: Some(
-            subtable_gsub_ligature_fill
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> (),
-        ),
-        clear: Some(
-            subtable_gsub_ligature_dispose
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> (),
-        ),
         push: Some(
             subtable_gsub_ligature_push
                 as unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureEntry) -> (),
         ),
-        shrink_to_fit: Some(
-            subtable_gsub_ligature_shrink_to_fit
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> (),
-        ),
-        pop: Some(
-            subtable_gsub_ligature_pop
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> GsubLigatureEntry,
-        ),
-        dispose_item: Some(
-            subtable_gsub_ligature_dispose_item
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> (),
-        ),
-        filter_env: Some(
-            subtable_gsub_ligature_filter_env
-                as unsafe extern "C" fn(
-                    *mut GsubLigatureSubtable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const GsubLigatureEntry,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            subtable_gsub_ligature_sort
-                as unsafe extern "C" fn(
-                    *mut GsubLigatureSubtable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const GsubLigatureEntry,
-                            *const GsubLigatureEntry,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_resize_to(arr: *mut GsubLigatureSubtable, target: usize) {
-    cvec_resize_to(as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_shrink_to_fit(mut arr: *mut GsubLigatureSubtable) {
-    subtable_gsub_ligature_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_dispose_item(
-    mut arr: *mut GsubLigatureSubtable,
-    mut n: usize,
-) {
-    if GSS_TYPEINFO.dispose.is_some() {
-        GSS_TYPEINFO.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut GsubLigatureEntry
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_sort(
-    mut arr: *mut GsubLigatureSubtable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(
-            *const GsubLigatureEntry,
-            *const GsubLigatureEntry,
-        ) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<GsubLigatureEntry>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const GsubLigatureEntry,
-                    *const GsubLigatureEntry,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_fill(
-    mut arr: *mut GsubLigatureSubtable,
-    mut n: usize,
-) {
-    while (*arr).length < n {
-        let mut x: GsubLigatureEntry = GsubLigatureEntry {
-            from: ::core::ptr::null_mut::<Coverage>(),
-            to: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-            },
-        };
-        if GSS_TYPEINFO.init.is_some() {
-            GSS_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<GsubLigatureEntry>() as usize,
-            );
-        }
-        subtable_gsub_ligature_push(arr, x);
-    }
-}
 #[inline]
 unsafe extern "C" fn subtable_gsub_ligature_push(arr: *mut GsubLigatureSubtable, elem: GsubLigatureEntry) {
     cvec_push(as_cvec(arr), elem);

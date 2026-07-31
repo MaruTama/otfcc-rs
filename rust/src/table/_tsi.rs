@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memset, qsort, strcmp};
+use libc::{free, malloc, qsort, strcmp};
 use crate::support::json_funcs::{json_obj_get_type};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_copy, otfcc_handle_dispose, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
@@ -9,7 +9,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{ComparFn};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_sds};
@@ -54,22 +54,7 @@ pub struct TsiTableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut TsiTable>,
     pub free: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut TsiTable>,
-    pub fill: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut TsiTable, TsiEntry) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut TsiTable) -> TsiEntry>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut TsiTable,
-            Option<unsafe extern "C" fn(*const TsiEntry, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
     pub sort: Option<
         unsafe extern "C" fn(
             *mut TsiTable,
@@ -153,74 +138,12 @@ unsafe extern "C" fn tsi_entry_copy(mut dst: *mut TsiEntry, mut src: *const TsiE
     copy_tsi_entry(dst, src);
 }
 #[inline]
-unsafe extern "C" fn table_tsi_fill(mut arr: *mut TsiTable, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: TsiEntry = TsiEntry {
-            type_0: TsiEntryType::Glyph,
-            glyph: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-            },
-            content: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-        };
-        if TSI_I_ENTRY.init.is_some() {
-            TSI_I_ENTRY.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<TsiEntry>() as usize,
-            );
-        }
-        table_tsi_push(arr, x);
-    }
-}
-#[inline]
 unsafe fn table_tsi_as_cvec(arr: *mut TsiTable) -> *mut CVecRaw<TsiEntry> {
     arr as *mut CVecRaw<TsiEntry>
 }
 #[inline]
 unsafe extern "C" fn table_tsi_init(arr: *mut TsiTable) {
     cvec_init(table_tsi_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn table_tsi_filter_env(
-    mut arr: *mut TsiTable,
-    mut fn_0: Option<unsafe extern "C" fn(*const TsiEntry, *mut ::core::ffi::c_void) -> bool>,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut TsiEntry,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if TSI_I_ENTRY.dispose.is_some() {
-                TSI_I_ENTRY.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut TsiEntry,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
-unsafe extern "C" fn table_tsi_dispose_item(mut arr: *mut TsiTable, mut n: usize) {
-    if TSI_I_ENTRY.dispose.is_some() {
-        TSI_I_ENTRY.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut TsiEntry
-        );
-    } else {
-    };
 }
 #[inline]
 unsafe extern "C" fn table_tsi_sort(
@@ -246,25 +169,7 @@ pub static TABLE_I_TSI: TsiTableVectorInterface = {
         dispose: Some(table_tsi_dispose as unsafe extern "C" fn(*mut TsiTable) -> ()),
         create: Some(table_tsi_create),
         free: Some(table_tsi_free as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        init_n: Some(table_tsi_init_n as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
-        init_cap_n: Some(table_tsi_init_cap_n as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
-        create_n: Some(table_tsi_create_n as unsafe extern "C" fn(usize) -> *mut TsiTable),
-        fill: Some(table_tsi_fill as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
-        clear: Some(table_tsi_dispose as unsafe extern "C" fn(*mut TsiTable) -> ()),
         push: Some(table_tsi_push as unsafe extern "C" fn(*mut TsiTable, TsiEntry) -> ()),
-        shrink_to_fit: Some(table_tsi_shrink_to_fit as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        pop: Some(table_tsi_pop as unsafe extern "C" fn(*mut TsiTable) -> TsiEntry),
-        dispose_item: Some(
-            table_tsi_dispose_item as unsafe extern "C" fn(*mut TsiTable, usize) -> (),
-        ),
-        filter_env: Some(
-            table_tsi_filter_env
-                as unsafe extern "C" fn(
-                    *mut TsiTable,
-                    Option<unsafe extern "C" fn(*const TsiEntry, *mut ::core::ffi::c_void) -> bool>,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
         sort: Some(
             table_tsi_sort
                 as unsafe extern "C" fn(
@@ -286,10 +191,6 @@ unsafe extern "C" fn table_tsi_push(arr: *mut TsiTable, elem: TsiEntry) {
 #[inline]
 unsafe extern "C" fn table_tsi_grow_to(arr: *mut TsiTable, target: usize) {
     cvec_grow_to(table_tsi_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn table_tsi_pop(arr: *mut TsiTable) -> TsiEntry {
-    cvec_pop(table_tsi_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn table_tsi_copy(mut dst: *mut TsiTable, mut src: *const TsiTable) {
@@ -337,21 +238,6 @@ unsafe extern "C" fn table_tsi_dispose(mut arr: *mut TsiTable) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn table_tsi_init_cap_n(mut arr: *mut TsiTable, mut n: usize) {
-    table_tsi_init(arr);
-    table_tsi_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn table_tsi_grow_to_n(arr: *mut TsiTable, target: usize) {
-    cvec_grow_to_n(table_tsi_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn table_tsi_init_n(mut arr: *mut TsiTable, mut n: usize) {
-    table_tsi_init(arr);
-    table_tsi_grow_to_n(arr, n);
-    table_tsi_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn table_tsi_free(mut x: *mut TsiTable) {
     if x.is_null() {
         return;
@@ -360,26 +246,11 @@ unsafe extern "C" fn table_tsi_free(mut x: *mut TsiTable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_tsi_create_n(mut n: usize) -> *mut TsiTable {
-    let mut t: *mut TsiTable =
-        malloc(::core::mem::size_of::<TsiTable>() as usize) as *mut TsiTable;
-    table_tsi_init_n(t, n);
-    return t;
-}
-#[inline]
 unsafe extern "C" fn table_tsi_create() -> *mut TsiTable {
     let mut x: *mut TsiTable =
         malloc(::core::mem::size_of::<TsiTable>() as usize) as *mut TsiTable;
     table_tsi_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn table_tsi_shrink_to_fit(mut arr: *mut TsiTable) {
-    table_tsi_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn table_tsi_resize_to(arr: *mut TsiTable, target: usize) {
-    cvec_resize_to(table_tsi_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {

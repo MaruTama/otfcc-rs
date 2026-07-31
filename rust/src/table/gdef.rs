@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort};
+use libc::{free, malloc, memcpy};
 use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, preserialize};
 use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
@@ -11,11 +11,10 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, Pos, ShapeId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_move, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
-use crate::support::{ComparFn};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
@@ -54,33 +53,7 @@ pub struct CaretValueListVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut CaretValueList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CaretValueList>,
     pub free: Option<unsafe extern "C" fn(*mut CaretValueList) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut CaretValueList, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut CaretValueList, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut CaretValueList>,
-    pub fill: Option<unsafe extern "C" fn(*mut CaretValueList, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut CaretValueList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut CaretValueList, CaretValue) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut CaretValueList) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut CaretValueList) -> CaretValue>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut CaretValueList, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut CaretValueList,
-            Option<unsafe extern "C" fn(*const CaretValue, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut CaretValueList,
-            Option<
-                unsafe extern "C" fn(
-                    *const CaretValue,
-                    *const CaretValue,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -111,35 +84,8 @@ pub struct LigCaretTableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut LigCaretTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LigCaretTable>,
     pub free: Option<unsafe extern "C" fn(*mut LigCaretTable) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut LigCaretTable, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut LigCaretTable, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut LigCaretTable>,
-    pub fill: Option<unsafe extern "C" fn(*mut LigCaretTable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut LigCaretTable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut LigCaretTable, CaretValueRecord) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut LigCaretTable) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut LigCaretTable) -> CaretValueRecord>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut LigCaretTable, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut LigCaretTable,
-            Option<
-                unsafe extern "C" fn(*const CaretValueRecord, *mut ::core::ffi::c_void) -> bool,
-            >,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut LigCaretTable,
-            Option<
-                unsafe extern "C" fn(
-                    *const CaretValueRecord,
-                    *const CaretValueRecord,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -166,10 +112,6 @@ pub static OTL_I_CARET_VALUE: CaretValueElementInterface =
 #[inline]
 unsafe extern "C" fn otl_caret_value_list_grow_to(arr: *mut CaretValueList, target: usize) {
     cvec_grow_to(otl_caret_value_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_pop(arr: *mut CaretValueList) -> CaretValue {
-    cvec_pop(otl_caret_value_list_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn otl_caret_value_list_copy(
@@ -220,34 +162,12 @@ unsafe extern "C" fn otl_caret_value_list_dispose(mut arr: *mut CaretValueList) 
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn otl_caret_value_list_init_cap_n(mut arr: *mut CaretValueList, mut n: usize) {
-    otl_caret_value_list_init(arr);
-    otl_caret_value_list_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_grow_to_n(arr: *mut CaretValueList, target: usize) {
-    cvec_grow_to_n(otl_caret_value_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_init_n(mut arr: *mut CaretValueList, mut n: usize) {
-    otl_caret_value_list_init(arr);
-    otl_caret_value_list_grow_to_n(arr, n);
-    otl_caret_value_list_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn otl_caret_value_list_free(mut x: *mut CaretValueList) {
     if x.is_null() {
         return;
     }
     otl_caret_value_list_dispose(x);
     free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_create_n(mut n: usize) -> *mut CaretValueList {
-    let mut t: *mut CaretValueList =
-        malloc(::core::mem::size_of::<CaretValueList>() as usize) as *mut CaretValueList;
-    otl_caret_value_list_init_n(t, n);
-    return t;
 }
 #[inline]
 unsafe extern "C" fn otl_caret_value_list_create() -> *mut CaretValueList {
@@ -257,45 +177,8 @@ unsafe extern "C" fn otl_caret_value_list_create() -> *mut CaretValueList {
     return x;
 }
 #[inline]
-unsafe extern "C" fn otl_caret_value_list_shrink_to_fit(mut arr: *mut CaretValueList) {
-    otl_caret_value_list_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_resize_to(arr: *mut CaretValueList, target: usize) {
-    cvec_resize_to(otl_caret_value_list_as_cvec(arr), target);
-}
-#[inline]
 unsafe extern "C" fn otl_caret_value_list_move(dst: *mut CaretValueList, src: *mut CaretValueList) {
     cvec_move(otl_caret_value_list_as_cvec(dst), otl_caret_value_list_as_cvec(src));
-}
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_filter_env(
-    mut arr: *mut CaretValueList,
-    mut fn_0: Option<unsafe extern "C" fn(*const CaretValue, *mut ::core::ffi::c_void) -> bool>,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut CaretValue,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if OTL_I_CARET_VALUE.dispose.is_some() {
-                OTL_I_CARET_VALUE.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut CaretValue,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
 }
 #[inline]
 unsafe fn otl_caret_value_list_as_cvec(arr: *mut CaretValueList) -> *mut CVecRaw<CaretValue> {
@@ -325,118 +208,12 @@ pub static OTL_I_CARET_VALUE_LIST: CaretValueListVectorInterface = {
         ),
         create: Some(otl_caret_value_list_create),
         free: Some(otl_caret_value_list_free as unsafe extern "C" fn(*mut CaretValueList) -> ()),
-        init_n: Some(
-            otl_caret_value_list_init_n as unsafe extern "C" fn(*mut CaretValueList, usize) -> (),
-        ),
-        init_cap_n: Some(
-            otl_caret_value_list_init_cap_n
-                as unsafe extern "C" fn(*mut CaretValueList, usize) -> (),
-        ),
-        create_n: Some(
-            otl_caret_value_list_create_n as unsafe extern "C" fn(usize) -> *mut CaretValueList,
-        ),
-        fill: Some(
-            otl_caret_value_list_fill as unsafe extern "C" fn(*mut CaretValueList, usize) -> (),
-        ),
-        clear: Some(
-            otl_caret_value_list_dispose as unsafe extern "C" fn(*mut CaretValueList) -> (),
-        ),
         push: Some(
             otl_caret_value_list_push
                 as unsafe extern "C" fn(*mut CaretValueList, CaretValue) -> (),
         ),
-        shrink_to_fit: Some(
-            otl_caret_value_list_shrink_to_fit as unsafe extern "C" fn(*mut CaretValueList) -> (),
-        ),
-        pop: Some(
-            otl_caret_value_list_pop
-                as unsafe extern "C" fn(*mut CaretValueList) -> CaretValue,
-        ),
-        dispose_item: Some(
-            otl_caret_value_list_dispose_item
-                as unsafe extern "C" fn(*mut CaretValueList, usize) -> (),
-        ),
-        filter_env: Some(
-            otl_caret_value_list_filter_env
-                as unsafe extern "C" fn(
-                    *mut CaretValueList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const CaretValue,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            otl_caret_value_list_sort
-                as unsafe extern "C" fn(
-                    *mut CaretValueList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const CaretValue,
-                            *const CaretValue,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_sort(
-    mut arr: *mut CaretValueList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const CaretValue, *const CaretValue) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<CaretValue>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const CaretValue,
-                    *const CaretValue,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_dispose_item(
-    mut arr: *mut CaretValueList,
-    mut n: usize,
-) {
-    if OTL_I_CARET_VALUE.dispose.is_some() {
-        OTL_I_CARET_VALUE.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut CaretValue,
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_caret_value_list_fill(mut arr: *mut CaretValueList, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: CaretValue = CaretValue {
-            format: 0,
-            coordiante: 0.,
-            point_index: 0,
-        };
-        if OTL_I_CARET_VALUE.init.is_some() {
-            OTL_I_CARET_VALUE.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<CaretValue>() as usize,
-            );
-        }
-        otl_caret_value_list_push(arr, x);
-    }
-}
 #[inline]
 unsafe extern "C" fn init_gdef_lig_caret_rec(mut v: *mut CaretValueRecord) {
     (*v).glyph = otfcc_handle_empty() as GlyphHandle;
@@ -477,19 +254,6 @@ pub static OTL_I_LIG_CARET_TABLE: LigCaretTableVectorInterface = {
         ),
         create: Some(otl_lig_caret_table_create),
         free: Some(otl_lig_caret_table_free as unsafe extern "C" fn(*mut LigCaretTable) -> ()),
-        init_n: Some(
-            otl_lig_caret_table_init_n as unsafe extern "C" fn(*mut LigCaretTable, usize) -> (),
-        ),
-        init_cap_n: Some(
-            otl_lig_caret_table_init_cap_n
-                as unsafe extern "C" fn(*mut LigCaretTable, usize) -> (),
-        ),
-        create_n: Some(
-            otl_lig_caret_table_create_n as unsafe extern "C" fn(usize) -> *mut LigCaretTable,
-        ),
-        fill: Some(
-            otl_lig_caret_table_fill as unsafe extern "C" fn(*mut LigCaretTable, usize) -> (),
-        ),
         clear: Some(
             otl_lig_caret_table_dispose as unsafe extern "C" fn(*mut LigCaretTable) -> (),
         ),
@@ -497,150 +261,8 @@ pub static OTL_I_LIG_CARET_TABLE: LigCaretTableVectorInterface = {
             otl_lig_caret_table_push
                 as unsafe extern "C" fn(*mut LigCaretTable, CaretValueRecord) -> (),
         ),
-        shrink_to_fit: Some(
-            otl_lig_caret_table_shrink_to_fit as unsafe extern "C" fn(*mut LigCaretTable) -> (),
-        ),
-        pop: Some(
-            otl_lig_caret_table_pop
-                as unsafe extern "C" fn(*mut LigCaretTable) -> CaretValueRecord,
-        ),
-        dispose_item: Some(
-            otl_lig_caret_table_dispose_item
-                as unsafe extern "C" fn(*mut LigCaretTable, usize) -> (),
-        ),
-        filter_env: Some(
-            otl_lig_caret_table_filter_env
-                as unsafe extern "C" fn(
-                    *mut LigCaretTable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const CaretValueRecord,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            otl_lig_caret_table_sort
-                as unsafe extern "C" fn(
-                    *mut LigCaretTable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const CaretValueRecord,
-                            *const CaretValueRecord,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_shrink_to_fit(mut arr: *mut LigCaretTable) {
-    otl_lig_caret_table_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_resize_to(arr: *mut LigCaretTable, target: usize) {
-    cvec_resize_to(otl_lig_caret_table_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_filter_env(
-    mut arr: *mut LigCaretTable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const CaretValueRecord, *mut ::core::ffi::c_void) -> bool,
-    >,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut CaretValueRecord,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if OTL_I_CARET_VALUE_RECORD.dispose.is_some() {
-                OTL_I_CARET_VALUE_RECORD
-                    .dispose
-                    .expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut CaretValueRecord,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_dispose_item(mut arr: *mut LigCaretTable, mut n: usize) {
-    if OTL_I_CARET_VALUE_RECORD.dispose.is_some() {
-        OTL_I_CARET_VALUE_RECORD
-            .dispose
-            .expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut CaretValueRecord
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_sort(
-    mut arr: *mut LigCaretTable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(
-            *const CaretValueRecord,
-            *const CaretValueRecord,
-        ) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<CaretValueRecord>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const CaretValueRecord,
-                    *const CaretValueRecord,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_fill(mut arr: *mut LigCaretTable, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: CaretValueRecord = CaretValueRecord {
-            glyph: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-            },
-            carets: CaretValueList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<CaretValue>(),
-            },
-        };
-        if OTL_I_CARET_VALUE_RECORD.init.is_some() {
-            OTL_I_CARET_VALUE_RECORD
-                .init
-                .expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<CaretValueRecord>() as usize,
-            );
-        }
-        otl_lig_caret_table_push(arr, x);
-    }
-}
 #[inline]
 unsafe extern "C" fn otl_lig_caret_table_push(arr: *mut LigCaretTable, elem: CaretValueRecord) {
     cvec_push(otl_lig_caret_table_as_cvec(arr), elem);
@@ -648,10 +270,6 @@ unsafe extern "C" fn otl_lig_caret_table_push(arr: *mut LigCaretTable, elem: Car
 #[inline]
 unsafe extern "C" fn otl_lig_caret_table_grow_to(arr: *mut LigCaretTable, target: usize) {
     cvec_grow_to(otl_lig_caret_table_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_pop(arr: *mut LigCaretTable) -> CaretValueRecord {
-    cvec_pop(otl_lig_caret_table_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn otl_lig_caret_table_copy(
@@ -707,34 +325,12 @@ unsafe extern "C" fn otl_lig_caret_table_dispose(mut arr: *mut LigCaretTable) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn otl_lig_caret_table_init_cap_n(mut arr: *mut LigCaretTable, mut n: usize) {
-    otl_lig_caret_table_init(arr);
-    otl_lig_caret_table_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_grow_to_n(arr: *mut LigCaretTable, target: usize) {
-    cvec_grow_to_n(otl_lig_caret_table_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_init_n(mut arr: *mut LigCaretTable, mut n: usize) {
-    otl_lig_caret_table_init(arr);
-    otl_lig_caret_table_grow_to_n(arr, n);
-    otl_lig_caret_table_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn otl_lig_caret_table_free(mut x: *mut LigCaretTable) {
     if x.is_null() {
         return;
     }
     otl_lig_caret_table_dispose(x);
     free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_lig_caret_table_create_n(mut n: usize) -> *mut LigCaretTable {
-    let mut t: *mut LigCaretTable =
-        malloc(::core::mem::size_of::<LigCaretTable>() as usize) as *mut LigCaretTable;
-    otl_lig_caret_table_init_n(t, n);
-    return t;
 }
 #[inline]
 unsafe extern "C" fn otl_lig_caret_table_create() -> *mut LigCaretTable {

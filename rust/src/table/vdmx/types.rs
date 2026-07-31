@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
-use crate::support::{ComparFn};
+use libc::{free, malloc, memcpy, memset};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -34,30 +33,7 @@ pub struct VdmxGroupVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut VdmxGroup) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VdmxGroup>,
     pub free: Option<unsafe extern "C" fn(*mut VdmxGroup) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut VdmxGroup>,
-    pub fill: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut VdmxGroup) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut VdmxGroup, VdmxRecord) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut VdmxGroup) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut VdmxGroup) -> VdmxRecord>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut VdmxGroup,
-            Option<unsafe extern "C" fn(*const VdmxRecord, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut VdmxGroup,
-            Option<
-                unsafe extern "C" fn(*const VdmxRecord, *const VdmxRecord) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -91,33 +67,7 @@ pub struct VdmxRatioRangeListVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VdmxRatioRangeList>,
     pub free: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut VdmxRatioRangeList>,
-    pub fill: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, VdmxRatioRange) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList) -> VdmxRatioRange>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut VdmxRatioRangeList,
-            Option<unsafe extern "C" fn(*const VdmxRatioRange, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut VdmxRatioRangeList,
-            Option<
-                unsafe extern "C" fn(
-                    *const VdmxRatioRange,
-                    *const VdmxRatioRange,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -184,23 +134,12 @@ pub static VDMX_I_RECORD: VdmxRecordElementInterface = {
     }
 };
 #[inline]
-unsafe extern "C" fn vdmx_group_create_n(mut n: usize) -> *mut VdmxGroup {
-    let mut t: *mut VdmxGroup =
-        malloc(::core::mem::size_of::<VdmxGroup>() as usize) as *mut VdmxGroup;
-    vdmx_group_init_n(t, n);
-    return t;
-}
-#[inline]
 unsafe extern "C" fn vdmx_group_push(arr: *mut VdmxGroup, elem: VdmxRecord) {
     cvec_push(vdmx_group_as_cvec(arr), elem);
 }
 #[inline]
 unsafe extern "C" fn vdmx_group_grow_to(arr: *mut VdmxGroup, target: usize) {
     cvec_grow_to(vdmx_group_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn vdmx_group_pop(arr: *mut VdmxGroup) -> VdmxRecord {
-    cvec_pop(vdmx_group_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn vdmx_group_copy(mut dst: *mut VdmxGroup, mut src: *const VdmxGroup) {
@@ -248,21 +187,6 @@ unsafe extern "C" fn vdmx_group_dispose(mut arr: *mut VdmxGroup) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn vdmx_group_init_cap_n(mut arr: *mut VdmxGroup, mut n: usize) {
-    vdmx_group_init(arr);
-    vdmx_group_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn vdmx_group_grow_to_n(arr: *mut VdmxGroup, target: usize) {
-    cvec_grow_to_n(vdmx_group_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn vdmx_group_init_n(mut arr: *mut VdmxGroup, mut n: usize) {
-    vdmx_group_init(arr);
-    vdmx_group_grow_to_n(arr, n);
-    vdmx_group_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn vdmx_group_free(mut x: *mut VdmxGroup) {
     if x.is_null() {
         return;
@@ -271,39 +195,11 @@ unsafe extern "C" fn vdmx_group_free(mut x: *mut VdmxGroup) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn vdmx_group_shrink_to_fit(mut arr: *mut VdmxGroup) {
-    vdmx_group_resize_to(arr, (*arr).length);
-}
-#[inline]
 unsafe extern "C" fn vdmx_group_create() -> *mut VdmxGroup {
     let mut x: *mut VdmxGroup =
         malloc(::core::mem::size_of::<VdmxGroup>() as usize) as *mut VdmxGroup;
     vdmx_group_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn vdmx_group_resize_to(arr: *mut VdmxGroup, target: usize) {
-    cvec_resize_to(vdmx_group_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn vdmx_group_fill(mut arr: *mut VdmxGroup, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: VdmxRecord = VdmxRecord {
-            y_pel_height: 0,
-            y_max: 0,
-            y_min: 0,
-        };
-        if VDMX_I_RECORD.init.is_some() {
-            VDMX_I_RECORD.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<VdmxRecord>() as usize,
-            );
-        }
-        vdmx_group_push(arr, x);
-    }
 }
 #[inline]
 unsafe fn vdmx_group_as_cvec(arr: *mut VdmxGroup) -> *mut CVecRaw<VdmxRecord> {
@@ -322,98 +218,9 @@ pub static VDMX_I_GROUP: VdmxGroupVectorInterface = {
         dispose: Some(vdmx_group_dispose as unsafe extern "C" fn(*mut VdmxGroup) -> ()),
         create: Some(vdmx_group_create),
         free: Some(vdmx_group_free as unsafe extern "C" fn(*mut VdmxGroup) -> ()),
-        init_n: Some(vdmx_group_init_n as unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()),
-        init_cap_n: Some(vdmx_group_init_cap_n as unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()),
-        create_n: Some(vdmx_group_create_n as unsafe extern "C" fn(usize) -> *mut VdmxGroup),
-        fill: Some(vdmx_group_fill as unsafe extern "C" fn(*mut VdmxGroup, usize) -> ()),
-        clear: Some(vdmx_group_dispose as unsafe extern "C" fn(*mut VdmxGroup) -> ()),
         push: Some(vdmx_group_push as unsafe extern "C" fn(*mut VdmxGroup, VdmxRecord) -> ()),
-        shrink_to_fit: Some(vdmx_group_shrink_to_fit as unsafe extern "C" fn(*mut VdmxGroup) -> ()),
-        pop: Some(vdmx_group_pop as unsafe extern "C" fn(*mut VdmxGroup) -> VdmxRecord),
-        dispose_item: Some(
-            vdmx_group_dispose_item as unsafe extern "C" fn(*mut VdmxGroup, usize) -> (),
-        ),
-        filter_env: Some(
-            vdmx_group_filter_env
-                as unsafe extern "C" fn(
-                    *mut VdmxGroup,
-                    Option<
-                        unsafe extern "C" fn(*const VdmxRecord, *mut ::core::ffi::c_void) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            vdmx_group_sort
-                as unsafe extern "C" fn(
-                    *mut VdmxGroup,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const VdmxRecord,
-                            *const VdmxRecord,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn vdmx_group_filter_env(
-    mut arr: *mut VdmxGroup,
-    mut fn_0: Option<unsafe extern "C" fn(*const VdmxRecord, *mut ::core::ffi::c_void) -> bool>,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut VdmxRecord,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if VDMX_I_RECORD.dispose.is_some() {
-                VDMX_I_RECORD.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut VdmxRecord,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
-unsafe extern "C" fn vdmx_group_dispose_item(mut arr: *mut VdmxGroup, mut n: usize) {
-    if VDMX_I_RECORD.dispose.is_some() {
-        VDMX_I_RECORD.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut VdmxRecord
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn vdmx_group_sort(
-    mut arr: *mut VdmxGroup,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const VdmxRecord, *const VdmxRecord) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<VdmxRecord>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(*const VdmxRecord, *const VdmxRecord) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
 unsafe extern "C" fn init_rr(mut rr: *mut VdmxRatioRange) {
     memset(
         rr as *mut ::core::ffi::c_void,
@@ -454,18 +261,6 @@ pub static VDMX_I_RATIO_RANGE: VdmxRatioRangeElementInterface = {
         dispose: Some(vdmx_ratio_range_dispose as unsafe extern "C" fn(*mut VdmxRatioRange) -> ()),
     }
 };
-#[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_dispose_item(
-    mut arr: *mut VdmxRatioRangeList,
-    mut n: usize,
-) {
-    if VDMX_I_RATIO_RANGE.dispose.is_some() {
-        VDMX_I_RATIO_RANGE.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut VdmxRatioRange,
-        );
-    } else {
-    };
-}
 pub static VDMX_I_RATIO_RANGE_LIST: VdmxRatioRangeListVectorInterface = {
     VdmxRatioRangeListVectorInterface {
         init: Some(
@@ -482,74 +277,12 @@ pub static VDMX_I_RATIO_RANGE_LIST: VdmxRatioRangeListVectorInterface = {
         free: Some(
             vdmx_ratio_ragne_list_free as unsafe extern "C" fn(*mut VdmxRatioRangeList) -> (),
         ),
-        init_n: Some(
-            vdmx_ratio_ragne_list_init_n
-                as unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> (),
-        ),
-        init_cap_n: Some(
-            vdmx_ratio_ragne_list_init_cap_n
-                as unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> (),
-        ),
-        create_n: Some(
-            vdmx_ratio_ragne_list_create_n as unsafe extern "C" fn(usize) -> *mut VdmxRatioRangeList,
-        ),
-        fill: Some(
-            vdmx_ratio_ragne_list_fill
-                as unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> (),
-        ),
-        clear: Some(
-            vdmx_ratio_ragne_list_dispose as unsafe extern "C" fn(*mut VdmxRatioRangeList) -> (),
-        ),
         push: Some(
             vdmx_ratio_ragne_list_push
                 as unsafe extern "C" fn(*mut VdmxRatioRangeList, VdmxRatioRange) -> (),
         ),
-        shrink_to_fit: Some(
-            vdmx_ratio_ragne_list_shrink_to_fit as unsafe extern "C" fn(*mut VdmxRatioRangeList) -> (),
-        ),
-        pop: Some(
-            vdmx_ratio_ragne_list_pop
-                as unsafe extern "C" fn(*mut VdmxRatioRangeList) -> VdmxRatioRange,
-        ),
-        dispose_item: Some(
-            vdmx_ratio_ragne_list_dispose_item
-                as unsafe extern "C" fn(*mut VdmxRatioRangeList, usize) -> (),
-        ),
-        filter_env: Some(
-            vdmx_ratio_ragne_list_filter_env
-                as unsafe extern "C" fn(
-                    *mut VdmxRatioRangeList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const VdmxRatioRange,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            vdmx_ratio_ragne_list_sort
-                as unsafe extern "C" fn(
-                    *mut VdmxRatioRangeList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const VdmxRatioRange,
-                            *const VdmxRatioRange,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_shrink_to_fit(mut arr: *mut VdmxRatioRangeList) {
-    vdmx_ratio_ragne_list_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_resize_to(arr: *mut VdmxRatioRangeList, target: usize) {
-    cvec_resize_to(vdmx_ratio_ragne_list_as_cvec(arr), target);
-}
 #[inline]
 unsafe fn vdmx_ratio_ragne_list_as_cvec(arr: *mut VdmxRatioRangeList) -> *mut CVecRaw<VdmxRatioRange> {
     arr as *mut CVecRaw<VdmxRatioRange>
@@ -559,95 +292,12 @@ unsafe extern "C" fn vdmx_ratio_ragne_list_init(arr: *mut VdmxRatioRangeList) {
     cvec_init(vdmx_ratio_ragne_list_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_filter_env(
-    mut arr: *mut VdmxRatioRangeList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const VdmxRatioRange, *mut ::core::ffi::c_void) -> bool,
-    >,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut VdmxRatioRange,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if VDMX_I_RATIO_RANGE.dispose.is_some() {
-                VDMX_I_RATIO_RANGE.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut VdmxRatioRange,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_sort(
-    mut arr: *mut VdmxRatioRangeList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const VdmxRatioRange, *const VdmxRatioRange) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<VdmxRatioRange>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const VdmxRatioRange,
-                    *const VdmxRatioRange,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_fill(mut arr: *mut VdmxRatioRangeList, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: VdmxRatioRange = VdmxRatioRange {
-            b_charset: 0,
-            x_ratio: 0,
-            y_start_ratio: 0,
-            y_end_ratio: 0,
-            records: VdmxGroup {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VdmxRecord>(),
-            },
-        };
-        if VDMX_I_RATIO_RANGE.init.is_some() {
-            VDMX_I_RATIO_RANGE.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<VdmxRatioRange>() as usize,
-            );
-        }
-        vdmx_ratio_ragne_list_push(arr, x);
-    }
-}
-#[inline]
 unsafe extern "C" fn vdmx_ratio_ragne_list_push(arr: *mut VdmxRatioRangeList, elem: VdmxRatioRange) {
     cvec_push(vdmx_ratio_ragne_list_as_cvec(arr), elem);
 }
 #[inline]
 unsafe extern "C" fn vdmx_ratio_ragne_list_grow_to(arr: *mut VdmxRatioRangeList, target: usize) {
     cvec_grow_to(vdmx_ratio_ragne_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_pop(arr: *mut VdmxRatioRangeList) -> VdmxRatioRange {
-    cvec_pop(vdmx_ratio_ragne_list_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn vdmx_ratio_ragne_list_copy(
@@ -698,37 +348,12 @@ unsafe extern "C" fn vdmx_ratio_ragne_list_dispose(mut arr: *mut VdmxRatioRangeL
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_init_cap_n(
-    mut arr: *mut VdmxRatioRangeList,
-    mut n: usize,
-) {
-    vdmx_ratio_ragne_list_init(arr);
-    vdmx_ratio_ragne_list_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_grow_to_n(arr: *mut VdmxRatioRangeList, target: usize) {
-    cvec_grow_to_n(vdmx_ratio_ragne_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_init_n(mut arr: *mut VdmxRatioRangeList, mut n: usize) {
-    vdmx_ratio_ragne_list_init(arr);
-    vdmx_ratio_ragne_list_grow_to_n(arr, n);
-    vdmx_ratio_ragne_list_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn vdmx_ratio_ragne_list_free(mut x: *mut VdmxRatioRangeList) {
     if x.is_null() {
         return;
     }
     vdmx_ratio_ragne_list_dispose(x);
     free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn vdmx_ratio_ragne_list_create_n(mut n: usize) -> *mut VdmxRatioRangeList {
-    let mut t: *mut VdmxRatioRangeList =
-        malloc(::core::mem::size_of::<VdmxRatioRangeList>() as usize) as *mut VdmxRatioRangeList;
-    vdmx_ratio_ragne_list_init_n(t, n);
-    return t;
 }
 #[inline]
 unsafe extern "C" fn vdmx_ratio_ragne_list_create() -> *mut VdmxRatioRangeList {
