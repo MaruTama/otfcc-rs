@@ -17,7 +17,7 @@ use crate::support::{NULL};
 
 
 
-use crate::table::gdef::{CaretValue, CaretValueList, CaretValueRecord, GdefTable};
+use crate::table::gdef::{CaretValueList, CaretValueRecord, GdefTable, clear_lig_carets};
 
 
 
@@ -46,14 +46,9 @@ use crate::table::otl::classdef::ClassDef;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::consolidate::otl::common::{fontop_consolidate_class_def};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::gdef::{OTL_I_CARET_VALUE_LIST, OTL_I_LIG_CARET_TABLE};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
-
-
-
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GdefLigCaretHash {
     pub gid: ::core::ffi::c_int,
@@ -91,21 +86,22 @@ pub unsafe extern "C" fn consolidate_gdef(
             (*gdef).mark_attach_class_def = ::core::ptr::null_mut::<ClassDef>();
         }
     }
-    if (*gdef).lig_carets.length != 0 {
+    if !(*gdef).lig_carets.is_empty() {
+        let lig_carets: &mut Vec<CaretValueRecord> = &mut (*gdef).lig_carets;
         let mut h: *mut GdefLigCaretHash = ::core::ptr::null_mut::<GdefLigCaretHash>();
         let mut j: GlyphId = 0 as GlyphId;
-        while (j as usize) < (*gdef).lig_carets.length {
+        while (j as usize) < lig_carets.len() {
             let mut s: *mut GdefLigCaretHash = ::core::ptr::null_mut::<GdefLigCaretHash>();
             if OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
                 .expect("non-null function pointer")(
                 (*font).glyph_order,
-                &raw mut (*(*gdef).lig_carets.items.offset(j as isize)).glyph,
+                &raw mut lig_carets[j as usize].glyph,
             ) {
                 let mut gid: ::core::ffi::c_int =
-                    (*(*gdef).lig_carets.items.offset(j as isize)).glyph.index as ::core::ffi::c_int;
+                    lig_carets[j as usize].glyph.index as ::core::ffi::c_int;
                 let mut gname: SdsRaw =
-                    sdsdup((*(*gdef).lig_carets.items.offset(j as isize)).glyph.name);
+                    sdsdup(lig_carets[j as usize].glyph.name);
                 if !gname.is_null() {
                     let mut _hf_hashv: ::core::ffi::c_uint = 0;
                     let mut _hj_i: ::core::ffi::c_uint = 0;
@@ -438,12 +434,7 @@ pub unsafe extern "C" fn consolidate_gdef(
                         ) as *mut GdefLigCaretHash;
                         (*s).gid = gid;
                         (*s).name = gname;
-                        OTL_I_CARET_VALUE_LIST
-                            .move_0
-                            .expect("non-null function pointer")(
-                            &raw mut (*s).carets,
-                            &raw mut (*(*gdef).lig_carets.items.offset(j as isize)).carets,
-                        );
+                        (*s).carets = ::core::mem::take(&mut lig_carets[j as usize].carets);
                         let mut _ha_hashv: ::core::ffi::c_uint = 0;
                         let mut _hj_i_0: ::core::ffi::c_uint = 0;
                         let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -1065,7 +1056,7 @@ pub unsafe extern "C" fn consolidate_gdef(
                 _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
             }
         }
-        OTL_I_LIG_CARET_TABLE.clear.expect("non-null function pointer")(&raw mut (*gdef).lig_carets);
+        clear_lig_carets(&raw mut (*gdef).lig_carets);
         let mut s_0: *mut GdefLigCaretHash = ::core::ptr::null_mut::<GdefLigCaretHash>();
         let mut tmp: *mut GdefLigCaretHash = ::core::ptr::null_mut::<GdefLigCaretHash>();
         s_0 = h;
@@ -1076,21 +1067,9 @@ pub unsafe extern "C" fn consolidate_gdef(
                 glyph: handle_from_consolidated(
                     (*s_0).gid as GlyphId, (*s_0).name
                 ) as GlyphHandle,
-                carets: CaretValueList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<CaretValue>(),
-                },
+                carets: ::core::mem::take(&mut (*s_0).carets),
             };
-            OTL_I_CARET_VALUE_LIST
-                .move_0
-                .expect("non-null function pointer")(
-                &raw mut v.carets, &raw mut (*s_0).carets
-            );
-            OTL_I_LIG_CARET_TABLE.push.expect("non-null function pointer")(
-                &raw mut (*gdef).lig_carets,
-                v,
-            );
+            (*gdef).lig_carets.push(v);
             sdsfree((*s_0).name);
             let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s_0).hh;
             if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
