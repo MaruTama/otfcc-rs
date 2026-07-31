@@ -1,8 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memset, qsort};
+use libc::{free, malloc};
 
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle};
 use crate::support::binio::{read_16u};
 
 use crate::support::buffer::{Buffer};
@@ -10,12 +10,11 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GposSingleSubtableVectorInterface, GposSingleEntry, PositionValue, Subtable, GposSingleSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
-use crate::support::{ComparFn};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
@@ -43,41 +42,6 @@ static GSS_TYPEINFO: GposSingleEntryElementInterface = {
     }
 };
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_resize_to(arr: *mut GposSingleSubtable, target: usize) {
-    cvec_resize_to(as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_filter_env(
-    mut arr: *mut GposSingleSubtable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const GposSingleEntry, *mut ::core::ffi::c_void) -> bool,
-    >,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut GposSingleEntry,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if GSS_TYPEINFO.dispose.is_some() {
-                GSS_TYPEINFO.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut GposSingleEntry,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
 unsafe fn as_cvec(arr: *mut GposSingleSubtable) -> *mut CVecRaw<GposSingleEntry> {
     arr as *mut CVecRaw<GposSingleEntry>
 }
@@ -86,81 +50,12 @@ unsafe extern "C" fn subtable_gpos_single_init(arr: *mut GposSingleSubtable) {
     cvec_init(as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_dispose_item(
-    mut arr: *mut GposSingleSubtable,
-    mut n: usize,
-) {
-    if GSS_TYPEINFO.dispose.is_some() {
-        GSS_TYPEINFO.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut GposSingleEntry
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_sort(
-    mut arr: *mut GposSingleSubtable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(
-            *const GposSingleEntry,
-            *const GposSingleEntry,
-        ) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<GposSingleEntry>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const GposSingleEntry,
-                    *const GposSingleEntry,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_fill(mut arr: *mut GposSingleSubtable, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: GposSingleEntry = GposSingleEntry {
-            target: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-            },
-            value: PositionValue {
-                dx: 0.,
-                dy: 0.,
-                d_width: 0.,
-                d_height: 0.,
-            },
-        };
-        if GSS_TYPEINFO.init.is_some() {
-            GSS_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<GposSingleEntry>() as usize,
-            );
-        }
-        subtable_gpos_single_push(arr, x);
-    }
-}
-#[inline]
 unsafe extern "C" fn subtable_gpos_single_push(arr: *mut GposSingleSubtable, elem: GposSingleEntry) {
     cvec_push(as_cvec(arr), elem);
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_single_grow_to(arr: *mut GposSingleSubtable, target: usize) {
     cvec_grow_to(as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_pop(arr: *mut GposSingleSubtable) -> GposSingleEntry {
-    cvec_pop(as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_single_copy(
@@ -212,38 +107,12 @@ unsafe extern "C" fn subtable_gpos_single_dispose(mut arr: *mut GposSingleSubtab
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_single_init_cap_n(
-    mut arr: *mut GposSingleSubtable,
-    mut n: usize,
-) {
-    subtable_gpos_single_init(arr);
-    subtable_gpos_single_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_grow_to_n(arr: *mut GposSingleSubtable, target: usize) {
-    cvec_grow_to_n(as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_init_n(mut arr: *mut GposSingleSubtable, mut n: usize) {
-    subtable_gpos_single_init(arr);
-    subtable_gpos_single_grow_to_n(arr, n);
-    subtable_gpos_single_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn subtable_gpos_single_free(mut x: *mut GposSingleSubtable) {
     if x.is_null() {
         return;
     }
     subtable_gpos_single_dispose(x);
     free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_create_n(mut n: usize) -> *mut GposSingleSubtable {
-    let mut t: *mut GposSingleSubtable =
-        malloc(::core::mem::size_of::<GposSingleSubtable>() as usize)
-            as *mut GposSingleSubtable;
-    subtable_gpos_single_init_n(t, n);
-    return t;
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
@@ -272,22 +141,6 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
         free: Some(
             subtable_gpos_single_free as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
         ),
-        init_n: Some(
-            subtable_gpos_single_init_n
-                as unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> (),
-        ),
-        init_cap_n: Some(
-            subtable_gpos_single_init_cap_n
-                as unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> (),
-        ),
-        create_n: Some(
-            subtable_gpos_single_create_n
-                as unsafe extern "C" fn(usize) -> *mut GposSingleSubtable,
-        ),
-        fill: Some(
-            subtable_gpos_single_fill
-                as unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> (),
-        ),
         clear: Some(
             subtable_gpos_single_dispose as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
         ),
@@ -295,49 +148,8 @@ pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
             subtable_gpos_single_push
                 as unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleEntry) -> (),
         ),
-        shrink_to_fit: Some(
-            subtable_gpos_single_shrink_to_fit
-                as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
-        ),
-        pop: Some(
-            subtable_gpos_single_pop
-                as unsafe extern "C" fn(*mut GposSingleSubtable) -> GposSingleEntry,
-        ),
-        dispose_item: Some(
-            subtable_gpos_single_dispose_item
-                as unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> (),
-        ),
-        filter_env: Some(
-            subtable_gpos_single_filter_env
-                as unsafe extern "C" fn(
-                    *mut GposSingleSubtable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const GposSingleEntry,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            subtable_gpos_single_sort
-                as unsafe extern "C" fn(
-                    *mut GposSingleSubtable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const GposSingleEntry,
-                            *const GposSingleEntry,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_shrink_to_fit(mut arr: *mut GposSingleSubtable) {
-    subtable_gpos_single_resize_to(arr, (*arr).length);
-}
 pub unsafe extern "C" fn otl_read_gpos_single(
     data: FontFilePointer,
     mut table_length: u32,

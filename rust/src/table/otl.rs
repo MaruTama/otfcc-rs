@@ -8,7 +8,7 @@ pub mod parse;
 pub mod read;
 pub mod subtables;
 
-use libc::{free, malloc, memcpy, memset, qsort};
+use libc::{free, malloc, memcpy, memset};
 
 use crate::table::otl::classdef::{ClassDef};
 use crate::table::otl::coverage::{Coverage};
@@ -17,8 +17,7 @@ use crate::support::handle::{GlyphHandle, LookupHandle};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::vendor::sds::{SdsRaw};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
-use crate::support::{ComparFn};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::table::otl::subtables::gpos_cursive::{I_SUBTABLE_GPOS_CURSIVE};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{I_SUBTABLE_GPOS_MARK_TO_LIGATURE};
@@ -392,35 +391,8 @@ pub struct GsubSingleSubtableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GsubSingleSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GsubSingleSubtable>,
-    pub fill: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, GsubSingleEntry) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> GsubSingleEntry>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut GsubSingleSubtable,
-            Option<
-                unsafe extern "C" fn(*const GsubSingleEntry, *mut ::core::ffi::c_void) -> bool,
-            >,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut GsubSingleSubtable,
-            Option<
-                unsafe extern "C" fn(
-                    *const GsubSingleEntry,
-                    *const GsubSingleEntry,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -431,35 +403,8 @@ pub struct GsubMultiSubtableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GsubMultiSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GsubMultiSubtable>,
-    pub fill: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiEntry) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> GsubMultiEntry>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut GsubMultiSubtable,
-            Option<
-                unsafe extern "C" fn(*const GsubMultiEntry, *mut ::core::ffi::c_void) -> bool,
-            >,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut GsubMultiSubtable,
-            Option<
-                unsafe extern "C" fn(
-                    *const GsubMultiEntry,
-                    *const GsubMultiEntry,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -473,39 +418,8 @@ pub struct GsubLigatureSubtableVectorInterface {
         Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GsubLigatureSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GsubLigatureSubtable>,
-    pub fill: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
     pub push:
         Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureEntry) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> GsubLigatureEntry>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut GsubLigatureSubtable,
-            Option<
-                unsafe extern "C" fn(
-                    *const GsubLigatureEntry,
-                    *mut ::core::ffi::c_void,
-                ) -> bool,
-            >,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut GsubLigatureSubtable,
-            Option<
-                unsafe extern "C" fn(
-                    *const GsubLigatureEntry,
-                    *const GsubLigatureEntry,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -536,35 +450,8 @@ pub struct GposSingleSubtableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GposSingleSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GposSingleSubtable>,
-    pub fill: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleEntry) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> GposSingleEntry>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut GposSingleSubtable, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut GposSingleSubtable,
-            Option<
-                unsafe extern "C" fn(*const GposSingleEntry, *mut ::core::ffi::c_void) -> bool,
-            >,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut GposSingleSubtable,
-            Option<
-                unsafe extern "C" fn(
-                    *const GposSingleEntry,
-                    *const GposSingleEntry,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -586,35 +473,8 @@ pub struct GposCursiveSubtableVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GposCursiveSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GposCursiveSubtable>,
-    pub fill: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, GposCursiveEntry) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> GposCursiveEntry>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut GposCursiveSubtable,
-            Option<
-                unsafe extern "C" fn(*const GposCursiveEntry, *mut ::core::ffi::c_void) -> bool,
-            >,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut GposCursiveSubtable,
-            Option<
-                unsafe extern "C" fn(
-                    *const GposCursiveEntry,
-                    *const GposCursiveEntry,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -652,33 +512,7 @@ pub struct SubtableListVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut SubtableList>,
     pub free: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut SubtableList>,
-    pub fill: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut SubtableList, SubtablePtr) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut SubtableList) -> SubtablePtr>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut SubtableList, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut SubtableList,
-            Option<unsafe extern "C" fn(*const SubtablePtr, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut SubtableList,
-            Option<
-                unsafe extern "C" fn(
-                    *const SubtablePtr,
-                    *const SubtablePtr,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
     pub dispose_dependent:
         Option<unsafe extern "C" fn(*mut SubtableList, *const Lookup) -> ()>,
 }
@@ -712,31 +546,12 @@ pub struct LookupListVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LookupList>,
     pub free: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut LookupList>,
-    pub fill: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut LookupList, LookupPtr) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut LookupList) -> LookupPtr>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut LookupList, usize) -> ()>,
     pub filter_env: Option<
         unsafe extern "C" fn(
             *mut LookupList,
             Option<unsafe extern "C" fn(*const LookupPtr, *mut ::core::ffi::c_void) -> bool>,
             *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut LookupList,
-            Option<
-                unsafe extern "C" fn(
-                    *const LookupPtr,
-                    *const LookupPtr,
-                ) -> ::core::ffi::c_int,
-            >,
         ) -> (),
     >,
 }
@@ -764,31 +579,12 @@ pub struct LookupRefListVectorInterface {
     pub replace: Option<unsafe extern "C" fn(*mut LookupRefList, LookupRefList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LookupRefList>,
     pub free: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut LookupRefList>,
-    pub fill: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut LookupRefList, LookupRef) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut LookupRefList) -> LookupRef>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut LookupRefList, usize) -> ()>,
     pub filter_env: Option<
         unsafe extern "C" fn(
             *mut LookupRefList,
             Option<unsafe extern "C" fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool>,
             *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut LookupRefList,
-            Option<
-                unsafe extern "C" fn(
-                    *const LookupRef,
-                    *const LookupRef,
-                ) -> ::core::ffi::c_int,
-            >,
         ) -> (),
     >,
 }
@@ -821,31 +617,12 @@ pub struct FeatureListVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FeatureList>,
     pub free: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut FeatureList>,
-    pub fill: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut FeatureList, FeaturePtr) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut FeatureList) -> FeaturePtr>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut FeatureList, usize) -> ()>,
     pub filter_env: Option<
         unsafe extern "C" fn(
             *mut FeatureList,
             Option<unsafe extern "C" fn(*const FeaturePtr, *mut ::core::ffi::c_void) -> bool>,
             *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut FeatureList,
-            Option<
-                unsafe extern "C" fn(
-                    *const FeaturePtr,
-                    *const FeaturePtr,
-                ) -> ::core::ffi::c_int,
-            >,
         ) -> (),
     >,
 }
@@ -874,31 +651,12 @@ pub struct FeatureRefListVectorInterface {
     pub replace: Option<unsafe extern "C" fn(*mut FeatureRefList, FeatureRefList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FeatureRefList>,
     pub free: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut FeatureRefList>,
-    pub fill: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut FeatureRefList, FeatureRef) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut FeatureRefList) -> FeatureRef>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut FeatureRefList, usize) -> ()>,
     pub filter_env: Option<
         unsafe extern "C" fn(
             *mut FeatureRefList,
             Option<unsafe extern "C" fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool>,
             *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut FeatureRefList,
-            Option<
-                unsafe extern "C" fn(
-                    *const FeatureRef,
-                    *const FeatureRef,
-                ) -> ::core::ffi::c_int,
-            >,
         ) -> (),
     >,
 }
@@ -935,38 +693,7 @@ pub struct LangSystemListVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LangSystemList>,
     pub free: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut LangSystemList>,
-    pub fill: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut LangSystemList, LanguageSystemPtr) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut LangSystemList) -> LanguageSystemPtr>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut LangSystemList, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut LangSystemList,
-            Option<
-                unsafe extern "C" fn(
-                    *const LanguageSystemPtr,
-                    *mut ::core::ffi::c_void,
-                ) -> bool,
-            >,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut LangSystemList,
-            Option<
-                unsafe extern "C" fn(
-                    *const LanguageSystemPtr,
-                    *const LanguageSystemPtr,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -1116,75 +843,6 @@ unsafe extern "C" fn otl_subtable_list_dispose_dependent(
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn otl_subtable_list_filter_env(
-    mut arr: *mut SubtableList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const SubtablePtr, *mut ::core::ffi::c_void) -> bool,
-    >,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut SubtablePtr,
-            env,
-        ) {
-            if j != k {
-                let ref mut fresh1 = *(*arr).items.offset(j as isize);
-                *fresh1 = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if OTL_I_SUBTABLE_PTR.dispose.is_some() {
-                OTL_I_SUBTABLE_PTR.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut SubtablePtr,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_create_n(mut n: usize) -> *mut SubtableList {
-    let mut t: *mut SubtableList =
-        malloc(::core::mem::size_of::<SubtableList>() as usize) as *mut SubtableList;
-    otl_subtable_list_init_n(t, n);
-    return t;
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_sort(
-    mut arr: *mut SubtableList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const SubtablePtr, *const SubtablePtr) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<SubtablePtr>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const SubtablePtr,
-                    *const SubtablePtr,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_shrink_to_fit(mut arr: *mut SubtableList) {
-    otl_subtable_list_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_resize_to(arr: *mut SubtableList, target: usize) {
-    cvec_resize_to(otl_subtable_list_as_cvec(arr), target);
-}
-#[inline]
 unsafe fn otl_subtable_list_as_cvec(arr: *mut SubtableList) -> *mut CVecRaw<SubtablePtr> {
     arr as *mut CVecRaw<SubtablePtr>
 }
@@ -1208,41 +866,12 @@ unsafe extern "C" fn otl_subtable_list_create() -> *mut SubtableList {
     return x;
 }
 #[inline]
-unsafe extern "C" fn otl_subtable_list_fill(mut arr: *mut SubtableList, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: SubtablePtr = ::core::ptr::null_mut::<Subtable>();
-        if OTL_I_SUBTABLE_PTR.init.is_some() {
-            OTL_I_SUBTABLE_PTR.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<SubtablePtr>() as usize,
-            );
-        }
-        otl_subtable_list_push(arr, x);
-    }
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_dispose_item(mut arr: *mut SubtableList, mut n: usize) {
-    if OTL_I_SUBTABLE_PTR.dispose.is_some() {
-        OTL_I_SUBTABLE_PTR.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut SubtablePtr,
-        );
-    } else {
-    };
-}
-#[inline]
 unsafe extern "C" fn otl_subtable_list_push(arr: *mut SubtableList, elem: SubtablePtr) {
     cvec_push(otl_subtable_list_as_cvec(arr), elem);
 }
 #[inline]
 unsafe extern "C" fn otl_subtable_list_grow_to(arr: *mut SubtableList, target: usize) {
     cvec_grow_to(otl_subtable_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_pop(arr: *mut SubtableList) -> SubtablePtr {
-    cvec_pop(otl_subtable_list_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn otl_subtable_list_copy(
@@ -1293,21 +922,6 @@ unsafe extern "C" fn otl_subtable_list_dispose(mut arr: *mut SubtableList) {
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
 }
-#[inline]
-unsafe extern "C" fn otl_subtable_list_init_cap_n(mut arr: *mut SubtableList, mut n: usize) {
-    otl_subtable_list_init(arr);
-    otl_subtable_list_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_grow_to_n(arr: *mut SubtableList, target: usize) {
-    cvec_grow_to_n(otl_subtable_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_init_n(mut arr: *mut SubtableList, mut n: usize) {
-    otl_subtable_list_init(arr);
-    otl_subtable_list_grow_to_n(arr, n);
-    otl_subtable_list_fill(arr, n);
-}
 pub static OTL_I_SUBTABLE_LIST: SubtableListVectorInterface = {
     SubtableListVectorInterface {
         init: Some(otl_subtable_list_init as unsafe extern "C" fn(*mut SubtableList) -> ()),
@@ -1320,57 +934,9 @@ pub static OTL_I_SUBTABLE_LIST: SubtableListVectorInterface = {
         ),
         create: Some(otl_subtable_list_create),
         free: Some(otl_subtable_list_free as unsafe extern "C" fn(*mut SubtableList) -> ()),
-        init_n: Some(
-            otl_subtable_list_init_n as unsafe extern "C" fn(*mut SubtableList, usize) -> (),
-        ),
-        init_cap_n: Some(
-            otl_subtable_list_init_cap_n as unsafe extern "C" fn(*mut SubtableList, usize) -> (),
-        ),
-        create_n: Some(
-            otl_subtable_list_create_n as unsafe extern "C" fn(usize) -> *mut SubtableList,
-        ),
-        fill: Some(
-            otl_subtable_list_fill as unsafe extern "C" fn(*mut SubtableList, usize) -> (),
-        ),
-        clear: Some(otl_subtable_list_dispose as unsafe extern "C" fn(*mut SubtableList) -> ()),
         push: Some(
             otl_subtable_list_push
                 as unsafe extern "C" fn(*mut SubtableList, SubtablePtr) -> (),
-        ),
-        shrink_to_fit: Some(
-            otl_subtable_list_shrink_to_fit as unsafe extern "C" fn(*mut SubtableList) -> (),
-        ),
-        pop: Some(
-            otl_subtable_list_pop as unsafe extern "C" fn(*mut SubtableList) -> SubtablePtr,
-        ),
-        dispose_item: Some(
-            otl_subtable_list_dispose_item
-                as unsafe extern "C" fn(*mut SubtableList, usize) -> (),
-        ),
-        filter_env: Some(
-            otl_subtable_list_filter_env
-                as unsafe extern "C" fn(
-                    *mut SubtableList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const SubtablePtr,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            otl_subtable_list_sort
-                as unsafe extern "C" fn(
-                    *mut SubtableList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const SubtablePtr,
-                            *const SubtablePtr,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
         ),
         dispose_dependent: Some(
             otl_subtable_list_dispose_dependent
@@ -1432,14 +998,6 @@ unsafe extern "C" fn otl_lookup_ptr_init(mut x: *mut LookupPtr) {
     init_lookup_ptr(x);
 }
 #[inline]
-unsafe extern "C" fn otl_lookup_list_resize_to(arr: *mut LookupList, target: usize) {
-    cvec_resize_to(otl_lookup_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_shrink_to_fit(mut arr: *mut LookupList) {
-    otl_lookup_list_resize_to(arr, (*arr).length);
-}
-#[inline]
 unsafe fn otl_lookup_list_as_cvec(arr: *mut LookupList) -> *mut CVecRaw<LookupPtr> {
     arr as *mut CVecRaw<LookupPtr>
 }
@@ -1478,63 +1036,12 @@ unsafe extern "C" fn otl_lookup_list_filter_env(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn otl_lookup_list_dispose_item(mut arr: *mut LookupList, mut n: usize) {
-    if OTL_I_LOOKUP_PTR.dispose.is_some() {
-        OTL_I_LOOKUP_PTR.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut LookupPtr
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_sort(
-    mut arr: *mut LookupList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const LookupPtr, *const LookupPtr) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<LookupPtr>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const LookupPtr,
-                    *const LookupPtr,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_fill(mut arr: *mut LookupList, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: LookupPtr = ::core::ptr::null_mut::<Lookup>();
-        if OTL_I_LOOKUP_PTR.init.is_some() {
-            OTL_I_LOOKUP_PTR.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<LookupPtr>() as usize,
-            );
-        }
-        otl_lookup_list_push(arr, x);
-    }
-}
-#[inline]
 unsafe extern "C" fn otl_lookup_list_push(arr: *mut LookupList, elem: LookupPtr) {
     cvec_push(otl_lookup_list_as_cvec(arr), elem);
 }
 #[inline]
 unsafe extern "C" fn otl_lookup_list_grow_to(arr: *mut LookupList, target: usize) {
     cvec_grow_to(otl_lookup_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_pop(arr: *mut LookupList) -> LookupPtr {
-    cvec_pop(otl_lookup_list_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn otl_lookup_list_copy(
@@ -1586,34 +1093,12 @@ unsafe extern "C" fn otl_lookup_list_dispose(mut arr: *mut LookupList) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn otl_lookup_list_init_cap_n(mut arr: *mut LookupList, mut n: usize) {
-    otl_lookup_list_init(arr);
-    otl_lookup_list_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_grow_to_n(arr: *mut LookupList, target: usize) {
-    cvec_grow_to_n(otl_lookup_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_init_n(mut arr: *mut LookupList, mut n: usize) {
-    otl_lookup_list_init(arr);
-    otl_lookup_list_grow_to_n(arr, n);
-    otl_lookup_list_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn otl_lookup_list_free(mut x: *mut LookupList) {
     if x.is_null() {
         return;
     }
     otl_lookup_list_dispose(x);
     free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_create_n(mut n: usize) -> *mut LookupList {
-    let mut t: *mut LookupList =
-        malloc(::core::mem::size_of::<LookupList>() as usize) as *mut LookupList;
-    otl_lookup_list_init_n(t, n);
-    return t;
 }
 #[inline]
 unsafe extern "C" fn otl_lookup_list_create() -> *mut LookupList {
@@ -1632,26 +1117,8 @@ pub static OTL_I_LOOKUP_LIST: LookupListVectorInterface = {
         dispose: Some(otl_lookup_list_dispose as unsafe extern "C" fn(*mut LookupList) -> ()),
         create: Some(otl_lookup_list_create),
         free: Some(otl_lookup_list_free as unsafe extern "C" fn(*mut LookupList) -> ()),
-        init_n: Some(
-            otl_lookup_list_init_n as unsafe extern "C" fn(*mut LookupList, usize) -> (),
-        ),
-        init_cap_n: Some(
-            otl_lookup_list_init_cap_n as unsafe extern "C" fn(*mut LookupList, usize) -> (),
-        ),
-        create_n: Some(
-            otl_lookup_list_create_n as unsafe extern "C" fn(usize) -> *mut LookupList,
-        ),
-        fill: Some(otl_lookup_list_fill as unsafe extern "C" fn(*mut LookupList, usize) -> ()),
-        clear: Some(otl_lookup_list_dispose as unsafe extern "C" fn(*mut LookupList) -> ()),
         push: Some(
             otl_lookup_list_push as unsafe extern "C" fn(*mut LookupList, LookupPtr) -> (),
-        ),
-        shrink_to_fit: Some(
-            otl_lookup_list_shrink_to_fit as unsafe extern "C" fn(*mut LookupList) -> (),
-        ),
-        pop: Some(otl_lookup_list_pop as unsafe extern "C" fn(*mut LookupList) -> LookupPtr),
-        dispose_item: Some(
-            otl_lookup_list_dispose_item as unsafe extern "C" fn(*mut LookupList, usize) -> (),
         ),
         filter_env: Some(
             otl_lookup_list_filter_env
@@ -1664,18 +1131,6 @@ pub static OTL_I_LOOKUP_LIST: LookupListVectorInterface = {
                         ) -> bool,
                     >,
                     *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            otl_lookup_list_sort
-                as unsafe extern "C" fn(
-                    *mut LookupList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const LookupPtr,
-                            *const LookupPtr,
-                        ) -> ::core::ffi::c_int,
-                    >,
                 ) -> (),
         ),
     }
@@ -1711,10 +1166,6 @@ pub static OTL_I_LOOKUP_REF: LookupRefElementInterface = {
         dispose: Some(otl_lookup_ref_dispose as unsafe extern "C" fn(*mut LookupRef) -> ()),
     }
 };
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_pop(arr: *mut LookupRefList) -> LookupRef {
-    cvec_pop(otl_lookup_ref_list_as_cvec(arr))
-}
 pub static OTL_I_LOOKUP_REF_LIST: LookupRefListVectorInterface = {
     LookupRefListVectorInterface {
         init: Some(otl_lookup_ref_list_init as unsafe extern "C" fn(*mut LookupRefList) -> ()),
@@ -1731,35 +1182,9 @@ pub static OTL_I_LOOKUP_REF_LIST: LookupRefListVectorInterface = {
         ),
         create: Some(otl_lookup_ref_list_create),
         free: Some(otl_lookup_ref_list_free as unsafe extern "C" fn(*mut LookupRefList) -> ()),
-        init_n: Some(
-            otl_lookup_ref_list_init_n as unsafe extern "C" fn(*mut LookupRefList, usize) -> (),
-        ),
-        init_cap_n: Some(
-            otl_lookup_ref_list_init_cap_n
-                as unsafe extern "C" fn(*mut LookupRefList, usize) -> (),
-        ),
-        create_n: Some(
-            otl_lookup_ref_list_create_n as unsafe extern "C" fn(usize) -> *mut LookupRefList,
-        ),
-        fill: Some(
-            otl_lookup_ref_list_fill as unsafe extern "C" fn(*mut LookupRefList, usize) -> (),
-        ),
-        clear: Some(
-            otl_lookup_ref_list_dispose as unsafe extern "C" fn(*mut LookupRefList) -> (),
-        ),
         push: Some(
             otl_lookup_ref_list_push
                 as unsafe extern "C" fn(*mut LookupRefList, LookupRef) -> (),
-        ),
-        shrink_to_fit: Some(
-            otl_lookup_ref_list_shrink_to_fit as unsafe extern "C" fn(*mut LookupRefList) -> (),
-        ),
-        pop: Some(
-            otl_lookup_ref_list_pop as unsafe extern "C" fn(*mut LookupRefList) -> LookupRef,
-        ),
-        dispose_item: Some(
-            otl_lookup_ref_list_dispose_item
-                as unsafe extern "C" fn(*mut LookupRefList, usize) -> (),
         ),
         filter_env: Some(
             otl_lookup_ref_list_filter_env
@@ -1774,28 +1199,8 @@ pub static OTL_I_LOOKUP_REF_LIST: LookupRefListVectorInterface = {
                     *mut ::core::ffi::c_void,
                 ) -> (),
         ),
-        sort: Some(
-            otl_lookup_ref_list_sort
-                as unsafe extern "C" fn(
-                    *mut LookupRefList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const LookupRef,
-                            *const LookupRef,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_shrink_to_fit(mut arr: *mut LookupRefList) {
-    otl_lookup_ref_list_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_resize_to(arr: *mut LookupRefList, target: usize) {
-    cvec_resize_to(otl_lookup_ref_list_as_cvec(arr), target);
-}
 #[inline]
 unsafe fn otl_lookup_ref_list_as_cvec(arr: *mut LookupRefList) -> *mut CVecRaw<LookupRef> {
     arr as *mut CVecRaw<LookupRef>
@@ -1835,62 +1240,8 @@ unsafe extern "C" fn otl_lookup_ref_list_filter_env(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn otl_lookup_ref_list_dispose_item(mut arr: *mut LookupRefList, mut n: usize) {
-    if OTL_I_LOOKUP_REF.dispose.is_some() {
-        OTL_I_LOOKUP_REF.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut LookupRef
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_sort(
-    mut arr: *mut LookupRefList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const LookupRef, *const LookupRef) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<LookupRef>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const LookupRef,
-                    *const LookupRef,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_fill(mut arr: *mut LookupRefList, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: LookupRef = ::core::ptr::null::<Lookup>();
-        if OTL_I_LOOKUP_REF.init.is_some() {
-            OTL_I_LOOKUP_REF.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<LookupRef>() as usize,
-            );
-        }
-        otl_lookup_ref_list_push(arr, x);
-    }
-}
-#[inline]
 unsafe extern "C" fn otl_lookup_ref_list_push(arr: *mut LookupRefList, elem: LookupRef) {
     cvec_push(otl_lookup_ref_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_create_n(mut n: usize) -> *mut LookupRefList {
-    let mut t: *mut LookupRefList =
-        malloc(::core::mem::size_of::<LookupRefList>() as usize) as *mut LookupRefList;
-    otl_lookup_ref_list_init_n(t, n);
-    return t;
 }
 #[inline]
 unsafe extern "C" fn otl_lookup_ref_list_grow_to(arr: *mut LookupRefList, target: usize) {
@@ -1965,27 +1316,12 @@ unsafe extern "C" fn otl_lookup_ref_list_replace(
     );
 }
 #[inline]
-unsafe extern "C" fn otl_lookup_ref_list_init_cap_n(mut arr: *mut LookupRefList, mut n: usize) {
-    otl_lookup_ref_list_init(arr);
-    otl_lookup_ref_list_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_init_n(mut arr: *mut LookupRefList, mut n: usize) {
-    otl_lookup_ref_list_init(arr);
-    otl_lookup_ref_list_grow_to_n(arr, n);
-    otl_lookup_ref_list_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn otl_lookup_ref_list_free(mut x: *mut LookupRefList) {
     if x.is_null() {
         return;
     }
     otl_lookup_ref_list_dispose(x);
     free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_grow_to_n(arr: *mut LookupRefList, target: usize) {
-    cvec_grow_to_n(otl_lookup_ref_list_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn init_feature_ptr(mut feature: *mut FeaturePtr) {
@@ -2039,34 +1375,8 @@ pub static OTL_I_FEATURE_PTR: FeaturePtrElementInterface = {
     }
 };
 #[inline]
-unsafe extern "C" fn otl_feature_list_fill(mut arr: *mut FeatureList, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: FeaturePtr = ::core::ptr::null_mut::<Feature>();
-        if OTL_I_FEATURE_PTR.init.is_some() {
-            OTL_I_FEATURE_PTR.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<FeaturePtr>() as usize,
-            );
-        }
-        otl_feature_list_push(arr, x);
-    }
-}
-#[inline]
 unsafe extern "C" fn otl_feature_list_grow_to(arr: *mut FeatureList, target: usize) {
     cvec_grow_to(otl_feature_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_grow_to_n(arr: *mut FeatureList, target: usize) {
-    cvec_grow_to_n(otl_feature_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_init_n(mut arr: *mut FeatureList, mut n: usize) {
-    otl_feature_list_init(arr);
-    otl_feature_list_grow_to_n(arr, n);
-    otl_feature_list_fill(arr, n);
 }
 #[inline]
 unsafe extern "C" fn otl_feature_list_free(mut x: *mut FeatureList) {
@@ -2077,40 +1387,11 @@ unsafe extern "C" fn otl_feature_list_free(mut x: *mut FeatureList) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otl_feature_list_create_n(mut n: usize) -> *mut FeatureList {
-    let mut t: *mut FeatureList =
-        malloc(::core::mem::size_of::<FeatureList>() as usize) as *mut FeatureList;
-    otl_feature_list_init_n(t, n);
-    return t;
-}
-#[inline]
 unsafe extern "C" fn otl_feature_list_create() -> *mut FeatureList {
     let mut x: *mut FeatureList =
         malloc(::core::mem::size_of::<FeatureList>() as usize) as *mut FeatureList;
     otl_feature_list_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_sort(
-    mut arr: *mut FeatureList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const FeaturePtr, *const FeaturePtr) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<FeaturePtr>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const FeaturePtr,
-                    *const FeaturePtr,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
 }
 #[inline]
 unsafe extern "C" fn otl_feature_list_push(arr: *mut FeatureList, elem: FeaturePtr) {
@@ -2123,10 +1404,6 @@ unsafe fn otl_feature_list_as_cvec(arr: *mut FeatureList) -> *mut CVecRaw<Featur
 #[inline]
 unsafe extern "C" fn otl_feature_list_init(arr: *mut FeatureList) {
     cvec_init(otl_feature_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_pop(arr: *mut FeatureList) -> FeaturePtr {
-    cvec_pop(otl_feature_list_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn otl_feature_list_copy(
@@ -2177,11 +1454,6 @@ unsafe extern "C" fn otl_feature_list_dispose(mut arr: *mut FeatureList) {
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
 }
-#[inline]
-unsafe extern "C" fn otl_feature_list_init_cap_n(mut arr: *mut FeatureList, mut n: usize) {
-    otl_feature_list_init(arr);
-    otl_feature_list_grow_to_n(arr, n);
-}
 pub static OTL_I_FEATURE_LIST: FeatureListVectorInterface = {
     FeatureListVectorInterface {
         init: Some(otl_feature_list_init as unsafe extern "C" fn(*mut FeatureList) -> ()),
@@ -2192,31 +1464,9 @@ pub static OTL_I_FEATURE_LIST: FeatureListVectorInterface = {
         dispose: Some(otl_feature_list_dispose as unsafe extern "C" fn(*mut FeatureList) -> ()),
         create: Some(otl_feature_list_create),
         free: Some(otl_feature_list_free as unsafe extern "C" fn(*mut FeatureList) -> ()),
-        init_n: Some(
-            otl_feature_list_init_n as unsafe extern "C" fn(*mut FeatureList, usize) -> (),
-        ),
-        init_cap_n: Some(
-            otl_feature_list_init_cap_n as unsafe extern "C" fn(*mut FeatureList, usize) -> (),
-        ),
-        create_n: Some(
-            otl_feature_list_create_n as unsafe extern "C" fn(usize) -> *mut FeatureList,
-        ),
-        fill: Some(
-            otl_feature_list_fill as unsafe extern "C" fn(*mut FeatureList, usize) -> (),
-        ),
-        clear: Some(otl_feature_list_dispose as unsafe extern "C" fn(*mut FeatureList) -> ()),
         push: Some(
             otl_feature_list_push
                 as unsafe extern "C" fn(*mut FeatureList, FeaturePtr) -> (),
-        ),
-        shrink_to_fit: Some(
-            otl_feature_list_shrink_to_fit as unsafe extern "C" fn(*mut FeatureList) -> (),
-        ),
-        pop: Some(
-            otl_feature_list_pop as unsafe extern "C" fn(*mut FeatureList) -> FeaturePtr,
-        ),
-        dispose_item: Some(
-            otl_feature_list_dispose_item as unsafe extern "C" fn(*mut FeatureList, usize) -> (),
         ),
         filter_env: Some(
             otl_feature_list_filter_env
@@ -2231,28 +1481,8 @@ pub static OTL_I_FEATURE_LIST: FeatureListVectorInterface = {
                     *mut ::core::ffi::c_void,
                 ) -> (),
         ),
-        sort: Some(
-            otl_feature_list_sort
-                as unsafe extern "C" fn(
-                    *mut FeatureList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const FeaturePtr,
-                            *const FeaturePtr,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn otl_feature_list_shrink_to_fit(mut arr: *mut FeatureList) {
-    otl_feature_list_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_resize_to(arr: *mut FeatureList, target: usize) {
-    cvec_resize_to(otl_feature_list_as_cvec(arr), target);
-}
 #[inline]
 unsafe extern "C" fn otl_feature_list_filter_env(
     mut arr: *mut FeatureList,
@@ -2282,15 +1512,6 @@ unsafe extern "C" fn otl_feature_list_filter_env(
         k = k.wrapping_add(1);
     }
     (*arr).length = j;
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_dispose_item(mut arr: *mut FeatureList, mut n: usize) {
-    if OTL_I_FEATURE_PTR.dispose.is_some() {
-        OTL_I_FEATURE_PTR.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut FeaturePtr,
-        );
-    } else {
-    };
 }
 pub static OTL_I_FEATURE_REF: FeatureRefElementInterface = {
     FeatureRefElementInterface {
@@ -2324,28 +1545,8 @@ unsafe extern "C" fn otl_feature_ref_init(mut x: *mut FeatureRef) {
     );
 }
 #[inline]
-unsafe extern "C" fn otl_feature_ref_list_fill(mut arr: *mut FeatureRefList, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: FeatureRef = ::core::ptr::null::<Feature>();
-        if OTL_I_FEATURE_REF.init.is_some() {
-            OTL_I_FEATURE_REF.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<FeatureRef>() as usize,
-            );
-        }
-        otl_feature_ref_list_push(arr, x);
-    }
-}
-#[inline]
 unsafe extern "C" fn otl_feature_ref_list_grow_to(arr: *mut FeatureRefList, target: usize) {
     cvec_grow_to(otl_feature_ref_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_pop(arr: *mut FeatureRefList) -> FeatureRef {
-    cvec_pop(otl_feature_ref_list_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn otl_feature_ref_list_copy(
@@ -2409,34 +1610,12 @@ unsafe extern "C" fn otl_feature_ref_list_replace(
     );
 }
 #[inline]
-unsafe extern "C" fn otl_feature_ref_list_init_cap_n(mut arr: *mut FeatureRefList, mut n: usize) {
-    otl_feature_ref_list_init(arr);
-    otl_feature_ref_list_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_grow_to_n(arr: *mut FeatureRefList, target: usize) {
-    cvec_grow_to_n(otl_feature_ref_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_init_n(mut arr: *mut FeatureRefList, mut n: usize) {
-    otl_feature_ref_list_init(arr);
-    otl_feature_ref_list_grow_to_n(arr, n);
-    otl_feature_ref_list_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn otl_feature_ref_list_free(mut x: *mut FeatureRefList) {
     if x.is_null() {
         return;
     }
     otl_feature_ref_list_dispose(x);
     free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_create_n(mut n: usize) -> *mut FeatureRefList {
-    let mut t: *mut FeatureRefList =
-        malloc(::core::mem::size_of::<FeatureRefList>() as usize) as *mut FeatureRefList;
-    otl_feature_ref_list_init_n(t, n);
-    return t;
 }
 #[inline]
 unsafe extern "C" fn otl_feature_ref_list_create() -> *mut FeatureRefList {
@@ -2461,36 +1640,9 @@ pub static OTL_I_FEATURE_REF_LIST: FeatureRefListVectorInterface = {
         ),
         create: Some(otl_feature_ref_list_create),
         free: Some(otl_feature_ref_list_free as unsafe extern "C" fn(*mut FeatureRefList) -> ()),
-        init_n: Some(
-            otl_feature_ref_list_init_n as unsafe extern "C" fn(*mut FeatureRefList, usize) -> (),
-        ),
-        init_cap_n: Some(
-            otl_feature_ref_list_init_cap_n
-                as unsafe extern "C" fn(*mut FeatureRefList, usize) -> (),
-        ),
-        create_n: Some(
-            otl_feature_ref_list_create_n as unsafe extern "C" fn(usize) -> *mut FeatureRefList,
-        ),
-        fill: Some(
-            otl_feature_ref_list_fill as unsafe extern "C" fn(*mut FeatureRefList, usize) -> (),
-        ),
-        clear: Some(
-            otl_feature_ref_list_dispose as unsafe extern "C" fn(*mut FeatureRefList) -> (),
-        ),
         push: Some(
             otl_feature_ref_list_push
                 as unsafe extern "C" fn(*mut FeatureRefList, FeatureRef) -> (),
-        ),
-        shrink_to_fit: Some(
-            otl_feature_ref_list_shrink_to_fit as unsafe extern "C" fn(*mut FeatureRefList) -> (),
-        ),
-        pop: Some(
-            otl_feature_ref_list_pop
-                as unsafe extern "C" fn(*mut FeatureRefList) -> FeatureRef,
-        ),
-        dispose_item: Some(
-            otl_feature_ref_list_dispose_item
-                as unsafe extern "C" fn(*mut FeatureRefList, usize) -> (),
         ),
         filter_env: Some(
             otl_feature_ref_list_filter_env
@@ -2505,28 +1657,8 @@ pub static OTL_I_FEATURE_REF_LIST: FeatureRefListVectorInterface = {
                     *mut ::core::ffi::c_void,
                 ) -> (),
         ),
-        sort: Some(
-            otl_feature_ref_list_sort
-                as unsafe extern "C" fn(
-                    *mut FeatureRefList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const FeatureRef,
-                            *const FeatureRef,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_shrink_to_fit(mut arr: *mut FeatureRefList) {
-    otl_feature_ref_list_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_resize_to(arr: *mut FeatureRefList, target: usize) {
-    cvec_resize_to(otl_feature_ref_list_as_cvec(arr), target);
-}
 #[inline]
 unsafe extern "C" fn otl_feature_ref_list_filter_env(
     mut arr: *mut FeatureRefList,
@@ -2558,28 +1690,6 @@ unsafe extern "C" fn otl_feature_ref_list_filter_env(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn otl_feature_ref_list_sort(
-    mut arr: *mut FeatureRefList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const FeatureRef, *const FeatureRef) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<FeatureRef>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const FeatureRef,
-                    *const FeatureRef,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
 unsafe extern "C" fn otl_feature_ref_list_push(arr: *mut FeatureRefList, elem: FeatureRef) {
     cvec_push(otl_feature_ref_list_as_cvec(arr), elem);
 }
@@ -2590,18 +1700,6 @@ unsafe fn otl_feature_ref_list_as_cvec(arr: *mut FeatureRefList) -> *mut CVecRaw
 #[inline]
 unsafe extern "C" fn otl_feature_ref_list_init(arr: *mut FeatureRefList) {
     cvec_init(otl_feature_ref_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_dispose_item(
-    mut arr: *mut FeatureRefList,
-    mut n: usize,
-) {
-    if OTL_I_FEATURE_REF.dispose.is_some() {
-        OTL_I_FEATURE_REF.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut FeatureRef,
-        );
-    } else {
-    };
 }
 #[inline]
 unsafe extern "C" fn init_language_ptr(mut language: *mut LanguageSystemPtr) {
@@ -2633,40 +1731,6 @@ pub static OTL_I_LANGUAGE_SYSTEM: LanguageSystemPtrElementInterface = {
     }
 };
 #[inline]
-unsafe extern "C" fn otl_lang_system_list_filter_env(
-    mut arr: *mut LangSystemList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const LanguageSystemPtr, *mut ::core::ffi::c_void) -> bool,
-    >,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut LanguageSystemPtr,
-            env,
-        ) {
-            if j != k {
-                let ref mut fresh26 = *(*arr).items.offset(j as isize);
-                *fresh26 = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if OTL_I_LANGUAGE_SYSTEM.dispose.is_some() {
-                OTL_I_LANGUAGE_SYSTEM
-                    .dispose
-                    .expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut LanguageSystemPtr,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
 unsafe fn otl_lang_system_list_as_cvec(arr: *mut LangSystemList) -> *mut CVecRaw<LanguageSystemPtr> {
     arr as *mut CVecRaw<LanguageSystemPtr>
 }
@@ -2686,119 +1750,12 @@ pub static OTL_I_LANG_SYSTEM_LIST: LangSystemListVectorInterface = {
         ),
         create: Some(otl_lang_system_list_create),
         free: Some(otl_lang_system_list_free as unsafe extern "C" fn(*mut LangSystemList) -> ()),
-        init_n: Some(
-            otl_lang_system_list_init_n as unsafe extern "C" fn(*mut LangSystemList, usize) -> (),
-        ),
-        init_cap_n: Some(
-            otl_lang_system_list_init_cap_n
-                as unsafe extern "C" fn(*mut LangSystemList, usize) -> (),
-        ),
-        create_n: Some(
-            otl_lang_system_list_create_n as unsafe extern "C" fn(usize) -> *mut LangSystemList,
-        ),
-        fill: Some(
-            otl_lang_system_list_fill as unsafe extern "C" fn(*mut LangSystemList, usize) -> (),
-        ),
-        clear: Some(
-            otl_lang_system_list_dispose as unsafe extern "C" fn(*mut LangSystemList) -> (),
-        ),
         push: Some(
             otl_lang_system_list_push
                 as unsafe extern "C" fn(*mut LangSystemList, LanguageSystemPtr) -> (),
         ),
-        shrink_to_fit: Some(
-            otl_lang_system_list_shrink_to_fit as unsafe extern "C" fn(*mut LangSystemList) -> (),
-        ),
-        pop: Some(
-            otl_lang_system_list_pop
-                as unsafe extern "C" fn(*mut LangSystemList) -> LanguageSystemPtr,
-        ),
-        dispose_item: Some(
-            otl_lang_system_list_dispose_item
-                as unsafe extern "C" fn(*mut LangSystemList, usize) -> (),
-        ),
-        filter_env: Some(
-            otl_lang_system_list_filter_env
-                as unsafe extern "C" fn(
-                    *mut LangSystemList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const LanguageSystemPtr,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            otl_lang_system_list_sort
-                as unsafe extern "C" fn(
-                    *mut LangSystemList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const LanguageSystemPtr,
-                            *const LanguageSystemPtr,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_dispose_item(
-    mut arr: *mut LangSystemList,
-    mut n: usize,
-) {
-    if OTL_I_LANGUAGE_SYSTEM.dispose.is_some() {
-        OTL_I_LANGUAGE_SYSTEM
-            .dispose
-            .expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut LanguageSystemPtr
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_sort(
-    mut arr: *mut LangSystemList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(
-            *const LanguageSystemPtr,
-            *const LanguageSystemPtr,
-        ) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<LanguageSystemPtr>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const LanguageSystemPtr,
-                    *const LanguageSystemPtr,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_fill(mut arr: *mut LangSystemList, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: LanguageSystemPtr = ::core::ptr::null_mut::<LanguageSystem>();
-        if OTL_I_LANGUAGE_SYSTEM.init.is_some() {
-            OTL_I_LANGUAGE_SYSTEM.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<LanguageSystemPtr>() as usize,
-            );
-        }
-        otl_lang_system_list_push(arr, x);
-    }
-}
 #[inline]
 unsafe extern "C" fn otl_lang_system_list_push(arr: *mut LangSystemList, elem: LanguageSystemPtr) {
     cvec_push(otl_lang_system_list_as_cvec(arr), elem);
@@ -2806,10 +1763,6 @@ unsafe extern "C" fn otl_lang_system_list_push(arr: *mut LangSystemList, elem: L
 #[inline]
 unsafe extern "C" fn otl_lang_system_list_grow_to(arr: *mut LangSystemList, target: usize) {
     cvec_grow_to(otl_lang_system_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_pop(arr: *mut LangSystemList) -> LanguageSystemPtr {
-    cvec_pop(otl_lang_system_list_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn otl_lang_system_list_copy(
@@ -2864,21 +1817,6 @@ unsafe extern "C" fn otl_lang_system_list_dispose(mut arr: *mut LangSystemList) 
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn otl_lang_system_list_init_cap_n(mut arr: *mut LangSystemList, mut n: usize) {
-    otl_lang_system_list_init(arr);
-    otl_lang_system_list_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_grow_to_n(arr: *mut LangSystemList, target: usize) {
-    cvec_grow_to_n(otl_lang_system_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_init_n(mut arr: *mut LangSystemList, mut n: usize) {
-    otl_lang_system_list_init(arr);
-    otl_lang_system_list_grow_to_n(arr, n);
-    otl_lang_system_list_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn otl_lang_system_list_free(mut x: *mut LangSystemList) {
     if x.is_null() {
         return;
@@ -2887,26 +1825,11 @@ unsafe extern "C" fn otl_lang_system_list_free(mut x: *mut LangSystemList) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otl_lang_system_list_create_n(mut n: usize) -> *mut LangSystemList {
-    let mut t: *mut LangSystemList =
-        malloc(::core::mem::size_of::<LangSystemList>() as usize) as *mut LangSystemList;
-    otl_lang_system_list_init_n(t, n);
-    return t;
-}
-#[inline]
 unsafe extern "C" fn otl_lang_system_list_create() -> *mut LangSystemList {
     let mut x: *mut LangSystemList =
         malloc(::core::mem::size_of::<LangSystemList>() as usize) as *mut LangSystemList;
     otl_lang_system_list_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_shrink_to_fit(mut arr: *mut LangSystemList) {
-    otl_lang_system_list_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_resize_to(arr: *mut LangSystemList, target: usize) {
-    cvec_resize_to(otl_lang_system_list_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn init_otl(mut table: *mut OtlTable) {
@@ -2971,33 +1894,8 @@ pub struct MarkArrayVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut MarkArray>,
     pub free: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut MarkArray>,
-    pub fill: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut MarkArray, MarkRecord) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut MarkArray) -> MarkRecord>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut MarkArray, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut MarkArray,
-            Option<unsafe extern "C" fn(*const MarkRecord, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut MarkArray,
-            Option<
-                unsafe extern "C" fn(
-                    *const MarkRecord,
-                    *const MarkRecord,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 
 #[derive(Copy, Clone)]
@@ -3008,33 +1906,8 @@ pub struct BaseArrayVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut BaseArray>,
     pub free: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut BaseArray>,
-    pub fill: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut BaseArray, BaseRecord) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut BaseArray) -> BaseRecord>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut BaseArray, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut BaseArray,
-            Option<unsafe extern "C" fn(*const BaseRecord, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut BaseArray,
-            Option<
-                unsafe extern "C" fn(
-                    *const BaseRecord,
-                    *const BaseRecord,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 
 #[derive(Copy, Clone)]
@@ -3045,38 +1918,8 @@ pub struct LigatureArrayVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut LigatureArray>,
     pub free: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut LigatureArray>,
-    pub fill: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
     pub clear: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut LigatureArray, LigatureBaseRecord) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut LigatureArray) -> LigatureBaseRecord>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut LigatureArray, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut LigatureArray,
-            Option<
-                unsafe extern "C" fn(
-                    *const LigatureBaseRecord,
-                    *mut ::core::ffi::c_void,
-                ) -> bool,
-            >,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut LigatureArray,
-            Option<
-                unsafe extern "C" fn(
-                    *const LigatureBaseRecord,
-                    *const LigatureBaseRecord,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 
 #[cfg(test)]

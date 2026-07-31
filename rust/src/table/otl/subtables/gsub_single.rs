@@ -1,9 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memset, qsort};
+use libc::{free, malloc};
 
 
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, otfcc_handle_empty, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, otfcc_handle_empty, Handle, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
@@ -13,13 +13,12 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubSingleSubtableVectorInterface, GsubSingleEntry, Subtable, GsubSingleSubtable};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::vendor::uthash::{UtHashHandle};
-use crate::support::{ComparFn};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
@@ -68,37 +67,6 @@ unsafe fn as_cvec(arr: *mut GsubSingleSubtable) -> *mut CVecRaw<GsubSingleEntry>
 unsafe extern "C" fn subtable_gsub_single_init(arr: *mut GsubSingleSubtable) {
     cvec_init(as_cvec(arr));
 }
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_filter_env(
-    mut arr: *mut GsubSingleSubtable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const GsubSingleEntry, *mut ::core::ffi::c_void) -> bool,
-    >,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut GsubSingleEntry,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if GSS_TYPEINFO.dispose.is_some() {
-                GSS_TYPEINFO.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut GsubSingleEntry,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
 pub static I_SUBTABLE_GSUB_SINGLE: GsubSingleSubtableVectorInterface = {
     GsubSingleSubtableVectorInterface {
         init: Some(
@@ -118,22 +86,6 @@ pub static I_SUBTABLE_GSUB_SINGLE: GsubSingleSubtableVectorInterface = {
         free: Some(
             subtable_gsub_single_free as unsafe extern "C" fn(*mut GsubSingleSubtable) -> (),
         ),
-        init_n: Some(
-            subtable_gsub_single_init_n
-                as unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> (),
-        ),
-        init_cap_n: Some(
-            subtable_gsub_single_init_cap_n
-                as unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> (),
-        ),
-        create_n: Some(
-            subtable_gsub_single_create_n
-                as unsafe extern "C" fn(usize) -> *mut GsubSingleSubtable,
-        ),
-        fill: Some(
-            subtable_gsub_single_fill
-                as unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> (),
-        ),
         clear: Some(
             subtable_gsub_single_dispose as unsafe extern "C" fn(*mut GsubSingleSubtable) -> (),
         ),
@@ -141,117 +93,8 @@ pub static I_SUBTABLE_GSUB_SINGLE: GsubSingleSubtableVectorInterface = {
             subtable_gsub_single_push
                 as unsafe extern "C" fn(*mut GsubSingleSubtable, GsubSingleEntry) -> (),
         ),
-        shrink_to_fit: Some(
-            subtable_gsub_single_shrink_to_fit
-                as unsafe extern "C" fn(*mut GsubSingleSubtable) -> (),
-        ),
-        pop: Some(
-            subtable_gsub_single_pop
-                as unsafe extern "C" fn(*mut GsubSingleSubtable) -> GsubSingleEntry,
-        ),
-        dispose_item: Some(
-            subtable_gsub_single_dispose_item
-                as unsafe extern "C" fn(*mut GsubSingleSubtable, usize) -> (),
-        ),
-        filter_env: Some(
-            subtable_gsub_single_filter_env
-                as unsafe extern "C" fn(
-                    *mut GsubSingleSubtable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const GsubSingleEntry,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            subtable_gsub_single_sort
-                as unsafe extern "C" fn(
-                    *mut GsubSingleSubtable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const GsubSingleEntry,
-                            *const GsubSingleEntry,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_shrink_to_fit(mut arr: *mut GsubSingleSubtable) {
-    subtable_gsub_single_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_resize_to(arr: *mut GsubSingleSubtable, target: usize) {
-    cvec_resize_to(as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_dispose_item(
-    mut arr: *mut GsubSingleSubtable,
-    mut n: usize,
-) {
-    if GSS_TYPEINFO.dispose.is_some() {
-        GSS_TYPEINFO.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut GsubSingleEntry
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_sort(
-    mut arr: *mut GsubSingleSubtable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(
-            *const GsubSingleEntry,
-            *const GsubSingleEntry,
-        ) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<GsubSingleEntry>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const GsubSingleEntry,
-                    *const GsubSingleEntry,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_fill(mut arr: *mut GsubSingleSubtable, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: GsubSingleEntry = GsubSingleEntry {
-            from: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-            },
-            to: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-            },
-        };
-        if GSS_TYPEINFO.init.is_some() {
-            GSS_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<GsubSingleEntry>() as usize,
-            );
-        }
-        subtable_gsub_single_push(arr, x);
-    }
-}
 #[inline]
 unsafe extern "C" fn subtable_gsub_single_push(arr: *mut GsubSingleSubtable, elem: GsubSingleEntry) {
     cvec_push(as_cvec(arr), elem);
@@ -259,10 +102,6 @@ unsafe extern "C" fn subtable_gsub_single_push(arr: *mut GsubSingleSubtable, ele
 #[inline]
 unsafe extern "C" fn subtable_gsub_single_grow_to(arr: *mut GsubSingleSubtable, target: usize) {
     cvec_grow_to(as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_pop(arr: *mut GsubSingleSubtable) -> GsubSingleEntry {
-    cvec_pop(as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_single_copy(
@@ -314,38 +153,12 @@ unsafe extern "C" fn subtable_gsub_single_dispose(mut arr: *mut GsubSingleSubtab
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_single_init_cap_n(
-    mut arr: *mut GsubSingleSubtable,
-    mut n: usize,
-) {
-    subtable_gsub_single_init(arr);
-    subtable_gsub_single_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_grow_to_n(arr: *mut GsubSingleSubtable, target: usize) {
-    cvec_grow_to_n(as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_init_n(mut arr: *mut GsubSingleSubtable, mut n: usize) {
-    subtable_gsub_single_init(arr);
-    subtable_gsub_single_grow_to_n(arr, n);
-    subtable_gsub_single_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn subtable_gsub_single_free(mut x: *mut GsubSingleSubtable) {
     if x.is_null() {
         return;
     }
     subtable_gsub_single_dispose(x);
     free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_create_n(mut n: usize) -> *mut GsubSingleSubtable {
-    let mut t: *mut GsubSingleSubtable =
-        malloc(::core::mem::size_of::<GsubSingleSubtable>() as usize)
-            as *mut GsubSingleSubtable;
-    subtable_gsub_single_init_n(t, n);
-    return t;
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_single_create() -> *mut GsubSingleSubtable {

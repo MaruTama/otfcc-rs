@@ -18,26 +18,7 @@ pub struct VvVectorInterface {
     pub create: Option<unsafe extern "C" fn() -> *mut VV>,
     pub free: Option<unsafe extern "C" fn(*mut VV) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut VV>,
-    pub fill: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut VV) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut VV, Pos) -> ()>,
     pub shrink_to_fit: Option<unsafe extern "C" fn(*mut VV) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut VV) -> Pos>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut VV,
-            Option<unsafe extern "C" fn(*const Pos, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut VV,
-            Option<unsafe extern "C" fn(*const Pos, *const Pos) -> ::core::ffi::c_int>,
-        ) -> (),
-    >,
     pub neutral: Option<unsafe extern "C" fn(TableId) -> VV>,
 }

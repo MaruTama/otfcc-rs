@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
+use libc::{exit, free, malloc, memcmp, memcpy, memset};
 
 use crate::support::json_funcs::{json_new_position, json_numof, json_object_push_tag, preserialize};
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -8,9 +8,9 @@ use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::JsonValue;
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::support::{NULL, ComparFn};
+use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::vf::axis::{VfAxes, VfAxis};
 use crate::vf::region::{VqAxisSpan, VqRegion};
@@ -52,33 +52,8 @@ pub struct FvarInstanceListVectorInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FvarInstanceList>,
     pub free: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
-    pub init_n: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut FvarInstanceList>,
-    pub fill: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
     pub push: Option<unsafe extern "C" fn(*mut FvarInstanceList, FvarInstance) -> ()>,
     pub shrink_to_fit: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> FvarInstance>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut FvarInstanceList, usize) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut FvarInstanceList,
-            Option<unsafe extern "C" fn(*const FvarInstance, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut FvarInstanceList,
-            Option<
-                unsafe extern "C" fn(
-                    *const FvarInstance,
-                    *const FvarInstance,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -223,13 +198,6 @@ unsafe extern "C" fn fvar_instance_list_resize_to(arr: *mut FvarInstanceList, ta
     cvec_resize_to(fvar_instance_list_as_cvec(arr), target);
 }
 #[inline]
-unsafe extern "C" fn fvar_instance_list_create_n(mut n: usize) -> *mut FvarInstanceList {
-    let mut t: *mut FvarInstanceList =
-        malloc(::core::mem::size_of::<FvarInstanceList>() as usize) as *mut FvarInstanceList;
-    fvar_instance_list_init_n(t, n);
-    return t;
-}
-#[inline]
 unsafe extern "C" fn fvar_instance_list_create() -> *mut FvarInstanceList {
     let mut x: *mut FvarInstanceList =
         malloc(::core::mem::size_of::<FvarInstanceList>() as usize) as *mut FvarInstanceList;
@@ -245,101 +213,12 @@ unsafe extern "C" fn fvar_instance_list_init(arr: *mut FvarInstanceList) {
     cvec_init(fvar_instance_list_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn fvar_instance_list_filter_env(
-    mut arr: *mut FvarInstanceList,
-    mut fn_0: Option<unsafe extern "C" fn(*const FvarInstance, *mut ::core::ffi::c_void) -> bool>,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut FvarInstance,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if FVAR_I_INSTANCE.dispose.is_some() {
-                FVAR_I_INSTANCE.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut FvarInstance,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_dispose_item(mut arr: *mut FvarInstanceList, mut n: usize) {
-    if FVAR_I_INSTANCE.dispose.is_some() {
-        FVAR_I_INSTANCE.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut FvarInstance
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_sort(
-    mut arr: *mut FvarInstanceList,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const FvarInstance, *const FvarInstance) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<FvarInstance>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const FvarInstance,
-                    *const FvarInstance,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_fill(mut arr: *mut FvarInstanceList, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: FvarInstance = FvarInstance {
-            subfamily_name_id: 0,
-            flags: 0,
-            coordinates: VV {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<Pos>(),
-            },
-            post_script_name_id: 0,
-        };
-        if FVAR_I_INSTANCE.init.is_some() {
-            FVAR_I_INSTANCE.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<FvarInstance>() as usize,
-            );
-        }
-        fvar_instance_list_push(arr, x);
-    }
-}
-#[inline]
 unsafe extern "C" fn fvar_instance_list_push(arr: *mut FvarInstanceList, elem: FvarInstance) {
     cvec_push(fvar_instance_list_as_cvec(arr), elem);
 }
 #[inline]
 unsafe extern "C" fn fvar_instance_list_grow_to(arr: *mut FvarInstanceList, target: usize) {
     cvec_grow_to(fvar_instance_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_pop(arr: *mut FvarInstanceList) -> FvarInstance {
-    cvec_pop(fvar_instance_list_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn fvar_instance_list_copy(
@@ -389,15 +268,6 @@ unsafe extern "C" fn fvar_instance_list_dispose(mut arr: *mut FvarInstanceList) 
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
 }
-#[inline]
-unsafe extern "C" fn fvar_instance_list_init_cap_n(mut arr: *mut FvarInstanceList, mut n: usize) {
-    fvar_instance_list_init(arr);
-    fvar_instance_list_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_grow_to_n(arr: *mut FvarInstanceList, target: usize) {
-    cvec_grow_to_n(fvar_instance_list_as_cvec(arr), target);
-}
 pub static FVAR_I_INSTANCE_LIST: FvarInstanceListVectorInterface = {
     FvarInstanceListVectorInterface {
         init: Some(fvar_instance_list_init as unsafe extern "C" fn(*mut FvarInstanceList) -> ()),
@@ -410,22 +280,6 @@ pub static FVAR_I_INSTANCE_LIST: FvarInstanceListVectorInterface = {
         ),
         create: Some(fvar_instance_list_create),
         free: Some(fvar_instance_list_free as unsafe extern "C" fn(*mut FvarInstanceList) -> ()),
-        init_n: Some(
-            fvar_instance_list_init_n as unsafe extern "C" fn(*mut FvarInstanceList, usize) -> (),
-        ),
-        init_cap_n: Some(
-            fvar_instance_list_init_cap_n
-                as unsafe extern "C" fn(*mut FvarInstanceList, usize) -> (),
-        ),
-        create_n: Some(
-            fvar_instance_list_create_n as unsafe extern "C" fn(usize) -> *mut FvarInstanceList,
-        ),
-        fill: Some(
-            fvar_instance_list_fill as unsafe extern "C" fn(*mut FvarInstanceList, usize) -> (),
-        ),
-        clear: Some(
-            fvar_instance_list_dispose as unsafe extern "C" fn(*mut FvarInstanceList) -> (),
-        ),
         push: Some(
             fvar_instance_list_push
                 as unsafe extern "C" fn(*mut FvarInstanceList, FvarInstance) -> (),
@@ -433,46 +287,8 @@ pub static FVAR_I_INSTANCE_LIST: FvarInstanceListVectorInterface = {
         shrink_to_fit: Some(
             fvar_instance_list_shrink_to_fit as unsafe extern "C" fn(*mut FvarInstanceList) -> (),
         ),
-        pop: Some(
-            fvar_instance_list_pop as unsafe extern "C" fn(*mut FvarInstanceList) -> FvarInstance,
-        ),
-        dispose_item: Some(
-            fvar_instance_list_dispose_item
-                as unsafe extern "C" fn(*mut FvarInstanceList, usize) -> (),
-        ),
-        filter_env: Some(
-            fvar_instance_list_filter_env
-                as unsafe extern "C" fn(
-                    *mut FvarInstanceList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const FvarInstance,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            fvar_instance_list_sort
-                as unsafe extern "C" fn(
-                    *mut FvarInstanceList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const FvarInstance,
-                            *const FvarInstance,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn fvar_instance_list_init_n(mut arr: *mut FvarInstanceList, mut n: usize) {
-    fvar_instance_list_init(arr);
-    fvar_instance_list_grow_to_n(arr, n);
-    fvar_instance_list_fill(arr, n);
-}
 #[inline]
 unsafe extern "C" fn fvar_instance_list_shrink_to_fit(mut arr: *mut FvarInstanceList) {
     fvar_instance_list_resize_to(arr, (*arr).length);

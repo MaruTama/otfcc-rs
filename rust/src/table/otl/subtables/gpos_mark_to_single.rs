@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcmp, memcpy, memset, qsort, strlen};
+use libc::{free, malloc, memcmp, memcpy, strlen};
 
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
@@ -14,9 +14,9 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::support::{NULL, ComparFn};
+use crate::support::{NULL};
 use crate::table::otl::{GposMarkToSingleSubtableElementInterface, BaseArrayVectorInterface, Anchor, BaseArray, BaseRecord, Subtable, GposMarkToSingleSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::table::otl::subtables::gpos_common::{ClassNameHash};
@@ -77,23 +77,12 @@ static BA_TYPEINFO: BaseRecordElementInterface = {
     }
 };
 #[inline]
-unsafe extern "C" fn otl_base_array_create_n(mut n: usize) -> *mut BaseArray {
-    let mut t: *mut BaseArray =
-        malloc(::core::mem::size_of::<BaseArray>() as usize) as *mut BaseArray;
-    otl_base_array_init_n(t, n);
-    return t;
-}
-#[inline]
 unsafe extern "C" fn otl_base_array_push(arr: *mut BaseArray, elem: BaseRecord) {
     cvec_push(otl_base_array_as_cvec(arr), elem);
 }
 #[inline]
 unsafe extern "C" fn otl_base_array_grow_to(arr: *mut BaseArray, target: usize) {
     cvec_grow_to(otl_base_array_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_base_array_pop(arr: *mut BaseArray) -> BaseRecord {
-    cvec_pop(otl_base_array_as_cvec(arr))
 }
 #[inline]
 unsafe extern "C" fn otl_base_array_copy(
@@ -144,21 +133,6 @@ unsafe extern "C" fn otl_base_array_dispose(mut arr: *mut BaseArray) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn otl_base_array_init_cap_n(mut arr: *mut BaseArray, mut n: usize) {
-    otl_base_array_init(arr);
-    otl_base_array_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn otl_base_array_grow_to_n(arr: *mut BaseArray, target: usize) {
-    cvec_grow_to_n(otl_base_array_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_base_array_init_n(mut arr: *mut BaseArray, mut n: usize) {
-    otl_base_array_init(arr);
-    otl_base_array_grow_to_n(arr, n);
-    otl_base_array_fill(arr, n);
-}
-#[inline]
 unsafe extern "C" fn otl_base_array_free(mut x: *mut BaseArray) {
     if x.is_null() {
         return;
@@ -181,35 +155,6 @@ unsafe extern "C" fn otl_base_array_create() -> *mut BaseArray {
     otl_base_array_init(x);
     return x;
 }
-#[inline]
-unsafe extern "C" fn otl_base_array_filter_env(
-    mut arr: *mut BaseArray,
-    mut fn_0: Option<unsafe extern "C" fn(*const BaseRecord, *mut ::core::ffi::c_void) -> bool>,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut BaseRecord,
-            env,
-        ) {
-            if j != k {
-                *(*arr).items.offset(j as isize) = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if BA_TYPEINFO.dispose.is_some() {
-                BA_TYPEINFO.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut BaseRecord,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
 pub static OTL_I_BASE_ARRAY: BaseArrayVectorInterface = {
     BaseArrayVectorInterface {
         init: Some(otl_base_array_init as unsafe extern "C" fn(*mut BaseArray) -> ()),
@@ -220,112 +165,12 @@ pub static OTL_I_BASE_ARRAY: BaseArrayVectorInterface = {
         dispose: Some(otl_base_array_dispose as unsafe extern "C" fn(*mut BaseArray) -> ()),
         create: Some(otl_base_array_create),
         free: Some(otl_base_array_free as unsafe extern "C" fn(*mut BaseArray) -> ()),
-        init_n: Some(otl_base_array_init_n as unsafe extern "C" fn(*mut BaseArray, usize) -> ()),
-        init_cap_n: Some(
-            otl_base_array_init_cap_n as unsafe extern "C" fn(*mut BaseArray, usize) -> (),
-        ),
-        create_n: Some(otl_base_array_create_n as unsafe extern "C" fn(usize) -> *mut BaseArray),
-        fill: Some(otl_base_array_fill as unsafe extern "C" fn(*mut BaseArray, usize) -> ()),
         clear: Some(otl_base_array_dispose as unsafe extern "C" fn(*mut BaseArray) -> ()),
         push: Some(
             otl_base_array_push as unsafe extern "C" fn(*mut BaseArray, BaseRecord) -> (),
         ),
-        shrink_to_fit: Some(
-            otl_base_array_shrink_to_fit as unsafe extern "C" fn(*mut BaseArray) -> (),
-        ),
-        pop: Some(otl_base_array_pop as unsafe extern "C" fn(*mut BaseArray) -> BaseRecord),
-        dispose_item: Some(
-            otl_base_array_dispose_item as unsafe extern "C" fn(*mut BaseArray, usize) -> (),
-        ),
-        filter_env: Some(
-            otl_base_array_filter_env
-                as unsafe extern "C" fn(
-                    *mut BaseArray,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const BaseRecord,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-        sort: Some(
-            otl_base_array_sort
-                as unsafe extern "C" fn(
-                    *mut BaseArray,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const BaseRecord,
-                            *const BaseRecord,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn otl_base_array_shrink_to_fit(mut arr: *mut BaseArray) {
-    otl_base_array_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn otl_base_array_resize_to(arr: *mut BaseArray, target: usize) {
-    cvec_resize_to(otl_base_array_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_base_array_dispose_item(mut arr: *mut BaseArray, mut n: usize) {
-    if BA_TYPEINFO.dispose.is_some() {
-        BA_TYPEINFO.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut BaseRecord
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_base_array_sort(
-    mut arr: *mut BaseArray,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const BaseRecord, *const BaseRecord) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<BaseRecord>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const BaseRecord,
-                    *const BaseRecord,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_base_array_fill(mut arr: *mut BaseArray, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: BaseRecord = BaseRecord {
-            glyph: Handle {
-                state: HandleState::Empty,
-                index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-            },
-            anchors: ::core::ptr::null_mut::<Anchor>(),
-        };
-        if BA_TYPEINFO.init.is_some() {
-            BA_TYPEINFO.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<BaseRecord>() as usize,
-            );
-        }
-        otl_base_array_push(arr, x);
-    }
-}
 #[inline]
 unsafe extern "C" fn init_mark_to_single(mut subtable: *mut GposMarkToSingleSubtable) {
     OTL_I_MARK_ARRAY.init.expect("non-null function pointer")(&raw mut (*subtable).mark_array);
