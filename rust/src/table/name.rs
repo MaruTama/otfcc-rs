@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort};
+use libc::{free, malloc};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint};
 use crate::support::binio::{read_16u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -8,9 +8,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::support::{ComparFn};
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite16b, bufwrite_buf, bufwrite_bytes};
@@ -27,40 +25,16 @@ pub struct NameRecord {
     pub name_id: u16,
     pub name_string: SdsRaw,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct NameRecordElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut NameRecord) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut NameRecord, *const NameRecord) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut NameRecord) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct NameTable {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut NameRecord,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct NameTableVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut NameTable, *const NameTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut NameTable>,
-    pub free: Option<unsafe extern "C" fn(*mut NameTable) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut NameTable, NameRecord) -> ()>,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut NameTable,
-            Option<
-                unsafe extern "C" fn(
-                    *const NameRecord,
-                    *const NameRecord,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
+pub type NameTable = Vec<NameRecord>;
+// `NameRecord` stays `Copy` (like `MetaEntry` -- an owned `sds` field doesn't
+// block it, only a `Handle` embedding does, and even then only because of the
+// explicit-dup convention). Safe here specifically because `TABLE_I_NAME.copy`
+// (whole-table clone) was dead before this conversion and is deleted outright
+// below, not ported -- nothing ever relies on `Vec<NameRecord>: Clone` doing a
+// deep copy.
+unsafe fn dispose_name_record(r: *mut NameRecord) {
+    sdsfree((*r).name_string);
+    (*r).name_string = ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
 #[inline]
 unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
@@ -93,173 +67,34 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     return 0 as usize;
 }
 pub const COPYRIGHT_LEN: ::core::ffi::c_int = 32 as ::core::ffi::c_int;
-unsafe extern "C" fn name_record_dtor(mut entry: *mut NameRecord) {
-    sdsfree((*entry).name_string);
-    (*entry).name_string = ::core::ptr::null_mut::<::core::ffi::c_char>();
-}
-#[inline]
-unsafe extern "C" fn otfcc_name_record_init(mut x: *mut NameRecord) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<NameRecord>() as usize,
-    );
-}
-pub static OTFCC_I_NAME_RECORD: NameRecordElementInterface = {
-    NameRecordElementInterface {
-        init: Some(otfcc_name_record_init as unsafe extern "C" fn(*mut NameRecord) -> ()),
-        copy: Some(
-            otfcc_name_record_copy
-                as unsafe extern "C" fn(*mut NameRecord, *const NameRecord) -> (),
-        ),
-        dispose: Some(
-            otfcc_name_record_dispose as unsafe extern "C" fn(*mut NameRecord) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn otfcc_name_record_dispose(mut x: *mut NameRecord) {
-    name_record_dtor(x);
-}
-#[inline]
-unsafe extern "C" fn otfcc_name_record_copy(
-    mut dst: *mut NameRecord,
-    mut src: *const NameRecord,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<NameRecord>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_name_grow_to(arr: *mut NameTable, target: usize) {
-    cvec_grow_to(table_name_as_cvec(arr), target);
-}
-#[inline]
-unsafe fn table_name_as_cvec(arr: *mut NameTable) -> *mut CVecRaw<NameRecord> {
-    arr as *mut CVecRaw<NameRecord>
-}
-#[inline]
-unsafe extern "C" fn table_name_init(arr: *mut NameTable) {
-    cvec_init(table_name_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn table_name_sort(
-    mut arr: *mut NameTable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(
-            *const NameRecord,
-            *const NameRecord,
-        ) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<NameRecord>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const NameRecord,
-                    *const NameRecord,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn table_name_push(arr: *mut NameTable, elem: NameRecord) {
-    cvec_push(table_name_as_cvec(arr), elem);
-}
-pub static TABLE_I_NAME: NameTableVectorInterface = {
-    NameTableVectorInterface {
-        init: Some(table_name_init as unsafe extern "C" fn(*mut NameTable) -> ()),
-        copy: Some(
-            table_name_copy as unsafe extern "C" fn(*mut NameTable, *const NameTable) -> (),
-        ),
-        dispose: Some(table_name_dispose as unsafe extern "C" fn(*mut NameTable) -> ()),
-        create: Some(table_name_create),
-        free: Some(table_name_free as unsafe extern "C" fn(*mut NameTable) -> ()),
-        push: Some(
-            table_name_push as unsafe extern "C" fn(*mut NameTable, NameRecord) -> (),
-        ),
-        sort: Some(
-            table_name_sort
-                as unsafe extern "C" fn(
-                    *mut NameTable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const NameRecord,
-                            *const NameRecord,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn table_name_copy(mut dst: *mut NameTable, mut src: *const NameTable) {
-    table_name_init(dst);
-    table_name_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if OTFCC_I_NAME_RECORD.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            OTFCC_I_NAME_RECORD.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut NameRecord,
-                (*src).items.offset(j as isize) as *mut NameRecord as *const NameRecord,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn table_name_dispose(mut arr: *mut NameTable) {
+// `table_name_dispose`'s job: free every record's `name_string` before the
+// backing `Vec` itself is dropped/reset (`NameRecord` owns `name_string` but
+// isn't wrapped in a `Drop` impl -- same convention as `MetaEntry`/
+// `CaretValueRecord`).
+unsafe fn table_name_dispose(arr: *mut NameTable) {
     if arr.is_null() {
         return;
     }
-    if OTFCC_I_NAME_RECORD.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            OTFCC_I_NAME_RECORD
-                .dispose
-                .expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut NameRecord
-            );
-        }
+    for r in (*arr).iter_mut() {
+        dispose_name_record(r as *mut NameRecord);
     }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<NameRecord>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
+    (*arr).clear();
 }
-#[inline]
-unsafe extern "C" fn table_name_free(mut x: *mut NameTable) {
+pub(crate) unsafe fn table_name_free(x: *mut NameTable) {
     if x.is_null() {
         return;
     }
     table_name_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[inline]
-unsafe extern "C" fn table_name_create() -> *mut NameTable {
-    let mut x: *mut NameTable =
-        malloc(::core::mem::size_of::<NameTable>() as usize) as *mut NameTable;
-    table_name_init(x);
-    return x;
+pub(crate) unsafe fn table_name_create() -> *mut NameTable {
+    // `.write()`, not a field assignment: `NameTable` is directly `Vec<T>`
+    // (no wrapper struct), so this placement-constructs the whole value and
+    // never reads whatever `malloc` left behind -- same reasoning as
+    // `ColrTable`/`MaskList`'s `table_*_create`.
+    let x: *mut NameTable = malloc(::core::mem::size_of::<NameTable>() as usize) as *mut NameTable;
+    x.write(Vec::new());
+    x
 }
 unsafe extern "C" fn should_decode_as_utf16(mut record: *const NameRecord) -> bool {
     return (*record).platform_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
@@ -306,8 +141,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                         if !(length
                             < (6 as u32).wrapping_add((12 as u32).wrapping_mul(count)))
                         {
-                            name = (
-                                TABLE_I_NAME.create.expect("non-null function pointer"))();
+                            name = table_name_create();
                             let mut j: u16 = 0 as u16;
                             while (j as u32) < count {
                                 let mut record: NameRecord = NameRecord {
@@ -399,7 +233,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                                     free(buf as *mut ::core::ffi::c_void);
                                     buf = ::core::ptr::null_mut::<u8>();
                                 }
-                                TABLE_I_NAME.push.expect("non-null function pointer")(name, record);
+                                (*name).push(record);
                                 j = j.wrapping_add(1);
                             }
                             return name;
@@ -414,7 +248,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                         crate::sdsbuild!(sdsempty(), b"table 'name' corrupted.\n"),
                     );
                     if !name.is_null() {
-                        TABLE_I_NAME.free.expect("non-null function pointer")(name);
+                        table_name_free(name);
                         name = ::core::ptr::null_mut::<NameTable>();
                     }
                     __fortable_k2 = 0 as ::core::ffi::c_int;
@@ -442,13 +276,13 @@ pub unsafe extern "C" fn otfcc_dump_name(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"name"),
     );
+    let records: &Vec<NameRecord> = &*name;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _name: *mut JsonValue = json_array_new((*name).length);
+        let mut _name: *mut JsonValue = json_array_new(records.len());
         let mut j: u16 = 0 as u16;
-        while (j as usize) < (*name).length {
-            let mut r: *mut NameRecord =
-                (*name).items.offset(j as isize) as *mut NameRecord;
+        while (j as usize) < records.len() {
+            let r: *const NameRecord = &records[j as usize];
             let mut record: *mut JsonValue = json_object_new(5 as usize);
             json_object_push(
                 record,
@@ -492,27 +326,11 @@ pub unsafe extern "C" fn otfcc_dump_name(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-unsafe extern "C" fn name_record_sort(
-    mut a: *const NameRecord,
-    mut b: *const NameRecord,
-) -> ::core::ffi::c_int {
-    if (*a).platform_id as ::core::ffi::c_int != (*b).platform_id as ::core::ffi::c_int {
-        return (*a).platform_id as ::core::ffi::c_int - (*b).platform_id as ::core::ffi::c_int;
-    }
-    if (*a).encoding_id as ::core::ffi::c_int != (*b).encoding_id as ::core::ffi::c_int {
-        return (*a).encoding_id as ::core::ffi::c_int - (*b).encoding_id as ::core::ffi::c_int;
-    }
-    if (*a).language_id as ::core::ffi::c_int != (*b).language_id as ::core::ffi::c_int {
-        return (*a).language_id as ::core::ffi::c_int - (*b).language_id as ::core::ffi::c_int;
-    }
-    return (*a).name_id as ::core::ffi::c_int - (*b).name_id as ::core::ffi::c_int;
-}
 pub unsafe extern "C" fn otfcc_parse_name(
     mut root: *const JsonValue,
     mut options: *const Options,
 ) -> *mut NameTable {
-    let mut name: *mut NameTable = (
-        TABLE_I_NAME.create.expect("non-null function pointer"))();
+    let mut name: *mut NameTable = table_name_create();
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -668,21 +486,18 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             (*str).u.string.ptr as *const ::core::ffi::c_void,
                             (*str).u.string.length as usize,
                         );
-                        TABLE_I_NAME.push.expect("non-null function pointer")(name, record);
+                        (*name).push(record);
                     }
                 }
                 j = j.wrapping_add(1);
             }
-            TABLE_I_NAME.sort.expect("non-null function pointer")(
-                name,
-                Some(
-                    name_record_sort
-                        as unsafe extern "C" fn(
-                            *const NameRecord,
-                            *const NameRecord,
-                        ) -> ::core::ffi::c_int,
-                ),
-            );
+            (*name).sort_by(|a, b| {
+                a.platform_id
+                    .cmp(&b.platform_id)
+                    .then(a.encoding_id.cmp(&b.encoding_id))
+                    .then(a.language_id.cmp(&b.language_id))
+                    .then(a.name_id.cmp(&b.name_id))
+            });
             ___loggedstep_v = false;
             (*(*options).logger)
                 .finish
@@ -700,15 +515,15 @@ pub unsafe extern "C" fn otfcc_build_name(
     if name.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
+    let records: &Vec<NameRecord> = &*name;
     let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 0 as u16);
-    bufwrite16b(buf, (*name).length as u16);
+    bufwrite16b(buf, records.len() as u16);
     bufwrite16b(buf, 0 as u16);
     let mut strings: *mut Buffer = bufnew();
     let mut j: u16 = 0 as u16;
-    while (j as usize) < (*name).length {
-        let mut record: *mut NameRecord =
-            (*name).items.offset(j as isize) as *mut NameRecord;
+    while (j as usize) < records.len() {
+        let record: *const NameRecord = &records[j as usize];
         bufwrite16b(buf, (*record).platform_id);
         bufwrite16b(buf, (*record).encoding_id);
         bufwrite16b(buf, (*record).language_id);

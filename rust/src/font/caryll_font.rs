@@ -52,7 +52,7 @@ use crate::table::ltsh::{TABLE_I_LTSH};
 use crate::table::os_2::{TABLE_I_OS_2};
 use crate::table::svg::{TABLE_I_SVG};
 use crate::table::vorg::{TABLE_I_VORG};
-use crate::table::_tsi::{TABLE_I_TSI};
+use crate::table::_tsi::{table_tsi_free};
 use crate::table::cmap::{TABLE_I_CMAP};
 use crate::table::cvt::{TABLE_I_CVT};
 use crate::table::fpgm_prep::{TABLE_I_FPGM_PREP};
@@ -63,7 +63,7 @@ use crate::table::hhea::{TABLE_I_HHEA};
 use crate::table::hmtx::{TABLE_I_HMTX};
 use crate::table::maxp::{TABLE_I_MAXP};
 use crate::table::meta::types::{TABLE_I_META};
-use crate::table::name::{TABLE_I_NAME};
+use crate::table::name::{table_name_create, table_name_free};
 use crate::table::otl::{TABLE_I_OTL};
 use crate::table::post::{I_TABLE_POST};
 use crate::table::vhea::{TABLE_I_VHEA};
@@ -136,8 +136,7 @@ unsafe extern "C" fn create_font_table(
 ) -> *mut ::core::ffi::c_void {
     match tag {
         1851878757 => {
-            return (
-                TABLE_I_NAME.create.expect("non-null function pointer"))() as *mut ::core::ffi::c_void;
+            return table_name_create() as *mut ::core::ffi::c_void;
         }
         1196643650 | 1196445523 => {
             return (
@@ -178,7 +177,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
         }
         1851878757 => {
             if !(*font).name.is_null() {
-                TABLE_I_NAME.free.expect("non-null function pointer")((*font).name);
+                table_name_free((*font).name);
                 (*font).name = ::core::ptr::null_mut::<NameTable>();
             }
             return;
@@ -332,14 +331,14 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
         }
         1414744368 | 1414744369 => {
             if !(*font).tsi_01.is_null() {
-                TABLE_I_TSI.free.expect("non-null function pointer")((*font).tsi_01);
+                table_tsi_free((*font).tsi_01);
                 (*font).tsi_01 = ::core::ptr::null_mut::<TsiTable>();
             }
             return;
         }
         1414744370 | 1414744371 => {
             if !(*font).tsi_23.is_null() {
-                TABLE_I_TSI.free.expect("non-null function pointer")((*font).tsi_23);
+                table_tsi_free((*font).tsi_23);
                 (*font).tsi_23 = ::core::ptr::null_mut::<TsiTable>();
             }
             return;
