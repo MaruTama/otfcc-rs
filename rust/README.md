@@ -1190,5 +1190,67 @@ on the other platform before a commit is trusted.
     taught, but this time the assumption would have been *wrong* instead of
     right. Verified against the same live BungeeColor payload as `ColrLayerList`
     (it has both COLR and CPAL) — no new coverage gap.
+  - **`survey-containers.py`'s "straightforward" bucket had a blind spot of its
+    own, caught before it steered a PR wrong: it never checked for `Handle`/
+    `GlyphHandle` embedding**, only `SdsRaw`/`VQ`/known containers/raw
+    pointers — so it silently missed that `Handle` (staying `Copy` while
+    owning an `sds` name, same as `ColrLayer`) is exactly what all four of the
+    `otl.rs` candidates it had called simple (`GposCursiveSubtable`,
+    `GposSingleSubtable`, `GsubSingleSubtable`, `MarkArray`) actually embed —
+    a plain regex on the element's own field list, one level deep, can't see
+    a resource owned two levels down. Fixed by recursing into any
+    capitalised, unrecognised field type instead of just special-casing a
+    fixed list of names; every one of those four containers reclassified as
+    `GlyphHandle`-owning the moment the fix landed. Second, independent gap in
+    the same script: it has no notion of *which vtable slots are actually
+    called* — the question PR #50/#51's grep-based reachability check
+    answers — so it can call a container "straightforward" while missing that
+    its `.sort` is live from a third file. That's exactly what happened to
+    `MaskList`/`StemDefList` below: flagged simple by all three of the
+    script's axes, but only found to have a live `.sort` (called from
+    `consolidate.rs`, not `glyf.rs` itself) by grepping for it separately.
+    Net effect: **after `GposCursiveSubtable`/`GposSingleSubtable`/
+    `GsubSingleSubtable`/`MarkArray`'s reclassification and
+    `MaskList`/`StemDefList`'s conversion, the "straightforward" bucket among
+    the 26 remaining containers is empty** — every one of them needs the
+    fuller checklist (element ownership two levels deep, vtable-slot
+    reachability, other files touching the type directly) from the start now,
+    not just the three original axes.
+  - **`MaskList`/`StemDefList` → `Vec<PostscriptHintMask>`/`Vec<PostscriptStemDef>`
+    — the widest-reaching container conversion yet, five files, no
+    `Handle`-cascade** (the elements are plain data — fixed-size arrays and
+    numbers — so unlike `ColrLayerList` this one stayed close to `VdmxGroup`
+    in complexity once the file count is set aside). `.init`/`.dispose`/
+    `.push`/`.sort` are all live; `.copy`/`.create`/`.free` confirmed dead the
+    same way as every prior target and deleted. Both types are directly
+    vector-shaped in the C-derived source (no wrapping struct), so — like
+    `ColrTable` — they become `pub type StemDefList = Vec<PostscriptStemDef>;`/
+    `pub type MaskList = Vec<PostscriptHintMask>;` outright.
+    - `table/glyf.rs` itself: `otfcc_new_glyf_glyph` allocates via
+      `__caryll_allocate_clean` (already calloc'd, same as `VQ`'s fields, so
+      the plain `(*g).stem_h = Vec::new();` field assignments are safe by the
+      same convention, not the `GaspTable`-style bug) and
+      `otfcc_delete_glyf_glyph`/the dump and parse helpers convert the same
+      way every prior container's dump/parse side has.
+    - `consolidate.rs`'s `consolidate_glyph_hints` was the real center of
+      gravity: it mutates each stem's `.map` in place, sorts, then builds a
+      position-remap table (`hmap`/`vmap`) used to reorder every mask's bit
+      array to match. The two `qsort`-based comparators (`by_stem_pos`,
+      `by_mask_pointindex`) were kept as-is and wrapped in a `.sort_by`
+      closure comparing their `c_int` result against `0`, rather than
+      re-derived as native Rust comparisons — deliberately the lower-risk
+      choice given how much else in this one function changed at once.
+    - `table/cff.rs`'s `callback_draw_sethint`/`callback_draw_setmask` (the
+      CFF-hint-parsing callbacks) and `libcff/charstring_il.rs`'s
+      `_il_push_maskgroup`/`il_push_masks`/`_il_push_stemgroup`/
+      `il_push_stems` (CFF charstring emission, the reverse direction) round
+      out the five files — found only by grepping for the field names
+      directly, not by trusting any single file's import list.
+    - Verified against real, live data on both platforms:
+      `KRName-Regular.otf` (the CFF payload) has `stemH`/`stemV`/`hintMasks`
+      on its very first glyph, so both the parse-to-charstring and
+      read-from-charstring directions, plus `consolidate_glyph_hints`'s
+      remap logic, ran for real on every `compare-with-c.sh` and
+      `run-cycles.sh` invocation — no synthetic payload needed here either.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.

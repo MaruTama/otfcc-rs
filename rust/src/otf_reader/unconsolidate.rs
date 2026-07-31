@@ -175,48 +175,44 @@ pub unsafe extern "C" fn name_glyph_by_hash(
     bufwrite8(buf, 's' as i32 as u8);
     bufwrite8(buf, 'H' as i32 as u8);
     bufwrite8(buf, '(' as i32 as u8);
-    for j in 0..(*g).stem_h.length {
-        let stem = (*g).stem_h.items.offset(j as isize);
-        bufwrite32b(buf, otfcc_to_fixed((*stem).position as ::core::ffi::c_double) as u32);
-        bufwrite32b(buf, otfcc_to_fixed((*stem).width as ::core::ffi::c_double) as u32);
+    for stem in (*g).stem_h.iter() {
+        bufwrite32b(buf, otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32);
+        bufwrite32b(buf, otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32);
     }
     bufwrite8(buf, ')' as i32 as u8);
     bufwrite8(buf, 's' as i32 as u8);
     bufwrite8(buf, 'V' as i32 as u8);
     bufwrite8(buf, '(' as i32 as u8);
-    for j in 0..(*g).stem_v.length {
-        let stem = (*g).stem_v.items.offset(j as isize);
-        bufwrite32b(buf, otfcc_to_fixed((*stem).position as ::core::ffi::c_double) as u32);
-        bufwrite32b(buf, otfcc_to_fixed((*stem).width as ::core::ffi::c_double) as u32);
+    for stem in (*g).stem_v.iter() {
+        bufwrite32b(buf, otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32);
+        bufwrite32b(buf, otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32);
     }
     bufwrite8(buf, ')' as i32 as u8);
     bufwrite8(buf, 'm' as i32 as u8);
     bufwrite8(buf, 'H' as i32 as u8);
     bufwrite8(buf, '(' as i32 as u8);
-    for j in 0..(*g).hint_masks.length {
-        let mask = (*g).hint_masks.items.offset(j as isize);
-        bufwrite16b(buf, (*mask).contours_before);
-        bufwrite16b(buf, (*mask).points_before);
-        for k in 0..(*g).stem_h.length {
-            bufwrite8(buf, (*mask).mask_h[k] as u8);
+    for mask in (*g).hint_masks.iter() {
+        bufwrite16b(buf, mask.contours_before);
+        bufwrite16b(buf, mask.points_before);
+        for k in 0..(*g).stem_h.len() {
+            bufwrite8(buf, mask.mask_h[k] as u8);
         }
-        for k in 0..(*g).stem_v.length {
-            bufwrite8(buf, (*mask).mask_v[k] as u8);
+        for k in 0..(*g).stem_v.len() {
+            bufwrite8(buf, mask.mask_v[k] as u8);
         }
     }
     bufwrite8(buf, ')' as i32 as u8);
     bufwrite8(buf, 'm' as i32 as u8);
     bufwrite8(buf, 'C' as i32 as u8);
     bufwrite8(buf, '(' as i32 as u8);
-    for j in 0..(*g).contour_masks.length {
-        let mask = (*g).contour_masks.items.offset(j as isize);
-        bufwrite16b(buf, (*mask).contours_before);
-        bufwrite16b(buf, (*mask).points_before);
-        for k in 0..(*g).stem_h.length {
-            bufwrite8(buf, (*mask).mask_h[k] as u8);
+    for mask in (*g).contour_masks.iter() {
+        bufwrite16b(buf, mask.contours_before);
+        bufwrite16b(buf, mask.points_before);
+        for k in 0..(*g).stem_h.len() {
+            bufwrite8(buf, mask.mask_h[k] as u8);
         }
-        for k in 0..(*g).stem_v.length {
-            bufwrite8(buf, (*mask).mask_v[k] as u8);
+        for k in 0..(*g).stem_v.len() {
+            bufwrite8(buf, mask.mask_v[k] as u8);
         }
     }
     bufwrite8(buf, ')' as i32 as u8);
