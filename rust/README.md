@@ -1084,5 +1084,42 @@ on the other platform before a commit is trusted.
     base64 path) into an existing canonical payload JSON, and
     `compare-with-c.sh` now builds and dumps it every run — byte-identical
     both directions, on both platforms, closing the gap for future PRs too.
+  - **Surveyed all 34 remaining containers at once** (`scripts/survey-containers.py`,
+    committed here since the next ~10 PRs all need it) instead of re-deriving
+    difficulty per type. The three questions that turned out to matter, checked
+    for every container in one pass: does the element own a resource (`sds`,
+    another container, a non-`Copy` type), is the container ever embedded *by
+    value* outside its own file, and is it (or its element) ever passed by
+    value through a function signature. Findings: `table/otl.rs` alone holds 14
+    of the 34 (so PRs from here on are file-scoped, not type-scoped, except
+    where a file mixes trivial and hard containers — `glyf.rs` does, `Contour`/
+    `ContourList` next to `MaskList`/`StemDefList`); 9 are gasp-shaped
+    (straightforward); several nest (`ColrLayerList` inside `ColrTable`,
+    `CaretValueList` inside `LigCaretTable`, …) and have to go inside-out; 7
+    hold `*mut T`/`*const T` elements and get converted to `Vec<*mut T>` only —
+    `Vec<Box<T>>` is Stage 6-4's job, not this one, on the same
+    don't-move-three-things-at-once lesson `VQ` taught; and `VV` is the
+    counter-example that owning nothing doesn't mean easy — its element is a
+    bare `c_double`, but it's embedded by value in `FvarInstance` and passed by
+    value through an `extern "C" fn`, so it cascades exactly like `VQ` did.
+  - **`VdmxGroup`/`VdmxRatioRangeList` → `Vec<VdmxRecord>`/`Vec<VdmxRatioRange>`
+    — first nested pair, converted inside-out in one PR** (not two, per the
+    plan's "no wasted intermediate PR" call for nesting pairs). Both `VdmxTable`
+    and `VdmxRatioRange` were free of the by-value-elsewhere and
+    passed-by-value hazards, so no cascade and no new lint. `table_vdmx_create`
+    got the `calloc` fix up front, same as `MetaEntries`. Nothing here owns a
+    resource, so — unlike `MetaEntries` — the whole per-element vtable
+    (`VdmxRecordElementInterface`/`VDMX_I_RECORD`, `VdmxRatioRangeElementInterface`/
+    `VDMX_I_RATIO_RANGE`) turned out to be pure boilerplate once the container
+    itself became a `Vec`: every `.init`/`.dispose` call on a `VdmxRatioRange`
+    in `funcs.rs` was invoked immediately after (init) or immediately before
+    the value went out of scope with nothing pushed into it (dispose) — i.e.
+    already redundant with the struct literal that constructed it, or with
+    Rust's own drop glue. Deleted rather than translated; verified by checking
+    every one of the three call sites by hand, not by assuming "no owned
+    resources" implies "safe to delete" in general. Same coverage gap as
+    `MetaEntries`: no payload has a VDMX table, so `make-test-vdmx.py` +
+    `compare-with-c.sh` closes it the same way (two ratio ranges, one exercising
+    the min/max scan over several size records).
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.

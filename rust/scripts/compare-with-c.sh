@@ -206,6 +206,38 @@ else
 	echo "  (skipping meta-test: python3 not found)"
 fi
 
+# Same gap, same fix, this time for VDMX: no payload has one, so
+# table/vdmx/{types,funcs}.rs has never been exercised by this script.
+if command -v python3 >/dev/null 2>&1; then
+	VDMX_JSON="${BUILD}/vdmx-test.json"
+	python3 rust/scripts/make-test-vdmx.py "${BUILD}/iosevka-r.json" "${VDMX_JSON}"
+	rm -f "${BUILD}/vdmx-test.c.ttf" "${BUILD}/vdmx-test.rust.ttf"
+	"${C_BIN}/otfccbuild" "${VDMX_JSON}" -o "${BUILD}/vdmx-test.c.ttf" --keep-average-char-width --keep-modified-time
+	if ! "${RUST_BIN}/otfccbuild" "${VDMX_JSON}" -o "${BUILD}/vdmx-test.rust.ttf" --keep-average-char-width --keep-modified-time; then
+		echo "FAIL  vdmx-test.ttf: Rust otfccbuild exited non-zero"
+		fail=1
+	elif cmp -s "${BUILD}/vdmx-test.c.ttf" "${BUILD}/vdmx-test.rust.ttf"; then
+		echo "PASS  vdmx-test.ttf: byte-identical"
+	else
+		echo "FAIL  vdmx-test.ttf: differs ($(cmp -l "${BUILD}/vdmx-test.c.ttf" "${BUILD}/vdmx-test.rust.ttf" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+
+	rm -f "${BUILD}/vdmx-test.dump.c.json" "${BUILD}/vdmx-test.dump.rust.json"
+	"${C_BIN}/otfccdump" "${BUILD}/vdmx-test.c.ttf" -o "${BUILD}/vdmx-test.dump.c.json" --pretty
+	if ! "${RUST_BIN}/otfccdump" "${BUILD}/vdmx-test.c.ttf" -o "${BUILD}/vdmx-test.dump.rust.json" --pretty; then
+		echo "FAIL  vdmx-test dump: Rust otfccdump exited non-zero"
+		fail=1
+	elif cmp -s "${BUILD}/vdmx-test.dump.c.json" "${BUILD}/vdmx-test.dump.rust.json"; then
+		echo "PASS  vdmx-test dump: byte-identical"
+	else
+		echo "FAIL  vdmx-test dump: differs ($(cmp -l "${BUILD}/vdmx-test.dump.c.json" "${BUILD}/vdmx-test.dump.rust.json" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+else
+	echo "  (skipping vdmx-test: python3 not found)"
+fi
+
 echo "==> Comparing C vs Rust otfccdll (cdylib) output, byte-for-byte"
 DLL_C="${C_BIN}/libotfccdll.so"
 [ "$(uname)" = "Darwin" ] && DLL_C="${C_BIN}/libotfccdll.dylib"
