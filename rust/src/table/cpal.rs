@@ -10,7 +10,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, FontFilePointer, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
@@ -32,10 +32,7 @@ pub struct CpalColor {
 pub struct CpalColorElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CpalColor) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CpalColor, *const CpalColor) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CpalColor, *mut CpalColor) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CpalColor) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CpalColor, CpalColor) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CpalColor, CpalColor) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -49,10 +46,7 @@ pub struct CpalColorSet {
 pub struct CpalColorSetVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut CpalColorSet) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CpalColorSet, *const CpalColorSet) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CpalColorSet, *mut CpalColorSet) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CpalColorSet) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CpalColorSet, CpalColorSet) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CpalColorSet, CpalColorSet) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CpalColorSet>,
     pub free: Option<unsafe extern "C" fn(*mut CpalColorSet) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut CpalColorSet, usize) -> ()>,
@@ -90,10 +84,7 @@ pub struct CpalPalette {
 pub struct CpalPaletteElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CpalPalette) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CpalPalette, *const CpalPalette) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CpalPalette, *mut CpalPalette) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CpalPalette) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CpalPalette, CpalPalette) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CpalPalette, CpalPalette) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -107,10 +98,7 @@ pub struct CpalPaletteSet {
 pub struct CpalPaletteSetVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut CpalPaletteSet) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CpalPaletteSet, *const CpalPaletteSet) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CpalPaletteSet, *mut CpalPaletteSet) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CpalPaletteSet) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CpalPaletteSet, CpalPaletteSet) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CpalPaletteSet, CpalPaletteSet) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CpalPaletteSet>,
     pub free: Option<unsafe extern "C" fn(*mut CpalPaletteSet) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut CpalPaletteSet, usize) -> ()>,
@@ -152,30 +140,9 @@ pub struct CpalTable {
 pub struct CpalTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CpalTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut CpalTable, *const CpalTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut CpalTable, *mut CpalTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CpalTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut CpalTable, CpalTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut CpalTable, CpalTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut CpalTable>,
     pub free: Option<unsafe extern "C" fn(*mut CpalTable) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn cpal_color_move(mut dst: *mut CpalColor, mut src: *mut CpalColor) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalColor>() as usize,
-    );
-    cpal_color_init(src);
-}
-#[inline]
-unsafe extern "C" fn cpal_color_replace(mut dst: *mut CpalColor, src: CpalColor) {
-    cpal_color_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalColor>() as usize,
-    );
 }
 pub static CPAL_I_COLOR: CpalColorElementInterface = {
     CpalColorElementInterface {
@@ -183,16 +150,7 @@ pub static CPAL_I_COLOR: CpalColorElementInterface = {
         copy: Some(
             cpal_color_copy as unsafe extern "C" fn(*mut CpalColor, *const CpalColor) -> (),
         ),
-        move_0: Some(
-            cpal_color_move as unsafe extern "C" fn(*mut CpalColor, *mut CpalColor) -> (),
-        ),
         dispose: Some(cpal_color_dispose as unsafe extern "C" fn(*mut CpalColor) -> ()),
-        replace: Some(
-            cpal_color_replace as unsafe extern "C" fn(*mut CpalColor, CpalColor) -> (),
-        ),
-        copy_replace: Some(
-            cpal_color_copy_replace as unsafe extern "C" fn(*mut CpalColor, CpalColor) -> (),
-        ),
     }
 };
 #[inline]
@@ -202,11 +160,6 @@ unsafe extern "C" fn cpal_color_init(mut x: *mut CpalColor) {
         0 as ::core::ffi::c_int,
         ::core::mem::size_of::<CpalColor>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn cpal_color_copy_replace(mut dst: *mut CpalColor, src: CpalColor) {
-    cpal_color_dispose(dst);
-    cpal_color_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn cpal_color_copy(mut dst: *mut CpalColor, mut src: *const CpalColor) {
@@ -295,15 +248,6 @@ unsafe extern "C" fn cpal_color_set_dispose(mut arr: *mut CpalColorSet) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn cpal_color_set_replace(mut dst: *mut CpalColorSet, src: CpalColorSet) {
-    cpal_color_set_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalColorSet>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn cpal_color_set_init_cap_n(mut arr: *mut CpalColorSet, mut n: usize) {
     cpal_color_set_init(arr);
     cpal_color_set_grow_to_n(arr, n);
@@ -367,14 +311,6 @@ unsafe extern "C" fn cpal_color_set_push(arr: *mut CpalColorSet, elem: CpalColor
     cvec_push(cpal_color_set_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn cpal_color_set_grow(arr: *mut CpalColorSet) {
-    cvec_grow(cpal_color_set_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn cpal_color_set_move(dst: *mut CpalColorSet, src: *mut CpalColorSet) {
-    cvec_move(cpal_color_set_as_cvec(dst), cpal_color_set_as_cvec(src));
-}
-#[inline]
 unsafe extern "C" fn cpal_color_set_shrink_to_fit(mut arr: *mut CpalColorSet) {
     cpal_color_set_resize_to(arr, (*arr).length);
 }
@@ -385,18 +321,7 @@ pub static CPAL_I_COLOR_SET: CpalColorSetVectorInterface = {
             cpal_color_set_copy
                 as unsafe extern "C" fn(*mut CpalColorSet, *const CpalColorSet) -> (),
         ),
-        move_0: Some(
-            cpal_color_set_move
-                as unsafe extern "C" fn(*mut CpalColorSet, *mut CpalColorSet) -> (),
-        ),
         dispose: Some(cpal_color_set_dispose as unsafe extern "C" fn(*mut CpalColorSet) -> ()),
-        replace: Some(
-            cpal_color_set_replace as unsafe extern "C" fn(*mut CpalColorSet, CpalColorSet) -> (),
-        ),
-        copy_replace: Some(
-            cpal_color_set_copy_replace
-                as unsafe extern "C" fn(*mut CpalColorSet, CpalColorSet) -> (),
-        ),
         create: Some(cpal_color_set_create),
         free: Some(cpal_color_set_free as unsafe extern "C" fn(*mut CpalColorSet) -> ()),
         init_n: Some(cpal_color_set_init_n as unsafe extern "C" fn(*mut CpalColorSet, usize) -> ()),
@@ -461,11 +386,6 @@ unsafe extern "C" fn cpal_color_set_init(arr: *mut CpalColorSet) {
     cvec_init(cpal_color_set_as_cvec(arr));
 }
 #[inline]
-unsafe extern "C" fn cpal_color_set_copy_replace(mut dst: *mut CpalColorSet, src: CpalColorSet) {
-    cpal_color_set_dispose(dst);
-    cpal_color_set_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn cpal_color_set_filter_env(
     mut arr: *mut CpalColorSet,
     mut fn_0: Option<unsafe extern "C" fn(*const CpalColor, *mut ::core::ffi::c_void) -> bool>,
@@ -510,41 +430,9 @@ pub static CPAL_I_PALETTE: CpalPaletteElementInterface = {
         copy: Some(
             cpal_palette_copy as unsafe extern "C" fn(*mut CpalPalette, *const CpalPalette) -> (),
         ),
-        move_0: Some(
-            cpal_palette_move as unsafe extern "C" fn(*mut CpalPalette, *mut CpalPalette) -> (),
-        ),
         dispose: Some(cpal_palette_dispose as unsafe extern "C" fn(*mut CpalPalette) -> ()),
-        replace: Some(
-            cpal_palette_replace as unsafe extern "C" fn(*mut CpalPalette, CpalPalette) -> (),
-        ),
-        copy_replace: Some(
-            cpal_palette_copy_replace as unsafe extern "C" fn(*mut CpalPalette, CpalPalette) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn cpal_palette_copy_replace(mut dst: *mut CpalPalette, src: CpalPalette) {
-    cpal_palette_dispose(dst);
-    cpal_palette_copy(dst, &raw const src);
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_move(mut dst: *mut CpalPalette, mut src: *mut CpalPalette) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalPalette>() as usize,
-    );
-    cpal_palette_init(src);
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_replace(mut dst: *mut CpalPalette, src: CpalPalette) {
-    cpal_palette_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalPalette>() as usize,
-    );
-}
 #[inline]
 unsafe extern "C" fn cpal_palette_dispose(mut x: *mut CpalPalette) {
     dispose_palette(x);
@@ -568,10 +456,6 @@ unsafe fn cpal_palette_set_as_cvec(arr: *mut CpalPaletteSet) -> *mut CVecRaw<Cpa
 #[inline]
 unsafe extern "C" fn cpal_palette_set_init(arr: *mut CpalPaletteSet) {
     cvec_init(cpal_palette_set_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_set_move(dst: *mut CpalPaletteSet, src: *mut CpalPaletteSet) {
-    cvec_move(cpal_palette_set_as_cvec(dst), cpal_palette_set_as_cvec(src));
 }
 #[inline]
 unsafe extern "C" fn cpal_palette_set_filter_env(
@@ -662,24 +546,12 @@ unsafe extern "C" fn cpal_palette_set_push(arr: *mut CpalPaletteSet, elem: CpalP
     cvec_push(cpal_palette_set_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn cpal_palette_set_grow(arr: *mut CpalPaletteSet) {
-    cvec_grow(cpal_palette_set_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn cpal_palette_set_grow_to(arr: *mut CpalPaletteSet, target: usize) {
     cvec_grow_to(cpal_palette_set_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn cpal_palette_set_pop(arr: *mut CpalPaletteSet) -> CpalPalette {
     cvec_pop(cpal_palette_set_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_set_copy_replace(
-    mut dst: *mut CpalPaletteSet,
-    src: CpalPaletteSet,
-) {
-    cpal_palette_set_dispose(dst);
-    cpal_palette_set_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn cpal_palette_set_copy(
@@ -730,15 +602,6 @@ unsafe extern "C" fn cpal_palette_set_dispose(mut arr: *mut CpalPaletteSet) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn cpal_palette_set_replace(mut dst: *mut CpalPaletteSet, src: CpalPaletteSet) {
-    cpal_palette_set_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalPaletteSet>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn cpal_palette_set_init_cap_n(mut arr: *mut CpalPaletteSet, mut n: usize) {
     cpal_palette_set_init(arr);
     cpal_palette_set_grow_to_n(arr, n);
@@ -786,19 +649,7 @@ pub static CPAL_I_PALETTE_SET: CpalPaletteSetVectorInterface = {
             cpal_palette_set_copy
                 as unsafe extern "C" fn(*mut CpalPaletteSet, *const CpalPaletteSet) -> (),
         ),
-        move_0: Some(
-            cpal_palette_set_move
-                as unsafe extern "C" fn(*mut CpalPaletteSet, *mut CpalPaletteSet) -> (),
-        ),
         dispose: Some(cpal_palette_set_dispose as unsafe extern "C" fn(*mut CpalPaletteSet) -> ()),
-        replace: Some(
-            cpal_palette_set_replace
-                as unsafe extern "C" fn(*mut CpalPaletteSet, CpalPaletteSet) -> (),
-        ),
-        copy_replace: Some(
-            cpal_palette_set_copy_replace
-                as unsafe extern "C" fn(*mut CpalPaletteSet, CpalPaletteSet) -> (),
-        ),
         create: Some(cpal_palette_set_create),
         free: Some(cpal_palette_set_free as unsafe extern "C" fn(*mut CpalPaletteSet) -> ()),
         init_n: Some(
@@ -879,11 +730,6 @@ unsafe extern "C" fn table_cpal_create() -> *mut CpalTable {
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_cpal_copy_replace(mut dst: *mut CpalTable, src: CpalTable) {
-    table_cpal_dispose(dst);
-    table_cpal_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_cpal_copy(mut dst: *mut CpalTable, mut src: *const CpalTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
@@ -891,40 +737,13 @@ unsafe extern "C" fn table_cpal_copy(mut dst: *mut CpalTable, mut src: *const Cp
         ::core::mem::size_of::<CpalTable>() as usize,
     );
 }
-#[inline]
-unsafe extern "C" fn table_cpal_replace(mut dst: *mut CpalTable, src: CpalTable) {
-    table_cpal_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_cpal_move(mut dst: *mut CpalTable, mut src: *mut CpalTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalTable>() as usize,
-    );
-    table_cpal_init(src);
-}
 pub static TABLE_I_CPAL: CpalTableElementInterface = {
     CpalTableElementInterface {
         init: Some(table_cpal_init as unsafe extern "C" fn(*mut CpalTable) -> ()),
         copy: Some(
             table_cpal_copy as unsafe extern "C" fn(*mut CpalTable, *const CpalTable) -> (),
         ),
-        move_0: Some(
-            table_cpal_move as unsafe extern "C" fn(*mut CpalTable, *mut CpalTable) -> (),
-        ),
         dispose: Some(table_cpal_dispose as unsafe extern "C" fn(*mut CpalTable) -> ()),
-        replace: Some(
-            table_cpal_replace as unsafe extern "C" fn(*mut CpalTable, CpalTable) -> (),
-        ),
-        copy_replace: Some(
-            table_cpal_copy_replace as unsafe extern "C" fn(*mut CpalTable, CpalTable) -> (),
-        ),
         create: Some(table_cpal_create),
         free: Some(table_cpal_free as unsafe extern "C" fn(*mut CpalTable) -> ()),
     }

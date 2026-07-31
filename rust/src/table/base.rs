@@ -1,9 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
-unsafe extern "C" {
-    fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
-
 
 use crate::support::json_funcs::{json_new_position, json_numof, json_obj_get_type, json_obj_getstr_share, json_object_push_tag};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
@@ -50,10 +46,7 @@ pub struct BaseTable {
 pub struct BaseTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut BaseTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut BaseTable, *const BaseTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut BaseTable, *mut BaseTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut BaseTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut BaseTable, BaseTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut BaseTable, BaseTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut BaseTable>,
     pub free: Option<unsafe extern "C" fn(*mut BaseTable) -> ()>,
 }
@@ -106,24 +99,10 @@ unsafe extern "C" fn table_base_init(mut x: *mut BaseTable) {
     );
 }
 #[inline]
-unsafe extern "C" fn table_base_copy_replace(mut dst: *mut BaseTable, src: BaseTable) {
-    table_base_dispose(dst);
-    table_base_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_base_copy(mut dst: *mut BaseTable, mut src: *const BaseTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<BaseTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_base_replace(mut dst: *mut BaseTable, src: BaseTable) {
-    table_base_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<BaseTable>() as usize,
     );
 }
@@ -133,29 +112,11 @@ pub static TABLE_I_BASE: BaseTableElementInterface = {
         copy: Some(
             table_base_copy as unsafe extern "C" fn(*mut BaseTable, *const BaseTable) -> (),
         ),
-        move_0: Some(
-            table_base_move as unsafe extern "C" fn(*mut BaseTable, *mut BaseTable) -> (),
-        ),
         dispose: Some(table_base_dispose as unsafe extern "C" fn(*mut BaseTable) -> ()),
-        replace: Some(
-            table_base_replace as unsafe extern "C" fn(*mut BaseTable, BaseTable) -> (),
-        ),
-        copy_replace: Some(
-            table_base_copy_replace as unsafe extern "C" fn(*mut BaseTable, BaseTable) -> (),
-        ),
         create: Some(table_base_create),
         free: Some(table_base_free as unsafe extern "C" fn(*mut BaseTable) -> ()),
     }
 };
-#[inline]
-unsafe extern "C" fn table_base_move(mut dst: *mut BaseTable, mut src: *mut BaseTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<BaseTable>() as usize,
-    );
-    table_base_init(src);
-}
 #[inline]
 unsafe extern "C" fn table_base_free(mut x: *mut BaseTable) {
     if x.is_null() {

@@ -31,10 +31,7 @@ pub struct HdmxTable {
 pub struct HdmxTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut HdmxTable, *const HdmxTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut HdmxTable, *mut HdmxTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut HdmxTable>,
     pub free: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
 }
@@ -61,16 +58,7 @@ pub static TABLE_I_HDMX: HdmxTableElementInterface = {
         copy: Some(
             table_hdmx_copy as unsafe extern "C" fn(*mut HdmxTable, *const HdmxTable) -> (),
         ),
-        move_0: Some(
-            table_hdmx_move as unsafe extern "C" fn(*mut HdmxTable, *mut HdmxTable) -> (),
-        ),
         dispose: Some(table_hdmx_dispose as unsafe extern "C" fn(*mut HdmxTable) -> ()),
-        replace: Some(
-            table_hdmx_replace as unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> (),
-        ),
-        copy_replace: Some(
-            table_hdmx_copy_replace as unsafe extern "C" fn(*mut HdmxTable, HdmxTable) -> (),
-        ),
         create: Some(table_hdmx_create),
         free: Some(table_hdmx_free as unsafe extern "C" fn(*mut HdmxTable) -> ()),
     }
@@ -88,24 +76,10 @@ unsafe extern "C" fn table_hdmx_free(mut x: *mut HdmxTable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_hdmx_copy_replace(mut dst: *mut HdmxTable, src: HdmxTable) {
-    table_hdmx_dispose(dst);
-    table_hdmx_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_hdmx_copy(mut dst: *mut HdmxTable, mut src: *const HdmxTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<HdmxTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_hdmx_replace(mut dst: *mut HdmxTable, src: HdmxTable) {
-    table_hdmx_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<HdmxTable>() as usize,
     );
 }
@@ -115,15 +89,6 @@ unsafe extern "C" fn table_hdmx_create() -> *mut HdmxTable {
         malloc(::core::mem::size_of::<HdmxTable>() as usize) as *mut HdmxTable;
     table_hdmx_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn table_hdmx_move(mut dst: *mut HdmxTable, mut src: *mut HdmxTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<HdmxTable>() as usize,
-    );
-    table_hdmx_init(src);
 }
 #[inline]
 unsafe extern "C" fn table_hdmx_init(mut x: *mut HdmxTable) {

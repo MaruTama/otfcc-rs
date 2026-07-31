@@ -6,7 +6,7 @@ unsafe extern "C" {
 
 use crate::support::stdio::{stderr};
 use crate::support::primitives::{Pos, Scale, TableId};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 
 use crate::vf::region::{VqRegion};
 use crate::vf::vv::{VV, VvVectorInterface};
@@ -17,10 +17,7 @@ use crate::vf::region::{vq_compare_region, vq_show_region};
 pub struct PosElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut Pos) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut Pos, *const Pos) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut Pos, *mut Pos) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Pos) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut Pos, Pos) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut Pos, Pos) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> Pos>,
     pub dup: Option<unsafe extern "C" fn(Pos) -> Pos>,
 }
@@ -54,10 +51,7 @@ pub struct VqSegmentDelta {
 pub struct VqSegmentElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut VqSegment) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut VqSegment, *const VqSegment) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VqSegment, *mut VqSegment) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VqSegment) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VqSegment, VqSegment) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut VqSegment, VqSegment) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> VqSegment>,
     pub dup: Option<unsafe extern "C" fn(VqSegment) -> VqSegment>,
     pub show: Option<unsafe extern "C" fn(VqSegment) -> ()>,
@@ -80,10 +74,7 @@ pub struct VqSegList {
 pub struct VqSegListVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut VqSegList) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut VqSegList, *const VqSegList) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VqSegList, *mut VqSegList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VqSegList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VqSegList, VqSegList) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut VqSegList, VqSegList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VqSegList>,
     pub free: Option<unsafe extern "C" fn(*mut VqSegList) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut VqSegList, usize) -> ()>,
@@ -120,7 +111,6 @@ pub struct VQ {
 pub struct VqVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut VQ, *const VQ) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VQ, *mut VQ) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VQ) -> ()>,
     pub replace: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
     pub copy_replace: Option<unsafe extern "C" fn(*mut VQ, VQ) -> ()>,
@@ -146,24 +136,6 @@ pub struct VqVectorInterface {
     pub is_zero: Option<unsafe extern "C" fn(VQ, Pos) -> bool>,
     pub point_linear_tfm: Option<unsafe extern "C" fn(VQ, Pos, VQ, Pos, VQ) -> VQ>,
     pub add_delta: Option<unsafe extern "C" fn(*mut VQ, bool, *const VqRegion, Pos) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn pos_t_replace(mut dst: *mut Pos, src: Pos) {
-    pos_t_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Pos>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn pos_t_move(mut dst: *mut Pos, mut src: *mut Pos) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Pos>() as usize,
-    );
-    pos_t_init(src);
 }
 #[inline]
 unsafe extern "C" fn pos_t_dup(src: Pos) -> Pos {
@@ -197,19 +169,11 @@ pub static VQ_I_POS_T: PosElementInterface = {
     PosElementInterface {
         init: Some(pos_t_init as unsafe extern "C" fn(*mut Pos) -> ()),
         copy: Some(pos_t_copy as unsafe extern "C" fn(*mut Pos, *const Pos) -> ()),
-        move_0: Some(pos_t_move as unsafe extern "C" fn(*mut Pos, *mut Pos) -> ()),
         dispose: Some(pos_t_dispose as unsafe extern "C" fn(*mut Pos) -> ()),
-        replace: Some(pos_t_replace as unsafe extern "C" fn(*mut Pos, Pos) -> ()),
-        copy_replace: Some(pos_t_copy_replace as unsafe extern "C" fn(*mut Pos, Pos) -> ()),
         empty: Some(pos_t_empty),
         dup: Some(pos_t_dup as unsafe extern "C" fn(Pos) -> Pos),
     }
 };
-#[inline]
-unsafe extern "C" fn pos_t_copy_replace(mut dst: *mut Pos, src: Pos) {
-    pos_t_dispose(dst);
-    pos_t_copy(dst, &raw const src);
-}
 #[inline]
 unsafe extern "C" fn pos_t_dispose(mut _x: *mut Pos) {}
 #[inline]
@@ -217,10 +181,6 @@ unsafe extern "C" fn vv_create_n(mut n: usize) -> *mut VV {
     let mut t: *mut VV = malloc(::core::mem::size_of::<VV>() as usize) as *mut VV;
     vv_init_n(t, n);
     return t;
-}
-#[inline]
-unsafe extern "C" fn vv_move(dst: *mut VV, src: *mut VV) {
-    cvec_move(vv_as_cvec(dst), vv_as_cvec(src));
 }
 #[inline]
 unsafe fn vv_as_cvec(arr: *mut VV) -> *mut CVecRaw<Pos> {
@@ -308,10 +268,6 @@ unsafe extern "C" fn vv_push(arr: *mut VV, elem: Pos) {
     cvec_push(vv_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn vv_grow(arr: *mut VV) {
-    cvec_grow(vv_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn vv_pop(arr: *mut VV) -> Pos {
     cvec_pop(vv_as_cvec(arr))
 }
@@ -338,11 +294,6 @@ unsafe extern "C" fn vv_copy(mut dst: *mut VV, mut src: *const VV) {
     };
 }
 #[inline]
-unsafe extern "C" fn vv_copy_replace(mut dst: *mut VV, src: VV) {
-    vv_dispose(dst);
-    vv_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn vv_dispose(mut arr: *mut VV) {
     if arr.is_null() {
         return;
@@ -364,15 +315,6 @@ unsafe extern "C" fn vv_dispose(mut arr: *mut VV) {
     (*arr).items = ::core::ptr::null_mut::<Pos>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn vv_replace(mut dst: *mut VV, src: VV) {
-    vv_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VV>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn vv_init_cap_n(mut arr: *mut VV, mut n: usize) {
@@ -429,10 +371,7 @@ pub static I_VV: VvVectorInterface = {
     VvVectorInterface {
         init: Some(vv_init as unsafe extern "C" fn(*mut VV) -> ()),
         copy: Some(vv_copy as unsafe extern "C" fn(*mut VV, *const VV) -> ()),
-        move_0: Some(vv_move as unsafe extern "C" fn(*mut VV, *mut VV) -> ()),
         dispose: Some(vv_dispose as unsafe extern "C" fn(*mut VV) -> ()),
-        replace: Some(vv_replace as unsafe extern "C" fn(*mut VV, VV) -> ()),
-        copy_replace: Some(vv_copy_replace as unsafe extern "C" fn(*mut VV, VV) -> ()),
         create: Some(vv_create),
         free: Some(vv_free as unsafe extern "C" fn(*mut VV) -> ()),
         init_n: Some(vv_init_n as unsafe extern "C" fn(*mut VV, usize) -> ()),
@@ -489,20 +428,6 @@ unsafe extern "C" fn dispose_vq_segment(mut vqs: *mut VqSegment) {
     init_vq_segment(vqs);
 }
 #[inline]
-unsafe extern "C" fn vq_segment_replace(mut dst: *mut VqSegment, src: VqSegment) {
-    vq_segment_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VqSegment>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn vq_segment_copy_replace(mut dst: *mut VqSegment, src: VqSegment) {
-    vq_segment_dispose(dst);
-    vq_segment_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn vq_segment_empty() -> VqSegment {
     let mut x: VqSegment = VqSegment {
         type_0: VQSegType::Still,
@@ -531,15 +456,6 @@ unsafe extern "C" fn vq_segment_init(mut x: *mut VqSegment) {
 #[inline]
 unsafe extern "C" fn vq_segment_dispose(mut x: *mut VqSegment) {
     dispose_vq_segment(x);
-}
-#[inline]
-unsafe extern "C" fn vq_segment_move(mut dst: *mut VqSegment, mut src: *mut VqSegment) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VqSegment>() as usize,
-    );
-    vq_segment_init(src);
 }
 unsafe extern "C" fn vqs_create_still(mut x: Pos) -> VqSegment {
     let mut vqs: VqSegment = VqSegment {
@@ -649,16 +565,7 @@ pub static VQ_I_SEGMENT: VqSegmentElementInterface = {
         copy: Some(
             vq_segment_copy as unsafe extern "C" fn(*mut VqSegment, *const VqSegment) -> (),
         ),
-        move_0: Some(
-            vq_segment_move as unsafe extern "C" fn(*mut VqSegment, *mut VqSegment) -> (),
-        ),
         dispose: Some(vq_segment_dispose as unsafe extern "C" fn(*mut VqSegment) -> ()),
-        replace: Some(
-            vq_segment_replace as unsafe extern "C" fn(*mut VqSegment, VqSegment) -> (),
-        ),
-        copy_replace: Some(
-            vq_segment_copy_replace as unsafe extern "C" fn(*mut VqSegment, VqSegment) -> (),
-        ),
         empty: Some(vq_segment_empty),
         dup: Some(vq_segment_dup as unsafe extern "C" fn(VqSegment) -> VqSegment),
         show: Some(vq_segment_show as unsafe extern "C" fn(VqSegment) -> ()),
@@ -690,10 +597,6 @@ unsafe extern "C" fn vq_seg_list_shrink_to_fit(mut arr: *mut VqSegList) {
 #[inline]
 unsafe extern "C" fn vq_seg_list_resize_to(arr: *mut VqSegList, target: usize) {
     cvec_resize_to(vq_seg_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn vq_seg_list_move(dst: *mut VqSegList, src: *mut VqSegList) {
-    cvec_move(vq_seg_list_as_cvec(dst), vq_seg_list_as_cvec(src));
 }
 #[inline]
 unsafe fn vq_seg_list_as_cvec(arr: *mut VqSegList) -> *mut CVecRaw<VqSegment> {
@@ -784,21 +687,12 @@ unsafe extern "C" fn vq_seg_list_push(arr: *mut VqSegList, elem: VqSegment) {
     cvec_push(vq_seg_list_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn vq_seg_list_grow(arr: *mut VqSegList) {
-    cvec_grow(vq_seg_list_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn vq_seg_list_grow_to(arr: *mut VqSegList, target: usize) {
     cvec_grow_to(vq_seg_list_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn vq_seg_list_pop(arr: *mut VqSegList) -> VqSegment {
     cvec_pop(vq_seg_list_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn vq_seg_list_copy_replace(mut dst: *mut VqSegList, src: VqSegList) {
-    vq_seg_list_dispose(dst);
-    vq_seg_list_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn vq_seg_list_copy(mut dst: *mut VqSegList, mut src: *const VqSegList) {
@@ -846,15 +740,6 @@ unsafe extern "C" fn vq_seg_list_dispose(mut arr: *mut VqSegList) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn vq_seg_list_replace(mut dst: *mut VqSegList, src: VqSegList) {
-    vq_seg_list_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VqSegList>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn vq_seg_list_init_cap_n(mut arr: *mut VqSegList, mut n: usize) {
     vq_seg_list_init(arr);
     vq_seg_list_grow_to_n(arr, n);
@@ -869,16 +754,7 @@ pub static VQ_I_SEG_LIST: VqSegListVectorInterface = {
         copy: Some(
             vq_seg_list_copy as unsafe extern "C" fn(*mut VqSegList, *const VqSegList) -> (),
         ),
-        move_0: Some(
-            vq_seg_list_move as unsafe extern "C" fn(*mut VqSegList, *mut VqSegList) -> (),
-        ),
         dispose: Some(vq_seg_list_dispose as unsafe extern "C" fn(*mut VqSegList) -> ()),
-        replace: Some(
-            vq_seg_list_replace as unsafe extern "C" fn(*mut VqSegList, VqSegList) -> (),
-        ),
-        copy_replace: Some(
-            vq_seg_list_copy_replace as unsafe extern "C" fn(*mut VqSegList, VqSegList) -> (),
-        ),
         create: Some(vq_seg_list_create),
         free: Some(vq_seg_list_free as unsafe extern "C" fn(*mut VqSegList) -> ()),
         init_n: Some(vq_seg_list_init_n as unsafe extern "C" fn(*mut VqSegList, usize) -> ()),
@@ -981,15 +857,6 @@ unsafe extern "C" fn vq_empty() -> VQ {
     };
     vq_init(&raw mut x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn vq_move(mut dst: *mut VQ, mut src: *mut VQ) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VQ>() as usize,
-    );
-    vq_init(src);
 }
 #[inline]
 unsafe extern "C" fn vq_copy_replace(mut dst: *mut VQ, src: VQ) {
@@ -1272,7 +1139,6 @@ pub static I_VQ: VqVectorInterface = {
     VqVectorInterface {
         init: Some(vq_init as unsafe extern "C" fn(*mut VQ) -> ()),
         copy: Some(vq_copy as unsafe extern "C" fn(*mut VQ, *const VQ) -> ()),
-        move_0: Some(vq_move as unsafe extern "C" fn(*mut VQ, *mut VQ) -> ()),
         dispose: Some(vq_dispose as unsafe extern "C" fn(*mut VQ) -> ()),
         replace: Some(vq_replace as unsafe extern "C" fn(*mut VQ, VQ) -> ()),
         copy_replace: Some(vq_copy_replace as unsafe extern "C" fn(*mut VQ, VQ) -> ()),

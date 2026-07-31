@@ -30,10 +30,7 @@ pub struct VorgTable {
 pub struct VorgTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut VorgTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut VorgTable, *const VorgTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VorgTable, *mut VorgTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VorgTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VorgTable, VorgTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut VorgTable, VorgTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VorgTable>,
     pub free: Option<unsafe extern "C" fn(*mut VorgTable) -> ()>,
 }
@@ -48,16 +45,7 @@ pub static TABLE_I_VORG: VorgTableElementInterface = {
         copy: Some(
             table_vorg_copy as unsafe extern "C" fn(*mut VorgTable, *const VorgTable) -> (),
         ),
-        move_0: Some(
-            table_vorg_move as unsafe extern "C" fn(*mut VorgTable, *mut VorgTable) -> (),
-        ),
         dispose: Some(table_vorg_dispose as unsafe extern "C" fn(*mut VorgTable) -> ()),
-        replace: Some(
-            table_vorg_replace as unsafe extern "C" fn(*mut VorgTable, VorgTable) -> (),
-        ),
-        copy_replace: Some(
-            table_vorg_copy_replace as unsafe extern "C" fn(*mut VorgTable, VorgTable) -> (),
-        ),
         create: Some(table_vorg_create),
         free: Some(table_vorg_free as unsafe extern "C" fn(*mut VorgTable) -> ()),
     }
@@ -83,35 +71,12 @@ unsafe extern "C" fn table_vorg_init(mut x: *mut VorgTable) {
     );
 }
 #[inline]
-unsafe extern "C" fn table_vorg_copy_replace(mut dst: *mut VorgTable, src: VorgTable) {
-    table_vorg_dispose(dst);
-    table_vorg_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_vorg_copy(mut dst: *mut VorgTable, mut src: *const VorgTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<VorgTable>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn table_vorg_replace(mut dst: *mut VorgTable, src: VorgTable) {
-    table_vorg_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VorgTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_vorg_move(mut dst: *mut VorgTable, mut src: *mut VorgTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VorgTable>() as usize,
-    );
-    table_vorg_init(src);
 }
 #[inline]
 unsafe extern "C" fn table_vorg_create() -> *mut VorgTable {

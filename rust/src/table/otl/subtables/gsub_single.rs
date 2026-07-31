@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort};
+use libc::{free, malloc, memset, qsort};
 
 
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
@@ -13,7 +13,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubSingleSubtableVectorInterface, GsubSingleEntry, Subtable, GsubSingleSubtable};
@@ -31,12 +31,7 @@ pub struct GsubSingleEntryElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut GsubSingleEntry) -> ()>,
     pub copy:
         Option<unsafe extern "C" fn(*mut GsubSingleEntry, *const GsubSingleEntry) -> ()>,
-    pub move_0:
-        Option<unsafe extern "C" fn(*mut GsubSingleEntry, *mut GsubSingleEntry) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut GsubSingleEntry) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut GsubSingleEntry, GsubSingleEntry) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut GsubSingleEntry, GsubSingleEntry) -> ()>,
 }
 unsafe extern "C" fn gss_entry_ctor(mut entry: *mut GsubSingleEntry) {
     (*entry).from = otfcc_handle_empty() as GlyphHandle;
@@ -62,10 +57,7 @@ static GSS_TYPEINFO: GsubSingleEntryElementInterface = {
             gss_entry_copyctor
                 as unsafe extern "C" fn(*mut GsubSingleEntry, *const GsubSingleEntry) -> (),
         ),
-        move_0: None,
         dispose: Some(gss_entry_dtor as unsafe extern "C" fn(*mut GsubSingleEntry) -> ()),
-        replace: None,
-        copy_replace: None,
     }
 };
 #[inline]
@@ -119,20 +111,8 @@ pub static I_SUBTABLE_GSUB_SINGLE: GsubSingleSubtableVectorInterface = {
                     *const GsubSingleSubtable,
                 ) -> (),
         ),
-        move_0: Some(
-            subtable_gsub_single_move
-                as unsafe extern "C" fn(*mut GsubSingleSubtable, *mut GsubSingleSubtable) -> (),
-        ),
         dispose: Some(
             subtable_gsub_single_dispose as unsafe extern "C" fn(*mut GsubSingleSubtable) -> (),
-        ),
-        replace: Some(
-            subtable_gsub_single_replace
-                as unsafe extern "C" fn(*mut GsubSingleSubtable, GsubSingleSubtable) -> (),
-        ),
-        copy_replace: Some(
-            subtable_gsub_single_copy_replace
-                as unsafe extern "C" fn(*mut GsubSingleSubtable, GsubSingleSubtable) -> (),
         ),
         create: Some(subtable_gsub_single_create),
         free: Some(
@@ -277,20 +257,8 @@ unsafe extern "C" fn subtable_gsub_single_push(arr: *mut GsubSingleSubtable, ele
     cvec_push(as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_single_grow(arr: *mut GsubSingleSubtable) {
-    cvec_grow(as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn subtable_gsub_single_grow_to(arr: *mut GsubSingleSubtable, target: usize) {
     cvec_grow_to(as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_copy_replace(
-    mut dst: *mut GsubSingleSubtable,
-    src: GsubSingleSubtable,
-) {
-    subtable_gsub_single_dispose(dst);
-    subtable_gsub_single_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_single_pop(arr: *mut GsubSingleSubtable) -> GsubSingleEntry {
@@ -346,18 +314,6 @@ unsafe extern "C" fn subtable_gsub_single_dispose(mut arr: *mut GsubSingleSubtab
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_single_replace(
-    mut dst: *mut GsubSingleSubtable,
-    src: GsubSingleSubtable,
-) {
-    subtable_gsub_single_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GsubSingleSubtable>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn subtable_gsub_single_init_cap_n(
     mut arr: *mut GsubSingleSubtable,
     mut n: usize,
@@ -398,13 +354,6 @@ unsafe extern "C" fn subtable_gsub_single_create() -> *mut GsubSingleSubtable {
             as *mut GsubSingleSubtable;
     subtable_gsub_single_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_single_move(
-    dst: *mut GsubSingleSubtable,
-    src: *mut GsubSingleSubtable,
-) {
-    cvec_move(as_cvec(dst), as_cvec(src));
 }
 pub unsafe extern "C" fn otl_read_gsub_single(
     data: FontFilePointer,

@@ -14,7 +14,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::{NULL, ComparFn};
 use crate::table::otl::{GposMarkToLigatureSubtableElementInterface, LigatureArrayVectorInterface, Anchor, LigatureArray, LigatureBaseRecord, Subtable, GposMarkToLigatureSubtable};
@@ -34,14 +34,7 @@ pub struct LigatureBaseRecordElementInterface {
     pub copy: Option<
         unsafe extern "C" fn(*mut LigatureBaseRecord, *const LigatureBaseRecord) -> (),
     >,
-    pub move_0: Option<
-        unsafe extern "C" fn(*mut LigatureBaseRecord, *mut LigatureBaseRecord) -> (),
-    >,
     pub dispose: Option<unsafe extern "C" fn(*mut LigatureBaseRecord) -> ()>,
-    pub replace:
-        Option<unsafe extern "C" fn(*mut LigatureBaseRecord, LigatureBaseRecord) -> ()>,
-    pub copy_replace:
-        Option<unsafe extern "C" fn(*mut LigatureBaseRecord, LigatureBaseRecord) -> ()>,
 }
 #[inline]
 unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
@@ -91,12 +84,9 @@ static LA_TYPEINFO: LigatureBaseRecordElementInterface = {
     LigatureBaseRecordElementInterface {
         init: None,
         copy: None,
-        move_0: None,
         dispose: Some(
             delete_lig_array_item as unsafe extern "C" fn(*mut LigatureBaseRecord) -> (),
         ),
-        replace: None,
-        copy_replace: None,
     }
 };
 #[inline]
@@ -108,24 +98,12 @@ unsafe extern "C" fn otl_ligature_array_push(arr: *mut LigatureArray, elem: Liga
     cvec_push(otl_ligature_array_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn otl_ligature_array_grow(arr: *mut LigatureArray) {
-    cvec_grow(otl_ligature_array_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn otl_ligature_array_grow_to(arr: *mut LigatureArray, target: usize) {
     cvec_grow_to(otl_ligature_array_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn otl_ligature_array_pop(arr: *mut LigatureArray) -> LigatureBaseRecord {
     cvec_pop(otl_ligature_array_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn otl_ligature_array_copy_replace(
-    mut dst: *mut LigatureArray,
-    src: LigatureArray,
-) {
-    otl_ligature_array_dispose(dst);
-    otl_ligature_array_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn otl_ligature_array_copy(
@@ -175,18 +153,6 @@ unsafe extern "C" fn otl_ligature_array_dispose(mut arr: *mut LigatureArray) {
     (*arr).items = ::core::ptr::null_mut::<LigatureBaseRecord>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn otl_ligature_array_replace(
-    mut dst: *mut LigatureArray,
-    src: LigatureArray,
-) {
-    otl_ligature_array_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<LigatureArray>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn otl_ligature_array_init_cap_n(mut arr: *mut LigatureArray, mut n: usize) {
@@ -267,20 +233,8 @@ pub static OTL_I_LIGATURE_ARRAY: LigatureArrayVectorInterface = {
             otl_ligature_array_copy
                 as unsafe extern "C" fn(*mut LigatureArray, *const LigatureArray) -> (),
         ),
-        move_0: Some(
-            otl_ligature_array_move
-                as unsafe extern "C" fn(*mut LigatureArray, *mut LigatureArray) -> (),
-        ),
         dispose: Some(
             otl_ligature_array_dispose as unsafe extern "C" fn(*mut LigatureArray) -> (),
-        ),
-        replace: Some(
-            otl_ligature_array_replace
-                as unsafe extern "C" fn(*mut LigatureArray, LigatureArray) -> (),
-        ),
-        copy_replace: Some(
-            otl_ligature_array_copy_replace
-                as unsafe extern "C" fn(*mut LigatureArray, LigatureArray) -> (),
         ),
         create: Some(otl_ligature_array_create),
         free: Some(otl_ligature_array_free as unsafe extern "C" fn(*mut LigatureArray) -> ()),
@@ -349,10 +303,6 @@ unsafe extern "C" fn otl_ligature_array_shrink_to_fit(mut arr: *mut LigatureArra
 #[inline]
 unsafe extern "C" fn otl_ligature_array_resize_to(arr: *mut LigatureArray, target: usize) {
     cvec_resize_to(otl_ligature_array_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_ligature_array_move(dst: *mut LigatureArray, src: *mut LigatureArray) {
-    cvec_move(otl_ligature_array_as_cvec(dst), otl_ligature_array_as_cvec(src));
 }
 #[inline]
 unsafe extern "C" fn otl_ligature_array_dispose_item(mut arr: *mut LigatureArray, mut n: usize) {
@@ -429,14 +379,6 @@ unsafe extern "C" fn subtable_gpos_mark_to_ligature_init(mut x: *mut GposMarkToL
     init_mark_to_ligature(x);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_mark_to_ligature_copy_replace(
-    mut dst: *mut GposMarkToLigatureSubtable,
-    src: GposMarkToLigatureSubtable,
-) {
-    subtable_gpos_mark_to_ligature_dispose(dst);
-    subtable_gpos_mark_to_ligature_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn subtable_gpos_mark_to_ligature_copy(
     mut dst: *mut GposMarkToLigatureSubtable,
     mut src: *const GposMarkToLigatureSubtable,
@@ -446,30 +388,6 @@ unsafe extern "C" fn subtable_gpos_mark_to_ligature_copy(
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<GposMarkToLigatureSubtable>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_mark_to_ligature_replace(
-    mut dst: *mut GposMarkToLigatureSubtable,
-    src: GposMarkToLigatureSubtable,
-) {
-    subtable_gpos_mark_to_ligature_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GposMarkToLigatureSubtable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_mark_to_ligature_move(
-    mut dst: *mut GposMarkToLigatureSubtable,
-    mut src: *mut GposMarkToLigatureSubtable,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GposMarkToLigatureSubtable>() as usize,
-    );
-    subtable_gpos_mark_to_ligature_init(src);
 }
 pub static I_SUBTABLE_GPOS_MARK_TO_LIGATURE:
     GposMarkToLigatureSubtableElementInterface = {
@@ -485,30 +403,9 @@ pub static I_SUBTABLE_GPOS_MARK_TO_LIGATURE:
                     *const GposMarkToLigatureSubtable,
                 ) -> (),
         ),
-        move_0: Some(
-            subtable_gpos_mark_to_ligature_move
-                as unsafe extern "C" fn(
-                    *mut GposMarkToLigatureSubtable,
-                    *mut GposMarkToLigatureSubtable,
-                ) -> (),
-        ),
         dispose: Some(
             subtable_gpos_mark_to_ligature_dispose
                 as unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> (),
-        ),
-        replace: Some(
-            subtable_gpos_mark_to_ligature_replace
-                as unsafe extern "C" fn(
-                    *mut GposMarkToLigatureSubtable,
-                    GposMarkToLigatureSubtable,
-                ) -> (),
-        ),
-        copy_replace: Some(
-            subtable_gpos_mark_to_ligature_copy_replace
-                as unsafe extern "C" fn(
-                    *mut GposMarkToLigatureSubtable,
-                    GposMarkToLigatureSubtable,
-                ) -> (),
         ),
         create: Some(subtable_gpos_mark_to_ligature_create),
         free: Some(

@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort};
+use libc::{free, malloc, memset, qsort};
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint_fallback, preserialize};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_copy, otfcc_handle_dispose, otfcc_handle_init, otfcc_handle_move, Handle, GlyphHandle, HandleState};
@@ -11,7 +11,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, GlyphId};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
@@ -30,10 +30,7 @@ pub struct ColrLayer {
 pub struct ColrLayerElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut ColrLayer) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut ColrLayer, *const ColrLayer) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut ColrLayer, *mut ColrLayer) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ColrLayer) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut ColrLayer, ColrLayer) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut ColrLayer, ColrLayer) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -47,10 +44,7 @@ pub struct ColrLayerList {
 pub struct ColrLayerListVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut ColrLayerList, *const ColrLayerList) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut ColrLayerList, *mut ColrLayerList) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut ColrLayerList, ColrLayerList) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut ColrLayerList, ColrLayerList) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut ColrLayerList>,
     pub free: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut ColrLayerList, usize) -> ()>,
@@ -87,10 +81,7 @@ pub struct ColrMapping {
 pub struct ColrMappingElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut ColrMapping) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut ColrMapping, *const ColrMapping) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut ColrMapping, *mut ColrMapping) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ColrMapping) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut ColrMapping, ColrMapping) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut ColrMapping, ColrMapping) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -104,10 +95,7 @@ pub struct ColrTable {
 pub struct ColrTableVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut ColrTable, *const ColrTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut ColrTable, *mut ColrTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut ColrTable, ColrTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut ColrTable, ColrTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut ColrTable>,
     pub free: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut ColrTable, usize) -> ()>,
@@ -160,23 +148,9 @@ pub static COLR_I_LAYER: ColrLayerElementInterface = {
         copy: Some(
             colr_layer_copy as unsafe extern "C" fn(*mut ColrLayer, *const ColrLayer) -> (),
         ),
-        move_0: Some(
-            colr_layer_move as unsafe extern "C" fn(*mut ColrLayer, *mut ColrLayer) -> (),
-        ),
         dispose: Some(colr_layer_dispose as unsafe extern "C" fn(*mut ColrLayer) -> ()),
-        replace: Some(
-            colr_layer_replace as unsafe extern "C" fn(*mut ColrLayer, ColrLayer) -> (),
-        ),
-        copy_replace: Some(
-            colr_layer_copy_replace as unsafe extern "C" fn(*mut ColrLayer, ColrLayer) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn colr_layer_copy_replace(mut dst: *mut ColrLayer, src: ColrLayer) {
-    colr_layer_dispose(dst);
-    colr_layer_copy(dst, &raw const src);
-}
 #[inline]
 unsafe extern "C" fn colr_layer_dispose(mut x: *mut ColrLayer) {
     dispose_layer(x);
@@ -188,24 +162,6 @@ unsafe extern "C" fn colr_layer_init(mut x: *mut ColrLayer) {
 #[inline]
 unsafe extern "C" fn colr_layer_copy(mut dst: *mut ColrLayer, mut src: *const ColrLayer) {
     copy_layer(dst, src);
-}
-#[inline]
-unsafe extern "C" fn colr_layer_move(mut dst: *mut ColrLayer, mut src: *mut ColrLayer) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ColrLayer>() as usize,
-    );
-    colr_layer_init(src);
-}
-#[inline]
-unsafe extern "C" fn colr_layer_replace(mut dst: *mut ColrLayer, src: ColrLayer) {
-    colr_layer_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ColrLayer>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn colr_layer_list_grow_to(arr: *mut ColrLayerList, target: usize) {
@@ -257,10 +213,6 @@ unsafe extern "C" fn colr_layer_list_fill(mut arr: *mut ColrLayerList, mut n: us
 unsafe extern "C" fn colr_layer_list_push(arr: *mut ColrLayerList, elem: ColrLayer) {
     cvec_push(colr_layer_list_as_cvec(arr), elem);
 }
-#[inline]
-unsafe extern "C" fn colr_layer_list_grow(arr: *mut ColrLayerList) {
-    cvec_grow(colr_layer_list_as_cvec(arr));
-}
 pub static COLR_I_LAYER_LIST: ColrLayerListVectorInterface = {
     ColrLayerListVectorInterface {
         init: Some(colr_layer_list_init as unsafe extern "C" fn(*mut ColrLayerList) -> ()),
@@ -268,19 +220,7 @@ pub static COLR_I_LAYER_LIST: ColrLayerListVectorInterface = {
             colr_layer_list_copy
                 as unsafe extern "C" fn(*mut ColrLayerList, *const ColrLayerList) -> (),
         ),
-        move_0: Some(
-            colr_layer_list_move
-                as unsafe extern "C" fn(*mut ColrLayerList, *mut ColrLayerList) -> (),
-        ),
         dispose: Some(colr_layer_list_dispose as unsafe extern "C" fn(*mut ColrLayerList) -> ()),
-        replace: Some(
-            colr_layer_list_replace
-                as unsafe extern "C" fn(*mut ColrLayerList, ColrLayerList) -> (),
-        ),
-        copy_replace: Some(
-            colr_layer_list_copy_replace
-                as unsafe extern "C" fn(*mut ColrLayerList, ColrLayerList) -> (),
-        ),
         create: Some(colr_layer_list_create),
         free: Some(colr_layer_list_free as unsafe extern "C" fn(*mut ColrLayerList) -> ()),
         init_n: Some(
@@ -333,11 +273,6 @@ unsafe extern "C" fn colr_layer_list_pop(arr: *mut ColrLayerList) -> ColrLayer {
     cvec_pop(colr_layer_list_as_cvec(arr))
 }
 #[inline]
-unsafe extern "C" fn colr_layer_list_copy_replace(mut dst: *mut ColrLayerList, src: ColrLayerList) {
-    colr_layer_list_dispose(dst);
-    colr_layer_list_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn colr_layer_list_copy(
     mut dst: *mut ColrLayerList,
     mut src: *const ColrLayerList,
@@ -386,15 +321,6 @@ unsafe extern "C" fn colr_layer_list_dispose(mut arr: *mut ColrLayerList) {
     (*arr).capacity = 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn colr_layer_list_replace(mut dst: *mut ColrLayerList, src: ColrLayerList) {
-    colr_layer_list_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ColrLayerList>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn colr_layer_list_init_cap_n(mut arr: *mut ColrLayerList, mut n: usize) {
     colr_layer_list_init(arr);
     colr_layer_list_grow_to_n(arr, n);
@@ -438,10 +364,6 @@ unsafe extern "C" fn colr_layer_list_shrink_to_fit(mut arr: *mut ColrLayerList) 
 #[inline]
 unsafe extern "C" fn colr_layer_list_resize_to(arr: *mut ColrLayerList, target: usize) {
     cvec_resize_to(colr_layer_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn colr_layer_list_move(dst: *mut ColrLayerList, src: *mut ColrLayerList) {
-    cvec_move(colr_layer_list_as_cvec(dst), colr_layer_list_as_cvec(src));
 }
 #[inline]
 unsafe fn colr_layer_list_as_cvec(arr: *mut ColrLayerList) -> *mut CVecRaw<ColrLayer> {
@@ -514,63 +436,22 @@ unsafe extern "C" fn dispose_mapping(mut mapping: *mut ColrMapping) {
 unsafe extern "C" fn colr_mapping_dispose(mut x: *mut ColrMapping) {
     dispose_mapping(x);
 }
-#[inline]
-unsafe extern "C" fn colr_mapping_copy_replace(mut dst: *mut ColrMapping, src: ColrMapping) {
-    colr_mapping_dispose(dst);
-    colr_mapping_copy(dst, &raw const src);
-}
 pub static COLR_I_MAPPING: ColrMappingElementInterface = {
     ColrMappingElementInterface {
         init: Some(colr_mapping_init as unsafe extern "C" fn(*mut ColrMapping) -> ()),
         copy: Some(
             colr_mapping_copy as unsafe extern "C" fn(*mut ColrMapping, *const ColrMapping) -> (),
         ),
-        move_0: Some(
-            colr_mapping_move as unsafe extern "C" fn(*mut ColrMapping, *mut ColrMapping) -> (),
-        ),
         dispose: Some(colr_mapping_dispose as unsafe extern "C" fn(*mut ColrMapping) -> ()),
-        replace: Some(
-            colr_mapping_replace as unsafe extern "C" fn(*mut ColrMapping, ColrMapping) -> (),
-        ),
-        copy_replace: Some(
-            colr_mapping_copy_replace as unsafe extern "C" fn(*mut ColrMapping, ColrMapping) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn colr_mapping_move(mut dst: *mut ColrMapping, mut src: *mut ColrMapping) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ColrMapping>() as usize,
-    );
-    colr_mapping_init(src);
-}
 #[inline]
 unsafe extern "C" fn colr_mapping_init(mut x: *mut ColrMapping) {
     init_mapping(x);
 }
 #[inline]
-unsafe extern "C" fn colr_mapping_replace(mut dst: *mut ColrMapping, src: ColrMapping) {
-    colr_mapping_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ColrMapping>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn colr_mapping_copy(mut dst: *mut ColrMapping, mut src: *const ColrMapping) {
     copy_mapping(dst, src);
-}
-#[inline]
-unsafe extern "C" fn table_colr_replace(mut dst: *mut ColrTable, src: ColrTable) {
-    table_colr_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ColrTable>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn table_colr_grow_to(arr: *mut ColrTable, target: usize) {
@@ -582,16 +463,7 @@ pub static TABLE_I_COLR: ColrTableVectorInterface = {
         copy: Some(
             table_colr_copy as unsafe extern "C" fn(*mut ColrTable, *const ColrTable) -> (),
         ),
-        move_0: Some(
-            table_colr_move as unsafe extern "C" fn(*mut ColrTable, *mut ColrTable) -> (),
-        ),
         dispose: Some(table_colr_dispose as unsafe extern "C" fn(*mut ColrTable) -> ()),
-        replace: Some(
-            table_colr_replace as unsafe extern "C" fn(*mut ColrTable, ColrTable) -> (),
-        ),
-        copy_replace: Some(
-            table_colr_copy_replace as unsafe extern "C" fn(*mut ColrTable, ColrTable) -> (),
-        ),
         create: Some(table_colr_create),
         free: Some(table_colr_free as unsafe extern "C" fn(*mut ColrTable) -> ()),
         init_n: Some(table_colr_init_n as unsafe extern "C" fn(*mut ColrTable, usize) -> ()),
@@ -636,10 +508,6 @@ unsafe extern "C" fn table_colr_shrink_to_fit(mut arr: *mut ColrTable) {
 #[inline]
 unsafe extern "C" fn table_colr_resize_to(arr: *mut ColrTable, target: usize) {
     cvec_resize_to(table_colr_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn table_colr_move(dst: *mut ColrTable, src: *mut ColrTable) {
-    cvec_move(table_colr_as_cvec(dst), table_colr_as_cvec(src));
 }
 #[inline]
 unsafe fn table_colr_as_cvec(arr: *mut ColrTable) -> *mut CVecRaw<ColrMapping> {
@@ -741,17 +609,8 @@ unsafe extern "C" fn table_colr_push(arr: *mut ColrTable, elem: ColrMapping) {
     cvec_push(table_colr_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn table_colr_grow(arr: *mut ColrTable) {
-    cvec_grow(table_colr_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn table_colr_pop(arr: *mut ColrTable) -> ColrMapping {
     cvec_pop(table_colr_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn table_colr_copy_replace(mut dst: *mut ColrTable, src: ColrTable) {
-    table_colr_dispose(dst);
-    table_colr_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn table_colr_copy(mut dst: *mut ColrTable, mut src: *const ColrTable) {

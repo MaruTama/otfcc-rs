@@ -14,10 +14,7 @@ pub struct VV {
 pub struct VvVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut VV) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut VV, *const VV) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut VV, *mut VV) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut VV) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut VV, VV) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut VV, VV) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut VV>,
     pub free: Option<unsafe extern "C" fn(*mut VV) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut VV, usize) -> ()>,

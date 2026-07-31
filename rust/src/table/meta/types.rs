@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset, qsort};
 use crate::vendor::sds::{SdsRaw};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::support::{ComparFn};
 use crate::vendor::sds::{sdsfree};
 
@@ -16,10 +16,7 @@ pub struct MetaEntry {
 pub struct MetaEntryElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut MetaEntry) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut MetaEntry, *const MetaEntry) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut MetaEntry, *mut MetaEntry) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MetaEntry) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut MetaEntry, MetaEntry) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut MetaEntry, MetaEntry) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -33,10 +30,7 @@ pub struct MetaEntries {
 pub struct MetaEntriesVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut MetaEntries) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut MetaEntries, *const MetaEntries) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut MetaEntries, *mut MetaEntries) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MetaEntries) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut MetaEntries, MetaEntries) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut MetaEntries, MetaEntries) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut MetaEntries>,
     pub free: Option<unsafe extern "C" fn(*mut MetaEntries) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut MetaEntries, usize) -> ()>,
@@ -74,10 +68,7 @@ pub struct MetaTable {
 pub struct MetaTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut MetaTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut MetaTable, *const MetaTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut MetaTable, *mut MetaTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut MetaTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut MetaTable, MetaTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut MetaTable, MetaTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut MetaTable>,
     pub free: Option<unsafe extern "C" fn(*mut MetaTable) -> ()>,
 }
@@ -94,27 +85,9 @@ pub static META_I_ENTRY: MetaEntryElementInterface = {
         copy: Some(
             meta_entry_copy as unsafe extern "C" fn(*mut MetaEntry, *const MetaEntry) -> (),
         ),
-        move_0: Some(
-            meta_entry_move as unsafe extern "C" fn(*mut MetaEntry, *mut MetaEntry) -> (),
-        ),
         dispose: Some(meta_entry_dispose as unsafe extern "C" fn(*mut MetaEntry) -> ()),
-        replace: Some(
-            meta_entry_replace as unsafe extern "C" fn(*mut MetaEntry, MetaEntry) -> (),
-        ),
-        copy_replace: Some(
-            meta_entry_copy_replace as unsafe extern "C" fn(*mut MetaEntry, MetaEntry) -> (),
-        ),
     }
 };
-#[inline]
-unsafe extern "C" fn meta_entry_replace(mut dst: *mut MetaEntry, src: MetaEntry) {
-    meta_entry_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<MetaEntry>() as usize,
-    );
-}
 #[inline]
 unsafe extern "C" fn meta_entry_init(mut x: *mut MetaEntry) {
     init_meta_entry(x);
@@ -130,20 +103,6 @@ unsafe extern "C" fn meta_entry_copy(mut dst: *mut MetaEntry, mut src: *const Me
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<MetaEntry>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn meta_entry_move(mut dst: *mut MetaEntry, mut src: *mut MetaEntry) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<MetaEntry>() as usize,
-    );
-    meta_entry_init(src);
-}
-#[inline]
-unsafe extern "C" fn meta_entry_copy_replace(mut dst: *mut MetaEntry, src: MetaEntry) {
-    meta_entry_dispose(dst);
-    meta_entry_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn meta_entries_filter_env(
@@ -175,10 +134,6 @@ unsafe extern "C" fn meta_entries_filter_env(
     (*arr).length = j;
 }
 #[inline]
-unsafe extern "C" fn meta_entries_move(dst: *mut MetaEntries, src: *mut MetaEntries) {
-    cvec_move(meta_entries_as_cvec(dst), meta_entries_as_cvec(src));
-}
-#[inline]
 unsafe fn meta_entries_as_cvec(arr: *mut MetaEntries) -> *mut CVecRaw<MetaEntry> {
     arr as *mut CVecRaw<MetaEntry>
 }
@@ -192,16 +147,7 @@ pub static META_I_ENTRIES: MetaEntriesVectorInterface = {
         copy: Some(
             meta_entries_copy as unsafe extern "C" fn(*mut MetaEntries, *const MetaEntries) -> (),
         ),
-        move_0: Some(
-            meta_entries_move as unsafe extern "C" fn(*mut MetaEntries, *mut MetaEntries) -> (),
-        ),
         dispose: Some(meta_entries_dispose as unsafe extern "C" fn(*mut MetaEntries) -> ()),
-        replace: Some(
-            meta_entries_replace as unsafe extern "C" fn(*mut MetaEntries, MetaEntries) -> (),
-        ),
-        copy_replace: Some(
-            meta_entries_copy_replace as unsafe extern "C" fn(*mut MetaEntries, MetaEntries) -> (),
-        ),
         create: Some(meta_entries_create),
         free: Some(meta_entries_free as unsafe extern "C" fn(*mut MetaEntries) -> ()),
         init_n: Some(meta_entries_init_n as unsafe extern "C" fn(*mut MetaEntries, usize) -> ()),
@@ -295,21 +241,12 @@ unsafe extern "C" fn meta_entries_push(arr: *mut MetaEntries, elem: MetaEntry) {
     cvec_push(meta_entries_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn meta_entries_grow(arr: *mut MetaEntries) {
-    cvec_grow(meta_entries_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn meta_entries_grow_to(arr: *mut MetaEntries, target: usize) {
     cvec_grow_to(meta_entries_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn meta_entries_pop(arr: *mut MetaEntries) -> MetaEntry {
     cvec_pop(meta_entries_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn meta_entries_copy_replace(mut dst: *mut MetaEntries, src: MetaEntries) {
-    meta_entries_dispose(dst);
-    meta_entries_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn meta_entries_copy(mut dst: *mut MetaEntries, mut src: *const MetaEntries) {
@@ -355,15 +292,6 @@ unsafe extern "C" fn meta_entries_dispose(mut arr: *mut MetaEntries) {
     (*arr).items = ::core::ptr::null_mut::<MetaEntry>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn meta_entries_replace(mut dst: *mut MetaEntries, src: MetaEntries) {
-    meta_entries_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<MetaEntries>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn meta_entries_init_cap_n(mut arr: *mut MetaEntries, mut n: usize) {
@@ -427,15 +355,6 @@ unsafe extern "C" fn table_meta_free(mut x: *mut MetaTable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn table_meta_move(mut dst: *mut MetaTable, mut src: *mut MetaTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<MetaTable>() as usize,
-    );
-    table_meta_init(src);
-}
-#[inline]
 unsafe extern "C" fn table_meta_copy(mut dst: *mut MetaTable, mut src: *const MetaTable) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
@@ -449,16 +368,7 @@ pub static TABLE_I_META: MetaTableElementInterface = {
         copy: Some(
             table_meta_copy as unsafe extern "C" fn(*mut MetaTable, *const MetaTable) -> (),
         ),
-        move_0: Some(
-            table_meta_move as unsafe extern "C" fn(*mut MetaTable, *mut MetaTable) -> (),
-        ),
         dispose: Some(table_meta_dispose as unsafe extern "C" fn(*mut MetaTable) -> ()),
-        replace: Some(
-            table_meta_replace as unsafe extern "C" fn(*mut MetaTable, MetaTable) -> (),
-        ),
-        copy_replace: Some(
-            table_meta_copy_replace as unsafe extern "C" fn(*mut MetaTable, MetaTable) -> (),
-        ),
         create: Some(table_meta_create),
         free: Some(table_meta_free as unsafe extern "C" fn(*mut MetaTable) -> ()),
     }
@@ -472,23 +382,9 @@ unsafe extern "C" fn table_meta_dispose(mut x: *mut MetaTable) {
     dispose_meta_table(x);
 }
 #[inline]
-unsafe extern "C" fn table_meta_replace(mut dst: *mut MetaTable, src: MetaTable) {
-    table_meta_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<MetaTable>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn table_meta_create() -> *mut MetaTable {
     let mut x: *mut MetaTable =
         malloc(::core::mem::size_of::<MetaTable>() as usize) as *mut MetaTable;
     table_meta_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn table_meta_copy_replace(mut dst: *mut MetaTable, src: MetaTable) {
-    table_meta_dispose(dst);
-    table_meta_copy(dst, &raw const src);
 }

@@ -37,10 +37,7 @@ pub struct PostTable {
 pub struct PostTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut PostTable, *const PostTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut PostTable, *mut PostTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut PostTable, PostTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut PostTable, PostTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut PostTable>,
     pub free: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
 }
@@ -380,45 +377,13 @@ unsafe extern "C" fn table_post_copy(mut dst: *mut PostTable, mut src: *const Po
         ::core::mem::size_of::<PostTable>() as usize,
     );
 }
-#[inline]
-unsafe extern "C" fn table_post_copy_replace(mut dst: *mut PostTable, src: PostTable) {
-    table_post_dispose(dst);
-    table_post_copy(dst, &raw const src);
-}
-#[inline]
-unsafe extern "C" fn table_post_move(mut dst: *mut PostTable, mut src: *mut PostTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<PostTable>() as usize,
-    );
-    table_post_init(src);
-}
-#[inline]
-unsafe extern "C" fn table_post_replace(mut dst: *mut PostTable, src: PostTable) {
-    table_post_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<PostTable>() as usize,
-    );
-}
 pub static I_TABLE_POST: PostTableElementInterface = {
     PostTableElementInterface {
         init: Some(table_post_init as unsafe extern "C" fn(*mut PostTable) -> ()),
         copy: Some(
             table_post_copy as unsafe extern "C" fn(*mut PostTable, *const PostTable) -> (),
         ),
-        move_0: Some(
-            table_post_move as unsafe extern "C" fn(*mut PostTable, *mut PostTable) -> (),
-        ),
         dispose: Some(table_post_dispose as unsafe extern "C" fn(*mut PostTable) -> ()),
-        replace: Some(
-            table_post_replace as unsafe extern "C" fn(*mut PostTable, PostTable) -> (),
-        ),
-        copy_replace: Some(
-            table_post_copy_replace as unsafe extern "C" fn(*mut PostTable, PostTable) -> (),
-        ),
         create: Some(table_post_create),
         free: Some(table_post_free as unsafe extern "C" fn(*mut PostTable) -> ()),
     }

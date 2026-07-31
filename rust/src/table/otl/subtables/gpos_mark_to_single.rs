@@ -14,7 +14,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::{NULL, ComparFn};
 use crate::table::otl::{GposMarkToSingleSubtableElementInterface, BaseArrayVectorInterface, Anchor, BaseArray, BaseRecord, Subtable, GposMarkToSingleSubtable};
@@ -32,10 +32,7 @@ use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 pub struct BaseRecordElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut BaseRecord) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut BaseRecord, *const BaseRecord) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut BaseRecord, *mut BaseRecord) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut BaseRecord) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut BaseRecord, BaseRecord) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut BaseRecord, BaseRecord) -> ()>,
 }
 #[inline]
 unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
@@ -76,10 +73,7 @@ static BA_TYPEINFO: BaseRecordElementInterface = {
     BaseRecordElementInterface {
         init: None,
         copy: None,
-        move_0: None,
         dispose: Some(delete_base_array_item as unsafe extern "C" fn(*mut BaseRecord) -> ()),
-        replace: None,
-        copy_replace: None,
     }
 };
 #[inline]
@@ -94,21 +88,12 @@ unsafe extern "C" fn otl_base_array_push(arr: *mut BaseArray, elem: BaseRecord) 
     cvec_push(otl_base_array_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn otl_base_array_grow(arr: *mut BaseArray) {
-    cvec_grow(otl_base_array_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn otl_base_array_grow_to(arr: *mut BaseArray, target: usize) {
     cvec_grow_to(otl_base_array_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn otl_base_array_pop(arr: *mut BaseArray) -> BaseRecord {
     cvec_pop(otl_base_array_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn otl_base_array_copy_replace(mut dst: *mut BaseArray, src: BaseArray) {
-    otl_base_array_dispose(dst);
-    otl_base_array_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn otl_base_array_copy(
@@ -157,15 +142,6 @@ unsafe extern "C" fn otl_base_array_dispose(mut arr: *mut BaseArray) {
     (*arr).items = ::core::ptr::null_mut::<BaseRecord>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn otl_base_array_replace(mut dst: *mut BaseArray, src: BaseArray) {
-    otl_base_array_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<BaseArray>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn otl_base_array_init_cap_n(mut arr: *mut BaseArray, mut n: usize) {
@@ -241,18 +217,7 @@ pub static OTL_I_BASE_ARRAY: BaseArrayVectorInterface = {
             otl_base_array_copy
                 as unsafe extern "C" fn(*mut BaseArray, *const BaseArray) -> (),
         ),
-        move_0: Some(
-            otl_base_array_move
-                as unsafe extern "C" fn(*mut BaseArray, *mut BaseArray) -> (),
-        ),
         dispose: Some(otl_base_array_dispose as unsafe extern "C" fn(*mut BaseArray) -> ()),
-        replace: Some(
-            otl_base_array_replace as unsafe extern "C" fn(*mut BaseArray, BaseArray) -> (),
-        ),
-        copy_replace: Some(
-            otl_base_array_copy_replace
-                as unsafe extern "C" fn(*mut BaseArray, BaseArray) -> (),
-        ),
         create: Some(otl_base_array_create),
         free: Some(otl_base_array_free as unsafe extern "C" fn(*mut BaseArray) -> ()),
         init_n: Some(otl_base_array_init_n as unsafe extern "C" fn(*mut BaseArray, usize) -> ()),
@@ -302,10 +267,6 @@ pub static OTL_I_BASE_ARRAY: BaseArrayVectorInterface = {
 #[inline]
 unsafe extern "C" fn otl_base_array_shrink_to_fit(mut arr: *mut BaseArray) {
     otl_base_array_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn otl_base_array_move(dst: *mut BaseArray, src: *mut BaseArray) {
-    cvec_move(otl_base_array_as_cvec(dst), otl_base_array_as_cvec(src));
 }
 #[inline]
 unsafe extern "C" fn otl_base_array_resize_to(arr: *mut BaseArray, target: usize) {
@@ -376,14 +337,6 @@ unsafe extern "C" fn dispose_mark_to_single(mut subtable: *mut GposMarkToSingleS
     OTL_I_BASE_ARRAY.dispose.expect("non-null function pointer")(&raw mut (*subtable).base_array);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_mark_to_single_copy_replace(
-    mut dst: *mut GposMarkToSingleSubtable,
-    src: GposMarkToSingleSubtable,
-) {
-    subtable_gpos_mark_to_single_dispose(dst);
-    subtable_gpos_mark_to_single_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn subtable_gpos_mark_to_single_copy(
     mut dst: *mut GposMarkToSingleSubtable,
     mut src: *const GposMarkToSingleSubtable,
@@ -393,30 +346,6 @@ unsafe extern "C" fn subtable_gpos_mark_to_single_copy(
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<GposMarkToSingleSubtable>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_mark_to_single_replace(
-    mut dst: *mut GposMarkToSingleSubtable,
-    src: GposMarkToSingleSubtable,
-) {
-    subtable_gpos_mark_to_single_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GposMarkToSingleSubtable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_mark_to_single_move(
-    mut dst: *mut GposMarkToSingleSubtable,
-    mut src: *mut GposMarkToSingleSubtable,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GposMarkToSingleSubtable>() as usize,
-    );
-    subtable_gpos_mark_to_single_init(src);
 }
 #[inline]
 unsafe extern "C" fn subtable_gpos_mark_to_single_free(mut x: *mut GposMarkToSingleSubtable) {
@@ -447,30 +376,9 @@ pub static I_SUBTABLE_GPOS_MARK_TO_SINGLE: GposMarkToSingleSubtableElementInterf
                     *const GposMarkToSingleSubtable,
                 ) -> (),
         ),
-        move_0: Some(
-            subtable_gpos_mark_to_single_move
-                as unsafe extern "C" fn(
-                    *mut GposMarkToSingleSubtable,
-                    *mut GposMarkToSingleSubtable,
-                ) -> (),
-        ),
         dispose: Some(
             subtable_gpos_mark_to_single_dispose
                 as unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> (),
-        ),
-        replace: Some(
-            subtable_gpos_mark_to_single_replace
-                as unsafe extern "C" fn(
-                    *mut GposMarkToSingleSubtable,
-                    GposMarkToSingleSubtable,
-                ) -> (),
-        ),
-        copy_replace: Some(
-            subtable_gpos_mark_to_single_copy_replace
-                as unsafe extern "C" fn(
-                    *mut GposMarkToSingleSubtable,
-                    GposMarkToSingleSubtable,
-                ) -> (),
         ),
         create: Some(subtable_gpos_mark_to_single_create),
         free: Some(

@@ -28,10 +28,7 @@ pub struct FpgmPrepTable {
 pub struct FpgmPrepTableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut FpgmPrepTable, *const FpgmPrepTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut FpgmPrepTable, *mut FpgmPrepTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut FpgmPrepTable>,
     pub free: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
 }
@@ -69,23 +66,6 @@ unsafe extern "C" fn table_fpgm_prep_create() -> *mut FpgmPrepTable {
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_fpgm_prep_replace(mut dst: *mut FpgmPrepTable, src: FpgmPrepTable) {
-    table_fpgm_prep_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FpgmPrepTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_fpgm_prep_copy_replace(
-    mut dst: *mut FpgmPrepTable,
-    src: FpgmPrepTable,
-) {
-    table_fpgm_prep_dispose(dst);
-    table_fpgm_prep_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn table_fpgm_prep_copy(
     mut dst: *mut FpgmPrepTable,
     mut src: *const FpgmPrepTable,
@@ -95,18 +75,6 @@ unsafe extern "C" fn table_fpgm_prep_copy(
         src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<FpgmPrepTable>() as usize,
     );
-}
-#[inline]
-unsafe extern "C" fn table_fpgm_prep_move(
-    mut dst: *mut FpgmPrepTable,
-    mut src: *mut FpgmPrepTable,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FpgmPrepTable>() as usize,
-    );
-    table_fpgm_prep_init(src);
 }
 #[inline]
 unsafe extern "C" fn table_fpgm_prep_dispose(mut x: *mut FpgmPrepTable) {
@@ -119,19 +87,7 @@ pub static TABLE_I_FPGM_PREP: FpgmPrepTableElementInterface = {
             table_fpgm_prep_copy
                 as unsafe extern "C" fn(*mut FpgmPrepTable, *const FpgmPrepTable) -> (),
         ),
-        move_0: Some(
-            table_fpgm_prep_move
-                as unsafe extern "C" fn(*mut FpgmPrepTable, *mut FpgmPrepTable) -> (),
-        ),
         dispose: Some(table_fpgm_prep_dispose as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
-        replace: Some(
-            table_fpgm_prep_replace
-                as unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> (),
-        ),
-        copy_replace: Some(
-            table_fpgm_prep_copy_replace
-                as unsafe extern "C" fn(*mut FpgmPrepTable, FpgmPrepTable) -> (),
-        ),
         create: Some(table_fpgm_prep_create),
         free: Some(table_fpgm_prep_free as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
     }

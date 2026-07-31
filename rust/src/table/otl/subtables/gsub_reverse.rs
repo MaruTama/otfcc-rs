@@ -66,23 +66,8 @@ pub static I_SUBTABLE_GSUB_REVERSE: GsubReverseSubtableElementInterface = {
                     *const GsubReverseSubtable,
                 ) -> (),
         ),
-        move_0: Some(
-            subtable_gsub_reverse_move
-                as unsafe extern "C" fn(
-                    *mut GsubReverseSubtable,
-                    *mut GsubReverseSubtable,
-                ) -> (),
-        ),
         dispose: Some(
             subtable_gsub_reverse_dispose as unsafe extern "C" fn(*mut GsubReverseSubtable) -> (),
-        ),
-        replace: Some(
-            subtable_gsub_reverse_replace
-                as unsafe extern "C" fn(*mut GsubReverseSubtable, GsubReverseSubtable) -> (),
-        ),
-        copy_replace: Some(
-            subtable_gsub_reverse_copy_replace
-                as unsafe extern "C" fn(*mut GsubReverseSubtable, GsubReverseSubtable) -> (),
         ),
         create: Some(subtable_gsub_reverse_create),
         free: Some(
@@ -110,38 +95,6 @@ unsafe extern "C" fn subtable_gsub_reverse_copy(
     memcpy(
         dst as *mut ::core::ffi::c_void,
         src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GsubReverseSubtable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_reverse_copy_replace(
-    mut dst: *mut GsubReverseSubtable,
-    src: GsubReverseSubtable,
-) {
-    subtable_gsub_reverse_dispose(dst);
-    subtable_gsub_reverse_copy(dst, &raw const src);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_reverse_move(
-    mut dst: *mut GsubReverseSubtable,
-    mut src: *mut GsubReverseSubtable,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GsubReverseSubtable>() as usize,
-    );
-    subtable_gsub_reverse_init(src);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_reverse_replace(
-    mut dst: *mut GsubReverseSubtable,
-    src: GsubReverseSubtable,
-) {
-    subtable_gsub_reverse_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
         ::core::mem::size_of::<GsubReverseSubtable>() as usize,
     );
 }

@@ -122,10 +122,7 @@ pub enum FontSubtype {
 pub struct FontElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut Font) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut Font, *const Font) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut Font, *mut Font) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut Font) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut Font, Font) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut Font, Font) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut Font>,
     pub free: Option<unsafe extern "C" fn(*mut Font) -> ()>,
     pub consolidate: Option<unsafe extern "C" fn(*mut Font, *const Options) -> ()>,
@@ -425,11 +422,6 @@ unsafe extern "C" fn otfcc_font_free(mut x: *mut Font) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otfcc_font_copy_replace(mut dst: *mut Font, src: Font) {
-    otfcc_font_dispose(dst);
-    otfcc_font_copy(dst, &raw const src);
-}
-#[inline]
 unsafe extern "C" fn otfcc_font_copy(mut dst: *mut Font, mut src: *const Font) {
     memcpy(
         dst as *mut ::core::ffi::c_void,
@@ -437,40 +429,13 @@ unsafe extern "C" fn otfcc_font_copy(mut dst: *mut Font, mut src: *const Font) {
         ::core::mem::size_of::<Font>() as usize,
     );
 }
-#[inline]
-unsafe extern "C" fn otfcc_font_replace(mut dst: *mut Font, src: Font) {
-    otfcc_font_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Font>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn otfcc_font_move(mut dst: *mut Font, mut src: *mut Font) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Font>() as usize,
-    );
-    otfcc_font_init(src);
-}
 pub static OTFCC_I_FONT: FontElementInterface = {
     FontElementInterface {
         init: Some(otfcc_font_init as unsafe extern "C" fn(*mut Font) -> ()),
         copy: Some(
             otfcc_font_copy as unsafe extern "C" fn(*mut Font, *const Font) -> (),
         ),
-        move_0: Some(
-            otfcc_font_move as unsafe extern "C" fn(*mut Font, *mut Font) -> (),
-        ),
         dispose: Some(otfcc_font_dispose as unsafe extern "C" fn(*mut Font) -> ()),
-        replace: Some(
-            otfcc_font_replace as unsafe extern "C" fn(*mut Font, Font) -> (),
-        ),
-        copy_replace: Some(
-            otfcc_font_copy_replace as unsafe extern "C" fn(*mut Font, Font) -> (),
-        ),
         create: Some(otfcc_font_create),
         free: Some(otfcc_font_free as unsafe extern "C" fn(*mut Font) -> ()),
         consolidate: Some(

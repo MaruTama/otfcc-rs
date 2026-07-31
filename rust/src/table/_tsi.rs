@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort, strcmp};
+use libc::{free, malloc, memset, qsort, strcmp};
 use crate::support::json_funcs::{json_obj_get_type};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_copy, otfcc_handle_dispose, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
@@ -9,7 +9,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_move, cvec_pop, cvec_push, cvec_resize_to};
+use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{ComparFn};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_sds};
@@ -37,10 +37,7 @@ pub struct TsiEntry {
 pub struct TsiEntryElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut TsiEntry) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut TsiEntry, *const TsiEntry) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut TsiEntry, *mut TsiEntry) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut TsiEntry) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -54,10 +51,7 @@ pub struct TsiTable {
 pub struct TsiTableVectorInterface {
     pub init: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut TsiTable, *const TsiTable) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut TsiTable, *mut TsiTable) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut TsiTable, TsiTable) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut TsiTable, TsiTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut TsiTable>,
     pub free: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
     pub init_n: Option<unsafe extern "C" fn(*mut TsiTable, usize) -> ()>,
@@ -140,37 +134,14 @@ unsafe extern "C" fn dispose_tsi_entry(mut entry: *mut TsiEntry) {
     sdsfree((*entry).content);
 }
 #[inline]
-unsafe extern "C" fn tsi_entry_replace(mut dst: *mut TsiEntry, src: TsiEntry) {
-    tsi_entry_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<TsiEntry>() as usize,
-    );
-}
-#[inline]
 unsafe extern "C" fn tsi_entry_init(mut x: *mut TsiEntry) {
     init_tsi_entry(x);
-}
-#[inline]
-unsafe extern "C" fn tsi_entry_move(mut dst: *mut TsiEntry, mut src: *mut TsiEntry) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<TsiEntry>() as usize,
-    );
-    tsi_entry_init(src);
 }
 pub static TSI_I_ENTRY: TsiEntryElementInterface = {
     TsiEntryElementInterface {
         init: Some(tsi_entry_init as unsafe extern "C" fn(*mut TsiEntry) -> ()),
         copy: Some(tsi_entry_copy as unsafe extern "C" fn(*mut TsiEntry, *const TsiEntry) -> ()),
-        move_0: Some(tsi_entry_move as unsafe extern "C" fn(*mut TsiEntry, *mut TsiEntry) -> ()),
         dispose: Some(tsi_entry_dispose as unsafe extern "C" fn(*mut TsiEntry) -> ()),
-        replace: Some(tsi_entry_replace as unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> ()),
-        copy_replace: Some(
-            tsi_entry_copy_replace as unsafe extern "C" fn(*mut TsiEntry, TsiEntry) -> (),
-        ),
     }
 };
 #[inline]
@@ -180,11 +151,6 @@ unsafe extern "C" fn tsi_entry_dispose(mut x: *mut TsiEntry) {
 #[inline]
 unsafe extern "C" fn tsi_entry_copy(mut dst: *mut TsiEntry, mut src: *const TsiEntry) {
     copy_tsi_entry(dst, src);
-}
-#[inline]
-unsafe extern "C" fn tsi_entry_copy_replace(mut dst: *mut TsiEntry, src: TsiEntry) {
-    tsi_entry_dispose(dst);
-    tsi_entry_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn table_tsi_fill(mut arr: *mut TsiTable, mut n: usize) {
@@ -209,10 +175,6 @@ unsafe extern "C" fn table_tsi_fill(mut arr: *mut TsiTable, mut n: usize) {
         }
         table_tsi_push(arr, x);
     }
-}
-#[inline]
-unsafe extern "C" fn table_tsi_move(dst: *mut TsiTable, src: *mut TsiTable) {
-    cvec_move(table_tsi_as_cvec(dst), table_tsi_as_cvec(src));
 }
 #[inline]
 unsafe fn table_tsi_as_cvec(arr: *mut TsiTable) -> *mut CVecRaw<TsiEntry> {
@@ -281,12 +243,7 @@ pub static TABLE_I_TSI: TsiTableVectorInterface = {
     TsiTableVectorInterface {
         init: Some(table_tsi_init as unsafe extern "C" fn(*mut TsiTable) -> ()),
         copy: Some(table_tsi_copy as unsafe extern "C" fn(*mut TsiTable, *const TsiTable) -> ()),
-        move_0: Some(table_tsi_move as unsafe extern "C" fn(*mut TsiTable, *mut TsiTable) -> ()),
         dispose: Some(table_tsi_dispose as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        replace: Some(table_tsi_replace as unsafe extern "C" fn(*mut TsiTable, TsiTable) -> ()),
-        copy_replace: Some(
-            table_tsi_copy_replace as unsafe extern "C" fn(*mut TsiTable, TsiTable) -> (),
-        ),
         create: Some(table_tsi_create),
         free: Some(table_tsi_free as unsafe extern "C" fn(*mut TsiTable) -> ()),
         init_n: Some(table_tsi_init_n as unsafe extern "C" fn(*mut TsiTable, usize) -> ()),
@@ -327,21 +284,12 @@ unsafe extern "C" fn table_tsi_push(arr: *mut TsiTable, elem: TsiEntry) {
     cvec_push(table_tsi_as_cvec(arr), elem);
 }
 #[inline]
-unsafe extern "C" fn table_tsi_grow(arr: *mut TsiTable) {
-    cvec_grow(table_tsi_as_cvec(arr));
-}
-#[inline]
 unsafe extern "C" fn table_tsi_grow_to(arr: *mut TsiTable, target: usize) {
     cvec_grow_to(table_tsi_as_cvec(arr), target);
 }
 #[inline]
 unsafe extern "C" fn table_tsi_pop(arr: *mut TsiTable) -> TsiEntry {
     cvec_pop(table_tsi_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn table_tsi_copy_replace(mut dst: *mut TsiTable, src: TsiTable) {
-    table_tsi_dispose(dst);
-    table_tsi_copy(dst, &raw const src);
 }
 #[inline]
 unsafe extern "C" fn table_tsi_copy(mut dst: *mut TsiTable, mut src: *const TsiTable) {
@@ -387,15 +335,6 @@ unsafe extern "C" fn table_tsi_dispose(mut arr: *mut TsiTable) {
     (*arr).items = ::core::ptr::null_mut::<TsiEntry>();
     (*arr).length = 0 as usize;
     (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn table_tsi_replace(mut dst: *mut TsiTable, src: TsiTable) {
-    table_tsi_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<TsiTable>() as usize,
-    );
 }
 #[inline]
 unsafe extern "C" fn table_tsi_init_cap_n(mut arr: *mut TsiTable, mut n: usize) {
