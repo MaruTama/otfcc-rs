@@ -1,4 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+#![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
 pub mod build;
 pub mod read;
 
@@ -23,7 +24,7 @@ use crate::table::fvar::{FvarTable};
 
 
 
-use crate::vf::vq::{VQ, VqSegList, VqSegment};
+use crate::vf::vq::{VQ};
 use crate::support::json_funcs::{json_boolof, json_new_position, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds, preserialize};
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
@@ -32,7 +33,7 @@ use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct Point {
     pub x: VQ,
@@ -187,7 +188,7 @@ pub enum RefAnchorStatus {
     AnchorConsolidatingAnchor = 4,
     AnchorConsolidatingXy = 5,
 }
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct ComponentReference {
     pub x: VQ,
@@ -246,7 +247,7 @@ pub struct GlyphStat {
     pub n_composite_points: u16,
     pub n_composite_contours: u16,
 }
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct Glyph {
     pub name: SdsRaw,
@@ -363,19 +364,11 @@ unsafe extern "C" fn glyf_point_empty() -> Point {
     let mut x: Point = Point {
         x: VQ {
             kernel: 0.,
-            shift: VqSegList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VqSegment>(),
-            },
+            shift: Vec::new(),
         },
         y: VQ {
             kernel: 0.,
-            shift: VqSegList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VqSegment>(),
-            },
+            shift: Vec::new(),
         },
         on_curve: 0,
     };
@@ -402,19 +395,11 @@ unsafe extern "C" fn glyf_point_dup(src: Point) -> Point {
     let mut dst: Point = Point {
         x: VQ {
             kernel: 0.,
-            shift: VqSegList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VqSegment>(),
-            },
+            shift: Vec::new(),
         },
         y: VQ {
             kernel: 0.,
-            shift: VqSegList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VqSegment>(),
-            },
+            shift: Vec::new(),
         },
         on_curve: 0,
     };
@@ -482,19 +467,11 @@ unsafe extern "C" fn glyf_contour_fill(mut arr: *mut Contour, mut n: usize) {
         let mut x: Point = Point {
             x: VQ {
                 kernel: 0.,
-                shift: VqSegList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<VqSegment>(),
-                },
+                shift: Vec::new(),
             },
             y: VQ {
                 kernel: 0.,
-                shift: VqSegList {
-                    length: 0,
-                    capacity: 0,
-                    items: ::core::ptr::null_mut::<VqSegment>(),
-                },
+                shift: Vec::new(),
             },
             on_curve: 0,
         };
@@ -539,7 +516,7 @@ unsafe extern "C" fn glyf_contour_copy(mut dst: *mut Contour, mut src: *const Co
     } else {
         let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
+            *(*dst).items.offset(j_0 as isize) = (*(*src).items.offset(j_0 as isize)).clone();
             j_0 = j_0.wrapping_add(1);
         }
     };
@@ -751,19 +728,11 @@ unsafe extern "C" fn glyf_component_reference_dup(
     let mut dst: ComponentReference = ComponentReference {
         x: VQ {
             kernel: 0.,
-            shift: VqSegList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VqSegment>(),
-            },
+            shift: Vec::new(),
         },
         y: VQ {
             kernel: 0.,
-            shift: VqSegList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VqSegment>(),
-            },
+            shift: Vec::new(),
         },
         round_to_grid: false,
         use_my_metrics: false,
@@ -795,19 +764,11 @@ unsafe extern "C" fn glyf_component_reference_empty() -> ComponentReference {
     let mut x: ComponentReference = ComponentReference {
         x: VQ {
             kernel: 0.,
-            shift: VqSegList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VqSegment>(),
-            },
+            shift: Vec::new(),
         },
         y: VQ {
             kernel: 0.,
-            shift: VqSegList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VqSegment>(),
-            },
+            shift: Vec::new(),
         },
         round_to_grid: false,
         use_my_metrics: false,
@@ -911,7 +872,7 @@ unsafe extern "C" fn glyf_reference_list_copy(
     } else {
         let mut j_0: usize = 0 as usize;
         while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
+            *(*dst).items.offset(j_0 as isize) = (*(*src).items.offset(j_0 as isize)).clone();
             j_0 = j_0.wrapping_add(1);
         }
     };
@@ -1556,12 +1517,12 @@ unsafe extern "C" fn glyf_glyph_dump_contours(
             json_object_push(
                 point,
                 b"x\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_vq((*(*c).items.offset(m as isize)).x, (*ctx).fvar),
+                json_new_vq((*(*c).items.offset(m as isize)).x.clone(), (*ctx).fvar),
             );
             json_object_push(
                 point,
                 b"y\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_vq((*(*c).items.offset(m as isize)).y, (*ctx).fvar),
+                json_new_vq((*(*c).items.offset(m as isize)).y.clone(), (*ctx).fvar),
             );
             json_object_push(
                 point,
@@ -1608,12 +1569,12 @@ unsafe extern "C" fn glyf_glyph_dump_references(
         json_object_push(
             ref_0,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*r).x, (*ctx).fvar),
+            json_new_vq((*r).x.clone(), (*ctx).fvar),
         );
         json_object_push(
             ref_0,
             b"y\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*r).y, (*ctx).fvar),
+            json_new_vq((*r).y.clone(), (*ctx).fvar),
         );
         json_object_push(
             ref_0,
@@ -1761,31 +1722,31 @@ unsafe extern "C" fn glyf_dump_glyph(
     json_object_push(
         glyph,
         b"advanceWidth\0" as *const u8 as *const ::core::ffi::c_char,
-        json_new_vq((*g).advance_width, (*ctx).fvar),
+        json_new_vq((*g).advance_width.clone(), (*ctx).fvar),
     );
-    if I_VQ.is_still.expect("non-null function pointer")((*g).horizontal_origin) as ::core::ffi::c_int
+    if I_VQ.is_still.expect("non-null function pointer")((*g).horizontal_origin.clone()) as ::core::ffi::c_int
         != 0
         && fabs(
-            I_VQ.get_still.expect("non-null function pointer")((*g).horizontal_origin)
+            I_VQ.get_still.expect("non-null function pointer")((*g).horizontal_origin.clone())
                 as ::core::ffi::c_double,
         ) > 1.0f64 / 1000.0f64
     {
         json_object_push(
             glyph,
             b"horizontalOrigin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).horizontal_origin, (*ctx).fvar),
+            json_new_vq((*g).horizontal_origin.clone(), (*ctx).fvar),
         );
     }
     if (*ctx).has_vertical_metrics {
         json_object_push(
             glyph,
             b"advanceHeight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).advance_height, (*ctx).fvar),
+            json_new_vq((*g).advance_height.clone(), (*ctx).fvar),
         );
         json_object_push(
             glyph,
             b"verticalOrigin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).vertical_origin, (*ctx).fvar),
+            json_new_vq((*g).vertical_origin.clone(), (*ctx).fvar),
         );
     }
     glyf_glyph_dump_contours(g, glyph, ctx);
@@ -1931,19 +1892,11 @@ unsafe extern "C" fn glyf_parse_point(mut pointdump: *mut JsonValue) -> Point {
     let mut point: Point = Point {
         x: VQ {
             kernel: 0.,
-            shift: VqSegList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VqSegment>(),
-            },
+            shift: Vec::new(),
         },
         y: VQ {
             kernel: 0.,
-            shift: VqSegList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<VqSegment>(),
-            },
+            shift: Vec::new(),
         },
         on_curve: 0,
     };

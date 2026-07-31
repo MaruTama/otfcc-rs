@@ -1,4 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+#![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
 use libc::{free};
 
 
@@ -323,7 +324,7 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
             GLYF_I_CONTOUR.push.expect("non-null function pointer")(
                 newcontour,
                 GLYF_I_POINT.dup.expect("non-null function pointer")(
-                    *(*contour).items.offset(j as isize),
+                    (*(*contour).items.offset(j as isize)).clone(),
                 ),
             );
             j = j.wrapping_add(1);
@@ -338,27 +339,27 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
             GLYF_I_CONTOUR.push.expect("non-null function pointer")(
                 newcontour,
                 GLYF_I_POINT.dup.expect("non-null function pointer")(
-                    *(*newcontour).items.offset(0 as ::core::ffi::c_int as isize),
+                    (*(*newcontour).items.offset(0 as ::core::ffi::c_int as isize)).clone(),
                 ),
             );
         }
         let mut j_0: ShapeId = 0 as ShapeId;
         while (j_0 as usize) < (*newcontour).length {
             let mut dx: VQ = I_VQ.minus.expect("non-null function pointer")(
-                (*(*newcontour).items.offset(j_0 as isize)).x,
-                x,
+                (*(*newcontour).items.offset(j_0 as isize)).x.clone(),
+                x.clone(),
             );
             let mut dy: VQ = I_VQ.minus.expect("non-null function pointer")(
-                (*(*newcontour).items.offset(j_0 as isize)).y,
-                y,
+                (*(*newcontour).items.offset(j_0 as isize)).y.clone(),
+                y.clone(),
             );
             I_VQ.copy_replace.expect("non-null function pointer")(
                 &raw mut x,
-                (*(*newcontour).items.offset(j_0 as isize)).x,
+                (*(*newcontour).items.offset(j_0 as isize)).x.clone(),
             );
             I_VQ.copy_replace.expect("non-null function pointer")(
                 &raw mut y,
-                (*(*newcontour).items.offset(j_0 as isize)).y,
+                (*(*newcontour).items.offset(j_0 as isize)).y.clone(),
             );
             I_VQ.replace.expect("non-null function pointer")(
                 &raw mut (*(*newcontour).items.offset(j_0 as isize)).x,
@@ -376,7 +377,7 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
     I_VQ.dispose.expect("non-null function pointer")(&raw mut y);
     let mut hasmask: bool = (*g).hint_masks.length != 0 || (*g).contour_masks.length != 0;
     let glyph_adw_const: Pos =
-        I_VQ.get_still.expect("non-null function pointer")((*g).advance_width) as Pos;
+        I_VQ.get_still.expect("non-null function pointer")((*g).advance_width.clone()) as Pos;
     let mut haswidth: bool = glyph_adw_const != default_width as ::core::ffi::c_int as Pos;
     if haswidth {
         il_push_operand(
@@ -408,8 +409,8 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
         if !(n as ::core::ffi::c_int == 0 as ::core::ffi::c_int) {
             il_moveto(
                 il,
-                (*(*contour_0).items.offset(0 as ::core::ffi::c_int as isize)).x,
-                (*(*contour_0).items.offset(0 as ::core::ffi::c_int as isize)).y,
+                (*(*contour_0).items.offset(0 as ::core::ffi::c_int as isize)).x.clone(),
+                (*(*contour_0).items.offset(0 as ::core::ffi::c_int as isize)).y.clone(),
             );
             points_sofar = points_sofar.wrapping_add(1);
             if hasmask {
@@ -427,8 +428,8 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
                 if (*(*contour_0).items.offset(j_1 as isize)).on_curve != 0 {
                     il_lineto(
                         il,
-                        (*(*contour_0).items.offset(j_1 as isize)).x,
-                        (*(*contour_0).items.offset(j_1 as isize)).y,
+                        (*(*contour_0).items.offset(j_1 as isize)).x.clone(),
+                        (*(*contour_0).items.offset(j_1 as isize)).y.clone(),
                     );
                     points_sofar =
                         (points_sofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
@@ -447,24 +448,24 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
                 {
                     il_curveto(
                         il,
-                        (*(*contour_0).items.offset(j_1 as isize)).x,
-                        (*(*contour_0).items.offset(j_1 as isize)).y,
+                        (*(*contour_0).items.offset(j_1 as isize)).x.clone(),
+                        (*(*contour_0).items.offset(j_1 as isize)).y.clone(),
                         (*(*contour_0).items.offset(
                             (j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
                         ))
-                        .x,
+                        .x.clone(),
                         (*(*contour_0).items.offset(
                             (j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
                         ))
-                        .y,
+                        .y.clone(),
                         (*(*contour_0).items.offset(
                             (j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize,
                         ))
-                        .x,
+                        .x.clone(),
                         (*(*contour_0).items.offset(
                             (j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize,
                         ))
-                        .y,
+                        .y.clone(),
                     );
                     points_sofar =
                         (points_sofar as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as ShapeId;
@@ -472,8 +473,8 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
                 } else {
                     il_lineto(
                         il,
-                        (*(*contour_0).items.offset(j_1 as isize)).x,
-                        (*(*contour_0).items.offset(j_1 as isize)).y,
+                        (*(*contour_0).items.offset(j_1 as isize)).x.clone(),
+                        (*(*contour_0).items.offset(j_1 as isize)).y.clone(),
                     );
                     points_sofar = points_sofar.wrapping_add(1);
                 }

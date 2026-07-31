@@ -196,7 +196,7 @@ unsafe extern "C" fn consolidate_glyph_references(
                 .references
                 .items
                 .offset((j as ::core::ffi::c_int - skip as ::core::ffi::c_int) as isize) =
-                *(*g).references.items.offset(j as isize);
+                (*(*g).references.items.offset(j as isize)).clone();
             n_references_consolidated = (n_references_consolidated as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as ShapeId;
         }
@@ -420,21 +420,21 @@ pub unsafe extern "C" fn get_point_coordinates(
                 I_VQ.replace.expect("non-null function pointer")(
                     x,
                     I_VQ.point_linear_tfm.expect("non-null function pointer")(
-                        (*gr).x,
+                        (*gr).x.clone(),
                         (*gr).a as Pos,
-                        (*p).x,
+                        (*p).x.clone(),
                         (*gr).b as Pos,
-                        (*p).y,
+                        (*p).y.clone(),
                     ) as VQ,
                 );
                 I_VQ.replace.expect("non-null function pointer")(
                     y,
                     I_VQ.point_linear_tfm.expect("non-null function pointer")(
-                        (*gr).y,
+                        (*gr).y.clone(),
                         (*gr).c as Pos,
-                        (*p).x,
+                        (*p).x.clone(),
                         (*gr).d as Pos,
-                        (*p).y,
+                        (*p).y.clone(),
                     ) as VQ,
                 );
                 return true;
@@ -464,21 +464,21 @@ pub unsafe extern "C" fn get_point_coordinates(
         I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.x,
             I_VQ.point_linear_tfm.expect("non-null function pointer")(
-                (*rr).x,
+                (*rr).x.clone(),
                 (*rr).a as Pos,
-                (*gr).x,
+                (*gr).x.clone(),
                 (*rr).b as Pos,
-                (*gr).y,
+                (*gr).y.clone(),
             ) as VQ,
         );
         I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.y,
             I_VQ.point_linear_tfm.expect("non-null function pointer")(
-                (*rr).y,
+                (*rr).y.clone(),
                 (*rr).c as Pos,
-                (*gr).x,
+                (*gr).x.clone(),
                 (*rr).d as Pos,
-                (*gr).y,
+                (*gr).y.clone(),
             ) as VQ,
         );
         let mut success: bool =
@@ -595,18 +595,18 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
         );
     }
     let mut rrx: VQ = I_VQ.point_linear_tfm.expect("non-null function pointer")(
-        outer_x,
+        outer_x.clone(),
         -((*rr).a as Pos),
-        inner_x,
+        inner_x.clone(),
         -((*rr).b as Pos),
-        inner_y,
+        inner_y.clone(),
     );
     let mut rry: VQ = I_VQ.point_linear_tfm.expect("non-null function pointer")(
-        outer_y,
+        outer_y.clone(),
         -((*rr).c as Pos),
-        inner_x,
+        inner_x.clone(),
         -((*rr).d as Pos),
-        inner_y,
+        inner_y.clone(),
     );
     if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingAnchor
     {
@@ -615,12 +615,12 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
         (*rr).is_anchored = RefAnchorStatus::AnchorConsolidated;
     } else {
         if fabs(
-            I_VQ.get_still.expect("non-null function pointer")((*rr).x) as ::core::ffi::c_double
-                - I_VQ.get_still.expect("non-null function pointer")(rrx) as ::core::ffi::c_double,
+            I_VQ.get_still.expect("non-null function pointer")((*rr).x.clone()) as ::core::ffi::c_double
+                - I_VQ.get_still.expect("non-null function pointer")(rrx.clone()) as ::core::ffi::c_double,
         ) > 0.5f64
             && fabs(
-                I_VQ.get_still.expect("non-null function pointer")((*rr).y) as ::core::ffi::c_double
-                    - I_VQ.get_still.expect("non-null function pointer")(rry)
+                I_VQ.get_still.expect("non-null function pointer")((*rr).y.clone()) as ::core::ffi::c_double
+                    - I_VQ.get_still.expect("non-null function pointer")(rry.clone())
                         as ::core::ffi::c_double,
             ) > 0.5f64
         {

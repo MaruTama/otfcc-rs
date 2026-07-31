@@ -1,4 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+#![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
 use libc::{free};
 
 
@@ -105,9 +106,9 @@ unsafe extern "C" fn hash_vq(buf: *mut Buffer, x: VQ) {
         buf,
         otfcc_to_fixed(x.kernel as ::core::ffi::c_double) as u32,
     );
-    bufwrite32b(buf, x.shift.length as u32);
-    for j in 0..x.shift.length {
-        hash_vqs(buf, *x.shift.items.offset(j as isize));
+    bufwrite32b(buf, x.shift.len() as u32);
+    for j in 0..x.shift.len() {
+        hash_vqs(buf, x.shift[j]);
     }
 }
 pub unsafe extern "C" fn name_glyph_by_hash(
@@ -116,13 +117,13 @@ pub unsafe extern "C" fn name_glyph_by_hash(
 ) -> GlyphHash {
     let buf: *mut Buffer = bufnew();
     bufwrite8(buf, 'H' as i32 as u8);
-    hash_vq(buf, (*g).advance_width);
+    hash_vq(buf, (*g).advance_width.clone());
     bufwrite8(buf, 'h' as i32 as u8);
-    hash_vq(buf, (*g).horizontal_origin);
+    hash_vq(buf, (*g).horizontal_origin.clone());
     bufwrite8(buf, 'V' as i32 as u8);
-    hash_vq(buf, (*g).advance_height);
+    hash_vq(buf, (*g).advance_height.clone());
     bufwrite8(buf, 'v' as i32 as u8);
-    hash_vq(buf, (*g).vertical_origin);
+    hash_vq(buf, (*g).vertical_origin.clone());
     bufwrite8(buf, 'C' as i32 as u8);
     bufwrite8(buf, '(' as i32 as u8);
     for j in 0..(*g).contours.length {
@@ -130,8 +131,8 @@ pub unsafe extern "C" fn name_glyph_by_hash(
         let c: *mut Contour = (*g).contours.items.offset(j as isize) as *mut Contour;
         for k in 0..(*c).length {
             let point = (*c).items.offset(k as isize);
-            hash_vq(buf, (*point).x);
-            hash_vq(buf, (*point).y);
+            hash_vq(buf, (*point).x.clone());
+            hash_vq(buf, (*point).y.clone());
             bufwrite8(buf, ((*point).on_curve != 0) as u8);
         }
         bufwrite8(buf, ')' as i32 as u8);
@@ -151,8 +152,8 @@ pub unsafe extern "C" fn name_glyph_by_hash(
             SHA1_BLOCK_SIZE as usize,
             &raw mut h.hash as *mut u8,
         );
-        hash_vq(buf, (*r).x);
-        hash_vq(buf, (*r).y);
+        hash_vq(buf, (*r).x.clone());
+        hash_vq(buf, (*r).y.clone());
         bufwrite32b(
             buf,
             otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u32,

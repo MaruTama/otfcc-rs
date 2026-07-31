@@ -21,7 +21,7 @@ use crate::table::fvar::{TABLE_I_FVAR};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_REFERENCE_LIST, otfcc_new_glyf_glyph, TABLE_I_GLYF};
 use crate::vendor::sds::{sdsempty};
 use crate::vf::region::{vq_create_region};
-use crate::vf::vq::{I_VQ, VQ_I_SEG_LIST};
+use crate::vf::vq::{I_VQ};
 
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
@@ -278,10 +278,10 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             let mut z: *mut Point = (*(*contours).items.offset(j_1 as isize))
                 .items
                 .offset(k as isize) as *mut Point;
-            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cx, (*z).x);
-            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cy, (*z).y);
-            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).x, cx);
-            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).y, cy);
+            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cx, (*z).x.clone());
+            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cy, (*z).y.clone());
+            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).x, cx.clone());
+            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).y, cy.clone());
             k = k.wrapping_add(1);
         }
         GLYF_I_CONTOUR
@@ -795,10 +795,7 @@ unsafe extern "C" fn apply_coords(
         {
             let mut coordinate_part: *mut VQ =
                 getter.expect("non-null function pointer")(*glyph_refs.offset(j_1 as isize));
-            VQ_I_SEG_LIST.push.expect("non-null function pointer")(
-                &raw mut (*coordinate_part).shift,
-                *nudges.offset(j_1 as isize),
-            );
+            (*coordinate_part).shift.push(*nudges.offset(j_1 as isize));
         }
         j_1 = j_1.wrapping_add(1);
     }

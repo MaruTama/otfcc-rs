@@ -973,6 +973,54 @@ on the other platform before a commit is trusted.
     two PRs is either genuinely load-bearing or small enough that a
     per-type `Vec<T>` conversion PR can absorb whatever's left of it
     directly.
-- Before `c/` can be deleted, freeze each payload's expected output into
+  - **`VqSegList` → `Vec<VqSegment>` — the pilot.** `VQ.shift` (the vtable
+    slots preserved above, `VqSegListVectorInterface`/`VQ_I_SEG_LIST`, and
+    every `vq_seg_list_*` function) is gone; `VQ` is `struct { kernel: Pos,
+    shift: Vec<VqSegment> }` and can no longer be `Copy` — this is the change
+    every other container conversion in this list will also make, and it
+    ripples further than the container itself:
+    - `VQ` embeds by value inside `Point`, `ComponentReference`, `Glyph`
+      (`table/glyf.rs`) and `CffFontMatrix` (`table/cff.rs`); all four lose
+      `Copy` too. Nothing that holds these behind a pointer needs to
+      change — a `*mut Point` is `Copy` regardless of what `Point` is — the
+      loss only propagates through fields holding the struct *by value*.
+    - `support/cvec.rs`'s `cvec_push`/`cvec_pop` required `T: Copy` (a plain
+      dereference-assignment doesn't work for a type it can't just
+      duplicate). Both are `ptr::write`/`ptr::read` now, which move the
+      value instead of copying it — byte-identical for the ~36 element
+      types that are still `Copy`, and it's what let `Contour`/
+      `ReferenceList` keep holding non-`Copy` `Point`/`ComponentReference`
+      without becoming part of this PR's scope.
+    - Every call site that read a `VQ` field through a raw pointer as a
+      plain expression (`(*gr).x`, `b.shift[p]`, …) stopped compiling —
+      Rust won't silently duplicate a `Vec` the way it would a `Copy`
+      struct. 139 sites across 6 files needed `.clone()` (`consolidate.rs`,
+      `libcff/charstring_il.rs`, `table/cff.rs`, `table/glyf.rs`,
+      `table/glyf/read.rs`, `otf_writer/stat.rs`) — the compiler's own
+      `E0507`/`E0382` suggestions, checked rather than trusted: an earlier
+      pass collected *every* suggested fix mechanically and briefly
+      corrupted several files, because a handful of sites had a
+      *different*, more invasive suggestion (hoist into a `let mut value =
+      …;` binding) alongside the simple one, and both landed. Redone by
+      filtering to pure, short insertions only; the complex suggestions
+      turned out to be unnecessary; the simple `.clone()` at the same site
+      was sufficient everywhere.
+    - `vq_replace`'s `memcpy` of the whole struct — flagged as the reason
+      this container needed care in the first place — becomes `*dst =
+      src;`. Confirmed safe rather than assumed: every real call site
+      passes `I_VQ.replace` a fresh temporary (the direct return of
+      `point_linear_tfm(...)`), never a binding the caller reuses
+      afterward, so the move this now performs matches what the memcpy
+      already did in practice.
+    - Two functions removed from `#[repr(C)]`/`extern "C"` VQ now trip
+      `improper_ctypes_definitions` (`VQ` has no defined C layout once it
+      owns a `Vec`) and `dangerous_implicit_autorefs` (indexing `(*x).shift`
+      through a raw pointer implicitly creates a reference to the
+      pointee). The first is `#[allow]`'d per file with the same rationale
+      as `unsafe_op_in_unsafe_fn` — these `extern "C"` functions are vtable
+      dispatch, never real FFI, and go away together in a later pass; the
+      second was fixed properly, by binding `let shift = &mut (*x).shift;`
+      once and indexing through that instead of re-deriving the reference
+      from the raw pointer at every access. freeze each payload's expected output into
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.
