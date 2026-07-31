@@ -50,7 +50,7 @@ use crate::table::cpal::{table_cpal_free};
 use crate::table::gdef::{table_gdef_free};
 use crate::table::ltsh::{TABLE_I_LTSH};
 use crate::table::os_2::{TABLE_I_OS_2};
-use crate::table::svg::{TABLE_I_SVG};
+use crate::table::svg::{table_svg_free};
 use crate::table::vorg::{TABLE_I_VORG};
 use crate::table::_tsi::{table_tsi_free};
 use crate::table::cmap::{TABLE_I_CMAP};
@@ -324,7 +324,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
         }
         1398163232 | 1398163295 => {
             if !(*font).svg.is_null() {
-                TABLE_I_SVG.free.expect("non-null function pointer")((*font).svg);
+                table_svg_free((*font).svg);
                 (*font).svg = ::core::ptr::null_mut::<SvgTable>();
             }
             return;

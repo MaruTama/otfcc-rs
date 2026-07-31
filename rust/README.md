@@ -1406,5 +1406,59 @@ on the other platform before a commit is trusted.
       exercising `otfcc_read_tsi`/`otfcc_dump_tsi`/`otfcc_parse_tsi`/
       `otfcc_build_tsi` *and* `consolidate_tsi`'s hash-based gid remap +
       sort — no synthetic payload needed for either container.
+  - **Re-measured after PR #60: the plan's "4 containers frozen behind
+    `Subtable`" was an undercount — it's actually 8.** `BaseArray`
+    (`GposMarkToSingleSubtable.base_array`) and `LigatureArray`
+    (`GposMarkToLigatureSubtable.lig_array`) are embedded *by value inside a
+    union variant's own struct*, one level deeper than `MarkArray`'s direct
+    embedding, so the earlier hand-audit (which only checked variant types
+    themselves, not their fields) missed them; `GsubLigatureSubtable`/
+    `GsubMultiSubtable` are union variants directly and were miscounted the
+    same way `GposCursiveSubtable`/`GposSingleSubtable`/`GsubSingleSubtable`
+    were before. All 8 need `Subtable`'s `#[derive(Copy, Clone)] union` to
+    stop requiring every variant to be `Copy` before any of them can move to
+    `Vec`. But `Subtable` itself turned out to have **zero by-value uses**
+    anywhere in the crate (grepped every occurrence: all `*mut Subtable`/
+    `*const Subtable`/`size_of::<Subtable>()`/`null_mut::<Subtable>()`) — so
+    the fix isn't the full tagged-`enum` rewrite the plan assumed, just
+    wrapping the non-`Copy` variant types in `ManuallyDrop`, deferred to
+    after the other 14 working containers (svg/fvar-vf/otl-pointer-arrays/
+    glyf) so the audit trail for *why* each of those 14 doesn't touch the
+    union exists before touching the union itself. Three `memcpy(...,
+    size_of::<Subtable>())` sites (`otf_reader/unconsolidate.rs:482,502`,
+    `table/otl/subtables/extend.rs:28`) will need individual porting once a
+    variant becomes `Vec`-owning, since a bitwise union copy would then
+    double-free.
+  - **`SvgTable` → `Vec<SvgAssignment>`** (`table/svg.rs`,
+    `font/caryll_font.rs`) — the first of the 14 containers no longer
+    blocked by the union, picked because it was already directly
+    vector-shaped in the C-derived source (no wrapper struct, like
+    `ColrTable`) and touches only two files.
+    - The element's owned resource is a `*mut Buffer` (`buffree`), not an
+      `sds`/`Handle` — a shape not seen before in this series. `Copy` stays
+      on `SvgAssignment` (copying the pointer bytes is fine; nothing reads
+      that copy as a deep clone), but `otfcc_build_svg`'s sorted-copy path
+      needs a *real* duplicate, so `svg_assignment_dup` does the same
+      `bufnew()` + `bufwrite_buf()` the old `copy_svg_assigment` did —
+      `.clone()` alone would alias the same `Buffer`.
+    - Unlike every prior candidate in this series, **both `TABLE_I_SVG.copy`
+      and `.sort` were live**, not dead vtable slots: `otfcc_build_svg` calls
+      `.copy` to get an owned, disposable copy before sorting it by
+      `start` glyph ID and disposing it again, without touching the
+      caller's original table — the same "build a sorted copy, leave the
+      original alone" shape `ColrTable`/`otfcc_build_colr` had. Ported as
+      `(*_svg).iter().map(svg_assignment_dup).collect()` +
+      `.sort_by(|a, b| a.start.cmp(&b.start))`, replacing the `qsort`-driven
+      `by_start_gid` comparator with a native comparison (first done for
+      `NameTable`/`TsiTable` in PR #60) since it's a single-field integer
+      tie-break with no aliasing concerns.
+    - `table_svg_create` was already `malloc` + `.write(Vec::new())`
+      placement construction, not a field assignment — no `calloc` fix
+      needed, same reasoning as `ColrTable`/`NameTable`/`TsiTable`.
+    - Verified against real, live data on both platforms:
+      `Reinebow-SVGinOT.ttf` (already in `compare-with-c.sh`/`run-cycles.sh`)
+      has a genuine `SVG ` table, exercising `otfcc_read_svg`/
+      `otfcc_dump_svg`/`otfcc_parse_svg`/`otfcc_build_svg` end to end — no
+      synthetic payload needed.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.
