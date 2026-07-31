@@ -1021,6 +1021,43 @@ on the other platform before a commit is trusted.
       dispatch, never real FFI, and go away together in a later pass; the
       second was fixed properly, by binding `let shift = &mut (*x).shift;`
       once and indexing through that instead of re-deriving the reference
-      from the raw pointer at every access. freeze each payload's expected output into
+      from the raw pointer at every access.
+  - **`GaspRecordList` → `Vec<GaspRecord>`.** Chosen as the next target by
+    the same criteria used to pick `VQ`, applied up front instead of
+    discovered mid-PR: `GaspRecord` is already `Copy` with no owned/nested
+    pointers (no cascade), `GaspRecordList`/`GaspTable` have zero references
+    outside `table/gasp.rs` (zero blast radius), and `GaspTable` is only ever
+    passed by pointer, never by value (no `improper_ctypes_definitions`
+    risk expected, and none appeared). The vtable-package boilerplate
+    (`GaspRecordElementInterface`, `GaspRecordList`,
+    `GaspRecordListVectorInterface`, and every `gasp_record_*`/
+    `gasp_record_list_*` function) is gone; `GaspTable.records` is a plain
+    `Vec<GaspRecord>`, and `GaspTable` itself drops `Copy` (it was never
+    embedded by value anywhere, so nothing else loses `Copy` this time —
+    no cascade, unlike `VQ`).
+    - Hit the same `dangerous_implicit_autorefs` lint as `VQ`, fixed the
+      same way: `let records: &Vec<GaspRecord> = &(*table).records;` bound
+      once per function, then indexed/`.len()`'d through that.
+    - Found a new failure mode `VQ` didn't have, because `VQ` never happened
+      to trigger it: `table_gasp_create` allocated with `malloc`, and
+      `init_gasp` assigns straight into the fresh struct (`(*gasp).records =
+      Vec::new();`). That assignment drops whatever was already in
+      `records` *first* — on `malloc`'s uninitialized bytes, that's a
+      `Vec::drop` reading a garbage capacity and attempting to deallocate
+      through a garbage pointer. Caught by `compare-with-c.sh`, not by the
+      build: it compiled cleanly, then corrupted the heap on every payload
+      that actually has a `gasp` table (crashed `otfccbuild` outright on
+      three of them, silently produced a 12MB-divergent dump on a fourth).
+      `VQ`'s own `vq_init` does the identical field-assignment, but every
+      caller allocates through `__caryll_allocate_clean` (`calloc`), so the
+      to-be-dropped bytes are zeroed and `Vec::drop` is a documented no-op
+      at capacity 0 — safe by convention, not by construction. Fixed by
+      allocating `table_gasp_create` with `calloc` instead of `malloc`, to
+      match. Added to the per-type conversion checklist: any `_create` that
+      `malloc`s its struct and then field-assigns a `Vec` into it needs the
+      same fix, and the compiler cannot catch this — it compiles either way
+      and only misbehaves at runtime, on payloads that exercise the table.
+      Caught here only because `compare-with-c.sh` runs every payload, not
+      because anything about the code looked wrong.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.
