@@ -1406,24 +1406,29 @@ on the other platform before a commit is trusted.
       exercising `otfcc_read_tsi`/`otfcc_dump_tsi`/`otfcc_parse_tsi`/
       `otfcc_build_tsi` *and* `consolidate_tsi`'s hash-based gid remap +
       sort — no synthetic payload needed for either container.
-  - **Re-measured after `NameTable`/`TsiTable`: the plan's "4 containers
-    frozen behind `Subtable`" was an undercount — it's actually 8.**
-    `BaseArray` (`GposMarkToSingleSubtable.base_array`) and `LigatureArray`
+  - **Re-measured after PR #60: the plan's "4 containers frozen behind
+    `Subtable`" was an undercount — it's actually 8.** `BaseArray`
+    (`GposMarkToSingleSubtable.base_array`) and `LigatureArray`
     (`GposMarkToLigatureSubtable.lig_array`) are embedded *by value inside a
     union variant's own struct*, one level deeper than `MarkArray`'s direct
     embedding, so the earlier hand-audit (which only checked variant types
     themselves, not their fields) missed them; `GsubLigatureSubtable`/
     `GsubMultiSubtable` are union variants directly and were miscounted the
     same way `GposCursiveSubtable`/`GposSingleSubtable`/`GsubSingleSubtable`
-    were before. But `Subtable` itself has **zero by-value uses** anywhere in
-    the crate (grepped every occurrence: all `*mut Subtable`/`*const
-    Subtable`/`size_of::<Subtable>()`/`null_mut::<Subtable>()`) — so
-    unblocking it doesn't need the full tagged-`enum` rewrite the plan
-    assumed, just wrapping the non-`Copy` variant types in `ManuallyDrop`.
-    Deferred until after the other 14 containers not touching the union
-    (chosen order: svg → fvar/vf → otl pointer arrays → glyf) so the audit
-    trail for *why* each of those 14 doesn't touch the union exists before
-    touching the union itself.
+    were before. All 8 need `Subtable`'s `#[derive(Copy, Clone)] union` to
+    stop requiring every variant to be `Copy` before any of them can move to
+    `Vec`. But `Subtable` itself turned out to have **zero by-value uses**
+    anywhere in the crate (grepped every occurrence: all `*mut Subtable`/
+    `*const Subtable`/`size_of::<Subtable>()`/`null_mut::<Subtable>()`) — so
+    the fix isn't the full tagged-`enum` rewrite the plan assumed, just
+    wrapping the non-`Copy` variant types in `ManuallyDrop`, deferred to
+    after the other 14 working containers (svg/fvar-vf/otl-pointer-arrays/
+    glyf) so the audit trail for *why* each of those 14 doesn't touch the
+    union exists before touching the union itself. Three `memcpy(...,
+    size_of::<Subtable>())` sites (`otf_reader/unconsolidate.rs:482,502`,
+    `table/otl/subtables/extend.rs:28`) will need individual porting once a
+    variant becomes `Vec`-owning, since a bitwise union copy would then
+    double-free.
   - **`SvgTable` → `Vec<SvgAssignment>`** (`table/svg.rs`,
     `font/caryll_font.rs`) — the first of the 14 containers no longer
     blocked by the union, picked because it was already directly
