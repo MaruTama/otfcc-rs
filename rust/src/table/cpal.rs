@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
+use libc::{calloc, free};
 
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint, json_obj_getint_fallback, preserialize};
@@ -10,7 +10,6 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, FontFilePointer, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
@@ -26,334 +25,23 @@ pub struct CpalColor {
     pub alpha: u8,
     pub label: u16,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CpalColorElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut CpalColor) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut CpalColor, *const CpalColor) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut CpalColor) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CpalColorSet {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut CpalColor,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CpalColorSetVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut CpalColorSet) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut CpalColorSet, *const CpalColorSet) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut CpalColorSet) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut CpalColorSet>,
-    pub free: Option<unsafe extern "C" fn(*mut CpalColorSet) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut CpalColorSet, CpalColor) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
+#[derive(Clone)]
 pub struct CpalPalette {
-    pub colorset: CpalColorSet,
+    pub colorset: Vec<CpalColor>,
     pub type_0: u32,
     pub label: u32,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CpalPaletteElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut CpalPalette) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut CpalPalette, *const CpalPalette) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut CpalPalette) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CpalPaletteSet {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut CpalPalette,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CpalPaletteSetVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut CpalPaletteSet) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut CpalPaletteSet, *const CpalPaletteSet) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut CpalPaletteSet) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut CpalPaletteSet>,
-    pub free: Option<unsafe extern "C" fn(*mut CpalPaletteSet) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut CpalPaletteSet, CpalPalette) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
+#[derive(Clone)]
 pub struct CpalTable {
     pub version: u16,
-    pub palettes: CpalPaletteSet,
+    pub palettes: Vec<CpalPalette>,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CpalTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut CpalTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut CpalTable, *const CpalTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut CpalTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut CpalTable>,
-    pub free: Option<unsafe extern "C" fn(*mut CpalTable) -> ()>,
-}
-pub static CPAL_I_COLOR: CpalColorElementInterface = {
-    CpalColorElementInterface {
-        init: Some(cpal_color_init as unsafe extern "C" fn(*mut CpalColor) -> ()),
-        copy: Some(
-            cpal_color_copy as unsafe extern "C" fn(*mut CpalColor, *const CpalColor) -> (),
-        ),
-        dispose: Some(cpal_color_dispose as unsafe extern "C" fn(*mut CpalColor) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn cpal_color_init(mut x: *mut CpalColor) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<CpalColor>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn cpal_color_copy(mut dst: *mut CpalColor, mut src: *const CpalColor) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalColor>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn cpal_color_dispose(mut _x: *mut CpalColor) {}
-#[inline]
-unsafe extern "C" fn cpal_color_set_copy(
-    mut dst: *mut CpalColorSet,
-    mut src: *const CpalColorSet,
-) {
-    cpal_color_set_init(dst);
-    cpal_color_set_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if CPAL_I_COLOR.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            CPAL_I_COLOR.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut CpalColor,
-                (*src).items.offset(j as isize) as *mut CpalColor as *const CpalColor,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn cpal_color_set_dispose(mut arr: *mut CpalColorSet) {
-    if arr.is_null() {
-        return;
-    }
-    if CPAL_I_COLOR.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            CPAL_I_COLOR.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut CpalColor,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<CpalColor>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn cpal_color_set_free(mut x: *mut CpalColorSet) {
-    if x.is_null() {
-        return;
-    }
-    cpal_color_set_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn cpal_color_set_create() -> *mut CpalColorSet {
-    let mut x: *mut CpalColorSet =
-        malloc(::core::mem::size_of::<CpalColorSet>() as usize) as *mut CpalColorSet;
-    cpal_color_set_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn cpal_color_set_push(arr: *mut CpalColorSet, elem: CpalColor) {
-    cvec_push(cpal_color_set_as_cvec(arr), elem);
-}
-pub static CPAL_I_COLOR_SET: CpalColorSetVectorInterface = {
-    CpalColorSetVectorInterface {
-        init: Some(cpal_color_set_init as unsafe extern "C" fn(*mut CpalColorSet) -> ()),
-        copy: Some(
-            cpal_color_set_copy
-                as unsafe extern "C" fn(*mut CpalColorSet, *const CpalColorSet) -> (),
-        ),
-        dispose: Some(cpal_color_set_dispose as unsafe extern "C" fn(*mut CpalColorSet) -> ()),
-        create: Some(cpal_color_set_create),
-        free: Some(cpal_color_set_free as unsafe extern "C" fn(*mut CpalColorSet) -> ()),
-        push: Some(
-            cpal_color_set_push as unsafe extern "C" fn(*mut CpalColorSet, CpalColor) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn cpal_color_set_grow_to(arr: *mut CpalColorSet, target: usize) {
-    cvec_grow_to(cpal_color_set_as_cvec(arr), target);
-}
-#[inline]
-unsafe fn cpal_color_set_as_cvec(arr: *mut CpalColorSet) -> *mut CVecRaw<CpalColor> {
-    arr as *mut CVecRaw<CpalColor>
-}
-#[inline]
-unsafe extern "C" fn cpal_color_set_init(arr: *mut CpalColorSet) {
-    cvec_init(cpal_color_set_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn init_palette(mut p: *mut CpalPalette) {
-    CPAL_I_COLOR_SET.init.expect("non-null function pointer")(&raw mut (*p).colorset);
-    (*p).type_0 = 0 as u32;
-    (*p).label = 0xffff as u32;
-}
-#[inline]
-unsafe extern "C" fn dispose_palette(mut p: *mut CpalPalette) {
-    CPAL_I_COLOR_SET.dispose.expect("non-null function pointer")(&raw mut (*p).colorset);
-}
-pub static CPAL_I_PALETTE: CpalPaletteElementInterface = {
-    CpalPaletteElementInterface {
-        init: Some(cpal_palette_init as unsafe extern "C" fn(*mut CpalPalette) -> ()),
-        copy: Some(
-            cpal_palette_copy as unsafe extern "C" fn(*mut CpalPalette, *const CpalPalette) -> (),
-        ),
-        dispose: Some(cpal_palette_dispose as unsafe extern "C" fn(*mut CpalPalette) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn cpal_palette_dispose(mut x: *mut CpalPalette) {
-    dispose_palette(x);
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_init(mut x: *mut CpalPalette) {
-    init_palette(x);
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_copy(mut dst: *mut CpalPalette, mut src: *const CpalPalette) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalPalette>() as usize,
-    );
-}
-#[inline]
-unsafe fn cpal_palette_set_as_cvec(arr: *mut CpalPaletteSet) -> *mut CVecRaw<CpalPalette> {
-    arr as *mut CVecRaw<CpalPalette>
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_set_init(arr: *mut CpalPaletteSet) {
-    cvec_init(cpal_palette_set_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_set_push(arr: *mut CpalPaletteSet, elem: CpalPalette) {
-    cvec_push(cpal_palette_set_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_set_grow_to(arr: *mut CpalPaletteSet, target: usize) {
-    cvec_grow_to(cpal_palette_set_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_set_copy(
-    mut dst: *mut CpalPaletteSet,
-    mut src: *const CpalPaletteSet,
-) {
-    cpal_palette_set_init(dst);
-    cpal_palette_set_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if CPAL_I_PALETTE.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            CPAL_I_PALETTE.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut CpalPalette,
-                (*src).items.offset(j as isize) as *mut CpalPalette as *const CpalPalette,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_set_dispose(mut arr: *mut CpalPaletteSet) {
-    if arr.is_null() {
-        return;
-    }
-    if CPAL_I_PALETTE.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh3 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh3 != 0) {
-                break;
-            }
-            CPAL_I_PALETTE.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut CpalPalette,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<CpalPalette>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_set_free(mut x: *mut CpalPaletteSet) {
-    if x.is_null() {
-        return;
-    }
-    cpal_palette_set_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn cpal_palette_set_create() -> *mut CpalPaletteSet {
-    let mut x: *mut CpalPaletteSet =
-        malloc(::core::mem::size_of::<CpalPaletteSet>() as usize) as *mut CpalPaletteSet;
-    cpal_palette_set_init(x);
-    return x;
-}
-pub static CPAL_I_PALETTE_SET: CpalPaletteSetVectorInterface = {
-    CpalPaletteSetVectorInterface {
-        init: Some(cpal_palette_set_init as unsafe extern "C" fn(*mut CpalPaletteSet) -> ()),
-        copy: Some(
-            cpal_palette_set_copy
-                as unsafe extern "C" fn(*mut CpalPaletteSet, *const CpalPaletteSet) -> (),
-        ),
-        dispose: Some(cpal_palette_set_dispose as unsafe extern "C" fn(*mut CpalPaletteSet) -> ()),
-        create: Some(cpal_palette_set_create),
-        free: Some(cpal_palette_set_free as unsafe extern "C" fn(*mut CpalPaletteSet) -> ()),
-        push: Some(
-            cpal_palette_set_push as unsafe extern "C" fn(*mut CpalPaletteSet, CpalPalette) -> (),
-        ),
-    }
-};
-#[inline]
 unsafe extern "C" fn init_cpal(mut cpal: *mut CpalTable) {
     (*cpal).version = 1 as u16;
-    CPAL_I_PALETTE_SET.init.expect("non-null function pointer")(&raw mut (*cpal).palettes);
+    (*cpal).palettes = Vec::new();
 }
-#[inline]
 unsafe extern "C" fn dispose_cpal(mut cpal: *mut CpalTable) {
-    CPAL_I_PALETTE_SET.dispose.expect("non-null function pointer")(&raw mut (*cpal).palettes);
+    (*cpal).palettes = Vec::new();
 }
 #[inline]
 unsafe extern "C" fn table_cpal_dispose(mut x: *mut CpalTable) {
@@ -365,32 +53,21 @@ unsafe extern "C" fn table_cpal_init(mut x: *mut CpalTable) {
 }
 #[inline]
 unsafe extern "C" fn table_cpal_create() -> *mut CpalTable {
+    // `calloc`, not `malloc`: `init_cpal` assigns straight into
+    // `(*cpal).palettes` (`= Vec::new()`), which drops whatever was already
+    // there first. See rust/README.md's `GaspTable` note -- same fix.
     let mut x: *mut CpalTable =
-        malloc(::core::mem::size_of::<CpalTable>() as usize) as *mut CpalTable;
+        calloc(1, ::core::mem::size_of::<CpalTable>() as usize) as *mut CpalTable;
     table_cpal_init(x);
     return x;
 }
 #[inline]
 unsafe extern "C" fn table_cpal_copy(mut dst: *mut CpalTable, mut src: *const CpalTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CpalTable>() as usize,
-    );
+    (*dst).version = (*src).version;
+    (*dst).palettes = (*src).palettes.clone();
 }
-pub static TABLE_I_CPAL: CpalTableElementInterface = {
-    CpalTableElementInterface {
-        init: Some(table_cpal_init as unsafe extern "C" fn(*mut CpalTable) -> ()),
-        copy: Some(
-            table_cpal_copy as unsafe extern "C" fn(*mut CpalTable, *const CpalTable) -> (),
-        ),
-        dispose: Some(table_cpal_dispose as unsafe extern "C" fn(*mut CpalTable) -> ()),
-        create: Some(table_cpal_create),
-        free: Some(table_cpal_free as unsafe extern "C" fn(*mut CpalTable) -> ()),
-    }
-};
 #[inline]
-unsafe extern "C" fn table_cpal_free(mut x: *mut CpalTable) {
+pub(crate) unsafe extern "C" fn table_cpal_free(mut x: *mut CpalTable) {
     if x.is_null() {
         return;
     }
@@ -431,8 +108,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 2 as u32) {
-                        t = (
-                            TABLE_I_CPAL.create.expect("non-null function pointer"))();
+                        t = table_cpal_create();
                         version = read_16u(data as *const u8);
                         table_header_length =
                             (if version as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
@@ -526,18 +202,18 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                                     while (j_0 as ::core::ffi::c_int)
                                         < num_palettes as ::core::ffi::c_int
                                     {
+                                        // `label: 0xffff`, not `0` -- matches
+                                        // what the deleted `CPAL_I_PALETTE.init`
+                                        // call used to leave here (nothing
+                                        // overwrites `.label` afterward in
+                                        // this function, unlike `.type_0`
+                                        // and `.colorset`, which init also
+                                        // touched but every caller re-sets).
                                         let mut palette: CpalPalette = CpalPalette {
-                                            colorset: CpalColorSet {
-                                                length: 0,
-                                                capacity: 0,
-                                                items: ::core::ptr::null_mut::<CpalColor>(),
-                                            },
+                                            colorset: Vec::new(),
                                             type_0: 0,
-                                            label: 0,
+                                            label: 0xffff,
                                         };
-                                        CPAL_I_PALETTE.init.expect("non-null function pointer")(
-                                            &raw mut palette,
-                                        );
                                         let mut palette_start_index: TableId = read_16u(
                                             data.offset(12 as ::core::ffi::c_int as isize).offset(
                                                 (j_0 as ::core::ffi::c_int
@@ -555,10 +231,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                                                 + j_1 as ::core::ffi::c_int)
                                                 < num_color_records as ::core::ffi::c_int
                                             {
-                                                CPAL_I_COLOR_SET
-                                                    .push
-                                                    .expect("non-null function pointer")(
-                                                    &raw mut palette.colorset,
+                                                palette.colorset.push(
                                                     *color_list.offset(
                                                         (j_1 as ::core::ffi::c_int
                                                             + palette_start_index
@@ -567,22 +240,15 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                                                     ),
                                                 );
                                             } else {
-                                                CPAL_I_COLOR_SET
-                                                    .push
-                                                    .expect("non-null function pointer")(
-                                                    &raw mut palette.colorset,
-                                                    WHITE,
-                                                );
+                                                palette.colorset.push(WHITE);
                                             }
                                             j_1 = j_1.wrapping_add(1);
                                         }
-                                        CPAL_I_PALETTE_SET.push.expect("non-null function pointer")(
-                                            &raw mut (*t).palettes,
-                                            palette,
-                                        );
+                                        (*t).palettes.push(palette);
                                         j_0 = j_0.wrapping_add(1);
                                     }
                                     if version as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+                                        let palettes: &mut Vec<CpalPalette> = &mut (*t).palettes;
                                         let mut offset_palette_type_array: u32 = read_32u(
                                             data.offset(16 as ::core::ffi::c_int as isize).offset(
                                                 (2 as ::core::ffi::c_int
@@ -612,8 +278,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                                                     .offset(offset_palette_type_array as isize)
                                                         as *const u8,
                                                 );
-                                                (*(*t).palettes.items.offset(j_2 as isize))
-                                                    .type_0 = type_0;
+                                                palettes[j_2 as usize].type_0 = type_0;
                                                 j_2 = j_2.wrapping_add(1);
                                             }
                                         }
@@ -646,8 +311,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                                                     .offset(offset_palette_label_array as isize)
                                                         as *const u8,
                                                 );
-                                                (*(*t).palettes.items.offset(j_3 as isize)).label =
-                                                    label as u32;
+                                                palettes[j_3 as usize].label = label as u32;
                                                 j_3 = j_3.wrapping_add(1);
                                             }
                                         }
@@ -690,14 +354,9 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                                                     while (k as ::core::ffi::c_int)
                                                         < num_palettes as ::core::ffi::c_int
                                                     {
-                                                        (*(*(*t)
-                                                            .palettes
-                                                            .items
-                                                            .offset(k as isize))
-                                                        .colorset
-                                                        .items
-                                                        .offset(j_4 as isize))
-                                                        .label = label_0;
+                                                        palettes[k as usize].colorset
+                                                            [j_4 as usize]
+                                                            .label = label_0;
                                                         k = k.wrapping_add(1);
                                                     }
                                                     j_4 = j_4.wrapping_add(1);
@@ -712,7 +371,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                             }
                         }
                     }
-                    TABLE_I_CPAL.free.expect("non-null function pointer")(t);
+                    table_cpal_free(t);
                     t = ::core::ptr::null_mut::<CpalTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -726,7 +385,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
     return ::core::ptr::null_mut::<CpalTable>();
 }
 #[inline]
-unsafe extern "C" fn dump_color(mut color: *mut CpalColor) -> *mut JsonValue {
+unsafe extern "C" fn dump_color(mut color: *const CpalColor) -> *mut JsonValue {
     let mut _color: *mut JsonValue = json_object_new(5 as usize);
     json_object_push(
         _color,
@@ -760,7 +419,7 @@ unsafe extern "C" fn dump_color(mut color: *mut CpalColor) -> *mut JsonValue {
     return preserialize(_color);
 }
 #[inline]
-unsafe extern "C" fn dump_palette(mut palette: *mut CpalPalette) -> *mut JsonValue {
+unsafe extern "C" fn dump_palette(mut palette: *const CpalPalette) -> *mut JsonValue {
     let mut _palette: *mut JsonValue = json_object_new(3 as usize);
     if (*palette).type_0 != 0 {
         json_object_push(
@@ -776,13 +435,11 @@ unsafe extern "C" fn dump_palette(mut palette: *mut CpalPalette) -> *mut JsonVal
             json_integer_new((*palette).label as i64),
         );
     }
-    let mut a: *mut JsonValue = json_array_new((*palette).colorset.length);
+    let colorset: &Vec<CpalColor> = &(*palette).colorset;
+    let mut a: *mut JsonValue = json_array_new(colorset.len());
     let mut j: ColorId = 0 as ColorId;
-    while (j as usize) < (*palette).colorset.length {
-        json_array_push(
-            a,
-            dump_color((*palette).colorset.items.offset(j as isize) as *mut CpalColor),
-        );
+    while (j as usize) < colorset.len() {
+        json_array_push(a, dump_color(&colorset[j as usize] as *const CpalColor));
         j = j.wrapping_add(1);
     }
     json_object_push(
@@ -806,6 +463,7 @@ pub unsafe extern "C" fn otfcc_dump_cpal(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"CPAL"),
     );
+    let palettes: &Vec<CpalPalette> = &(*table).palettes;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _t: *mut JsonValue = json_object_new(2 as usize);
@@ -814,12 +472,12 @@ pub unsafe extern "C" fn otfcc_dump_cpal(
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new((*table).version as i64),
         );
-        let mut _a: *mut JsonValue = json_array_new((*table).palettes.length);
+        let mut _a: *mut JsonValue = json_array_new(palettes.len());
         let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*table).palettes.length {
+        while (j as usize) < palettes.len() {
             json_array_push(
                 _a,
-                dump_palette((*table).palettes.items.offset(j as isize) as *mut CpalPalette),
+                dump_palette(&palettes[j as usize] as *const CpalPalette),
             );
             j = j.wrapping_add(1);
         }
@@ -904,8 +562,7 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
         if _palettes.is_null() || (*_palettes).u.array.length == 0 {
             return ::core::ptr::null_mut::<CpalTable>();
         }
-        cpal = (
-            TABLE_I_CPAL.create.expect("non-null function pointer"))();
+        cpal = table_cpal_create();
         (*cpal).version = json_obj_getint(
             table,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -924,15 +581,10 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
                 );
                 if !_colors.is_null() {
                     let mut palette: CpalPalette = CpalPalette {
-                        colorset: CpalColorSet {
-                            length: 0,
-                            capacity: 0,
-                            items: ::core::ptr::null_mut::<CpalColor>(),
-                        },
+                        colorset: Vec::new(),
                         type_0: 0,
                         label: 0,
                     };
-                    CPAL_I_PALETTE.init.expect("non-null function pointer")(&raw mut palette);
                     palette.type_0 = json_obj_getint(
                         _palette,
                         b"type\0" as *const u8 as *const ::core::ffi::c_char,
@@ -944,16 +596,12 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
                     ) as u32;
                     let mut k: ColorId = 0 as ColorId;
                     while (k as ::core::ffi::c_uint) < (*_colors).u.array.length {
-                        CPAL_I_COLOR_SET.push.expect("non-null function pointer")(
-                            &raw mut palette.colorset,
-                            parse_color(*(*_colors).u.array.values.offset(k as isize)),
-                        );
+                        palette.colorset.push(parse_color(
+                            *(*_colors).u.array.values.offset(k as isize),
+                        ));
                         k = k.wrapping_add(1);
                     }
-                    CPAL_I_PALETTE_SET.push.expect("non-null function pointer")(
-                        &raw mut (*cpal).palettes,
-                        palette,
-                    );
+                    (*cpal).palettes.push(palette);
                 }
             }
             j = j.wrapping_add(1);
@@ -967,10 +615,11 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
 }
 #[inline]
 unsafe extern "C" fn build_palette_type(mut cpal: *const CpalTable) -> *mut BkBlock {
+    let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     let mut needs_palette_type: bool = false;
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*cpal).palettes.length {
-        if (*(*cpal).palettes.items.offset(j as isize)).type_0 != 0 {
+    while (j as usize) < palettes.len() {
+        if palettes[j as usize].type_0 != 0 {
             needs_palette_type = true;
         }
         j = j.wrapping_add(1);
@@ -980,18 +629,19 @@ unsafe extern "C" fn build_palette_type(mut cpal: *const CpalTable) -> *mut BkBl
     }
     let mut block: *mut BkBlock = bk_new_block(&[]);
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < (*cpal).palettes.length {
-        bk_push(block, &[bk_int(BkCellType::B32, ((*(*cpal).palettes.items.offset(j_0 as isize)).type_0) as u32)]);
+    while (j_0 as usize) < palettes.len() {
+        bk_push(block, &[bk_int(BkCellType::B32, (palettes[j_0 as usize].type_0) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
     return block;
 }
 #[inline]
 unsafe extern "C" fn build_palette_label(mut cpal: *const CpalTable) -> *mut BkBlock {
+    let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     let mut needs_palette_label: bool = false;
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*cpal).palettes.length {
-        if (*(*cpal).palettes.items.offset(j as isize)).label != 0xffff as u32 {
+    while (j as usize) < palettes.len() {
+        if palettes[j as usize].label != 0xffff as u32 {
             needs_palette_label = true;
         }
         j = j.wrapping_add(1);
@@ -1001,23 +651,20 @@ unsafe extern "C" fn build_palette_label(mut cpal: *const CpalTable) -> *mut BkB
     }
     let mut block: *mut BkBlock = bk_new_block(&[]);
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < (*cpal).palettes.length {
-        bk_push(block, &[bk_int(BkCellType::B16, ((*(*cpal).palettes.items.offset(j_0 as isize)).label) as u32)]);
+    while (j_0 as usize) < palettes.len() {
+        bk_push(block, &[bk_int(BkCellType::B16, (palettes[j_0 as usize].label) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
     return block;
 }
 #[inline]
 unsafe extern "C" fn build_palette_entry_label(mut cpal: *const CpalTable) -> *mut BkBlock {
+    let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     let mut needs_palette_entry_label: bool = false;
-    let mut palette: *mut CpalPalette = (*cpal)
-        .palettes
-        .items
-        .offset(0 as ::core::ffi::c_int as isize)
-        as *mut CpalPalette;
+    let palette: &CpalPalette = &palettes[0 as usize];
     let mut j: ColorId = 0 as ColorId;
-    while (j as usize) < (*palette).colorset.length {
-        if (*(*palette).colorset.items.offset(j as isize)).label as ::core::ffi::c_int
+    while (j as usize) < palette.colorset.len() {
+        if palette.colorset[j as usize].label as ::core::ffi::c_int
             != 0xffff as ::core::ffi::c_int
         {
             needs_palette_entry_label = true;
@@ -1029,8 +676,8 @@ unsafe extern "C" fn build_palette_entry_label(mut cpal: *const CpalTable) -> *m
     }
     let mut block: *mut BkBlock = bk_new_block(&[]);
     let mut j_0: ColorId = 0 as ColorId;
-    while (j_0 as usize) < (*palette).colorset.length {
-        bk_push(block, &[bk_int(BkCellType::B16, ((*(*palette).colorset.items.offset(j_0 as isize)).label as ::core::ffi::c_int) as u32)]);
+    while (j_0 as usize) < palette.colorset.len() {
+        bk_push(block, &[bk_int(BkCellType::B16, (palette.colorset[j_0 as usize].label as ::core::ffi::c_int) as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
     return block;
@@ -1039,29 +686,27 @@ pub unsafe extern "C" fn otfcc_build_cpal(
     mut cpal: *const CpalTable,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if cpal.is_null() || (*cpal).palettes.length == 0 {
+    if cpal.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut num_palettes: u16 = (*cpal).palettes.length as u16;
-    let mut num_palettes_entries: u16 = (*(*cpal)
-        .palettes
-        .items
-        .offset(0 as ::core::ffi::c_int as isize))
-    .colorset
-    .length as u16;
+    let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
+    if palettes.is_empty() {
+        return ::core::ptr::null_mut::<Buffer>();
+    }
+    let mut num_palettes: u16 = palettes.len() as u16;
+    let mut num_palettes_entries: u16 = palettes[0 as usize].colorset.len() as u16;
     let mut num_color_records: u16 =
         (num_palettes as ::core::ffi::c_int * num_palettes_entries as ::core::ffi::c_int) as u16;
     let mut color_records: *mut BkBlock = bk_new_block(&[]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < num_palettes as ::core::ffi::c_int {
-        let mut palette: *mut CpalPalette =
-            (*cpal).palettes.items.offset(j as isize) as *mut CpalPalette;
-        let mut total_colors: ColorId = (*palette).colorset.length as ColorId;
+        let palette: &CpalPalette = &palettes[j as usize];
+        let mut total_colors: ColorId = palette.colorset.len() as ColorId;
         let mut k: ColorId = 0 as ColorId;
         while (k as ::core::ffi::c_int) < num_palettes_entries as ::core::ffi::c_int {
             let mut color: *const CpalColor = ::core::ptr::null::<CpalColor>();
             if (k as ::core::ffi::c_int) < total_colors as ::core::ffi::c_int {
-                color = (*palette).colorset.items.offset(k as isize) as *mut CpalColor;
+                color = &palette.colorset[k as usize] as *const CpalColor;
             } else {
                 color = &raw const WHITE;
             }

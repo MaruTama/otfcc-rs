@@ -1167,5 +1167,28 @@ on the other platform before a commit is trusted.
       (`BungeeColor-Regular_colr_Windows.ttf`) round-trips through
       `consolidate_colr` on every build, and the byte comparison covers it
       already — no new coverage gap to close here, unlike `MetaEntries`/`VDMX`.
+  - **`CpalColorSet`/`CpalPaletteSet` → `Vec<CpalColor>`/`Vec<CpalPalette>` —
+    second nested pair, back to `VdmxGroup`'s shape** (no owned resources,
+    `.copy` dead) rather than `ColrLayerList`'s. Confirmed rather than assumed:
+    `TABLE_I_CPAL.copy`/`CPAL_I_PALETTE_SET.copy`/`CPAL_I_COLOR_SET.copy` are
+    referenced only inside their own vtables' static initializers, never
+    called — same shape as every dead `.copy` slot before `ColrLayerList`,
+    just checked again rather than pattern-matched on "it's a nested pair, so
+    it must be like `VdmxGroup`." `table_cpal_create` got the `calloc` fix.
+    One genuine behavioral wrinkle, found by reading `init_palette` field by
+    field rather than assuming the vtable-removal was a no-op: it set
+    `.label = 0xffff`, not the `0` the surrounding struct literal in
+    `otfcc_read_cpal` used — and nothing between `.init()` and the palette's
+    final push overwrote `.label` in that one call site (unlike the sibling
+    call in `otfcc_parse_cpal`, where `.label` *is* unconditionally
+    overwritten right after, making that `.init()` fully redundant). Deleting
+    the `.init()` call there without noticing would have silently changed
+    every palette's default label from `0xffff` (`no label`) to `0` (a real
+    label index) whenever a font omits the CPAL palette-label array — the
+    same "check every call site, don't assume `.init()` is always redundant
+    once its container is already literal-initialized" lesson `VdmxGroup`
+    taught, but this time the assumption would have been *wrong* instead of
+    right. Verified against the same live BungeeColor payload as `ColrLayerList`
+    (it has both COLR and CPAL) — no new coverage gap.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.
