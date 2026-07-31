@@ -8,7 +8,7 @@ use crate::vendor::json::{JsonType, JsonValue};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_decode};
-use crate::table::meta::types::{META_I_ENTRIES, TABLE_I_META};
+use crate::table::meta::types::{TABLE_I_META};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 pub unsafe extern "C" fn parse_meta_data(mut v: *const JsonValue) -> SdsRaw {
     if (*v).type_0 == JsonType::String
@@ -95,13 +95,10 @@ pub unsafe extern "C" fn otfcc_parse_meta(
                 let mut tag: u32 = str2tag((*_tag).u.string.ptr);
                 let mut str: SdsRaw = parse_meta_data(_e);
                 if !str.is_null() {
-                    META_I_ENTRIES.push.expect("non-null function pointer")(
-                        &raw mut (*meta).entries,
-                        MetaEntry {
-                            tag: tag,
-                            data: str,
-                        },
-                    );
+                    (*meta).entries.push(MetaEntry {
+                        tag: tag,
+                        data: str,
+                    });
                 }
             }
             j = j.wrapping_add(1);

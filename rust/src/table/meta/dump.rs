@@ -70,7 +70,8 @@ pub unsafe extern "C" fn otfcc_dump_meta(
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new((*meta).flags as i64),
         );
-        let mut _entries: *mut JsonValue = json_array_new((*meta).entries.length);
+        let entries: &Vec<MetaEntry> = &(*meta).entries;
+        let mut _entries: *mut JsonValue = json_array_new(entries.len());
         json_object_push(
             _meta,
             b"entries\0" as *const u8 as *const ::core::ffi::c_char,
@@ -78,8 +79,8 @@ pub unsafe extern "C" fn otfcc_dump_meta(
         );
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
-        while keep != 0 && __caryll_index < (*meta).entries.length {
-            let mut e: *mut MetaEntry = (*meta).entries.items.offset(__caryll_index as isize);
+        while keep != 0 && __caryll_index < entries.len() {
+            let mut e: *const MetaEntry = &entries[__caryll_index];
             while keep != 0 {
                 let mut _e: *mut JsonValue = json_object_new(2 as usize);
                 let mut _tag: [::core::ffi::c_char; 4] = [0; 4];

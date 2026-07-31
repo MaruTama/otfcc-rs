@@ -42,14 +42,15 @@ pub unsafe extern "C" fn otfcc_build_meta(
     mut meta: *const MetaTable,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if meta.is_null() || (*meta).entries.length == 0 {
+    if meta.is_null() || (*meta).entries.is_empty() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, ((*meta).version) as u32), bk_int(BkCellType::B32, ((*meta).flags) as u32), bk_int(BkCellType::B32, 0 as u32), bk_int(BkCellType::B32, ((*meta).entries.length as u32) as u32)]);
+    let entries: &Vec<MetaEntry> = &(*meta).entries;
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, ((*meta).version) as u32), bk_int(BkCellType::B32, ((*meta).flags) as u32), bk_int(BkCellType::B32, 0 as u32), bk_int(BkCellType::B32, (entries.len() as u32) as u32)]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
-    while keep != 0 && __caryll_index < (*meta).entries.length {
-        let mut e: *mut MetaEntry = (*meta).entries.items.offset(__caryll_index as isize);
+    while keep != 0 && __caryll_index < entries.len() {
+        let mut e: *const MetaEntry = &entries[__caryll_index];
         while keep != 0 {
             bk_push(root, &[bk_int(BkCellType::B32, ((*e).tag) as u32), bk_ptr(BkCellType::P32, bk_new_block_from_string_len(
                     sdslen((*e).data),

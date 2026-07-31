@@ -1059,5 +1059,30 @@ on the other platform before a commit is trusted.
       and only misbehaves at runtime, on payloads that exercise the table.
       Caught here only because `compare-with-c.sh` runs every payload, not
       because anything about the code looked wrong.
+  - **`MetaEntries` → `Vec<MetaEntry>`.** Same selection criteria, same
+    result: `MetaEntry` is `Copy` (it holds an `SdsRaw` pointer, but that's
+    still a plain `Copy` field to Rust — the codebase doesn't yet know it's
+    owned), `MetaEntries`/`MetaTable` are referenced nowhere outside
+    `table/meta/`, and `MetaTable` is only ever behind a pointer. Applied the
+    `table_gasp_create`-style checklist item up front this time — `libc::calloc`
+    from the start, not discovered by a crash — and it was in fact needed:
+    `init_meta_table` has the same `(*t).entries = Vec::new();` field
+    assignment `init_gasp` did. One thing `GaspRecord` didn't have: each
+    `MetaEntry` owns an `sds` string (`dispose_meta_entry` frees it via
+    `sdsfree`), so `Vec<MetaEntry>`'s own `Drop` isn't enough — dropping the
+    `Vec` only frees the array, not what each element's raw pointer points to.
+    `dispose_meta_table` still walks the vector and disposes each entry
+    first, same as before, just over `.iter_mut()` instead of the old
+    `.items.offset(j)` loop. **Found a real, permanent coverage gap while
+    checking this, not a bug**: no committed payload has a `meta` table, so
+    every path this PR touched — `read`/`parse`'s `.push`, `build`/`dump`'s
+    iteration, the `calloc`-vs-`malloc` fix itself — had never actually run
+    under `compare-with-c.sh`. Same shape of gap as PR #36's unrecognised-
+    lookup-type payload, so fixed it the same way: `make-test-meta.py`
+    injects a synthetic `meta` block (one entry on each of the two
+    known string tags, `dlng`/`slng`, plus one non-string tag through the
+    base64 path) into an existing canonical payload JSON, and
+    `compare-with-c.sh` now builds and dumps it every run — byte-identical
+    both directions, on both platforms, closing the gap for future PRs too.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.
