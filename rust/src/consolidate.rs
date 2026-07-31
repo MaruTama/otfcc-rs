@@ -64,7 +64,7 @@ use crate::consolidate::otl::gsub_single::{consolidate_gsub_single};
 use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::_tsi::{TABLE_I_TSI, TSI_I_ENTRY};
-use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR_LIST, GLYF_I_MASK_LIST, GLYF_I_REFERENCE_LIST, GLYF_I_STEM_DEF_LIST, otfcc_new_glyf_glyph};
+use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR_LIST, GLYF_I_REFERENCE_LIST, otfcc_new_glyf_glyph};
 use crate::table::otl::{OTL_I_FEATURE_LIST, OTL_I_FEATURE_REF_LIST, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_REF_LIST};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::table::otl::subtables::gpos_cursive::{I_SUBTABLE_GPOS_CURSIVE};
@@ -207,113 +207,96 @@ unsafe extern "C" fn consolidate_glyph_hints(
     mut g: *mut Glyph,
     mut _options: *const Options,
 ) {
-    if (*g).stem_h.length != 0 {
+    if !(*g).stem_h.is_empty() {
+        let stem_h: &mut Vec<PostscriptStemDef> = &mut (*g).stem_h;
         let mut j: ShapeId = 0 as ShapeId;
-        while (j as usize) < (*g).stem_h.length {
-            (*(*g).stem_h.items.offset(j as isize)).map = j as u16;
+        while (j as usize) < stem_h.len() {
+            stem_h[j as usize].map = j as u16;
             j = j.wrapping_add(1);
         }
-        GLYF_I_STEM_DEF_LIST.sort.expect("non-null function pointer")(
-            &raw mut (*g).stem_h,
-            Some(
-                by_stem_pos
-                    as unsafe extern "C" fn(
-                        *const PostscriptStemDef,
-                        *const PostscriptStemDef,
-                    ) -> ::core::ffi::c_int,
-            ),
-        );
+        stem_h.sort_by(|a, b| {
+            by_stem_pos(a as *const PostscriptStemDef, b as *const PostscriptStemDef).cmp(&0)
+        });
     }
-    if (*g).stem_v.length != 0 {
+    if !(*g).stem_v.is_empty() {
+        let stem_v: &mut Vec<PostscriptStemDef> = &mut (*g).stem_v;
         let mut j_0: ShapeId = 0 as ShapeId;
-        while (j_0 as usize) < (*g).stem_v.length {
-            (*(*g).stem_v.items.offset(j_0 as isize)).map = j_0 as u16;
+        while (j_0 as usize) < stem_v.len() {
+            stem_v[j_0 as usize].map = j_0 as u16;
             j_0 = j_0.wrapping_add(1);
         }
-        GLYF_I_STEM_DEF_LIST.sort.expect("non-null function pointer")(
-            &raw mut (*g).stem_v,
-            Some(
-                by_stem_pos
-                    as unsafe extern "C" fn(
-                        *const PostscriptStemDef,
-                        *const PostscriptStemDef,
-                    ) -> ::core::ffi::c_int,
-            ),
-        );
+        stem_v.sort_by(|a, b| {
+            by_stem_pos(a as *const PostscriptStemDef, b as *const PostscriptStemDef).cmp(&0)
+        });
     }
     let mut hmap: *mut ShapeId = ::core::ptr::null_mut::<ShapeId>();
     hmap = __caryll_allocate_clean(
-        (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul((*g).stem_h.length),
+        (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul((*g).stem_h.len()),
         80 as ::core::ffi::c_ulong,
     ) as *mut ShapeId;
     let mut vmap: *mut ShapeId = ::core::ptr::null_mut::<ShapeId>();
     vmap = __caryll_allocate_clean(
-        (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul((*g).stem_v.length),
+        (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul((*g).stem_v.len()),
         82 as ::core::ffi::c_ulong,
     ) as *mut ShapeId;
+    let stem_h: &Vec<PostscriptStemDef> = &(*g).stem_h;
     let mut j_1: ShapeId = 0 as ShapeId;
-    while (j_1 as usize) < (*g).stem_h.length {
-        *hmap.offset((*(*g).stem_h.items.offset(j_1 as isize)).map as isize) = j_1;
+    while (j_1 as usize) < stem_h.len() {
+        *hmap.offset(stem_h[j_1 as usize].map as isize) = j_1;
         j_1 = j_1.wrapping_add(1);
     }
+    let stem_v: &Vec<PostscriptStemDef> = &(*g).stem_v;
     let mut j_2: ShapeId = 0 as ShapeId;
-    while (j_2 as usize) < (*g).stem_v.length {
-        *vmap.offset((*(*g).stem_v.items.offset(j_2 as isize)).map as isize) = j_2;
+    while (j_2 as usize) < stem_v.len() {
+        *vmap.offset(stem_v[j_2 as usize].map as isize) = j_2;
         j_2 = j_2.wrapping_add(1);
     }
-    if (*g).hint_masks.length != 0 {
-        GLYF_I_MASK_LIST.sort.expect("non-null function pointer")(
-            &raw mut (*g).hint_masks,
-            Some(
-                by_mask_pointindex
-                    as unsafe extern "C" fn(
-                        *const PostscriptHintMask,
-                        *const PostscriptHintMask,
-                    ) -> ::core::ffi::c_int,
-            ),
-        );
+    if !(*g).hint_masks.is_empty() {
+        let stem_h_len = (*g).stem_h.len();
+        let stem_v_len = (*g).stem_v.len();
+        let hint_masks: &mut Vec<PostscriptHintMask> = &mut (*g).hint_masks;
+        hint_masks.sort_by(|a, b| {
+            by_mask_pointindex(a as *const PostscriptHintMask, b as *const PostscriptHintMask)
+                .cmp(&0)
+        });
         let mut j_3: ShapeId = 0 as ShapeId;
-        while (j_3 as usize) < (*g).hint_masks.length {
-            let mut oldmask: PostscriptHintMask = *(*g).hint_masks.items.offset(j_3 as isize);
+        while (j_3 as usize) < hint_masks.len() {
+            let oldmask: PostscriptHintMask = hint_masks[j_3 as usize];
             let mut k: ShapeId = 0 as ShapeId;
-            while (k as usize) < (*g).stem_h.length {
-                (*(*g).hint_masks.items.offset(j_3 as isize)).mask_h[k as usize] =
+            while (k as usize) < stem_h_len {
+                hint_masks[j_3 as usize].mask_h[k as usize] =
                     oldmask.mask_h[*hmap.offset(k as isize) as usize];
                 k = k.wrapping_add(1);
             }
             let mut k_0: ShapeId = 0 as ShapeId;
-            while (k_0 as usize) < (*g).stem_v.length {
-                (*(*g).hint_masks.items.offset(j_3 as isize)).mask_v[k_0 as usize] =
+            while (k_0 as usize) < stem_v_len {
+                hint_masks[j_3 as usize].mask_v[k_0 as usize] =
                     oldmask.mask_v[*vmap.offset(k_0 as isize) as usize];
                 k_0 = k_0.wrapping_add(1);
             }
             j_3 = j_3.wrapping_add(1);
         }
     }
-    if (*g).contour_masks.length != 0 {
-        GLYF_I_MASK_LIST.sort.expect("non-null function pointer")(
-            &raw mut (*g).contour_masks,
-            Some(
-                by_mask_pointindex
-                    as unsafe extern "C" fn(
-                        *const PostscriptHintMask,
-                        *const PostscriptHintMask,
-                    ) -> ::core::ffi::c_int,
-            ),
-        );
+    if !(*g).contour_masks.is_empty() {
+        let stem_h_len = (*g).stem_h.len();
+        let stem_v_len = (*g).stem_v.len();
+        let contour_masks: &mut Vec<PostscriptHintMask> = &mut (*g).contour_masks;
+        contour_masks.sort_by(|a, b| {
+            by_mask_pointindex(a as *const PostscriptHintMask, b as *const PostscriptHintMask)
+                .cmp(&0)
+        });
         let mut j_4: ShapeId = 0 as ShapeId;
-        while (j_4 as usize) < (*g).contour_masks.length {
-            let mut oldmask_0: PostscriptHintMask =
-                *(*g).contour_masks.items.offset(j_4 as isize);
+        while (j_4 as usize) < contour_masks.len() {
+            let oldmask_0: PostscriptHintMask = contour_masks[j_4 as usize];
             let mut k_1: ShapeId = 0 as ShapeId;
-            while (k_1 as usize) < (*g).stem_h.length {
-                (*(*g).contour_masks.items.offset(j_4 as isize)).mask_h[k_1 as usize] =
+            while (k_1 as usize) < stem_h_len {
+                contour_masks[j_4 as usize].mask_h[k_1 as usize] =
                     oldmask_0.mask_h[*hmap.offset(k_1 as isize) as usize];
                 k_1 = k_1.wrapping_add(1);
             }
             let mut k_2: ShapeId = 0 as ShapeId;
-            while (k_2 as usize) < (*g).stem_v.length {
-                (*(*g).contour_masks.items.offset(j_4 as isize)).mask_v[k_2 as usize] =
+            while (k_2 as usize) < stem_v_len {
+                contour_masks[j_4 as usize].mask_v[k_2 as usize] =
                     oldmask_0.mask_v[*vmap.offset(k_2 as isize) as usize];
                 k_2 = k_2.wrapping_add(1);
             }

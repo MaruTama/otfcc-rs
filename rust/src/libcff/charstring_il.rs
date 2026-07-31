@@ -12,7 +12,7 @@ use crate::support::primitives::{Arity, Pos, ShapeId};
 
 use crate::libcff::{OP_CNTRMASK, OP_ENDCHAR, OP_HHCURVETO, OP_HINTMASK, OP_HLINETO, OP_HMOVETO, OP_HSTEM, OP_HSTEMHM, OP_HVCURVETO, OP_RCURVELINE, OP_RLINECURVE, OP_RLINETO, OP_RMOVETO, OP_RRCURVETO, OP_VHCURVETO, OP_VLINETO, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, OP_VVCURVETO, TYPE2_ARGUMENT_STACK};
 use crate::support::{TRUE_0};
-use crate::table::glyf::{Contour, Glyph, MaskList, StemDefList};
+use crate::table::glyf::{Contour, Glyph, MaskList, PostscriptHintMask, PostscriptStemDef, StemDefList};
 
 use crate::vf::vq::VQ;
 use crate::libcff::cff_opmean::{cff_get_standard_arity};
@@ -138,13 +138,14 @@ unsafe extern "C" fn _il_push_maskgroup(
     mut jm: *mut u16,
     mut op: i32,
 ) {
-    let mut n: ShapeId = (*masks).length as ShapeId;
+    let masks: &Vec<PostscriptHintMask> = &*masks;
+    let mut n: ShapeId = masks.len() as ShapeId;
     while (*jm as ::core::ffi::c_int) < n as ::core::ffi::c_int
-        && (((*(*masks).items.offset(*jm as isize)).contours_before as ::core::ffi::c_int)
+        && ((masks[*jm as usize].contours_before as ::core::ffi::c_int)
             < contours as ::core::ffi::c_int
-            || (*(*masks).items.offset(*jm as isize)).contours_before as ::core::ffi::c_int
+            || masks[*jm as usize].contours_before as ::core::ffi::c_int
                 == contours as ::core::ffi::c_int
-                && (*(*masks).items.offset(*jm as isize)).points_before as ::core::ffi::c_int
+                && masks[*jm as usize].points_before as ::core::ffi::c_int
                     <= points as ::core::ffi::c_int)
     {
         il_push_op(il, op);
@@ -153,7 +154,7 @@ unsafe extern "C" fn _il_push_maskgroup(
         let mut j: u16 = 0 as u16;
         while (j as ::core::ffi::c_int) < nh as ::core::ffi::c_int {
             mask_byte = ((mask_byte as ::core::ffi::c_int) << 1 as ::core::ffi::c_int
-                | (*(*masks).items.offset(*jm as isize)).mask_h[j as usize] as ::core::ffi::c_int
+                | masks[*jm as usize].mask_h[j as usize] as ::core::ffi::c_int
                     & 1 as ::core::ffi::c_int) as u8;
             bits = (bits as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
             if bits as ::core::ffi::c_int == 8 as ::core::ffi::c_int {
@@ -165,7 +166,7 @@ unsafe extern "C" fn _il_push_maskgroup(
         let mut j_0: u16 = 0 as u16;
         while (j_0 as ::core::ffi::c_int) < nv as ::core::ffi::c_int {
             mask_byte = ((mask_byte as ::core::ffi::c_int) << 1 as ::core::ffi::c_int
-                | (*(*masks).items.offset(*jm as isize)).mask_v[j_0 as usize] as ::core::ffi::c_int
+                | masks[*jm as usize].mask_v[j_0 as usize] as ::core::ffi::c_int
                     & 1 as ::core::ffi::c_int) as u8;
             bits = (bits as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
             if bits as ::core::ffi::c_int == 8 as ::core::ffi::c_int {
@@ -191,16 +192,18 @@ unsafe extern "C" fn il_push_masks(
     mut jh: *mut u16,
     mut jm: *mut u16,
 ) {
-    if (*g).stem_h.length == 0 && (*g).stem_v.length == 0 {
+    if (*g).stem_h.is_empty() && (*g).stem_v.is_empty() {
         return;
     }
+    let stem_h_len = (*g).stem_h.len() as u16;
+    let stem_v_len = (*g).stem_v.len() as u16;
     _il_push_maskgroup(
         il,
         &raw mut (*g).contour_masks,
         contours,
         points,
-        (*g).stem_h.length as u16,
-        (*g).stem_v.length as u16,
+        stem_h_len,
+        stem_v_len,
         jh,
         OP_CNTRMASK,
     );
@@ -209,8 +212,8 @@ unsafe extern "C" fn il_push_masks(
         &raw mut (*g).hint_masks,
         contours,
         points,
-        (*g).stem_h.length as u16,
-        (*g).stem_v.length as u16,
+        stem_h_len,
+        stem_v_len,
         jm,
         OP_HINTMASK,
     );
@@ -223,9 +226,10 @@ unsafe extern "C" fn _il_push_stemgroup(
     mut ophm: i32,
     mut oph: i32,
 ) {
-    if stems.is_null() || (*stems).length == 0 {
+    if stems.is_null() || (*stems).is_empty() {
         return;
     }
+    let stems: &Vec<PostscriptStemDef> = &*stems;
     let mut ref_0: Pos = 0 as ::core::ffi::c_int as Pos;
     let mut nn: u16 = (if haswidth as ::core::ffi::c_int != 0 {
         1 as ::core::ffi::c_int
@@ -233,18 +237,18 @@ unsafe extern "C" fn _il_push_stemgroup(
         0 as ::core::ffi::c_int
     }) as u16;
     let mut j: u16 = 0 as u16;
-    while (j as usize) < (*stems).length {
+    while (j as usize) < stems.len() {
         il_push_operand(
             il,
-            (*(*stems).items.offset(j as isize)).position as ::core::ffi::c_double
+            stems[j as usize].position as ::core::ffi::c_double
                 - ref_0 as ::core::ffi::c_double,
         );
         il_push_operand(
             il,
-            (*(*stems).items.offset(j as isize)).width as ::core::ffi::c_double,
+            stems[j as usize].width as ::core::ffi::c_double,
         );
-        ref_0 = (*(*stems).items.offset(j as isize)).position
-            + (*(*stems).items.offset(j as isize)).width;
+        ref_0 = stems[j as usize].position
+            + stems[j as usize].width;
         nn = nn.wrapping_add(1);
         if nn as u32 >= TYPE2_ARGUMENT_STACK {
             if hasmask {
@@ -375,7 +379,7 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
     }
     I_VQ.dispose.expect("non-null function pointer")(&raw mut x);
     I_VQ.dispose.expect("non-null function pointer")(&raw mut y);
-    let mut hasmask: bool = (*g).hint_masks.length != 0 || (*g).contour_masks.length != 0;
+    let mut hasmask: bool = !(*g).hint_masks.is_empty() || !(*g).contour_masks.is_empty();
     let glyph_adw_const: Pos =
         I_VQ.get_still.expect("non-null function pointer")((*g).advance_width.clone()) as Pos;
     let mut haswidth: bool = glyph_adw_const != default_width as ::core::ffi::c_int as Pos;

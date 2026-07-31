@@ -24,7 +24,7 @@ use crate::libcff::charstring_il::{CffCharstringIl, CffCharstringInstruction};
 use crate::libcff::subr::{CffSubrDiagramIndex, CffSubrGraph, CffSubrRule};
 use crate::support::{NULL, FALSE_0, TRUE_0};
 use crate::table::fvar::{FvarTable};
-use crate::table::glyf::{Contour, Glyph, GlyphPtr, MaskList, Point, PostscriptHintMask, PostscriptStemDef, GlyfTable};
+use crate::table::glyf::{Contour, Glyph, GlyphPtr, MaskList, Point, PostscriptHintMask, PostscriptStemDef, StemDefList, GlyfTable};
 use crate::table::head::{HeadTable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 
@@ -45,7 +45,7 @@ use crate::libcff::subr::{CFF_I_SUBR_GRAPH, cff_il_graph_to_buffers, cff_insert_
 use crate::support::buffer::{buffree, bufnew, bufwrite_bufdel, bufwrite_sds};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{json_new_vq};
-use crate::table::glyf::{GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_MASK_LIST, GLYF_I_POINT, GLYF_I_STEM_DEF_LIST, otfcc_new_glyf_glyph, TABLE_I_GLYF};
+use crate::table::glyf::{GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_POINT, otfcc_new_glyf_glyph, TABLE_I_GLYF};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdscat, sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
 use crate::vf::vq::{I_VQ};
@@ -882,18 +882,16 @@ unsafe extern "C" fn callback_draw_sethint(
     mut width: ::core::ffi::c_double,
 ) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    GLYF_I_STEM_DEF_LIST.push.expect("non-null function pointer")(
-        if is_vertical as ::core::ffi::c_int != 0 {
-            &raw mut (*(*context).g).stem_v
-        } else {
-            &raw mut (*(*context).g).stem_h
-        },
-        PostscriptStemDef {
-            position: position as Pos,
-            width: width as Pos,
-            map: 0,
-        },
-    );
+    let stems: &mut StemDefList = if is_vertical as ::core::ffi::c_int != 0 {
+        &mut (*(*context).g).stem_v
+    } else {
+        &mut (*(*context).g).stem_h
+    };
+    stems.push(PostscriptStemDef {
+        position: position as Pos,
+        width: width as Pos,
+        map: 0,
+    });
 }
 unsafe extern "C" fn callback_draw_setmask(
     mut _context: *mut ::core::ffi::c_void,
@@ -901,10 +899,10 @@ unsafe extern "C" fn callback_draw_setmask(
     mut mask_array: *mut bool,
 ) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    let mut mask_list: *mut MaskList = if is_contour_mask as ::core::ffi::c_int != 0 {
-        &raw mut (*(*context).g).contour_masks
+    let mask_list: &mut MaskList = if is_contour_mask as ::core::ffi::c_int != 0 {
+        &mut (*(*context).g).contour_masks
     } else {
-        &raw mut (*(*context).g).hint_masks
+        &mut (*(*context).g).hint_masks
     };
     let mut mask: PostscriptHintMask = PostscriptHintMask {
         points_before: 0,
@@ -919,15 +917,17 @@ unsafe extern "C" fn callback_draw_setmask(
         mask.contours_before = 0 as u16;
     }
     mask.points_before = (*context).j_point as u16;
+    let stem_h_len = (*(*context).g).stem_h.len();
+    let stem_v_len = (*(*context).g).stem_v.len();
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int {
-        mask.mask_h[j as usize] = if (j as usize) < (*(*context).g).stem_h.length {
+        mask.mask_h[j as usize] = if (j as usize) < stem_h_len {
             *mask_array.offset(j as isize) as ::core::ffi::c_int
         } else {
             0 as ::core::ffi::c_int
         } != 0;
-        mask.mask_v[j as usize] = if (j as usize) < (*(*context).g).stem_v.length {
-            *mask_array.offset((j as usize).wrapping_add((*(*context).g).stem_h.length) as isize)
+        mask.mask_v[j as usize] = if (j as usize) < stem_v_len {
+            *mask_array.offset((j as usize).wrapping_add(stem_h_len) as isize)
                 as ::core::ffi::c_int
         } else {
             0 as ::core::ffi::c_int
@@ -936,32 +936,21 @@ unsafe extern "C" fn callback_draw_setmask(
     }
     free(mask_array as *mut ::core::ffi::c_void);
     mask_array = ::core::ptr::null_mut::<bool>();
-    if (*mask_list).length > 0 as usize
-        && (*(*mask_list)
-            .items
-            .offset((*mask_list).length.wrapping_sub(1 as usize) as isize))
-        .contours_before as ::core::ffi::c_int
+    if !mask_list.is_empty()
+        && mask_list[mask_list.len() - 1].contours_before as ::core::ffi::c_int
             == mask.contours_before as ::core::ffi::c_int
-        && (*(*mask_list)
-            .items
-            .offset((*mask_list).length.wrapping_sub(1 as usize) as isize))
-        .points_before as ::core::ffi::c_int
+        && mask_list[mask_list.len() - 1].points_before as ::core::ffi::c_int
             == mask.points_before as ::core::ffi::c_int
     {
+        let last = mask_list.len() - 1;
         let mut j_0: ShapeId = 0 as ShapeId;
         while (j_0 as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int {
-            (*(*mask_list)
-                .items
-                .offset((*mask_list).length.wrapping_sub(1 as usize) as isize))
-            .mask_h[j_0 as usize] = mask.mask_h[j_0 as usize];
-            (*(*mask_list)
-                .items
-                .offset((*mask_list).length.wrapping_sub(1 as usize) as isize))
-            .mask_v[j_0 as usize] = mask.mask_v[j_0 as usize];
+            mask_list[last].mask_h[j_0 as usize] = mask.mask_h[j_0 as usize];
+            mask_list[last].mask_v[j_0 as usize] = mask.mask_v[j_0 as usize];
             j_0 = j_0.wrapping_add(1);
         }
     } else {
-        GLYF_I_MASK_LIST.push.expect("non-null function pointer")(mask_list, mask);
+        mask_list.push(mask);
         if is_contour_mask {
             (*context).defined_contour_masks = ((*context).defined_contour_masks as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as u8;
