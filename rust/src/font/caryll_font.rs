@@ -46,7 +46,7 @@ use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::base::{TABLE_I_BASE};
 use crate::table::cff::{TABLE_I_CFF};
 use crate::table::colr::{table_colr_free};
-use crate::table::cpal::{TABLE_I_CPAL};
+use crate::table::cpal::{table_cpal_free};
 use crate::table::gdef::{TABLE_I_GDEF};
 use crate::table::ltsh::{TABLE_I_LTSH};
 use crate::table::os_2::{TABLE_I_OS_2};
@@ -311,7 +311,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
         }
         1129333068 => {
             if !(*font).cpal.is_null() {
-                TABLE_I_CPAL.free.expect("non-null function pointer")((*font).cpal);
+                table_cpal_free((*font).cpal);
                 (*font).cpal = ::core::ptr::null_mut::<CpalTable>();
             }
             return;
