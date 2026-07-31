@@ -3,6 +3,13 @@
 # download. Used to exercise otfcc's gvar delta-application path
 # (applyPolymorphism in c/lib/table/glyf/read.c), which none of the existing
 # tests/payload/*.ttf fonts exercise (confirmed: none has an fvar table).
+#
+# Also carries two named instances (Regular/Bold), so the built fvar's
+# `instances` array (FvarInstanceList/FvarInstance/VV in rust/src/table/
+# fvar.rs and rust/src/vf/{vv,vq}.rs) is exercised too -- without them the
+# axes-only fvar this used to produce left otfcc_read_fvar/otfcc_dump_fvar's
+# instance-parsing loop, and json_new_v_vp's coordinate dump, entirely
+# untested by compare-with-c.sh/run-cycles.sh.
 import fontTools.fontBuilder as fb
 from fontTools.varLib import build
 import os
@@ -53,7 +60,7 @@ def main():
 
     # designspace
     from fontTools.designspaceLib import (
-        DesignSpaceDocument, AxisDescriptor, SourceDescriptor,
+        DesignSpaceDocument, AxisDescriptor, SourceDescriptor, InstanceDescriptor,
     )
 
     doc = DesignSpaceDocument()
@@ -76,6 +83,20 @@ def main():
     s2.name = "bold"
     s2.location = {"Weight": 700}
     doc.addSource(s2)
+
+    i1 = InstanceDescriptor()
+    i1.name = "Regular"
+    i1.styleName = "Regular"
+    i1.familyName = "OtfccGvarTest"
+    i1.location = {"Weight": 400}
+    doc.addInstance(i1)
+
+    i2 = InstanceDescriptor()
+    i2.name = "Bold"
+    i2.styleName = "Bold"
+    i2.familyName = "OtfccGvarTest"
+    i2.location = {"Weight": 700}
+    doc.addInstance(i2)
 
     varfont, _, _ = build(doc)
     out = os.path.join(out_dir, "gvar-test.ttf")

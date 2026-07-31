@@ -1460,5 +1460,65 @@ on the other platform before a commit is trusted.
       has a genuine `SVG ` table, exercising `otfcc_read_svg`/
       `otfcc_dump_svg`/`otfcc_parse_svg`/`otfcc_build_svg` end to end — no
       synthetic payload needed.
+  - **`VfAxes`/`VV`/`FvarInstanceList` → `Vec<VfAxis>`/`Vec<Pos>`/
+    `Vec<FvarInstance>`** (`vf/axis.rs`, `vf/vv.rs`, `vf/vq.rs`,
+    `vf/region.rs`, `table/fvar.rs`, `table/glyf/read.rs`) — the second
+    container group, a nested/non-nested mix converted in dependency order:
+    `VfAxes` (standalone) → `VV` (the innermost, embedded in `FvarInstance`)
+    → `FvarInstanceList` (the outer table).
+    - `VfAxes`: as expected, `VfAxis` owns nothing (the old
+      `vf_axis_dispose` was already an empty function). The live slots
+      (`.init`/`.dispose`/`.push`/`.shrink_to_fit`, all called from
+      `otfcc_read_fvar`) went straight to `Vec` methods; the whole-table
+      `.copy` was confirmed dead (never called via the vtable field) and
+      dropped along with `VfAxisElementInterface`/`VfAxesVectorInterface`.
+    - `VV`: turned out to be the same `Copy`-cascade shape as `VQ`
+      (embedded by value in `FvarInstance`, plus a by-value call site,
+      `json_new_vv(x: VV, …)`) — but simpler in the end, because the
+      element (`Pos`, an `f64`) owns nothing at all. That let the *entire*
+      `vf/vq.rs` VV apparatus (`PosElementInterface`, `VQ_I_POS_T`,
+      `vv_init`/`vv_push`/`vv_copy`/`vv_dispose`/`vv_shrink_to_fit`/
+      `vv_create`/`vv_free`/`vv_init_n`/`vv_fill`/`create_neutral_vv`, the
+      `I_VV` static) disappear outright — every live call site
+      (`.init`/`.push`/`.shrink_to_fit`/`.dispose`, all in `table/fvar.rs`)
+      converts directly to a `Vec<Pos>` method call, no wrapper functions
+      needed. **`json_new_vv` (the by-value sibling of the live
+      `json_new_v_vp`) turned out to be dead** — never called anywhere,
+      confirmed by grep, not assumed from "it has a by-value signature so
+      it must be live" (the plan's own worry going in). Deleted rather than
+      ported; `json_new_v_vp` (and `vq_region_get_weight` in
+      `vf/region.rs`, and `polymorphize`/`json_new_vq_region_explicit` in
+      `table/glyf/read.rs`/`table/fvar.rs`, all genuinely live) had their
+      `.length`/`.items.offset(...)` reads converted to `Vec` `.len()`/
+      indexing, binding a `&Vec<T>` once per function first as usual for
+      `dangerous_implicit_autorefs`.
+    - `FvarInstanceList`: `fvar_instance_list_create` used `malloc` and
+      `table_fvar_create` (the *outer* `FvarTable`, which owns `axes`/
+      `instances` by value) did too — both switched to `calloc` before
+      building, the `GaspTable` fix applied proactively this time. **New
+      wrinkle, not seen in earlier containers**: `FvarInstance` only owns
+      another `Vec` (`coordinates: Vec<Pos>`), not a raw pointer, so unlike
+      `SvgAssignment`/`NameRecord`/`TsiEntry` it needs **no per-element
+      dispose function at all** — `Vec<FvarInstance>`'s own `Drop` already
+      recurses into every instance's `coordinates` for free, since Rust
+      generates that drop glue automatically for a struct holding a `Vec`
+      field. `dispose_fvar` shrank to two plain reassignments
+      (`(*fvar).axes = Vec::new(); (*fvar).instances = Vec::new();`).
+      `FVAR_I_INSTANCE.copy` (the old `memcpy`-based `FvarInstance` copy)
+      was confirmed dead by walking one level up, not just grepping its own
+      name — the same "a caller existing in text isn't proof of being
+      called" check `VdmxRatioRangeList` needed. `FvarTable` itself lost
+      `#[derive(Copy, Clone)]` entirely (not even `Clone`): it's always
+      reached through `*mut`/`*const` (`Font.fvar: *mut FvarTable`), never
+      embedded or passed by value anywhere in the crate.
+    - **The coverage gap the plan predicted was real**: `make-test-
+      variable-font.py`'s single-axis (`wght`) gvar-test font had no named
+      instances, so `FvarInstanceList`/`VV`'s read+dump path had never run
+      in `compare-with-c.sh`/`run-cycles.sh`. Fixed the same way as
+      `meta`/`VDMX`/unknown-lookup: added two `InstanceDescriptor`s
+      (Regular/Bold) to the designspace document, confirmed with
+      `fontTools.ttLib` that the built font actually carries 2 instances,
+      then re-ran the full suite — `gvar-test` stayed byte-identical in
+      both directions on both platforms.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.

@@ -100,13 +100,14 @@ unsafe extern "C" fn weight_axis_region(mut as_0: *const VqAxisSpan, x: Pos) -> 
         return (z - x) / (z - p);
     };
 }
-pub unsafe extern "C" fn vq_region_get_weight(mut r: *const VqRegion, mut v: *const VV) -> Pos {
+pub unsafe extern "C" fn vq_region_get_weight(mut r: *const VqRegion, v: *const VV) -> Pos {
+    let coords: &Vec<Pos> = &*v;
     let mut w: Pos = 1 as ::core::ffi::c_int as Pos;
     let mut j: usize = 0 as usize;
-    while j < (*r).dimensions as usize && (*v).length != 0 {
+    while j < (*r).dimensions as usize && !coords.is_empty() {
         w *= weight_axis_region(
             (&raw const (*r).spans as *const VqAxisSpan).offset(j as isize) as *const VqAxisSpan,
-            *(*v).items.offset(j as isize),
+            coords[j],
         );
         j = j.wrapping_add(1);
     }

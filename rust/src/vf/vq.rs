@@ -1,26 +1,15 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 #![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
-use libc::{fprintf, free, malloc, memcpy, memset};
+use libc::{fprintf};
 unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
 use crate::support::stdio::{stderr};
-use crate::support::primitives::{Pos, Scale, TableId};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_push, cvec_resize_to};
+use crate::support::primitives::{Pos, Scale};
 
 use crate::vf::region::{VqRegion};
-use crate::vf::vv::{VV, VvVectorInterface};
 use crate::vf::region::{vq_compare_region, vq_show_region};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct PosElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut Pos) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut Pos, *const Pos) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut Pos) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> Pos>,
-    pub dup: Option<unsafe extern "C" fn(Pos) -> Pos>,
-}
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum VQSegType {
@@ -98,181 +87,11 @@ pub struct VqVectorInterface {
     pub point_linear_tfm: Option<unsafe extern "C" fn(VQ, Pos, VQ, Pos, VQ) -> VQ>,
     pub add_delta: Option<unsafe extern "C" fn(*mut VQ, bool, *const VqRegion, Pos) -> ()>,
 }
-#[inline]
-unsafe extern "C" fn pos_t_dup(src: Pos) -> Pos {
-    let mut dst: Pos = 0.;
-    pos_t_copy(&raw mut dst, &raw const src);
-    return dst;
-}
-#[inline]
-unsafe extern "C" fn pos_t_copy(mut dst: *mut Pos, mut src: *const Pos) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Pos>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn pos_t_empty() -> Pos {
-    let mut x: Pos = 0.;
-    pos_t_init(&raw mut x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn pos_t_init(mut x: *mut Pos) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<Pos>() as usize,
-    );
-}
-pub static VQ_I_POS_T: PosElementInterface = {
-    PosElementInterface {
-        init: Some(pos_t_init as unsafe extern "C" fn(*mut Pos) -> ()),
-        copy: Some(pos_t_copy as unsafe extern "C" fn(*mut Pos, *const Pos) -> ()),
-        dispose: Some(pos_t_dispose as unsafe extern "C" fn(*mut Pos) -> ()),
-        empty: Some(pos_t_empty),
-        dup: Some(pos_t_dup as unsafe extern "C" fn(Pos) -> Pos),
-    }
-};
-#[inline]
-unsafe extern "C" fn pos_t_dispose(mut _x: *mut Pos) {}
-#[inline]
-unsafe fn vv_as_cvec(arr: *mut VV) -> *mut CVecRaw<Pos> {
-    arr as *mut CVecRaw<Pos>
-}
-#[inline]
-unsafe extern "C" fn vv_init(arr: *mut VV) {
-    cvec_init(vv_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn vv_grow_to(arr: *mut VV, target: usize) {
-    cvec_grow_to(vv_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn vv_fill(mut arr: *mut VV, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: Pos = 0.;
-        if VQ_I_POS_T.init.is_some() {
-            VQ_I_POS_T.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<Pos>() as usize,
-            );
-        }
-        vv_push(arr, x);
-    }
-}
-#[inline]
-unsafe extern "C" fn vv_push(arr: *mut VV, elem: Pos) {
-    cvec_push(vv_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn vv_copy(mut dst: *mut VV, mut src: *const VV) {
-    vv_init(dst);
-    vv_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if VQ_I_POS_T.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            VQ_I_POS_T.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut Pos,
-                (*src).items.offset(j as isize) as *mut Pos as *const Pos,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn vv_dispose(mut arr: *mut VV) {
-    if arr.is_null() {
-        return;
-    }
-    if VQ_I_POS_T.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            VQ_I_POS_T.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut Pos
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<Pos>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn vv_grow_to_n(arr: *mut VV, target: usize) {
-    cvec_grow_to_n(vv_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn vv_init_n(mut arr: *mut VV, mut n: usize) {
-    vv_init(arr);
-    vv_grow_to_n(arr, n);
-    vv_fill(arr, n);
-}
-#[inline]
-unsafe extern "C" fn vv_free(mut x: *mut VV) {
-    if x.is_null() {
-        return;
-    }
-    vv_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn vv_shrink_to_fit(mut arr: *mut VV) {
-    vv_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn vv_create() -> *mut VV {
-    let mut x: *mut VV = malloc(::core::mem::size_of::<VV>() as usize) as *mut VV;
-    vv_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn vv_resize_to(arr: *mut VV, target: usize) {
-    cvec_resize_to(vv_as_cvec(arr), target);
-}
-unsafe extern "C" fn create_neutral_vv(mut dimensions: TableId) -> VV {
-    let mut vv: VV = VV {
-        length: 0,
-        capacity: 0,
-        items: ::core::ptr::null_mut::<Pos>(),
-    };
-    I_VV.init_n.expect("non-null function pointer")(&raw mut vv, dimensions as usize);
-    let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < dimensions as ::core::ffi::c_int {
-        *vv.items.offset(j as isize) = 0 as ::core::ffi::c_int as Pos;
-        j = j.wrapping_add(1);
-    }
-    return vv;
-}
-pub static I_VV: VvVectorInterface = {
-    VvVectorInterface {
-        init: Some(vv_init as unsafe extern "C" fn(*mut VV) -> ()),
-        copy: Some(vv_copy as unsafe extern "C" fn(*mut VV, *const VV) -> ()),
-        dispose: Some(vv_dispose as unsafe extern "C" fn(*mut VV) -> ()),
-        create: Some(vv_create),
-        free: Some(vv_free as unsafe extern "C" fn(*mut VV) -> ()),
-        init_n: Some(vv_init_n as unsafe extern "C" fn(*mut VV, usize) -> ()),
-        push: Some(vv_push as unsafe extern "C" fn(*mut VV, Pos) -> ()),
-        shrink_to_fit: Some(vv_shrink_to_fit as unsafe extern "C" fn(*mut VV) -> ()),
-        neutral: Some(create_neutral_vv as unsafe extern "C" fn(TableId) -> VV),
-    }
-};
+// `VV` は `Vec<Pos>`（`vf/vv.rs`）。要素(`Pos`)は所有物なしのプリミティブなので
+// 専用のvtable/dup関数は不要——生存していた `.init`/`.push`/`.shrink_to_fit`/
+// `.dispose` は呼び出し側(`table/fvar.rs`)で直接 `Vec` のメソッドに置き換えた。
+// `.copy`/`.create`/`.free`/`.init_n`/`.neutral`（`create_neutral_vv`)は
+// crate全体で一度も呼ばれておらず削除。
 #[inline]
 unsafe extern "C" fn init_vq_segment(mut vqs: *mut VqSegment) {
     (*vqs).type_0 = VQSegType::Still;
