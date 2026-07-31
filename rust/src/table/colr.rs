@@ -1,8 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, qsort};
+use libc::{free, malloc};
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint_fallback, preserialize};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_copy, otfcc_handle_dispose, otfcc_handle_init, otfcc_handle_move, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
@@ -11,11 +11,9 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, GlyphId};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
-use crate::support::{ComparFn};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
@@ -25,365 +23,68 @@ pub struct ColrLayer {
     pub glyph: GlyphHandle,
     pub palette_index: ColorId,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ColrLayerElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut ColrLayer) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut ColrLayer, *const ColrLayer) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut ColrLayer) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ColrLayerList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut ColrLayer,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ColrLayerListVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut ColrLayerList, *const ColrLayerList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut ColrLayerList>,
-    pub free: Option<unsafe extern "C" fn(*mut ColrLayerList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut ColrLayerList, ColrLayer) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct ColrMapping {
     pub glyph: GlyphHandle,
-    pub layers: ColrLayerList,
+    pub layers: Vec<ColrLayer>,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ColrMappingElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut ColrMapping) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut ColrMapping, *const ColrMapping) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut ColrMapping) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ColrTable {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut ColrMapping,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ColrTableVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut ColrTable, *const ColrTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut ColrTable>,
-    pub free: Option<unsafe extern "C" fn(*mut ColrTable) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut ColrTable, ColrMapping) -> ()>,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut ColrTable,
-            Option<
-                unsafe extern "C" fn(
-                    *const ColrMapping,
-                    *const ColrMapping,
-                ) -> ::core::ffi::c_int,
-            >,
-        ) -> (),
-    >,
-}
-#[inline]
-unsafe extern "C" fn init_layer(mut layer: *mut ColrLayer) {
-    otfcc_handle_init(&raw mut (*layer).glyph);
-}
-#[inline]
-unsafe extern "C" fn copy_layer(mut dst: *mut ColrLayer, mut src: *const ColrLayer) {
-    otfcc_handle_copy(
-        &raw mut (*dst).glyph,
-        &raw const (*src).glyph,
-    );
-    (*dst).palette_index = (*src).palette_index;
-}
-#[inline]
-unsafe extern "C" fn dispose_layer(mut layer: *mut ColrLayer) {
-    otfcc_handle_dispose(&raw mut (*layer).glyph);
-}
-pub static COLR_I_LAYER: ColrLayerElementInterface = {
-    ColrLayerElementInterface {
-        init: Some(colr_layer_init as unsafe extern "C" fn(*mut ColrLayer) -> ()),
-        copy: Some(
-            colr_layer_copy as unsafe extern "C" fn(*mut ColrLayer, *const ColrLayer) -> (),
-        ),
-        dispose: Some(colr_layer_dispose as unsafe extern "C" fn(*mut ColrLayer) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn colr_layer_dispose(mut x: *mut ColrLayer) {
-    dispose_layer(x);
-}
-#[inline]
-unsafe extern "C" fn colr_layer_init(mut x: *mut ColrLayer) {
-    init_layer(x);
-}
-#[inline]
-unsafe extern "C" fn colr_layer_copy(mut dst: *mut ColrLayer, mut src: *const ColrLayer) {
-    copy_layer(dst, src);
-}
-#[inline]
-unsafe extern "C" fn colr_layer_list_grow_to(arr: *mut ColrLayerList, target: usize) {
-    cvec_grow_to(colr_layer_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn colr_layer_list_push(arr: *mut ColrLayerList, elem: ColrLayer) {
-    cvec_push(colr_layer_list_as_cvec(arr), elem);
-}
-pub static COLR_I_LAYER_LIST: ColrLayerListVectorInterface = {
-    ColrLayerListVectorInterface {
-        init: Some(colr_layer_list_init as unsafe extern "C" fn(*mut ColrLayerList) -> ()),
-        copy: Some(
-            colr_layer_list_copy
-                as unsafe extern "C" fn(*mut ColrLayerList, *const ColrLayerList) -> (),
-        ),
-        dispose: Some(colr_layer_list_dispose as unsafe extern "C" fn(*mut ColrLayerList) -> ()),
-        create: Some(colr_layer_list_create),
-        free: Some(colr_layer_list_free as unsafe extern "C" fn(*mut ColrLayerList) -> ()),
-        push: Some(
-            colr_layer_list_push as unsafe extern "C" fn(*mut ColrLayerList, ColrLayer) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn colr_layer_list_copy(
-    mut dst: *mut ColrLayerList,
-    mut src: *const ColrLayerList,
-) {
-    colr_layer_list_init(dst);
-    colr_layer_list_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if COLR_I_LAYER.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            COLR_I_LAYER.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut ColrLayer,
-                (*src).items.offset(j as isize) as *mut ColrLayer as *const ColrLayer,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn colr_layer_list_dispose(mut arr: *mut ColrLayerList) {
-    if arr.is_null() {
-        return;
-    }
-    if COLR_I_LAYER.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            COLR_I_LAYER.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut ColrLayer,
-            );
+pub type ColrTable = Vec<ColrMapping>;
+
+// `ColrLayer`/`ColrMapping` stay Copy-at-the-leaf (`Handle` does, crate-wide --
+// Stage 6-4's job to change), which means a bitwise `Clone`/`Copy` of either
+// only *aliases* the `Handle.name` sds string rather than duplicating it. The
+// crate's own convention, unchanged here, is that a REAL duplicate always
+// goes through an explicit dup/copy function -- never an implicit derive --
+// so these two are written the same way, not derived.
+pub(crate) fn colr_layer_dup(l: &ColrLayer) -> ColrLayer {
+    unsafe {
+        ColrLayer {
+            glyph: otfcc_handle_dup(l.glyph),
+            palette_index: l.palette_index,
         }
     }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<ColrLayer>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
 }
-#[inline]
-unsafe extern "C" fn colr_layer_list_free(mut x: *mut ColrLayerList) {
+unsafe fn dispose_colr_layer(l: *mut ColrLayer) {
+    otfcc_handle_dispose(&raw mut (*l).glyph);
+}
+fn colr_mapping_dup(m: &ColrMapping) -> ColrMapping {
+    ColrMapping {
+        glyph: unsafe { otfcc_handle_dup(m.glyph) },
+        layers: m.layers.iter().map(colr_layer_dup).collect(),
+    }
+}
+pub(crate) unsafe fn dispose_colr_mapping(m: *mut ColrMapping) {
+    otfcc_handle_dispose(&raw mut (*m).glyph);
+    for l in (*m).layers.iter_mut() {
+        dispose_colr_layer(l as *mut ColrLayer);
+    }
+    (*m).layers = Vec::new();
+}
+unsafe fn dispose_colr_table(t: *mut ColrTable) {
+    for m in (*t).iter_mut() {
+        dispose_colr_mapping(m as *mut ColrMapping);
+    }
+    // Drops the (now Handle-less) `Vec<ColrMapping>` -- which, via each
+    // `ColrMapping`'s compiler-generated drop glue, also frees every
+    // mapping's `layers: Vec<ColrLayer>` backing array. `t` itself is *not*
+    // freed here (see `table_colr_free`, which calls this first).
+    *t = Vec::new();
+}
+pub(crate) unsafe fn table_colr_free(x: *mut ColrTable) {
     if x.is_null() {
         return;
     }
-    colr_layer_list_dispose(x);
+    dispose_colr_table(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[inline]
-unsafe extern "C" fn colr_layer_list_create() -> *mut ColrLayerList {
-    let mut x: *mut ColrLayerList =
-        malloc(::core::mem::size_of::<ColrLayerList>() as usize) as *mut ColrLayerList;
-    colr_layer_list_init(x);
-    return x;
-}
-#[inline]
-unsafe fn colr_layer_list_as_cvec(arr: *mut ColrLayerList) -> *mut CVecRaw<ColrLayer> {
-    arr as *mut CVecRaw<ColrLayer>
-}
-#[inline]
-unsafe extern "C" fn colr_layer_list_init(arr: *mut ColrLayerList) {
-    cvec_init(colr_layer_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn init_mapping(mut mapping: *mut ColrMapping) {
-    otfcc_handle_init(&raw mut (*mapping).glyph);
-    COLR_I_LAYER_LIST.init.expect("non-null function pointer")(&raw mut (*mapping).layers);
-}
-#[inline]
-unsafe extern "C" fn copy_mapping(mut dst: *mut ColrMapping, mut src: *const ColrMapping) {
-    otfcc_handle_copy(
-        &raw mut (*dst).glyph,
-        &raw const (*src).glyph,
-    );
-    COLR_I_LAYER_LIST.copy.expect("non-null function pointer")(
-        &raw mut (*dst).layers,
-        &raw const (*src).layers,
-    );
-}
-#[inline]
-unsafe extern "C" fn dispose_mapping(mut mapping: *mut ColrMapping) {
-    otfcc_handle_dispose(&raw mut (*mapping).glyph);
-    COLR_I_LAYER_LIST.dispose.expect("non-null function pointer")(&raw mut (*mapping).layers);
-}
-#[inline]
-unsafe extern "C" fn colr_mapping_dispose(mut x: *mut ColrMapping) {
-    dispose_mapping(x);
-}
-pub static COLR_I_MAPPING: ColrMappingElementInterface = {
-    ColrMappingElementInterface {
-        init: Some(colr_mapping_init as unsafe extern "C" fn(*mut ColrMapping) -> ()),
-        copy: Some(
-            colr_mapping_copy as unsafe extern "C" fn(*mut ColrMapping, *const ColrMapping) -> (),
-        ),
-        dispose: Some(colr_mapping_dispose as unsafe extern "C" fn(*mut ColrMapping) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn colr_mapping_init(mut x: *mut ColrMapping) {
-    init_mapping(x);
-}
-#[inline]
-unsafe extern "C" fn colr_mapping_copy(mut dst: *mut ColrMapping, mut src: *const ColrMapping) {
-    copy_mapping(dst, src);
-}
-#[inline]
-unsafe extern "C" fn table_colr_grow_to(arr: *mut ColrTable, target: usize) {
-    cvec_grow_to(table_colr_as_cvec(arr), target);
-}
-pub static TABLE_I_COLR: ColrTableVectorInterface = {
-    ColrTableVectorInterface {
-        init: Some(table_colr_init as unsafe extern "C" fn(*mut ColrTable) -> ()),
-        copy: Some(
-            table_colr_copy as unsafe extern "C" fn(*mut ColrTable, *const ColrTable) -> (),
-        ),
-        dispose: Some(table_colr_dispose as unsafe extern "C" fn(*mut ColrTable) -> ()),
-        create: Some(table_colr_create),
-        free: Some(table_colr_free as unsafe extern "C" fn(*mut ColrTable) -> ()),
-        push: Some(table_colr_push as unsafe extern "C" fn(*mut ColrTable, ColrMapping) -> ()),
-        sort: Some(
-            table_colr_sort
-                as unsafe extern "C" fn(
-                    *mut ColrTable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const ColrMapping,
-                            *const ColrMapping,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe fn table_colr_as_cvec(arr: *mut ColrTable) -> *mut CVecRaw<ColrMapping> {
-    arr as *mut CVecRaw<ColrMapping>
-}
-#[inline]
-unsafe extern "C" fn table_colr_init(arr: *mut ColrTable) {
-    cvec_init(table_colr_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn table_colr_sort(
-    mut arr: *mut ColrTable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const ColrMapping, *const ColrMapping) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<ColrMapping>() as usize,
-        ::core::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    *const ColrMapping,
-                    *const ColrMapping,
-                ) -> ::core::ffi::c_int,
-            >,
-            ComparFn,
-        >(fn_0),
-    );
-}
-#[inline]
-unsafe extern "C" fn table_colr_push(arr: *mut ColrTable, elem: ColrMapping) {
-    cvec_push(table_colr_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn table_colr_copy(mut dst: *mut ColrTable, mut src: *const ColrTable) {
-    table_colr_init(dst);
-    table_colr_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if COLR_I_MAPPING.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            COLR_I_MAPPING.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut ColrMapping,
-                (*src).items.offset(j as isize) as *mut ColrMapping as *const ColrMapping,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn table_colr_dispose(mut arr: *mut ColrTable) {
-    if arr.is_null() {
-        return;
-    }
-    if COLR_I_MAPPING.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh3 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh3 != 0) {
-                break;
-            }
-            COLR_I_MAPPING.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut ColrMapping,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<ColrMapping>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn table_colr_free(mut x: *mut ColrTable) {
-    if x.is_null() {
-        return;
-    }
-    table_colr_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn table_colr_create() -> *mut ColrTable {
-    let mut x: *mut ColrTable =
-        malloc(::core::mem::size_of::<ColrTable>() as usize) as *mut ColrTable;
-    table_colr_init(x);
-    return x;
+pub(crate) unsafe fn table_colr_create() -> *mut ColrTable {
+    let x: *mut ColrTable = malloc(::core::mem::size_of::<ColrTable>() as usize) as *mut ColrTable;
+    // `.write()`, not a field/deref assignment: this is placement-constructing
+    // the whole value into fresh (possibly uninitialized) memory, so nothing
+    // must be read or dropped first -- unlike `GaspTable`'s `calloc` fix
+    // (rust/README.md), which had other already-initialized fields around
+    // the `Vec` one. Correct regardless of what `malloc` left behind.
+    x.write(Vec::new());
+    x
 }
 static BASE_GLYPH_REC_LENGTH: usize = 6 as usize;
 static LAYER_REC_LENGTH: usize = 4 as usize;
@@ -462,8 +163,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                         ) as ColorId;
                                     j = j.wrapping_add(1);
                                 }
-                                colr = (
-                                    TABLE_I_COLR.create.expect("non-null function pointer"))();
+                                colr = table_colr_create();
                                 let mut j_0: GlyphId = 0 as GlyphId;
                                 while (j_0 as ::core::ffi::c_int)
                                     < num_base_glyph_records as ::core::ffi::c_int
@@ -474,15 +174,8 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                             index: 0,
                                             name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                                         },
-                                        layers: ColrLayerList {
-                                            length: 0,
-                                            capacity: 0,
-                                            items: ::core::ptr::null_mut::<ColrLayer>(),
-                                        },
+                                        layers: Vec::new(),
                                     };
-                                    COLR_I_MAPPING.init.expect("non-null function pointer")(
-                                        &raw mut mapping,
-                                    );
                                     let mut gid: u16 = read_16u(
                                         table
                                             .data
@@ -522,33 +215,26 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                             + first_layer_index as ::core::ffi::c_int)
                                             < num_layer_records as ::core::ffi::c_int
                                         {
-                                            COLR_I_LAYER_LIST
-                                                .push
-                                                .expect("non-null function pointer")(
-                                                &raw mut mapping.layers,
-                                                ColrLayer {
-                                                    glyph: handle_from_index(
-                                                        *gids.offset(
-                                                            (k as ::core::ffi::c_int
-                                                                + first_layer_index
-                                                                    as ::core::ffi::c_int)
-                                                                as isize,
-                                                        ),
-                                                    )
-                                                        as GlyphHandle,
-                                                    palette_index: *colors.offset(
+                                            mapping.layers.push(ColrLayer {
+                                                glyph: handle_from_index(
+                                                    *gids.offset(
                                                         (k as ::core::ffi::c_int
-                                                            + first_layer_index as ::core::ffi::c_int)
+                                                            + first_layer_index
+                                                                as ::core::ffi::c_int)
                                                             as isize,
                                                     ),
-                                                },
-                                            );
+                                                )
+                                                    as GlyphHandle,
+                                                palette_index: *colors.offset(
+                                                    (k as ::core::ffi::c_int
+                                                        + first_layer_index as ::core::ffi::c_int)
+                                                        as isize,
+                                                ),
+                                            });
                                         }
                                         k = k.wrapping_add(1);
                                     }
-                                    TABLE_I_COLR.push.expect("non-null function pointer")(
-                                        colr, mapping,
-                                    );
+                                    (*colr).push(mapping);
                                     j_0 = j_0.wrapping_add(1);
                                 }
                                 return colr;
@@ -563,7 +249,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'COLR' corrupted.\n"),
                     );
-                    TABLE_I_COLR.free.expect("non-null function pointer")(colr);
+                    table_colr_free(colr);
                     colr = ::core::ptr::null_mut::<ColrTable>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -590,37 +276,37 @@ pub unsafe extern "C" fn otfcc_dump_colr(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"COLR"),
     );
+    let mappings: &Vec<ColrMapping> = &*colr;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _colr: *mut JsonValue = json_array_new((*colr).length);
+        let mut _colr: *mut JsonValue = json_array_new(mappings.len());
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
-        while keep != 0 && __caryll_index < (*colr).length {
-            let mut mapping: *mut ColrMapping = (*colr).items.offset(__caryll_index as isize);
+        while keep != 0 && __caryll_index < mappings.len() {
+            let mapping: &ColrMapping = &mappings[__caryll_index];
             while keep != 0 {
                 let mut _map: *mut JsonValue = json_object_new(2 as usize);
                 json_object_push(
                     _map,
                     b"from\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_string_new((*mapping).glyph.name as *const ::core::ffi::c_char),
+                    json_string_new(mapping.glyph.name as *const ::core::ffi::c_char),
                 );
-                let mut _layers: *mut JsonValue = json_array_new((*mapping).layers.length);
+                let mut _layers: *mut JsonValue = json_array_new(mapping.layers.len());
                 let mut __caryll_index_0: usize = 0 as usize;
                 let mut keep_0: usize = 1 as usize;
-                while keep_0 != 0 && __caryll_index_0 < (*mapping).layers.length {
-                    let mut layer: *mut ColrLayer =
-                        (*mapping).layers.items.offset(__caryll_index_0 as isize);
+                while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
+                    let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
                     while keep_0 != 0 {
                         let mut _layer: *mut JsonValue = json_object_new(2 as usize);
                         json_object_push(
                             _layer,
                             b"layer\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_string_new((*layer).glyph.name as *const ::core::ffi::c_char),
+                            json_string_new(layer.glyph.name as *const ::core::ffi::c_char),
                         );
                         json_object_push(
                             _layer,
                             b"paletteIndex\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new((*layer).palette_index as i64),
+                            json_integer_new(layer.palette_index as i64),
                         );
                         json_array_push(_layers, _layer);
                         keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
@@ -663,8 +349,7 @@ pub unsafe extern "C" fn otfcc_parse_colr(
     if _colr.is_null() {
         return ::core::ptr::null_mut::<ColrTable>();
     }
-    let mut colr: *mut ColrTable = (
-        TABLE_I_COLR.create.expect("non-null function pointer"))();
+    let mut colr: *mut ColrTable = table_colr_create();
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -697,13 +382,8 @@ pub unsafe extern "C" fn otfcc_parse_colr(
                             index: 0,
                             name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                         },
-                        layers: ColrLayerList {
-                            length: 0,
-                            capacity: 0,
-                            items: ::core::ptr::null_mut::<ColrLayer>(),
-                        },
+                        layers: Vec::new(),
                     };
-                    COLR_I_MAPPING.init.expect("non-null function pointer")(&raw mut m);
                     m.glyph = handle_from_name(sdsnewlen(
                         (*_baseglyph).u.string.ptr as *const ::core::ffi::c_void,
                         (*_baseglyph).u.string.length as usize,
@@ -721,31 +401,28 @@ pub unsafe extern "C" fn otfcc_parse_colr(
                                 JsonType::String,
                             );
                             if !_layerglyph.is_null() {
-                                COLR_I_LAYER_LIST.push.expect("non-null function pointer")(
-                                    &raw mut m.layers,
-                                    ColrLayer {
-                                        glyph: handle_from_name(
-                                            sdsnewlen(
-                                                (*_layerglyph).u.string.ptr
-                                                    as *const ::core::ffi::c_void,
-                                                (*_layerglyph).u.string.length as usize,
-                                            ),
-                                        )
-                                            as GlyphHandle,
-                                        palette_index: json_obj_getint_fallback(
-                                            _layer,
-                                            b"paletteIndex\0" as *const u8
-                                                as *const ::core::ffi::c_char,
-                                            0xffff as i32,
-                                        )
-                                            as ColorId,
-                                    },
-                                );
+                                m.layers.push(ColrLayer {
+                                    glyph: handle_from_name(
+                                        sdsnewlen(
+                                            (*_layerglyph).u.string.ptr
+                                                as *const ::core::ffi::c_void,
+                                            (*_layerglyph).u.string.length as usize,
+                                        ),
+                                    )
+                                        as GlyphHandle,
+                                    palette_index: json_obj_getint_fallback(
+                                        _layer,
+                                        b"paletteIndex\0" as *const u8
+                                            as *const ::core::ffi::c_char,
+                                        0xffff as i32,
+                                    )
+                                        as ColorId,
+                                });
                             }
                         }
                         k = k.wrapping_add(1);
                     }
-                    TABLE_I_COLR.push.expect("non-null function pointer")(colr, m);
+                    (*colr).push(m);
                 }
             }
             j = j.wrapping_add(1);
@@ -757,51 +434,34 @@ pub unsafe extern "C" fn otfcc_parse_colr(
     }
     return colr;
 }
-unsafe extern "C" fn by_gid(
-    mut a: *const ColrMapping,
-    mut b: *const ColrMapping,
-) -> ::core::ffi::c_int {
-    return (*a).glyph.index as ::core::ffi::c_int - (*b).glyph.index as ::core::ffi::c_int;
-}
 pub unsafe extern "C" fn otfcc_build_colr(
     mut _colr: *const ColrTable,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if _colr.is_null() || (*_colr).length == 0 {
+    if _colr.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut colr: ColrTable = ColrTable {
-        length: 0,
-        capacity: 0,
-        items: ::core::ptr::null_mut::<ColrMapping>(),
-    };
-    TABLE_I_COLR.copy.expect("non-null function pointer")(&raw mut colr, _colr);
-    TABLE_I_COLR.sort.expect("non-null function pointer")(
-        &raw mut colr,
-        Some(
-            by_gid
-                as unsafe extern "C" fn(
-                    *const ColrMapping,
-                    *const ColrMapping,
-                ) -> ::core::ffi::c_int,
-        ),
-    );
+    let src: &Vec<ColrMapping> = &*_colr;
+    if src.is_empty() {
+        return ::core::ptr::null_mut::<Buffer>();
+    }
+    let mut colr: ColrTable = src.iter().map(colr_mapping_dup).collect();
+    colr.sort_by(|a, b| a.glyph.index.cmp(&b.glyph.index));
     let mut current_layer_index: GlyphId = 0 as GlyphId;
     let mut layer_records: *mut BkBlock = bk_new_block(&[]);
     let mut base_records: *mut BkBlock = bk_new_block(&[]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
-    while keep != 0 && __caryll_index < colr.length {
-        let mut mapping: *mut ColrMapping = colr.items.offset(__caryll_index as isize);
+    while keep != 0 && __caryll_index < colr.len() {
+        let mapping: &ColrMapping = &colr[__caryll_index];
         while keep != 0 {
-            bk_push(base_records, &[bk_int(BkCellType::B16, ((*mapping).glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (current_layer_index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*mapping).layers.length) as u32)]);
+            bk_push(base_records, &[bk_int(BkCellType::B16, (mapping.glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (current_layer_index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (mapping.layers.len()) as u32)]);
             let mut __caryll_index_0: usize = 0 as usize;
             let mut keep_0: usize = 1 as usize;
-            while keep_0 != 0 && __caryll_index_0 < (*mapping).layers.length {
-                let mut layer: *mut ColrLayer =
-                    (*mapping).layers.items.offset(__caryll_index_0 as isize);
+            while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
+                let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
                 while keep_0 != 0 {
-                    bk_push(layer_records, &[bk_int(BkCellType::B16, ((*layer).glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*layer).palette_index as ::core::ffi::c_int) as u32)]);
+                    bk_push(layer_records, &[bk_int(BkCellType::B16, (layer.glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (layer.palette_index as ::core::ffi::c_int) as u32)]);
                     current_layer_index = (current_layer_index as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as GlyphId;
@@ -815,7 +475,7 @@ pub unsafe extern "C" fn otfcc_build_colr(
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (colr.length) as u32), bk_ptr(BkCellType::P32, base_records), bk_ptr(BkCellType::P32, layer_records), bk_int(BkCellType::B16, (current_layer_index as ::core::ffi::c_int) as u32)]);
-    TABLE_I_COLR.dispose.expect("non-null function pointer")(&raw mut colr);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (colr.len()) as u32), bk_ptr(BkCellType::P32, base_records), bk_ptr(BkCellType::P32, layer_records), bk_int(BkCellType::B16, (current_layer_index as ::core::ffi::c_int) as u32)]);
+    dispose_colr_table(&raw mut colr);
     return bk_build_block(root);
 }
