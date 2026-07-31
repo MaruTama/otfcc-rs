@@ -55,21 +55,47 @@ def main():
         m = re.search(r'pub struct ' + re.escape(name) + r'\s*\{(.*?)\n\}', all_src, re.S)
         return m.group(1) if m else None
 
-    def elem_owns_resources(elem):
+    def field_types(body):
+        # `pub name: Type,` -- Type is everything up to the next top-level
+        # comma or end of field list. Must handle `*mut T`/`*const T`
+        # (leading `*` isn't a word character) as well as plain/generic
+        # types -- an earlier version of this regex silently dropped every
+        # raw-pointer-typed field, which is exactly the shape `items: *mut
+        # Point` and similar owned/borrowed pointers take.
+        return re.findall(r'pub \w+:\s*([^,]+?)\s*,', body)
+
+    KNOWN_OWNERS = {"SdsRaw", "Handle", "GlyphHandle", "LookupHandle", "FdHandle", "VQ"}
+    container_names = {c for c, _, _ in containers}
+
+    def elem_owns_resources(elem, _seen=None):
+        _seen = _seen or set()
+        if elem in _seen:
+            return set()
+        _seen.add(elem)
         body = struct_body(elem)
         if body is None:
-            return "?"
-        hits = []
-        if re.search(r':\s*SdsRaw', body):
-            hits.append("sds")
-        for c, _, _ in containers:
-            if re.search(r':\s*' + re.escape(c) + r'\b', body):
-                hits.append(c)
-        if re.search(r':\s*VQ\b', body):
-            hits.append("VQ(non-Copy)")
-        if re.search(r':\s*\*mut ', body):
-            hits.append("rawptr")
-        return ",".join(sorted(set(hits))) if hits else "-"
+            return {"?"}
+        hits = set()
+        for t in field_types(body):
+            base = t.split("<")[0].split("::")[-1]
+            if base in KNOWN_OWNERS:
+                hits.add(base if base != "VQ" else "VQ(non-Copy)")
+            elif base in container_names:
+                hits.add(base)
+            elif t.startswith("*mut "):
+                hits.add("rawptr")
+            elif base[:1].isupper() and base not in ("Pos", "GlyphId", "ColorId", "TableId",
+                                                        "GlyphClass", "ShapeId", "FontFilePointer"):
+                # An unrecognised capitalised field type: recurse into it --
+                # this is exactly the gap that hid `MarkRecord`/`ColrLayer`
+                # etc. embedding `Handle` two levels down from the element
+                # named in the container definition itself.
+                hits |= elem_owns_resources(base, _seen)
+        return hits
+
+    def elem_owns_resources_str(elem):
+        hits = elem_owns_resources(elem)
+        return ",".join(sorted(hits)) if hits else "-"
 
     def embedded_by_value_outside(cont, own_file):
         out = set()
@@ -94,7 +120,7 @@ def main():
     print("-" * 115)
     rows = []
     for c, e, p in sorted(containers, key=lambda x: (x[2], x[0])):
-        owns = elem_owns_resources(e)
+        owns = elem_owns_resources_str(e)
         ext = embedded_by_value_outside(c, p)
         bv = passed_by_value(c)
         rows.append((c, e, p, owns, ext, bv))
