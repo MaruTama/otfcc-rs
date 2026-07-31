@@ -20,7 +20,7 @@ use crate::support::{NULL};
 use crate::support::glyph_order::GlyphOrder;
 
 use crate::table::cff::{CffTable};
-use crate::table::colr::{ColrLayer, ColrLayerList, ColrMapping, ColrTable};
+use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup, dispose_colr_mapping, table_colr_create, table_colr_free};
 
 
 
@@ -63,7 +63,6 @@ use crate::consolidate::otl::gsub_reverse::{consolidate_gsub_reverse};
 use crate::consolidate::otl::gsub_single::{consolidate_gsub_single};
 use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::colr::{COLR_I_LAYER, COLR_I_LAYER_LIST, COLR_I_MAPPING, TABLE_I_COLR};
 use crate::table::_tsi::{TABLE_I_TSI, TSI_I_ENTRY};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR_LIST, GLYF_I_MASK_LIST, GLYF_I_REFERENCE_LIST, GLYF_I_STEM_DEF_LIST, otfcc_new_glyf_glyph};
 use crate::table::otl::{OTL_I_FEATURE_LIST, OTL_I_FEATURE_REF_LIST, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_REF_LIST};
@@ -1314,17 +1313,17 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
     if font.is_null() || (*font).colr.is_null() || (*font).glyph_order.is_null() {
         return;
     }
-    let mut consolidated: *mut ColrTable = (
-        TABLE_I_COLR.create.expect("non-null function pointer"))();
+    let mut consolidated: *mut ColrTable = table_colr_create();
+    let source: &mut Vec<ColrMapping> = &mut *(*font).colr;
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
-    while keep != 0 && __caryll_index < (*(*font).colr).length {
-        let mut mapping: *mut ColrMapping = (*(*font).colr).items.offset(__caryll_index as isize);
+    while keep != 0 && __caryll_index < source.len() {
+        let mapping: &mut ColrMapping = &mut source[__caryll_index];
         while keep != 0 {
             if !OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
                 .expect("non-null function pointer")(
-                (*font).glyph_order, &raw mut (*mapping).glyph
+                (*font).glyph_order, &raw mut mapping.glyph
             ) {
                 (*(*options).logger)
                     .log_sds
@@ -1335,7 +1334,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored missing glyph of /",
-                        (*mapping).glyph.name,
+                        mapping.glyph.name,
                     ),
                 );
             } else {
@@ -1345,28 +1344,22 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                         index: 0,
                         name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                     },
-                    layers: ColrLayerList {
-                        length: 0,
-                        capacity: 0,
-                        items: ::core::ptr::null_mut::<ColrLayer>(),
-                    },
+                    layers: Vec::new(),
                 };
                 otfcc_handle_copy(
                     &raw mut m.glyph,
-                    &raw mut (*mapping).glyph,
+                    &raw mut mapping.glyph,
                 );
-                COLR_I_LAYER_LIST.init.expect("non-null function pointer")(&raw mut m.layers);
                 let mut __caryll_index_0: usize = 0 as usize;
                 let mut keep_0: usize = 1 as usize;
-                while keep_0 != 0 && __caryll_index_0 < (*mapping).layers.length {
-                    let mut layer: *mut ColrLayer =
-                        (*mapping).layers.items.offset(__caryll_index_0 as isize);
+                while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
+                    let layer: &mut ColrLayer = &mut mapping.layers[__caryll_index_0];
                     while keep_0 != 0 {
                         if !OTFCC_PKG_GLYPH_ORDER
                             .consolidate_handle
                             .expect("non-null function pointer")(
                             (*font).glyph_order,
-                            &raw mut (*layer).glyph,
+                            &raw mut layer.glyph,
                         ) {
                             (*(*options).logger)
                                 .log_sds
@@ -1377,34 +1370,19 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[Consolidate] Ignored missing glyph of /",
-                                    (*layer).glyph.name,
+                                    layer.glyph.name,
                                 ),
                             );
                         } else {
-                            let mut layer1: ColrLayer = ColrLayer {
-                                glyph: Handle {
-                                    state: HandleState::Empty,
-                                    index: 0,
-                                    name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-                                },
-                                palette_index: 0,
-                            };
-                            COLR_I_LAYER.copy.expect("non-null function pointer")(
-                                &raw mut layer1,
-                                layer,
-                            );
-                            COLR_I_LAYER_LIST.push.expect("non-null function pointer")(
-                                &raw mut m.layers,
-                                layer1,
-                            );
+                            m.layers.push(colr_layer_dup(layer));
                         }
                         keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
                     }
                     keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
                     __caryll_index_0 = __caryll_index_0.wrapping_add(1);
                 }
-                if (*mapping).layers.length != 0 {
-                    TABLE_I_COLR.push.expect("non-null function pointer")(consolidated, m);
+                if mapping.layers.len() != 0 {
+                    (*consolidated).push(m);
                 } else {
                     (*(*options).logger)
                         .log_sds
@@ -1415,11 +1393,11 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[Consolidate] COLR decomposition for /",
-                            (*mapping).glyph.name,
+                            mapping.glyph.name,
                             b" is empth",
                         ),
                     );
-                    COLR_I_MAPPING.dispose.expect("non-null function pointer")(&raw mut m);
+                    dispose_colr_mapping(&raw mut m);
                 }
             }
             keep = (keep == 0) as ::core::ffi::c_int as usize;
@@ -1427,7 +1405,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    TABLE_I_COLR.free.expect("non-null function pointer")((*font).colr);
+    table_colr_free((*font).colr);
     (*font).colr = consolidated;
 }
 unsafe extern "C" fn compare_tsi_entry(

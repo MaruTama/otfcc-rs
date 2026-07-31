@@ -45,7 +45,7 @@ use crate::consolidate::{otfcc_consolidate_font};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::base::{TABLE_I_BASE};
 use crate::table::cff::{TABLE_I_CFF};
-use crate::table::colr::{TABLE_I_COLR};
+use crate::table::colr::{table_colr_free};
 use crate::table::cpal::{TABLE_I_CPAL};
 use crate::table::gdef::{TABLE_I_GDEF};
 use crate::table::ltsh::{TABLE_I_LTSH};
@@ -318,7 +318,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
         }
         1129270354 => {
             if !(*font).colr.is_null() {
-                TABLE_I_COLR.free.expect("non-null function pointer")((*font).colr);
+                table_colr_free((*font).colr);
                 (*font).colr = ::core::ptr::null_mut::<ColrTable>();
             }
             return;

@@ -1121,5 +1121,51 @@ on the other platform before a commit is trusted.
     `MetaEntries`: no payload has a VDMX table, so `make-test-vdmx.py` +
     `compare-with-c.sh` closes it the same way (two ratio ranges, one exercising
     the min/max scan over several size records).
+  - **`ColrLayerList`/`ColrTable` → `Vec<ColrLayer>`/`Vec<ColrMapping>` —
+    the first nested pair with an owning element, and the first with real,
+    live `.copy` slots.** Three things distinguish it from every conversion so
+    far, and any one of them alone would have made this a bigger PR than
+    `VdmxGroup`'s:
+    - `ColrLayer.glyph`/`ColrMapping.glyph` are `Handle`, and `Handle` owns an
+      `sds` name string while staying `#[derive(Copy, Clone)]` (a crate-wide
+      convention untouched by Stage 6 so far — fixing it is Stage 6-4's job).
+      That means a *derived* `Clone` on anything containing a `Handle` would
+      only alias the name pointer, not duplicate it — the same shape of trap
+      `MetaEntry`'s `sds` field was, but this time it bites on the *copy* path,
+      not just disposal. `ColrLayer`/`ColrMapping` are deliberately given no
+      `#[derive(Clone)]` at all; `colr_layer_dup`/`colr_mapping_dup` do the
+      real deep copy explicitly, through `otfcc_handle_dup` (already crate-
+      provided), matching the crate's existing convention of never leaning on
+      implicit Copy/Clone for a `Handle`-holding type.
+    - Unlike every previous target, `TABLE_I_COLR.copy`/`.sort` are **not**
+      dead — `otfcc_build_colr` uses both, on every build, to work on a sorted
+      copy without mutating the caller's table. Converting them wasn't
+      optional; `.sort` became `colr.sort_by(|a, b| a.glyph.index.cmp(&b.glyph.index))`
+      (replacing `qsort`), `.copy` became `.iter().map(colr_mapping_dup).collect()`
+      (the deep copy above, not `.clone()`).
+    - `consolidate.rs`'s `consolidate_colr` — a second, separate file that
+      reaches directly into `ColrTable`/`ColrMapping`/`ColrLayer`, not just
+      `table/colr.rs` — mutates each mapping's and each layer's `Handle` in
+      place (resolving glyph names to indices) while building a fresh,
+      independently-owned consolidated table alongside it. Converted to index
+      through `&mut Vec<ColrMapping>` / `&mut Vec<ColrLayer>` rather than
+      `.items.offset(j)`, with `colr_layer_dup` reused for the new table's
+      copies (no shortcuts specific to this file).
+    - `ColrTable` itself is unlike every prior "table": in the C-derived
+      shape it already *was* the vector (`length`/`capacity`/`items` directly,
+      no wrapping struct with other fields), so it becomes
+      `pub type ColrTable = Vec<ColrMapping>;` outright — no
+      `ColrTableElementInterface` survives at all, just three plain functions
+      (`table_colr_create`/`_free`, called from `consolidate.rs` and
+      `caryll_font.rs` too) and `Vec`'s own methods everywhere else.
+      `table_colr_create` uses `malloc` + `x.write(Vec::new())` — placement
+      construction, not a field assignment — which sidesteps the
+      `GaspTable`-style `calloc` requirement entirely: `.write()` never reads
+      or drops the destination, so it doesn't matter what `malloc` left there.
+    - Verified against real, live data, not just a synthetic payload: the
+      only committed font with a COLR table
+      (`BungeeColor-Regular_colr_Windows.ttf`) round-trips through
+      `consolidate_colr` on every build, and the byte comparison covers it
+      already — no new coverage gap to close here, unlike `MetaEntries`/`VDMX`.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.
