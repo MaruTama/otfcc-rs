@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, qsort, strcmp};
+use libc::{free, malloc, strcmp};
 use crate::support::json_funcs::{json_obj_get_type};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_copy, otfcc_handle_dispose, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
@@ -9,9 +9,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::support::{ComparFn};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_sds};
 use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnewlen};
@@ -32,35 +30,24 @@ pub struct TsiEntry {
     pub glyph: GlyphHandle,
     pub content: SdsRaw,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct TsiEntryElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut TsiEntry) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut TsiEntry, *const TsiEntry) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut TsiEntry) -> ()>,
+pub type TsiTable = Vec<TsiEntry>;
+// `TsiEntry` stays `Copy` (owns a `Handle` + a raw `content` sds, same
+// "leaf stays Copy, crate-wide, until Stage 6-4" convention as
+// `CaretValueRecord`/`ColrLayer`). Safe here because `TABLE_I_TSI.copy`
+// (whole-table clone) was dead before this conversion and is deleted below,
+// not ported -- the one real duplicate this file needs is per-element
+// (`tsi_entry_dup`, used once from `consolidate.rs`), not a `Vec::clone()`.
+pub(crate) unsafe fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
+    TsiEntry {
+        type_0: e.type_0,
+        glyph: otfcc_handle_dup(e.glyph),
+        content: sdsdup(e.content),
+    }
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct TsiTable {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut TsiEntry,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct TsiTableVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut TsiTable, *const TsiTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut TsiTable>,
-    pub free: Option<unsafe extern "C" fn(*mut TsiTable) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut TsiTable, TsiEntry) -> ()>,
-    pub sort: Option<
-        unsafe extern "C" fn(
-            *mut TsiTable,
-            Option<unsafe extern "C" fn(*const TsiEntry, *const TsiEntry) -> ::core::ffi::c_int>,
-        ) -> (),
-    >,
+unsafe fn dispose_tsi_entry(e: *mut TsiEntry) {
+    otfcc_handle_dispose(&raw mut (*e).glyph);
+    sdsfree((*e).content);
+    (*e).content = ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -98,159 +85,31 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     }
     return 0 as usize;
 }
-#[inline]
-unsafe extern "C" fn init_tsi_entry(mut entry: *mut TsiEntry) {
-    otfcc_handle_init(&raw mut (*entry).glyph);
-    (*entry).type_0 = TsiEntryType::Glyph;
-    (*entry).content = ::core::ptr::null_mut::<::core::ffi::c_char>();
-}
-#[inline]
-unsafe extern "C" fn copy_tsi_entry(mut dst: *mut TsiEntry, mut src: *const TsiEntry) {
-    otfcc_handle_copy(
-        &raw mut (*dst).glyph,
-        &raw const (*src).glyph,
-    );
-    (*dst).type_0 = (*src).type_0;
-    (*dst).content = sdsdup((*src).content);
-}
-#[inline]
-unsafe extern "C" fn dispose_tsi_entry(mut entry: *mut TsiEntry) {
-    otfcc_handle_dispose(&raw mut (*entry).glyph);
-    sdsfree((*entry).content);
-}
-#[inline]
-unsafe extern "C" fn tsi_entry_init(mut x: *mut TsiEntry) {
-    init_tsi_entry(x);
-}
-pub static TSI_I_ENTRY: TsiEntryElementInterface = {
-    TsiEntryElementInterface {
-        init: Some(tsi_entry_init as unsafe extern "C" fn(*mut TsiEntry) -> ()),
-        copy: Some(tsi_entry_copy as unsafe extern "C" fn(*mut TsiEntry, *const TsiEntry) -> ()),
-        dispose: Some(tsi_entry_dispose as unsafe extern "C" fn(*mut TsiEntry) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn tsi_entry_dispose(mut x: *mut TsiEntry) {
-    dispose_tsi_entry(x);
-}
-#[inline]
-unsafe extern "C" fn tsi_entry_copy(mut dst: *mut TsiEntry, mut src: *const TsiEntry) {
-    copy_tsi_entry(dst, src);
-}
-#[inline]
-unsafe fn table_tsi_as_cvec(arr: *mut TsiTable) -> *mut CVecRaw<TsiEntry> {
-    arr as *mut CVecRaw<TsiEntry>
-}
-#[inline]
-unsafe extern "C" fn table_tsi_init(arr: *mut TsiTable) {
-    cvec_init(table_tsi_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn table_tsi_sort(
-    mut arr: *mut TsiTable,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*const TsiEntry, *const TsiEntry) -> ::core::ffi::c_int,
-    >,
-) {
-    qsort(
-        (*arr).items as *mut ::core::ffi::c_void,
-        (*arr).length,
-        ::core::mem::size_of::<TsiEntry>() as usize,
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*const TsiEntry, *const TsiEntry) -> ::core::ffi::c_int>,
-            ComparFn,
-        >(fn_0),
-    );
-}
-pub static TABLE_I_TSI: TsiTableVectorInterface = {
-    TsiTableVectorInterface {
-        init: Some(table_tsi_init as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        copy: Some(table_tsi_copy as unsafe extern "C" fn(*mut TsiTable, *const TsiTable) -> ()),
-        dispose: Some(table_tsi_dispose as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        create: Some(table_tsi_create),
-        free: Some(table_tsi_free as unsafe extern "C" fn(*mut TsiTable) -> ()),
-        push: Some(table_tsi_push as unsafe extern "C" fn(*mut TsiTable, TsiEntry) -> ()),
-        sort: Some(
-            table_tsi_sort
-                as unsafe extern "C" fn(
-                    *mut TsiTable,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const TsiEntry,
-                            *const TsiEntry,
-                        ) -> ::core::ffi::c_int,
-                    >,
-                ) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn table_tsi_push(arr: *mut TsiTable, elem: TsiEntry) {
-    cvec_push(table_tsi_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn table_tsi_grow_to(arr: *mut TsiTable, target: usize) {
-    cvec_grow_to(table_tsi_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn table_tsi_copy(mut dst: *mut TsiTable, mut src: *const TsiTable) {
-    table_tsi_init(dst);
-    table_tsi_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if TSI_I_ENTRY.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            TSI_I_ENTRY.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut TsiEntry,
-                (*src).items.offset(j as isize) as *mut TsiEntry as *const TsiEntry,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn table_tsi_dispose(mut arr: *mut TsiTable) {
+// `table_tsi_dispose`'s job: dispose every entry's `Handle` + `content` sds
+// before the backing `Vec` itself is dropped/reset -- same convention as
+// `table_name_dispose`/`clear_lig_carets`.
+unsafe fn table_tsi_dispose(arr: *mut TsiTable) {
     if arr.is_null() {
         return;
     }
-    if TSI_I_ENTRY.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            TSI_I_ENTRY.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut TsiEntry
-            );
-        }
+    for e in (*arr).iter_mut() {
+        dispose_tsi_entry(e as *mut TsiEntry);
     }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<TsiEntry>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
+    (*arr).clear();
 }
-#[inline]
-unsafe extern "C" fn table_tsi_free(mut x: *mut TsiTable) {
+pub(crate) unsafe fn table_tsi_free(x: *mut TsiTable) {
     if x.is_null() {
         return;
     }
     table_tsi_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[inline]
-unsafe extern "C" fn table_tsi_create() -> *mut TsiTable {
-    let mut x: *mut TsiTable =
-        malloc(::core::mem::size_of::<TsiTable>() as usize) as *mut TsiTable;
-    table_tsi_init(x);
-    return x;
+pub(crate) unsafe fn table_tsi_create() -> *mut TsiTable {
+    // `.write()`, not a field assignment -- same placement-construction
+    // reasoning as `table_name_create`.
+    let x: *mut TsiTable = malloc(::core::mem::size_of::<TsiTable>() as usize) as *mut TsiTable;
+    x.write(Vec::new());
+    x
 }
 #[inline]
 unsafe extern "C" fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
@@ -330,8 +189,7 @@ pub unsafe extern "C" fn otfcc_read_tsi(
     if text_part.tag == 0 || index_part.tag == 0 {
         return ::core::ptr::null_mut::<TsiTable>();
     }
-    let mut tsi: *mut TsiTable = (
-        TABLE_I_TSI.create.expect("non-null function pointer"))();
+    let mut tsi: *mut TsiTable = table_tsi_create();
     let mut j: u32 = 0 as u32;
     while j.wrapping_mul(8 as u32) < index_part.length {
         let mut gid: u16 = read_16u(
@@ -414,7 +272,7 @@ pub unsafe extern "C" fn otfcc_read_tsi(
                 text_part.data.offset(text_offset as isize) as *const ::core::ffi::c_void,
                 text_length as usize,
             );
-            TABLE_I_TSI.push.expect("non-null function pointer")(tsi, entry);
+            (*tsi).push(entry);
         }
         j = j.wrapping_add(1);
     }
@@ -435,14 +293,15 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), tag),
     );
+    let entries: &Vec<TsiEntry> = &*tsi;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _tsi: *mut JsonValue = json_object_new(2 as usize);
-        let mut _glyphs: *mut JsonValue = json_object_new((*tsi).length);
+        let mut _glyphs: *mut JsonValue = json_object_new(entries.len());
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
-        while keep != 0 && __caryll_index < (*tsi).length {
-            let mut entry: *mut TsiEntry = (*tsi).items.offset(__caryll_index as isize);
+        while keep != 0 && __caryll_index < entries.len() {
+            let entry: *const TsiEntry = &entries[__caryll_index];
             while keep != 0 {
                 if !((*entry).type_0 as ::core::ffi::c_uint
                     != TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint)
@@ -461,11 +320,11 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
             keep = (keep == 0) as ::core::ffi::c_int as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
-        let mut _extra: *mut JsonValue = json_object_new((*tsi).length);
+        let mut _extra: *mut JsonValue = json_object_new(entries.len());
         let mut __caryll_index_0: usize = 0 as usize;
         let mut keep_0: usize = 1 as usize;
-        while keep_0 != 0 && __caryll_index_0 < (*tsi).length {
-            let mut entry_0: *mut TsiEntry = (*tsi).items.offset(__caryll_index_0 as isize);
+        while keep_0 != 0 && __caryll_index_0 < entries.len() {
+            let entry_0: *const TsiEntry = &entries[__caryll_index_0];
             while keep_0 != 0 {
                 if !((*entry_0).type_0 as ::core::ffi::c_uint
                     == TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint)
@@ -531,8 +390,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
     if _tsi.is_null() {
         return ::core::ptr::null_mut::<TsiTable>();
     }
-    let mut tsi: *mut TsiTable = (
-        TABLE_I_TSI.create.expect("non-null function pointer"))();
+    let mut tsi: *mut TsiTable = table_tsi_create();
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -558,9 +416,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                 if !(_content.is_null()
                     || (*_content).type_0 != JsonType::String)
                 {
-                    TABLE_I_TSI.push.expect("non-null function pointer")(
-                        tsi,
-                        TsiEntry {
+                    (*tsi).push(TsiEntry {
                             type_0: TsiEntryType::Glyph,
                             glyph: handle_from_name(
                                 sdsnewlen(_gid as *const ::core::ffi::c_void, _gidlen),
@@ -569,8 +425,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                                 (*_content).u.string.ptr as *const ::core::ffi::c_void,
                                 (*_content).u.string.length as usize,
                             ),
-                        },
-                    );
+                        });
                 }
                 j = j.wrapping_add(1);
             }
@@ -593,45 +448,36 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                     if strcmp(_key, b"cvt\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
-                        TABLE_I_TSI.push.expect("non-null function pointer")(
-                            tsi,
-                            TsiEntry {
+                        (*tsi).push(TsiEntry {
                                 type_0: TsiEntryType::Cvt,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
                                     (*_content_0).u.string.length as usize,
                                 ),
-                            },
-                        );
+                            });
                     } else if strcmp(_key, b"fpgm\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
-                        TABLE_I_TSI.push.expect("non-null function pointer")(
-                            tsi,
-                            TsiEntry {
+                        (*tsi).push(TsiEntry {
                                 type_0: TsiEntryType::Fpgm,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
                                     (*_content_0).u.string.length as usize,
                                 ),
-                            },
-                        );
+                            });
                     } else if strcmp(_key, b"prep\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
-                        TABLE_I_TSI.push.expect("non-null function pointer")(
-                            tsi,
-                            TsiEntry {
+                        (*tsi).push(TsiEntry {
                                 type_0: TsiEntryType::Prep,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: sdsnewlen(
                                     (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
                                     (*_content_0).u.string.length as usize,
                                 ),
-                            },
-                        );
+                            });
                     }
                 }
                 j_0 = j_0.wrapping_add(1);
@@ -661,11 +507,12 @@ unsafe extern "C" fn push_tsi_entries(
     type_0: TsiEntryType,
     min_n: GlyphId,
 ) {
+    let entries: &Vec<TsiEntry> = &*tsi;
     let mut items_pushed: GlyphId = 0 as GlyphId;
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
-    while keep != 0 && __caryll_index < (*tsi).length {
-        let mut entry: *mut TsiEntry = (*tsi).items.offset(__caryll_index as isize);
+    while keep != 0 && __caryll_index < entries.len() {
+        let entry: *mut TsiEntry = &entries[__caryll_index] as *const TsiEntry as *mut TsiEntry;
         while keep != 0 {
             if !((*entry).type_0 as ::core::ffi::c_uint != type_0 as ::core::ffi::c_uint) {
                 let mut length_sofar: usize = (*(*target).text_part).cursor;

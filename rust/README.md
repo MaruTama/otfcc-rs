@@ -1344,5 +1344,67 @@ on the other platform before a commit is trusted.
       (which is what actually exercises `GdefLigCaretHash` and the
       `mem::take` moves) all ran for real on every `compare-with-c.sh` and
       `run-cycles.sh` invocation — no synthetic payload needed.
+  - **`NameTable`/`TsiTable` → `Vec<NameRecord>`/`Vec<TsiEntry>` (`table/name.rs`,
+    `table/_tsi.rs`, `consolidate.rs`, `font/caryll_font.rs`) — two containers
+    done together in one PR** (the user explicitly OK'd a bigger, batched PR
+    at this point rather than the usual one-container-at-a-time cadence).
+    Chosen after the `otl.rs` four turned out parked behind the `Subtable`
+    union: both are directly vector-shaped in the C-derived source (`length`/
+    `capacity`/`items`, no wrapper struct), both have sds-owning elements with
+    no `Handle`-of-`Handle` nesting, and both are single-table-file-scoped
+    (`NameTable` touches only `name.rs` + `caryll_font.rs`; `TsiTable` touches
+    `_tsi.rs` + `caryll_font.rs` + `consolidate.rs`) — no union embedding in
+    either file, checked by hand before starting given the `otl.rs` lesson.
+    - **`NameRecord` and `TsiEntry` both stay `#[derive(Copy, Clone)]`**, same
+      as `MetaEntry` before them — an owned `sds` field alone doesn't block
+      `Copy` in this crate's convention (only a `Handle` embedding forces the
+      no-derive-plus-explicit-dup pattern, and `TsiEntry`'s embedded
+      `GlyphHandle` still doesn't, for the same "leaf stays `Copy` until
+      Stage 6-4" reason `CaretValueRecord`/`ColrLayer` do). This is safe
+      specifically *because* each container's own whole-table `.copy` vtable
+      slot (`table_name_copy`/`table_tsi_copy`, both `memcpy`- or
+      elementwise-based) was confirmed dead by the same grep-the-vtable-field
+      method as every prior target, and got deleted outright rather than
+      ported — so nothing ever relies on `Vec<NameRecord>: Clone` or
+      `Vec<TsiEntry>: Clone` doing a deep copy that would otherwise alias
+      every record's owned pointers.
+    - **`TsiEntry` needed a real duplicate function where `CaretValueRecord`
+      didn't** — unlike the gdef.rs pair (PR #59), where every `.copy`/
+      `.replace` path turned out dead, `TSI_I_ENTRY.copy` (the per-element,
+      not whole-table, copy) is genuinely called once, directly, from
+      `consolidate_tsi` in `consolidate.rs` — duplicating a non-`Glyph`-type
+      entry (`Fpgm`/`Prep`/`Cvt`/`ReservedFffc`) while the `Glyph`-type
+      entries in the same loop are handled by content-*move* instead (steal
+      `.content`, null the source) rather than duplication. Ported as
+      `tsi_entry_dup`, calling `otfcc_handle_dup` + `sdsdup` exactly like the
+      original `copy_tsi_entry` did — checking every call site rather than
+      assuming "no cascade means no dup function needed" (`CaretValueRecord`'s
+      lesson) would have missed this one.
+    - **Both `.sort` slots were live** (`NameTable`'s from
+      `otfcc_parse_name`, `TsiTable`'s from `consolidate_tsi`) and both
+      comparators are simple lexicographic tie-breaks over small integer
+      fields (`platform_id`/`encoding_id`/`language_id`/`name_id` for names;
+      `type_0`/`glyph.index` for TSI entries) with no floating point and no
+      aliasing concerns — ported as native `.sort_by` chains of `.cmp().then(…)`
+      rather than wrapping the old `qsort`-calling comparator (unlike
+      `consolidate_glyph_hints`'s stem sort in PR #58, which wrapped
+      instead). Accepted the theoretical risk that libc's `qsort` (unstable)
+      and Rust's `slice::sort_by` (stable) could permute *fully tied* records
+      differently — judged acceptable because every one of the two sort
+      call sites is exercised by nearly every payload already in
+      `compare-with-c.sh` (every font has a `name` table; `vtt.ttf` has real
+      `TSI_01`/`TSI_23` data), and all of them came back byte-identical.
+    - `table_name_create`/`table_tsi_create` both switched to the
+      `malloc` + `.write(Vec::new())` placement-construction pattern
+      (`ColrTable`/`MaskList`'s style, not `GaspTable`'s `calloc`) since both
+      types are bare `Vec` aliases with no wrapper struct — no field
+      assignment ever reads what `malloc` left behind, so the `calloc` fix
+      doesn't apply and wasn't needed.
+    - Verified against real, live data on both platforms: every payload's
+      `name` table exercises `otfcc_parse_name`'s sort (build direction);
+      `vtt.ttf` (a VTT-hinted font) has genuine `TSI_01`/`TSI_23` data,
+      exercising `otfcc_read_tsi`/`otfcc_dump_tsi`/`otfcc_parse_tsi`/
+      `otfcc_build_tsi` *and* `consolidate_tsi`'s hash-based gid remap +
+      sort — no synthetic payload needed for either container.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.

@@ -63,7 +63,7 @@ use crate::consolidate::otl::gsub_reverse::{consolidate_gsub_reverse};
 use crate::consolidate::otl::gsub_single::{consolidate_gsub_single};
 use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::_tsi::{TABLE_I_TSI, TSI_I_ENTRY};
+use crate::table::_tsi::{table_tsi_create, table_tsi_free, tsi_entry_dup};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR_LIST, GLYF_I_REFERENCE_LIST, otfcc_new_glyf_glyph};
 use crate::table::otl::{OTL_I_FEATURE_LIST, OTL_I_FEATURE_REF_LIST, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_REF_LIST};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
@@ -1391,16 +1391,6 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
     table_colr_free((*font).colr);
     (*font).colr = consolidated;
 }
-unsafe extern "C" fn compare_tsi_entry(
-    mut a: *const TsiEntry,
-    mut b: *const TsiEntry,
-) -> ::core::ffi::c_int {
-    if (*a).type_0 as ::core::ffi::c_uint != (*b).type_0 as ::core::ffi::c_uint {
-        return ((*a).type_0 as ::core::ffi::c_uint).wrapping_sub((*b).type_0 as ::core::ffi::c_uint)
-            as ::core::ffi::c_int;
-    }
-    return (*a).glyph.index as ::core::ffi::c_int - (*b).glyph.index as ::core::ffi::c_int;
-}
 unsafe extern "C" fn consolidate_tsi(
     mut font: *mut Font,
     mut _tsi: *mut *mut TsiTable,
@@ -1410,17 +1400,17 @@ unsafe extern "C" fn consolidate_tsi(
     if font.is_null() || (*font).glyf.is_null() || tsi.is_null() || (*font).glyph_order.is_null() {
         return;
     }
-    let mut consolidated: *mut TsiTable = (
-        TABLE_I_TSI.create.expect("non-null function pointer"))();
+    let mut consolidated: *mut TsiTable = table_tsi_create();
     let mut gid_entries: *mut SdsRaw = ::core::ptr::null_mut::<SdsRaw>();
     gid_entries = __caryll_allocate_clean(
         (::core::mem::size_of::<SdsRaw>() as usize).wrapping_mul((*(*font).glyf).length),
         448 as ::core::ffi::c_ulong,
     ) as *mut SdsRaw;
+    let entries: &mut Vec<TsiEntry> = &mut *tsi;
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
-    while keep != 0 && __caryll_index < (*tsi).length {
-        let mut entry: *mut TsiEntry = (*tsi).items.offset(__caryll_index as isize);
+    while keep != 0 && __caryll_index < entries.len() {
+        let entry: *mut TsiEntry = &mut entries[__caryll_index];
         while keep != 0 {
             if (*entry).type_0 as ::core::ffi::c_uint
                 == TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint
@@ -1452,17 +1442,8 @@ unsafe extern "C" fn consolidate_tsi(
                     );
                 }
             } else {
-                let mut e: TsiEntry = TsiEntry {
-                    type_0: TsiEntryType::Glyph,
-                    glyph: Handle {
-                        state: HandleState::Empty,
-                        index: 0,
-                        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-                    },
-                    content: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-                };
-                TSI_I_ENTRY.copy.expect("non-null function pointer")(&raw mut e, entry);
-                TABLE_I_TSI.push.expect("non-null function pointer")(consolidated, e);
+                let e: TsiEntry = tsi_entry_dup(&*entry);
+                (*consolidated).push(e);
             }
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
@@ -1491,19 +1472,17 @@ unsafe extern "C" fn consolidate_tsi(
         } else {
             sdsempty()
         };
-        TABLE_I_TSI.push.expect("non-null function pointer")(consolidated, e_0);
+        (*consolidated).push(e_0);
         j = j.wrapping_add(1);
     }
-    TABLE_I_TSI.free.expect("non-null function pointer")(tsi);
+    table_tsi_free(tsi);
     free(gid_entries as *mut ::core::ffi::c_void);
     gid_entries = ::core::ptr::null_mut::<SdsRaw>();
-    TABLE_I_TSI.sort.expect("non-null function pointer")(
-        consolidated,
-        Some(
-            compare_tsi_entry
-                as unsafe extern "C" fn(*const TsiEntry, *const TsiEntry) -> ::core::ffi::c_int,
-        ),
-    );
+    (*consolidated).sort_by(|a, b| {
+        (a.type_0 as u32)
+            .cmp(&(b.type_0 as u32))
+            .then(a.glyph.index.cmp(&b.glyph.index))
+    });
     *_tsi = consolidated;
 }
 pub unsafe extern "C" fn otfcc_consolidate_font(
