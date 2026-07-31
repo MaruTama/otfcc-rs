@@ -1096,7 +1096,7 @@ unsafe extern "C" fn polymorphize(
     mut glyf: *mut GlyfTable,
     mut ctx: *const GlyfIOContext,
 ) {
-    if (*ctx).fvar.is_null() || (*(*ctx).fvar).axes.length == 0 {
+    if (*ctx).fvar.is_null() || (*(*ctx).fvar).axes.is_empty() {
         return;
     }
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -1116,7 +1116,7 @@ unsafe extern "C" fn polymorphize(
                         return;
                     }
                     let mut header: *mut GVARHeader = data as *mut GVARHeader;
-                    if be16((*header).axis_count) as usize != (*(*ctx).fvar).axes.length {
+                    if be16((*header).axis_count) as usize != (*(*ctx).fvar).axes.len() {
                         (*(*options).logger)
                             .log_sds
                             .expect("non-null function pointer")(
@@ -1134,7 +1134,7 @@ unsafe extern "C" fn polymorphize(
                     while (j as usize) < (*glyf).length {
                         let mut tpctx: TuplePolymorphizerCtx = TuplePolymorphizerCtx {
                             fvar: (*ctx).fvar,
-                            dimensions: (*(*ctx).fvar).axes.length as u16,
+                            dimensions: (*(*ctx).fvar).axes.len() as u16,
                             shared_tuple_count: be16((*header).shared_tuple_count),
                             shared_tuples: data.offset(be32((*header).shared_tuples_offset) as isize)
                                 as *mut F2Dot14,

@@ -1406,5 +1406,114 @@ on the other platform before a commit is trusted.
       exercising `otfcc_read_tsi`/`otfcc_dump_tsi`/`otfcc_parse_tsi`/
       `otfcc_build_tsi` *and* `consolidate_tsi`'s hash-based gid remap +
       sort — no synthetic payload needed for either container.
+  - **Re-measured after `NameTable`/`TsiTable`: the plan's "4 containers
+    frozen behind `Subtable`" was an undercount — it's actually 8.**
+    `BaseArray` (`GposMarkToSingleSubtable.base_array`) and `LigatureArray`
+    (`GposMarkToLigatureSubtable.lig_array`) are embedded *by value inside a
+    union variant's own struct*, one level deeper than `MarkArray`'s direct
+    embedding, so the earlier hand-audit (which only checked variant types
+    themselves, not their fields) missed them; `GsubLigatureSubtable`/
+    `GsubMultiSubtable` are union variants directly and were miscounted the
+    same way `GposCursiveSubtable`/`GposSingleSubtable`/`GsubSingleSubtable`
+    were before. But `Subtable` itself has **zero by-value uses** anywhere in
+    the crate (grepped every occurrence: all `*mut Subtable`/`*const
+    Subtable`/`size_of::<Subtable>()`/`null_mut::<Subtable>()`) — so
+    unblocking it doesn't need the full tagged-`enum` rewrite the plan
+    assumed, just wrapping the non-`Copy` variant types in `ManuallyDrop`.
+    Deferred until after the other 14 containers not touching the union
+    (chosen order: svg → fvar/vf → otl pointer arrays → glyf) so the audit
+    trail for *why* each of those 14 doesn't touch the union exists before
+    touching the union itself.
+  - **`SvgTable` → `Vec<SvgAssignment>`** (`table/svg.rs`,
+    `font/caryll_font.rs`) — the first of the 14 containers no longer
+    blocked by the union, picked because it was already directly
+    vector-shaped in the C-derived source (no wrapper struct, like
+    `ColrTable`) and touches only two files.
+    - The element's owned resource is a `*mut Buffer` (`buffree`), not an
+      `sds`/`Handle` — a shape not seen before in this series. `Copy` stays
+      on `SvgAssignment` (copying the pointer bytes is fine; nothing reads
+      that copy as a deep clone), but `otfcc_build_svg`'s sorted-copy path
+      needs a *real* duplicate, so `svg_assignment_dup` does the same
+      `bufnew()` + `bufwrite_buf()` the old `copy_svg_assigment` did —
+      `.clone()` alone would alias the same `Buffer`.
+    - Unlike every prior candidate in this series, **both `TABLE_I_SVG.copy`
+      and `.sort` were live**, not dead vtable slots: `otfcc_build_svg` calls
+      `.copy` to get an owned, disposable copy before sorting it by
+      `start` glyph ID and disposing it again, without touching the
+      caller's original table — the same "build a sorted copy, leave the
+      original alone" shape `ColrTable`/`otfcc_build_colr` had. Ported as
+      `(*_svg).iter().map(svg_assignment_dup).collect()` +
+      `.sort_by(|a, b| a.start.cmp(&b.start))`, replacing the `qsort`-driven
+      `by_start_gid` comparator with a native comparison (first done for
+      `NameTable`/`TsiTable` in PR #60) since it's a single-field integer
+      tie-break with no aliasing concerns.
+    - `table_svg_create` was already `malloc` + `.write(Vec::new())`
+      placement construction, not a field assignment — no `calloc` fix
+      needed, same reasoning as `ColrTable`/`NameTable`/`TsiTable`.
+    - Verified against real, live data on both platforms:
+      `Reinebow-SVGinOT.ttf` (already in `compare-with-c.sh`/`run-cycles.sh`)
+      has a genuine `SVG ` table, exercising `otfcc_read_svg`/
+      `otfcc_dump_svg`/`otfcc_parse_svg`/`otfcc_build_svg` end to end — no
+      synthetic payload needed.
+  - **`VfAxes`/`VV`/`FvarInstanceList` → `Vec<VfAxis>`/`Vec<Pos>`/
+    `Vec<FvarInstance>`** (`vf/axis.rs`, `vf/vv.rs`, `vf/vq.rs`,
+    `vf/region.rs`, `table/fvar.rs`, `table/glyf/read.rs`) — the second
+    container group, a nested/non-nested mix converted in dependency order:
+    `VfAxes` (standalone) → `VV` (the innermost, embedded in `FvarInstance`)
+    → `FvarInstanceList` (the outer table).
+    - `VfAxes`: as expected, `VfAxis` owns nothing (the old
+      `vf_axis_dispose` was already an empty function). The live slots
+      (`.init`/`.dispose`/`.push`/`.shrink_to_fit`, all called from
+      `otfcc_read_fvar`) went straight to `Vec` methods; the whole-table
+      `.copy` was confirmed dead (never called via the vtable field) and
+      dropped along with `VfAxisElementInterface`/`VfAxesVectorInterface`.
+    - `VV`: turned out to be the same `Copy`-cascade shape as `VQ`
+      (embedded by value in `FvarInstance`, plus a by-value call site,
+      `json_new_vv(x: VV, …)`) — but simpler in the end, because the
+      element (`Pos`, an `f64`) owns nothing at all. That let the *entire*
+      `vf/vq.rs` VV apparatus (`PosElementInterface`, `VQ_I_POS_T`,
+      `vv_init`/`vv_push`/`vv_copy`/`vv_dispose`/`vv_shrink_to_fit`/
+      `vv_create`/`vv_free`/`vv_init_n`/`vv_fill`/`create_neutral_vv`, the
+      `I_VV` static) disappear outright — every live call site
+      (`.init`/`.push`/`.shrink_to_fit`/`.dispose`, all in `table/fvar.rs`)
+      converts directly to a `Vec<Pos>` method call, no wrapper functions
+      needed. **`json_new_vv` (the by-value sibling of the live
+      `json_new_v_vp`) turned out to be dead** — never called anywhere,
+      confirmed by grep, not assumed from "it has a by-value signature so
+      it must be live" (the plan's own worry going in). Deleted rather than
+      ported; `json_new_v_vp` (and `vq_region_get_weight` in
+      `vf/region.rs`, and `polymorphize`/`json_new_vq_region_explicit` in
+      `table/glyf/read.rs`/`table/fvar.rs`, all genuinely live) had their
+      `.length`/`.items.offset(...)` reads converted to `Vec` `.len()`/
+      indexing, binding a `&Vec<T>` once per function first as usual for
+      `dangerous_implicit_autorefs`.
+    - `FvarInstanceList`: `fvar_instance_list_create` used `malloc` and
+      `table_fvar_create` (the *outer* `FvarTable`, which owns `axes`/
+      `instances` by value) did too — both switched to `calloc` before
+      building, the `GaspTable` fix applied proactively this time. **New
+      wrinkle, not seen in earlier containers**: `FvarInstance` only owns
+      another `Vec` (`coordinates: Vec<Pos>`), not a raw pointer, so unlike
+      `SvgAssignment`/`NameRecord`/`TsiEntry` it needs **no per-element
+      dispose function at all** — `Vec<FvarInstance>`'s own `Drop` already
+      recurses into every instance's `coordinates` for free, since Rust
+      generates that drop glue automatically for a struct holding a `Vec`
+      field. `dispose_fvar` shrank to two plain reassignments
+      (`(*fvar).axes = Vec::new(); (*fvar).instances = Vec::new();`).
+      `FVAR_I_INSTANCE.copy` (the old `memcpy`-based `FvarInstance` copy)
+      was confirmed dead by walking one level up, not just grepping its own
+      name — the same "a caller existing in text isn't proof of being
+      called" check `VdmxRatioRangeList` needed. `FvarTable` itself lost
+      `#[derive(Copy, Clone)]` entirely (not even `Clone`): it's always
+      reached through `*mut`/`*const` (`Font.fvar: *mut FvarTable`), never
+      embedded or passed by value anywhere in the crate.
+    - **The coverage gap the plan predicted was real**: `make-test-
+      variable-font.py`'s single-axis (`wght`) gvar-test font had no named
+      instances, so `FvarInstanceList`/`VV`'s read+dump path had never run
+      in `compare-with-c.sh`/`run-cycles.sh`. Fixed the same way as
+      `meta`/`VDMX`/unknown-lookup: added two `InstanceDescriptor`s
+      (Regular/Bold) to the designspace document, confirmed with
+      `fontTools.ttLib` that the built font actually carries 2 instances,
+      then re-ran the full suite — `gvar-test` stayed byte-identical in
+      both directions on both platforms.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.

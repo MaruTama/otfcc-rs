@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 #![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
-use libc::{exit, free, malloc, memcmp, memcpy, memset};
+use libc::{calloc, exit, free, malloc, memcmp, memset};
 
 use crate::support::json_funcs::{json_new_position, json_numof, json_object_push_tag, preserialize};
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -9,7 +9,6 @@ use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::JsonValue;
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push, cvec_resize_to};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{NULL};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
@@ -20,42 +19,20 @@ use crate::vf::vv::VV;
 use crate::support::primitives::{otfcc_from_fixed};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_length, json_string_new, json_string_new_length};
 use crate::vendor::sds::{sdscatsds, sdsempty, sdsfree, sdsfromlonglong, sdsnew};
-use crate::vf::axis::{VF_I_AXES};
 use crate::vf::region::{vq_axis_span_is_one, vq_delete_region};
-use crate::vf::vq::{I_VQ, I_VV};
-#[derive(Copy, Clone)]
-#[repr(C)]
+use crate::vf::vq::{I_VQ};
 pub struct FvarInstance {
     pub subfamily_name_id: u16,
     pub flags: u16,
     pub coordinates: VV,
     pub post_script_name_id: u16,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FvarInstanceElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut FvarInstance) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut FvarInstance, *const FvarInstance) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut FvarInstance) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FvarInstanceList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut FvarInstance,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FvarInstanceListVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut FvarInstanceList, *const FvarInstanceList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut FvarInstanceList>,
-    pub free: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut FvarInstanceList, FvarInstance) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut FvarInstanceList) -> ()>,
-}
+// C由来の時点で素のベクタ形。要素は `coordinates: VV`(`Vec<Pos>`)を所有するが
+// `Pos` はプリミティブなので `Vec<FvarInstance>` の `Drop` だけで再帰的に
+// 解放できる——`SvgAssignment`/`NameRecord` のような raw ポインタ所有型と違い、
+// 専用の要素dispose関数が不要（詳細は下の `dispose_fvar`）。テーブル全体の
+// `.copy`（`FVAR_I_INSTANCE_LIST.copy`）は一度も呼ばれておらず削除。
+pub type FvarInstanceList = Vec<FvarInstance>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct FvarMaster {
@@ -63,7 +40,11 @@ pub struct FvarMaster {
     pub region: *mut VqRegion,
     pub hh: UtHashHandle,
 }
-#[derive(Copy, Clone)]
+// `axes: VfAxes`(`Vec<VfAxis>`)/`instances: FvarInstanceList`(`Vec<FvarInstance>`)
+// を値で持つため `Copy` は落とす。`FvarTable` は crate 全体で常に `*mut`/
+// `*const` 経由でしか触られておらず（`Font.fvar: *mut FvarTable`）、値渡し・
+// 値コピーの箇所は無いため `Clone` すら不要（テーブル全体の `.copy` は
+// 呼ばれておらず削除済み）。
 #[repr(C)]
 pub struct FvarTable {
     pub major_version: u16,
@@ -145,176 +126,30 @@ unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
     return 0 as usize;
 }
 #[inline]
-unsafe extern "C" fn init_fvar_instance(mut inst: *mut FvarInstance) {
-    memset(
-        inst as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<FvarInstance>() as usize,
-    );
-    I_VV.init.expect("non-null function pointer")(&raw mut (*inst).coordinates);
-}
-#[inline]
-unsafe extern "C" fn dispose_fvar_instance(mut inst: *mut FvarInstance) {
-    I_VV.dispose.expect("non-null function pointer")(&raw mut (*inst).coordinates);
-}
-pub static FVAR_I_INSTANCE: FvarInstanceElementInterface = {
-    FvarInstanceElementInterface {
-        init: Some(fvar_instance_init as unsafe extern "C" fn(*mut FvarInstance) -> ()),
-        copy: Some(
-            fvar_instance_copy
-                as unsafe extern "C" fn(*mut FvarInstance, *const FvarInstance) -> (),
-        ),
-        dispose: Some(fvar_instance_dispose as unsafe extern "C" fn(*mut FvarInstance) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn fvar_instance_dispose(mut x: *mut FvarInstance) {
-    dispose_fvar_instance(x);
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_init(mut x: *mut FvarInstance) {
-    init_fvar_instance(x);
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_copy(
-    mut dst: *mut FvarInstance,
-    mut src: *const FvarInstance,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FvarInstance>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_free(mut x: *mut FvarInstanceList) {
-    if x.is_null() {
-        return;
-    }
-    fvar_instance_list_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_resize_to(arr: *mut FvarInstanceList, target: usize) {
-    cvec_resize_to(fvar_instance_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_create() -> *mut FvarInstanceList {
-    let mut x: *mut FvarInstanceList =
-        malloc(::core::mem::size_of::<FvarInstanceList>() as usize) as *mut FvarInstanceList;
-    fvar_instance_list_init(x);
-    return x;
-}
-#[inline]
-unsafe fn fvar_instance_list_as_cvec(arr: *mut FvarInstanceList) -> *mut CVecRaw<FvarInstance> {
-    arr as *mut CVecRaw<FvarInstance>
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_init(arr: *mut FvarInstanceList) {
-    cvec_init(fvar_instance_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_push(arr: *mut FvarInstanceList, elem: FvarInstance) {
-    cvec_push(fvar_instance_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_grow_to(arr: *mut FvarInstanceList, target: usize) {
-    cvec_grow_to(fvar_instance_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_copy(
-    mut dst: *mut FvarInstanceList,
-    mut src: *const FvarInstanceList,
-) {
-    fvar_instance_list_init(dst);
-    fvar_instance_list_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if FVAR_I_INSTANCE.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            FVAR_I_INSTANCE.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut FvarInstance,
-                (*src).items.offset(j as isize) as *mut FvarInstance as *const FvarInstance,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn fvar_instance_list_dispose(mut arr: *mut FvarInstanceList) {
-    if arr.is_null() {
-        return;
-    }
-    if FVAR_I_INSTANCE.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            FVAR_I_INSTANCE.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut FvarInstance,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<FvarInstance>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-pub static FVAR_I_INSTANCE_LIST: FvarInstanceListVectorInterface = {
-    FvarInstanceListVectorInterface {
-        init: Some(fvar_instance_list_init as unsafe extern "C" fn(*mut FvarInstanceList) -> ()),
-        copy: Some(
-            fvar_instance_list_copy
-                as unsafe extern "C" fn(*mut FvarInstanceList, *const FvarInstanceList) -> (),
-        ),
-        dispose: Some(
-            fvar_instance_list_dispose as unsafe extern "C" fn(*mut FvarInstanceList) -> (),
-        ),
-        create: Some(fvar_instance_list_create),
-        free: Some(fvar_instance_list_free as unsafe extern "C" fn(*mut FvarInstanceList) -> ()),
-        push: Some(
-            fvar_instance_list_push
-                as unsafe extern "C" fn(*mut FvarInstanceList, FvarInstance) -> (),
-        ),
-        shrink_to_fit: Some(
-            fvar_instance_list_shrink_to_fit as unsafe extern "C" fn(*mut FvarInstanceList) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn fvar_instance_list_shrink_to_fit(mut arr: *mut FvarInstanceList) {
-    fvar_instance_list_resize_to(arr, (*arr).length);
-}
-#[inline]
 unsafe extern "C" fn dispose_fvar_master(mut m: *mut FvarMaster) {
     sdsfree((*m).name);
     vq_delete_region((*m).region);
 }
+// `table_fvar_create` uses `calloc`, so every field (including `axes`/
+// `instances`) already starts zeroed; the old memset-then-init dance is gone,
+// replaced by a direct assignment (safe here for the same reason it's safe
+// in `table_gasp_create`/`table_meta_create`/etc. -- see rust/README.md: the
+// implicit drop of the old, calloc-zeroed `Vec` reads capacity 0 and no-ops).
 #[inline]
-unsafe extern "C" fn init_fvar(mut fvar: *mut FvarTable) {
-    memset(
-        fvar as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<FvarTable>() as usize,
-    );
-    VF_I_AXES.init.expect("non-null function pointer")(&raw mut (*fvar).axes);
-    FVAR_I_INSTANCE_LIST.init.expect("non-null function pointer")(&raw mut (*fvar).instances);
+unsafe extern "C" fn init_fvar(fvar: *mut FvarTable) {
+    (*fvar).axes = Vec::new();
+    (*fvar).instances = Vec::new();
 }
+// `libc::free` (called by `table_fvar_free` right after this) doesn't run
+// `Drop`, so the two `Vec` fields must be reclaimed explicitly here.
+// `instances: Vec<FvarInstance>` needs no per-element dispose function the
+// way `SvgTable`/`NameTable` did -- `FvarInstance` only owns another `Vec`
+// (`coordinates: Vec<Pos>`, no raw pointers), so `Vec<FvarInstance>`'s own
+// `Drop` already recurses into every instance's `coordinates` for free.
 #[inline]
-unsafe extern "C" fn dispose_fvar(mut fvar: *mut FvarTable) {
-    VF_I_AXES.dispose.expect("non-null function pointer")(&raw mut (*fvar).axes);
-    FVAR_I_INSTANCE_LIST
-        .dispose
-        .expect("non-null function pointer")(&raw mut (*fvar).instances);
+unsafe extern "C" fn dispose_fvar(fvar: *mut FvarTable) {
+    (*fvar).axes = Vec::new();
+    (*fvar).instances = Vec::new();
     let mut current: *mut FvarMaster = ::core::ptr::null_mut::<FvarMaster>();
     let mut tmp: *mut FvarMaster = ::core::ptr::null_mut::<FvarMaster>();
     current = (*fvar).masters;
@@ -1504,27 +1339,27 @@ unsafe extern "C" fn table_fvar_dispose(mut x: *mut FvarTable) {
 unsafe extern "C" fn table_fvar_init(mut x: *mut FvarTable) {
     init_fvar(x);
 }
+// `calloc`, not `malloc`: `init_fvar` assigns straight into `(*fvar).axes`/
+// `.instances` (`= Vec::new()`), which reads (and implicitly drops) whatever
+// was there first -- garbage capacity/pointer bytes from `malloc` is UB, a
+// zeroed (capacity 0) `Vec` from `calloc` is a safe no-op drop. See the
+// `GaspTable` writeup in rust/README.md for the first time this bit.
 #[inline]
 unsafe extern "C" fn table_fvar_create() -> *mut FvarTable {
     let mut x: *mut FvarTable =
-        malloc(::core::mem::size_of::<FvarTable>() as usize) as *mut FvarTable;
+        calloc(1, ::core::mem::size_of::<FvarTable>() as usize) as *mut FvarTable;
     table_fvar_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn table_fvar_copy(mut dst: *mut FvarTable, mut src: *const FvarTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FvarTable>() as usize,
-    );
 }
 pub static TABLE_I_FVAR: FvarTableElementInterface = {
     FvarTableElementInterface {
         init: Some(table_fvar_init as unsafe extern "C" fn(*mut FvarTable) -> ()),
-        copy: Some(
-            table_fvar_copy as unsafe extern "C" fn(*mut FvarTable, *const FvarTable) -> (),
-        ),
+        // Whole-table `.copy` (`table_fvar_copy`, a raw `memcpy`) was never
+        // called anywhere -- confirmed dead the same way as every prior
+        // target's whole-table `.copy` slot -- and deleted outright rather
+        // than ported: a bitwise copy would now double-free `axes`/
+        // `instances`.
+        copy: None,
         dispose: Some(table_fvar_dispose as unsafe extern "C" fn(*mut FvarTable) -> ()),
         create: Some(table_fvar_create),
         free: Some(table_fvar_free as unsafe extern "C" fn(*mut FvarTable) -> ()),
@@ -1655,12 +1490,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                                 (*axis_record).axis_name_id,
                                                             ),
                                                         };
-                                                        VF_I_AXES
-                                                            .push
-                                                            .expect("non-null function pointer")(
-                                                            &raw mut (*fvar).axes,
-                                                            axis,
-                                                        );
+                                                        (*fvar).axes.push(axis);
                                                         axis_record = axis_record.offset(1);
                                                         j = j.wrapping_add(1);
                                                     }
@@ -1679,21 +1509,14 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                             FvarInstance {
                                                                 subfamily_name_id: 0,
                                                                 flags: 0,
-                                                                coordinates: VV {
-                                                                    length: 0,
-                                                                    capacity: 0,
-                                                                    items: ::core::ptr::null_mut::<
-                                                                        Pos,
-                                                                    >(
-                                                                    ),
-                                                                },
+                                                                coordinates: Vec::new(),
                                                                 post_script_name_id: 0,
                                                             };
-                                                        FVAR_I_INSTANCE
-                                                            .init
-                                                            .expect("non-null function pointer")(
-                                                            &raw mut inst,
-                                                        );
+                                                        // `FVAR_I_INSTANCE.init` deleted: it only
+                                                        // (re-)zeroed fields the literal above
+                                                        // already set, field for field -- fully
+                                                        // redundant, checked before removing (the
+                                                        // `CpalPalette`/`init_palette` lesson).
                                                         inst.subfamily_name_id =
                                                             be16((*instance).subfamily_name_id);
                                                         inst.flags = be16((*instance).flags);
@@ -1701,10 +1524,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                         while (k as ::core::ffi::c_int)
                                                             < n_axes as ::core::ffi::c_int
                                                         {
-                                                            I_VV.push.expect(
-                                                                "non-null function pointer",
-                                                            )(
-                                                                &raw mut inst.coordinates,
+                                                            inst.coordinates.push(
                                                                 otfcc_from_fixed(be32(
                                                                     *(&raw mut (*instance)
                                                                         .coordinates
@@ -1717,10 +1537,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                             );
                                                             k = k.wrapping_add(1);
                                                         }
-                                                        I_VV.shrink_to_fit
-                                                            .expect("non-null function pointer")(
-                                                            &raw mut inst.coordinates,
-                                                        );
+                                                        inst.coordinates.shrink_to_fit();
                                                         if has_postscript_name_id {
                                                             inst.post_script_name_id = be16(
                                                                 *((instance as FontFilePointer)
@@ -1732,12 +1549,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                                     as *mut u16),
                                                             );
                                                         }
-                                                        FVAR_I_INSTANCE_LIST
-                                                            .push
-                                                            .expect("non-null function pointer")(
-                                                            &raw mut (*fvar).instances,
-                                                            inst,
-                                                        );
+                                                        (*fvar).instances.push(inst);
                                                         instance = (instance as FontFilePointer)
                                                             .offset(be16((*header).instance_size)
                                                                 as ::core::ffi::c_int
@@ -1745,16 +1557,8 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                             as *mut InstanceRecord;
                                                         j_0 = j_0.wrapping_add(1);
                                                     }
-                                                    VF_I_AXES
-                                                        .shrink_to_fit
-                                                        .expect("non-null function pointer")(
-                                                        &raw mut (*fvar).axes,
-                                                    );
-                                                    FVAR_I_INSTANCE_LIST
-                                                        .shrink_to_fit
-                                                        .expect("non-null function pointer")(
-                                                        &raw mut (*fvar).instances,
-                                                    );
+                                                    (*fvar).axes.shrink_to_fit();
+                                                    (*fvar).instances.shrink_to_fit();
                                                     return fvar;
                                                 }
                                             }
@@ -1799,14 +1603,16 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"fvar"),
     );
+    let axes: &Vec<VfAxis> = &(*table).axes;
+    let instances: &Vec<FvarInstance> = &(*table).instances;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut t: *mut JsonValue = json_object_new(2 as usize);
-        let mut _axes: *mut JsonValue = json_object_new((*table).axes.length);
+        let mut _axes: *mut JsonValue = json_object_new(axes.len());
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
-        while keep != 0 && __caryll_index < (*table).axes.length {
-            let mut axis: *mut VfAxis = (*table).axes.items.offset(__caryll_index as isize);
+        while keep != 0 && __caryll_index < axes.len() {
+            let axis: &VfAxis = &axes[__caryll_index];
             while keep != 0 {
                 let mut _axis: *mut JsonValue = json_object_new(5 as usize);
                 json_object_push(
@@ -1845,12 +1651,11 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
             b"axes\0" as *const u8 as *const ::core::ffi::c_char,
             _axes,
         );
-        let mut _instances: *mut JsonValue = json_array_new((*table).instances.length);
+        let mut _instances: *mut JsonValue = json_array_new(instances.len());
         let mut __caryll_index_0: usize = 0 as usize;
         let mut keep_0: usize = 1 as usize;
-        while keep_0 != 0 && __caryll_index_0 < (*table).instances.length {
-            let mut instance: *mut FvarInstance =
-                (*table).instances.items.offset(__caryll_index_0 as isize);
+        while keep_0 != 0 && __caryll_index_0 < instances.len() {
+            let instance: &FvarInstance = &instances[__caryll_index_0];
             while keep_0 != 0 {
                 let mut _instance: *mut JsonValue = json_object_new(4 as usize);
                 json_object_push(
@@ -1873,7 +1678,7 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
                 json_object_push(
                     _instance,
                     b"coordinates\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_new_v_vp(&raw mut (*instance).coordinates, table),
+                    json_new_v_vp(&raw const instance.coordinates, table),
                 );
                 json_array_push(_instances, _instance);
                 keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
@@ -1979,51 +1784,22 @@ pub unsafe extern "C" fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *
         return preserialize(a);
     };
 }
-pub unsafe extern "C" fn json_new_vv(x: VV, mut fvar: *const FvarTable) -> *mut JsonValue {
-    let mut axes: *const VfAxes = &raw const (*fvar).axes;
-    if !axes.is_null() && (*axes).length == x.length {
-        let mut _coord: *mut JsonValue = json_object_new((*axes).length);
-        let mut m: usize = 0 as usize;
-        while m < x.length {
-            let mut axis: *mut VfAxis = (*axes).items.offset(m as isize) as *mut VfAxis;
-            let mut tag: [::core::ffi::c_char; 4] = [
-                (((*axis).tag & 0xff000000 as u32) >> 24 as ::core::ffi::c_int)
-                    as ::core::ffi::c_char,
-                (((*axis).tag & 0xff0000 as u32) >> 16 as ::core::ffi::c_int)
-                    as ::core::ffi::c_char,
-                (((*axis).tag & 0xff00 as u32) >> 8 as ::core::ffi::c_int)
-                    as ::core::ffi::c_char,
-                ((*axis).tag & 0xff as u32) as ::core::ffi::c_char,
-            ];
-            json_object_push_length(
-                _coord,
-                4 as ::core::ffi::c_uint,
-                &raw mut tag as *mut ::core::ffi::c_char,
-                json_new_position(*x.items.offset(m as isize)),
-            );
-            m = m.wrapping_add(1);
-        }
-        return preserialize(_coord);
-    } else {
-        let mut _coord_0: *mut JsonValue = json_array_new(x.length);
-        let mut m_0: usize = 0 as usize;
-        while m_0 < x.length {
-            json_array_push(_coord_0, json_new_position(*x.items.offset(m_0 as isize)));
-            m_0 = m_0.wrapping_add(1);
-        }
-        return preserialize(_coord_0);
-    };
-}
+// `json_new_vv` (the by-value sibling of `json_new_v_vp` below) is never
+// called anywhere in the crate -- confirmed dead the same way as every
+// prior target's dead vtable-adjacent duplicate -- and deleted outright
+// rather than ported (it would need `x: VV` to become `x: Vec<Pos>`, moving
+// or cloning the caller's coordinates for no live caller).
 pub unsafe extern "C" fn json_new_v_vp(
-    mut x: *const VV,
-    mut fvar: *const FvarTable,
+    x: *const VV,
+    fvar: *const FvarTable,
 ) -> *mut JsonValue {
-    let mut axes: *const VfAxes = &raw const (*fvar).axes;
-    if !axes.is_null() && (*axes).length == (*x).length {
-        let mut _coord: *mut JsonValue = json_object_new((*axes).length);
+    let axes: &Vec<VfAxis> = &(*fvar).axes;
+    let coords: &Vec<Pos> = &*x;
+    if axes.len() == coords.len() {
+        let mut _coord: *mut JsonValue = json_object_new(axes.len());
         let mut m: usize = 0 as usize;
-        while m < (*x).length {
-            let mut axis: *mut VfAxis = (*axes).items.offset(m as isize) as *mut VfAxis;
+        while m < coords.len() {
+            let axis: &VfAxis = &axes[m];
             let mut tag: [::core::ffi::c_char; 4] = [
                 (((*axis).tag & 0xff000000 as u32) >> 24 as ::core::ffi::c_int)
                     as ::core::ffi::c_char,
@@ -2037,19 +1813,16 @@ pub unsafe extern "C" fn json_new_v_vp(
                 _coord,
                 4 as ::core::ffi::c_uint,
                 &raw mut tag as *mut ::core::ffi::c_char,
-                json_new_position(*(*x).items.offset(m as isize)),
+                json_new_position(coords[m]),
             );
             m = m.wrapping_add(1);
         }
         return preserialize(_coord);
     } else {
-        let mut _coord_0: *mut JsonValue = json_array_new((*x).length);
+        let mut _coord_0: *mut JsonValue = json_array_new(coords.len());
         let mut m_0: usize = 0 as usize;
-        while m_0 < (*x).length {
-            json_array_push(
-                _coord_0,
-                json_new_position(*(*x).items.offset(m_0 as isize)),
-            );
+        while m_0 < coords.len() {
+            json_array_push(_coord_0, json_new_position(coords[m_0]));
             m_0 = m_0.wrapping_add(1);
         }
         return preserialize(_coord_0);
@@ -2083,16 +1856,16 @@ pub unsafe extern "C" fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut
 }
 pub unsafe extern "C" fn json_new_vq_region_explicit(
     mut rs: *const VqRegion,
-    mut fvar: *const FvarTable,
+    fvar: *const FvarTable,
 ) -> *mut JsonValue {
-    let mut axes: *const VfAxes = &raw const (*fvar).axes;
-    if !axes.is_null() && (*axes).length == (*rs).dimensions as usize {
+    let axes: &Vec<VfAxis> = &(*fvar).axes;
+    if axes.len() == (*rs).dimensions as usize {
         let mut r: *mut JsonValue = json_object_new((*rs).dimensions as usize);
         let mut j: usize = 0 as usize;
         while j < (*rs).dimensions as usize {
             json_object_push_tag(
                 r,
-                (*(*axes).items.offset(j as isize)).tag,
+                axes[j].tag,
                 json_new_vq_axis_span(
                     (&raw const (*rs).spans as *const VqAxisSpan).offset(j as isize)
                         as *const VqAxisSpan,
