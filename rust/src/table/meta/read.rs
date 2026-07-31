@@ -5,7 +5,7 @@ use crate::support::options::{Options};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
-use crate::table::meta::types::{META_I_ENTRIES, TABLE_I_META};
+use crate::table::meta::types::{TABLE_I_META};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 pub unsafe extern "C" fn otfcc_read_meta(
     packet: Packet,
@@ -64,18 +64,15 @@ pub unsafe extern "C" fn otfcc_read_meta(
                                         .offset(8 as ::core::ffi::c_int as isize),
                                 );
                                 if !(table.length < offset.wrapping_add(length)) {
-                                    META_I_ENTRIES.push.expect("non-null function pointer")(
-                                        &raw mut (*meta).entries,
-                                        MetaEntry {
-                                            tag: tag,
-                                            data: sdsnewlen(
-                                                table.data.offset(offset as isize)
-                                                    as *mut ::core::ffi::c_char
-                                                    as *const ::core::ffi::c_void,
-                                                length as usize,
-                                            ),
-                                        },
-                                    );
+                                    (*meta).entries.push(MetaEntry {
+                                        tag: tag,
+                                        data: sdsnewlen(
+                                            table.data.offset(offset as isize)
+                                                as *mut ::core::ffi::c_char
+                                                as *const ::core::ffi::c_void,
+                                            length as usize,
+                                        ),
+                                    });
                                 }
                                 j = j.wrapping_add(1);
                             }
