@@ -171,6 +171,41 @@ else
 	echo "  (skipping unknown-lookup: python3 not found)"
 fi
 
+# None of the payloads above has a 'meta' table, so table/meta/*.rs's
+# Vec<MetaEntry> conversion (and everything in that file before it) has never
+# actually been exercised by this script -- only "no meta key present" paths.
+# Round-trips a synthetic one both ways: build from injected JSON, then dump
+# the result back, comparing C vs Rust at each step.
+if command -v python3 >/dev/null 2>&1; then
+	META_JSON="${BUILD}/meta-test.json"
+	python3 rust/scripts/make-test-meta.py "${BUILD}/iosevka-r.json" "${META_JSON}"
+	rm -f "${BUILD}/meta-test.c.ttf" "${BUILD}/meta-test.rust.ttf"
+	"${C_BIN}/otfccbuild" "${META_JSON}" -o "${BUILD}/meta-test.c.ttf" --keep-average-char-width --keep-modified-time
+	if ! "${RUST_BIN}/otfccbuild" "${META_JSON}" -o "${BUILD}/meta-test.rust.ttf" --keep-average-char-width --keep-modified-time; then
+		echo "FAIL  meta-test.ttf: Rust otfccbuild exited non-zero"
+		fail=1
+	elif cmp -s "${BUILD}/meta-test.c.ttf" "${BUILD}/meta-test.rust.ttf"; then
+		echo "PASS  meta-test.ttf: byte-identical"
+	else
+		echo "FAIL  meta-test.ttf: differs ($(cmp -l "${BUILD}/meta-test.c.ttf" "${BUILD}/meta-test.rust.ttf" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+
+	rm -f "${BUILD}/meta-test.dump.c.json" "${BUILD}/meta-test.dump.rust.json"
+	"${C_BIN}/otfccdump" "${BUILD}/meta-test.c.ttf" -o "${BUILD}/meta-test.dump.c.json" --pretty
+	if ! "${RUST_BIN}/otfccdump" "${BUILD}/meta-test.c.ttf" -o "${BUILD}/meta-test.dump.rust.json" --pretty; then
+		echo "FAIL  meta-test dump: Rust otfccdump exited non-zero"
+		fail=1
+	elif cmp -s "${BUILD}/meta-test.dump.c.json" "${BUILD}/meta-test.dump.rust.json"; then
+		echo "PASS  meta-test dump: byte-identical"
+	else
+		echo "FAIL  meta-test dump: differs ($(cmp -l "${BUILD}/meta-test.dump.c.json" "${BUILD}/meta-test.dump.rust.json" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+else
+	echo "  (skipping meta-test: python3 not found)"
+fi
+
 echo "==> Comparing C vs Rust otfccdll (cdylib) output, byte-for-byte"
 DLL_C="${C_BIN}/libotfccdll.so"
 [ "$(uname)" = "Darwin" ] && DLL_C="${C_BIN}/libotfccdll.dylib"
