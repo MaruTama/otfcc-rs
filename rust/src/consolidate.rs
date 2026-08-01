@@ -65,7 +65,7 @@ use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_ma
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::_tsi::{table_tsi_create, table_tsi_free, tsi_entry_dup};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR_LIST, GLYF_I_REFERENCE_LIST, otfcc_new_glyf_glyph};
-use crate::table::otl::{OTL_I_FEATURE_LIST, OTL_I_FEATURE_REF_LIST, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_REF_LIST};
+use crate::table::otl::{otl_feature_list_filter_env, otl_feature_ref_list_filter_env, otl_lookup_list_filter_env, otl_lookup_ref_list_filter_env};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::table::otl::subtables::gpos_cursive::{I_SUBTABLE_GPOS_CURSIVE};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{I_SUBTABLE_GPOS_MARK_TO_LIGATURE};
@@ -769,7 +769,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
     mut options: *const Options,
 ) {
     if lookup.is_null()
-        || (*lookup).subtables.length == 0
+        || (*lookup).subtables.is_empty()
         || (*lookup).type_0 != type_0
     {
         return;
@@ -783,8 +783,8 @@ unsafe extern "C" fn __declare_otl_consolidation(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*lookup).subtables.length {
-            if (*(*lookup).subtables.items.offset(j as isize)).is_null() {
+        while (j as usize) < (*lookup).subtables.len() {
+            if (&(*lookup).subtables)[j as usize].is_null() {
                 (*(*options).logger)
                     .log_sds
                     .expect("non-null function pointer")(
@@ -805,15 +805,14 @@ unsafe extern "C" fn __declare_otl_consolidation(
                 subtable_removed = fn_0.expect("non-null function pointer")(
                     font,
                     table,
-                    *(*lookup).subtables.items.offset(j as isize) as *mut Subtable,
+                    (&(*lookup).subtables)[j as usize],
                     options,
                 );
                 if subtable_removed {
                     fndel.expect("non-null function pointer")(
-                        *(*lookup).subtables.items.offset(j as isize) as *mut Subtable,
+                        (&(*lookup).subtables)[j as usize],
                     );
-                    let ref mut fresh3 = *(*lookup).subtables.items.offset(j as isize);
-                    *fresh3 = ::core::ptr::null_mut::<Subtable>();
+                    (&mut (*lookup).subtables)[j as usize] = ::core::ptr::null_mut::<Subtable>();
                     (*(*options).logger)
                         .log_sds
                         .expect("non-null function pointer")(
@@ -835,16 +834,15 @@ unsafe extern "C" fn __declare_otl_consolidation(
         }
         let mut k: TableId = 0 as TableId;
         let mut j_0: TableId = 0 as TableId;
-        while (j_0 as usize) < (*lookup).subtables.length {
-            if !(*(*lookup).subtables.items.offset(j_0 as isize)).is_null() {
+        while (j_0 as usize) < (*lookup).subtables.len() {
+            if !(&(*lookup).subtables)[j_0 as usize].is_null() {
                 let fresh4 = k;
                 k = k.wrapping_add(1);
-                let ref mut fresh5 = *(*lookup).subtables.items.offset(fresh4 as isize);
-                *fresh5 = *(*lookup).subtables.items.offset(j_0 as isize);
+                (&mut (*lookup).subtables)[fresh4 as usize] = (&(*lookup).subtables)[j_0 as usize];
             }
             j_0 = j_0.wrapping_add(1);
         }
-        (*lookup).subtables.length = k as usize;
+        (*lookup).subtables.truncate(k as usize);
         if k == 0 {
             (*(*options).logger)
                 .log_sds
@@ -1137,25 +1135,25 @@ unsafe extern "C" fn lookup_ref_is_not_empty(
     mut r_lut: *const LookupRef,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
-    return !r_lut.is_null() && !(*r_lut).is_null() && (**r_lut).subtables.length > 0 as usize;
+    return !r_lut.is_null() && !(*r_lut).is_null() && !(**r_lut).subtables.is_empty();
 }
 unsafe extern "C" fn feature_ref_is_not_empty(
     mut r_feat: *const FeatureRef,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
-    return !r_feat.is_null() && !(*r_feat).is_null() && (**r_feat).lookups.length > 0 as usize;
+    return !r_feat.is_null() && !(*r_feat).is_null() && !(**r_feat).lookups.is_empty();
 }
 unsafe extern "C" fn lookup_is_not_empty(
     mut r_lut: *const LookupPtr,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
-    return !r_lut.is_null() && !(*r_lut).is_null() && (**r_lut).subtables.length > 0 as usize;
+    return !r_lut.is_null() && !(*r_lut).is_null() && !(**r_lut).subtables.is_empty();
 }
 unsafe extern "C" fn feature_is_not_empty(
     mut r_feat: *const FeaturePtr,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
-    return !r_feat.is_null() && !(*r_feat).is_null() && (**r_feat).lookups.length > 0 as usize;
+    return !r_feat.is_null() && !(*r_feat).is_null() && !(**r_feat).lookups.is_empty();
 }
 unsafe extern "C" fn consolidate_otl_table(
     mut font: *mut Font,
@@ -1166,25 +1164,22 @@ unsafe extern "C" fn consolidate_otl_table(
         return;
     }
     loop {
-        let mut feat_n: TableId = (*table).features.length as TableId;
-        let mut lut_n: TableId = (*table).lookups.length as TableId;
+        let mut feat_n: TableId = (*table).features.len() as TableId;
+        let mut lut_n: TableId = (*table).lookups.len() as TableId;
         let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*table).lookups.length {
+        while (j as usize) < (*table).lookups.len() {
             otfcc_consolidate_lookup(
                 font,
                 table,
-                *(*table).lookups.items.offset(j as isize) as *mut Lookup,
+                (&(*table).lookups)[j as usize],
                 options,
             );
             j = j.wrapping_add(1);
         }
         let mut j_0: TableId = 0 as TableId;
-        while (j_0 as usize) < (*table).features.length {
-            let mut feature: *mut Feature =
-                *(*table).features.items.offset(j_0 as isize) as *mut Feature;
-            OTL_I_LOOKUP_REF_LIST
-                .filter_env
-                .expect("non-null function pointer")(
+        while (j_0 as usize) < (*table).features.len() {
+            let feature: *mut Feature = (&(*table).features)[j_0 as usize];
+            otl_lookup_ref_list_filter_env(
                 &raw mut (*feature).lookups,
                 Some(
                     lookup_ref_is_not_empty
@@ -1198,12 +1193,9 @@ unsafe extern "C" fn consolidate_otl_table(
             j_0 = j_0.wrapping_add(1);
         }
         let mut j_1: TableId = 0 as TableId;
-        while (j_1 as usize) < (*table).languages.length {
-            let mut lang: *mut LanguageSystem =
-                *(*table).languages.items.offset(j_1 as isize) as *mut LanguageSystem;
-            OTL_I_FEATURE_REF_LIST
-                .filter_env
-                .expect("non-null function pointer")(
+        while (j_1 as usize) < (*table).languages.len() {
+            let lang: *mut LanguageSystem = (&(*table).languages)[j_1 as usize];
+            otl_feature_ref_list_filter_env(
                 &raw mut (*lang).features,
                 Some(
                     feature_ref_is_not_empty
@@ -1216,9 +1208,7 @@ unsafe extern "C" fn consolidate_otl_table(
             );
             j_1 = j_1.wrapping_add(1);
         }
-        OTL_I_LOOKUP_LIST
-            .filter_env
-            .expect("non-null function pointer")(
+        otl_lookup_list_filter_env(
             &raw mut (*table).lookups,
             Some(
                 lookup_is_not_empty
@@ -1226,9 +1216,7 @@ unsafe extern "C" fn consolidate_otl_table(
             ),
             NULL,
         );
-        OTL_I_FEATURE_LIST
-            .filter_env
-            .expect("non-null function pointer")(
+        otl_feature_list_filter_env(
             &raw mut (*table).features,
             Some(
                 feature_is_not_empty
@@ -1239,8 +1227,8 @@ unsafe extern "C" fn consolidate_otl_table(
             ),
             NULL,
         );
-        let mut feat_n1: TableId = (*table).features.length as TableId;
-        let mut lut_n1: TableId = (*table).lookups.length as TableId;
+        let feat_n1: TableId = (*table).features.len() as TableId;
+        let lut_n1: TableId = (*table).lookups.len() as TableId;
         if feat_n1 as ::core::ffi::c_int >= feat_n as ::core::ffi::c_int
             && lut_n1 as ::core::ffi::c_int >= lut_n as ::core::ffi::c_int
         {

@@ -1520,5 +1520,96 @@ on the other platform before a commit is trusted.
       `fontTools.ttLib` that the built font actually carries 2 instances,
       then re-ran the full suite — `gvar-test` stayed byte-identical in
       both directions on both platforms.
+  - **The `otl.rs` pointer-array group → `Vec<*mut T>`/`Vec<*const T>`**
+    (`SubtableList`, `LookupList`, `FeatureList`, `LangSystemList`,
+    `LookupRefList`, `FeatureRefList` — `table/otl.rs` plus 11 consuming
+    files, 234 call sites) — the third container group, and the widest one
+    yet by file count. Deliberately stopped at `Vec<*mut T>`/`Vec<*const T>`
+    (plan classification "その3"): the pointee `Box`-ification is Stage 6-4's
+    job, kept separate from this pass on purpose — moving both the container
+    shape and the element ownership at once is exactly what made the `VQ`
+    conversion (PR #52) the riskiest one in this series.
+    - Four owning structs (`Lookup.subtables`, `Feature.lookups`,
+      `LanguageSystem.features`, `OtlTable.{lookups,features,languages}`)
+      all lost `#[derive(Copy, Clone)]`; none is ever constructed as a bare
+      value or passed by value anywhere in the crate, so no `Clone` was
+      needed either.
+    - **`SubtableList`'s disposal can't be an ordinary `Drop`.** `Subtable`
+      is a bare `#[repr(C)] union` with no discriminant of its own — the
+      tag that says which variant is live lives one level up, on the
+      *enclosing* `Lookup.type_0`. Freeing a subtable correctly (walking
+      and freeing that variant's own nested allocations) needs the lookup's
+      type, not just the pointer, which is exactly why the existing
+      `dispose_subtable_dependent(subtable_ref, lookup)` helper takes both
+      — its signature didn't need to change at all (it already operated on
+      a single element pointer, independent of container shape), only the
+      three callers walking `SubtableList` needed updating.
+    - **`.clear()` vs. full reassignment, made concrete for the first
+      time**: several of this group's dispose paths (`otfcc_delete_lookup`,
+      `dispose_otl`/`table_otl_free`) are followed immediately by the
+      caller raw-`free()`-ing the *enclosing* struct. `Vec::clear()` only
+      sets `len = 0` — it leaves the backing allocation (a separate heap
+      block from the enclosing struct) untouched, and a raw `libc::free()`
+      of the enclosing block never runs `Drop`, so `.clear()` here would
+      leak the backing array every time. Used `*arr = Vec::new()` instead
+      at every "final dispose before the enclosing block is freed" site —
+      it drops (and actually deallocates) the old `Vec` before the empty
+      replacement moves in. `.clear()` stays correct only where a container
+      is genuinely reused in place afterward, the way `consolidate_gdef`
+      already did with `clear_lig_carets`.
+    - `LookupRefList`/`FeatureRefList` (the two non-owning ones, holding
+      `*const Lookup`/`*const Feature` borrowed from the owning
+      `LookupList`/`FeatureList`) needed no per-element dispose at all — a
+      grep of every push site confirmed each one copies a pointer *value*
+      already owned elsewhere, never a stack address or an address into the
+      owning container's own backing buffer, so disposal is just dropping
+      the backing array. Their `.replace` slots (found live for the first
+      time in this series — PR #50 counted them among the 4 genuinely-live
+      `.replace`/`.move_0` survivors) turned out to always target a
+      freshly-`init_feature_ptr`/`init_language_ptr`'d, still-empty
+      destination at their one call site each, so `otl_lookup_ref_list_replace`/
+      `otl_feature_ref_list_replace` reduce to a plain `*dst = src;`
+      move-assignment rather than anything more involved.
+    - The old index-swap-and-truncate compaction loops (pruning null'd-out
+      subtables in `consolidate.rs`, filtering dead lookups/features/refs
+      in `consolidate_otl_table`) ported two ways depending on shape: the
+      `LookupRefList`/`FeatureRefList`/`LookupList`/`FeatureList` ones
+      became plain `Vec::retain`/`.retain_mut` closures (no per-element
+      cleanup needed beyond calling the existing dispose helper inside the
+      closure); `consolidate.rs`'s own subtable-pruning loop kept its
+      original two-pass shape (null out, then compact) rather than being
+      re-derived, matching this series' standing preference for wrapping
+      over re-deriving in an already-large change.
+    - **`dangerous_implicit_autorefs` fires on `[idx]` indexing through a
+      raw-pointer-derived place, but not on plain method calls like
+      `.len()`/`.push()`** on the same place — a distinction this series
+      hadn't needed to draw before, because `Index`/`IndexMut` operator
+      dispatch is the specific thing the lint targets, not method calls in
+      general. At this file count (234 call sites across 12 files) fixing
+      each by hand would've been the real risk; instead, `cargo build
+      --message-format=json` was used to extract every diagnostic's
+      structured `suggested_replacement` (rustc already computes the
+      exact right fix per call site, correctly distinguishing `&` for reads
+      from `&mut` for write targets — including the `a[i] = a[j]` case,
+      where the RHS index needs `&` and the LHS needs `&mut` in the same
+      statement), and a small script applied them by line/column offset.
+      (Plain `cargo fix --broken-code` was tried first and left every one
+      of these unapplied across five passes — the suggestions carry
+      `Applicability::MaybeIncorrect`, which `cargo fix` intentionally
+      skips; only the JSON-diagnostics route got the machine-computed fixes
+      applied.)
+    - Verified against real, live data on both platforms: every payload's
+      GSUB/GPOS tables exercise the full read/build/dump/parse/consolidate
+      paths through these six containers (`vtt.ttf`, `NotoNastaliqUrdu-
+      Regular.ttf`, and `iosevka-r.ttf`'s issue #1 golden test all touch
+      `Lookup`/`Feature`/`LanguageSystem` heavily already) — no synthetic
+      payload needed.
+    - **Found, not fixed, in this PR**: while working through the "dispose
+      right before the enclosing block is freed" pattern above, the same
+      `.clear()`-then-raw-`free()` shape turned up in a few already-merged
+      containers (`SvgTable`, `NameTable`/`TsiTable`, `GdefTable`'s lig-caret
+      path) — a real backing-array leak, invisible to every test here since
+      leaks don't change output bytes. Flagged separately rather than fixed
+      as part of this PR's scope.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.

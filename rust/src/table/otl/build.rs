@@ -123,15 +123,15 @@ unsafe extern "C" fn _declare_lookup_writer(
     if (*lookup).type_0 == type_0 {
         *subtables = __caryll_allocate_clean(
             (::core::mem::size_of::<*mut Buffer>() as usize)
-                .wrapping_mul((*lookup).subtables.length),
+                .wrapping_mul((*lookup).subtables.len()),
             38 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
         let mut total_buf_size_short: usize = 0 as usize;
         let mut total_buf_size_ext: usize = 0 as usize;
         let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*lookup).subtables.length {
+        while (j as usize) < (*lookup).subtables.len() {
             let mut buf: *mut Buffer = fn_0.expect("non-null function pointer")(
-                *(*lookup).subtables.items.offset(j as isize) as *const Subtable,
+                (&(*lookup).subtables)[j as usize] as *const Subtable,
                 heuristics,
             );
             let ref mut fresh1 = *(*subtables).offset(j as isize);
@@ -147,7 +147,7 @@ unsafe extern "C" fn _declare_lookup_writer(
             *last_offset = (*last_offset).wrapping_add(total_buf_size_short);
             *prefer_extension_for_this_lut = false;
         }
-        return (*lookup).subtables.length as TableId;
+        return (*lookup).subtables.len() as TableId;
     }
     return 0 as TableId;
 }
@@ -165,10 +165,10 @@ unsafe extern "C" fn _declare_lookup_writer_split(
         let mut total: TableId = 0 as TableId;
         let mut total_buf_size_short: usize = 0 as usize;
         let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*lookup).subtables.length {
+        while (j as usize) < (*lookup).subtables.len() {
             let mut n_part: TableId = 0 as TableId;
             let mut part: *mut *mut Buffer = fn_0.expect("non-null function pointer")(
-                *(*lookup).subtables.items.offset(j as isize) as *const Subtable,
+                (&(*lookup).subtables)[j as usize] as *const Subtable,
                 heuristics,
                 &raw mut n_part,
             );
@@ -417,13 +417,12 @@ unsafe extern "C" fn get_lookup_heuristics(
     if (*lut).type_0 == OTL_TYPE_GSUB_SINGLE
     {
         let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*table).features.length {
-            let mut fea: *const Feature =
-                *(*table).features.items.offset(j as isize) as *const Feature;
+        while (j as usize) < (*table).features.len() {
+            let fea: *const Feature = (&(*table).features)[j as usize];
             if !(feature_name_to_tag((*fea).name) != 1986359924i32 as u32) {
                 let mut k: TableId = 0 as TableId;
-                while (k as usize) < (*fea).lookups.length {
-                    if *(*fea).lookups.items.offset(k as isize) == lut {
+                while (k as usize) < (*fea).lookups.len() {
+                    if (&(*fea).lookups)[k as usize] == lut {
                         heu.insert(BuildHeuristics::GSUB_VERT);
                     }
                     k = k.wrapping_add(1);
@@ -443,24 +442,23 @@ unsafe extern "C" fn write_otl_lookups(
         ::core::ptr::null_mut::<*mut *mut Buffer>();
     subtables = __caryll_allocate_clean(
         (::core::mem::size_of::<*mut *mut Buffer>() as usize)
-            .wrapping_mul((*table).lookups.length),
+            .wrapping_mul((*table).lookups.len()),
         150 as ::core::ffi::c_ulong,
     ) as *mut *mut *mut Buffer;
     let mut prefer_ext_for_this_lut: *mut bool = ::core::ptr::null_mut::<bool>();
     let mut subtable_quantity: *mut TableId = ::core::ptr::null_mut::<TableId>();
     subtable_quantity = __caryll_allocate_clean(
-        (::core::mem::size_of::<TableId>() as usize).wrapping_mul((*table).lookups.length),
+        (::core::mem::size_of::<TableId>() as usize).wrapping_mul((*table).lookups.len()),
         153 as ::core::ffi::c_ulong,
     ) as *mut TableId;
     prefer_ext_for_this_lut = __caryll_allocate_clean(
-        (::core::mem::size_of::<bool>() as usize).wrapping_mul((*table).lookups.length),
+        (::core::mem::size_of::<bool>() as usize).wrapping_mul((*table).lookups.len()),
         154 as ::core::ffi::c_ulong,
     ) as *mut bool;
     let mut last_offset: usize = 0 as usize;
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*table).lookups.length {
-        let mut lookup: *mut Lookup =
-            *(*table).lookups.items.offset(j as isize) as *mut Lookup;
+    while (j as usize) < (*table).lookups.len() {
+        let lookup: *mut Lookup = (&(*table).lookups)[j as usize];
         let mut heu: BuildHeuristics = get_lookup_heuristics(table, lookup);
         (*(*options).logger)
             .log_sds
@@ -475,7 +473,7 @@ unsafe extern "C" fn write_otl_lookups(
                 b" (",
                 j as ::core::ffi::c_int,
                 b"/",
-                (*table).lookups.length as u32,
+                (*table).lookups.len() as u32,
                 b")\n",
             ),
         );
@@ -489,9 +487,9 @@ unsafe extern "C" fn write_otl_lookups(
         j = j.wrapping_add(1);
     }
     let mut header_size: usize =
-        (2 as usize).wrapping_add((2 as usize).wrapping_mul((*table).lookups.length));
+        (2 as usize).wrapping_add((2 as usize).wrapping_mul((*table).lookups.len()));
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < (*table).lookups.length {
+    while (j_0 as usize) < (*table).lookups.len() {
         if *subtable_quantity.offset(j_0 as isize) != 0 {
             header_size = header_size.wrapping_add(
                 (6 as ::core::ffi::c_int
@@ -503,9 +501,9 @@ unsafe extern "C" fn write_otl_lookups(
         j_0 = j_0.wrapping_add(1);
     }
     let mut use_extended: bool = last_offset >= (0xff00 as usize).wrapping_sub(header_size);
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*table).lookups.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*table).lookups.len()) as u32)]);
     let mut j_1: TableId = 0 as TableId;
-    while (j_1 as usize) < (*table).lookups.length {
+    while (j_1 as usize) < (*table).lookups.len() {
         if *subtable_quantity.offset(j_1 as isize) == 0 {
             (*(*options).logger)
                 .log_sds
@@ -516,13 +514,12 @@ unsafe extern "C" fn write_otl_lookups(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"Lookup ",
-                    (**(*table).lookups.items.offset(j_1 as isize)).name,
+                    (*(&(*table).lookups)[j_1 as usize]).name,
                     b" is empty.\n",
                 ),
             );
         }
-        let mut lookup_0: *mut Lookup =
-            *(*table).lookups.items.offset(j_1 as isize) as *mut Lookup;
+        let lookup_0: *mut Lookup = (&(*table).lookups)[j_1 as usize];
         let can_be_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup_0);
         let use_extended_for_it: bool = use_extended as ::core::ffi::c_int != 0
             || *prefer_ext_for_this_lut.offset(j_1 as isize) as ::core::ffi::c_int != 0;
@@ -596,25 +593,23 @@ unsafe extern "C" fn write_otl_features(
     mut table: *const OtlTable,
     mut _options: *const Options,
 ) -> *mut BkBlock {
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*table).features.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*table).features.len()) as u32)]);
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*table).features.length {
-        let mut fea: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, ((**(*table).features.items.offset(j as isize))
+    while (j as usize) < (*table).features.len() {
+        let mut fea: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, ((*(&(*table).features)[j as usize])
                 .lookups
-                .length) as u32)]);
+                .len()) as u32)]);
         let mut k: TableId = 0 as TableId;
         while (k as usize)
-            < (**(*table).features.items.offset(j as isize))
+            < (*(&(*table).features)[j as usize])
                 .lookups
-                .length
+                .len()
         {
             let mut l: TableId = 0 as TableId;
-            while (l as usize) < (*table).lookups.length {
-                if *(**(*table).features.items.offset(j as isize))
-                    .lookups
-                    .items
-                    .offset(k as isize)
-                    == *(*table).lookups.items.offset(l as isize) as LookupRef
+            while (l as usize) < (*table).lookups.len() {
+                if (&(*(&(*table).features)[j as usize])
+                    .lookups)[k as usize]
+                    == (&(*table).lookups)[l as usize] as LookupRef
                 {
                     bk_push(fea, &[bk_int(BkCellType::B16, (l as ::core::ffi::c_int) as u32)]);
                     break;
@@ -624,7 +619,7 @@ unsafe extern "C" fn write_otl_features(
             }
             k = k.wrapping_add(1);
         }
-        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag((**(*table).features.items.offset(j as isize)).name)) as u32), bk_ptr(BkCellType::P16, fea)]);
+        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag((*(&(*table).features)[j as usize]).name)) as u32), bk_ptr(BkCellType::P16, fea)]);
         j = j.wrapping_add(1);
     }
     return root;
@@ -634,8 +629,8 @@ unsafe extern "C" fn feature_index(
     mut table: *const OtlTable,
 ) -> TableId {
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*table).features.length {
-        if *(*table).features.items.offset(j as isize) == feature as FeaturePtr {
+    while (j as usize) < (*table).features.len() {
+        if (&(*table).features)[j as usize] == feature as FeaturePtr {
             return j;
         }
         j = j.wrapping_add(1);
@@ -649,11 +644,11 @@ unsafe extern "C" fn write_language(
     if lang.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, (feature_index((*lang).required_feature as *const Feature, table) as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lang).features.length) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, (feature_index((*lang).required_feature as *const Feature, table) as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*lang).features.len()) as u32)]);
     let mut k: TableId = 0 as TableId;
-    while (k as usize) < (*lang).features.length {
+    while (k as usize) < (*lang).features.len() {
         bk_push(root, &[bk_int(BkCellType::B16, (feature_index(
-                *(*lang).features.items.offset(k as isize) as *const Feature,
+                (&(*lang).features)[k as usize] as *const Feature,
                 table,
             ) as ::core::ffi::c_int) as u32)]);
         k = k.wrapping_add(1);
@@ -685,9 +680,8 @@ unsafe extern "C" fn write_otl_script_and_languages(
 ) -> *mut BkBlock {
     let mut h: *mut ScriptStatHash = ::core::ptr::null_mut::<ScriptStatHash>();
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*table).languages.length {
-        let mut language: *mut LanguageSystem =
-            *(*table).languages.items.offset(j as isize) as *mut LanguageSystem;
+    while (j as usize) < (*table).languages.len() {
+        let language: *mut LanguageSystem = (&(*table).languages)[j as usize];
         let mut script_tag: SdsRaw =
             sdsnewlen((*language).name as *const ::core::ffi::c_void, 4 as usize);
         let mut is_default: bool = strncmp(
@@ -1026,7 +1020,7 @@ unsafe extern "C" fn write_otl_script_and_languages(
             (*s).dl = ::core::ptr::null_mut::<LanguageSystem>();
             (*s).ll = __caryll_allocate_clean(
                 (::core::mem::size_of::<*mut LanguageSystem>() as usize)
-                    .wrapping_mul((*table).languages.length),
+                    .wrapping_mul((*table).languages.len()),
                 319 as ::core::ffi::c_ulong,
             ) as *mut *mut LanguageSystem;
             if is_default {

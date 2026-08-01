@@ -1055,8 +1055,8 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
     // `continue`/`break`; every occurrence here reduces to a plain indexed
     // for loop over the vector, confirmed against the original C source.
     let mut maxc: u16 = 1 as u16;
-    for i in 0..(*table).lookups.length {
-        let lookup: *mut Lookup = *(*table).lookups.items.offset(i as isize);
+    for i in 0..(*table).lookups.len() {
+        let lookup: *mut Lookup = (&(*table).lookups)[i];
         match (*lookup).type_0 {
             OTL_TYPE_GPOS_PAIR | OTL_TYPE_GPOS_MARK_TO_BASE | OTL_TYPE_GPOS_MARK_TO_LIGATURE
             | OTL_TYPE_GPOS_MARK_TO_MARK => {
@@ -1065,9 +1065,9 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                 }
             }
             OTL_TYPE_GSUB_LIGATURE => {
-                for si in 0..(*lookup).subtables.length {
+                for si in 0..(*lookup).subtables.len() {
                     let subtable: *mut GsubLigatureSubtable =
-                        *(*lookup).subtables.items.offset(si as isize) as *mut GsubLigatureSubtable;
+                        (&(*lookup).subtables)[si] as *mut GsubLigatureSubtable;
                     for ei in 0..(*subtable).length {
                         let entry: *mut GsubLigatureEntry = (*subtable).items.offset(ei as isize);
                         if (maxc as ::core::ffi::c_int) < (*(*entry).from).num_glyphs as ::core::ffi::c_int
@@ -1078,9 +1078,9 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                 }
             }
             OTL_TYPE_GSUB_CHAINING | OTL_TYPE_GPOS_CHAINING => {
-                for si in 0..(*lookup).subtables.length {
+                for si in 0..(*lookup).subtables.len() {
                     let subtable: *mut ChainingSubtable =
-                        *(*lookup).subtables.items.offset(si as isize) as *mut ChainingSubtable;
+                        (&(*lookup).subtables)[si] as *mut ChainingSubtable;
                     if (maxc as ::core::ffi::c_int)
                         < (*subtable).c2rust_unnamed.rule.match_count as ::core::ffi::c_int
                     {
@@ -1089,9 +1089,9 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                 }
             }
             OTL_TYPE_GSUB_REVERSE => {
-                for si in 0..(*lookup).subtables.length {
+                for si in 0..(*lookup).subtables.len() {
                     let subtable: *mut GsubReverseSubtable =
-                        *(*lookup).subtables.items.offset(si as isize) as *mut GsubReverseSubtable;
+                        (&(*lookup).subtables)[si] as *mut GsubReverseSubtable;
                     if (maxc as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
                         maxc = (*subtable).match_count as u16;
                     }

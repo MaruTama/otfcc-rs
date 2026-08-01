@@ -50,14 +50,14 @@ unsafe extern "C" fn _declare_lookup_dumper(
                 ),
             );
         }
-        let mut subtables: *mut JsonValue = json_array_new((*lookup).subtables.length);
+        let mut subtables: *mut JsonValue = json_array_new((*lookup).subtables.len());
         let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*lookup).subtables.length {
-            if !(*(*lookup).subtables.items.offset(j as isize)).is_null() {
+        while (j as usize) < (*lookup).subtables.len() {
+            if !(&(*lookup).subtables)[j as usize].is_null() {
                 json_array_push(
                     subtables,
                     dumper.expect("non-null function pointer")(
-                        *(*lookup).subtables.items.offset(j as isize) as *const Subtable,
+                        (&(*lookup).subtables)[j as usize] as *const Subtable,
                     ),
                 );
             }
@@ -168,9 +168,9 @@ pub unsafe extern "C" fn otfcc_dump_otl(
     mut tag: *const ::core::ffi::c_char,
 ) {
     if table.is_null()
-        || (*table).languages.length == 0
-        || (*table).lookups.length == 0
-        || (*table).features.length == 0
+        || (*table).languages.is_empty()
+        || (*table).lookups.is_empty()
+        || (*table).features.is_empty()
     {
         return;
     }
@@ -191,12 +191,11 @@ pub unsafe extern "C" fn otfcc_dump_otl(
         );
         let mut ___loggedstep_v_0: bool = true;
         while ___loggedstep_v_0 {
-            let mut languages: *mut JsonValue = json_object_new((*table).languages.length);
+            let mut languages: *mut JsonValue = json_object_new((*table).languages.len());
             let mut j: TableId = 0 as TableId;
-            while (j as usize) < (*table).languages.length {
+            while (j as usize) < (*table).languages.len() {
                 let mut _lang: *mut JsonValue = json_object_new(5 as usize);
-                let mut lang: *mut LanguageSystem =
-                    *(*table).languages.items.offset(j as isize) as *mut LanguageSystem;
+                let lang: *mut LanguageSystem = (&(*table).languages)[j as usize];
                 if !(*lang).required_feature.is_null() {
                     json_object_push(
                         _lang,
@@ -206,14 +205,14 @@ pub unsafe extern "C" fn otfcc_dump_otl(
                         ),
                     );
                 }
-                let mut features: *mut JsonValue = json_array_new((*lang).features.length);
+                let mut features: *mut JsonValue = json_array_new((*lang).features.len());
                 let mut k: TableId = 0 as TableId;
-                while (k as usize) < (*lang).features.length {
-                    if !(*(*lang).features.items.offset(k as isize)).is_null() {
+                while (k as usize) < (*lang).features.len() {
+                    if !(&(*lang).features)[k as usize].is_null() {
                         json_array_push(
                             features,
                             json_string_new(
-                                (**(*lang).features.items.offset(k as isize)).name
+                                (*(&(*lang).features)[k as usize]).name
                                     as *const ::core::ffi::c_char,
                             ),
                         );
@@ -248,19 +247,18 @@ pub unsafe extern "C" fn otfcc_dump_otl(
         );
         let mut ___loggedstep_v_1: bool = true;
         while ___loggedstep_v_1 {
-            let mut features_0: *mut JsonValue = json_object_new((*table).features.length);
+            let mut features_0: *mut JsonValue = json_object_new((*table).features.len());
             let mut j_0: TableId = 0 as TableId;
-            while (j_0 as usize) < (*table).features.length {
-                let mut feature: *mut Feature =
-                    *(*table).features.items.offset(j_0 as isize) as *mut Feature;
-                let mut _feature: *mut JsonValue = json_array_new((*feature).lookups.length);
+            while (j_0 as usize) < (*table).features.len() {
+                let feature: *mut Feature = (&(*table).features)[j_0 as usize];
+                let mut _feature: *mut JsonValue = json_array_new((*feature).lookups.len());
                 let mut k_0: TableId = 0 as TableId;
-                while (k_0 as usize) < (*feature).lookups.length {
-                    if !(*(*feature).lookups.items.offset(k_0 as isize)).is_null() {
+                while (k_0 as usize) < (*feature).lookups.len() {
+                    if !(&(*feature).lookups)[k_0 as usize].is_null() {
                         json_array_push(
                             _feature,
                             json_string_new(
-                                (**(*feature).lookups.items.offset(k_0 as isize)).name
+                                (*(&(*feature).lookups)[k_0 as usize]).name
                                     as *const ::core::ffi::c_char,
                             ),
                         );
@@ -294,13 +292,12 @@ pub unsafe extern "C" fn otfcc_dump_otl(
         );
         let mut ___loggedstep_v_2: bool = true;
         while ___loggedstep_v_2 {
-            let mut lookups: *mut JsonValue = json_object_new((*table).lookups.length);
-            let mut lookup_order: *mut JsonValue = json_array_new((*table).lookups.length);
+            let mut lookups: *mut JsonValue = json_object_new((*table).lookups.len());
+            let mut lookup_order: *mut JsonValue = json_array_new((*table).lookups.len());
             let mut j_1: TableId = 0 as TableId;
-            while (j_1 as usize) < (*table).lookups.length {
+            while (j_1 as usize) < (*table).lookups.len() {
                 let mut _lookup: *mut JsonValue = json_object_new(5 as usize);
-                let mut lookup: *mut Lookup =
-                    *(*table).lookups.items.offset(j_1 as isize) as *mut Lookup;
+                let lookup: *mut Lookup = (&(*table).lookups)[j_1 as usize];
                 _dump_lookup(lookup, _lookup);
                 json_object_push(
                     lookups,
