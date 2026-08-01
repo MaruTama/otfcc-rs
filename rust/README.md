@@ -912,11 +912,17 @@ on the other platform before a commit is trusted.
   newtypes means giving `cffdict_input_*` and `il_push_op` the specific type
   instead of a bare integer, which is a change to the CharString interpreter's
   plumbing and belongs in its own PR.
-- **`sdslen`**, the last duplicated `static inline` now that `json-funcs.h` is
-  done: 20 copies, one per file that measures an `sds`. The rest of the `sds.h`
-  inlines (`sdsavail`, `sdssetlen`, `sdsalloc`, …) are already single, so this is
-  one name — but it needs a `pub sdslen` in `vendor/sds.rs`, which is also what
-  `json_from_sds` is waiting for.
+- **`sdslen` is consolidated: done.** The last duplicated `static inline` from
+  `sds.h` — 20 identical copies (confirmed byte-for-byte after whitespace
+  normalization before deleting any of them), one per file that measured an
+  `sds`. `vendor/sds.rs`'s own copy is now `pub(crate)`; the other 19 became a
+  `use crate::vendor::sds::{sdslen};` import (merged into each file's existing
+  `sdsXxx` import line where one existed). Each file's now-orphaned
+  `SDS_TYPE_*`/`SdsHdr*` import (the only reason those names were imported at
+  all) was dropped, and `table/cff.rs`'s `json_from_sds` — flagged above as
+  blocked on this — now resolves for free. Byte-identical on both platforms,
+  no call-site behavior changed (`vendor::sds` was already the sole real
+  implementation; this PR only removed the copies).
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

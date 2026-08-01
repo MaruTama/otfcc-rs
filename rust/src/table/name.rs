@@ -6,7 +6,7 @@ use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
@@ -14,7 +14,7 @@ use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite16b, bufwrite_buf, bufwrite_bytes};
 use crate::support::unicodeconv::{utf16be_to_utf8, utf8toutf16be};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdsempty, sdsfree, sdsgrowzero, sdsnewlen};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsgrowzero, sdslen, sdsnewlen};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -35,36 +35,6 @@ pub type NameTable = Vec<NameRecord>;
 unsafe fn dispose_name_record(r: *mut NameRecord) {
     sdsfree((*r).name_string);
     (*r).name_string = ::core::ptr::null_mut::<::core::ffi::c_char>();
-}
-#[inline]
-unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
-    let mut flags: ::core::ffi::c_uchar =
-        *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
-    match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
-        SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
-                as *mut SdsHdr8))
-                .len as usize;
-        }
-        SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
-                as *mut SdsHdr16))
-                .len as usize;
-        }
-        SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
-                as *mut SdsHdr32))
-                .len as usize;
-        }
-        SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
-                as *mut SdsHdr64))
-                .len as usize;
-        }
-        _ => {}
-    }
-    return 0 as usize;
 }
 pub const COPYRIGHT_LEN: ::core::ffi::c_int = 32 as ::core::ffi::c_int;
 // `table_name_dispose`'s job: free every record's `name_string` before the

@@ -6,7 +6,7 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, GlyphId};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{NULL};
@@ -16,7 +16,7 @@ use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwri
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json_builder::{json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdslen, sdsnew, sdsnewlen};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -40,36 +40,6 @@ pub struct PostTableElementInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut PostTable>,
     pub free: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
-    let mut flags: ::core::ffi::c_uchar =
-        *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
-    match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
-        SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
-                as *mut SdsHdr8))
-                .len as usize;
-        }
-        SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
-                as *mut SdsHdr16))
-                .len as usize;
-        }
-        SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
-                as *mut SdsHdr32))
-                .len as usize;
-        }
-        SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
-                as *mut SdsHdr64))
-                .len as usize;
-        }
-        _ => {}
-    }
-    return 0 as usize;
 }
 static STANDARD_MAC_NAMES: [&::core::ffi::CStr; 258] = [
     c".notdef",

@@ -2,43 +2,12 @@
 use libc::{free};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonValue};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_encode};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdsempty};
-#[inline]
-unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
-    let mut flags: ::core::ffi::c_uchar =
-        *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
-    match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
-        SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
-                as *mut SdsHdr8))
-                .len as usize;
-        }
-        SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
-                as *mut SdsHdr16))
-                .len as usize;
-        }
-        SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
-                as *mut SdsHdr32))
-                .len as usize;
-        }
-        SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
-                as *mut SdsHdr64))
-                .len as usize;
-        }
-        _ => {}
-    }
-    return 0 as usize;
-}
+use crate::vendor::sds::{sdsempty, sdslen};
 #[inline]
 unsafe extern "C" fn is_string_tag(mut tag: u32) -> bool {
     return tag == 1684827751i32 as u32 || tag == 1936485991i32 as u32;

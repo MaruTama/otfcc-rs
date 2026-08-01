@@ -11,7 +11,7 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{bufninit, Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{Arity, CffSid, FontFilePointer, GlyphId, Pos, Scale, ShapeId, TableId};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::libcff::{CffFile, CffIOutlineBuilder, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_CID_COUNT, OP_CID_FONT_REVISION, OP_CID_FONT_VERSION, OP_CHAR_STRINGS, OP_COPYRIGHT, OP_EXPANSION_FACTOR, OP_FD_ARRAY, OP_FD_SELECT, OP_FAMILY_BLUES, OP_FAMILY_NAME, OP_FAMILY_OTHER_BLUES, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME, OP_FORCE_BOLD, OP_FULL_NAME, OP_ITALIC_ANGLE, OP_LANGUAGE_GROUP, OP_NOTICE, OP_OTHER_BLUES, OP_PRIVATE, OP_ROS, OP_STD_HW, OP_STD_VW, OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH, OP_SUBRS, OP_UID_BASE, OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_WEIGHT, OP_CHARSET, OP_DEFAULT_WIDTH_X, OP_INITIAL_RANDOM_SEED, OP_IS_FIXED_PITCH, OP_NOMINAL_WIDTH_X, OP_VERSION};
@@ -47,7 +47,7 @@ use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{json_new_vq};
 use crate::table::glyf::{GLYF_I_POINT, otfcc_new_glyf_glyph, table_glyf_create_n};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdscat, sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
+use crate::vendor::sds::{sdscat, sdsdup, sdsempty, sdsfree, sdslen, sdsnew, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
 #[derive(Clone)]
@@ -184,36 +184,6 @@ pub struct CffCharstringBuilderContext {
 pub struct FdArrayCompileContext {
     pub fd_array: *mut *mut CffTable,
     pub string_hash: *mut *mut CffSidEntry,
-}
-#[inline]
-unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
-    let mut flags: ::core::ffi::c_uchar =
-        *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
-    match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
-        SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
-                as *mut SdsHdr8))
-                .len as usize;
-        }
-        SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
-                as *mut SdsHdr16))
-                .len as usize;
-        }
-        SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
-                as *mut SdsHdr32))
-                .len as usize;
-        }
-        SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
-                as *mut SdsHdr64))
-                .len as usize;
-        }
-        _ => {}
-    }
-    return 0 as usize;
 }
 pub static DEFAULT_BLUE_SCALE: ::core::ffi::c_double = 0.039625f64;
 pub static DEFAULT_BLUE_SHIFT: ::core::ffi::c_double =

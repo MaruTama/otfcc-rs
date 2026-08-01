@@ -12,7 +12,7 @@ use crate::logger::{LoggerType, LOG_VL_NOTICE, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_font::{FontSubtype, Font, IFontBuilder};
 use crate::support::{NULL};
@@ -49,7 +49,7 @@ use crate::table::otl::parse::{otfcc_parse_otl};
 use crate::table::post::{otfcc_parse_post};
 use crate::table::vdmx::funcs::{otfcc_parse_vdmx};
 use crate::table::vhea::{otfcc_parse_vhea};
-use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
+use crate::vendor::sds::{sdsempty, sdsfree, sdslen, sdsnewlen};
 
 
 
@@ -61,36 +61,6 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
         NULL as *mut *mut ::core::ffi::c_char,
         10 as ::core::ffi::c_int,
     ) as ::core::ffi::c_int;
-}
-#[inline]
-unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
-    let mut flags: ::core::ffi::c_uchar =
-        *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
-    match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
-        SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
-                as *mut SdsHdr8))
-                .len as usize;
-        }
-        SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
-                as *mut SdsHdr16))
-                .len as usize;
-        }
-        SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
-                as *mut SdsHdr32))
-                .len as usize;
-        }
-        SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
-                as *mut SdsHdr64))
-                .len as usize;
-        }
-        _ => {}
-    }
-    return 0 as usize;
 }
 unsafe extern "C" fn otfcc_decide_font_subtype_from_json(
     mut root: *const JsonValue,
