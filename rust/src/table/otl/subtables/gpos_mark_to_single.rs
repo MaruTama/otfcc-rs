@@ -158,7 +158,7 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
                         (*subtable).base_array.push(
                             BaseRecord {
                                 glyph: otfcc_handle_dup(
-                                    *(*bases).glyphs.offset(j as isize) as Handle,
+                                    (*(*bases).glyphs.offset(j as isize)).clone() as Handle,
                                 ) as GlyphHandle,
                                 anchors: base_anchors,
                             },
@@ -790,7 +790,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
         push_to_coverage(
             marks,
             otfcc_handle_dup(
-                (&(*subtable).mark_array)[j as usize].glyph as Handle,
+                (&(*subtable).mark_array)[j as usize].glyph.clone() as Handle,
             ) as GlyphHandle,
         );
         j = j.wrapping_add(1);
@@ -801,7 +801,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
         push_to_coverage(
             bases,
             otfcc_handle_dup(
-                (&(*subtable).base_array)[j_0 as usize].glyph as Handle,
+                (&(*subtable).base_array)[j_0 as usize].glyph.clone() as Handle,
             ) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);

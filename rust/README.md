@@ -978,6 +978,99 @@ on the other platform before a commit is trusted.
     exercise repeated dup/cat/free cycles — and the issue #1 golden test) came
     back clean on both platforms, with no output byte or observable-capacity
     behavior change anywhere.
+- **Stage 6-4 pilot: `Handle` owns its name for real, and drops `Copy`.**
+  `Handle.name: SdsRaw` was always disposed/duplicated through explicit
+  `otfcc_handle_dispose`/`otfcc_handle_dup` calls — the crate never trusted
+  `Copy`'s bitwise semantics to do the right thing with it, `Copy` was only
+  there so a `Handle` could be read out of a raw pointer without the compiler
+  objecting. `Handle` now implements `Drop` (frees `name` if non-null) and
+  `Clone` (deep-copies `name` via `sdsdup`, replacing the old `copy_handle`),
+  and the `#[derive(Copy, Clone)]` vtable-package (`HandlePackage`/
+  `OTFCC_I_HANDLE`) that used to hold C-shaped wrappers around all of this is
+  deleted outright — it had zero callers, confirmed the same way as every
+  other dead vtable in this migration.
+  - **Every struct embedding `Handle`/`GlyphHandle`/`LookupHandle` loses
+    `Copy` simultaneously** — there is only one `Handle`, so the moment it
+    stops being `Copy`, so does everything containing it. 13 structs across
+    6 files (`table/otl.rs` ×9, `table/_tsi.rs`, `table/colr.rs`,
+    `table/cmap.rs` ×2) had their `#[derive(Copy, Clone)]` reduced to
+    `#[derive(Clone)]`. Two more (`ComponentReference`/`Glyph` in
+    `table/glyf.rs`) had already lost `Copy` in the `VqSegList` pilot and
+    needed no change; two more still (`ColrMapping`/`CaretValueRecord`)
+    already weren't `Copy` from their own earlier PRs.
+  - **The compiler turned this from an unbounded audit into a checklist.**
+    Removing `Copy` produced exactly 32 `E0507` ("cannot move out of ...")
+    errors, all one shape: a `Handle` read out of a raw pointer or a `Vec`
+    index to build a *new*, independent entry elsewhere (`otfcc_handle_dup`'s
+    universal call pattern) — genuine duplication, not a hidden move. `cargo
+    fix --broken-code` applied rustc's own `.clone()` suggestions at all 32
+    sites across 17 files mechanically; a second `cargo build` came back at
+    zero errors, zero warnings, first try. This is the same "let the compiler
+    enumerate every break" method the `VqSegList` pilot used for the same
+    reason: raw-pointer reads aren't borrow-checked, but *moving a non-`Copy`
+    value out of one* is still rejected at compile time, so the danger this
+    conversion carries (an accidental implicit move creating two owners of one
+    `name` allocation) can't compile silently — every instance surfaces as an
+    error with its own fix already suggested.
+  - **What the compiler can't see: raw-pointer *writes* into memory that was
+    never a valid `Handle` to begin with.** This is the one category `E0507`
+    doesn't catch, because it's not a move-out, it's a move-*in* to
+    already-there-but-garbage memory — and it produced a real, if
+    intermittent, crash (`___BUG_IN_CLIENT_OF_LIBMALLOC_POINTER_BEING_FREED_
+    WAS_NOT_ALLOCATED`, caught by `compare-with-c.sh`, not by `cargo
+    test`) that took a macOS crash-report stack trace to pin down, since it
+    reproduced reliably inside the verification script but not under a
+    directly-invoked debugger. `push_to_coverage`/`push_class_def`
+    (`table/otl/{coverage,classdef}.rs`) grow `Coverage.glyphs`/
+    `ClassDef.glyphs` — hand-managed `*mut GlyphHandle` arrays, not `Vec`s,
+    predating this migration's container work (plan classification "その3") —
+    via `__caryll_reallocate`, then wrote the new element with plain
+    assignment: `*ptr.offset(new_len - 1) = h;`. Assignment through a
+    dereferenced pointer always drops the *old* value at that address before
+    writing the new one; for a `realloc`-grown, never-yet-initialized slot,
+    that "old value" is uninitialized or leftover bytes from a previous
+    allocation, and `Handle::drop` reading its `.name` field as a `SdsRaw`
+    and calling `sdsfree` on whatever garbage pointer results in is exactly
+    the crash. The fix is `ptr::write` in both places — the same
+    placement-construction idiom already used at container-*creation* time
+    throughout this migration (`x.write(Vec::new())`, the `GaspTable` calloc
+    fix), just newly needed at element-*push* time too, because this is the
+    first `Vec`-shaped write pattern applied to a hand-rolled growable array
+    of a non-`Copy` element. Grepped for every other `*mut GlyphHandle`/
+    `*mut LookupHandle`/`*mut Handle`-typed *field* crate-wide after fixing
+    these two (not just usage — the struct fields that own an allocation) and
+    confirmed no third instance exists.
+  - **The "manual per-element dispose loop" hazard flagged before starting
+    this turned out to be a non-issue, for a reason specific to how
+    `otfcc_handle_dispose` was already written**: it doesn't just `sdsfree` —
+    it also resets `name` to null afterward (`*x = Handle::default()`).
+    Every existing container dispose loop (`dispose_mark_array`,
+    `dispose_gpos_cursive_subtable`, `table_tsi_dispose`, …) already calls it
+    per element before the container itself resets to `Vec::new()`. Once
+    every element's `.name` is null, the *automatic* `Drop` that fires later
+    when `Vec::new()`'s assignment drops the old backing storage sees a null
+    pointer and no-ops — dispose-then-null is inherently double-drop-safe,
+    the same property that makes `Option::take()` safe in ordinary Rust. No
+    container dispose function needed to change. (They are now *redundant*
+    rather than required, since `Vec`'s own drop glue would free everything
+    correctly even without the manual loop — but redundant-and-correct isn't
+    worth chasing down for its own sake here.)
+  - **Verified past the point of trusting a single clean run**: the first
+    `compare-with-c.sh` pass after the `E0507` fixes was clean; the *next*
+    pass (same binaries, same payloads) crashed on 5 of 10 — the
+    non-determinism that's the signature of heap corruption rather than a
+    logic bug, and the reason this got a macOS crash report pulled rather
+    than accepted as a fluke. After the `ptr::write` fix, `compare-with-c.sh`
+    was re-run 3× in a row on macOS and 3× on Linux with no failures, on top
+    of the standard single-pass pipeline (byte comparison, 10-payload 5-cycle
+    round trips, issue #1 golden test) on both platforms.
+  - **Net diff is small — 20 files, +121/−155** — because the `E0507`
+    fallout was mechanical and the container dispose functions needed no
+    changes at all. The size of *this* PR is not representative of what full
+    `Handle` disposal-loop cleanup (removing the now-redundant manual loops)
+    or a wider Stage 6-4 sweep (`Coverage`/`ClassDef`/`Glyph` unified onto
+    `Box`/`Vec` ownership rather than hand-rolled `malloc`/`realloc` arrays)
+    would cost — those remain open, larger follow-ups.
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

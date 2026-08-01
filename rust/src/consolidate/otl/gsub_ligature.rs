@@ -101,7 +101,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                     GsubLigatureEntry {
                         from: (&(*subtable))[k as usize].from,
                         to: otfcc_handle_dup(
-                            (&(*subtable))[k as usize].to as Handle,
+                            (&(*subtable))[k as usize].to.clone() as Handle,
                         ) as GlyphHandle,
                     },
                 );

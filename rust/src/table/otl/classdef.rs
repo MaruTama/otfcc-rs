@@ -160,9 +160,15 @@ pub(crate) unsafe extern "C" fn push_class_def(
     (*cd).num_glyphs =
         ((*cd).num_glyphs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
     grow_classdef(cd, (*cd).num_glyphs as u32);
-    *(*cd)
-        .glyphs
-        .offset(((*cd).num_glyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize) = h;
+    // `ptr::write` for `.glyphs` (a `Handle`, needs the placement-construct
+    // form -- see `push_to_coverage`); plain assignment stays correct for
+    // `.classes` since `GlyphClass` has no drop glue.
+    ::core::ptr::write(
+        (*cd)
+            .glyphs
+            .offset(((*cd).num_glyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+        h,
+    );
     *(*cd)
         .classes
         .offset(((*cd).num_glyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize) = cls;
@@ -2984,7 +2990,7 @@ pub(crate) unsafe extern "C" fn shrink_class_def(mut cd: *mut ClassDef) {
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
         if !(*(*cd).glyphs.offset(j as isize)).name.is_null() {
-            *(*cd).glyphs.offset(k as isize) = *(*cd).glyphs.offset(j as isize);
+            *(*cd).glyphs.offset(k as isize) = (*(*cd).glyphs.offset(j as isize)).clone();
             *(*cd).classes.offset(k as isize) = *(*cd).classes.offset(j as isize);
             k = k.wrapping_add(1);
         } else {

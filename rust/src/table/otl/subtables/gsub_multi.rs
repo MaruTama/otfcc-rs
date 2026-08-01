@@ -102,7 +102,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
                     }
                     (*subtable).push(GsubMultiEntry {
                         from: otfcc_handle_dup(
-                            *(*from).glyphs.offset(j as isize) as Handle,
+                            (*(*from).glyphs.offset(j as isize)).clone() as Handle,
                         ) as GlyphHandle,
                         to: cov,
                     });
@@ -163,7 +163,7 @@ unsafe extern "C" fn build_gsub_multi_subtable_range(
         push_to_coverage(
             cov,
             otfcc_handle_dup(
-                (&(*subtable))[j as usize].from as Handle,
+                (&(*subtable))[j as usize].from.clone() as Handle,
             ) as GlyphHandle,
         );
     }

@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{memcpy};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::sds::{sdsdup, sdsfree};
@@ -24,7 +23,6 @@ pub enum HandleState {
     Name = 2,
     Consolidated = 3,
 }
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Handle {
     pub state: HandleState,
@@ -33,100 +31,83 @@ pub struct Handle {
 }
 pub type GlyphHandle = Handle;
 pub type LookupHandle = Handle;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct HandlePackage {
-    pub init: Option<unsafe extern "C" fn(*mut Handle) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut Handle, *const Handle) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut Handle, *mut Handle) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut Handle) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut Handle, Handle) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut Handle, Handle) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> Handle>,
-    pub dup: Option<unsafe extern "C" fn(Handle) -> Handle>,
-    pub from_index: Option<unsafe extern "C" fn(GlyphId) -> Handle>,
-    pub from_name: Option<unsafe extern "C" fn(SdsRaw) -> Handle>,
-    pub from_consolidated: Option<unsafe extern "C" fn(GlyphId, SdsRaw) -> Handle>,
-    pub consolidate_to: Option<unsafe extern "C" fn(*mut Handle, GlyphId, SdsRaw) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn init_handle(mut h: *mut Handle) {
-    (*h).state = HandleState::Empty;
-    (*h).index = 0 as GlyphId;
-    (*h).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-}
-#[inline]
-unsafe extern "C" fn dispose_handle(mut h: *mut Handle) {
-    if !(*h).name.is_null() {
-        sdsfree((*h).name);
-        (*h).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
+impl Default for Handle {
+    fn default() -> Self {
+        Handle {
+            state: HandleState::Empty,
+            index: 0,
+            name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        }
     }
-    (*h).index = 0 as GlyphId;
-    (*h).state = HandleState::Empty;
 }
-unsafe extern "C" fn copy_handle(mut dst: *mut Handle, mut src: *const Handle) {
-    (*dst).state = (*src).state;
-    (*dst).index = (*src).index;
-    if !(*src).name.is_null() {
-        (*dst).name = sdsdup((*src).name);
-    } else {
-        (*dst).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    };
+/// Deep copy: duplicates `name` via `sdsdup` rather than aliasing the
+/// pointer, so a `Handle` can never end up with two owners of the same
+/// allocation. Every struct embedding a `Handle`/`GlyphHandle`/`LookupHandle`
+/// field relies on this: `#[derive(Clone)]` on the outer struct composes
+/// correctly (field-by-field `.clone()`) only because this impl is correct on
+/// its own.
+impl Clone for Handle {
+    fn clone(&self) -> Self {
+        unsafe {
+            Handle {
+                state: self.state,
+                index: self.index,
+                name: if self.name.is_null() {
+                    ::core::ptr::null_mut::<::core::ffi::c_char>()
+                } else {
+                    sdsdup(self.name)
+                },
+            }
+        }
+    }
+}
+/// The reason `Handle` was kept `Copy` everywhere in the crate until now:
+/// once it owns `name` for real, every place that used to bitwise-copy a
+/// `Handle` through a raw pointer (`let h = *ptr;`) needs to become an
+/// explicit `.clone()` (duplicate) or a genuine move -- the compiler enforces
+/// this at every call site (`cannot move out of ... which is behind a raw
+/// pointer`), which is what made this conversion tractable to verify.
+impl Drop for Handle {
+    fn drop(&mut self) {
+        if !self.name.is_null() {
+            unsafe {
+                sdsfree(self.name);
+            }
+            self.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
+        }
+    }
 }
 #[inline]
 pub(crate) unsafe extern "C" fn otfcc_handle_empty() -> Handle {
-    let mut x: Handle = Handle {
-        state: HandleState::Empty,
-        index: 0,
-        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-    };
-    otfcc_handle_init(&raw mut x);
-    return x;
+    Handle::default()
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_copy(mut dst: *mut Handle, mut src: *const Handle) {
-    copy_handle(dst, src);
+pub(crate) unsafe extern "C" fn otfcc_handle_copy(dst: *mut Handle, src: *const Handle) {
+    *dst = (*src).clone();
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_copy_replace(mut dst: *mut Handle, src: Handle) {
-    otfcc_handle_dispose(dst);
-    otfcc_handle_copy(dst, &raw const src);
+pub(crate) unsafe extern "C" fn otfcc_handle_copy_replace(dst: *mut Handle, src: Handle) {
+    *dst = src.clone();
 }
 #[inline]
 pub(crate) unsafe extern "C" fn otfcc_handle_dup(src: Handle) -> Handle {
-    let mut dst: Handle = Handle {
-        state: HandleState::Empty,
-        index: 0,
-        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-    };
-    otfcc_handle_copy(&raw mut dst, &raw const src);
-    return dst;
+    src.clone()
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_init(mut x: *mut Handle) {
-    init_handle(x);
+pub(crate) unsafe extern "C" fn otfcc_handle_init(x: *mut Handle) {
+    *x = Handle::default();
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_dispose(mut x: *mut Handle) {
-    dispose_handle(x as *mut Handle);
+pub(crate) unsafe extern "C" fn otfcc_handle_dispose(x: *mut Handle) {
+    *x = Handle::default();
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_replace(mut dst: *mut Handle, src: Handle) {
-    otfcc_handle_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Handle>() as usize,
-    );
+pub(crate) unsafe extern "C" fn otfcc_handle_replace(dst: *mut Handle, src: Handle) {
+    *dst = src;
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_move(mut dst: *mut Handle, mut src: *mut Handle) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Handle>() as usize,
-    );
-    otfcc_handle_init(src);
+pub(crate) unsafe extern "C" fn otfcc_handle_move(dst: *mut Handle, src: *mut Handle) {
+    *dst = ::core::mem::take(&mut *src);
 }
 pub(crate) unsafe extern "C" fn handle_from_index(mut id: GlyphId) -> Handle {
     let mut h: Handle = Handle {
@@ -166,35 +147,6 @@ pub(crate) unsafe extern "C" fn handle_consolidate_to(
     (*h).index = id;
     (*h).name = sdsdup(name);
 }
-pub static OTFCC_I_HANDLE: HandlePackage = {
-    HandlePackage {
-        init: Some(otfcc_handle_init as unsafe extern "C" fn(*mut Handle) -> ()),
-        copy: Some(
-            otfcc_handle_copy as unsafe extern "C" fn(*mut Handle, *const Handle) -> (),
-        ),
-        move_0: Some(
-            otfcc_handle_move as unsafe extern "C" fn(*mut Handle, *mut Handle) -> (),
-        ),
-        dispose: Some(otfcc_handle_dispose as unsafe extern "C" fn(*mut Handle) -> ()),
-        replace: Some(
-            otfcc_handle_replace as unsafe extern "C" fn(*mut Handle, Handle) -> (),
-        ),
-        copy_replace: Some(
-            otfcc_handle_copy_replace as unsafe extern "C" fn(*mut Handle, Handle) -> (),
-        ),
-        empty: Some(otfcc_handle_empty),
-        dup: Some(otfcc_handle_dup as unsafe extern "C" fn(Handle) -> Handle),
-        from_index: Some(handle_from_index as unsafe extern "C" fn(GlyphId) -> Handle),
-        from_name: Some(handle_from_name as unsafe extern "C" fn(SdsRaw) -> Handle),
-        from_consolidated: Some(
-            handle_from_consolidated as unsafe extern "C" fn(GlyphId, SdsRaw) -> Handle,
-        ),
-        consolidate_to: Some(
-            handle_consolidate_to as unsafe extern "C" fn(*mut Handle, GlyphId, SdsRaw) -> (),
-        ),
-    }
-};
-
 pub type FdHandle = Handle;
 
 #[cfg(test)]

@@ -159,7 +159,7 @@ pub unsafe extern "C" fn class_coverage(
                 jj = jj.wrapping_add(1);
                 *(*cov).glyphs.offset(fresh13 as isize) =
                     otfcc_handle_dup(
-                        *(*cd).glyphs.offset(j_2 as isize) as Handle,
+                        (*(*cd).glyphs.offset(j_2 as isize)).clone() as Handle,
                     ) as GlyphHandle;
             }
             j_2 = j_2.wrapping_add(1);

@@ -17,7 +17,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct ColrLayer {
     pub glyph: GlyphHandle,
@@ -38,7 +38,7 @@ pub type ColrTable = Vec<ColrMapping>;
 pub(crate) fn colr_layer_dup(l: &ColrLayer) -> ColrLayer {
     unsafe {
         ColrLayer {
-            glyph: otfcc_handle_dup(l.glyph),
+            glyph: otfcc_handle_dup(l.glyph.clone()),
             palette_index: l.palette_index,
         }
     }
@@ -48,7 +48,7 @@ unsafe fn dispose_colr_layer(l: *mut ColrLayer) {
 }
 fn colr_mapping_dup(m: &ColrMapping) -> ColrMapping {
     ColrMapping {
-        glyph: unsafe { otfcc_handle_dup(m.glyph) },
+        glyph: unsafe { otfcc_handle_dup(m.glyph.clone()) },
         layers: m.layers.iter().map(colr_layer_dup).collect(),
     }
 }

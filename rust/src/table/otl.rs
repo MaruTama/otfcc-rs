@@ -188,7 +188,7 @@ pub struct GposMarkToLigatureSubtable {
 /// Embedded by value in both `GposMarkToSingleSubtable` and
 /// `GposMarkToLigatureSubtable`, not a `Subtable` union field itself.
 pub type LigatureArray = Vec<LigatureBaseRecord>;
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct LigatureBaseRecord {
     pub glyph: GlyphHandle,
@@ -205,7 +205,7 @@ pub struct Anchor {
 /// Embedded by value in both `GposMarkToSingleSubtable` and
 /// `GposMarkToLigatureSubtable`, not a `Subtable` union field itself.
 pub type MarkArray = Vec<MarkRecord>;
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct MarkRecord {
     pub glyph: GlyphHandle,
@@ -223,14 +223,14 @@ pub struct GposMarkToSingleSubtable {
 /// Embedded by value in `GposMarkToSingleSubtable`, not a `Subtable` union
 /// field itself.
 pub type BaseArray = Vec<BaseRecord>;
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct BaseRecord {
     pub glyph: GlyphHandle,
     pub anchors: *mut Anchor,
 }
 pub type GposCursiveSubtable = Vec<GposCursiveEntry>;
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct GposCursiveEntry {
     pub target: GlyphHandle,
@@ -254,7 +254,7 @@ pub struct PositionValue {
     pub d_height: Pos,
 }
 pub type GposSingleSubtable = Vec<GposSingleEntry>;
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct GposSingleEntry {
     pub target: GlyphHandle,
@@ -299,7 +299,7 @@ pub struct ChainingRule {
     pub apply_count: TableId,
     pub apply: *mut ChainLookupApplication,
 }
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct ChainLookupApplication {
     pub index: TableId,
@@ -313,21 +313,21 @@ pub enum ChainingType {
     Classified = 2,
 }
 pub type GsubLigatureSubtable = Vec<GsubLigatureEntry>;
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct GsubLigatureEntry {
     pub from: *mut Coverage,
     pub to: GlyphHandle,
 }
 pub type GsubMultiSubtable = Vec<GsubMultiEntry>;
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct GsubMultiEntry {
     pub from: GlyphHandle,
     pub to: *mut Coverage,
 }
 pub type GsubSingleSubtable = Vec<GsubSingleEntry>;
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct GsubSingleEntry {
     pub from: GlyphHandle,
