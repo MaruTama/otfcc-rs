@@ -1215,6 +1215,30 @@ on the other platform before a commit is trusted.
   - Zero behavior change, verified with the standard full pipeline (build,
     44 tests, ABI, byte comparison, round trips, issue #1 golden test) on
     both platforms.
+- **Follow-up to the follow-up: `ColrMapping`/`ColrLayer`'s dispose functions
+  turned out to be fully redundant too, not just the leaf field.** The
+  previous PR left this one specifically unaudited (its one call site outside
+  `colr.rs`'s own container teardown, `consolidate.rs`'s COLR-decomposition
+  path, wasn't traced in time). Traced it here: `m: ColrMapping` at that call
+  site is a plain, fully-owned local (built with a struct literal, never
+  moved out in the branch that calls `dispose_colr_mapping`), so it was
+  already going to be dropped automatically — by the same compiler-generated
+  glue that made the `Handle` field itself redundant — the instant the `else`
+  block it's in exits. `dispose_colr_layer`/`dispose_colr_mapping` are
+  deleted outright (not just their `Handle` line, unlike the leaf-only cases
+  in the previous PR): `ColrMapping` holds nothing but a `Handle` and a
+  `Vec<ColrLayer>` of the same shape, so *nothing* in either function's body
+  survives the same argument. `dispose_colr_table`'s per-mapping loop
+  (`colr.rs`'s own teardown path) collapses the same way. The `consolidate.rs`
+  call site's fix is a straight deletion, not a substitution — the value
+  being manually disposed there was never going to leak or double-free
+  either way, since manual dispose followed immediately by scope-end drop
+  was always double-drop-safe (same "dispose-then-null" property this whole
+  line of cleanup rests on), it was just redundant work.
+  - Verified with `BungeeColor-Regular_colr_Windows.ttf` specifically in
+    mind — the one existing payload that exercises this exact
+    `consolidate_colr` decomposition path, byte-identical across the
+    standard full pipeline on both platforms.
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
