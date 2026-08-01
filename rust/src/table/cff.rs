@@ -45,7 +45,7 @@ use crate::libcff::subr::{CFF_I_SUBR_GRAPH, cff_il_graph_to_buffers, cff_insert_
 use crate::support::buffer::{buffree, bufnew, bufwrite_bufdel, bufwrite_sds};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{json_new_vq};
-use crate::table::glyf::{GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_POINT, otfcc_new_glyf_glyph, TABLE_I_GLYF};
+use crate::table::glyf::{GLYF_I_POINT, otfcc_new_glyf_glyph, table_glyf_create_n};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdscat, sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
 use crate::vf::vq::{I_VQ};
@@ -740,17 +740,8 @@ unsafe extern "C" fn callback_draw_setwidth(
 }
 unsafe extern "C" fn callback_draw_next_contour(mut _context: *mut ::core::ffi::c_void) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    let mut c: Contour = Contour {
-        length: 0,
-        capacity: 0,
-        items: ::core::ptr::null_mut::<Point>(),
-    };
-    GLYF_I_CONTOUR.init.expect("non-null function pointer")(&raw mut c);
-    GLYF_I_CONTOUR_LIST.push.expect("non-null function pointer")(
-        &raw mut (*(*context).g).contours,
-        c,
-    );
-    (*context).j_contour = (*(*context).g).contours.length as ShapeId;
+    (*(*context).g).contours.push(Vec::new());
+    (*context).j_contour = (*(*context).g).contours.len() as ShapeId;
     (*context).j_point = 0 as ShapeId;
 }
 unsafe extern "C" fn callback_draw_lineto(
@@ -760,10 +751,8 @@ unsafe extern "C" fn callback_draw_lineto(
 ) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     if (*context).j_contour != 0 {
-        let mut contour: *mut Contour =
-            (*(*context).g).contours.items.offset(
-                ((*context).j_contour as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize,
-            ) as *mut Contour;
+        let contour: *mut Contour = &raw mut (&mut (*(*context).g).contours)
+            [((*context).j_contour as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize];
         let mut z: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -785,7 +774,7 @@ unsafe extern "C" fn callback_draw_lineto(
             &raw mut z.y,
             I_VQ.create_still.expect("non-null function pointer")(y1 as Pos) as VQ,
         );
-        GLYF_I_CONTOUR.push.expect("non-null function pointer")(contour, z);
+        (*contour).push(z);
         (*context).j_point =
             ((*context).j_point as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
     }
@@ -801,10 +790,8 @@ unsafe extern "C" fn callback_draw_curveto(
 ) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     if (*context).j_contour != 0 {
-        let mut contour: *mut Contour =
-            (*(*context).g).contours.items.offset(
-                ((*context).j_contour as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize,
-            ) as *mut Contour;
+        let contour: *mut Contour = &raw mut (&mut (*(*context).g).contours)
+            [((*context).j_contour as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize];
         let mut z: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -826,7 +813,7 @@ unsafe extern "C" fn callback_draw_curveto(
             &raw mut z.y,
             I_VQ.create_still.expect("non-null function pointer")(y1 as Pos) as VQ,
         );
-        GLYF_I_CONTOUR.push.expect("non-null function pointer")(contour, z);
+        (*contour).push(z);
         let mut z_0: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -848,7 +835,7 @@ unsafe extern "C" fn callback_draw_curveto(
             &raw mut z_0.y,
             I_VQ.create_still.expect("non-null function pointer")(y2 as Pos) as VQ,
         );
-        GLYF_I_CONTOUR.push.expect("non-null function pointer")(contour, z_0);
+        (*contour).push(z_0);
         let mut z_1: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -870,7 +857,7 @@ unsafe extern "C" fn callback_draw_curveto(
             &raw mut z_1.y,
             I_VQ.create_still.expect("non-null function pointer")(y3 as Pos) as VQ,
         );
-        GLYF_I_CONTOUR.push.expect("non-null function pointer")(contour, z_1);
+        (*contour).push(z_1);
         (*context).j_point =
             ((*context).j_point as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as ShapeId;
     }
@@ -1034,8 +1021,7 @@ unsafe extern "C" fn build_outline(
 ) {
     let mut f: *mut CffFile = (*context).cff_file;
     let mut g: *mut Glyph = otfcc_new_glyf_glyph();
-    let ref mut fresh8 = *(*(*context).glyphs).items.offset(i as isize);
-    *fresh8 = g as GlyphPtr;
+    (&mut (*(*context).glyphs))[i as usize] = g as GlyphPtr;
     let mut seed: u64 = (*context).seed;
     let mut local_subrs: CffIndex = CffIndex {
         count_type: CffIndexCountType::U16,
@@ -1142,12 +1128,11 @@ unsafe extern "C" fn build_outline(
     let mut cy: VQ =
         (I_VQ.neutral.expect("non-null function pointer"))();
     let mut j: ShapeId = 0 as ShapeId;
-    while (j as usize) < (*g).contours.length {
-        let mut contour: *mut Contour =
-            (*g).contours.items.offset(j as isize) as *mut Contour;
+    while (j as usize) < (*g).contours.len() {
+        let contour: *mut Contour = &raw mut (&mut (*g).contours)[j as usize];
         let mut k: ShapeId = 0 as ShapeId;
-        while (k as usize) < (*contour).length {
-            let mut z: *mut Point = (*contour).items.offset(k as isize) as *mut Point;
+        while (k as usize) < (*contour).len() {
+            let z: *mut Point = &raw mut (&mut (*contour))[k as usize];
             I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cx, (*z).x.clone());
             I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cy, (*z).y.clone());
             I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).x, cx.clone());
@@ -1155,38 +1140,26 @@ unsafe extern "C" fn build_outline(
             k = k.wrapping_add(1);
         }
         if I_VQ.compare.expect("non-null function pointer")(
-            (*(*contour).items.offset(0 as ::core::ffi::c_int as isize)).x.clone(),
-            (*(*contour)
-                .items
-                .offset((*contour).length.wrapping_sub(1 as usize) as isize))
-            .x.clone(),
+            (&(*contour))[0 as usize].x.clone(),
+            (&(*contour))[(*contour).len().wrapping_sub(1 as usize)].x.clone(),
         ) == 0
             && I_VQ.compare.expect("non-null function pointer")(
-                (*(*contour).items.offset(0 as ::core::ffi::c_int as isize)).y.clone(),
-                (*(*contour)
-                    .items
-                    .offset((*contour).length.wrapping_sub(1 as usize) as isize))
-                .y.clone(),
+                (&(*contour))[0 as usize].y.clone(),
+                (&(*contour))[(*contour).len().wrapping_sub(1 as usize)].y.clone(),
             ) == 0
-            && ((*(*contour).items.offset(0 as ::core::ffi::c_int as isize)).on_curve
+            && ((&(*contour))[0 as usize].on_curve
                 as ::core::ffi::c_int
                 != 0
-                && (*(*contour)
-                    .items
-                    .offset((*contour).length.wrapping_sub(1 as usize) as isize))
+                && (&(*contour))[(*contour).len().wrapping_sub(1 as usize)]
                 .on_curve as ::core::ffi::c_int
                     != 0)
         {
-            GLYF_I_CONTOUR.pop.expect("non-null function pointer")(contour);
+            (*contour).pop();
         }
-        GLYF_I_CONTOUR
-            .shrink_to_fit
-            .expect("non-null function pointer")(contour);
+        (*contour).shrink_to_fit();
         j = j.wrapping_add(1);
     }
-    GLYF_I_CONTOUR_LIST
-        .shrink_to_fit
-        .expect("non-null function pointer")(&raw mut (*g).contours);
+    (*g).contours.shrink_to_fit();
     I_VQ.dispose.expect("non-null function pointer")(&raw mut cx);
     I_VQ.dispose.expect("non-null function pointer")(&raw mut cy);
     CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut local_subrs);
@@ -1213,14 +1186,12 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         *(*charset).c2rust_unnamed.f0.glyph.offset(j as isize) as CffSid;
                     let mut glyphname: SdsRaw = sdsget_cff_sid(sid as u16, (*cff_file).string);
                     if !glyphname.is_null() {
-                        let ref mut fresh2 = (**(*glyphs)
-                            .items
-                            .offset((j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
+                        let ref mut fresh2 = (*(&mut (*glyphs))
+                            [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
                         .name;
                         *fresh2 = glyphname;
-                        (**(*glyphs).items.offset(
-                            (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
-                        ))
+                        (*(&mut (*glyphs))
+                            [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
                         .cid = sid as GlyphId;
                     }
                     j = j.wrapping_add(1);
@@ -1241,12 +1212,12 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         let mut sid_0: CffSid =
                             (first as ::core::ffi::c_int + k as ::core::ffi::c_int) as CffSid;
                         let mut glyphname_0: SdsRaw = form_cid_string(sid_0);
-                        if (glyphs_named_sofar as usize) < (*glyphs).length && !glyphname_0.is_null()
+                        if (glyphs_named_sofar as usize) < (*glyphs).len() && !glyphname_0.is_null()
                         {
                             let ref mut fresh3 =
-                                (**(*glyphs).items.offset(glyphs_named_sofar as isize)).name;
+                                (*(&mut (*glyphs))[glyphs_named_sofar as usize]).name;
                             *fresh3 = glyphname_0;
-                            (**(*glyphs).items.offset(glyphs_named_sofar as isize)).cid =
+                            (*(&mut (*glyphs))[glyphs_named_sofar as usize]).cid =
                                 sid_0 as GlyphId;
                         }
                         glyphs_named_sofar = glyphs_named_sofar.wrapping_add(1);
@@ -1270,13 +1241,13 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         let mut sid_1: CffSid =
                             (first_0 as ::core::ffi::c_int + k_0 as ::core::ffi::c_int) as CffSid;
                         let mut glyphname_1: SdsRaw = form_cid_string(sid_1);
-                        if (glyphs_named_sofar_0 as usize) < (*glyphs).length
+                        if (glyphs_named_sofar_0 as usize) < (*glyphs).len()
                             && !glyphname_1.is_null()
                         {
                             let ref mut fresh4 =
-                                (**(*glyphs).items.offset(glyphs_named_sofar_0 as isize)).name;
+                                (*(&mut (*glyphs))[glyphs_named_sofar_0 as usize]).name;
                             *fresh4 = glyphname_1;
-                            (**(*glyphs).items.offset(glyphs_named_sofar_0 as isize)).cid =
+                            (*(&mut (*glyphs))[glyphs_named_sofar_0 as usize]).cid =
                                 sid_1 as GlyphId;
                         }
                         glyphs_named_sofar_0 = glyphs_named_sofar_0.wrapping_add(1);
@@ -1296,9 +1267,8 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         *(*charset).c2rust_unnamed.f0.glyph.offset(j_2 as isize) as CffSid;
                     let mut glyphname_2: SdsRaw = sdsget_cff_sid(sid_2 as u16, (*cff_file).string);
                     if !glyphname_2.is_null() {
-                        let ref mut fresh5 = (**(*glyphs).items.offset(
-                            (j_2 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
-                        ))
+                        let ref mut fresh5 = (*(&mut (*glyphs))
+                            [(j_2 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
                         .name;
                         *fresh5 = glyphname_2;
                     }
@@ -1321,11 +1291,11 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                             (first_1 as ::core::ffi::c_int + k_1 as ::core::ffi::c_int) as CffSid;
                         let mut glyphname_3: SdsRaw =
                             sdsget_cff_sid(sid_3 as u16, (*cff_file).string);
-                        if (glyphs_named_sofar_1 as usize) < (*glyphs).length
+                        if (glyphs_named_sofar_1 as usize) < (*glyphs).len()
                             && !glyphname_3.is_null()
                         {
                             let ref mut fresh6 =
-                                (**(*glyphs).items.offset(glyphs_named_sofar_1 as isize)).name;
+                                (*(&mut (*glyphs))[glyphs_named_sofar_1 as usize]).name;
                             *fresh6 = glyphname_3;
                         }
                         glyphs_named_sofar_1 = glyphs_named_sofar_1.wrapping_add(1);
@@ -1350,11 +1320,11 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                             (first_2 as ::core::ffi::c_int + k_2 as ::core::ffi::c_int) as CffSid;
                         let mut glyphname_4: SdsRaw =
                             sdsget_cff_sid(sid_4 as u16, (*cff_file).string);
-                        if (glyphs_named_sofar_2 as usize) < (*glyphs).length
+                        if (glyphs_named_sofar_2 as usize) < (*glyphs).len()
                             && !glyphname_4.is_null()
                         {
                             let ref mut fresh7 =
-                                (**(*glyphs).items.offset(glyphs_named_sofar_2 as isize)).name;
+                                (*(&mut (*glyphs))[glyphs_named_sofar_2 as usize]).name;
                             *fresh7 = glyphname_4;
                         }
                         glyphs_named_sofar_2 = glyphs_named_sofar_2.wrapping_add(1);
@@ -1376,8 +1346,8 @@ unsafe extern "C" fn apply_cff_matrix(
     mut head: *const HeadTable,
 ) {
     let mut jj: GlyphId = 0 as GlyphId;
-    while (jj as usize) < (*glyf).length {
-        let mut g: *mut Glyph = *(*glyf).items.offset(jj as isize) as *mut Glyph;
+    while (jj as usize) < (*glyf).len() {
+        let g: *mut Glyph = (&(*glyf))[jj as usize];
         let mut fd: *mut CffTable = cff;
         if !(*fd).fd_array.is_null()
             && ((*g).fd_select.index as ::core::ffi::c_int)
@@ -1413,25 +1383,24 @@ unsafe extern "C" fn apply_cff_matrix(
             );
             y.kernel = qround(y.kernel as ::core::ffi::c_double) as Pos;
             let mut j: ShapeId = 0 as ShapeId;
-            while (j as usize) < (*g).contours.length {
-                let mut contour: *mut Contour =
-                    (*g).contours.items.offset(j as isize) as *mut Contour;
+            while (j as usize) < (*g).contours.len() {
+                let contour: *mut Contour = &raw mut (&mut (*g).contours)[j as usize];
                 let mut k: ShapeId = 0 as ShapeId;
-                while (k as usize) < (*contour).length {
+                while (k as usize) < (*contour).len() {
                     let mut zx: VQ = I_VQ.dup.expect("non-null function pointer")(
-                        (*(*contour).items.offset(k as isize)).x.clone(),
+                        (&(*contour))[k as usize].x.clone(),
                     );
                     let mut zy: VQ = I_VQ.dup.expect("non-null function pointer")(
-                        (*(*contour).items.offset(k as isize)).y.clone(),
+                        (&(*contour))[k as usize].y.clone(),
                     );
                     I_VQ.replace.expect("non-null function pointer")(
-                        &raw mut (*(*contour).items.offset(k as isize)).x,
+                        &raw mut (&mut (*contour))[k as usize].x,
                         I_VQ.point_linear_tfm.expect("non-null function pointer")(
                             x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone(),
                         ) as VQ,
                     );
                     I_VQ.replace.expect("non-null function pointer")(
-                        &raw mut (*(*contour).items.offset(k as isize)).y,
+                        &raw mut (&mut (*contour))[k as usize].y,
                         I_VQ.point_linear_tfm.expect("non-null function pointer")(
                             y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone(),
                         ) as VQ,
@@ -1581,13 +1550,11 @@ pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
                         context.seed = (*(*context.meta).private_dict).initial_random_seed as u64
                             ^ 0x1234567887654321 as u64;
                     }
-                    let mut glyphs: *mut GlyfTable =
-                        TABLE_I_GLYF.create_n.expect("non-null function pointer")(
-                            (*cff_file).char_strings.count as usize,
-                        );
+                    let glyphs: *mut GlyfTable =
+                        table_glyf_create_n((*cff_file).char_strings.count as usize);
                     context.glyphs = glyphs;
                     let mut j_0: GlyphId = 0 as GlyphId;
-                    while (j_0 as usize) < (*glyphs).length {
+                    while (j_0 as usize) < (*glyphs).len() {
                         build_outline(j_0, &raw mut context, options);
                         j_0 = j_0.wrapping_add(1);
                     }
@@ -2298,13 +2265,13 @@ unsafe extern "C" fn cff_make_charstrings(
     mut gs: *mut *mut Buffer,
     mut ls: *mut *mut Buffer,
 ) {
-    if (*(*context).glyf).length == 0 as usize {
+    if (*(*context).glyf).is_empty() {
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*(*context).glyf).length {
+    while (j as usize) < (*(*context).glyf).len() {
         let mut il: *mut CffCharstringIl = cff_compile_glyph_to_il(
-            *(*(*context).glyf).items.offset(j as isize) as *mut Glyph,
+            (&(*(*context).glyf))[j as usize],
             (*context).default_width,
             (*context).nominal_width_x,
         );
@@ -3555,7 +3522,7 @@ unsafe extern "C" fn cff_make_charset(
         ::core::mem::size_of::<CffCharset>() as usize,
         1140 as ::core::ffi::c_ulong,
     ) as *mut CffCharset;
-    if (*glyf).length > 1 as usize {
+    if (*glyf).len() > 1 as usize {
         (*charset).t = CffCharsetType::Format2;
         (*charset).s = 1 as u32;
         (*charset).c2rust_unnamed.f2.format = 2 as u8;
@@ -3575,11 +3542,11 @@ unsafe extern "C" fn cff_make_charset(
                 .f2
                 .range2
                 .offset(0 as ::core::ffi::c_int as isize))
-            .nleft = (*glyf).length.wrapping_sub(2 as usize) as u16;
+            .nleft = (*glyf).len().wrapping_sub(2 as usize) as u16;
         } else {
             let mut j: GlyphId = 1 as GlyphId;
-            while (j as usize) < (*glyf).length {
-                sidof(string_hash, (**(*glyf).items.offset(j as isize)).name);
+            while (j as usize) < (*glyf).len() {
+                sidof(string_hash, (*(&(*glyf))[j as usize]).name);
                 j = j.wrapping_add(1);
             }
             (*(*charset)
@@ -3589,14 +3556,14 @@ unsafe extern "C" fn cff_make_charset(
                 .offset(0 as ::core::ffi::c_int as isize))
             .first = sidof(
                 string_hash,
-                (**(*glyf).items.offset(1 as ::core::ffi::c_int as isize)).name,
+                (*(&(*glyf))[1 as usize]).name,
             ) as u16;
             (*(*charset)
                 .c2rust_unnamed
                 .f2
                 .range2
                 .offset(0 as ::core::ffi::c_int as isize))
-            .nleft = (*glyf).length.wrapping_sub(2 as usize) as u16;
+            .nleft = (*glyf).len().wrapping_sub(2 as usize) as u16;
         }
     } else {
         (*charset).t = CffCharsetType::IsoAdobe;
@@ -3626,8 +3593,8 @@ unsafe extern "C" fn cff_make_fdselect(
         1171 as ::core::ffi::c_ulong,
     ) as *mut CffFdSelect;
     (*fds).t = CffFdSelectType::Unspecified;
-    if !((*glyf).length == 0) {
-        fdi0 = (**(*glyf).items.offset(0 as ::core::ffi::c_int as isize))
+    if !((*glyf).is_empty()) {
+        fdi0 = (*(&(*glyf))[0 as usize])
             .fd_select
             .index as u8;
         if fdi0 as ::core::ffi::c_int > (*cff).fd_array_count as ::core::ffi::c_int {
@@ -3635,8 +3602,8 @@ unsafe extern "C" fn cff_make_fdselect(
         }
         current = fdi0;
         let mut j: GlyphId = 1 as GlyphId;
-        while (j as usize) < (*glyf).length {
-            let mut fdi: u8 = (**(*glyf).items.offset(j as isize)).fd_select.index as u8;
+        while (j as usize) < (*glyf).len() {
+            let mut fdi: u8 = (*(&(*glyf))[j as usize]).fd_select.index as u8;
             if fdi as ::core::ffi::c_int > (*cff).fd_array_count as ::core::ffi::c_int {
                 fdi = 0 as u8;
             }
@@ -3665,13 +3632,13 @@ unsafe extern "C" fn cff_make_fdselect(
             .offset(0 as ::core::ffi::c_int as isize))
         .fd = current;
         let mut j_0: GlyphId = 1 as GlyphId;
-        while (j_0 as usize) < (*glyf).length {
+        while (j_0 as usize) < (*glyf).len() {
             let mut fdi_0: u8 =
-                (**(*glyf).items.offset(j_0 as isize)).fd_select.index as u8;
+                (*(&(*glyf))[j_0 as usize]).fd_select.index as u8;
             if fdi_0 as ::core::ffi::c_int > (*cff).fd_array_count as ::core::ffi::c_int {
                 fdi_0 = 0 as u8;
             }
-            if (**(*glyf).items.offset(j_0 as isize)).fd_select.index as ::core::ffi::c_int
+            if (*(&(*glyf))[j_0 as usize]).fd_select.index as ::core::ffi::c_int
                 != current as ::core::ffi::c_int
             {
                 current = fdi_0;
@@ -3686,7 +3653,7 @@ unsafe extern "C" fn cff_make_fdselect(
         (*fds).s = ranges;
         (*fds).c2rust_unnamed.f3.format = 3 as u8;
         (*fds).c2rust_unnamed.f3.nranges = ranges as u16;
-        (*fds).c2rust_unnamed.f3.sentinel = (*glyf).length as u16;
+        (*fds).c2rust_unnamed.f3.sentinel = (*glyf).len() as u16;
     }
     let mut e: *mut Buffer = cff_build_fd_select(*fds);
     cff_close_fd_select(*fds);

@@ -73,15 +73,15 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffe
     let mut flags: *mut Buffer = bufnew();
     let mut xs: *mut Buffer = bufnew();
     let mut ys: *mut Buffer = bufnew();
-    bufwrite16b(gbuf, (*g).contours.length as u16);
+    bufwrite16b(gbuf, (*g).contours.len() as u16);
     bufwrite16b(gbuf, pos_to_u16((*g).stat.x_min));
     bufwrite16b(gbuf, pos_to_u16((*g).stat.y_min));
     bufwrite16b(gbuf, pos_to_u16((*g).stat.x_max));
     bufwrite16b(gbuf, pos_to_u16((*g).stat.y_max));
     let mut ptid: ShapeId = 0 as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
-    while (j as usize) < (*g).contours.length {
-        ptid = (ptid as usize).wrapping_add((*(*g).contours.items.offset(j as isize)).length)
+    while (j as usize) < (*g).contours.len() {
+        ptid = (ptid as usize).wrapping_add((&(*g).contours)[j as usize].len())
             as ShapeId as ShapeId;
         bufwrite16b(
             gbuf,
@@ -99,12 +99,10 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffe
     let mut cx: i32 = 0 as i32;
     let mut cy: i32 = 0 as i32;
     let mut cj: ShapeId = 0 as ShapeId;
-    while (cj as usize) < (*g).contours.length {
+    while (cj as usize) < (*g).contours.len() {
         let mut k: ShapeId = 0 as ShapeId;
-        while (k as usize) < (*(*g).contours.items.offset(cj as isize)).length {
-            let mut p: *mut Point = (*(*g).contours.items.offset(cj as isize))
-                .items
-                .offset(k as isize) as *mut Point;
+        while (k as usize) < (&(*g).contours)[cj as usize].len() {
+            let p: *const Point = &(&(*g).contours)[cj as usize][k as usize];
             let mut flag: PointFlags = if (*p).on_curve & MASK_ON_CURVE != 0 {
                 PointFlags::ON_CURVE
             } else {
@@ -170,11 +168,10 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
     bufwrite16b(gbuf, pos_to_u16((*g).stat.x_max));
     bufwrite16b(gbuf, pos_to_u16((*g).stat.y_max));
     let mut rj: ShapeId = 0 as ShapeId;
-    while (rj as usize) < (*g).references.length {
-        let mut r: *mut ComponentReference =
-            (*g).references.items.offset(rj as isize) as *mut ComponentReference;
+    while (rj as usize) < (*g).references.len() {
+        let r: *const ComponentReference = &(&(*g).references)[rj as usize];
         let mut flags: ComponentFlags =
-            if (rj as usize) < (*g).references.length.wrapping_sub(1 as usize) {
+            if (rj as usize) < (*g).references.len().wrapping_sub(1 as usize) {
                 ComponentFlags::MORE_COMPONENTS
             } else if (*g).instructions_length as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
                 ComponentFlags::WE_HAVE_INSTRUCTIONS
@@ -291,31 +288,31 @@ pub unsafe extern "C" fn otfcc_build_glyf(
         let mut loca: *mut u32 = ::core::ptr::null_mut::<u32>();
         loca = __caryll_allocate_clean(
             (::core::mem::size_of::<u32>() as usize)
-                .wrapping_mul((*table).length.wrapping_add(1 as usize)),
+                .wrapping_mul((*table).len().wrapping_add(1 as usize)),
             189 as ::core::ffi::c_ulong,
         ) as *mut u32;
         let mut j: GlyphId = 0 as GlyphId;
-        while (j as usize) < (*table).length {
+        while (j as usize) < (*table).len() {
             *loca.offset(j as isize) = (*bufglyf).cursor as u32;
-            let mut g: *mut Glyph = *(*table).items.offset(j as isize) as *mut Glyph;
+            let g: *mut Glyph = (&(*table))[j as usize];
             bufclear(gbuf);
-            if (*g).contours.length > 0 as usize {
+            if !(*g).contours.is_empty() {
                 glyf_build_simple(g, gbuf);
-            } else if (*g).references.length > 0 as usize {
+            } else if !(*g).references.is_empty() {
                 glyf_build_composite(g, gbuf);
             }
             buflongalign(gbuf);
             bufwrite_buf(bufglyf, gbuf);
             j = j.wrapping_add(1);
         }
-        *loca.offset((*table).length as isize) = (*bufglyf).cursor as u32;
+        *loca.offset((*table).len() as isize) = (*bufglyf).cursor as u32;
         if (*bufglyf).cursor >= 0x20000 as ::core::ffi::c_int as usize {
             (*head).index_to_loc_format = 1 as i16;
         } else {
             (*head).index_to_loc_format = 0 as i16;
         }
         let mut j_0: u32 = 0 as u32;
-        while j_0 as usize <= (*table).length {
+        while j_0 as usize <= (*table).len() {
             if (*head).index_to_loc_format != 0 {
                 bufwrite32b(bufloca, *loca.offset(j_0 as isize));
             } else {

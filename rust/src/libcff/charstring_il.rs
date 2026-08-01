@@ -18,7 +18,7 @@ use crate::vf::vq::VQ;
 use crate::libcff::cff_opmean::{cff_get_standard_arity};
 use crate::libcff::cff_writer::{cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special};
 use crate::support::buffer::{bufnew};
-use crate::table::glyf::{GLYF_I_CONTOUR, GLYF_I_POINT};
+use crate::table::glyf::{GLYF_I_POINT};
 use crate::vf::vq::{I_VQ};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -313,64 +313,59 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
     let mut y: VQ =
         (I_VQ.neutral.expect("non-null function pointer"))();
     temp_contours = __caryll_allocate_clean(
-        (::core::mem::size_of::<Contour>() as usize).wrapping_mul((*g).contours.length),
+        (::core::mem::size_of::<Contour>() as usize).wrapping_mul((*g).contours.len()),
         149 as ::core::ffi::c_ulong,
     ) as *mut Contour;
     let mut c: u16 = 0 as u16;
-    while (c as usize) < (*g).contours.length {
-        let mut contour: *mut Contour =
-            (*g).contours.items.offset(c as isize) as *mut Contour;
-        let mut newcontour: *mut Contour =
-            temp_contours.offset(c as isize) as *mut Contour;
-        GLYF_I_CONTOUR.init.expect("non-null function pointer")(newcontour);
+    while (c as usize) < (*g).contours.len() {
+        let contour: *const Contour = &(&(*g).contours)[c as usize];
+        let newcontour: *mut Contour = temp_contours.offset(c as isize);
+        // `__caryll_allocate_clean` is calloc, so this field assignment reads
+        // an all-zero (not garbage) `Contour` first -- a `Vec` with capacity
+        // 0 never touches its pointer field when dropped, so the drop this
+        // assignment performs is a safe no-op regardless of the zero bytes
+        // underneath. Same reasoning as `vq_init` on calloc'd memory
+        // (rust/README.md).
+        *newcontour = Vec::new();
         let mut j: ShapeId = 0 as ShapeId;
-        while (j as usize) < (*contour).length {
-            GLYF_I_CONTOUR.push.expect("non-null function pointer")(
-                newcontour,
-                GLYF_I_POINT.dup.expect("non-null function pointer")(
-                    (*(*contour).items.offset(j as isize)).clone(),
-                ),
+        while (j as usize) < (*contour).len() {
+            (*newcontour).push(
+                GLYF_I_POINT.dup.expect("non-null function pointer")((&(*contour))[j as usize].clone()),
             );
             j = j.wrapping_add(1);
         }
-        if (*newcontour).length > 2 as usize
-            && (*(*newcontour)
-                .items
-                .offset((*newcontour).length.wrapping_sub(1 as usize) as isize))
-            .on_curve
+        if (*newcontour).len() > 2 as usize
+            && (&(*newcontour))[(*newcontour).len().wrapping_sub(1 as usize)]
+                .on_curve
                 == 0
         {
-            GLYF_I_CONTOUR.push.expect("non-null function pointer")(
-                newcontour,
-                GLYF_I_POINT.dup.expect("non-null function pointer")(
-                    (*(*newcontour).items.offset(0 as ::core::ffi::c_int as isize)).clone(),
-                ),
-            );
+            let first = (&(*newcontour))[0 as usize].clone();
+            (*newcontour).push(GLYF_I_POINT.dup.expect("non-null function pointer")(first));
         }
         let mut j_0: ShapeId = 0 as ShapeId;
-        while (j_0 as usize) < (*newcontour).length {
+        while (j_0 as usize) < (*newcontour).len() {
             let mut dx: VQ = I_VQ.minus.expect("non-null function pointer")(
-                (*(*newcontour).items.offset(j_0 as isize)).x.clone(),
+                (&(*newcontour))[j_0 as usize].x.clone(),
                 x.clone(),
             );
             let mut dy: VQ = I_VQ.minus.expect("non-null function pointer")(
-                (*(*newcontour).items.offset(j_0 as isize)).y.clone(),
+                (&(*newcontour))[j_0 as usize].y.clone(),
                 y.clone(),
             );
             I_VQ.copy_replace.expect("non-null function pointer")(
                 &raw mut x,
-                (*(*newcontour).items.offset(j_0 as isize)).x.clone(),
+                (&(*newcontour))[j_0 as usize].x.clone(),
             );
             I_VQ.copy_replace.expect("non-null function pointer")(
                 &raw mut y,
-                (*(*newcontour).items.offset(j_0 as isize)).y.clone(),
+                (&(*newcontour))[j_0 as usize].y.clone(),
             );
             I_VQ.replace.expect("non-null function pointer")(
-                &raw mut (*(*newcontour).items.offset(j_0 as isize)).x,
+                &raw mut (&mut (*newcontour))[j_0 as usize].x,
                 dx,
             );
             I_VQ.replace.expect("non-null function pointer")(
-                &raw mut (*(*newcontour).items.offset(j_0 as isize)).y,
+                &raw mut (&mut (*newcontour))[j_0 as usize].y,
                 dy,
             );
             j_0 = j_0.wrapping_add(1);
@@ -406,15 +401,14 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
         );
     }
     let mut c_0: ShapeId = 0 as ShapeId;
-    while (c_0 as usize) < (*g).contours.length {
-        let mut contour_0: *mut Contour =
-            temp_contours.offset(c_0 as isize) as *mut Contour;
-        let mut n: ShapeId = (*contour_0).length as ShapeId;
+    while (c_0 as usize) < (*g).contours.len() {
+        let contour_0: *const Contour = temp_contours.offset(c_0 as isize);
+        let mut n: ShapeId = (*contour_0).len() as ShapeId;
         if !(n as ::core::ffi::c_int == 0 as ::core::ffi::c_int) {
             il_moveto(
                 il,
-                (*(*contour_0).items.offset(0 as ::core::ffi::c_int as isize)).x.clone(),
-                (*(*contour_0).items.offset(0 as ::core::ffi::c_int as isize)).y.clone(),
+                (&(*contour_0))[0 as usize].x.clone(),
+                (&(*contour_0))[0 as usize].y.clone(),
             );
             points_sofar = points_sofar.wrapping_add(1);
             if hasmask {
@@ -429,47 +423,35 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
             }
             let mut j_1: ShapeId = 1 as ShapeId;
             while (j_1 as ::core::ffi::c_int) < n as ::core::ffi::c_int {
-                if (*(*contour_0).items.offset(j_1 as isize)).on_curve != 0 {
+                if (&(*contour_0))[j_1 as usize].on_curve != 0 {
                     il_lineto(
                         il,
-                        (*(*contour_0).items.offset(j_1 as isize)).x.clone(),
-                        (*(*contour_0).items.offset(j_1 as isize)).y.clone(),
+                        (&(*contour_0))[j_1 as usize].x.clone(),
+                        (&(*contour_0))[j_1 as usize].y.clone(),
                     );
                     points_sofar =
                         (points_sofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
                 } else if (j_1 as ::core::ffi::c_int)
                     < n as ::core::ffi::c_int - 2 as ::core::ffi::c_int
-                    && (*(*contour_0)
-                        .items
-                        .offset((j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
-                    .on_curve
+                    && (&(*contour_0))[(j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize]
+                        .on_curve
                         == 0
-                    && (*(*contour_0)
-                        .items
-                        .offset((j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize))
-                    .on_curve as ::core::ffi::c_int
+                    && (&(*contour_0))[(j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as usize]
+                        .on_curve as ::core::ffi::c_int
                         != 0
                 {
                     il_curveto(
                         il,
-                        (*(*contour_0).items.offset(j_1 as isize)).x.clone(),
-                        (*(*contour_0).items.offset(j_1 as isize)).y.clone(),
-                        (*(*contour_0).items.offset(
-                            (j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
-                        ))
-                        .x.clone(),
-                        (*(*contour_0).items.offset(
-                            (j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
-                        ))
-                        .y.clone(),
-                        (*(*contour_0).items.offset(
-                            (j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize,
-                        ))
-                        .x.clone(),
-                        (*(*contour_0).items.offset(
-                            (j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize,
-                        ))
-                        .y.clone(),
+                        (&(*contour_0))[j_1 as usize].x.clone(),
+                        (&(*contour_0))[j_1 as usize].y.clone(),
+                        (&(*contour_0))[(j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize]
+                            .x.clone(),
+                        (&(*contour_0))[(j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize]
+                            .y.clone(),
+                        (&(*contour_0))[(j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as usize]
+                            .x.clone(),
+                        (&(*contour_0))[(j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as usize]
+                            .y.clone(),
                     );
                     points_sofar =
                         (points_sofar as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as ShapeId;
@@ -477,8 +459,8 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
                 } else {
                     il_lineto(
                         il,
-                        (*(*contour_0).items.offset(j_1 as isize)).x.clone(),
-                        (*(*contour_0).items.offset(j_1 as isize)).y.clone(),
+                        (&(*contour_0))[j_1 as usize].x.clone(),
+                        (&(*contour_0))[j_1 as usize].y.clone(),
                     );
                     points_sofar = points_sofar.wrapping_add(1);
                 }
@@ -502,10 +484,11 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
     }
     il_push_op(il, OP_ENDCHAR);
     let mut c_1: ShapeId = 0 as ShapeId;
-    while (c_1 as usize) < (*g).contours.length {
-        GLYF_I_CONTOUR.dispose.expect("non-null function pointer")(
-            temp_contours.offset(c_1 as isize) as *mut Contour,
-        );
+    while (c_1 as usize) < (*g).contours.len() {
+        // Each slot is a genuine `Vec<Point>` placement-constructed above,
+        // so this is an ordinary drop -- not the calloc-garbage case (see
+        // the field-assignment comment above).
+        ::core::ptr::drop_in_place(temp_contours.offset(c_1 as isize));
         c_1 = c_1.wrapping_add(1);
     }
     free(temp_contours as *mut ::core::ffi::c_void);

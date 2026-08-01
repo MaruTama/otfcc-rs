@@ -3,7 +3,7 @@
 pub mod build;
 pub mod read;
 
-use libc::{fprintf, free, malloc, memcmp, memset, strcmp};
+use libc::{fprintf, free, malloc, memcmp, strcmp};
 unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
@@ -16,7 +16,6 @@ use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonValue, JsonType};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_grow_to_n, cvec_init, cvec_pop, cvec_push, cvec_resize_to};
 use crate::support::buffer::{Buffer};
 use crate::support::{TRUE_0};
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
@@ -49,46 +48,13 @@ pub struct PointElementInterface {
     pub empty: Option<unsafe extern "C" fn() -> Point>,
     pub dup: Option<unsafe extern "C" fn(Point) -> Point>,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Contour {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut Point,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ContourVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut Contour, *const Contour) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut Contour>,
-    pub free: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
-    pub init_cap_n: Option<unsafe extern "C" fn(*mut Contour, usize) -> ()>,
-    pub fill: Option<unsafe extern "C" fn(*mut Contour, usize) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut Contour, Point) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut Contour) -> ()>,
-    pub pop: Option<unsafe extern "C" fn(*mut Contour) -> Point>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ContourList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut Contour,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ContourListVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut ContourList, *const ContourList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut ContourList>,
-    pub free: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut ContourList, Contour) -> ()>,
-    pub shrink_to_fit: Option<unsafe extern "C" fn(*mut ContourList) -> ()>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut ContourList, usize) -> ()>,
-}
+/// A single outline contour, owned point-by-point. Plain `Vec<Point>`: every
+/// point's `VQ` fields are themselves `Vec`s, so dropping a `Contour` already
+/// recursively frees everything it owns -- no element embeds a `Handle`, so
+/// unlike [`ReferenceList`] there is nothing that needs an explicit dispose
+/// loop before a container of these is torn down.
+pub type Contour = Vec<Point>;
+pub type ContourList = Vec<Contour>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct PostscriptStemDef {
@@ -143,25 +109,12 @@ pub struct ComponentReferenceElementInterface {
     pub empty: Option<unsafe extern "C" fn() -> ComponentReference>,
     pub dup: Option<unsafe extern "C" fn(ComponentReference) -> ComponentReference>,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ReferenceList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut ComponentReference,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ReferenceListVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
-    pub copy:
-        Option<unsafe extern "C" fn(*mut ReferenceList, *const ReferenceList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut ReferenceList>,
-    pub free: Option<unsafe extern "C" fn(*mut ReferenceList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut ReferenceList, ComponentReference) -> ()>,
-    pub dispose_item: Option<unsafe extern "C" fn(*mut ReferenceList, usize) -> ()>,
-}
+/// A glyph's component references. Each [`ComponentReference`] owns a
+/// `GlyphHandle`, which -- by this crate's `Handle` convention -- stays
+/// `Copy` and is never auto-dropped, so unlike [`Contour`] this container
+/// still needs an explicit per-element dispose pass (see
+/// `dispose_reference_list`) before it can be dropped or cleared.
+pub type ReferenceList = Vec<ComponentReference>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GlyphStat {
@@ -197,31 +150,11 @@ pub struct Glyph {
     pub stat: GlyphStat,
 }
 pub type GlyphPtr = *mut Glyph;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GlyphPtrElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GlyphPtr) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut GlyphPtr, *const GlyphPtr) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut GlyphPtr) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GlyfTable {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut GlyphPtr,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GlyfTableVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut GlyfTable, *const GlyfTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GlyfTable>,
-    pub free: Option<unsafe extern "C" fn(*mut GlyfTable) -> ()>,
-    pub create_n: Option<unsafe extern "C" fn(usize) -> *mut GlyfTable>,
-    pub push: Option<unsafe extern "C" fn(*mut GlyfTable, GlyphPtr) -> ()>,
-}
+/// The font's glyph table: an array of owned glyph pointers, indexed by GID.
+/// This is the "pointer array" shape (classification (3) in `rust/README.md`)
+/// -- the container is `Vec<*mut Glyph>`, but `Glyph` itself stays behind a
+/// raw pointer for now (Box-ifying the pointees is Stage 6-4, not this pass).
+pub type GlyfTable = Vec<GlyphPtr>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GlyfIOContext {
@@ -338,60 +271,13 @@ unsafe extern "C" fn glyf_point_dup(src: Point) -> Point {
 unsafe extern "C" fn glyf_point_copy(mut dst: *mut Point, mut src: *const Point) {
     copy_point(dst, src);
 }
+/// Grows `arr` to `n` points, default-constructing each new one via
+/// [`GLYF_I_POINT`] -- the element-level vtable stays untouched (it also
+/// serves `libcff/charstring_il.rs` and `table/cff.rs`), only the container
+/// this used to dispatch through (`ContourVectorInterface`) is gone.
 #[inline]
-unsafe extern "C" fn glyf_contour_free(mut x: *mut Contour) {
-    if x.is_null() {
-        return;
-    }
-    glyf_contour_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_create() -> *mut Contour {
-    let mut x: *mut Contour =
-        malloc(::core::mem::size_of::<Contour>() as usize) as *mut Contour;
-    glyf_contour_init(x);
-    return x;
-}
-pub static GLYF_I_CONTOUR: ContourVectorInterface = {
-    ContourVectorInterface {
-        init: Some(glyf_contour_init as unsafe extern "C" fn(*mut Contour) -> ()),
-        copy: Some(
-            glyf_contour_copy as unsafe extern "C" fn(*mut Contour, *const Contour) -> (),
-        ),
-        dispose: Some(glyf_contour_dispose as unsafe extern "C" fn(*mut Contour) -> ()),
-        create: Some(glyf_contour_create),
-        free: Some(glyf_contour_free as unsafe extern "C" fn(*mut Contour) -> ()),
-        init_cap_n: Some(
-            glyf_contour_init_cap_n as unsafe extern "C" fn(*mut Contour, usize) -> (),
-        ),
-        fill: Some(glyf_contour_fill as unsafe extern "C" fn(*mut Contour, usize) -> ()),
-        push: Some(glyf_contour_push as unsafe extern "C" fn(*mut Contour, Point) -> ()),
-        shrink_to_fit: Some(
-            glyf_contour_shrink_to_fit as unsafe extern "C" fn(*mut Contour) -> (),
-        ),
-        pop: Some(glyf_contour_pop as unsafe extern "C" fn(*mut Contour) -> Point),
-    }
-};
-#[inline]
-unsafe extern "C" fn glyf_contour_shrink_to_fit(mut arr: *mut Contour) {
-    glyf_contour_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_resize_to(arr: *mut Contour, target: usize) {
-    cvec_resize_to(glyf_contour_as_cvec(arr), target);
-}
-#[inline]
-unsafe fn glyf_contour_as_cvec(arr: *mut Contour) -> *mut CVecRaw<Point> {
-    arr as *mut CVecRaw<Point>
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_init(arr: *mut Contour) {
-    cvec_init(glyf_contour_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_fill(mut arr: *mut Contour, mut n: usize) {
-    while (*arr).length < n {
+unsafe fn glyf_contour_fill(arr: *mut Contour, n: usize) {
+    while (*arr).len() < n {
         let mut x: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -403,204 +289,9 @@ unsafe extern "C" fn glyf_contour_fill(mut arr: *mut Contour, mut n: usize) {
             },
             on_curve: 0,
         };
-        if GLYF_I_POINT.init.is_some() {
-            GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<Point>() as usize,
-            );
-        }
-        glyf_contour_push(arr, x);
+        GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut x);
+        (*arr).push(x);
     }
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_push(arr: *mut Contour, elem: Point) {
-    cvec_push(glyf_contour_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_grow_to(arr: *mut Contour, target: usize) {
-    cvec_grow_to(glyf_contour_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_pop(arr: *mut Contour) -> Point {
-    cvec_pop(glyf_contour_as_cvec(arr))
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_copy(mut dst: *mut Contour, mut src: *const Contour) {
-    glyf_contour_init(dst);
-    glyf_contour_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if GLYF_I_POINT.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            GLYF_I_POINT.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut Point,
-                (*src).items.offset(j as isize) as *mut Point as *const Point,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = (*(*src).items.offset(j_0 as isize)).clone();
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_dispose(mut arr: *mut Contour) {
-    if arr.is_null() {
-        return;
-    }
-    if GLYF_I_POINT.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            GLYF_I_POINT.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut Point,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<Point>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_init_cap_n(mut arr: *mut Contour, mut n: usize) {
-    glyf_contour_init(arr);
-    glyf_contour_grow_to_n(arr, n);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_grow_to_n(arr: *mut Contour, target: usize) {
-    cvec_grow_to_n(glyf_contour_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_dispose_item(mut arr: *mut ContourList, mut n: usize) {
-    if GLYF_I_CONTOUR.dispose.is_some() {
-        GLYF_I_CONTOUR.dispose.expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut Contour
-        );
-    } else {
-    };
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_copy(
-    mut dst: *mut ContourList,
-    mut src: *const ContourList,
-) {
-    glyf_contour_list_init(dst);
-    glyf_contour_list_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if GLYF_I_CONTOUR.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            GLYF_I_CONTOUR.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut Contour,
-                (*src).items.offset(j as isize) as *mut Contour as *const Contour,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_free(mut x: *mut ContourList) {
-    if x.is_null() {
-        return;
-    }
-    glyf_contour_list_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_create() -> *mut ContourList {
-    let mut x: *mut ContourList =
-        malloc(::core::mem::size_of::<ContourList>() as usize) as *mut ContourList;
-    glyf_contour_list_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_dispose(mut arr: *mut ContourList) {
-    if arr.is_null() {
-        return;
-    }
-    if GLYF_I_CONTOUR.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh3 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh3 != 0) {
-                break;
-            }
-            GLYF_I_CONTOUR.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut Contour,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<Contour>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-pub static GLYF_I_CONTOUR_LIST: ContourListVectorInterface = {
-    ContourListVectorInterface {
-        init: Some(glyf_contour_list_init as unsafe extern "C" fn(*mut ContourList) -> ()),
-        copy: Some(
-            glyf_contour_list_copy
-                as unsafe extern "C" fn(*mut ContourList, *const ContourList) -> (),
-        ),
-        dispose: Some(
-            glyf_contour_list_dispose as unsafe extern "C" fn(*mut ContourList) -> (),
-        ),
-        create: Some(glyf_contour_list_create),
-        free: Some(glyf_contour_list_free as unsafe extern "C" fn(*mut ContourList) -> ()),
-        push: Some(
-            glyf_contour_list_push
-                as unsafe extern "C" fn(*mut ContourList, Contour) -> (),
-        ),
-        shrink_to_fit: Some(
-            glyf_contour_list_shrink_to_fit as unsafe extern "C" fn(*mut ContourList) -> (),
-        ),
-        dispose_item: Some(
-            glyf_contour_list_dispose_item
-                as unsafe extern "C" fn(*mut ContourList, usize) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn glyf_contour_list_shrink_to_fit(mut arr: *mut ContourList) {
-    glyf_contour_list_resize_to(arr, (*arr).length);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_push(arr: *mut ContourList, elem: Contour) {
-    cvec_push(glyf_contour_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_grow_to(arr: *mut ContourList, target: usize) {
-    cvec_grow_to(glyf_contour_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_resize_to(arr: *mut ContourList, target: usize) {
-    cvec_resize_to(glyf_contour_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe fn glyf_contour_list_as_cvec(arr: *mut ContourList) -> *mut CVecRaw<Contour> {
-    arr as *mut CVecRaw<Contour>
-}
-#[inline]
-unsafe extern "C" fn glyf_contour_list_init(arr: *mut ContourList) {
-    cvec_init(glyf_contour_list_as_cvec(arr));
 }
 #[inline]
 unsafe extern "C" fn init_glyf_reference(mut ref_0: *mut ComponentReference) {
@@ -744,125 +435,20 @@ pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
         ),
     }
 };
+/// Disposes every element's `GlyphHandle` (Rust's auto-drop already frees
+/// each `ComponentReference`'s `x`/`y` `VQ` `Vec`s, but not the `Handle`,
+/// which stays `Copy` by this crate's convention) and then empties the
+/// backing `Vec` -- `*refs = Vec::new()`, not `.clear()`, so a caller that
+/// immediately `free()`s the enclosing struct doesn't leak the old
+/// allocation (see rust/README.md).
 #[inline]
-unsafe extern "C" fn glyf_reference_list_push(arr: *mut ReferenceList, elem: ComponentReference) {
-    cvec_push(glyf_reference_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn glyf_reference_list_grow_to(arr: *mut ReferenceList, target: usize) {
-    cvec_grow_to(glyf_reference_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn glyf_reference_list_dispose(mut arr: *mut ReferenceList) {
-    if arr.is_null() {
-        return;
-    }
-    if GLYF_I_COMPONENT_REFERENCE.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh9 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh9 != 0) {
-                break;
-            }
-            GLYF_I_COMPONENT_REFERENCE
-                .dispose
-                .expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut ComponentReference
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<ComponentReference>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn glyf_reference_list_copy(
-    mut dst: *mut ReferenceList,
-    mut src: *const ReferenceList,
-) {
-    glyf_reference_list_init(dst);
-    glyf_reference_list_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if GLYF_I_COMPONENT_REFERENCE.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            GLYF_I_COMPONENT_REFERENCE
-                .copy
-                .expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut ComponentReference,
-                (*src).items.offset(j as isize) as *mut ComponentReference
-                    as *const ComponentReference,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = (*(*src).items.offset(j_0 as isize)).clone();
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn glyf_reference_list_free(mut x: *mut ReferenceList) {
-    if x.is_null() {
-        return;
-    }
-    glyf_reference_list_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn glyf_reference_list_create() -> *mut ReferenceList {
-    let mut x: *mut ReferenceList =
-        malloc(::core::mem::size_of::<ReferenceList>() as usize) as *mut ReferenceList;
-    glyf_reference_list_init(x);
-    return x;
-}
-pub static GLYF_I_REFERENCE_LIST: ReferenceListVectorInterface = {
-    ReferenceListVectorInterface {
-        init: Some(glyf_reference_list_init as unsafe extern "C" fn(*mut ReferenceList) -> ()),
-        copy: Some(
-            glyf_reference_list_copy
-                as unsafe extern "C" fn(*mut ReferenceList, *const ReferenceList) -> (),
-        ),
-        dispose: Some(
-            glyf_reference_list_dispose as unsafe extern "C" fn(*mut ReferenceList) -> (),
-        ),
-        create: Some(glyf_reference_list_create),
-        free: Some(glyf_reference_list_free as unsafe extern "C" fn(*mut ReferenceList) -> ()),
-        push: Some(
-            glyf_reference_list_push
-                as unsafe extern "C" fn(*mut ReferenceList, ComponentReference) -> (),
-        ),
-        dispose_item: Some(
-            glyf_reference_list_dispose_item
-                as unsafe extern "C" fn(*mut ReferenceList, usize) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe fn glyf_reference_list_as_cvec(arr: *mut ReferenceList) -> *mut CVecRaw<ComponentReference> {
-    arr as *mut CVecRaw<ComponentReference>
-}
-#[inline]
-unsafe extern "C" fn glyf_reference_list_init(arr: *mut ReferenceList) {
-    cvec_init(glyf_reference_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn glyf_reference_list_dispose_item(
-    mut arr: *mut ReferenceList,
-    mut n: usize,
-) {
-    if GLYF_I_COMPONENT_REFERENCE.dispose.is_some() {
+unsafe fn dispose_reference_list(refs: *mut ReferenceList) {
+    for r in (*refs).iter_mut() {
         GLYF_I_COMPONENT_REFERENCE
             .dispose
-            .expect("non-null function pointer")(
-            (*arr).items.offset(n as isize) as *mut ComponentReference
-        );
-    } else {
-    };
+            .expect("non-null function pointer")(r as *mut ComponentReference);
+    }
+    *refs = Vec::new();
 }
 pub unsafe extern "C" fn otfcc_new_glyf_glyph() -> *mut Glyph {
     let mut g: *mut Glyph = ::core::ptr::null_mut::<Glyph>();
@@ -875,8 +461,8 @@ pub unsafe extern "C" fn otfcc_new_glyf_glyph() -> *mut Glyph {
     I_VQ.init.expect("non-null function pointer")(&raw mut (*g).advance_width);
     I_VQ.init.expect("non-null function pointer")(&raw mut (*g).vertical_origin);
     I_VQ.init.expect("non-null function pointer")(&raw mut (*g).advance_height);
-    GLYF_I_CONTOUR_LIST.init.expect("non-null function pointer")(&raw mut (*g).contours);
-    GLYF_I_REFERENCE_LIST.init.expect("non-null function pointer")(&raw mut (*g).references);
+    (*g).contours = Vec::new();
+    (*g).references = Vec::new();
     (*g).stem_h = Vec::new();
     (*g).stem_v = Vec::new();
     (*g).hint_masks = Vec::new();
@@ -905,12 +491,8 @@ unsafe extern "C" fn otfcc_delete_glyf_glyph(mut g: *mut Glyph) {
     I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).vertical_origin);
     I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).advance_height);
     sdsfree((*g).name);
-    GLYF_I_CONTOUR_LIST
-        .dispose
-        .expect("non-null function pointer")(&raw mut (*g).contours);
-    GLYF_I_REFERENCE_LIST
-        .dispose
-        .expect("non-null function pointer")(&raw mut (*g).references);
+    (*g).contours = Vec::new();
+    dispose_reference_list(&raw mut (*g).references);
     (*g).stem_h = Vec::new();
     (*g).stem_v = Vec::new();
     (*g).hint_masks = Vec::new();
@@ -924,180 +506,70 @@ unsafe extern "C" fn otfcc_delete_glyf_glyph(mut g: *mut Glyph) {
     free(g as *mut ::core::ffi::c_void);
     g = ::core::ptr::null_mut::<Glyph>();
 }
+/// Disposes every owned glyph (each `GlyphPtr` slot may be null while the
+/// table is being filled in, e.g. `otfcc_read_glyf`'s partially-built
+/// tables; `otfcc_delete_glyf_glyph` already no-ops on null) and then drops
+/// the backing `Vec` of pointers itself -- the pointees are freed above,
+/// this just reclaims the pointer array.
 #[inline]
-unsafe extern "C" fn init_glyf_ptr(mut g: *mut GlyphPtr) {
-    *g = ::core::ptr::null_mut::<Glyph>();
-}
-unsafe extern "C" fn copy_glyf_ptr(mut dst: *mut GlyphPtr, mut src: *const GlyphPtr) {
-    *dst = *src;
-}
-#[inline]
-unsafe extern "C" fn dispose_glyf_ptr(mut g: *mut GlyphPtr) {
-    otfcc_delete_glyf_glyph(*g);
-}
-pub static GLYF_I_GLYPH_PTR: GlyphPtrElementInterface = {
-    GlyphPtrElementInterface {
-        init: Some(init_glyf_ptr as unsafe extern "C" fn(*mut GlyphPtr) -> ()),
-        copy: Some(
-            copy_glyf_ptr as unsafe extern "C" fn(*mut GlyphPtr, *const GlyphPtr) -> (),
-        ),
-        dispose: Some(dispose_glyf_ptr as unsafe extern "C" fn(*mut GlyphPtr) -> ()),
+unsafe fn dispose_glyf_table(t: *mut GlyfTable) {
+    for &g in (*t).iter() {
+        otfcc_delete_glyf_glyph(g);
     }
-};
-#[inline]
-unsafe extern "C" fn table_glyf_init_n(mut arr: *mut GlyfTable, mut n: usize) {
-    table_glyf_init(arr);
-    table_glyf_grow_to_n(arr, n);
-    table_glyf_fill(arr, n);
+    *t = Vec::new();
 }
-#[inline]
-unsafe fn table_glyf_as_cvec(arr: *mut GlyfTable) -> *mut CVecRaw<GlyphPtr> {
-    arr as *mut CVecRaw<GlyphPtr>
-}
-#[inline]
-unsafe extern "C" fn table_glyf_init(arr: *mut GlyfTable) {
-    cvec_init(table_glyf_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn table_glyf_fill(mut arr: *mut GlyfTable, mut n: usize) {
-    while (*arr).length < n {
-        let mut x: GlyphPtr = ::core::ptr::null_mut::<Glyph>();
-        if GLYF_I_GLYPH_PTR.init.is_some() {
-            GLYF_I_GLYPH_PTR.init.expect("non-null function pointer")(&raw mut x);
-        } else {
-            memset(
-                &raw mut x as *mut ::core::ffi::c_void,
-                0 as ::core::ffi::c_int,
-                ::core::mem::size_of::<GlyphPtr>() as usize,
-            );
-        }
-        table_glyf_push(arr, x);
-    }
-}
-#[inline]
-unsafe extern "C" fn table_glyf_push(arr: *mut GlyfTable, elem: GlyphPtr) {
-    cvec_push(table_glyf_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn table_glyf_grow_to(arr: *mut GlyfTable, target: usize) {
-    cvec_grow_to(table_glyf_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn table_glyf_copy(mut dst: *mut GlyfTable, mut src: *const GlyfTable) {
-    table_glyf_init(dst);
-    table_glyf_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if GLYF_I_GLYPH_PTR.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            GLYF_I_GLYPH_PTR.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut GlyphPtr,
-                (*src).items.offset(j as isize) as *mut GlyphPtr as *const GlyphPtr,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            let ref mut fresh13 = *(*dst).items.offset(j_0 as isize);
-            *fresh13 = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn table_glyf_dispose(mut arr: *mut GlyfTable) {
-    if arr.is_null() {
-        return;
-    }
-    if GLYF_I_GLYPH_PTR.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh14 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh14 != 0) {
-                break;
-            }
-            GLYF_I_GLYPH_PTR.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut GlyphPtr,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<GlyphPtr>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn table_glyf_grow_to_n(arr: *mut GlyfTable, target: usize) {
-    cvec_grow_to_n(table_glyf_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn table_glyf_free(mut x: *mut GlyfTable) {
+pub(crate) unsafe extern "C" fn table_glyf_free(x: *mut GlyfTable) {
     if x.is_null() {
         return;
     }
-    table_glyf_dispose(x);
+    dispose_glyf_table(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[inline]
-unsafe extern "C" fn table_glyf_create_n(mut n: usize) -> *mut GlyfTable {
-    let mut t: *mut GlyfTable =
-        malloc(::core::mem::size_of::<GlyfTable>() as usize) as *mut GlyfTable;
-    table_glyf_init_n(t, n);
-    return t;
+/// `.write()`, not a field assignment: `GlyfTable` is directly `Vec<T>` (no
+/// wrapper struct), so this placement-constructs the whole value and never
+/// reads whatever `malloc` left behind -- same reasoning as `ColrTable`'s
+/// `table_colr_create` (rust/README.md).
+pub(crate) unsafe extern "C" fn table_glyf_create() -> *mut GlyfTable {
+    let x: *mut GlyfTable = malloc(::core::mem::size_of::<GlyfTable>() as usize) as *mut GlyfTable;
+    x.write(Vec::new());
+    x
 }
-#[inline]
-unsafe extern "C" fn table_glyf_create() -> *mut GlyfTable {
-    let mut x: *mut GlyfTable =
-        malloc(::core::mem::size_of::<GlyfTable>() as usize) as *mut GlyfTable;
-    table_glyf_init(x);
-    return x;
+pub(crate) unsafe extern "C" fn table_glyf_create_n(n: usize) -> *mut GlyfTable {
+    let x: *mut GlyfTable = malloc(::core::mem::size_of::<GlyfTable>() as usize) as *mut GlyfTable;
+    x.write(vec![::core::ptr::null_mut::<Glyph>(); n]);
+    x
 }
-pub static TABLE_I_GLYF: GlyfTableVectorInterface = {
-    GlyfTableVectorInterface {
-        init: Some(table_glyf_init as unsafe extern "C" fn(*mut GlyfTable) -> ()),
-        copy: Some(
-            table_glyf_copy as unsafe extern "C" fn(*mut GlyfTable, *const GlyfTable) -> (),
-        ),
-        dispose: Some(table_glyf_dispose as unsafe extern "C" fn(*mut GlyfTable) -> ()),
-        create: Some(table_glyf_create),
-        free: Some(table_glyf_free as unsafe extern "C" fn(*mut GlyfTable) -> ()),
-        create_n: Some(table_glyf_create_n as unsafe extern "C" fn(usize) -> *mut GlyfTable),
-        push: Some(table_glyf_push as unsafe extern "C" fn(*mut GlyfTable, GlyphPtr) -> ()),
-    }
-};
 unsafe extern "C" fn glyf_glyph_dump_contours(
     mut g: *mut Glyph,
     mut target: *mut JsonValue,
     mut ctx: *const GlyfIOContext,
 ) {
-    if (*g).contours.length == 0 {
+    if (*g).contours.is_empty() {
         return;
     }
-    let mut contours: *mut JsonValue = json_array_new((*g).contours.length);
+    let mut contours: *mut JsonValue = json_array_new((*g).contours.len());
     let mut k: ShapeId = 0 as ShapeId;
-    while (k as usize) < (*g).contours.length {
-        let mut c: *mut Contour = (*g).contours.items.offset(k as isize) as *mut Contour;
-        let mut contour: *mut JsonValue = json_array_new((*c).length);
+    while (k as usize) < (*g).contours.len() {
+        let c: &Contour = &(&(*g).contours)[k as usize];
+        let mut contour: *mut JsonValue = json_array_new(c.len());
         let mut m: ShapeId = 0 as ShapeId;
-        while (m as usize) < (*c).length {
+        while (m as usize) < c.len() {
             let mut point: *mut JsonValue = json_object_new(4 as usize);
             json_object_push(
                 point,
                 b"x\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_vq((*(*c).items.offset(m as isize)).x.clone(), (*ctx).fvar),
+                json_new_vq(c[m as usize].x.clone(), (*ctx).fvar),
             );
             json_object_push(
                 point,
                 b"y\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_vq((*(*c).items.offset(m as isize)).y.clone(), (*ctx).fvar),
+                json_new_vq(c[m as usize].y.clone(), (*ctx).fvar),
             );
             json_object_push(
                 point,
                 b"on\0" as *const u8 as *const ::core::ffi::c_char,
                 json_boolean_new(
-                    ((*(*c).items.offset(m as isize)).on_curve & MASK_ON_CURVE)
+                    (c[m as usize].on_curve & MASK_ON_CURVE)
                         as ::core::ffi::c_int,
                 ),
             );
@@ -1118,14 +590,13 @@ unsafe extern "C" fn glyf_glyph_dump_references(
     mut target: *mut JsonValue,
     mut ctx: *const GlyfIOContext,
 ) {
-    if (*g).references.length == 0 {
+    if (*g).references.is_empty() {
         return;
     }
-    let mut references: *mut JsonValue = json_array_new((*g).references.length);
+    let mut references: *mut JsonValue = json_array_new((*g).references.len());
     let mut k: ShapeId = 0 as ShapeId;
-    while (k as usize) < (*g).references.length {
-        let mut r: *mut ComponentReference =
-            (*g).references.items.offset(k as isize) as *mut ComponentReference;
+    while (k as usize) < (*g).references.len() {
+        let r: *mut ComponentReference = &raw mut (&mut (*g).references)[k as usize];
         let mut ref_0: *mut JsonValue = json_object_new(9 as usize);
         json_object_push(
             ref_0,
@@ -1401,14 +872,15 @@ pub unsafe extern "C" fn otfcc_dump_glyphorder(
     if table.is_null() {
         return;
     }
-    let mut order: *mut JsonValue = json_array_new((*table).length);
+    let mut order: *mut JsonValue = json_array_new((*table).len());
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*table).length {
+    while (j as usize) < (*table).len() {
+        let g: GlyphPtr = (&(*table))[j as usize];
         json_array_push(
             order,
             json_string_new_length(
-                sdslen((**(*table).items.offset(j as isize)).name) as ::core::ffi::c_uint,
-                (**(*table).items.offset(j as isize)).name as *const ::core::ffi::c_char,
+                sdslen((*g).name) as ::core::ffi::c_uint,
+                (*g).name as *const ::core::ffi::c_char,
             ),
         );
         j = j.wrapping_add(1);
@@ -1436,10 +908,10 @@ pub unsafe extern "C" fn otfcc_dump_glyf(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut glyf: *mut JsonValue = json_object_new((*table).length);
+        let mut glyf: *mut JsonValue = json_object_new((*table).len());
         let mut j: GlyphId = 0 as GlyphId;
-        while (j as usize) < (*table).length {
-            let mut g: *mut Glyph = *(*table).items.offset(j as isize) as *mut Glyph;
+        while (j as usize) < (*table).len() {
+            let g: *mut Glyph = (&(*table))[j as usize];
             json_object_push(
                 glyf,
                 (*g).name as *const ::core::ffi::c_char,
@@ -1516,13 +988,7 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut JsonValue, mut g: *mut Gl
     while (j as ::core::ffi::c_int) < n_contours as ::core::ffi::c_int {
         let mut contourdump: *mut JsonValue =
             *(*col).u.array.values.offset(j as isize) as *mut JsonValue;
-        let mut contour: Contour = Contour {
-            length: 0,
-            capacity: 0,
-            items: ::core::ptr::null_mut::<Point>(),
-        };
-        GLYF_I_CONTOUR.init_cap_n.expect("non-null function pointer")(
-            &raw mut contour,
+        let mut contour: Contour = Vec::with_capacity(
             (if !contourdump.is_null()
                 && (*contourdump).type_0 == JsonType::Array
             {
@@ -1536,16 +1002,13 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *mut JsonValue, mut g: *mut Gl
         {
             let mut k: ShapeId = 0 as ShapeId;
             while (k as ::core::ffi::c_uint) < (*contourdump).u.array.length {
-                GLYF_I_CONTOUR.push.expect("non-null function pointer")(
-                    &raw mut contour,
-                    glyf_parse_point(
-                        *(*contourdump).u.array.values.offset(k as isize) as *mut JsonValue
-                    ),
-                );
+                contour.push(glyf_parse_point(
+                    *(*contourdump).u.array.values.offset(k as isize) as *mut JsonValue
+                ));
                 k = k.wrapping_add(1);
             }
         }
-        GLYF_I_CONTOUR_LIST.push.expect("non-null function pointer")(&raw mut (*g).contours, contour);
+        (*g).contours.push(contour);
         j = j.wrapping_add(1);
     }
 }
@@ -1648,10 +1111,9 @@ unsafe extern "C" fn glyf_parse_references(mut col: *mut JsonValue, mut g: *mut 
     }
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_uint) < (*col).u.array.length {
-        GLYF_I_REFERENCE_LIST.push.expect("non-null function pointer")(
-            &raw mut (*g).references,
-            glyf_parse_reference(*(*col).u.array.values.offset(j as isize) as *mut JsonValue),
-        );
+        (*g).references.push(glyf_parse_reference(
+            *(*col).u.array.values.offset(j as isize) as *mut JsonValue,
+        ));
         j = j.wrapping_add(1);
     }
 }
@@ -1941,7 +1403,7 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             let mut num_glyphs: GlyphId = (*table).u.object.length as GlyphId;
-            glyf = TABLE_I_GLYF.create_n.expect("non-null function pointer")(num_glyphs as usize);
+            glyf = table_glyf_create_n(num_glyphs as usize);
             let mut j: GlyphId = 0 as GlyphId;
             while (j as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int {
                 let mut gname: SdsRaw = sdsnewlen(
@@ -2278,10 +1740,9 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
                 }
                 if (*glyphdump).type_0 == JsonType::Object
                     && !order_entry.is_null()
-                    && (*(*glyf).items.offset((*order_entry).gid as isize)).is_null()
+                    && (&(*glyf))[(*order_entry).gid as usize].is_null()
                 {
-                    let ref mut fresh15 = *(*glyf).items.offset((*order_entry).gid as isize);
-                    *fresh15 =
+                    (&mut (*glyf))[(*order_entry).gid as usize] =
                         otfcc_glyf_parse_glyph(glyphdump, order_entry, options) as GlyphPtr;
                 }
                 json_value_free(glyphdump);

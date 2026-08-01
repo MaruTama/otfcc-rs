@@ -57,7 +57,7 @@ use crate::table::cmap::{TABLE_I_CMAP};
 use crate::table::cvt::{TABLE_I_CVT};
 use crate::table::fpgm_prep::{TABLE_I_FPGM_PREP};
 use crate::table::gasp::{TABLE_I_GASP};
-use crate::table::glyf::{TABLE_I_GLYF};
+use crate::table::glyf::{table_glyf_free};
 use crate::table::head::{TABLE_I_HEAD};
 use crate::table::hhea::{TABLE_I_HHEA};
 use crate::table::hmtx::{TABLE_I_HMTX};
@@ -253,7 +253,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
         }
         1735162214 => {
             if !(*font).glyf.is_null() {
-                TABLE_I_GLYF.free.expect("non-null function pointer")((*font).glyf);
+                table_glyf_free((*font).glyf);
                 (*font).glyf = ::core::ptr::null_mut::<GlyfTable>();
             }
             return;

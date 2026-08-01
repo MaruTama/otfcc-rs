@@ -1611,5 +1611,79 @@ on the other platform before a commit is trusted.
       path) — a real backing-array leak, invisible to every test here since
       leaks don't change output bytes. Flagged separately rather than fixed
       as part of this PR's scope.
+  - **`Contour`/`ContourList`/`ReferenceList`/`GlyfTable` → `Vec<Point>`/
+    `Vec<Contour>`/`Vec<ComponentReference>`/`Vec<*mut Glyph>` (`table/glyf.rs`
+    and its `read`/`build` submodules, `table/cff.rs`, `libcff/charstring_il.rs`,
+    `consolidate.rs`, `otf_writer/stat.rs`, `otf_reader/unconsolidate.rs`,
+    `font/caryll_font.rs`) — the last of the four groups from the "作業可能な
+    14型" plan, done last on purpose since it's the deepest one.**
+    - **The same container asymmetry as `ColrLayerList`/`NameTable` shows up
+      again, but split across two of the four types instead of one**:
+      `Contour`'s only element (`Point`) owns nothing but further `VQ` `Vec`s,
+      so `Contour`/`ContourList`'s disposal is fully automatic — no manual
+      dispose function survives at all, `(*g).contours = Vec::new();` at a
+      teardown site is the whole story. `ReferenceList`'s element
+      (`ComponentReference`) embeds a `GlyphHandle`, which stays `Copy` and
+      un-auto-dropped by this crate's convention, so it keeps one small
+      helper, `dispose_reference_list`, that loops calling the untouched
+      `GLYF_I_COMPONENT_REFERENCE.dispose` before replacing the `Vec`.
+    - **`GlyfTable` is the "その3" pointer-array shape** (`Vec<*mut Glyph>`,
+      same treatment as the six `otl.rs` containers in the previous PR) —
+      `Glyph` itself stays behind a raw pointer, so `table_glyf_free` still
+      calls `otfcc_delete_glyf_glyph` per slot (nulls tolerated, that
+      function already no-ops on null) before dropping the pointer `Vec`.
+      `table_glyf_create`/`table_glyf_create_n` switched to the `malloc` +
+      `.write(...)` placement-construction pattern (`ColrTable`'s style) —
+      `create_n` places `vec![ptr::null_mut(); n]` directly, replacing three
+      separate helper functions (`table_glyf_init_n`/`_grow_to_n`/`_fill`).
+    - **`consolidate_glyph_contours`/`consolidate_glyph_references` ported to
+      `Vec::retain`/`.retain_mut` rather than translating the original
+      index-shift-and-truncate compaction loops literally** — same choice as
+      the `LookupList`/`FeatureList` pair in the previous PR, and it lands
+      differently for the two functions here precisely because of the
+      dispose asymmetry above: the contours closure needs nothing beyond the
+      existing warning-log call for a dropped element (Rust's own drop glue
+      handles the rest), while the references closure has to call
+      `GLYF_I_COMPONENT_REFERENCE.dispose` on the element explicitly before
+      returning `false`, because `retain`'s internal compaction drops
+      rejected elements the normal way and Rust doesn't know a `Handle`
+      needs `otfcc_handle_dispose`. `retain_mut` (not `retain`) was needed
+      for the references side specifically because `consolidate_handle`
+      mutates the candidate's `.glyph` field in place before deciding
+      keep/drop.
+    - **The scratch `Contour` array in `libcff/charstring_il.rs`'s
+      `cff_compile_glyph_to_il`** (a `__caryll_allocate_clean`-allocated
+      `*mut Contour` used as a fixed-size working copy of a glyph's
+      contours, disposed at the end of the same function) is calloc'd, so
+      the same "field assignment onto zeroed memory is safe because a
+      zero-capacity `Vec`'s drop never touches its pointer field" reasoning
+      already used for `vq_init` applies again — `*newcontour = Vec::new();`
+      needs no `calloc`-vs-`malloc` fix, unlike `GaspTable`'s original bug.
+      The matching disposal loop switched from a vtable dispose call to
+      `ptr::drop_in_place`, since each slot is by then a genuine
+      placement-constructed `Vec<Point>`, not calloc garbage.
+    - **`dangerous_implicit_autorefs` at similar scale to the previous PR**
+      (258 machine-applied edits across 8 files) — the JSON-diagnostics
+      extraction script from the `otl` PR wasn't committed anywhere, so it
+      was rewritten from scratch rather than recovered; same approach
+      (`cargo build --message-format=json`, apply `suggested_replacement`
+      spans by line/column, sort descending per file so earlier splices
+      don't shift later offsets). One new wrinkle this size didn't hit
+      before: rustc sometimes emits *two* separate spans for a single
+      doubly-indexed expression like `(*g).contours[c][pj]` (one wrapping
+      the outer index, one the inner), and applying both blindly by naive
+      column offset produced a handful of `)[` mismatched-paren splices —
+      caught immediately by the next build (unbalanced delimiters, not a
+      silent wrong-output-shape hazard) and fixed by hand, three call sites
+      total.
+    - **No synthetic payload needed** — `glyf` is the one table nearly every
+      payload here already exercises through every code path this PR
+      touches: `KRName-Regular.otf`'s CFF outline extraction has real
+      `stemH`/`stemV` and multi-point contours, `iosevka-r.ttf`/`vtt.ttf`
+      drive the TrueType `glyf` read/build/dump/parse round trip at scale,
+      and `consolidate_glyph_contours`/`_references`'s empty-contour and
+      dangling-reference branches are hit by the existing corpus. All of
+      `compare-with-c.sh`/`run-cycles.sh`/the roundtrip comparisons/the
+      issue #1 golden test came back clean on both platforms.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.
