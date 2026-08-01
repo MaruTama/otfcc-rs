@@ -18,7 +18,7 @@ use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VQSegType, VqSegment};
 use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{TABLE_I_FVAR};
-use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, GLYF_I_CONTOUR, GLYF_I_CONTOUR_LIST, GLYF_I_REFERENCE_LIST, otfcc_new_glyf_glyph, TABLE_I_GLYF};
+use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, glyf_contour_fill, otfcc_new_glyf_glyph, table_glyf_create, table_glyf_free};
 use crate::vendor::sds::{sdsempty};
 use crate::vf::region::{vq_create_region};
 use crate::vf::vq::{I_VQ};
@@ -78,15 +78,13 @@ unsafe extern "C" fn next_point(
     mut cc: *mut ShapeId,
     mut cp: *mut ShapeId,
 ) -> *mut Point {
-    if *cp as usize >= (*(*contours).items.offset(*cc as isize)).length {
+    if *cp as usize >= (&(*contours))[*cc as usize].len() {
         *cp = 0 as ShapeId;
         *cc = (*cc as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
     }
     let fresh8 = *cp;
     *cp = (*cp).wrapping_add(1);
-    return (*(*contours).items.offset(*cc as isize))
-        .items
-        .offset(fresh8 as isize) as *mut Point;
+    return &raw mut (&mut (*contours))[*cc as usize][fresh8 as usize];
 }
 unsafe extern "C" fn otfcc_read_simple_glyph(
     mut start: FontFilePointer,
@@ -102,18 +100,13 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
             start.offset((2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize)
                 as *const u8,
         ) as ShapeId;
-        let mut contour: Contour = Contour {
-            length: 0,
-            capacity: 0,
-            items: ::core::ptr::null_mut::<Point>(),
-        };
-        GLYF_I_CONTOUR.init.expect("non-null function pointer")(&raw mut contour);
-        GLYF_I_CONTOUR.fill.expect("non-null function pointer")(
+        let mut contour: Contour = Vec::new();
+        glyf_contour_fill(
             &raw mut contour,
             (last_point_in_current_contour as ::core::ffi::c_int - points_in_glyph as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as usize,
         );
-        GLYF_I_CONTOUR_LIST.push.expect("non-null function pointer")(contours, contour);
+        (*contours).push(contour);
         points_in_glyph = (last_point_in_current_contour as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
             as ShapeId;
         j = j.wrapping_add(1);
@@ -274,26 +267,18 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
     let mut j_1: ShapeId = 0 as ShapeId;
     while (j_1 as ::core::ffi::c_int) < number_of_contours as ::core::ffi::c_int {
         let mut k: ShapeId = 0 as ShapeId;
-        while (k as usize) < (*(*contours).items.offset(j_1 as isize)).length {
-            let mut z: *mut Point = (*(*contours).items.offset(j_1 as isize))
-                .items
-                .offset(k as isize) as *mut Point;
+        while (k as usize) < (&(*contours))[j_1 as usize].len() {
+            let z: *mut Point = &raw mut (&mut (*contours))[j_1 as usize][k as usize];
             I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cx, (*z).x.clone());
             I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cy, (*z).y.clone());
             I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).x, cx.clone());
             I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).y, cy.clone());
             k = k.wrapping_add(1);
         }
-        GLYF_I_CONTOUR
-            .shrink_to_fit
-            .expect("non-null function pointer")(
-            (*contours).items.offset(j_1 as isize) as *mut Contour
-        );
+        (&mut (*contours))[j_1 as usize].shrink_to_fit();
         j_1 = j_1.wrapping_add(1);
     }
-    GLYF_I_CONTOUR_LIST
-        .shrink_to_fit
-        .expect("non-null function pointer")(contours);
+    (*contours).shrink_to_fit();
     I_VQ.dispose.expect("non-null function pointer")(&raw mut cx);
     I_VQ.dispose.expect("non-null function pointer")(&raw mut cy);
     return g;
@@ -433,10 +418,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
         if flags.contains(ComponentFlags::WE_HAVE_INSTRUCTIONS) {
             glyph_has_instruction = true;
         }
-        GLYF_I_REFERENCE_LIST.push.expect("non-null function pointer")(
-            &raw mut (*g).references,
-            ref_0,
-        );
+        (*g).references.push(ref_0);
         if !(flags.contains(ComponentFlags::MORE_COMPONENTS)) {
             break;
         }
@@ -772,17 +754,17 @@ unsafe extern "C" fn apply_coords(
     let mut j_first: ShapeId = 0 as ShapeId;
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
-    while keep != 0 && __caryll_index < (*glyph).contours.length {
-        let mut c: *mut Contour = (*glyph).contours.items.offset(__caryll_index as isize);
+    while keep != 0 && __caryll_index < (*glyph).contours.len() {
+        let c: *mut Contour = &raw mut (&mut (*glyph).contours)[__caryll_index];
         while keep != 0 {
             fill_the_gaps(
                 j_first,
-                (j_first as usize).wrapping_add((*c).length) as ShapeId,
+                (j_first as usize).wrapping_add((*c).len()) as ShapeId,
                 nudges,
                 glyph_refs,
                 Some(get_x as unsafe extern "C" fn(*mut Point) -> *mut VQ),
             );
-            j_first = (j_first as usize).wrapping_add((*c).length) as ShapeId as ShapeId;
+            j_first = (j_first as usize).wrapping_add((*c).len()) as ShapeId as ShapeId;
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;
@@ -820,13 +802,13 @@ unsafe extern "C" fn apply_polymorphism(
     let mut j: ShapeId = 0 as ShapeId;
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
-    while keep != 0 && __caryll_index < (*glyph).contours.length {
-        let mut c: *mut Contour = (*glyph).contours.items.offset(__caryll_index as isize);
+    while keep != 0 && __caryll_index < (*glyph).contours.len() {
+        let c: *mut Contour = &raw mut (&mut (*glyph).contours)[__caryll_index];
         while keep != 0 {
             let mut __caryll_index_0: usize = 0 as usize;
             let mut keep_0: usize = 1 as usize;
-            while keep_0 != 0 && __caryll_index_0 < (*c).length {
-                let mut g: *mut Point = (*c).items.offset(__caryll_index_0 as isize);
+            while keep_0 != 0 && __caryll_index_0 < (*c).len() {
+                let g: *mut Point = &raw mut (&mut (*c))[__caryll_index_0];
                 while keep_0 != 0 {
                     let fresh0 = j;
                     j = j.wrapping_add(1);
@@ -844,9 +826,8 @@ unsafe extern "C" fn apply_polymorphism(
     }
     let mut __caryll_index_1: usize = 0 as usize;
     let mut keep_1: usize = 1 as usize;
-    while keep_1 != 0 && __caryll_index_1 < (*glyph).references.length {
-        let mut r_0: *mut ComponentReference =
-            (*glyph).references.items.offset(__caryll_index_1 as isize);
+    while keep_1 != 0 && __caryll_index_1 < (*glyph).references.len() {
+        let r_0: *mut ComponentReference = &raw mut (&mut (*glyph).references)[__caryll_index_1];
         while keep_1 != 0 {
             let fresh2 = j;
             j = j.wrapping_add(1);
@@ -961,18 +942,18 @@ unsafe extern "C" fn polymorphize_glyph(
     let mut total_points: ShapeId = 0 as ShapeId;
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
-    while keep != 0 && __caryll_index < (*glyph).contours.length {
-        let mut c: *mut Contour = (*glyph).contours.items.offset(__caryll_index as isize);
+    while keep != 0 && __caryll_index < (*glyph).contours.len() {
+        let c: *mut Contour = &raw mut (&mut (*glyph).contours)[__caryll_index];
         while keep != 0 {
             total_points =
-                (total_points as usize).wrapping_add((*c).length) as ShapeId as ShapeId;
+                (total_points as usize).wrapping_add((*c).len()) as ShapeId as ShapeId;
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     total_points =
-        (total_points as usize).wrapping_add((*glyph).references.length) as ShapeId as ShapeId;
+        (total_points as usize).wrapping_add((*glyph).references.len()) as ShapeId as ShapeId;
     let mut total_delta_entries: ShapeId = (total_points as ::core::ffi::c_int
         + (*ctx).n_phantom_points as ::core::ffi::c_int)
         as ShapeId;
@@ -1131,7 +1112,7 @@ unsafe extern "C" fn polymorphize(
                         return;
                     }
                     let mut j: GlyphId = 0 as GlyphId;
-                    while (j as usize) < (*glyf).length {
+                    while (j as usize) < (*glyf).len() {
                         let mut tpctx: TuplePolymorphizerCtx = TuplePolymorphizerCtx {
                             fvar: (*ctx).fvar,
                             dimensions: (*(*ctx).fvar).axes.len() as u16,
@@ -1139,8 +1120,7 @@ unsafe extern "C" fn polymorphize(
                             shared_tuples: data.offset(be32((*header).shared_tuples_offset) as isize)
                                 as *mut F2Dot14,
                             coord_dimensions: 2 as u8,
-                            allow_iup: (**(*glyf).items.offset(j as isize)).contours.length
-                                > 0 as usize,
+                            allow_iup: !(*(&(*glyf))[j as usize]).contours.is_empty(),
                             n_phantom_points: (*ctx).n_phantom_points,
                         };
                         let mut glyph_variation_data_offset: u32 = 0 as u32;
@@ -1168,7 +1148,7 @@ unsafe extern "C" fn polymorphize(
                             as *mut GlyphVariationData;
                         polymorphize_glyph(
                             j,
-                            *(*glyf).items.offset(j as isize),
+                            (&(*glyf))[j as usize],
                             &raw mut tpctx,
                             gvd,
                             options,
@@ -1314,15 +1294,13 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                                     crate::sdsbuild!(sdsempty(), b"table 'glyf' corrupted.\n"),
                                 );
                                 if !glyf.is_null() {
-                                    TABLE_I_GLYF.free.expect("non-null function pointer")(glyf);
-                                    glyf = ::core::ptr::null_mut::<GlyfTable>();
+                                    table_glyf_free(glyf);
                                     glyf = ::core::ptr::null_mut::<GlyfTable>();
                                 }
                                 __fortable_k2_0 = 0 as ::core::ffi::c_int;
                                 __notfound_0 = 0 as ::core::ffi::c_int;
                             } else {
-                                glyf = (
-                                    TABLE_I_GLYF.create.expect("non-null function pointer"))();
+                                glyf = table_glyf_create();
                                 let mut j_0: GlyphId = 0 as GlyphId;
                                 while (j_0 as ::core::ffi::c_int)
                                     < (*ctx).num_glyphs as ::core::ffi::c_int
@@ -1333,20 +1311,14 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                                                 as isize,
                                         )
                                     {
-                                        TABLE_I_GLYF.push.expect("non-null function pointer")(
-                                            glyf,
-                                            otfcc_read_glyph(
-                                                data_0,
-                                                *offsets.offset(j_0 as isize),
-                                                options,
-                                            )
-                                                as GlyphPtr,
-                                        );
+                                        (*glyf).push(otfcc_read_glyph(
+                                            data_0,
+                                            *offsets.offset(j_0 as isize),
+                                            options,
+                                        )
+                                            as GlyphPtr);
                                     } else {
-                                        TABLE_I_GLYF.push.expect("non-null function pointer")(
-                                            glyf,
-                                            otfcc_new_glyf_glyph() as GlyphPtr,
-                                        );
+                                        (*glyf).push(otfcc_new_glyf_glyph() as GlyphPtr);
                                     }
                                     j_0 = j_0.wrapping_add(1);
                                 }
@@ -1380,8 +1352,7 @@ pub unsafe extern "C" fn otfcc_read_glyf(
         offsets = ::core::ptr::null_mut::<u32>();
     }
     if !glyf.is_null() {
-        free(glyf as *mut ::core::ffi::c_void);
-        glyf = ::core::ptr::null_mut::<GlyfTable>();
+        table_glyf_free(glyf);
         glyf = ::core::ptr::null_mut::<GlyfTable>();
     }
     return ::core::ptr::null_mut::<GlyfTable>();

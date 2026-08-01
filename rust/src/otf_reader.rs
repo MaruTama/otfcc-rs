@@ -148,13 +148,13 @@ impl FontBuilder for OtfReader {
                 packet,
                 options,
                 1196643650i32 as u32,
-                (*(*font).glyf).length as GlyphId,
+                (*(*font).glyf).len() as GlyphId,
             );
             (*font).gpos = otfcc_read_otl(
                 packet,
                 options,
                 1196445523i32 as u32,
-                (*(*font).glyf).length as GlyphId,
+                (*(*font).glyf).len() as GlyphId,
             );
             (*font).gdef = otfcc_read_gdef(packet, options);
         }

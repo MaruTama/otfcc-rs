@@ -266,7 +266,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             1414744373i32 as u32,
-            otfcc_build_tsi5((*font).tsi5, options, (*(*font).glyf).length as GlyphId),
+            otfcc_build_tsi5((*font).tsi5, options, (*(*font).glyf).len() as GlyphId),
         );
     }
     if (*options).dummy_dsig {
