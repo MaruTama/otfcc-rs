@@ -91,9 +91,9 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
             ) as u32),
         );
         if !(marks.is_null()
-            || (*marks).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int
+            || (*marks).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int
             || bases.is_null()
-            || (*bases).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
+            || (*bases).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
         {
             (*subtable).class_count = read_16u(
                 data.offset(subtable_offset as isize)
@@ -117,18 +117,18 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
             if !(table_length
                 < base_array_offset.wrapping_add(2 as u32).wrapping_add(
                     (2 as ::core::ffi::c_int
-                        * (*bases).num_glyphs as ::core::ffi::c_int
+                        * (*bases).len() as GlyphId as ::core::ffi::c_int
                         * (*subtable).class_count as ::core::ffi::c_int)
                         as u32,
                 ))
             {
                 if !(read_16u(data.offset(base_array_offset as isize) as *const u8)
                     as ::core::ffi::c_int
-                    != (*bases).num_glyphs as ::core::ffi::c_int)
+                    != (*bases).len() as GlyphId as ::core::ffi::c_int)
                 {
                     _offset = base_array_offset.wrapping_add(2 as u32);
                     let mut j: GlyphId = 0 as GlyphId;
-                    while (j as ::core::ffi::c_int) < (*bases).num_glyphs as ::core::ffi::c_int {
+                    while (j as ::core::ffi::c_int) < (*bases).len() as GlyphId as ::core::ffi::c_int {
                         let mut base_anchors: *mut Anchor =
                             ::core::ptr::null_mut::<Anchor>();
                         base_anchors = __caryll_allocate_clean(
@@ -158,7 +158,7 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
                         (*subtable).base_array.push(
                             BaseRecord {
                                 glyph: otfcc_handle_dup(
-                                    (*(*bases).glyphs.offset(j as isize)).clone() as Handle,
+                                    (&(*bases))[j as usize].clone() as Handle,
                                 ) as GlyphHandle,
                                 anchors: base_anchors,
                             },

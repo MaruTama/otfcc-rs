@@ -77,12 +77,12 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     let mut h: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
     let mut from: *mut Coverage = *(*subtable).match_0.offset((*subtable).input_index as isize);
     let mut k: GlyphId = 0 as GlyphId;
-    while (k as ::core::ffi::c_int) < (*from).num_glyphs as ::core::ffi::c_int
-        && (k as ::core::ffi::c_int) < (*(*subtable).to).num_glyphs as ::core::ffi::c_int
+    while (k as usize) < (*from).len()
+        && (k as usize) < (*(*subtable).to).len()
     {
         let mut s: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
         let mut fromid: ::core::ffi::c_int =
-            (*(*from).glyphs.offset(k as isize)).index as ::core::ffi::c_int;
+            (&(*from))[k as usize].index as ::core::ffi::c_int;
         let mut _hf_hashv: ::core::ffi::c_uint = 0;
         let mut _hj_i: ::core::ffi::c_uint = 0;
         let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -397,7 +397,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
-                    (*(*from).glyphs.offset(k as isize)).name,
+                    (&(*from))[k as usize].name,
                     b".\n",
                 ),
             );
@@ -406,10 +406,10 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
                 ::core::mem::size_of::<GsubSingleMapHash>() as usize,
                 31 as ::core::ffi::c_ulong,
             ) as *mut GsubSingleMapHash;
-            (*s).fromid = (*(*from).glyphs.offset(k as isize)).index as ::core::ffi::c_int;
-            (*s).toid = (*(*(*subtable).to).glyphs.offset(k as isize)).index as ::core::ffi::c_int;
-            (*s).fromname = (*(*from).glyphs.offset(k as isize)).name;
-            (*s).toname = (*(*(*subtable).to).glyphs.offset(k as isize)).name;
+            (*s).fromid = (&(*from))[k as usize].index as ::core::ffi::c_int;
+            (*s).toid = (&(*(*subtable).to))[k as usize].index as ::core::ffi::c_int;
+            (*s).fromname = (&(*from))[k as usize].name;
+            (*s).toname = (&(*(*subtable).to))[k as usize].name;
             let mut _ha_hashv: ::core::ffi::c_uint = 0;
             let mut _hj_i_0: ::core::ffi::c_uint = 0;
             let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -983,17 +983,12 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    if (if !h.is_null() {
+    let count: usize = (if !h.is_null() {
         (*(*h).hh.tbl).num_items
     } else {
         0 as ::core::ffi::c_uint
-    }) != (*from).num_glyphs as ::core::ffi::c_uint
-        || (if !h.is_null() {
-            (*(*h).hh.tbl).num_items
-        } else {
-            0 as ::core::ffi::c_uint
-        }) != (*(*subtable).to).num_glyphs as ::core::ffi::c_uint
-    {
+    }) as usize;
+    if count != (*from).len() || count != (*(*subtable).to).len() {
         (*(*options).logger)
             .log_sds
             .expect("non-null function pointer")(
@@ -1006,16 +1001,8 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
             ),
         );
     }
-    (*from).num_glyphs = (if !h.is_null() {
-        (*(*h).hh.tbl).num_items
-    } else {
-        0 as ::core::ffi::c_uint
-    }) as GlyphId;
-    (*(*subtable).to).num_glyphs = (if !h.is_null() {
-        (*(*h).hh.tbl).num_items
-    } else {
-        0 as ::core::ffi::c_uint
-    }) as GlyphId;
+    (*from).truncate(count);
+    (*(*subtable).to).truncate(count);
     let mut s_0: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
     let mut tmp: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
     let mut j_0: GlyphId = 0 as GlyphId;
@@ -1023,10 +1010,10 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut GsubSingleMapHash
         as *mut GsubSingleMapHash;
     while !s_0.is_null() {
-        *(*from).glyphs.offset(j_0 as isize) = handle_from_consolidated(
+        (&mut (*from))[j_0 as usize] = handle_from_consolidated(
             (*s_0).fromid as GlyphId, (*s_0).fromname
         ) as GlyphHandle;
-        *(*(*subtable).to).glyphs.offset(j_0 as isize) = handle_from_consolidated(
+        (&mut (*(*subtable).to))[j_0 as usize] = handle_from_consolidated(
             (*s_0).toid as GlyphId, (*s_0).toname
         ) as GlyphHandle;
         j_0 = j_0.wrapping_add(1);

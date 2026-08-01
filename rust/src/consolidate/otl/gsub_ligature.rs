@@ -82,7 +82,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                 (&(*subtable))[k as usize].from,
                 false,
             );
-            if (*(&(*subtable))[k as usize].from).num_glyphs == 0 {
+            if (*(&(*subtable))[k as usize].from).is_empty() {
                 (*(*options).logger)
                     .log_sds
                     .expect("non-null function pointer")(

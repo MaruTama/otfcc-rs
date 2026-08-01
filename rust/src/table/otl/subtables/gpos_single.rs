@@ -65,7 +65,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
             ) as u32),
         );
         if !(targets.is_null()
-            || (*targets).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
+            || (*targets).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
         {
             if subtable_format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
                 let mut v: PositionValue = read_gpos_value(
@@ -79,10 +79,10 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                     ),
                 );
                 let mut j: GlyphId = 0 as GlyphId;
-                while (j as ::core::ffi::c_int) < (*targets).num_glyphs as ::core::ffi::c_int {
+                while (j as ::core::ffi::c_int) < (*targets).len() as GlyphId as ::core::ffi::c_int {
                     (*subtable).push(GposSingleEntry {
                         target: otfcc_handle_dup(
-                            (*(*targets).glyphs.offset(j as isize)).clone() as Handle,
+                            (&(*targets))[j as usize].clone() as Handle,
                         ) as GlyphHandle,
                         value: v,
                     });
@@ -108,15 +108,15 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                 {
                     current_block = 18154618883129817269;
                 } else if value_count as ::core::ffi::c_int
-                    != (*targets).num_glyphs as ::core::ffi::c_int
+                    != (*targets).len() as GlyphId as ::core::ffi::c_int
                 {
                     current_block = 18154618883129817269;
                 } else {
                     let mut j_0: GlyphId = 0 as GlyphId;
-                    while (j_0 as ::core::ffi::c_int) < (*targets).num_glyphs as ::core::ffi::c_int {
+                    while (j_0 as ::core::ffi::c_int) < (*targets).len() as GlyphId as ::core::ffi::c_int {
                         (*subtable).push(GposSingleEntry {
                             target: otfcc_handle_dup(
-                                (*(*targets).glyphs.offset(j_0 as isize)).clone() as Handle,
+                                (&(*targets))[j_0 as usize].clone() as Handle,
                             ) as GlyphHandle,
                             value: read_gpos_value(
                                 data,

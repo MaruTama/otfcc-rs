@@ -1,8 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
 use crate::support::json_funcs::{json_new_position, json_obj_get, json_obj_get_type, preserialize};
-use crate::table::otl::classdef::{expand_class_def, ClassDef, otl_class_def_free, read_class_def};
-use crate::table::otl::coverage::{Coverage, otl_coverage_free, read_coverage, shrink_coverage};
+use crate::table::otl::classdef::{expand_class_def, ClassDef, otl_class_def_create, otl_class_def_free, read_class_def};
+use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage, shrink_coverage};
 use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -149,25 +149,14 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                         as *const u8,
                 ) as u32),
             );
-            (*subtable).first = __caryll_allocate_clean(
-                ::core::mem::size_of::<ClassDef>() as usize,
-                45 as ::core::ffi::c_ulong,
-            ) as *mut ClassDef;
-            (*(*subtable).first).num_glyphs = (*cov).num_glyphs;
-            (*(*subtable).first).maxclass =
-                ((*cov).num_glyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as GlyphClass;
-            (*(*subtable).first).glyphs = (*cov).glyphs;
-            (*(*subtable).first).classes = __caryll_allocate_clean(
-                (::core::mem::size_of::<GlyphClass>() as usize)
-                    .wrapping_mul((*cov).num_glyphs as usize),
-                49 as ::core::ffi::c_ulong,
-            ) as *mut GlyphClass;
-            let mut j: GlyphId = 0 as GlyphId;
-            while (j as ::core::ffi::c_int) < (*cov).num_glyphs as ::core::ffi::c_int {
-                *(*(*subtable).first).classes.offset(j as isize) = j as GlyphClass;
-                j = j.wrapping_add(1);
-            }
-            free(cov as *mut ::core::ffi::c_void);
+            (*subtable).first = otl_class_def_create();
+            (*(*subtable).first).glyphs = ::core::mem::take(&mut *cov);
+            (*(*subtable).first).maxclass = ((*(*subtable).first).glyphs.len() as ::core::ffi::c_int
+                - 1 as ::core::ffi::c_int) as GlyphClass;
+            (*(*subtable).first).classes = (0..(*(*subtable).first).glyphs.len())
+                .map(|j| j as GlyphClass)
+                .collect();
+            otl_coverage_free(cov);
             cov = ::core::ptr::null_mut::<Coverage>();
             let mut format1: u16 = read_16u(
                 data.offset(offset as isize)
@@ -183,8 +172,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                 data.offset(offset as isize)
                     .offset(8 as ::core::ffi::c_int as isize) as *const u8,
             ) as GlyphId;
-            if !(pair_set_count as ::core::ffi::c_int
-                != (*(*subtable).first).num_glyphs as ::core::ffi::c_int)
+            if !(pair_set_count as usize != (*(*subtable).first).glyphs.len())
             {
                 if !(table_length
                     < offset.wrapping_add(10 as u32).wrapping_add(
@@ -1186,34 +1174,15 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                 }
                                 j_1 = j_1.wrapping_add(1);
                             }
-                            (*subtable).second = __caryll_allocate_clean(
-                                ::core::mem::size_of::<ClassDef>() as usize,
-                                89 as ::core::ffi::c_ulong,
-                            ) as *mut ClassDef;
-                            (*(*subtable).second).num_glyphs = (if !h.is_null() {
+                            (*subtable).second = otl_class_def_create();
+                            let n_second: usize = (if !h.is_null() {
                                 (*(*h).hh.tbl).num_items
                             } else {
                                 0 as ::core::ffi::c_uint
-                            })
-                                as GlyphId;
-                            (*(*subtable).second).maxclass = (if !h.is_null() {
-                                (*(*h).hh.tbl).num_items
-                            } else {
-                                0 as ::core::ffi::c_uint
-                            })
-                                as GlyphClass;
-                            (*(*subtable).second).classes = __caryll_allocate_clean(
-                                (::core::mem::size_of::<GlyphClass>() as usize)
-                                    .wrapping_mul((*(*subtable).second).num_glyphs as usize),
-                                92 as ::core::ffi::c_ulong,
-                            )
-                                as *mut GlyphClass;
-                            (*(*subtable).second).glyphs = __caryll_allocate_clean(
-                                (::core::mem::size_of::<GlyphHandle>() as usize)
-                                    .wrapping_mul((*(*subtable).second).num_glyphs as usize),
-                                93 as ::core::ffi::c_ulong,
-                            )
-                                as *mut GlyphHandle;
+                            }) as usize;
+                            (*(*subtable).second).maxclass = n_second as GlyphClass;
+                            (*(*subtable).second).classes = vec![0 as GlyphClass; n_second];
+                            (*(*subtable).second).glyphs = vec![GlyphHandle::default(); n_second];
                             let mut class2_count: GlyphClass = ((*(*subtable).second).maxclass
                                 as ::core::ffi::c_int
                                 + 1 as ::core::ffi::c_int)
@@ -1704,11 +1673,11 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                 as *mut PairClassifierHash
                                 as *mut PairClassifierHash;
                             while !s_1.is_null() {
-                                *(*(*subtable).second).glyphs.offset(jj as isize) =
+                                (&mut (*(*subtable).second).glyphs)[jj as usize] =
                                     handle_from_index(
                                         (*s_1).gid as GlyphId,
                                     ) as GlyphHandle;
-                                *(*(*subtable).second).classes.offset(jj as isize) =
+                                (&mut (*(*subtable).second).classes)[jj as usize] =
                                     (*s_1).cid as GlyphClass;
                                 jj = jj.wrapping_add(1);
                                 let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s_1).hh;
@@ -2126,22 +2095,13 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
     };
 }
 unsafe extern "C" fn cov_from_cd(mut cd: *mut ClassDef) -> *mut Coverage {
-    let mut cov: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    cov = __caryll_allocate_clean(
-        ::core::mem::size_of::<Coverage>() as usize,
-        257 as ::core::ffi::c_ulong,
-    ) as *mut Coverage;
-    (*cov).num_glyphs = (*cd).num_glyphs;
-    (*cov).glyphs = __caryll_allocate_clean(
-        (::core::mem::size_of::<GlyphHandle>() as usize)
-            .wrapping_mul((*cd).num_glyphs as usize),
-        259 as ::core::ffi::c_ulong,
-    ) as *mut GlyphHandle;
+    let cov: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
-        *(*cov).glyphs.offset(j as isize) = otfcc_handle_dup(
-            (*(*cd).glyphs.offset(j as isize)).clone() as Handle,
-        ) as GlyphHandle;
+    while (j as usize) < (*cd).glyphs.len() {
+        push_to_coverage(
+            cov,
+            otfcc_handle_dup((&(*cd).glyphs)[j as usize].clone() as Handle) as GlyphHandle,
+        );
         j = j.wrapping_add(1);
     }
     return cov;
@@ -2182,16 +2142,16 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     let mut pair_counts: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
     pair_counts = __caryll_allocate_clean(
         (::core::mem::size_of::<GlyphId>() as usize)
-            .wrapping_mul((*(*subtable).first).num_glyphs as usize),
+            .wrapping_mul((*(*subtable).first).glyphs.len()),
         290 as ::core::ffi::c_ulong,
     ) as *mut GlyphId;
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as ::core::ffi::c_int) < (*(*subtable).first).num_glyphs as ::core::ffi::c_int {
+    while (j_0 as usize) < (*(*subtable).first).glyphs.len() {
         *pair_counts.offset(j_0 as isize) = 0 as GlyphId;
         let mut k_0: GlyphId = 0 as GlyphId;
-        while (k_0 as ::core::ffi::c_int) < (*(*subtable).second).num_glyphs as ::core::ffi::c_int {
-            let mut c1: GlyphClass = *(*(*subtable).first).classes.offset(j_0 as isize);
-            let mut c2: GlyphClass = *(*(*subtable).second).classes.offset(k_0 as isize);
+        while (k_0 as usize) < (*(*subtable).second).glyphs.len() {
+            let mut c1: GlyphClass = (&(*(*subtable).first).classes)[j_0 as usize];
+            let mut c2: GlyphClass = (&(*(*subtable).second).classes)[k_0 as usize];
             if required_position_format(
                 *(*(*subtable).first_values.offset(c1 as isize)).offset(c2 as isize),
             ) as ::core::ffi::c_int
@@ -2209,17 +2169,17 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     }
     let mut cov: *mut Coverage = cov_from_cd((*subtable).first);
     shrink_coverage(cov, true);
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*subtable).first).num_glyphs as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*subtable).first).glyphs.len() as ::core::ffi::c_int) as u32)]);
     let mut j_1: GlyphId = 0 as GlyphId;
-    while (j_1 as ::core::ffi::c_int) < (*cov).num_glyphs as ::core::ffi::c_int {
+    while (j_1 as usize) < (*cov).len() {
         let mut current_pair_count: TableId = 0 as TableId;
         let mut c1_0: GlyphClass = 0 as GlyphClass;
         let mut k_1: GlyphId = 0 as GlyphId;
-        while (k_1 as ::core::ffi::c_int) < (*(*subtable).first).num_glyphs as ::core::ffi::c_int {
-            if (*(*(*subtable).first).glyphs.offset(k_1 as isize)).index as ::core::ffi::c_int
-                == (*(*cov).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int
+        while (k_1 as usize) < (*(*subtable).first).glyphs.len() {
+            if (&(*(*subtable).first).glyphs)[k_1 as usize].index as ::core::ffi::c_int
+                == (&(*cov))[j_1 as usize].index as ::core::ffi::c_int
             {
-                c1_0 = *(*(*subtable).first).classes.offset(k_1 as isize);
+                c1_0 = (&(*(*subtable).first).classes)[k_1 as usize];
                 current_pair_count = *pair_counts.offset(k_1 as isize) as TableId;
             }
             k_1 = k_1.wrapping_add(1);
@@ -2233,8 +2193,8 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
         ) as *mut IndividualGposPair;
         let mut n: usize = 0 as usize;
         let mut k_2: GlyphId = 0 as GlyphId;
-        while (k_2 as ::core::ffi::c_int) < (*(*subtable).second).num_glyphs as ::core::ffi::c_int {
-            let mut c2_0: GlyphClass = *(*(*subtable).second).classes.offset(k_2 as isize);
+        while (k_2 as usize) < (*(*subtable).second).glyphs.len() {
+            let mut c2_0: GlyphClass = (&(*(*subtable).second).classes)[k_2 as usize];
             if required_position_format(
                 *(*(*subtable).first_values.offset(c1_0 as isize)).offset(c2_0 as isize),
             ) as ::core::ffi::c_int
@@ -2244,7 +2204,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
                 != 0
             {
                 (*pairs.offset(n as isize)).gid =
-                    (*(*(*subtable).second).glyphs.offset(k_2 as isize)).index;
+                    (&(*(*subtable).second).glyphs)[k_2 as usize].index;
                 let ref mut fresh11 = (*pairs.offset(n as isize)).fv;
                 *fresh11 = (*(*subtable).first_values.offset(c1_0 as isize)).offset(c2_0 as isize)
                     as *mut PositionValue;

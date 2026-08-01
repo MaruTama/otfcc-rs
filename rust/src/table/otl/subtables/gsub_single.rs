@@ -5,7 +5,6 @@ use libc::{free, malloc};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 
 use crate::support::buffer::{Buffer};
@@ -69,30 +68,19 @@ pub unsafe extern "C" fn otl_read_gsub_single(
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             ) as u32),
         );
-        if !(from.is_null() || (*from).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int) {
+        if !(from.is_null() || (*from).is_empty()) {
             if subtable_format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-                to = __caryll_allocate_clean(
-                    ::core::mem::size_of::<Coverage>() as usize,
-                    36 as ::core::ffi::c_ulong,
-                ) as *mut Coverage;
-                (*to).num_glyphs = (*from).num_glyphs;
-                (*to).glyphs = __caryll_allocate_clean(
-                    (::core::mem::size_of::<GlyphHandle>() as usize)
-                        .wrapping_mul((*to).num_glyphs as usize),
-                    38 as ::core::ffi::c_ulong,
-                ) as *mut GlyphHandle;
+                to = otl_coverage_create();
                 let mut delta: u16 = read_16u(
                     data.offset(subtable_offset as isize)
                         .offset(4 as ::core::ffi::c_int as isize)
                         as *const u8,
                 );
-                let mut j: GlyphId = 0 as GlyphId;
-                while (j as ::core::ffi::c_int) < (*from).num_glyphs as ::core::ffi::c_int {
-                    *(*to).glyphs.offset(j as isize) = handle_from_index(
-                        ((*(*from).glyphs.offset(j as isize)).index as ::core::ffi::c_int
-                            + delta as ::core::ffi::c_int) as GlyphId,
-                    ) as GlyphHandle;
-                    j = j.wrapping_add(1);
+                for j in 0..(*from).len() {
+                    (*to).push(handle_from_index(
+                        ((&(*from))[j].index as ::core::ffi::c_int + delta as ::core::ffi::c_int)
+                            as GlyphId,
+                    ) as GlyphHandle);
                 }
                 current_block = 126606456056746247;
             } else {
@@ -105,33 +93,19 @@ pub unsafe extern "C" fn otl_read_gsub_single(
                     < subtable_offset.wrapping_add(6 as u32).wrapping_add(
                         (toglyphs as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
                     )
-                    || toglyphs as ::core::ffi::c_int != (*from).num_glyphs as ::core::ffi::c_int
+                    || toglyphs as usize != (*from).len()
                 {
                     current_block = 2938280209257981098;
                 } else {
-                    to = __caryll_allocate_clean(
-                        ::core::mem::size_of::<Coverage>() as usize,
-                        48 as ::core::ffi::c_ulong,
-                    ) as *mut Coverage;
-                    (*to).num_glyphs = toglyphs;
-                    (*to).glyphs = __caryll_allocate_clean(
-                        (::core::mem::size_of::<GlyphHandle>() as usize)
-                            .wrapping_mul((*to).num_glyphs as usize),
-                        50 as ::core::ffi::c_ulong,
-                    ) as *mut GlyphHandle;
-                    let mut j_0: GlyphId = 0 as GlyphId;
-                    while (j_0 as ::core::ffi::c_int) < (*to).num_glyphs as ::core::ffi::c_int {
-                        *(*to).glyphs.offset(j_0 as isize) =
-                            handle_from_index(read_16u(
-                                data.offset(subtable_offset as isize)
-                                    .offset(6 as ::core::ffi::c_int as isize)
-                                    .offset(
-                                        (j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8,
-                            )
-                                as GlyphId) as GlyphHandle;
-                        j_0 = j_0.wrapping_add(1);
+                    to = otl_coverage_create();
+                    for j_0 in 0..toglyphs {
+                        (*to).push(handle_from_index(read_16u(
+                            data.offset(subtable_offset as isize)
+                                .offset(6 as ::core::ffi::c_int as isize)
+                                .offset(
+                                    (j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
+                                ) as *const u8,
+                        ) as GlyphId) as GlyphHandle);
                     }
                     current_block = 126606456056746247;
                 }
@@ -139,17 +113,11 @@ pub unsafe extern "C" fn otl_read_gsub_single(
             match current_block {
                 2938280209257981098 => {}
                 _ => {
-                    let mut j_1: GlyphId = 0 as GlyphId;
-                    while (j_1 as ::core::ffi::c_int) < (*from).num_glyphs as ::core::ffi::c_int {
+                    for j_1 in 0..(*from).len() {
                         (*subtable).push(GsubSingleEntry {
-                            from: otfcc_handle_dup(
-                                (*(*from).glyphs.offset(j_1 as isize)).clone() as Handle,
-                            ) as GlyphHandle,
-                            to: otfcc_handle_dup(
-                                (*(*to).glyphs.offset(j_1 as isize)).clone() as Handle,
-                            ) as GlyphHandle,
+                            from: otfcc_handle_dup((&(*from))[j_1].clone() as Handle) as GlyphHandle,
+                            to: otfcc_handle_dup((&(*to))[j_1].clone() as Handle) as GlyphHandle,
                         });
-                        j_1 = j_1.wrapping_add(1);
                     }
                     if !from.is_null() {
                         otl_coverage_free(from);

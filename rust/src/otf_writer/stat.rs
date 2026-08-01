@@ -1065,9 +1065,9 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                         (&(*lookup).subtables)[si] as *mut GsubLigatureSubtable;
                     for ei in 0..(*subtable).len() {
                         let entry: *mut GsubLigatureEntry = &mut (&mut (*subtable))[ei as usize] as *mut GsubLigatureEntry;
-                        if (maxc as ::core::ffi::c_int) < (*(*entry).from).num_glyphs as ::core::ffi::c_int
+                        if (maxc as ::core::ffi::c_int) < (*(*entry).from).len() as ::core::ffi::c_int
                         {
-                            maxc = (*(*entry).from).num_glyphs as u16;
+                            maxc = (*(*entry).from).len() as u16;
                         }
                     }
                 }

@@ -2,7 +2,7 @@
 use libc::{exit, free, malloc, memcmp, memset};
 
 use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
-use crate::table::otl::coverage::{Coverage};
+use crate::table::otl::coverage::{Coverage, otl_coverage_create, push_to_coverage};
 use crate::support::handle::{handle_from_consolidated, handle_from_index, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -35,11 +35,11 @@ unsafe extern "C" fn class_compatible(
     mut past: *mut ::core::ffi::c_int,
 ) -> ::core::ffi::c_int {
     let mut s: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
-    if (*cov).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
+    if (*cov).len() as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
         return 1 as ::core::ffi::c_int;
     }
     let mut gid: ::core::ffi::c_int =
-        (*(*cov).glyphs.offset(0 as ::core::ffi::c_int as isize)).index as ::core::ffi::c_int;
+        (&(*cov))[0].index as ::core::ffi::c_int;
     let mut _hf_hashv: ::core::ffi::c_uint = 0;
     let mut _hj_i: ::core::ffi::c_uint = 0;
     let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -343,9 +343,9 @@ unsafe extern "C" fn class_compatible(
         let mut ss: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
         let mut tmp: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
         let mut j: GlyphId = 1 as GlyphId;
-        while (j as ::core::ffi::c_int) < (*cov).num_glyphs as ::core::ffi::c_int {
+        while (j as ::core::ffi::c_int) < (*cov).len() as ::core::ffi::c_int {
             let mut gid_0: ::core::ffi::c_int =
-                (*(*cov).glyphs.offset(j as isize)).index as ::core::ffi::c_int;
+                (&(*cov))[j as usize].index as ::core::ffi::c_int;
             let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
             let mut _hj_i_0: ::core::ffi::c_uint = 0;
             let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -673,9 +673,9 @@ unsafe extern "C" fn class_compatible(
         }
         let mut revh: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
         let mut j_0: GlyphId = 0 as GlyphId;
-        while (j_0 as ::core::ffi::c_int) < (*cov).num_glyphs as ::core::ffi::c_int {
+        while (j_0 as ::core::ffi::c_int) < (*cov).len() as ::core::ffi::c_int {
             let mut gid_1: ::core::ffi::c_int =
-                (*(*cov).glyphs.offset(j_0 as isize)).index as ::core::ffi::c_int;
+                (&(*cov))[j_0 as usize].index as ::core::ffi::c_int;
             let mut rss: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
             let mut _hf_hashv_1: ::core::ffi::c_uint = 0;
             let mut _hj_i_1: ::core::ffi::c_uint = 0;
@@ -1003,7 +1003,7 @@ unsafe extern "C" fn class_compatible(
                     38 as ::core::ffi::c_ulong,
                 ) as *mut ClassifierHash;
                 (*rss).gid = gid_1;
-                (*rss).gname = (*(*cov).glyphs.offset(j_0 as isize)).name;
+                (*rss).gname = (&(*cov))[j_0 as usize].name;
                 (*rss).cls = (*s).cls;
                 let mut _ha_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i_2: ::core::ffi::c_uint = 0;
@@ -1860,9 +1860,9 @@ unsafe extern "C" fn class_compatible(
     } else {
         let mut ss_0: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
         let mut j_1: GlyphId = 1 as GlyphId;
-        while (j_1 as ::core::ffi::c_int) < (*cov).num_glyphs as ::core::ffi::c_int {
+        while (j_1 as ::core::ffi::c_int) < (*cov).len() as ::core::ffi::c_int {
             let mut gid_3: ::core::ffi::c_int =
-                (*(*cov).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int;
+                (&(*cov))[j_1 as usize].index as ::core::ffi::c_int;
             let mut _hf_hashv_3: ::core::ffi::c_uint = 0;
             let mut _hj_i_4: ::core::ffi::c_uint = 0;
             let mut _hj_j_4: ::core::ffi::c_uint = 0;
@@ -2189,9 +2189,9 @@ unsafe extern "C" fn class_compatible(
             j_1 = j_1.wrapping_add(1);
         }
         let mut j_2: GlyphId = 0 as GlyphId;
-        while (j_2 as ::core::ffi::c_int) < (*cov).num_glyphs as ::core::ffi::c_int {
+        while (j_2 as ::core::ffi::c_int) < (*cov).len() as ::core::ffi::c_int {
             let mut gid_4: ::core::ffi::c_int =
-                (*(*cov).glyphs.offset(j_2 as isize)).index as ::core::ffi::c_int;
+                (&(*cov))[j_2 as usize].index as ::core::ffi::c_int;
             let mut s_0: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
             let mut _hf_hashv_4: ::core::ffi::c_uint = 0;
             let mut _hj_i_5: ::core::ffi::c_uint = 0;
@@ -2518,8 +2518,8 @@ unsafe extern "C" fn class_compatible(
                     ::core::mem::size_of::<ClassifierHash>() as usize,
                     74 as ::core::ffi::c_ulong,
                 ) as *mut ClassifierHash;
-                (*s_0).gid = (*(*cov).glyphs.offset(j_2 as isize)).index as ::core::ffi::c_int;
-                (*s_0).gname = (*(*cov).glyphs.offset(j_2 as isize)).name;
+                (*s_0).gid = (&(*cov))[j_2 as usize].index as ::core::ffi::c_int;
+                (*s_0).gname = (&(*cov))[j_2 as usize].name;
                 (*s_0).cls = *past + 1 as ::core::ffi::c_int;
                 let mut _ha_hashv_0: ::core::ffi::c_uint = 0;
                 let mut _hj_i_6: ::core::ffi::c_uint = 0;
@@ -2999,18 +2999,8 @@ unsafe extern "C" fn build_rule(
     let mut m: TableId = 0 as TableId;
     while (m as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
         let ref mut fresh9 = *(*new_rule).match_0.offset(m as isize);
-        *fresh9 = __caryll_allocate_clean(
-            ::core::mem::size_of::<Coverage>() as usize,
-            94 as ::core::ffi::c_ulong,
-        ) as *mut Coverage;
-        (**(*new_rule).match_0.offset(m as isize)).num_glyphs = 1 as GlyphId;
-        let ref mut fresh10 = (**(*new_rule).match_0.offset(m as isize)).glyphs;
-        *fresh10 = __caryll_allocate_clean(
-            ::core::mem::size_of::<GlyphHandle>() as usize,
-            96 as ::core::ffi::c_ulong,
-        ) as *mut GlyphHandle;
-        if (**(*rule).match_0.offset(m as isize)).num_glyphs as ::core::ffi::c_int
-            > 0 as ::core::ffi::c_int
+        *fresh9 = otl_coverage_create();
+        if (**(*rule).match_0.offset(m as isize)).len() > 0 as usize
         {
             let mut h: *mut ClassifierHash =
                 if (m as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
@@ -3021,9 +3011,7 @@ unsafe extern "C" fn build_rule(
                     hf
                 };
             let mut s: *mut ClassifierHash = ::core::ptr::null_mut::<ClassifierHash>();
-            let mut gid: ::core::ffi::c_int = (*(**(*rule).match_0.offset(m as isize))
-                .glyphs
-                .offset(0 as ::core::ffi::c_int as isize))
+            let mut gid: ::core::ffi::c_int = (&(**(*rule).match_0.offset(m as isize)))[0]
             .index as ::core::ffi::c_int;
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
             let mut _hj_i: ::core::ffi::c_uint = 0;
@@ -3336,17 +3324,15 @@ unsafe extern "C" fn build_rule(
                     }
                 }
             }
-            *(**(*new_rule).match_0.offset(m as isize))
-                .glyphs
-                .offset(0 as ::core::ffi::c_int as isize) =
-                handle_from_index((*s).cls as GlyphId)
-                    as GlyphHandle;
+            push_to_coverage(
+                *(*new_rule).match_0.offset(m as isize),
+                handle_from_index((*s).cls as GlyphId) as GlyphHandle,
+            );
         } else {
-            *(**(*new_rule).match_0.offset(m as isize))
-                .glyphs
-                .offset(0 as ::core::ffi::c_int as isize) =
-                handle_from_index(0 as GlyphId)
-                    as GlyphHandle;
+            push_to_coverage(
+                *(*new_rule).match_0.offset(m as isize),
+                handle_from_index(0 as GlyphId) as GlyphHandle,
+            );
         }
         m = m.wrapping_add(1);
     }

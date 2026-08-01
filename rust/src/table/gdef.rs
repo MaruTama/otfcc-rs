@@ -242,7 +242,7 @@ pub unsafe extern "C" fn otfcc_read_gdef(
                                             as u32,
                                     );
                                 if cov.is_null()
-                                    || (*cov).num_glyphs as ::core::ffi::c_int
+                                    || (*cov).len() as ::core::ffi::c_int
                                         != read_16u(
                                             data.offset(
                                                 lig_caret_offset as ::core::ffi::c_int as isize,
@@ -256,7 +256,7 @@ pub unsafe extern "C" fn otfcc_read_gdef(
                                 } else if table_length
                                     < (lig_caret_offset as ::core::ffi::c_int
                                         + 4 as ::core::ffi::c_int
-                                        + (*cov).num_glyphs as ::core::ffi::c_int
+                                        + (*cov).len() as ::core::ffi::c_int
                                             * 2 as ::core::ffi::c_int)
                                         as u32
                                 {
@@ -264,7 +264,7 @@ pub unsafe extern "C" fn otfcc_read_gdef(
                                 } else {
                                     let mut j: GlyphId = 0 as GlyphId;
                                     while (j as ::core::ffi::c_int)
-                                        < (*cov).num_glyphs as ::core::ffi::c_int
+                                        < (*cov).len() as ::core::ffi::c_int
                                     {
                                         let mut v: CaretValueRecord = read_lig_caret_record(
                                             data,
@@ -288,7 +288,7 @@ pub unsafe extern "C" fn otfcc_read_gdef(
                                         );
                                         v.glyph =
                                             otfcc_handle_dup(
-                                                (*(*cov).glyphs.offset(j as isize)).clone() as Handle,
+                                                (&(*cov))[j as usize].clone() as Handle,
                                             )
                                                 as GlyphHandle;
                                         (*gdef).lig_carets.push(v);

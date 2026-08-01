@@ -105,12 +105,11 @@ pub unsafe extern "C" fn otfcc_build_tsi5(
         27 as ::core::ffi::c_ulong,
     ) as *mut u16;
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*tsi5).num_glyphs as ::core::ffi::c_int {
-        if ((*(*tsi5).glyphs.offset(j as isize)).index as ::core::ffi::c_int)
-            < num_glyphs as ::core::ffi::c_int
+    while (j as usize) < (*tsi5).glyphs.len() {
+        if ((&(*tsi5).glyphs)[j as usize].index as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int
         {
-            *tsi5cls.offset((*(*tsi5).glyphs.offset(j as isize)).index as isize) =
-                *(*tsi5).classes.offset(j as isize) as u16;
+            *tsi5cls.offset((&(*tsi5).glyphs)[j as usize].index as isize) =
+                (&(*tsi5).classes)[j as usize] as u16;
         }
         j = j.wrapping_add(1);
     }

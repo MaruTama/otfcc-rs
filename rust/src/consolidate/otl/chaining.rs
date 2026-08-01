@@ -75,7 +75,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             true,
         );
         possible = possible as ::core::ffi::c_int != 0
-            && (**(*rule).match_0.offset(j as isize)).num_glyphs as ::core::ffi::c_int
+            && (**(*rule).match_0.offset(j as isize)).len() as ::core::ffi::c_int
                 > 0 as ::core::ffi::c_int;
         j = j.wrapping_add(1);
     }
