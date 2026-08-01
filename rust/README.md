@@ -1239,6 +1239,40 @@ on the other platform before a commit is trusted.
     mind — the one existing payload that exercises this exact
     `consolidate_colr` decomposition path, byte-identical across the
     standard full pipeline on both platforms.
+- **Same finding, one field over: `ComponentReference`'s `VQ`/`Handle`
+  dispose calls are redundant too, not just `Handle`'s.** `VqSegList`'s own
+  `Vec` conversion (the `VQ` pilot, much earlier in this migration) already
+  gave `VQ` real drop glue, the same way the `Handle` pilot later did for
+  `Handle` -- this PR is the first to actually retire a manual dispose call
+  built on that fact, because `ComponentReference` is the one struct that
+  embeds both. `GLYF_I_COMPONENT_REFERENCE`'s `.dispose` field/backing
+  function is deleted outright (its only two callers were a container-loop
+  and a `retain_mut` closure, both fixed the same way as the `Handle`
+  cleanup PRs), and three more call sites turned up in `consolidate.rs`'s
+  glyph-reference-anchoring code once the vtable field was gone and the
+  compiler pointed at every remaining `.dispose` reference: each one disposes
+  a plain, never-moved owned local (`ref_0`, `rr1`, `gr`, plus the adjacent
+  `inner_x`/`inner_y`/`outer_x`/`outer_y`/`rrx`/`rry` `VQ` locals in the same
+  function) immediately before the function returns or the enclosing block
+  ends -- the same "already about to auto-drop" shape as `ColrMapping`'s
+  `consolidate.rs` call site.
+  - **Deliberately did not chase this further.** `I_VQ.dispose` has ~20 more
+    call sites across `cff.rs`, `libcff/charstring_il.rs`, `glyf/read.rs`,
+    and `otf_writer/stat.rs` that were not traced here — some may turn out to
+    be the same pattern, some may be genuine reset-and-reuse-in-place calls
+    (which a `VQ`'s own drop glue cannot replace, since reusing the same
+    binding after "dropping" it isn't valid Rust without reassigning it).
+    Each needs the same one-call-site-at-a-time ownership trace as the ones
+    fixed here, not a blanket search-and-delete.
+  - Also caught: `PointElementInterface`/`ComponentReferenceElementInterface`
+    both still declared an `empty`/`dup` pair alongside `init`/`copy` that
+    look, from a first pass, like they might be similarly overbuilt — not
+    investigated here, since that's a vtable-reachability question (PR
+    #50/#51's method), a different kind of check than the dispose-redundancy
+    one this PR chain has been doing.
+  - Zero behavior change, verified with the standard full pipeline (build,
+    44 tests, ABI, byte comparison — 3× on both platforms — round trips,
+    issue #1 golden test).
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
