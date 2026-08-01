@@ -52,8 +52,8 @@ pub unsafe extern "C" fn fontop_consolidate_coverage(
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
-        let mut h: *mut GlyphHandle = (*coverage).glyphs.offset(j as isize) as *mut GlyphHandle;
+    while (j as usize) < (*coverage).len() {
+        let mut h: *mut GlyphHandle = &raw mut (&mut (*coverage))[j as usize];
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
@@ -86,8 +86,8 @@ pub unsafe extern "C" fn fontop_consolidate_class_def(
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
-        let mut h: *mut GlyphHandle = (*cd).glyphs.offset(j as isize) as *mut GlyphHandle;
+    while (j as usize) < (*cd).glyphs.len() {
+        let mut h: *mut GlyphHandle = &raw mut (&mut (*cd).glyphs)[j as usize];
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
@@ -107,7 +107,7 @@ pub unsafe extern "C" fn fontop_consolidate_class_def(
                 ),
             );
             otfcc_handle_dispose(h as *mut Handle);
-            *(*cd).classes.offset(j as isize) = 0 as GlyphClass;
+            (&mut (*cd).classes)[j as usize] = 0 as GlyphClass;
         }
         j = j.wrapping_add(1);
     }

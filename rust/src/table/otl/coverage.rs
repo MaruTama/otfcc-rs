@@ -1,10 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{exit, free, malloc, memcmp, memcpy, memset, qsort};
+use libc::{exit, free, malloc, memcmp, memset, qsort};
 
 use crate::support::json_funcs::{preserialize};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
-use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
+use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphId};
@@ -14,33 +14,21 @@ use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, 
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite_bufdel};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_string_new};
 use crate::vendor::sds::{sdsnewlen};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Coverage {
-    pub num_glyphs: GlyphId,
-    pub capacity: u32,
-    pub glyphs: *mut GlyphHandle,
-}
+/// A glyph coverage set: C by way of c2rust had this as a hand-rolled
+/// `malloc`/`realloc` array (`num_glyphs`/`capacity`/`glyphs: *mut
+/// GlyphHandle`); it was never anything but a growable array of
+/// `GlyphHandle`, so `Vec<GlyphHandle>` *is* `Coverage` now, not a struct
+/// wrapping one -- same "C-native vector shape becomes a bare `pub type`"
+/// call as `ColrTable`/`TsiTable` earlier in this migration.
+pub type Coverage = Vec<GlyphHandle>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ICoverage {
-    pub init: Option<unsafe extern "C" fn(*mut Coverage) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut Coverage, *const Coverage) -> ()>,
-    pub move_0: Option<unsafe extern "C" fn(*mut Coverage, *mut Coverage) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut Coverage) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut Coverage, Coverage) -> ()>,
-    pub copy_replace: Option<unsafe extern "C" fn(*mut Coverage, Coverage) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut Coverage>,
-    pub free: Option<unsafe extern "C" fn(*mut Coverage) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut Coverage, u32) -> ()>,
-    pub read: Option<unsafe extern "C" fn(*const u8, u32, u32) -> *mut Coverage>,
     pub dump: Option<unsafe extern "C" fn(*const Coverage) -> *mut JsonValue>,
     pub parse: Option<unsafe extern "C" fn(*const JsonValue) -> *mut Coverage>,
     pub build: Option<unsafe extern "C" fn(*const Coverage) -> *mut Buffer>,
     pub build_format:
         Option<unsafe extern "C" fn(*const Coverage, u16) -> *mut Buffer>,
-    pub shrink: Option<unsafe extern "C" fn(*mut Coverage, bool) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut Coverage, GlyphHandle) -> ()>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -49,40 +37,15 @@ pub struct CoverageEntry {
     pub cov_index: ::core::ffi::c_int,
     pub hh: UtHashHandle,
 }
-#[inline]
-unsafe extern "C" fn dispose_coverage(mut coverage: *mut Coverage) {
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
-        otfcc_handle_dispose(
-            (*coverage).glyphs.offset(j as isize) as *mut Handle,
-        );
-        j = j.wrapping_add(1);
-    }
-    free((*coverage).glyphs as *mut ::core::ffi::c_void);
-    (*coverage).glyphs = ::core::ptr::null_mut::<GlyphHandle>();
-}
-#[inline]
-pub(crate) unsafe extern "C" fn otl_coverage_move(mut dst: *mut Coverage, mut src: *mut Coverage) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Coverage>() as usize,
-    );
-    otl_coverage_init(src);
-}
-#[inline]
-pub(crate) unsafe extern "C" fn otl_coverage_copy_replace(mut dst: *mut Coverage, src: Coverage) {
-    otl_coverage_dispose(dst);
-    otl_coverage_copy(dst, &raw const src);
-}
-#[inline]
 pub(crate) unsafe extern "C" fn otl_coverage_create() -> *mut Coverage {
-    let mut x: *mut Coverage =
-        malloc(::core::mem::size_of::<Coverage>() as usize) as *mut Coverage;
-    otl_coverage_init(x);
-    return x;
+    // `.write()`, not a field assignment: this is placement-constructing a
+    // fresh `Vec` into unwritten `malloc`'d memory (`Coverage` is a bare
+    // `Vec<GlyphHandle>` now), so there is nothing to read or drop first --
+    // same reasoning as `ColrTable`/`TsiTable`.
+    let x: *mut Coverage = malloc(::core::mem::size_of::<Coverage>() as usize) as *mut Coverage;
+    x.write(Vec::new());
+    x
 }
-#[inline]
 pub(crate) unsafe extern "C" fn otl_coverage_free(mut x: *mut Coverage) {
     if x.is_null() {
         return;
@@ -90,69 +53,12 @@ pub(crate) unsafe extern "C" fn otl_coverage_free(mut x: *mut Coverage) {
     otl_coverage_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[inline]
-pub(crate) unsafe extern "C" fn otl_coverage_dispose(mut x: *mut Coverage) {
-    dispose_coverage(x);
-}
-#[inline]
-pub(crate) unsafe extern "C" fn otl_coverage_copy(mut dst: *mut Coverage, mut src: *const Coverage) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Coverage>() as usize,
-    );
-}
-#[inline]
-pub(crate) unsafe extern "C" fn otl_coverage_init(mut x: *mut Coverage) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<Coverage>() as usize,
-    );
-}
-#[inline]
-pub(crate) unsafe extern "C" fn otl_coverage_replace(mut dst: *mut Coverage, src: Coverage) {
-    otl_coverage_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Coverage>() as usize,
-    );
-}
-unsafe extern "C" fn grow_coverage(mut coverage: *mut Coverage, mut n: u32) {
-    if n == 0 {
-        return;
-    }
-    if n > (*coverage).capacity {
-        if (*coverage).capacity == 0 {
-            (*coverage).capacity = 0x10 as u32;
-        }
-        while n > (*coverage).capacity {
-            (*coverage).capacity = (*coverage).capacity.wrapping_add(
-                (*coverage).capacity >> 1 as ::core::ffi::c_int & 0xffffff as u32,
-            );
-        }
-        (*coverage).glyphs = __caryll_reallocate(
-            (*coverage).glyphs as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<GlyphHandle>() as usize)
-                .wrapping_mul((*coverage).capacity as usize),
-            18 as ::core::ffi::c_ulong,
-        ) as *mut GlyphHandle;
-    }
-}
-pub(crate) unsafe extern "C" fn clear_coverage(mut coverage: *mut Coverage, mut n: u32) {
-    if coverage.is_null() || (*coverage).glyphs.is_null() {
-        return;
-    }
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
-        otfcc_handle_dispose(
-            (*coverage).glyphs.offset(j as isize) as *mut Handle,
-        );
-        j = j.wrapping_add(1);
-    }
-    grow_coverage(coverage, n);
-    (*coverage).num_glyphs = n as GlyphId;
+pub(crate) unsafe extern "C" fn otl_coverage_dispose(x: *mut Coverage) {
+    // Dropping the old `Vec` here (via assignment) runs each element's
+    // `Handle::drop` in turn, freeing every glyph name -- the explicit
+    // per-element `otfcc_handle_dispose` loop this replaced is now
+    // redundant, the same finding as the `Handle` Drop/Clone PR.
+    *x = Vec::new();
 }
 unsafe extern "C" fn by_cov_index(
     mut a: *mut CoverageEntry,
@@ -160,22 +66,8 @@ unsafe extern "C" fn by_cov_index(
 ) -> ::core::ffi::c_int {
     return (*a).cov_index - (*b).cov_index;
 }
-pub(crate) unsafe extern "C" fn push_to_coverage(mut coverage: *mut Coverage, mut h: GlyphHandle) {
-    (*coverage).num_glyphs =
-        ((*coverage).num_glyphs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
-    grow_coverage(coverage, (*coverage).num_glyphs as u32);
-    // `ptr::write`, not assignment: `grow_coverage`'s `realloc` leaves this
-    // slot uninitialized (or holding an unrelated previous tenant's bytes),
-    // so `*ptr = h` would try to `Handle::drop` garbage before writing --
-    // the same "field assignment onto memory that was never a valid value"
-    // trap as the `GaspTable`/`x.write(...)` cases elsewhere in this crate,
-    // just at push-time instead of create-time.
-    ::core::ptr::write(
-        (*coverage)
-            .glyphs
-            .offset(((*coverage).num_glyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
-        h,
-    );
+pub(crate) unsafe extern "C" fn push_to_coverage(coverage: *mut Coverage, h: GlyphHandle) {
+    (*coverage).push(h);
 }
 pub(crate) unsafe extern "C" fn read_coverage(
     mut data: *const u8,
@@ -2271,17 +2163,13 @@ pub(crate) unsafe extern "C" fn read_coverage(
     }
     return coverage;
 }
-pub(crate) unsafe extern "C" fn dump_coverage(mut coverage: *const Coverage) -> *mut JsonValue {
-    let mut a: *mut JsonValue = json_array_new((*coverage).num_glyphs as usize);
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
+pub(crate) unsafe extern "C" fn dump_coverage(coverage: *const Coverage) -> *mut JsonValue {
+    let mut a: *mut JsonValue = json_array_new((*coverage).len());
+    for j in 0..(*coverage).len() {
         json_array_push(
             a,
-            json_string_new(
-                (*(*coverage).glyphs.offset(j as isize)).name as *const ::core::ffi::c_char,
-            ),
+            json_string_new((&(*coverage))[j].name as *const ::core::ffi::c_char),
         );
-        j = j.wrapping_add(1);
     }
     return preserialize(a);
 }
@@ -2320,7 +2208,7 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
     mut coverage: *const Coverage,
     mut format: u16,
 ) -> *mut Buffer {
-    if (*coverage).num_glyphs == 0 {
+    if (*coverage).is_empty() {
         let mut buf: *mut Buffer = bufnew();
         bufwrite16b(buf, 2 as u16);
         bufwrite16b(buf, 0 as u16);
@@ -2328,16 +2216,13 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
     }
     let mut r: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
     r = __caryll_allocate_clean(
-        (::core::mem::size_of::<GlyphId>() as usize)
-            .wrapping_mul((*coverage).num_glyphs as usize),
+        (::core::mem::size_of::<GlyphId>() as usize).wrapping_mul((*coverage).len()),
         144 as ::core::ffi::c_ulong,
     ) as *mut GlyphId;
     let mut jj: GlyphId = 0 as GlyphId;
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
-        *r.offset(jj as isize) = (*(*coverage).glyphs.offset(j as isize)).index;
+    for j in 0..(*coverage).len() {
+        *r.offset(jj as isize) = (&(*coverage))[j].index;
         jj = jj.wrapping_add(1);
-        j = j.wrapping_add(1);
     }
     qsort(
         r as *mut ::core::ffi::c_void,
@@ -2439,28 +2324,32 @@ unsafe extern "C" fn by_handle_gid(
     return (*(a as *mut GlyphHandle)).index as ::core::ffi::c_int
         - (*(b as *mut GlyphHandle)).index as ::core::ffi::c_int;
 }
-pub(crate) unsafe extern "C" fn shrink_coverage(mut coverage: *mut Coverage, mut dosort: bool) {
+pub(crate) unsafe extern "C" fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
     if coverage.is_null() {
         return;
     }
-    let mut k: GlyphId = 0 as GlyphId;
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < (*coverage).num_glyphs as ::core::ffi::c_int {
-        if !(*(*coverage).glyphs.offset(j as isize)).name.is_null() {
-            let fresh0 = k;
-            k = k.wrapping_add(1);
-            *(*coverage).glyphs.offset(fresh0 as isize) = (*(*coverage).glyphs.offset(j as isize)).clone();
+    // Two `truncate`s, not one `num_glyphs = k` at the end as the original
+    // did: each `truncate` lets `Vec`'s own drop glue free every handle
+    // past the new length, including ones this function's own compaction
+    // loops never got around to calling `otfcc_handle_dispose` on directly
+    // (a survivor that gets superseded by a *later* compaction write, but
+    // never becomes a write target itself, is exactly that case) -- the
+    // original leaked that name; `truncate` doesn't.
+    let mut k: usize = 0;
+    for j in 0..(*coverage).len() {
+        if !(&(*coverage))[j].name.is_null() {
+            let elem = (&(*coverage))[j].clone();
+            (&mut (*coverage))[k] = elem;
+            k += 1;
         } else {
-            otfcc_handle_dispose(
-                (*coverage).glyphs.offset(j as isize) as *mut Handle,
-            );
+            otfcc_handle_dispose(&raw mut (&mut (*coverage))[j] as *mut Handle);
         }
-        j = j.wrapping_add(1);
     }
+    (*coverage).truncate(k);
     if dosort {
         qsort(
-            (*coverage).glyphs as *mut ::core::ffi::c_void,
-            k as usize,
+            (*coverage).as_mut_ptr() as *mut ::core::ffi::c_void,
+            (*coverage).len(),
             ::core::mem::size_of::<GlyphHandle>() as usize,
             Some(
                 by_handle_gid
@@ -2470,56 +2359,24 @@ pub(crate) unsafe extern "C" fn shrink_coverage(mut coverage: *mut Coverage, mut
                     ) -> ::core::ffi::c_int,
             ),
         );
-        let mut skip: GlyphId = 0 as GlyphId;
-        let mut rear: GlyphId = 1 as GlyphId;
-        while (rear as ::core::ffi::c_int) < k as ::core::ffi::c_int {
-            if (*(*coverage).glyphs.offset(rear as isize)).index as ::core::ffi::c_int
-                == (*(*coverage).glyphs.offset(
-                    (rear as ::core::ffi::c_int
-                        - skip as ::core::ffi::c_int
-                        - 1 as ::core::ffi::c_int) as isize,
-                ))
-                .index as ::core::ffi::c_int
-            {
-                otfcc_handle_dispose(
-                    (*coverage).glyphs.offset(rear as isize) as *mut Handle,
-                );
-                skip = (skip as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+        let mut skip: usize = 0;
+        let mut rear: usize = 1;
+        while rear < (*coverage).len() {
+            if (&(*coverage))[rear].index == (&(*coverage))[rear - skip - 1].index {
+                otfcc_handle_dispose(&raw mut (&mut (*coverage))[rear] as *mut Handle);
+                skip += 1;
             } else {
-                *(*coverage)
-                    .glyphs
-                    .offset((rear as ::core::ffi::c_int - skip as ::core::ffi::c_int) as isize) =
-                    (*(*coverage).glyphs.offset(rear as isize)).clone();
+                let elem = (&(*coverage))[rear].clone();
+                (&mut (*coverage))[rear - skip] = elem;
             }
-            rear = rear.wrapping_add(1);
+            rear += 1;
         }
-        k = (k as ::core::ffi::c_int - skip as ::core::ffi::c_int) as GlyphId;
+        let new_len = (*coverage).len() - skip;
+        (*coverage).truncate(new_len);
     }
-    (*coverage).num_glyphs = k;
 }
 pub static OTL_I_COVERAGE: ICoverage = {
     ICoverage {
-        init: Some(otl_coverage_init as unsafe extern "C" fn(*mut Coverage) -> ()),
-        copy: Some(
-            otl_coverage_copy as unsafe extern "C" fn(*mut Coverage, *const Coverage) -> (),
-        ),
-        move_0: Some(
-            otl_coverage_move as unsafe extern "C" fn(*mut Coverage, *mut Coverage) -> (),
-        ),
-        dispose: Some(otl_coverage_dispose as unsafe extern "C" fn(*mut Coverage) -> ()),
-        replace: Some(
-            otl_coverage_replace as unsafe extern "C" fn(*mut Coverage, Coverage) -> (),
-        ),
-        copy_replace: Some(
-            otl_coverage_copy_replace as unsafe extern "C" fn(*mut Coverage, Coverage) -> (),
-        ),
-        create: Some(otl_coverage_create),
-        free: Some(otl_coverage_free as unsafe extern "C" fn(*mut Coverage) -> ()),
-        clear: Some(clear_coverage as unsafe extern "C" fn(*mut Coverage, u32) -> ()),
-        read: Some(
-            read_coverage
-                as unsafe extern "C" fn(*const u8, u32, u32) -> *mut Coverage,
-        ),
         dump: Some(dump_coverage as unsafe extern "C" fn(*const Coverage) -> *mut JsonValue),
         parse: Some(parse_coverage as unsafe extern "C" fn(*const JsonValue) -> *mut Coverage),
         build: Some(
@@ -2528,10 +2385,6 @@ pub static OTL_I_COVERAGE: ICoverage = {
         build_format: Some(
             build_coverage_format
                 as unsafe extern "C" fn(*const Coverage, u16) -> *mut Buffer,
-        ),
-        shrink: Some(shrink_coverage as unsafe extern "C" fn(*mut Coverage, bool) -> ()),
-        push: Some(
-            push_to_coverage as unsafe extern "C" fn(*mut Coverage, GlyphHandle) -> (),
         ),
     }
 };

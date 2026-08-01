@@ -63,7 +63,7 @@ pub unsafe extern "C" fn otl_read_mark_array(
                 (*array).push(
                     MarkRecord {
                         glyph: otfcc_handle_dup(
-                            (*(*cov).glyphs.offset(j as isize)).clone() as Handle,
+                            (&(*cov))[j as usize].clone() as Handle,
                         ) as GlyphHandle,
                         mark_class: mark_class,
                         anchor: otl_read_anchor(
@@ -77,7 +77,7 @@ pub unsafe extern "C" fn otl_read_mark_array(
                 (*array).push(
                     MarkRecord {
                         glyph: otfcc_handle_dup(
-                            (*(*cov).glyphs.offset(j as isize)).clone() as Handle,
+                            (&(*cov))[j as usize].clone() as Handle,
                         ) as GlyphHandle,
                         mark_class: mark_class,
                         anchor: otl_anchor_absent(),

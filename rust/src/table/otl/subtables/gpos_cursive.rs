@@ -64,7 +64,7 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
             ) as u32),
         );
         if !(targets.is_null()
-            || (*targets).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
+            || (*targets).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
         {
             value_count = read_16u(
                 data.offset(offset as isize)
@@ -75,7 +75,7 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
                     (4 as ::core::ffi::c_int * value_count as ::core::ffi::c_int) as u32,
                 ))
             {
-                if !(value_count as ::core::ffi::c_int != (*targets).num_glyphs as ::core::ffi::c_int)
+                if !(value_count as ::core::ffi::c_int != (*targets).len() as GlyphId as ::core::ffi::c_int)
                 {
                     let mut j: GlyphId = 0 as GlyphId;
                     while (j as ::core::ffi::c_int) < value_count as ::core::ffi::c_int {
@@ -113,7 +113,7 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
                         }
                         (*subtable).push(GposCursiveEntry {
                             target: otfcc_handle_dup(
-                                (*(*targets).glyphs.offset(j as isize)).clone() as Handle,
+                                (&(*targets))[j as usize].clone() as Handle,
                             ) as GlyphHandle,
                             enter: enter,
                             exit: exit,

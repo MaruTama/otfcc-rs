@@ -3,7 +3,7 @@ use libc::{free, malloc, memcpy};
 
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum_fallback};
-use crate::table::otl::coverage::{Coverage, otl_coverage_free, read_coverage};
+use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -211,9 +211,8 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                         table_length,
                         cov_offset_0,
                     );
-                    if !(n_replacement as ::core::ffi::c_int
-                        != (**(*subtable).match_0.offset((*subtable).input_index as isize)).num_glyphs
-                            as ::core::ffi::c_int)
+                    if !(n_replacement as usize
+                        != (*(*(*subtable).match_0.offset((*subtable).input_index as isize))).len())
                     {
                         let mut j_0: TableId = 0 as TableId;
                         while (j_0 as ::core::ffi::c_int) < n_forward as ::core::ffi::c_int {
@@ -243,20 +242,11 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                             );
                             j_0 = j_0.wrapping_add(1);
                         }
-                        (*subtable).to = __caryll_allocate_clean(
-                            ::core::mem::size_of::<Coverage>() as usize,
-                            64 as ::core::ffi::c_ulong,
-                        ) as *mut Coverage;
-                        (*(*subtable).to).num_glyphs = n_replacement as GlyphId;
-                        (*(*subtable).to).glyphs = __caryll_allocate_clean(
-                            (::core::mem::size_of::<GlyphHandle>() as usize)
-                                .wrapping_mul(n_replacement as usize),
-                            66 as ::core::ffi::c_ulong,
-                        )
-                            as *mut GlyphHandle;
+                        (*subtable).to = otl_coverage_create();
                         let mut j_1: TableId = 0 as TableId;
                         while (j_1 as ::core::ffi::c_int) < n_replacement as ::core::ffi::c_int {
-                            *(*(*subtable).to).glyphs.offset(j_1 as isize) =
+                            push_to_coverage(
+                                (*subtable).to,
                                 handle_from_index(
                                     read_16u(
                                         data.offset(offset as isize)
@@ -270,7 +260,8 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                                             )
                                             as *const u8,
                                     ) as GlyphId,
-                                ) as GlyphHandle;
+                                ) as GlyphHandle,
+                            );
                             j_1 = j_1.wrapping_add(1);
                         }
                         reverse_backtracks((*subtable).match_0, (*subtable).input_index);
@@ -390,10 +381,10 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
             )))]);
         j_0 = j_0.wrapping_add(1);
     }
-    bk_push(root, &[bk_int(BkCellType::B16, ((*(*subtable).to).num_glyphs as ::core::ffi::c_int) as u32)]);
+    bk_push(root, &[bk_int(BkCellType::B16, ((*(*subtable).to).len() as ::core::ffi::c_int) as u32)]);
     let mut j_1: TableId = 0 as TableId;
-    while (j_1 as ::core::ffi::c_int) < (*(*subtable).to).num_glyphs as ::core::ffi::c_int {
-        bk_push(root, &[bk_int(BkCellType::B16, ((*(*(*subtable).to).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int) as u32)]);
+    while (j_1 as usize) < (*(*subtable).to).len() {
+        bk_push(root, &[bk_int(BkCellType::B16, ((&(*(*subtable).to))[j_1 as usize].index as ::core::ffi::c_int) as u32)]);
         j_1 = j_1.wrapping_add(1);
     }
     return bk_build_block(root);

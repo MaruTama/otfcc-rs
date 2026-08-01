@@ -73,7 +73,7 @@ pub unsafe extern "C" fn consolidate_gdef(
     if !(*gdef).glyph_class_def.is_null() {
         fontop_consolidate_class_def(font, (*gdef).glyph_class_def, options);
         OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*gdef).glyph_class_def);
-        if (*(*gdef).glyph_class_def).num_glyphs == 0 {
+        if (*(*gdef).glyph_class_def).glyphs.is_empty() {
             OTL_I_CLASS_DEF.free.expect("non-null function pointer")((*gdef).glyph_class_def);
             (*gdef).glyph_class_def = ::core::ptr::null_mut::<ClassDef>();
         }
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn consolidate_gdef(
     if !(*gdef).mark_attach_class_def.is_null() {
         fontop_consolidate_class_def(font, (*gdef).mark_attach_class_def, options);
         OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*gdef).mark_attach_class_def);
-        if (*(*gdef).mark_attach_class_def).num_glyphs == 0 {
+        if (*(*gdef).mark_attach_class_def).glyphs.is_empty() {
             OTL_I_CLASS_DEF.free.expect("non-null function pointer")((*gdef).mark_attach_class_def);
             (*gdef).mark_attach_class_def = ::core::ptr::null_mut::<ClassDef>();
         }

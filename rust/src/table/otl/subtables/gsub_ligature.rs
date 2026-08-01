@@ -94,7 +94,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                 data.offset(offset as isize)
                     .offset(4 as ::core::ffi::c_int as isize) as *const u8,
             ) as GlyphId;
-            if !(set_count as ::core::ffi::c_int != (*start_coverage).num_glyphs as ::core::ffi::c_int)
+            if !(set_count as usize != (*start_coverage).len())
             {
                 if !(table_length
                     < offset.wrapping_add(6 as u32).wrapping_add(
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                     push_to_coverage(
                                         cov,
                                         handle_from_index(
-                                            (*(*start_coverage).glyphs.offset(j_0 as isize)).index,
+                                            (&(*start_coverage))[j_0 as usize].index,
                                         )
                                             as GlyphHandle,
                                     );
@@ -375,10 +375,8 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     let mut n_ligatures: GlyphId = (*subtable).len() as GlyphId;
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-        let mut sgid: ::core::ffi::c_int = (*(*(&(*subtable))[j as usize].from)
-            .glyphs
-            .offset(0 as ::core::ffi::c_int as isize))
-        .index as ::core::ffi::c_int;
+        let mut sgid: ::core::ffi::c_int = (&(*(&(*subtable))[j as usize].from))[0]
+            .index as ::core::ffi::c_int;
         let mut _hf_hashv: ::core::ffi::c_uint = 0;
         let mut _hj_i: ::core::ffi::c_uint = 0;
         let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -1272,15 +1270,13 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     }
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             startcov,
-        ))), bk_int(BkCellType::B16, ((*startcov).num_glyphs as ::core::ffi::c_int) as u32)]);
+        ))), bk_int(BkCellType::B16, ((*startcov).len() as ::core::ffi::c_int) as u32)]);
     s = h;
     while !s.is_null() {
         let mut n_ligs_here: GlyphId = 0 as GlyphId;
         let mut j_0: GlyphId = 0 as GlyphId;
         while (j_0 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-            if (*(*(&(*subtable))[j_0 as usize].from)
-                .glyphs
-                .offset(0 as ::core::ffi::c_int as isize))
+            if (&(*(&(*subtable))[j_0 as usize].from))[0]
             .index as ::core::ffi::c_int
                 == (*s).gid
             {
@@ -1291,22 +1287,18 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
         let mut ligset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (n_ligs_here as ::core::ffi::c_int) as u32)]);
         let mut j_1: GlyphId = 0 as GlyphId;
         while (j_1 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-            if (*(*(&(*subtable))[j_1 as usize].from)
-                .glyphs
-                .offset(0 as ::core::ffi::c_int as isize))
+            if (&(*(&(*subtable))[j_1 as usize].from))[0]
             .index as ::core::ffi::c_int
                 == (*s).gid
             {
-                let mut ligdef: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((&(*subtable))[j_1 as usize].to.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(&(*subtable))[j_1 as usize].from).num_glyphs
+                let mut ligdef: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((&(*subtable))[j_1 as usize].to.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(&(*subtable))[j_1 as usize].from).len()
                         as ::core::ffi::c_int) as u32)]);
                 let mut m: GlyphId = 1 as GlyphId;
                 while (m as ::core::ffi::c_int)
-                    < (*(&(*subtable))[j_1 as usize].from).num_glyphs
+                    < (*(&(*subtable))[j_1 as usize].from).len()
                         as ::core::ffi::c_int
                 {
-                    bk_push(ligdef, &[bk_int(BkCellType::B16, ((*(*(&(*subtable))[j_1 as usize].from)
-                            .glyphs
-                            .offset(m as isize))
+                    bk_push(ligdef, &[bk_int(BkCellType::B16, ((&(*(&(*subtable))[j_1 as usize].from))[m as usize]
                         .index as ::core::ffi::c_int) as u32)]);
                     m = m.wrapping_add(1);
                 }

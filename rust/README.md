@@ -1071,6 +1071,109 @@ on the other platform before a commit is trusted.
     or a wider Stage 6-4 sweep (`Coverage`/`ClassDef`/`Glyph` unified onto
     `Box`/`Vec` ownership rather than hand-rolled `malloc`/`realloc` arrays)
     would cost — those remain open, larger follow-ups.
+- **Stage 6-4: `Coverage`/`ClassDef`'s hand-rolled `glyphs` arrays become
+  `Vec<GlyphHandle>` — the follow-up flagged two entries up.** `Coverage`
+  (`num_glyphs`/`capacity`/`glyphs: *mut GlyphHandle`) had no field beyond the
+  array itself, so it collapses to `pub type Coverage = Vec<GlyphHandle>`,
+  the same "C-native vector shape becomes a bare `pub type`" call as
+  `ColrTable`/`TsiTable`. `ClassDef` keeps `maxclass: GlyphClass` as a real
+  third field alongside `glyphs: Vec<GlyphHandle>`/`classes: Vec<GlyphClass>`
+  — the two arrays always grow together (checked every call site before
+  starting), never independently, so one struct with two `Vec`s is the
+  honest shape, not two containers plus a length invariant to maintain by
+  hand.
+  - **Vtable trimming, same two-level check as `Handle`'s Drop/Clone PR
+    before it**: `ICoverage` 16 fields → 4 (`dump`/`parse`/`build`/
+    `build_format`), `IClassDef` 15 → 5 (adds `shrink`). A slot survives only
+    if it's dispatched *through the vtable* somewhere (`OTL_I_COVERAGE.dump.
+    expect(...)(...)`) — a backing function can be very much alive by direct
+    call (`shrink_coverage(...)`) while its vtable field is completely dead,
+    and the two questions have different answers per slot.
+  - **`push_to_coverage`/`push_class_def` collapse to `.push()`, which
+    removes the `ptr::write` workaround from the `Handle` Drop/Clone PR at
+    its root rather than papering over it again.** That PR's crash was a
+    `realloc`-grown-but-uninitialized slot receiving a plain `*ptr = h`
+    assignment, which drops whatever garbage was already there. `Vec::push`
+    never has that failure mode — it manages its own growth and always
+    writes into memory it knows is uninitialized — so the class of bug
+    disappears rather than needing a second manual fix.
+  - **`otl_coverage_create`/`otl_class_def_create` use `malloc` +
+    `.write(...)` placement construction, not `calloc`.** Placement-writing
+    a whole `Coverage`/`ClassDef` value never reads the destination first, so
+    the `GaspTable` calloc lesson (a field *assignment* onto `malloc`'d
+    memory drops uninitialized garbage) doesn't apply here — there's no
+    field assignment, only a single whole-value write.
+  - **`shrink_coverage`/`shrink_class_def` rewritten around `Vec::truncate`,
+    which is not just safe but a real (if minor) bug fix.** The original
+    compacts live entries to the front and then just decrements the length
+    field — the physically-still-allocated tail slots past the new length
+    are never explicitly freed, a leak for any entry whose `Handle` was
+    filtered out during compaction. `.truncate(k)` runs `Drop` on every
+    element beyond `k`, so the same compaction now frees what the C
+    original silently kept allocated. Verified this doesn't double-free
+    anything by hand-tracing every case truncate's target slot can be in
+    (self-assigned, previously-nulled, or a superseded-but-still-valid
+    original) before relying on it. `shrink_coverage`'s sort stays a direct
+    `libc::qsort` call over the `Vec`'s own buffer (`.as_mut_ptr()`/`.len()`)
+    with the unchanged `by_handle_gid` comparator, rather than switching to
+    `.sort_by()` — `qsort` is unstable and `.sort_by()` is stable, and this
+    sidesteps any risk of an observable ordering difference on duplicate
+    keys.
+  - **Found and fixed the "manual raw-alloc-then-populate `Coverage`"
+    anti-pattern in five places** (`gsub_single.rs`,
+    `gsub_reverse.rs`, `chaining/classifier.rs`'s `build_rule`,
+    `chaining/read.rs`'s `single_coverage`/`class_coverage`) — code that
+    bypassed the container API entirely, calling `__caryll_allocate_clean`
+    directly for both the `Coverage` struct and its backing array and
+    writing elements by raw offset. Every instance reduces to the same fix:
+    `otl_coverage_create()` once, then a loop of `push_to_coverage(...)`
+    calls — sidestepping any calloc-vs-malloc placement question by reusing
+    the already-correct constructor instead of re-deriving allocation safety
+    at each call site.
+  - **The "ownership-steal move" flagged before starting
+    (`table/otl/subtables/gpos_pair.rs`, format-1 pair adjustment: a freshly
+    read `Coverage`'s glyph array is repurposed as a brand-new `ClassDef`'s
+    `glyphs`, then the emptied `Coverage` husk is freed) became
+    `std::mem::take(&mut *cov)` moving the whole `Vec` into the new
+    `ClassDef`'s field, followed by `otl_coverage_free(cov)` on the
+    now-empty husk** — `take` leaves a `Vec::new()` behind, so freeing the
+    husk afterward is a correct empty-`Vec` drop rather than the double-free
+    the naive read would suggest.
+  - **The "deliberate read-only aliasing" hazard flagged before starting
+    (`table/otl/subtables/chaining/build.rs`, two build functions that
+    reuse `OTL_I_COVERAGE.build` to serialize a `ClassDef`'s glyph list by
+    constructing a throwaway `Coverage` that aliases its `.glyphs` pointer,
+    then `free()`s only the throwaway struct) resolved without constructing
+    anything**: `OTL_I_COVERAGE.build`'s backing function takes `*const
+    Coverage`, read-only, and `Coverage`/`Vec<GlyphHandle>` are the same
+    type now, so `&raw mut (*ic).glyphs as *mut Coverage` — a raw pointer
+    straight into the existing field — serves the same purpose with nothing
+    to allocate or free afterward. The two `free(coverage as *mut c_void)`
+    calls that used to release the throwaway struct's own allocation were
+    deleted along with it; keeping either one would `free()` a pointer that
+    was never separately `malloc`'d.
+  - **`dangerous_implicit_autorefs` fired at a scale this PR didn't expect
+    going in — 172 machine-applied edits across 18 files** (`&raw mut/const
+    (*ptr)[idx]`-shaped expressions, where indexing through a raw-pointer
+    deref needs an explicit reference to avoid the implicit-autoref lint).
+    Unlike the `glyf`/`Subtable` PRs, where this was anticipated and budgeted
+    for, here it only surfaced once the crate reached zero hard `E0xxx`
+    errors — every file this PR touched had compiled clean against `.len()`/
+    `[idx]` substitutions individually, so the lint pass across the whole
+    crate hadn't run to completion until the very last mechanical fix landed.
+    Same fix as before: `cargo build --message-format=json`, extract each
+    diagnostic's `suggested_replacement` spans, apply by byte offset
+    descending per file so earlier splices don't shift later ones — no
+    manual fixups needed this time, unlike the `glyf` PR's double-span
+    mismatched-paren cases.
+  - **No synthetic payload needed** — every payload already in
+    `compare-with-c.sh` exercises `Coverage`/`ClassDef` through GSUB/GPOS
+    lookups (single, multi, ligature, reverse chaining, pair, chaining
+    classifiers). Full pipeline — build, 44 tests, ABI (4 exports),
+    byte-for-byte comparison (re-run 4× on macOS and 3× on Linux, following
+    the `Handle` PR's precedent of not trusting a single clean pass for a
+    container-lifecycle change), 10-payload round trips, issue #1 golden
+    test — came back clean on both platforms every time.
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

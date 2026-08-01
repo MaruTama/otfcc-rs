@@ -68,7 +68,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
             data.offset(offset as isize)
                 .offset(4 as ::core::ffi::c_int as isize) as *const u8,
         ) as GlyphId;
-        if seq_count as ::core::ffi::c_int == (*from).num_glyphs as ::core::ffi::c_int {
+        if seq_count as usize == (*from).len() {
             if !(table_length
                 < offset.wrapping_add(6 as u32).wrapping_add(
                     (seq_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
@@ -101,9 +101,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
                         );
                     }
                     (*subtable).push(GsubMultiEntry {
-                        from: otfcc_handle_dup(
-                            (*(*from).glyphs.offset(j as isize)).clone() as Handle,
-                        ) as GlyphHandle,
+                        from: otfcc_handle_dup((&(*from))[j as usize].clone() as Handle) as GlyphHandle,
                         to: cov,
                     });
                 }
@@ -170,9 +168,9 @@ unsafe extern "C" fn build_gsub_multi_subtable_range(
     let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
     for j_0 in start..end {
         let to = (&(*subtable))[j_0 as usize].to;
-        let b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*to).num_glyphs as ::core::ffi::c_int) as u32)]);
-        for k in 0..(*to).num_glyphs {
-            bk_push(b, &[bk_int(BkCellType::B16, ((*(*to).glyphs.offset(k as isize)).index as ::core::ffi::c_int) as u32)]);
+        let b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*to).len() as ::core::ffi::c_int) as u32)]);
+        for k in 0..(*to).len() {
+            bk_push(b, &[bk_int(BkCellType::B16, ((&(*to))[k].index as ::core::ffi::c_int) as u32)]);
         }
         bk_push(root, &[bk_ptr(BkCellType::P16, b)]);
     }
@@ -197,7 +195,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
                 + 2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int) as usize)
                 .wrapping_add(
-                    ((*(&(*subtable))[end as usize].to).num_glyphs as usize)
+                    ((*(&(*subtable))[end as usize].to).len())
                         .wrapping_mul(2 as usize),
                 );
             if end as ::core::ffi::c_int > start as ::core::ffi::c_int

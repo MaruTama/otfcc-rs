@@ -101,7 +101,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                 (&(*subtable))[k as usize].to,
                 false,
             );
-            if (*(&(*subtable))[k as usize].to).num_glyphs == 0 {
+            if (*(&(*subtable))[k as usize].to).is_empty() {
                 (*(*options).logger)
                     .log_sds
                     .expect(

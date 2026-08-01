@@ -2,7 +2,7 @@
 use libc::{free};
 
 use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
-use crate::table::otl::coverage::{Coverage, otl_coverage_free, read_coverage};
+use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -43,18 +43,8 @@ pub unsafe extern "C" fn single_coverage(
     _max_glyphs: GlyphId,
     mut _userdata: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
-    let mut cov: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    cov = __caryll_allocate_clean(
-        ::core::mem::size_of::<Coverage>() as usize,
-        14 as ::core::ffi::c_ulong,
-    ) as *mut Coverage;
-    (*cov).num_glyphs = 1 as GlyphId;
-    (*cov).glyphs = __caryll_allocate_clean(
-        ::core::mem::size_of::<GlyphHandle>() as usize,
-        16 as ::core::ffi::c_ulong,
-    ) as *mut GlyphHandle;
-    *(*cov).glyphs.offset(0 as ::core::ffi::c_int as isize) =
-        handle_from_index(gid) as GlyphHandle;
+    let cov: *mut Coverage = otl_coverage_create();
+    push_to_coverage(cov, handle_from_index(gid) as GlyphHandle);
     return cov;
 }
 pub unsafe extern "C" fn class_coverage(
@@ -74,22 +64,16 @@ pub unsafe extern "C" fn class_coverage(
     } else {
         (*defs).fc
     };
-    let mut cov: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    cov = __caryll_allocate_clean(
-        ::core::mem::size_of::<Coverage>() as usize,
-        26 as ::core::ffi::c_ulong,
-    ) as *mut Coverage;
-    (*cov).num_glyphs = 0 as GlyphId;
-    (*cov).glyphs = ::core::ptr::null_mut::<GlyphHandle>();
+    let cov: *mut Coverage = otl_coverage_create();
     let mut count: GlyphId = 0 as GlyphId;
     if cls as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
         let mut k: GlyphId = 0 as GlyphId;
         while (k as ::core::ffi::c_int) < max_glyphs as ::core::ffi::c_int {
             let mut found: bool = false;
             let mut j: GlyphId = 0 as GlyphId;
-            while (j as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
-                if *(*cd).classes.offset(j as isize) as ::core::ffi::c_int > 0 as ::core::ffi::c_int
-                    && (*(*cd).glyphs.offset(j as isize)).index as ::core::ffi::c_int
+            while (j as usize) < (*cd).glyphs.len() {
+                if (&(*cd).classes)[j as usize] as ::core::ffi::c_int > 0 as ::core::ffi::c_int
+                    && (&(*cd).glyphs)[j as usize].index as ::core::ffi::c_int
                         == k as ::core::ffi::c_int
                 {
                     found = true;
@@ -105,8 +89,8 @@ pub unsafe extern "C" fn class_coverage(
         }
     } else {
         let mut j_0: GlyphId = 0 as GlyphId;
-        while (j_0 as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
-            if *(*cd).classes.offset(j_0 as isize) as ::core::ffi::c_int
+        while (j_0 as usize) < (*cd).glyphs.len() {
+            if (&(*cd).classes)[j_0 as usize] as ::core::ffi::c_int
                 == cls as ::core::ffi::c_int
             {
                 count = count.wrapping_add(1);
@@ -117,21 +101,15 @@ pub unsafe extern "C" fn class_coverage(
     if count == 0 {
         return cov;
     }
-    (*cov).num_glyphs = count;
-    (*cov).glyphs = __caryll_allocate_clean(
-        (::core::mem::size_of::<GlyphHandle>() as usize).wrapping_mul(count as usize),
-        49 as ::core::ffi::c_ulong,
-    ) as *mut GlyphHandle;
-    let mut jj: GlyphId = 0 as GlyphId;
     if cls as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
         let mut k_0: GlyphId = 0 as GlyphId;
         while (k_0 as ::core::ffi::c_int) < max_glyphs as ::core::ffi::c_int {
             let mut found_0: bool = false;
             let mut j_1: GlyphId = 0 as GlyphId;
-            while (j_1 as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
-                if *(*cd).classes.offset(j_1 as isize) as ::core::ffi::c_int
+            while (j_1 as usize) < (*cd).glyphs.len() {
+                if (&(*cd).classes)[j_1 as usize] as ::core::ffi::c_int
                     > 0 as ::core::ffi::c_int
-                    && (*(*cd).glyphs.offset(j_1 as isize)).index as ::core::ffi::c_int
+                    && (&(*cd).glyphs)[j_1 as usize].index as ::core::ffi::c_int
                         == k_0 as ::core::ffi::c_int
                 {
                     found_0 = true;
@@ -141,26 +119,20 @@ pub unsafe extern "C" fn class_coverage(
                 }
             }
             if !found_0 {
-                let fresh12 = jj;
-                jj = jj.wrapping_add(1);
-                *(*cov).glyphs.offset(fresh12 as isize) =
-                    handle_from_index(k_0)
-                        as GlyphHandle;
+                push_to_coverage(cov, handle_from_index(k_0) as GlyphHandle);
             }
             k_0 = k_0.wrapping_add(1);
         }
     } else {
         let mut j_2: GlyphId = 0 as GlyphId;
-        while (j_2 as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
-            if *(*cd).classes.offset(j_2 as isize) as ::core::ffi::c_int
+        while (j_2 as usize) < (*cd).glyphs.len() {
+            if (&(*cd).classes)[j_2 as usize] as ::core::ffi::c_int
                 == cls as ::core::ffi::c_int
             {
-                let fresh13 = jj;
-                jj = jj.wrapping_add(1);
-                *(*cov).glyphs.offset(fresh13 as isize) =
-                    otfcc_handle_dup(
-                        (*(*cd).glyphs.offset(j_2 as isize)).clone() as Handle,
-                    ) as GlyphHandle;
+                push_to_coverage(
+                    cov,
+                    otfcc_handle_dup((&(*cd).glyphs)[j_2 as usize].clone() as Handle) as GlyphHandle,
+                );
             }
             j_2 = j_2.wrapping_add(1);
         }
@@ -344,7 +316,7 @@ unsafe extern "C" fn read_contextual_format1(
                 .offset(4 as ::core::ffi::c_int as isize) as *const u8,
         ) as TableId;
         if !(chain_sub_rule_set_count as ::core::ffi::c_int
-            != (*first_coverage).num_glyphs as ::core::ffi::c_int)
+            != (*first_coverage).len() as ::core::ffi::c_int)
         {
             if !(table_length
                 < offset.wrapping_add(6 as u32).wrapping_add(
@@ -432,7 +404,7 @@ unsafe extern "C" fn read_contextual_format1(
                                     data,
                                     table_length,
                                     sr_offset,
-                                    (*(*first_coverage).glyphs.offset(j_0 as isize)).index
+                                    (&(*first_coverage))[j_0 as usize].index
                                         as u16,
                                     true,
                                     Some(
@@ -975,7 +947,7 @@ unsafe extern "C" fn read_chaining_format1(
                 .offset(4 as ::core::ffi::c_int as isize) as *const u8,
         ) as TableId;
         if !(chain_sub_rule_set_count as ::core::ffi::c_int
-            != (*first_coverage).num_glyphs as ::core::ffi::c_int)
+            != (*first_coverage).len() as ::core::ffi::c_int)
         {
             if !(table_length
                 < offset.wrapping_add(6 as u32).wrapping_add(
@@ -1063,7 +1035,7 @@ unsafe extern "C" fn read_chaining_format1(
                                     data,
                                     table_length,
                                     sr_offset,
-                                    (*(*first_coverage).glyphs.offset(j_0 as isize)).index
+                                    (&(*first_coverage))[j_0 as usize].index
                                         as u16,
                                     true,
                                     Some(

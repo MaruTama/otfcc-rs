@@ -100,9 +100,9 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_ligature(
             ) as u32),
         );
         if !(marks.is_null()
-            || (*marks).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int
+            || (*marks).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int
             || bases.is_null()
-            || (*bases).num_glyphs as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
+            || (*bases).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
         {
             (*subtable).class_count = read_16u(
                 data.offset(offset as isize)
@@ -125,17 +125,17 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_ligature(
             ) as u32);
             if !(table_length
                 < lig_array_offset.wrapping_add(2 as u32).wrapping_add(
-                    (2 as ::core::ffi::c_int * (*bases).num_glyphs as ::core::ffi::c_int)
+                    (2 as ::core::ffi::c_int * (*bases).len() as GlyphId as ::core::ffi::c_int)
                         as u32,
                 ))
             {
                 if !(read_16u(data.offset(lig_array_offset as isize) as *const u8)
                     as ::core::ffi::c_int
-                    != (*bases).num_glyphs as ::core::ffi::c_int)
+                    != (*bases).len() as GlyphId as ::core::ffi::c_int)
                 {
                     let mut j: GlyphId = 0 as GlyphId;
                     loop {
-                        if !((j as ::core::ffi::c_int) < (*bases).num_glyphs as ::core::ffi::c_int) {
+                        if !((j as ::core::ffi::c_int) < (*bases).len() as GlyphId as ::core::ffi::c_int) {
                             current_block = 17788412896529399552;
                             break;
                         }
@@ -149,7 +149,7 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_ligature(
                             anchors: ::core::ptr::null_mut::<*mut Anchor>(),
                         };
                         lig.glyph = otfcc_handle_dup(
-                            (*(*bases).glyphs.offset(j as isize)).clone() as Handle,
+                            (&(*bases))[j as usize].clone() as Handle,
                         ) as GlyphHandle;
                         let mut lig_attach_offset: u32 = lig_array_offset.wrapping_add(read_16u(
                             data.offset(lig_array_offset as isize)
