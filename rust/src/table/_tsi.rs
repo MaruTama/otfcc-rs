@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, strcmp};
 use crate::support::json_funcs::{json_obj_get_type};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
@@ -31,12 +31,13 @@ pub struct TsiEntry {
     pub content: SdsRaw,
 }
 pub type TsiTable = Vec<TsiEntry>;
-// `TsiEntry` stays `Copy` (owns a `Handle` + a raw `content` sds, same
-// "leaf stays Copy, crate-wide, until Stage 6-4" convention as
-// `CaretValueRecord`/`ColrLayer`). Safe here because `TABLE_I_TSI.copy`
-// (whole-table clone) was dead before this conversion and is deleted below,
-// not ported -- the one real duplicate this file needs is per-element
-// (`tsi_entry_dup`, used once from `consolidate.rs`), not a `Vec::clone()`.
+// `TsiEntry` derives only `Clone`, not `Copy` (it embeds `GlyphHandle`, which
+// now owns its `sds` name for real -- `Handle`'s `Drop`/`Clone`, Stage 6-4's
+// `Handle` pilot -- and a derived `Clone` would still only alias `content`,
+// the raw `sds` this struct owns directly). `TABLE_I_TSI.copy` (whole-table
+// clone) was dead before this conversion and is deleted below, not ported --
+// the one real duplicate this file needs is per-element (`tsi_entry_dup`,
+// used once from `consolidate.rs`), not a `Vec::clone()`.
 pub(crate) unsafe fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
     TsiEntry {
         type_0: e.type_0,
@@ -44,8 +45,10 @@ pub(crate) unsafe fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
         content: sdsdup(e.content),
     }
 }
+// Only `content` needs manual freeing here: it's a raw `sds`, not a
+// `Handle`, so it has no automatic drop glue. `.glyph`'s name frees itself
+// when the entry is dropped.
 unsafe fn dispose_tsi_entry(e: *mut TsiEntry) {
-    otfcc_handle_dispose(&raw mut (*e).glyph);
     sdsfree((*e).content);
     (*e).content = ::core::ptr::null_mut::<::core::ffi::c_char>();
 }

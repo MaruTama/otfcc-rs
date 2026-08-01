@@ -3,7 +3,7 @@ use libc::{free, malloc};
 
 
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
 
 use crate::support::binio::{read_16u};
 
@@ -22,14 +22,10 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new};
 use crate::vendor::sds::{sdsnewlen};
-unsafe extern "C" fn gss_entry_dtor(mut entry: *mut GsubSingleEntry) {
-    otfcc_handle_dispose(&raw mut (*entry).from);
-    otfcc_handle_dispose(&raw mut (*entry).to);
-}
+// `GsubSingleEntry` holds only two `GlyphHandle`s, so dropping the `Vec`
+// runs `Handle`'s own `Drop` for every entry -- no per-element dtor needed
+// anymore.
 pub(crate) unsafe fn dispose_gsub_single_subtable(arr: *mut GsubSingleSubtable) {
-    for e in (*arr).iter_mut() {
-        gss_entry_dtor(e);
-    }
     *arr = Vec::new();
 }
 pub(crate) unsafe extern "C" fn subtable_gsub_single_free(x: *mut GsubSingleSubtable) {

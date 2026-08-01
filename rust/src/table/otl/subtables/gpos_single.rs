@@ -2,7 +2,7 @@
 use libc::{free, malloc};
 
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle};
+use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
 use crate::support::binio::{read_16u};
 
 use crate::support::buffer::{Buffer};
@@ -20,13 +20,10 @@ use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value, required_position_format};
 use crate::vendor::json_builder::{json_object_new, json_object_push};
 use crate::vendor::sds::{sdsnewlen};
-unsafe extern "C" fn delete_gpos_single_entry(mut entry: *mut GposSingleEntry) {
-    otfcc_handle_dispose(&raw mut (*entry).target);
-}
+// `GposSingleEntry` holds only a `GlyphHandle` plus a plain `PositionValue`,
+// so dropping the `Vec` runs `Handle`'s own `Drop` for every entry -- no
+// per-element dtor needed anymore.
 pub(crate) unsafe fn dispose_gpos_single_subtable(arr: *mut GposSingleSubtable) {
-    for e in (*arr).iter_mut() {
-        delete_gpos_single_entry(e);
-    }
     *arr = Vec::new();
 }
 pub(crate) unsafe extern "C" fn subtable_gpos_single_free(x: *mut GposSingleSubtable) {
