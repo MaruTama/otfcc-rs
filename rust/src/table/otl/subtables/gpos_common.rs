@@ -2,7 +2,7 @@
 use libc::{exit, free, malloc, memcmp, memset, strcmp, strlen};
 use crate::support::json_funcs::{json_new_position, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback, preserialize};
 use crate::table::otl::coverage::{Coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
@@ -26,13 +26,10 @@ pub struct ClassNameHash {
     pub class_id: GlyphClass,
     pub hh: UtHashHandle,
 }
-unsafe extern "C" fn delete_mark_array_item(mut entry: *mut MarkRecord) {
-    otfcc_handle_dispose(&raw mut (*entry).glyph);
-}
+// `MarkRecord` holds only a `GlyphHandle` plus a plain `Anchor`, so dropping
+// the `Vec` runs `Handle`'s own `Drop` for every entry -- no per-element
+// dtor needed anymore.
 pub(crate) unsafe fn dispose_mark_array(arr: *mut MarkArray) {
-    for e in (*arr).iter_mut() {
-        delete_mark_array_item(e);
-    }
     *arr = Vec::new();
 }
 pub unsafe extern "C" fn otl_read_mark_array(

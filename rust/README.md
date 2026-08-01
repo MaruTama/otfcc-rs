@@ -1174,6 +1174,47 @@ on the other platform before a commit is trusted.
     the `Handle` PR's precedent of not trusting a single clean pass for a
     container-lifecycle change), 10-payload round trips, issue #1 golden
     test — came back clean on both platforms every time.
+- **Small follow-up: six now-redundant manual `Handle` dispose loops
+  retired.** Flagged in the `Coverage`/`ClassDef` PR above as open work —
+  every container converted to `Vec<T>` so far that disposes its elements by
+  looping and calling `otfcc_handle_dispose(&raw mut (*e).FIELD)` on each one
+  before resetting the `Vec` is doing something the `Vec`'s own drop glue
+  already does automatically, now that `Handle` has a real `Drop` (the
+  `Handle` pilot PR). Scoped narrowly to the container/element pairs where
+  the *entire* per-element dtor was Handle disposal and nothing else —
+  `GposCursiveEntry`/`GposSingleEntry`/`GsubSingleEntry`/`MarkRecord`
+  (single or double `GlyphHandle` field, otherwise plain values) and
+  `CaretValueRecord` (`GlyphHandle` + a `Vec<CaretValue>`, which auto-drops
+  on its own too) — each collapses to `*arr = Vec::new()` or `.clear()`,
+  with the per-element dtor function deleted outright. `TsiEntry` is a
+  partial case, kept in scope since the fix is a one-line removal: it also
+  owns a raw `content: SdsRaw` that has no automatic drop glue (it isn't a
+  `Handle`), so `dispose_tsi_entry` keeps its `sdsfree` call and only drops
+  the now-redundant `Handle` line.
+  - **Explicitly did not touch every `otfcc_handle_dispose` call site** —
+    only ones inside a "loop over a `Vec`, dispose each element, reset the
+    container" shape, verified element-type-by-element-type that no other
+    field needs a manual free (`BaseRecord`/`LigatureBaseRecord`'s
+    `anchors: *mut Anchor`/`*mut *mut Anchor`, `GsubMultiEntry`/
+    `GsubLigatureEntry`'s `*mut Coverage` field, `ColrLayer`/`ColrMapping`,
+    `ComponentReference`'s `VQ` fields dispatched through `I_VQ.dispose`) are
+    all real raw-pointer or vtable-dispatched frees with no automatic drop
+    glue yet — none of those were touched. `ColrMapping` in particular looks
+    like it should qualify (its `.glyph` and `.layers: Vec<ColrLayer>` would
+    both now auto-drop), but its dispose function has a call site in
+    `consolidate.rs` outside any container-loop shape that wasn't traced
+    before this PR's time budget ran out; left for a future look rather than
+    guessed at.
+  - **Also fixed the comments this PR's own finding made stale**: several
+    files still said a leaf type "stays `Copy` … until Stage 6-4" or that
+    skipping a manual dispose loop "would leak" — both written before the
+    `Handle` pilot PR actually landed Stage 6-4's `Handle` half. Reworded in
+    place rather than deleted, since the underlying point (why no `Clone`
+    derive, why the dup function is written by hand) is still correct and
+    worth keeping.
+  - Zero behavior change, verified with the standard full pipeline (build,
+    44 tests, ABI, byte comparison, round trips, issue #1 golden test) on
+    both platforms.
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

@@ -3,7 +3,7 @@ use libc::{free, malloc};
 
 use crate::support::json_funcs::{json_obj_get, preserialize};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle};
+use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
 use crate::support::binio::{read_16u};
 
 use crate::support::buffer::{Buffer};
@@ -21,13 +21,10 @@ use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_dump_anchor, otl_parse_anchor, otl_read_anchor};
 use crate::vendor::json_builder::{json_object_new, json_object_push};
 use crate::vendor::sds::{sdsnewlen};
-unsafe extern "C" fn delete_gpos_cursive_entry(mut entry: *mut GposCursiveEntry) {
-    otfcc_handle_dispose(&raw mut (*entry).target);
-}
+// `GposCursiveEntry` holds only a `GlyphHandle` plus two plain `Anchor`
+// values, so dropping the `Vec` runs `Handle`'s own `Drop` for every entry --
+// no per-element dtor needed anymore.
 pub(crate) unsafe fn dispose_gpos_cursive_subtable(arr: *mut GposCursiveSubtable) {
-    for e in (*arr).iter_mut() {
-        delete_gpos_cursive_entry(e);
-    }
     *arr = Vec::new();
 }
 pub(crate) unsafe extern "C" fn subtable_gpos_cursive_free(x: *mut GposCursiveSubtable) {

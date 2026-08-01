@@ -3,7 +3,7 @@ use libc::{calloc, free};
 use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, preserialize};
 use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u};
 use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
@@ -32,26 +32,19 @@ pub struct CaretValueRecord {
     pub glyph: GlyphHandle,
     pub carets: CaretValueList,
 }
-// `CaretValueRecord` embeds `GlyphHandle` (owns an `sds` name, `Handle` stays
-// `Copy` crate-wide until Stage 6-4 -- see `rust/README.md`), so a derived
-// `Clone` would only alias the name pointer. The crate convention is an
-// explicit dispose/dup function instead of a derive; no dup is written here
-// because nothing in this file or `consolidate/otl/gdef.rs` ever duplicates a
+// `CaretValueRecord` embeds `GlyphHandle`, which now owns its `sds` name for
+// real (`Handle`'s `Drop`/`Clone`, Stage 6-4's `Handle` pilot), so a derived
+// `Clone` would compose correctly here -- but no dup is written because
+// nothing in this file or `consolidate/otl/gdef.rs` ever duplicates a
 // `CaretValueRecord` (verified: every touch is either a move via
-// `mem::take`/`Vec::push` of a freshly-built value, or a dispose).
-pub(crate) unsafe fn dispose_caret_value_record(v: *mut CaretValueRecord) {
-    otfcc_handle_dispose(&raw mut (*v).glyph);
-}
+// `mem::take`/`Vec::push` of a freshly-built value, or a dispose), so there
+// is nothing for a `Clone` impl to be used for.
 pub type LigCaretTable = Vec<CaretValueRecord>;
 // Shared by `dispose_gdef` (whole-table teardown) and `consolidate_gdef`
-// (rebuild-in-place, formerly `OTL_I_LIG_CARET_TABLE.clear`): dispose every
-// record's `Handle` first, then truncate. `.clear()` alone would leak each
-// record's glyph name (the `Vec<CaretValue>` field needs no help -- its own
-// drop glue runs automatically when the record is dropped).
+// (rebuild-in-place, formerly `OTL_I_LIG_CARET_TABLE.clear`). `Vec::clear`
+// alone is enough: each record's compiler-generated drop glue frees its
+// `Handle`'s name and its `Vec<CaretValue>` backing array.
 pub(crate) unsafe fn clear_lig_carets(lc: *mut LigCaretTable) {
-    for rec in (*lc).iter_mut() {
-        dispose_caret_value_record(rec as *mut CaretValueRecord);
-    }
     (*lc).clear();
 }
 pub struct GdefTable {
