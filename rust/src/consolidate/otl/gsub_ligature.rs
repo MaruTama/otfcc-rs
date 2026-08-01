@@ -35,7 +35,7 @@ use crate::font::caryll_font::{Font};
 use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable, OtlTable};
 use crate::consolidate::otl::common::{fontop_consolidate_coverage};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::otl::subtables::gsub_ligature::{I_SUBTABLE_GSUB_LIGATURE};
+use crate::table::otl::subtables::gsub_ligature::{subtable_gsub_ligature_replace};
 use crate::vendor::sds::{sdsempty};
 
 
@@ -53,22 +53,15 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GsubLigatureSubtable = &raw mut (*_subtable).gsub_ligature;
-    let mut nt: GsubLigatureSubtable = GsubLigatureSubtable {
-        length: 0,
-        capacity: 0,
-        items: ::core::ptr::null_mut::<GsubLigatureEntry>(),
-    };
-    I_SUBTABLE_GSUB_LIGATURE
-        .init
-        .expect("non-null function pointer")(&raw mut nt);
+    let mut subtable: *mut GsubLigatureSubtable = &raw mut (*_subtable).gsub_ligature as *mut GsubLigatureSubtable;
+    let mut nt: GsubLigatureSubtable = Vec::new();
     let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < (*subtable).length {
+    while (k as usize) < (*subtable).len() {
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
-            &raw mut (*(*subtable).items.offset(k as isize)).to,
+            &raw mut (&mut (*subtable))[k as usize].to,
         ) {
             (*(*options).logger)
                 .log_sds
@@ -79,17 +72,17 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (*(*subtable).items.offset(k as isize)).to.name,
+                    (&(*subtable))[k as usize].to.name,
                     b".\n",
                 ),
             );
         } else {
-            fontop_consolidate_coverage(font, (*(*subtable).items.offset(k as isize)).from, options);
+            fontop_consolidate_coverage(font, (&(*subtable))[k as usize].from, options);
             shrink_coverage(
-                (*(*subtable).items.offset(k as isize)).from,
+                (&(*subtable))[k as usize].from,
                 false,
             );
-            if (*(*(*subtable).items.offset(k as isize)).from).num_glyphs == 0 {
+            if (*(&(*subtable))[k as usize].from).num_glyphs == 0 {
                 (*(*options).logger)
                     .log_sds
                     .expect("non-null function pointer")(
@@ -99,30 +92,25 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignoring empty ligature substitution to glyph /",
-                        (*(*subtable).items.offset(k as isize)).to.name,
+                        (&(*subtable))[k as usize].to.name,
                         b".\n",
                     ),
                 );
             } else {
-                I_SUBTABLE_GSUB_LIGATURE
-                    .push
-                    .expect("non-null function pointer")(
-                    &raw mut nt,
+                nt.push(
                     GsubLigatureEntry {
-                        from: (*(*subtable).items.offset(k as isize)).from,
+                        from: (&(*subtable))[k as usize].from,
                         to: otfcc_handle_dup(
-                            (*(*subtable).items.offset(k as isize)).to as Handle,
+                            (&(*subtable))[k as usize].to as Handle,
                         ) as GlyphHandle,
                     },
                 );
-                let ref mut fresh0 = (*(*subtable).items.offset(k as isize)).from;
+                let ref mut fresh0 = (&mut (*subtable))[k as usize].from;
                 *fresh0 = ::core::ptr::null_mut::<Coverage>();
             }
         }
         k = k.wrapping_add(1);
     }
-    I_SUBTABLE_GSUB_LIGATURE
-        .replace
-        .expect("non-null function pointer")(subtable, nt);
-    return (*subtable).length == 0 as usize;
+    subtable_gsub_ligature_replace(subtable, nt);
+    return (*subtable).len() == 0 as usize;
 }

@@ -44,7 +44,7 @@ use crate::table::otl::subtables::gsub_single::{GsubSingleMapHash};
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::otl::subtables::gsub_single::{I_SUBTABLE_GSUB_SINGLE};
+use crate::table::otl::subtables::gsub_single::{dispose_gsub_single_subtable};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
@@ -62,15 +62,15 @@ pub unsafe extern "C" fn consolidate_gsub_single(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GsubSingleSubtable = &raw mut (*_subtable).gsub_single;
+    let mut subtable: *mut GsubSingleSubtable = &raw mut (*_subtable).gsub_single as *mut GsubSingleSubtable;
     let mut h: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
     let mut k: usize = 0 as usize;
-    while k < (*subtable).length {
+    while k < (*subtable).len() {
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
-            &raw mut (*(*subtable).items.offset(k as isize)).from,
+            &raw mut (&mut (*subtable))[k as usize].from,
         ) {
             (*(*options).logger)
                 .log_sds
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (*(*subtable).items.offset(k as isize)).from.name,
+                    (&(*subtable))[k as usize].from.name,
                     b".\n",
                 ),
             );
@@ -89,7 +89,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
-            &raw mut (*(*subtable).items.offset(k as isize)).to,
+            &raw mut (&mut (*subtable))[k as usize].to,
         ) {
             (*(*options).logger)
                 .log_sds
@@ -100,14 +100,14 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (*(*subtable).items.offset(k as isize)).to.name,
+                    (&(*subtable))[k as usize].to.name,
                     b".\n",
                 ),
             );
         } else {
             let mut s: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
             let mut fromid: ::core::ffi::c_int =
-                (*(*subtable).items.offset(k as isize)).from.index as ::core::ffi::c_int;
+                (&(*subtable))[k as usize].from.index as ::core::ffi::c_int;
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
             let mut _hj_i: ::core::ffi::c_uint = 0;
             let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -429,7 +429,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Double-mapping a glyph in a single substitution /",
-                        (*(*subtable).items.offset(k as isize)).from.name,
+                        (&(*subtable))[k as usize].from.name,
                         b".\n",
                     ),
                 );
@@ -439,10 +439,10 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                     33 as ::core::ffi::c_ulong,
                 ) as *mut GsubSingleMapHash;
                 (*s).fromid =
-                    (*(*subtable).items.offset(k as isize)).from.index as ::core::ffi::c_int;
-                (*s).toid = (*(*subtable).items.offset(k as isize)).to.index as ::core::ffi::c_int;
-                (*s).fromname = sdsdup((*(*subtable).items.offset(k as isize)).from.name);
-                (*s).toname = sdsdup((*(*subtable).items.offset(k as isize)).to.name);
+                    (&(*subtable))[k as usize].from.index as ::core::ffi::c_int;
+                (*s).toid = (&(*subtable))[k as usize].to.index as ::core::ffi::c_int;
+                (*s).fromname = sdsdup((&(*subtable))[k as usize].from.name);
+                (*s).toname = sdsdup((&(*subtable))[k as usize].to.name);
                 let mut _ha_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i_0: ::core::ffi::c_uint = 0;
                 let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -1032,7 +1032,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
     } else {
         0 as ::core::ffi::c_uint
     }) as usize
-        != (*subtable).length
+        != (*subtable).len()
     {
         (*(*options).logger)
             .log_sds
@@ -1046,19 +1046,14 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             ),
         );
     }
-    I_SUBTABLE_GSUB_SINGLE
-        .clear
-        .expect("non-null function pointer")(subtable);
+    dispose_gsub_single_subtable(subtable);
     let mut s_0: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
     let mut tmp: *mut GsubSingleMapHash = ::core::ptr::null_mut::<GsubSingleMapHash>();
     s_0 = h;
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut GsubSingleMapHash
         as *mut GsubSingleMapHash;
     while !s_0.is_null() {
-        I_SUBTABLE_GSUB_SINGLE
-            .push
-            .expect("non-null function pointer")(
-            subtable,
+        (*subtable).push(
             GsubSingleEntry {
                 from: handle_from_consolidated(
                     (*s_0).fromid as GlyphId,
@@ -1124,5 +1119,5 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut GsubSingleMapHash
             as *mut GsubSingleMapHash;
     }
-    return (*subtable).length == 0 as usize;
+    return (*subtable).len() == 0 as usize;
 }

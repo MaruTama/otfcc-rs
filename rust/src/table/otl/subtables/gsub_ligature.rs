@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{exit, free, malloc, memcmp, memcpy, memset};
+use libc::{exit, free, malloc, memcmp, memset};
 
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
@@ -14,10 +14,9 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::{NULL};
-use crate::table::otl::{GsubLigatureSubtableVectorInterface, GsubLigatureEntry, Subtable, GsubLigatureSubtable};
+use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
@@ -25,15 +24,6 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdsnewlen};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GsubLigatureEntryElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GsubLigatureEntry) -> ()>,
-    pub copy: Option<
-        unsafe extern "C" fn(*mut GsubLigatureEntry, *const GsubLigatureEntry) -> (),
-    >,
-    pub dispose: Option<unsafe extern "C" fn(*mut GsubLigatureEntry) -> ()>,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct LigatureAggregator {
@@ -75,137 +65,39 @@ unsafe extern "C" fn delete_gsub_ligature_entry(mut entry: *mut GsubLigatureEntr
     otl_coverage_free((*entry).from);
     (*entry).from = ::core::ptr::null_mut::<Coverage>();
 }
-static GSS_TYPEINFO: GsubLigatureEntryElementInterface = {
-    GsubLigatureEntryElementInterface {
-        init: None,
-        copy: None,
-        dispose: Some(
-            delete_gsub_ligature_entry as unsafe extern "C" fn(*mut GsubLigatureEntry) -> (),
-        ),
+pub(crate) unsafe fn dispose_gsub_ligature_subtable(arr: *mut GsubLigatureSubtable) {
+    for e in (*arr).iter_mut() {
+        delete_gsub_ligature_entry(e);
     }
-};
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_grow_to(arr: *mut GsubLigatureSubtable, target: usize) {
-    cvec_grow_to(as_cvec(arr), target);
+    *arr = Vec::new();
 }
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_free(mut x: *mut GsubLigatureSubtable) {
+pub(crate) unsafe extern "C" fn subtable_gsub_ligature_free(x: *mut GsubLigatureSubtable) {
     if x.is_null() {
         return;
     }
-    subtable_gsub_ligature_dispose(x);
+    dispose_gsub_ligature_subtable(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_copy(
-    mut dst: *mut GsubLigatureSubtable,
-    mut src: *const GsubLigatureSubtable,
-) {
-    subtable_gsub_ligature_init(dst);
-    subtable_gsub_ligature_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if GSS_TYPEINFO.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            GSS_TYPEINFO.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut GsubLigatureEntry,
-                (*src).items.offset(j as isize) as *mut GsubLigatureEntry
-                    as *const GsubLigatureEntry,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_dispose(mut arr: *mut GsubLigatureSubtable) {
-    if arr.is_null() {
-        return;
-    }
-    if GSS_TYPEINFO.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            GSS_TYPEINFO.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut GsubLigatureEntry,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<GsubLigatureEntry>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_replace(
-    mut dst: *mut GsubLigatureSubtable,
+/// The one live `.replace` among all the `Subtable`-union-blocked
+/// containers: `consolidate_gsub_ligature` builds a fresh, empty `nt`,
+/// filters/moves entries into it, then swaps it in here. `src` is always
+/// that fresh local -- never reused by the caller afterward -- so disposing
+/// the old `*dst` and move-assigning `src` in is equivalent to (and safer
+/// than) the original's dispose-then-`memcpy`.
+#[allow(improper_ctypes_definitions)]
+pub(crate) unsafe extern "C" fn subtable_gsub_ligature_replace(
+    dst: *mut GsubLigatureSubtable,
     src: GsubLigatureSubtable,
 ) {
-    subtable_gsub_ligature_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GsubLigatureSubtable>() as usize,
-    );
+    dispose_gsub_ligature_subtable(dst);
+    *dst = src;
 }
-#[inline]
 unsafe extern "C" fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
-    let mut x: *mut GsubLigatureSubtable =
+    let x: *mut GsubLigatureSubtable =
         malloc(::core::mem::size_of::<GsubLigatureSubtable>() as usize)
             as *mut GsubLigatureSubtable;
-    subtable_gsub_ligature_init(x);
-    return x;
-}
-#[inline]
-unsafe fn as_cvec(arr: *mut GsubLigatureSubtable) -> *mut CVecRaw<GsubLigatureEntry> {
-    arr as *mut CVecRaw<GsubLigatureEntry>
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_init(arr: *mut GsubLigatureSubtable) {
-    cvec_init(as_cvec(arr));
-}
-pub static I_SUBTABLE_GSUB_LIGATURE: GsubLigatureSubtableVectorInterface = {
-    GsubLigatureSubtableVectorInterface {
-        init: Some(
-            subtable_gsub_ligature_init as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> (),
-        ),
-        copy: Some(
-            subtable_gsub_ligature_copy
-                as unsafe extern "C" fn(
-                    *mut GsubLigatureSubtable,
-                    *const GsubLigatureSubtable,
-                ) -> (),
-        ),
-        dispose: Some(
-            subtable_gsub_ligature_dispose
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> (),
-        ),
-        replace: Some(
-            subtable_gsub_ligature_replace
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureSubtable) -> (),
-        ),
-        create: Some(subtable_gsub_ligature_create),
-        free: Some(
-            subtable_gsub_ligature_free as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> (),
-        ),
-        push: Some(
-            subtable_gsub_ligature_push
-                as unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureEntry) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn subtable_gsub_ligature_push(arr: *mut GsubLigatureSubtable, elem: GsubLigatureEntry) {
-    cvec_push(as_cvec(arr), elem);
+    x.write(Vec::new());
+    x
 }
 pub unsafe extern "C" fn otl_read_gsub_ligature(
     data: FontFilePointer,
@@ -218,11 +110,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
     let mut set_count: GlyphId = 0;
     let mut ligature_count: u32 = 0;
     let mut current_block: u64;
-    let mut subtable: *mut GsubLigatureSubtable =
-        (
-            I_SUBTABLE_GSUB_LIGATURE
-                .create
-                .expect("non-null function pointer"))();
+    let subtable: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
     if !(table_length < offset.wrapping_add(6 as u32)) {
         start_coverage = read_coverage(
             data as *const u8,
@@ -367,20 +255,15 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                         );
                                         m = m.wrapping_add(1);
                                     }
-                                    I_SUBTABLE_GSUB_LIGATURE
-                                        .push
-                                        .expect("non-null function pointer")(
-                                        subtable,
-                                        GsubLigatureEntry {
-                                            from: cov,
-                                            to: handle_from_index(
-                                                read_16u(data.offset(lig_offset as isize)
-                                                    as *const u8)
-                                                    as GlyphId,
-                                            )
-                                                as GlyphHandle,
-                                        },
-                                    );
+                                    (*subtable).push(GsubLigatureEntry {
+                                        from: cov,
+                                        to: handle_from_index(
+                                            read_16u(data.offset(lig_offset as isize)
+                                                as *const u8)
+                                                as GlyphId,
+                                        )
+                                            as GlyphHandle,
+                                    });
                                     k = k.wrapping_add(1);
                                 }
                                 j_0 = j_0.wrapping_add(1);
@@ -400,32 +283,30 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
             }
         }
     }
-    I_SUBTABLE_GSUB_LIGATURE
-        .free
-        .expect("non-null function pointer")(subtable);
+    subtable_gsub_ligature_free(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe extern "C" fn otl_gsub_dump_ligature(
     mut _subtable: *const Subtable,
 ) -> *mut JsonValue {
-    let mut subtable: *const GsubLigatureSubtable = &raw const (*_subtable).gsub_ligature;
-    let mut st: *mut JsonValue = json_array_new((*subtable).length);
+    let subtable: *const GsubLigatureSubtable = &raw const (*_subtable).gsub_ligature as *const GsubLigatureSubtable;
+    let mut st: *mut JsonValue = json_array_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).length {
+    while (j as usize) < (*subtable).len() {
         let mut entry: *mut JsonValue = json_object_new(2 as usize);
         json_object_push(
             entry,
             b"from\0" as *const u8 as *const ::core::ffi::c_char,
             OTL_I_COVERAGE.dump.expect("non-null function pointer")(
-                (*(*subtable).items.offset(j as isize)).from,
+                (&(*subtable))[j as usize].from,
             ),
         );
         json_object_push(
             entry,
             b"to\0" as *const u8 as *const ::core::ffi::c_char,
             json_string_new_length(
-                sdslen((*(*subtable).items.offset(j as isize)).to.name) as ::core::ffi::c_uint,
-                (*(*subtable).items.offset(j as isize)).to.name as *const ::core::ffi::c_char,
+                sdslen((&(*subtable))[j as usize].to.name) as ::core::ffi::c_uint,
+                (&(*subtable))[j as usize].to.name as *const ::core::ffi::c_char,
             ),
         );
         json_array_push(st, preserialize(entry));
@@ -455,11 +336,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             b"substitutions\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Array,
         );
-        let mut st: *mut GsubLigatureSubtable =
-            (
-                I_SUBTABLE_GSUB_LIGATURE
-                    .create
-                    .expect("non-null function pointer"))();
+        let st: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
         let mut n: GlyphId = (*_subtable).u.array.length as GlyphId;
         let mut k: GlyphId = 0 as GlyphId;
         while (k as ::core::ffi::c_int) < n as ::core::ffi::c_int {
@@ -476,28 +353,19 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
                 JsonType::String,
             );
             if !(_from.is_null() || _to.is_null()) {
-                I_SUBTABLE_GSUB_LIGATURE
-                    .push
-                    .expect("non-null function pointer")(
-                    st,
-                    GsubLigatureEntry {
-                        from: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from),
-                        to: handle_from_name(sdsnewlen(
-                            (*_to).u.string.ptr as *const ::core::ffi::c_void,
-                            (*_to).u.string.length as usize,
-                        )) as GlyphHandle,
-                    },
-                );
+                (*st).push(GsubLigatureEntry {
+                    from: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from),
+                    to: handle_from_name(sdsnewlen(
+                        (*_to).u.string.ptr as *const ::core::ffi::c_void,
+                        (*_to).u.string.length as usize,
+                    )) as GlyphHandle,
+                });
             }
             k = k.wrapping_add(1);
         }
         return st as *mut Subtable;
     } else {
-        let mut st_0: *mut GsubLigatureSubtable =
-            (
-                I_SUBTABLE_GSUB_LIGATURE
-                    .create
-                    .expect("non-null function pointer"))();
+        let st_0: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
         let mut n_0: GlyphId = (*_subtable).u.array.length as GlyphId;
         let mut k_0: GlyphId = 0 as GlyphId;
         while (k_0 as ::core::ffi::c_int) < n_0 as ::core::ffi::c_int {
@@ -506,20 +374,15 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             if !(_from_0.is_null()
                 || (*_from_0).type_0 != JsonType::Array)
             {
-                I_SUBTABLE_GSUB_LIGATURE
-                    .push
-                    .expect("non-null function pointer")(
-                    st_0,
-                    GsubLigatureEntry {
-                        from: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from_0),
-                        to: handle_from_name(sdsnewlen(
-                            (*(*_subtable).u.object.values.offset(k_0 as isize)).name
-                                as *const ::core::ffi::c_void,
-                            (*(*_subtable).u.object.values.offset(k_0 as isize)).name_length
-                                as usize,
-                        )) as GlyphHandle,
-                    },
-                );
+                (*st_0).push(GsubLigatureEntry {
+                    from: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from_0),
+                    to: handle_from_name(sdsnewlen(
+                        (*(*_subtable).u.object.values.offset(k_0 as isize)).name
+                            as *const ::core::ffi::c_void,
+                        (*(*_subtable).u.object.values.offset(k_0 as isize)).name_length
+                            as usize,
+                    )) as GlyphHandle,
+                });
             }
             k_0 = k_0.wrapping_add(1);
         }
@@ -536,14 +399,14 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let mut subtable: *const GsubLigatureSubtable = &raw const (*_subtable).gsub_ligature;
+    let subtable: *const GsubLigatureSubtable = &raw const (*_subtable).gsub_ligature as *const GsubLigatureSubtable;
     let mut h: *mut LigatureAggregator = ::core::ptr::null_mut::<LigatureAggregator>();
     let mut s: *mut LigatureAggregator = ::core::ptr::null_mut::<LigatureAggregator>();
     let mut tmp: *mut LigatureAggregator = ::core::ptr::null_mut::<LigatureAggregator>();
-    let mut n_ligatures: GlyphId = (*subtable).length as GlyphId;
+    let mut n_ligatures: GlyphId = (*subtable).len() as GlyphId;
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-        let mut sgid: ::core::ffi::c_int = (*(*(*(*subtable).items.offset(j as isize)).from)
+        let mut sgid: ::core::ffi::c_int = (*(*(&(*subtable))[j as usize].from)
             .glyphs
             .offset(0 as ::core::ffi::c_int as isize))
         .index as ::core::ffi::c_int;
@@ -1446,7 +1309,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
         let mut n_ligs_here: GlyphId = 0 as GlyphId;
         let mut j_0: GlyphId = 0 as GlyphId;
         while (j_0 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-            if (*(*(*(*subtable).items.offset(j_0 as isize)).from)
+            if (*(*(&(*subtable))[j_0 as usize].from)
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize))
             .index as ::core::ffi::c_int
@@ -1459,20 +1322,20 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
         let mut ligset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (n_ligs_here as ::core::ffi::c_int) as u32)]);
         let mut j_1: GlyphId = 0 as GlyphId;
         while (j_1 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-            if (*(*(*(*subtable).items.offset(j_1 as isize)).from)
+            if (*(*(&(*subtable))[j_1 as usize].from)
                 .glyphs
                 .offset(0 as ::core::ffi::c_int as isize))
             .index as ::core::ffi::c_int
                 == (*s).gid
             {
-                let mut ligdef: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*(*subtable).items.offset(j_1 as isize)).to.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(*(*subtable).items.offset(j_1 as isize)).from).num_glyphs
+                let mut ligdef: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((&(*subtable))[j_1 as usize].to.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(&(*subtable))[j_1 as usize].from).num_glyphs
                         as ::core::ffi::c_int) as u32)]);
                 let mut m: GlyphId = 1 as GlyphId;
                 while (m as ::core::ffi::c_int)
-                    < (*(*(*subtable).items.offset(j_1 as isize)).from).num_glyphs
+                    < (*(&(*subtable))[j_1 as usize].from).num_glyphs
                         as ::core::ffi::c_int
                 {
-                    bk_push(ligdef, &[bk_int(BkCellType::B16, ((*(*(*(*subtable).items.offset(j_1 as isize)).from)
+                    bk_push(ligdef, &[bk_int(BkCellType::B16, ((*(*(&(*subtable))[j_1 as usize].from)
                             .glyphs
                             .offset(m as isize))
                         .index as ::core::ffi::c_int) as u32)]);

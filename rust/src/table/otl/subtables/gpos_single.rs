@@ -10,10 +10,9 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::table::otl::{GposSingleSubtableVectorInterface, GposSingleEntry, PositionValue, Subtable, GposSingleSubtable};
+use crate::table::otl::{GposSingleEntry, PositionValue, Subtable, GposSingleSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
@@ -21,135 +20,29 @@ use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value, required_position_format};
 use crate::vendor::json_builder::{json_object_new, json_object_push};
 use crate::vendor::sds::{sdsnewlen};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GposSingleEntryElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GposSingleEntry) -> ()>,
-    pub copy:
-        Option<unsafe extern "C" fn(*mut GposSingleEntry, *const GposSingleEntry) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut GposSingleEntry) -> ()>,
-}
 unsafe extern "C" fn delete_gpos_single_entry(mut entry: *mut GposSingleEntry) {
     otfcc_handle_dispose(&raw mut (*entry).target);
 }
-static GSS_TYPEINFO: GposSingleEntryElementInterface = {
-    GposSingleEntryElementInterface {
-        init: None,
-        copy: None,
-        dispose: Some(
-            delete_gpos_single_entry as unsafe extern "C" fn(*mut GposSingleEntry) -> (),
-        ),
+pub(crate) unsafe fn dispose_gpos_single_subtable(arr: *mut GposSingleSubtable) {
+    for e in (*arr).iter_mut() {
+        delete_gpos_single_entry(e);
     }
-};
-#[inline]
-unsafe fn as_cvec(arr: *mut GposSingleSubtable) -> *mut CVecRaw<GposSingleEntry> {
-    arr as *mut CVecRaw<GposSingleEntry>
+    *arr = Vec::new();
 }
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_init(arr: *mut GposSingleSubtable) {
-    cvec_init(as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_push(arr: *mut GposSingleSubtable, elem: GposSingleEntry) {
-    cvec_push(as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_grow_to(arr: *mut GposSingleSubtable, target: usize) {
-    cvec_grow_to(as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_copy(
-    mut dst: *mut GposSingleSubtable,
-    mut src: *const GposSingleSubtable,
-) {
-    subtable_gpos_single_init(dst);
-    subtable_gpos_single_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if GSS_TYPEINFO.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            GSS_TYPEINFO.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut GposSingleEntry,
-                (*src).items.offset(j as isize) as *mut GposSingleEntry
-                    as *const GposSingleEntry,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_dispose(mut arr: *mut GposSingleSubtable) {
-    if arr.is_null() {
-        return;
-    }
-    if GSS_TYPEINFO.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            GSS_TYPEINFO.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut GposSingleEntry,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<GposSingleEntry>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_single_free(mut x: *mut GposSingleSubtable) {
+pub(crate) unsafe extern "C" fn subtable_gpos_single_free(x: *mut GposSingleSubtable) {
     if x.is_null() {
         return;
     }
-    subtable_gpos_single_dispose(x);
+    dispose_gpos_single_subtable(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[inline]
 unsafe extern "C" fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
-    let mut x: *mut GposSingleSubtable =
+    let x: *mut GposSingleSubtable =
         malloc(::core::mem::size_of::<GposSingleSubtable>() as usize)
             as *mut GposSingleSubtable;
-    subtable_gpos_single_init(x);
-    return x;
+    x.write(Vec::new());
+    x
 }
-pub static I_SUBTABLE_GPOS_SINGLE: GposSingleSubtableVectorInterface = {
-    GposSingleSubtableVectorInterface {
-        init: Some(
-            subtable_gpos_single_init as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
-        ),
-        copy: Some(
-            subtable_gpos_single_copy
-                as unsafe extern "C" fn(
-                    *mut GposSingleSubtable,
-                    *const GposSingleSubtable,
-                ) -> (),
-        ),
-        dispose: Some(
-            subtable_gpos_single_dispose as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
-        ),
-        create: Some(subtable_gpos_single_create),
-        free: Some(
-            subtable_gpos_single_free as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
-        ),
-        clear: Some(
-            subtable_gpos_single_dispose as unsafe extern "C" fn(*mut GposSingleSubtable) -> (),
-        ),
-        push: Some(
-            subtable_gpos_single_push
-                as unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleEntry) -> (),
-        ),
-    }
-};
 pub unsafe extern "C" fn otl_read_gpos_single(
     data: FontFilePointer,
     mut table_length: u32,
@@ -159,11 +52,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
 ) -> *mut Subtable {
     let mut subtable_format: u16 = 0;
     let mut current_block: u64;
-    let mut subtable: *mut GposSingleSubtable =
-        (
-            I_SUBTABLE_GPOS_SINGLE
-                .create
-                .expect("non-null function pointer"))();
+    let subtable: *mut GposSingleSubtable = subtable_gpos_single_create();
     let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     if !(table_length < offset.wrapping_add(6 as u32)) {
         subtable_format = read_16u(data.offset(offset as isize) as *const u8);
@@ -191,17 +80,12 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                 );
                 let mut j: GlyphId = 0 as GlyphId;
                 while (j as ::core::ffi::c_int) < (*targets).num_glyphs as ::core::ffi::c_int {
-                    I_SUBTABLE_GPOS_SINGLE
-                        .push
-                        .expect("non-null function pointer")(
-                        subtable,
-                        GposSingleEntry {
-                            target: otfcc_handle_dup(
-                                *(*targets).glyphs.offset(j as isize) as Handle,
-                            ) as GlyphHandle,
-                            value: v,
-                        },
-                    );
+                    (*subtable).push(GposSingleEntry {
+                        target: otfcc_handle_dup(
+                            *(*targets).glyphs.offset(j as isize) as Handle,
+                        ) as GlyphHandle,
+                        value: v,
+                    });
                     j = j.wrapping_add(1);
                 }
                 current_block = 6009453772311597924;
@@ -230,27 +114,22 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                 } else {
                     let mut j_0: GlyphId = 0 as GlyphId;
                     while (j_0 as ::core::ffi::c_int) < (*targets).num_glyphs as ::core::ffi::c_int {
-                        I_SUBTABLE_GPOS_SINGLE
-                            .push
-                            .expect("non-null function pointer")(
-                            subtable,
-                            GposSingleEntry {
-                                target: otfcc_handle_dup(
-                                    *(*targets).glyphs.offset(j_0 as isize) as Handle,
-                                ) as GlyphHandle,
-                                value: read_gpos_value(
-                                    data,
-                                    table_length,
-                                    offset.wrapping_add(8 as u32).wrapping_add(
-                                        (j_0 as ::core::ffi::c_int
-                                            * position_format_length(value_format)
-                                                as ::core::ffi::c_int)
-                                            as u32,
-                                    ),
-                                    value_format,
+                        (*subtable).push(GposSingleEntry {
+                            target: otfcc_handle_dup(
+                                *(*targets).glyphs.offset(j_0 as isize) as Handle,
+                            ) as GlyphHandle,
+                            value: read_gpos_value(
+                                data,
+                                table_length,
+                                offset.wrapping_add(8 as u32).wrapping_add(
+                                    (j_0 as ::core::ffi::c_int
+                                        * position_format_length(value_format)
+                                            as ::core::ffi::c_int)
+                                        as u32,
                                 ),
-                            },
-                        );
+                                value_format,
+                            ),
+                        });
                         j_0 = j_0.wrapping_add(1);
                     }
                     current_block = 6009453772311597924;
@@ -270,22 +149,20 @@ pub unsafe extern "C" fn otl_read_gpos_single(
     if !targets.is_null() {
         otl_coverage_free(targets);
     }
-    I_SUBTABLE_GPOS_SINGLE
-        .free
-        .expect("non-null function pointer")(subtable);
+    subtable_gpos_single_free(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe extern "C" fn otl_gpos_dump_single(
     mut _subtable: *const Subtable,
 ) -> *mut JsonValue {
-    let mut subtable: *const GposSingleSubtable = &raw const (*_subtable).gpos_single;
-    let mut st: *mut JsonValue = json_object_new((*subtable).length);
+    let subtable: *const GposSingleSubtable = &raw const (*_subtable).gpos_single as *const GposSingleSubtable;
+    let mut st: *mut JsonValue = json_object_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).length {
+    while (j as usize) < (*subtable).len() {
         json_object_push(
             st,
-            (*(*subtable).items.offset(j as isize)).target.name as *const ::core::ffi::c_char,
-            gpos_dump_value((*(*subtable).items.offset(j as isize)).value),
+            (&(*subtable))[j as usize].target.name as *const ::core::ffi::c_char,
+            gpos_dump_value((&(*subtable))[j as usize].value),
         );
         j = j.wrapping_add(1);
     }
@@ -295,11 +172,7 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
     mut _subtable: *const JsonValue,
     mut _options: *const Options,
 ) -> *mut Subtable {
-    let mut subtable: *mut GposSingleSubtable =
-        (
-            I_SUBTABLE_GPOS_SINGLE
-                .create
-                .expect("non-null function pointer"))();
+    let subtable: *mut GposSingleSubtable = subtable_gpos_single_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < (*_subtable).u.object.length {
         if !(*(*_subtable).u.object.values.offset(j as isize))
@@ -314,18 +187,13 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
                     as *const ::core::ffi::c_void,
                 (*(*_subtable).u.object.values.offset(j as isize)).name_length as usize,
             );
-            I_SUBTABLE_GPOS_SINGLE
-                .push
-                .expect("non-null function pointer")(
-                subtable,
-                GposSingleEntry {
-                    target: handle_from_name(gname)
-                        as GlyphHandle,
-                    value: gpos_parse_value(
-                        (*(*_subtable).u.object.values.offset(j as isize)).value as *mut JsonValue,
-                    ),
-                },
-            );
+            (*subtable).push(GposSingleEntry {
+                target: handle_from_name(gname)
+                    as GlyphHandle,
+                value: gpos_parse_value(
+                    (*(*_subtable).u.object.values.offset(j as isize)).value as *mut JsonValue,
+                ),
+            });
         }
         j = j.wrapping_add(1);
     }
@@ -335,42 +203,34 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let mut subtable: *const GposSingleSubtable = &raw const (*_subtable).gpos_single;
-    let mut is_const: bool = (*subtable).length > 0 as usize;
+    let subtable: *const GposSingleSubtable = &raw const (*_subtable).gpos_single as *const GposSingleSubtable;
+    let mut is_const: bool = (*subtable).len() > 0 as usize;
     let mut format: u16 = 0 as u16;
-    if (*subtable).length > 0 as usize {
+    if (*subtable).len() > 0 as usize {
         let mut j: GlyphId = 0 as GlyphId;
-        while (j as usize) < (*subtable).length {
+        while (j as usize) < (*subtable).len() {
             is_const = is_const as ::core::ffi::c_int != 0
-                && (*(*subtable).items.offset(j as isize)).value.dx
-                    == (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
-                        .value
-                        .dx
-                && (*(*subtable).items.offset(j as isize)).value.dy
-                    == (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
-                        .value
-                        .dy
-                && (*(*subtable).items.offset(j as isize)).value.d_width
-                    == (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
-                        .value
-                        .d_width
-                && (*(*subtable).items.offset(j as isize)).value.d_height
-                    == (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize))
-                        .value
-                        .d_height;
+                && (&(*subtable))[j as usize].value.dx
+                    == (&(*subtable))[0].value.dx
+                && (&(*subtable))[j as usize].value.dy
+                    == (&(*subtable))[0].value.dy
+                && (&(*subtable))[j as usize].value.d_width
+                    == (&(*subtable))[0].value.d_width
+                && (&(*subtable))[j as usize].value.d_height
+                    == (&(*subtable))[0].value.d_height;
             format = (format as ::core::ffi::c_int
-                | required_position_format((*(*subtable).items.offset(j as isize)).value)
+                | required_position_format((&(*subtable))[j as usize].value)
                     as ::core::ffi::c_int) as u16;
             j = j.wrapping_add(1);
         }
     }
     let mut cov: *mut Coverage = otl_coverage_create();
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*subtable).length {
+    while (j_0 as usize) < (*subtable).len() {
         push_to_coverage(
             cov,
             otfcc_handle_dup(
-                (*(*subtable).items.offset(j_0 as isize)).target as Handle,
+                (&(*subtable))[j_0 as usize].target as Handle,
             ) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
@@ -379,16 +239,16 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
         OTL_I_COVERAGE.build.expect("non-null function pointer")(cov);
     if is_const {
         let mut b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(
-                (*(*subtable).items.offset(0 as ::core::ffi::c_int as isize)).value,
+                (&(*subtable))[0].value,
                 format,
             ))]);
         otl_coverage_free(cov);
         return bk_build_block(b);
     } else {
-        let mut b_0: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*subtable).length) as u32)]);
+        let mut b_0: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*subtable).len()) as u32)]);
         let mut k: GlyphId = 0 as GlyphId;
-        while (k as usize) < (*subtable).length {
-            bk_push(b_0, &[bk_ptr(BkCellType::Embed, bk_gpos_value((*(*subtable).items.offset(k as isize)).value, format))]);
+        while (k as usize) < (*subtable).len() {
+            bk_push(b_0, &[bk_ptr(BkCellType::Embed, bk_gpos_value((&(*subtable))[k as usize].value, format))]);
             k = k.wrapping_add(1);
         }
         otl_coverage_free(cov);

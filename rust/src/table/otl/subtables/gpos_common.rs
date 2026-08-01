@@ -12,21 +12,13 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_push};
 use crate::support::{NULL};
-use crate::table::otl::{MarkArrayVectorInterface, Anchor, MarkArray, MarkRecord, PositionValue};
+use crate::table::otl::{Anchor, MarkArray, MarkRecord, PositionValue};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::buffer::{bufwrite16b};
 use crate::vendor::json_builder::{json_null_new, json_object_new, json_object_push};
 use crate::vendor::sds::{sdsfree, sdsnewlen};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct MarkRecordElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut MarkRecord) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut MarkRecord, *const MarkRecord) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut MarkRecord) -> ()>,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ClassNameHash {
@@ -37,107 +29,11 @@ pub struct ClassNameHash {
 unsafe extern "C" fn delete_mark_array_item(mut entry: *mut MarkRecord) {
     otfcc_handle_dispose(&raw mut (*entry).glyph);
 }
-static GSS_TYPEINFO: MarkRecordElementInterface = {
-    MarkRecordElementInterface {
-        init: None,
-        copy: None,
-        dispose: Some(delete_mark_array_item as unsafe extern "C" fn(*mut MarkRecord) -> ()),
+pub(crate) unsafe fn dispose_mark_array(arr: *mut MarkArray) {
+    for e in (*arr).iter_mut() {
+        delete_mark_array_item(e);
     }
-};
-#[inline]
-unsafe extern "C" fn otl_mark_array_grow_to(arr: *mut MarkArray, target: usize) {
-    cvec_grow_to(otl_mark_array_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_mark_array_copy(
-    mut dst: *mut MarkArray,
-    mut src: *const MarkArray,
-) {
-    otl_mark_array_init(dst);
-    otl_mark_array_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if GSS_TYPEINFO.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            GSS_TYPEINFO.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut MarkRecord,
-                (*src).items.offset(j as isize) as *mut MarkRecord as *const MarkRecord,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_mark_array_dispose(mut arr: *mut MarkArray) {
-    if arr.is_null() {
-        return;
-    }
-    if GSS_TYPEINFO.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            GSS_TYPEINFO.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut MarkRecord,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<MarkRecord>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn otl_mark_array_free(mut x: *mut MarkArray) {
-    if x.is_null() {
-        return;
-    }
-    otl_mark_array_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_mark_array_create() -> *mut MarkArray {
-    let mut x: *mut MarkArray =
-        malloc(::core::mem::size_of::<MarkArray>() as usize) as *mut MarkArray;
-    otl_mark_array_init(x);
-    return x;
-}
-#[inline]
-unsafe fn otl_mark_array_as_cvec(arr: *mut MarkArray) -> *mut CVecRaw<MarkRecord> {
-    arr as *mut CVecRaw<MarkRecord>
-}
-#[inline]
-unsafe extern "C" fn otl_mark_array_init(arr: *mut MarkArray) {
-    cvec_init(otl_mark_array_as_cvec(arr));
-}
-pub static OTL_I_MARK_ARRAY: MarkArrayVectorInterface = {
-    MarkArrayVectorInterface {
-        init: Some(otl_mark_array_init as unsafe extern "C" fn(*mut MarkArray) -> ()),
-        copy: Some(
-            otl_mark_array_copy
-                as unsafe extern "C" fn(*mut MarkArray, *const MarkArray) -> (),
-        ),
-        dispose: Some(otl_mark_array_dispose as unsafe extern "C" fn(*mut MarkArray) -> ()),
-        create: Some(otl_mark_array_create),
-        free: Some(otl_mark_array_free as unsafe extern "C" fn(*mut MarkArray) -> ()),
-        clear: Some(otl_mark_array_dispose as unsafe extern "C" fn(*mut MarkArray) -> ()),
-        push: Some(
-            otl_mark_array_push as unsafe extern "C" fn(*mut MarkArray, MarkRecord) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn otl_mark_array_push(arr: *mut MarkArray, elem: MarkRecord) {
-    cvec_push(otl_mark_array_as_cvec(arr), elem);
+    *arr = Vec::new();
 }
 pub unsafe extern "C" fn otl_read_mark_array(
     mut array: *mut MarkArray,
@@ -164,8 +60,7 @@ pub unsafe extern "C" fn otl_read_mark_array(
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             );
             if delta != 0 {
-                OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(
-                    array,
+                (*array).push(
                     MarkRecord {
                         glyph: otfcc_handle_dup(
                             *(*cov).glyphs.offset(j as isize) as Handle,
@@ -179,8 +74,7 @@ pub unsafe extern "C" fn otl_read_mark_array(
                     },
                 );
             } else {
-                OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(
-                    array,
+                (*array).push(
                     MarkRecord {
                         glyph: otfcc_handle_dup(
                             *(*cov).glyphs.offset(j as isize) as Handle,
@@ -237,7 +131,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
         if anchor_record.is_null()
             || (*anchor_record).type_0 != JsonType::Object
         {
-            OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(array, mark);
+            (*array).push(mark);
         } else {
             let mut _class_name: *mut JsonValue = json_obj_get_type(
                 anchor_record,
@@ -245,7 +139,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                 JsonType::String,
             );
             if _class_name.is_null() {
-                OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(array, mark);
+                (*array).push(mark);
             } else {
                 let mut class_name: SdsRaw = sdsnewlen(
                     (*_class_name).u.string.ptr as *const ::core::ffi::c_void,
@@ -1058,7 +952,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                     anchor_record,
                     b"y\0" as *const u8 as *const ::core::ffi::c_char,
                 ) as Pos;
-                OTL_I_MARK_ARRAY.push.expect("non-null function pointer")(array, mark);
+                (*array).push(mark);
             }
         }
         j = j.wrapping_add(1);
@@ -1205,8 +1099,8 @@ pub unsafe extern "C" fn otl_parse_mark_array(
         s_0 = (*s_0).hh.next as *mut ClassNameHash;
     }
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*array).length {
-        if (*(*array).items.offset(j_0 as isize)).anchor.present {
+    while (j_0 as usize) < (*array).len() {
+        if (&(*array))[j_0 as usize].anchor.present {
             let mut anchor_record_0: *mut JsonValue =
                 (*(*_marks).u.object.values.offset(j_0 as isize)).value as *mut JsonValue;
             let mut _class_name_0: *mut JsonValue = json_obj_get_type(
@@ -1544,9 +1438,9 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                 }
             }
             if !s_1.is_null() {
-                (*(*array).items.offset(j_0 as isize)).mark_class = (*s_1).class_id;
+                (&mut (*array))[j_0 as usize].mark_class = (*s_1).class_id;
             } else {
-                (*(*array).items.offset(j_0 as isize)).mark_class = 0 as GlyphClass;
+                (&mut (*array))[j_0 as usize].mark_class = 0 as GlyphClass;
             }
             sdsfree(class_name_0);
         }
