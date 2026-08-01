@@ -14,7 +14,7 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
-use crate::vendor::sds::{SDS_TYPE_16, SDS_TYPE_32, SDS_TYPE_5, SDS_TYPE_64, SDS_TYPE_8, SDS_TYPE_BITS, SDS_TYPE_MASK, SdsRaw, SdsHdr16, SdsHdr32, SdsHdr64, SdsHdr8};
+use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonValue, JsonType};
 use crate::support::buffer::{Buffer};
 use crate::support::{TRUE_0};
@@ -29,7 +29,7 @@ use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::vendor::json::{json_value_free};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnewlen};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdslen, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
 #[derive(Clone)]
@@ -172,36 +172,6 @@ pub struct GlyfIOContext {
 /// down to bit 0 rather than trusting it -- so this is typed as the `i8` it is
 /// applied to, which is what lets the two sites drop their casts.
 pub const MASK_ON_CURVE: i8 = 1;
-#[inline]
-unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
-    let mut flags: ::core::ffi::c_uchar =
-        *s.offset(-(1 as ::core::ffi::c_int) as isize) as ::core::ffi::c_uchar;
-    match flags as ::core::ffi::c_int & SDS_TYPE_MASK {
-        SDS_TYPE_5 => return (flags as ::core::ffi::c_int >> SDS_TYPE_BITS) as usize,
-        SDS_TYPE_8 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr8>() as isize))
-                as *mut SdsHdr8))
-                .len as usize;
-        }
-        SDS_TYPE_16 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr16>() as isize))
-                as *mut SdsHdr16))
-                .len as usize;
-        }
-        SDS_TYPE_32 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr32>() as isize))
-                as *mut SdsHdr32))
-                .len as usize;
-        }
-        SDS_TYPE_64 => {
-            return (*(s.offset(-(::core::mem::size_of::<SdsHdr64>() as isize))
-                as *mut SdsHdr64))
-                .len as usize;
-        }
-        _ => {}
-    }
-    return 0 as usize;
-}
 unsafe extern "C" fn create_point(mut p: *mut Point) {
     (*p).x = I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
     (*p).y = I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
