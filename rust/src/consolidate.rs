@@ -20,7 +20,7 @@ use crate::support::{NULL};
 use crate::support::glyph_order::GlyphOrder;
 
 use crate::table::cff::{CffTable};
-use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup, dispose_colr_mapping, table_colr_create, table_colr_free};
+use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup, table_colr_create, table_colr_free};
 
 
 
@@ -1331,7 +1331,9 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                             b" is empth",
                         ),
                     );
-                    dispose_colr_mapping(&raw mut m);
+                    // `m` is dropped here (its `Handle` and `layers: Vec<ColrLayer>`
+                    // freed by their own compiler-generated drop glue) rather than
+                    // pushed into `consolidated` -- no manual dispose call needed.
                 }
             }
             keep = (keep == 0) as ::core::ffi::c_int as usize;

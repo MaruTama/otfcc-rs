@@ -2,7 +2,7 @@
 use libc::{free, malloc};
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint_fallback, preserialize};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
@@ -29,12 +29,11 @@ pub struct ColrMapping {
 }
 pub type ColrTable = Vec<ColrMapping>;
 
-// `ColrLayer`/`ColrMapping` stay Copy-at-the-leaf (`Handle` does, crate-wide --
-// Stage 6-4's job to change), which means a bitwise `Clone`/`Copy` of either
-// only *aliases* the `Handle.name` sds string rather than duplicating it. The
-// crate's own convention, unchanged here, is that a REAL duplicate always
-// goes through an explicit dup/copy function -- never an implicit derive --
-// so these two are written the same way, not derived.
+// `ColrLayer`/`ColrMapping` embed `GlyphHandle`, which owns its `sds` name
+// for real (`Handle`'s `Drop`/`Clone`, Stage 6-4's `Handle` pilot), so a
+// bitwise `Clone`/`Copy` of either would still only alias it -- a REAL
+// duplicate always goes through an explicit dup/copy function here, never an
+// implicit derive, so these two are written the same way, not derived.
 pub(crate) fn colr_layer_dup(l: &ColrLayer) -> ColrLayer {
     unsafe {
         ColrLayer {
@@ -43,30 +42,18 @@ pub(crate) fn colr_layer_dup(l: &ColrLayer) -> ColrLayer {
         }
     }
 }
-unsafe fn dispose_colr_layer(l: *mut ColrLayer) {
-    otfcc_handle_dispose(&raw mut (*l).glyph);
-}
 fn colr_mapping_dup(m: &ColrMapping) -> ColrMapping {
     ColrMapping {
         glyph: unsafe { otfcc_handle_dup(m.glyph.clone()) },
         layers: m.layers.iter().map(colr_layer_dup).collect(),
     }
 }
-pub(crate) unsafe fn dispose_colr_mapping(m: *mut ColrMapping) {
-    otfcc_handle_dispose(&raw mut (*m).glyph);
-    for l in (*m).layers.iter_mut() {
-        dispose_colr_layer(l as *mut ColrLayer);
-    }
-    (*m).layers = Vec::new();
-}
+// `ColrLayer`/`ColrMapping` hold nothing but a `Handle` and (for the latter)
+// a `Vec<ColrLayer>` of the same shape, so dropping the `Vec<ColrMapping>`
+// runs `Handle`'s own `Drop` for every layer and every mapping -- no
+// per-element dtor needed anymore. `t` itself is *not* freed here (see
+// `table_colr_free`, which calls this first).
 unsafe fn dispose_colr_table(t: *mut ColrTable) {
-    for m in (*t).iter_mut() {
-        dispose_colr_mapping(m as *mut ColrMapping);
-    }
-    // Drops the (now Handle-less) `Vec<ColrMapping>` -- which, via each
-    // `ColrMapping`'s compiler-generated drop glue, also frees every
-    // mapping's `layers: Vec<ColrLayer>` backing array. `t` itself is *not*
-    // freed here (see `table_colr_free`, which calls this first).
     *t = Vec::new();
 }
 pub(crate) unsafe fn table_colr_free(x: *mut ColrTable) {
