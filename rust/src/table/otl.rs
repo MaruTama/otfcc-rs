@@ -18,15 +18,15 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::vendor::sds::{SdsRaw};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
-use crate::table::otl::subtables::gpos_cursive::{I_SUBTABLE_GPOS_CURSIVE};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{I_SUBTABLE_GPOS_MARK_TO_LIGATURE};
-use crate::table::otl::subtables::gpos_mark_to_single::{I_SUBTABLE_GPOS_MARK_TO_SINGLE};
+use crate::table::otl::subtables::gpos_cursive::{subtable_gpos_cursive_free};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{subtable_gpos_mark_to_ligature_free};
+use crate::table::otl::subtables::gpos_mark_to_single::{subtable_gpos_mark_to_single_free};
 use crate::table::otl::subtables::gpos_pair::{I_SUBTABLE_GPOS_PAIR};
-use crate::table::otl::subtables::gpos_single::{I_SUBTABLE_GPOS_SINGLE};
-use crate::table::otl::subtables::gsub_ligature::{I_SUBTABLE_GSUB_LIGATURE};
-use crate::table::otl::subtables::gsub_multi::{I_SUBTABLE_GSUB_MULTI};
+use crate::table::otl::subtables::gpos_single::{subtable_gpos_single_free};
+use crate::table::otl::subtables::gsub_ligature::{subtable_gsub_ligature_free};
+use crate::table::otl::subtables::gsub_multi::{subtable_gsub_multi_free};
 use crate::table::otl::subtables::gsub_reverse::{I_SUBTABLE_GSUB_REVERSE};
-use crate::table::otl::subtables::gsub_single::{I_SUBTABLE_GSUB_SINGLE};
+use crate::table::otl::subtables::gsub_single::{subtable_gsub_single_free};
 use crate::vendor::sds::{sdsfree};
 
 
@@ -147,19 +147,27 @@ impl LookupType {
         }
     }
 }
-#[derive(Copy, Clone)]
+// Never copied or moved by value anywhere in the crate -- every use is
+// `*mut Subtable`/`*const Subtable`/`size_of::<Subtable>()`/
+// `null_mut::<Subtable>()`, so `Subtable` itself needs neither `Copy` nor
+// `Clone`. The 7 variants that now own a `Vec` (all container types that
+// used to block their `Vec` conversion on this union) are wrapped in
+// `ManuallyDrop` -- the only field shape besides `Copy` a union may hold.
+// `ManuallyDrop<T>` is `#[repr(transparent)]`, so every extraction site
+// (`&raw mut/const (*subtable).field`) just adds `as *mut/*const T` to get
+// back the field's real type; nothing downstream of that cast changes.
 #[repr(C)]
 pub union Subtable {
-    pub gsub_single: GsubSingleSubtable,
-    pub gsub_multi: GsubMultiSubtable,
-    pub gsub_ligature: GsubLigatureSubtable,
+    pub gsub_single: ::core::mem::ManuallyDrop<GsubSingleSubtable>,
+    pub gsub_multi: ::core::mem::ManuallyDrop<GsubMultiSubtable>,
+    pub gsub_ligature: ::core::mem::ManuallyDrop<GsubLigatureSubtable>,
     pub chaining: ChainingSubtable,
     pub gsub_reverse: GsubReverseSubtable,
-    pub gpos_single: GposSingleSubtable,
+    pub gpos_single: ::core::mem::ManuallyDrop<GposSingleSubtable>,
     pub gpos_pair: GposPairSubtable,
-    pub gpos_cursive: GposCursiveSubtable,
-    pub gpos_mark_to_single: GposMarkToSingleSubtable,
-    pub gpos_mark_to_ligature: GposMarkToLigatureSubtable,
+    pub gpos_cursive: ::core::mem::ManuallyDrop<GposCursiveSubtable>,
+    pub gpos_mark_to_single: ::core::mem::ManuallyDrop<GposMarkToSingleSubtable>,
+    pub gpos_mark_to_ligature: ::core::mem::ManuallyDrop<GposMarkToLigatureSubtable>,
     pub extend: ExtendSubtable,
 }
 #[derive(Copy, Clone)]
@@ -168,20 +176,18 @@ pub struct ExtendSubtable {
     pub type_0: LookupType,
     pub subtable: *mut Subtable,
 }
-#[derive(Copy, Clone)]
+// Never passed or embedded by value anywhere in the crate (only ever behind
+// `*mut`/`*const`, as a `Subtable` union field) -- no `Copy`/`Clone` needed
+// once `mark_array`/`lig_array` own `Vec`s.
 #[repr(C)]
 pub struct GposMarkToLigatureSubtable {
     pub class_count: GlyphClass,
     pub mark_array: MarkArray,
     pub lig_array: LigatureArray,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LigatureArray {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut LigatureBaseRecord,
-}
+/// Embedded by value in both `GposMarkToSingleSubtable` and
+/// `GposMarkToLigatureSubtable`, not a `Subtable` union field itself.
+pub type LigatureArray = Vec<LigatureBaseRecord>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct LigatureBaseRecord {
@@ -196,13 +202,9 @@ pub struct Anchor {
     pub x: Pos,
     pub y: Pos,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct MarkArray {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut MarkRecord,
-}
+/// Embedded by value in both `GposMarkToSingleSubtable` and
+/// `GposMarkToLigatureSubtable`, not a `Subtable` union field itself.
+pub type MarkArray = Vec<MarkRecord>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MarkRecord {
@@ -210,33 +212,24 @@ pub struct MarkRecord {
     pub mark_class: GlyphClass,
     pub anchor: Anchor,
 }
-#[derive(Copy, Clone)]
+// Never passed or embedded by value anywhere in the crate -- no
+// `Copy`/`Clone` needed once `mark_array`/`base_array` own `Vec`s.
 #[repr(C)]
 pub struct GposMarkToSingleSubtable {
     pub class_count: GlyphClass,
     pub mark_array: MarkArray,
     pub base_array: BaseArray,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct BaseArray {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut BaseRecord,
-}
+/// Embedded by value in `GposMarkToSingleSubtable`, not a `Subtable` union
+/// field itself.
+pub type BaseArray = Vec<BaseRecord>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct BaseRecord {
     pub glyph: GlyphHandle,
     pub anchors: *mut Anchor,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GposCursiveSubtable {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut GposCursiveEntry,
-}
+pub type GposCursiveSubtable = Vec<GposCursiveEntry>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GposCursiveEntry {
@@ -260,13 +253,7 @@ pub struct PositionValue {
     pub d_width: Pos,
     pub d_height: Pos,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GposSingleSubtable {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut GposSingleEntry,
-}
+pub type GposSingleSubtable = Vec<GposSingleEntry>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GposSingleEntry {
@@ -325,39 +312,21 @@ pub enum ChainingType {
     Poly = 1,
     Classified = 2,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GsubLigatureSubtable {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut GsubLigatureEntry,
-}
+pub type GsubLigatureSubtable = Vec<GsubLigatureEntry>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GsubLigatureEntry {
     pub from: *mut Coverage,
     pub to: GlyphHandle,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GsubMultiSubtable {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut GsubMultiEntry,
-}
+pub type GsubMultiSubtable = Vec<GsubMultiEntry>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GsubMultiEntry {
     pub from: GlyphHandle,
     pub to: *mut Coverage,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GsubSingleSubtable {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut GsubSingleEntry,
-}
+pub type GsubSingleSubtable = Vec<GsubSingleEntry>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GsubSingleEntry {
@@ -381,45 +350,6 @@ pub type SubtablePtr = *mut Subtable;
 pub type SubtableList = Vec<SubtablePtr>;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct GsubSingleSubtableVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
-    pub copy:
-        Option<unsafe extern "C" fn(*mut GsubSingleSubtable, *const GsubSingleSubtable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GsubSingleSubtable>,
-    pub free: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut GsubSingleSubtable, GsubSingleEntry) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GsubMultiSubtableVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-    pub copy:
-        Option<unsafe extern "C" fn(*mut GsubMultiSubtable, *const GsubMultiSubtable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GsubMultiSubtable>,
-    pub free: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiEntry) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GsubLigatureSubtableVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
-    pub copy: Option<
-        unsafe extern "C" fn(*mut GsubLigatureSubtable, *const GsubLigatureSubtable) -> (),
-    >,
-    pub dispose: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
-    pub replace:
-        Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureSubtable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GsubLigatureSubtable>,
-    pub free: Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
-    pub push:
-        Option<unsafe extern "C" fn(*mut GsubLigatureSubtable, GsubLigatureEntry) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct ChainingSubtableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut ChainingSubtable, *const ChainingSubtable) -> ()>,
@@ -440,18 +370,6 @@ pub struct GsubReverseSubtableElementInterface {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct GposSingleSubtableVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
-    pub copy:
-        Option<unsafe extern "C" fn(*mut GposSingleSubtable, *const GposSingleSubtable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GposSingleSubtable>,
-    pub free: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut GposSingleSubtable, GposSingleEntry) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct GposPairSubtableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
     pub copy:
@@ -459,47 +377,6 @@ pub struct GposPairSubtableElementInterface {
     pub dispose: Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GposPairSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GposCursiveSubtableVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
-    pub copy: Option<
-        unsafe extern "C" fn(*mut GposCursiveSubtable, *const GposCursiveSubtable) -> (),
-    >,
-    pub dispose: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GposCursiveSubtable>,
-    pub free: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut GposCursiveSubtable, GposCursiveEntry) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GposMarkToSingleSubtableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
-    pub copy: Option<
-        unsafe extern "C" fn(
-            *mut GposMarkToSingleSubtable,
-            *const GposMarkToSingleSubtable,
-        ) -> (),
-    >,
-    pub dispose: Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GposMarkToSingleSubtable>,
-    pub free: Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GposMarkToLigatureSubtableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> ()>,
-    pub copy: Option<
-        unsafe extern "C" fn(
-            *mut GposMarkToLigatureSubtable,
-            *const GposMarkToLigatureSubtable,
-        ) -> (),
-    >,
-    pub dispose: Option<unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GposMarkToLigatureSubtable>,
-    pub free: Option<unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> ()>,
 }
 pub type LookupPtr = *mut Lookup;
 // 所有するポインタ配列。分類その3、`SubtableList` と同じ扱い。
@@ -546,32 +423,16 @@ unsafe extern "C" fn dispose_subtable_dependent(
 ) {
     match (*lookup).type_0 {
         OTL_TYPE_GSUB_SINGLE => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GSUB_SINGLE.free)
-            .expect("non-null function pointer")(*subtable_ref);
+            subtable_gsub_single_free(*subtable_ref as *mut GsubSingleSubtable);
         }
         OTL_TYPE_GSUB_MULTIPLE => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GSUB_MULTI.free)
-            .expect("non-null function pointer")(*subtable_ref);
+            subtable_gsub_multi_free(*subtable_ref as *mut GsubMultiSubtable);
         }
         OTL_TYPE_GSUB_ALTERNATE => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GSUB_MULTI.free)
-            .expect("non-null function pointer")(*subtable_ref);
+            subtable_gsub_multi_free(*subtable_ref as *mut GsubMultiSubtable);
         }
         OTL_TYPE_GSUB_LIGATURE => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GSUB_LIGATURE.free)
-            .expect("non-null function pointer")(*subtable_ref);
+            subtable_gsub_ligature_free(*subtable_ref as *mut GsubLigatureSubtable);
         }
         OTL_TYPE_GSUB_CHAINING => {
             ::core::mem::transmute::<
@@ -588,11 +449,7 @@ unsafe extern "C" fn dispose_subtable_dependent(
             .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GPOS_SINGLE => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GPOS_SINGLE.free)
-            .expect("non-null function pointer")(*subtable_ref);
+            subtable_gpos_single_free(*subtable_ref as *mut GposSingleSubtable);
         }
         OTL_TYPE_GPOS_PAIR => {
             ::core::mem::transmute::<
@@ -602,11 +459,7 @@ unsafe extern "C" fn dispose_subtable_dependent(
             .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GPOS_CURSIVE => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GPOS_CURSIVE.free)
-            .expect("non-null function pointer")(*subtable_ref);
+            subtable_gpos_cursive_free(*subtable_ref as *mut GposCursiveSubtable);
         }
         OTL_TYPE_GPOS_CHAINING => {
             ::core::mem::transmute::<
@@ -616,25 +469,13 @@ unsafe extern "C" fn dispose_subtable_dependent(
             .expect("non-null function pointer")(*subtable_ref);
         }
         OTL_TYPE_GPOS_MARK_TO_BASE => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GPOS_MARK_TO_SINGLE.free)
-            .expect("non-null function pointer")(*subtable_ref);
+            subtable_gpos_mark_to_single_free(*subtable_ref as *mut GposMarkToSingleSubtable);
         }
         OTL_TYPE_GPOS_MARK_TO_MARK => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GPOS_MARK_TO_SINGLE.free)
-            .expect("non-null function pointer")(*subtable_ref);
+            subtable_gpos_mark_to_single_free(*subtable_ref as *mut GposMarkToSingleSubtable);
         }
         OTL_TYPE_GPOS_MARK_TO_LIGATURE => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GPOS_MARK_TO_LIGATURE.free)
-            .expect("non-null function pointer")(*subtable_ref);
+            subtable_gpos_mark_to_ligature_free(*subtable_ref as *mut GposMarkToLigatureSubtable);
         }
         _ => {}
     };
@@ -879,42 +720,6 @@ pub(crate) unsafe fn table_otl_free(x: *mut OtlTable) {
 // テーブル全体の`.copy`（`table_otl_copy`、生ポインタのmemcpy）は
 // crate全体で一度も呼ばれておらず削除——Vec所有下でのmemcpyは
 // 3つの内側リストすべての二重解放になるため、`.clone()`への移植も不要。
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct MarkArrayVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut MarkArray, *const MarkArray) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut MarkArray>,
-    pub free: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut MarkArray) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut MarkArray, MarkRecord) -> ()>,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct BaseArrayVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut BaseArray, *const BaseArray) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut BaseArray>,
-    pub free: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut BaseArray) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut BaseArray, BaseRecord) -> ()>,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LigatureArrayVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut LigatureArray, *const LigatureArray) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut LigatureArray>,
-    pub free: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
-    pub clear: Option<unsafe extern "C" fn(*mut LigatureArray) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut LigatureArray, LigatureBaseRecord) -> ()>,
-}
 
 #[cfg(test)]
 mod tests {

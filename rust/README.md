@@ -921,13 +921,13 @@ on the other platform before a commit is trusted.
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
   is complete.
-- **Then safe Rust, type by type**: `CVecRaw<T>` → `Vec<T>` first (one
-  implementation backs ~37 container types), then `sds` → `String`,
-  `caryll_Buffer` → `Vec<u8>`, `malloc`/`dispose` → `Box` + `Drop`, and the
-  7,682 `.offset()` calls into slices and iterators. Each of those PRs should
-  end by deleting its files' `allow(unsafe_op_in_unsafe_fn)`: 120 files carry
-  one today, and that count is the honest measure of how much of this crate is
-  still C.
+- **Then safe Rust, type by type. Stage 6-1 (`CVecRaw<T>` → `Vec<T>`,
+  ~37 container types) is done** — `support/cvec.rs` is deleted, its last
+  consumer converted below. Next: `sds` → `String`, `caryll_Buffer` →
+  `Vec<u8>`, `malloc`/`dispose` → `Box` + `Drop`, and the 7,682 `.offset()`
+  calls into slices and iterators. Each of those PRs should end by deleting
+  its files' `allow(unsafe_op_in_unsafe_fn)`: 120 files carry one today, and
+  that count is the honest measure of how much of this crate is still C.
   - **First, though: the `Vec<T>` conversion's real obstacle wasn't the
     generic arithmetic in `cvec.rs`, it was that every container-owning
     struct is `#[derive(Copy, Clone)]` and gets memcpy'd wholesale by its
@@ -1685,5 +1685,100 @@ on the other platform before a commit is trusted.
       dangling-reference branches are hit by the existing corpus. All of
       `compare-with-c.sh`/`run-cycles.sh`/the roundtrip comparisons/the
       issue #1 golden test came back clean on both platforms.
+  - **`Subtable`'s `ManuallyDrop` wrap unblocks the last 8 containers**
+    (`MarkArray`/`BaseArray`/`LigatureArray`/`GposCursiveSubtable`/
+    `GposSingleSubtable`/`GsubSingleSubtable`/`GsubLigatureSubtable`/
+    `GsubMultiSubtable` → `Vec<T>`) — the fix flagged two entries up as
+    "deferred until the other 14 working containers exist", now applied.
+    **This finishes Stage 6-1**: `support/cvec.rs`'s `CVecRaw<T>` had zero
+    remaining consumers once these 8 landed, so the file (and its `mod
+    cvec;` line, and the five unit tests inside it) is deleted outright
+    rather than left as dead code.
+    - **The mechanism is exactly what the earlier note predicted, and
+      cheaper than it looked.** A Rust union can't hold a non-`Copy` field
+      without `ManuallyDrop<T>` wrapping it — wrapping just the 7 affected
+      variants (`chaining`/`gsub_reverse`/`gpos_pair`/`extend` stay bare)
+      and dropping `#[derive(Copy, Clone)]` from the union itself was the
+      whole fix. `ManuallyDrop<T>` is `#[repr(transparent)]`, so every
+      extraction site keeps its existing `&raw mut/const
+      (*subtable).field` syntax and only needs one appended cast — `as
+      *mut/*const ActualType` — to recover the real type; nothing
+      downstream (indexing, `.push`, `.len()`, …) changes. That kept the
+      touched surface to ~22 union-field extraction sites across 14 files,
+      not the 32-file/364-site figure the plan had estimated for a full
+      tagged-`enum` rewrite — because a `ManuallyDrop` wrap doesn't change
+      how the union is accessed, only what's inside each field.
+    - **`GposMarkToSingleSubtable`/`GposMarkToLigatureSubtable` lost their
+      own `#[derive(Copy, Clone)]` too**, for the same reason as the union:
+      once `mark_array`/`base_array`/`lig_array` are real `Vec`s, the host
+      structs can't be `Copy` either. Both were confirmed never passed or
+      embedded by value outside their own files first.
+    - **The `.copy` vtable slots on both `mark_to_single`/`mark_to_ligature`
+      element interfaces were dead** (grepped for the interface-static name
+      being called, not just the function name — the file's own `.expect()`
+      call inside the vtable initializer doesn't count as a caller), so the
+      two `memcpy`-based `subtable_gpos_mark_to_X_copy` functions were
+      deleted outright rather than ported to `.clone()`, same as every
+      earlier dead-`.copy` case in this migration.
+    - **`GsubLigatureSubtable` is the one type with a live `.replace`**
+      (`consolidate_gsub_ligature` builds a filter-and-transfer-ownership
+      `nt: GsubLigatureSubtable` and swaps it in for the old subtable).
+      `subtable_gsub_ligature_replace(dst, src)` went from `dispose(dst);
+      memcpy(dst, &src, size_of::<X>())` to `dispose_gsub_ligature_subtable
+      (dst); *dst = src;` — a safe move-assign, since every call site passes
+      a fresh, never-reused local. Taking `src: GsubLigatureSubtable` by
+      value in an `extern "C" fn` trips `improper_ctypes_definitions` (a
+      `Vec` has unspecified layout) exactly the way `read_lig_caret_record`
+      did in the `CaretValueList` PR — same fix, a function-level
+      `#[allow(improper_ctypes_definitions)]`, since the function is never
+      actually called across a real FFI boundary, only used for
+      vtable-shaped internal dispatch.
+    - **The consolidate-side call sites were more work than the plan's
+      hand-audit had scoped.** The plan's "re-measured after PR #60" note
+      (two entries up) only tracked the `Subtable`-union extraction casts;
+      it missed that `consolidate/otl/{gpos_cursive,gpos_single,gsub_single,
+      gsub_multi,gsub_ligature,mark}.rs` each run a full uthash-based
+      dedup-and-rebuild pass directly against these containers'
+      `.length`/`.items.offset(...)` shape, with their own
+      `I_SUBTABLE_X.clear`/`.push` vtable calls at the end (`mark.rs` alone
+      has three such passes, for `mark_array`/`base_array`/`lig_array`).
+      Every `dispose_X_subtable`/`dispose_mark_array`/`dispose_base_array`/
+      `dispose_lig_array` helper written for the `table/otl/subtables/*.rs`
+      side had to be made `pub(crate)` and imported here too, since the old
+      `.clear` vtable slot was always an alias for the full dispose (grepped
+      each vtable's own static initializer to confirm before relying on
+      that), not a capacity-preserving truncate — the established "`.clear`
+      that's actually a full dispose must not become `Vec::clear()`" rule
+      from earlier PRs applied seven more times.
+    - **The two `malloc`-based host-struct `_create` functions were
+      switched to `__caryll_allocate_clean` (calloc) up front**, applying
+      the `GaspTable` lesson proactively rather than discovering it via a
+      crash: both `subtable_gpos_mark_to_single_create` and
+      `subtable_gpos_mark_to_ligature_create` assign `Vec::new()` into two
+      fields of a freshly allocated struct, and that assignment implicitly
+      drops whatever was already there — safe only when the memory started
+      zeroed (a zero-capacity `Vec`'s drop is a no-op regardless of what its
+      pointer field holds).
+    - **`dangerous_implicit_autorefs` at the same scale as the previous two
+      PRs, but with none of their manual-fixup wrinkles** — 290
+      machine-applied edits across 15 files (the JSON-diagnostics script
+      from the `glyf` PR, rewritten from scratch there since it was never
+      committed, needed no changes this time); no double-span mismatched-
+      paren case turned up.
+    - **No synthetic payload needed**: `NotoNastaliqUrdu-Regular.ttf`
+      already exercises all 8 of these lookup types end to end (confirmed
+      by tabulating every payload's lookup `"type"` values via
+      `otfccdump` before starting), and it was already in
+      `compare-with-c.sh`'s payload list. All of
+      `compare-with-c.sh`/`run-cycles.sh`/the roundtrip comparisons/the
+      issue #1 golden test came back clean on both platforms, both before
+      and after deleting `cvec.rs`.
+    - **The three `memcpy(…, size_of::<Subtable>())` sites the plan had
+      flagged as risky turned out to be irrelevant to this PR** —
+      `otf_reader/unconsolidate.rs:482,502` and
+      `table/otl/subtables/extend.rs:28` are `__caryll_allocate_clean`
+      (calloc) calls sized to the *whole* union for the `chaining`/`extend`
+      variants, which stayed bare (not `ManuallyDrop`-wrapped) and were
+      never touched here.
   `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
   removing C removes the safety net that makes all of this checkable.

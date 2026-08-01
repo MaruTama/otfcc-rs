@@ -12,140 +12,38 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::table::otl::{GsubMultiSubtableVectorInterface, GsubMultiEntry, Subtable, GsubMultiSubtable};
+use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_object_new, json_object_push};
 use crate::vendor::sds::{sdsnewlen};
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GsubMultiEntryElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GsubMultiEntry) -> ()>,
-    pub copy:
-        Option<unsafe extern "C" fn(*mut GsubMultiEntry, *const GsubMultiEntry) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut GsubMultiEntry) -> ()>,
-}
 unsafe extern "C" fn delete_gsub_multi_entry(mut entry: *mut GsubMultiEntry) {
     otfcc_handle_dispose(&raw mut (*entry).from);
     otl_coverage_free((*entry).to);
     (*entry).to = ::core::ptr::null_mut::<Coverage>();
 }
-static GSM_TYPEINFO: GsubMultiEntryElementInterface = {
-    GsubMultiEntryElementInterface {
-        init: None,
-        copy: None,
-        dispose: Some(delete_gsub_multi_entry as unsafe extern "C" fn(*mut GsubMultiEntry) -> ()),
+pub(crate) unsafe fn dispose_gsub_multi_subtable(arr: *mut GsubMultiSubtable) {
+    for e in (*arr).iter_mut() {
+        delete_gsub_multi_entry(e);
     }
-};
-#[inline]
-unsafe fn as_cvec(arr: *mut GsubMultiSubtable) -> *mut CVecRaw<GsubMultiEntry> {
-    arr as *mut CVecRaw<GsubMultiEntry>
+    *arr = Vec::new();
 }
-#[inline]
-unsafe extern "C" fn subtable_gsub_multi_grow_to(arr: *mut GsubMultiSubtable, target: usize) {
-    cvec_grow_to(as_cvec(arr), target);
-}
-pub static I_SUBTABLE_GSUB_MULTI: GsubMultiSubtableVectorInterface = {
-    GsubMultiSubtableVectorInterface {
-        init: Some(
-            subtable_gsub_multi_init as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
-        ),
-        copy: Some(
-            subtable_gsub_multi_copy
-                as unsafe extern "C" fn(*mut GsubMultiSubtable, *const GsubMultiSubtable) -> (),
-        ),
-        dispose: Some(
-            subtable_gsub_multi_dispose as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
-        ),
-        create: Some(subtable_gsub_multi_create),
-        free: Some(
-            subtable_gsub_multi_free as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
-        ),
-        clear: Some(
-            subtable_gsub_multi_dispose as unsafe extern "C" fn(*mut GsubMultiSubtable) -> (),
-        ),
-        push: Some(
-            subtable_gsub_multi_push
-                as unsafe extern "C" fn(*mut GsubMultiSubtable, GsubMultiEntry) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn subtable_gsub_multi_push(arr: *mut GsubMultiSubtable, elem: GsubMultiEntry) {
-    cvec_push(as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_multi_init(arr: *mut GsubMultiSubtable) {
-    cvec_init(as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_multi_copy(
-    mut dst: *mut GsubMultiSubtable,
-    mut src: *const GsubMultiSubtable,
-) {
-    subtable_gsub_multi_init(dst);
-    subtable_gsub_multi_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if GSM_TYPEINFO.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            GSM_TYPEINFO.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut GsubMultiEntry,
-                (*src).items.offset(j as isize) as *mut GsubMultiEntry
-                    as *const GsubMultiEntry,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            *(*dst).items.offset(j_0 as isize) = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_multi_dispose(mut arr: *mut GsubMultiSubtable) {
-    if arr.is_null() {
-        return;
-    }
-    if GSM_TYPEINFO.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh1 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh1 != 0) {
-                break;
-            }
-            GSM_TYPEINFO.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut GsubMultiEntry,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<GsubMultiEntry>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_multi_free(mut x: *mut GsubMultiSubtable) {
+pub(crate) unsafe extern "C" fn subtable_gsub_multi_free(x: *mut GsubMultiSubtable) {
     if x.is_null() {
         return;
     }
-    subtable_gsub_multi_dispose(x);
+    dispose_gsub_multi_subtable(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[inline]
 unsafe extern "C" fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
-    let mut x: *mut GsubMultiSubtable =
+    let x: *mut GsubMultiSubtable =
         malloc(::core::mem::size_of::<GsubMultiSubtable>() as usize) as *mut GsubMultiSubtable;
-    subtable_gsub_multi_init(x);
-    return x;
+    x.write(Vec::new());
+    x
 }
 pub unsafe extern "C" fn otl_read_gsub_multi(
     mut data: FontFilePointer,
@@ -155,11 +53,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
     mut _options: *const Options,
 ) -> *mut Subtable {
     let mut seq_count: GlyphId = 0;
-    let subtable: *mut GsubMultiSubtable =
-        (
-            I_SUBTABLE_GSUB_MULTI
-                .create
-                .expect("non-null function pointer"))();
+    let subtable: *mut GsubMultiSubtable = subtable_gsub_multi_create();
     let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     if !(table_length < offset.wrapping_add(6 as u32)) {
         from = read_coverage(
@@ -206,17 +100,12 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
                                 as GlyphId) as GlyphHandle,
                         );
                     }
-                    I_SUBTABLE_GSUB_MULTI
-                        .push
-                        .expect("non-null function pointer")(
-                        subtable,
-                        GsubMultiEntry {
-                            from: otfcc_handle_dup(
-                                *(*from).glyphs.offset(j as isize) as Handle,
-                            ) as GlyphHandle,
-                            to: cov,
-                        },
-                    );
+                    (*subtable).push(GsubMultiEntry {
+                        from: otfcc_handle_dup(
+                            *(*from).glyphs.offset(j as isize) as Handle,
+                        ) as GlyphHandle,
+                        to: cov,
+                    });
                 }
                 otl_coverage_free(from);
                 return subtable as *mut Subtable;
@@ -226,18 +115,16 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
     if !from.is_null() {
         otl_coverage_free(from);
     }
-    I_SUBTABLE_GSUB_MULTI
-        .free
-        .expect("non-null function pointer")(subtable);
+    subtable_gsub_multi_free(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe extern "C" fn otl_gsub_dump_multi(
     mut _subtable: *const Subtable,
 ) -> *mut JsonValue {
-    let subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi;
-    let st: *mut JsonValue = json_object_new((*subtable).length);
-    for j in 0..(*subtable).length as GlyphId {
-        let entry = (*subtable).items.offset(j as isize);
+    let subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi as *const GsubMultiSubtable;
+    let st: *mut JsonValue = json_object_new((*subtable).len());
+    for j in 0..(*subtable).len() as GlyphId {
+        let entry = &(&(*subtable))[j as usize];
         json_object_push(
             st,
             (*entry).from.name as *const ::core::ffi::c_char,
@@ -250,27 +137,18 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
     mut _subtable: *const JsonValue,
     mut _options: *const Options,
 ) -> *mut Subtable {
-    let st: *mut GsubMultiSubtable =
-        (
-            I_SUBTABLE_GSUB_MULTI
-                .create
-                .expect("non-null function pointer"))();
+    let st: *mut GsubMultiSubtable = subtable_gsub_multi_create();
     for k in 0..(*_subtable).u.object.length as GlyphId {
         let entry = (*_subtable).u.object.values.offset(k as isize);
         let _to: *mut JsonValue = (*entry).value as *mut JsonValue;
         if !_to.is_null() && (*_to).type_0 == JsonType::Array {
-            I_SUBTABLE_GSUB_MULTI
-                .push
-                .expect("non-null function pointer")(
-                st,
-                GsubMultiEntry {
-                    from: handle_from_name(sdsnewlen(
-                        (*entry).name as *const ::core::ffi::c_void,
-                        (*entry).name_length as usize,
-                    )) as GlyphHandle,
-                    to: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to),
-                },
-            );
+            (*st).push(GsubMultiEntry {
+                from: handle_from_name(sdsnewlen(
+                    (*entry).name as *const ::core::ffi::c_void,
+                    (*entry).name_length as usize,
+                )) as GlyphHandle,
+                to: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to),
+            });
         }
     }
     return st as *mut Subtable;
@@ -285,13 +163,13 @@ unsafe extern "C" fn build_gsub_multi_subtable_range(
         push_to_coverage(
             cov,
             otfcc_handle_dup(
-                (*(*subtable).items.offset(j as isize)).from as Handle,
+                (&(*subtable))[j as usize].from as Handle,
             ) as GlyphHandle,
         );
     }
     let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
     for j_0 in start..end {
-        let to = (*(*subtable).items.offset(j_0 as isize)).to;
+        let to = (&(*subtable))[j_0 as usize].to;
         let b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*to).num_glyphs as ::core::ffi::c_int) as u32)]);
         for k in 0..(*to).num_glyphs {
             bk_push(b, &[bk_int(BkCellType::B16, ((*(*to).glyphs.offset(k as isize)).index as ::core::ffi::c_int) as u32)]);
@@ -307,19 +185,19 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
     mut _heuristics: BuildHeuristics,
     mut count: *mut TableId,
 ) -> *mut *mut Buffer {
-    let mut subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi;
+    let subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi as *const GsubMultiSubtable;
     let mut parts: *mut *mut Buffer = ::core::ptr::null_mut::<*mut Buffer>();
     let mut n_parts: TableId = 0 as TableId;
     let mut start: GlyphId = 0 as GlyphId;
-    while (start as usize) < (*subtable).length {
+    while (start as usize) < (*subtable).len() {
         let mut size: usize = (6 as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as usize;
         let mut end: GlyphId = start;
-        while (end as usize) < (*subtable).length {
+        while (end as usize) < (*subtable).len() {
             let mut entry_size: usize = ((2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int) as usize)
                 .wrapping_add(
-                    ((*(*(*subtable).items.offset(end as isize)).to).num_glyphs as usize)
+                    ((*(&(*subtable))[end as usize].to).num_glyphs as usize)
                         .wrapping_mul(2 as usize),
                 );
             if end as ::core::ffi::c_int > start as ::core::ffi::c_int
@@ -358,6 +236,6 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let mut subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi;
-    return build_gsub_multi_subtable_range(subtable, 0 as GlyphId, (*subtable).length as GlyphId);
+    let subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi as *const GsubMultiSubtable;
+    return build_gsub_multi_subtable_range(subtable, 0 as GlyphId, (*subtable).len() as GlyphId);
 }

@@ -44,7 +44,7 @@ use crate::table::otl::{GposSingleEntry, PositionValue, Subtable, GposSingleSubt
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::otl::subtables::gpos_single::{I_SUBTABLE_GPOS_SINGLE};
+use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
@@ -70,15 +70,15 @@ pub unsafe extern "C" fn consolidate_gpos_single(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GposSingleSubtable = &raw mut (*_subtable).gpos_single;
+    let mut subtable: *mut GposSingleSubtable = &raw mut (*_subtable).gpos_single as *mut GposSingleSubtable;
     let mut h: *mut GposSingleHash = ::core::ptr::null_mut::<GposSingleHash>();
     let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < (*subtable).length {
+    while (k as usize) < (*subtable).len() {
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
-            &raw mut (*(*subtable).items.offset(k as isize)).target,
+            &raw mut (&mut (*subtable))[k as usize].target,
         ) {
             (*(*options).logger)
                 .log_sds
@@ -89,14 +89,14 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (*(*subtable).items.offset(k as isize)).target.name,
+                    (&(*subtable))[k as usize].target.name,
                     b".\n",
                 ),
             );
         } else {
             let mut s: *mut GposSingleHash = ::core::ptr::null_mut::<GposSingleHash>();
             let mut fromid: ::core::ffi::c_int =
-                (*(*subtable).items.offset(k as isize)).target.index as ::core::ffi::c_int;
+                (&(*subtable))[k as usize].target.index as ::core::ffi::c_int;
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
             let mut _hj_i: ::core::ffi::c_uint = 0;
             let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -418,7 +418,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Detected glyph double-mapping about /",
-                        (*(*subtable).items.offset(k as isize)).target.name,
+                        (&(*subtable))[k as usize].target.name,
                         b".\n",
                     ),
                 );
@@ -428,9 +428,9 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                     30 as ::core::ffi::c_ulong,
                 ) as *mut GposSingleHash;
                 (*s).fromid =
-                    (*(*subtable).items.offset(k as isize)).target.index as ::core::ffi::c_int;
-                (*s).fromname = sdsdup((*(*subtable).items.offset(k as isize)).target.name);
-                (*s).v = (*(*subtable).items.offset(k as isize)).value;
+                    (&(*subtable))[k as usize].target.index as ::core::ffi::c_int;
+                (*s).fromname = sdsdup((&(*subtable))[k as usize].target.name);
+                (*s).v = (&(*subtable))[k as usize].value;
                 let mut _ha_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i_0: ::core::ffi::c_uint = 0;
                 let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -1015,19 +1015,14 @@ pub unsafe extern "C" fn consolidate_gpos_single(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    I_SUBTABLE_GPOS_SINGLE
-        .clear
-        .expect("non-null function pointer")(subtable);
+    dispose_gpos_single_subtable(subtable);
     let mut s_0: *mut GposSingleHash = ::core::ptr::null_mut::<GposSingleHash>();
     let mut tmp: *mut GposSingleHash = ::core::ptr::null_mut::<GposSingleHash>();
     s_0 = h;
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut GposSingleHash
         as *mut GposSingleHash;
     while !s_0.is_null() {
-        I_SUBTABLE_GPOS_SINGLE
-            .push
-            .expect("non-null function pointer")(
-            subtable,
+        (*subtable).push(
             GposSingleEntry {
                 target: handle_from_consolidated(
                     (*s_0).fromid as GlyphId,
@@ -1090,5 +1085,5 @@ pub unsafe extern "C" fn consolidate_gpos_single(
         tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut GposSingleHash
             as *mut GposSingleHash;
     }
-    return (*subtable).length == 0 as usize;
+    return (*subtable).len() == 0 as usize;
 }

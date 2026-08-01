@@ -46,7 +46,7 @@ use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable, OtlTable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::consolidate::otl::common::{fontop_consolidate_coverage};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::otl::subtables::gsub_multi::{I_SUBTABLE_GSUB_MULTI};
+use crate::table::otl::subtables::gsub_multi::{dispose_gsub_multi_subtable};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
@@ -72,15 +72,15 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GsubMultiSubtable = &raw mut (*_subtable).gsub_multi;
+    let mut subtable: *mut GsubMultiSubtable = &raw mut (*_subtable).gsub_multi as *mut GsubMultiSubtable;
     let mut h: *mut GsubMultiHash = ::core::ptr::null_mut::<GsubMultiHash>();
     let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < (*subtable).length {
+    while (k as usize) < (*subtable).len() {
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
-            &raw mut (*(*subtable).items.offset(k as isize)).from,
+            &raw mut (&mut (*subtable))[k as usize].from,
         ) {
             (*(*options).logger)
                 .log_sds
@@ -91,17 +91,17 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (*(*subtable).items.offset(k as isize)).from.name,
+                    (&(*subtable))[k as usize].from.name,
                     b".\n",
                 ),
             );
         } else {
-            fontop_consolidate_coverage(font, (*(*subtable).items.offset(k as isize)).to, options);
+            fontop_consolidate_coverage(font, (&(*subtable))[k as usize].to, options);
             shrink_coverage(
-                (*(*subtable).items.offset(k as isize)).to,
+                (&(*subtable))[k as usize].to,
                 false,
             );
-            if (*(*(*subtable).items.offset(k as isize)).to).num_glyphs == 0 {
+            if (*(&(*subtable))[k as usize].to).num_glyphs == 0 {
                 (*(*options).logger)
                     .log_sds
                     .expect(
@@ -113,14 +113,14 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /",
-                        (*(*subtable).items.offset(k as isize)).from.name,
+                        (&(*subtable))[k as usize].from.name,
                         b".\n",
                     ),
                 );
             } else {
                 let mut s: *mut GsubMultiHash = ::core::ptr::null_mut::<GsubMultiHash>();
                 let mut fromid: ::core::ffi::c_int =
-                    (*(*subtable).items.offset(k as isize)).from.index as ::core::ffi::c_int;
+                    (&(*subtable))[k as usize].from.index as ::core::ffi::c_int;
                 let mut _hf_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i: ::core::ffi::c_uint = 0;
                 let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -448,10 +448,10 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                         36 as ::core::ffi::c_ulong,
                     ) as *mut GsubMultiHash;
                     (*s).fromid =
-                        (*(*subtable).items.offset(k as isize)).from.index as ::core::ffi::c_int;
-                    (*s).fromname = sdsdup((*(*subtable).items.offset(k as isize)).from.name);
-                    (*s).to = (*(*subtable).items.offset(k as isize)).to;
-                    let ref mut fresh0 = (*(*subtable).items.offset(k as isize)).to;
+                        (&(*subtable))[k as usize].from.index as ::core::ffi::c_int;
+                    (*s).fromname = sdsdup((&(*subtable))[k as usize].from.name);
+                    (*s).to = (&(*subtable))[k as usize].to;
+                    let ref mut fresh0 = (&mut (*subtable))[k as usize].to;
                     *fresh0 = ::core::ptr::null_mut::<Coverage>();
                     let mut _ha_hashv: ::core::ffi::c_uint = 0;
                     let mut _hj_i_0: ::core::ffi::c_uint = 0;
@@ -1045,19 +1045,14 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    I_SUBTABLE_GSUB_MULTI
-        .clear
-        .expect("non-null function pointer")(subtable);
+    dispose_gsub_multi_subtable(subtable);
     let mut s_0: *mut GsubMultiHash = ::core::ptr::null_mut::<GsubMultiHash>();
     let mut tmp: *mut GsubMultiHash = ::core::ptr::null_mut::<GsubMultiHash>();
     s_0 = h;
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut GsubMultiHash
         as *mut GsubMultiHash;
     while !s_0.is_null() {
-        I_SUBTABLE_GSUB_MULTI
-            .push
-            .expect("non-null function pointer")(
-            subtable,
+        (*subtable).push(
             GsubMultiEntry {
                 from: handle_from_consolidated(
                     (*s_0).fromid as GlyphId,
@@ -1120,7 +1115,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
         tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut GsubMultiHash
             as *mut GsubMultiHash;
     }
-    return (*subtable).length == 0 as usize;
+    return (*subtable).len() == 0 as usize;
 }
 pub unsafe extern "C" fn consolidate_gsub_alternative(
     mut font: *mut Font,

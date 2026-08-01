@@ -44,7 +44,7 @@ use crate::table::otl::{Anchor, GposCursiveEntry, Subtable, GposCursiveSubtable,
 
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::otl::subtables::gpos_cursive::{I_SUBTABLE_GPOS_CURSIVE};
+use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
 
 
@@ -71,15 +71,15 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GposCursiveSubtable = &raw mut (*_subtable).gpos_cursive;
+    let mut subtable: *mut GposCursiveSubtable = &raw mut (*_subtable).gpos_cursive as *mut GposCursiveSubtable;
     let mut h: *mut GposCursiveHash = ::core::ptr::null_mut::<GposCursiveHash>();
     let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < (*subtable).length {
+    while (k as usize) < (*subtable).len() {
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
             (*font).glyph_order,
-            &raw mut (*(*subtable).items.offset(k as isize)).target,
+            &raw mut (&mut (*subtable))[k as usize].target,
         ) {
             (*(*options).logger)
                 .log_sds
@@ -90,14 +90,14 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (*(*subtable).items.offset(k as isize)).target.name,
+                    (&(*subtable))[k as usize].target.name,
                     b".\n",
                 ),
             );
         } else {
             let mut s: *mut GposCursiveHash = ::core::ptr::null_mut::<GposCursiveHash>();
             let mut fromid: ::core::ffi::c_int =
-                (*(*subtable).items.offset(k as isize)).target.index as ::core::ffi::c_int;
+                (&(*subtable))[k as usize].target.index as ::core::ffi::c_int;
             let mut _hf_hashv: ::core::ffi::c_uint = 0;
             let mut _hj_i: ::core::ffi::c_uint = 0;
             let mut _hj_j: ::core::ffi::c_uint = 0;
@@ -419,7 +419,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Double-mapping a glyph in a cursive positioning /",
-                        (*(*subtable).items.offset(k as isize)).target.name,
+                        (&(*subtable))[k as usize].target.name,
                         b".\n",
                     ),
                 );
@@ -429,10 +429,10 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
                     30 as ::core::ffi::c_ulong,
                 ) as *mut GposCursiveHash;
                 (*s).fromid =
-                    (*(*subtable).items.offset(k as isize)).target.index as ::core::ffi::c_int;
-                (*s).fromname = sdsdup((*(*subtable).items.offset(k as isize)).target.name);
-                (*s).enter = (*(*subtable).items.offset(k as isize)).enter;
-                (*s).exit = (*(*subtable).items.offset(k as isize)).exit;
+                    (&(*subtable))[k as usize].target.index as ::core::ffi::c_int;
+                (*s).fromname = sdsdup((&(*subtable))[k as usize].target.name);
+                (*s).enter = (&(*subtable))[k as usize].enter;
+                (*s).exit = (&(*subtable))[k as usize].exit;
                 let mut _ha_hashv: ::core::ffi::c_uint = 0;
                 let mut _hj_i_0: ::core::ffi::c_uint = 0;
                 let mut _hj_j_0: ::core::ffi::c_uint = 0;
@@ -1017,19 +1017,14 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
             _hs_insize = _hs_insize.wrapping_mul(2 as ::core::ffi::c_uint);
         }
     }
-    I_SUBTABLE_GPOS_CURSIVE
-        .clear
-        .expect("non-null function pointer")(subtable);
+    dispose_gpos_cursive_subtable(subtable);
     let mut s_0: *mut GposCursiveHash = ::core::ptr::null_mut::<GposCursiveHash>();
     let mut tmp: *mut GposCursiveHash = ::core::ptr::null_mut::<GposCursiveHash>();
     s_0 = h;
     tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut GposCursiveHash
         as *mut GposCursiveHash;
     while !s_0.is_null() {
-        I_SUBTABLE_GPOS_CURSIVE
-            .push
-            .expect("non-null function pointer")(
-            subtable,
+        (*subtable).push(
             GposCursiveEntry {
                 target: handle_from_consolidated(
                     (*s_0).fromid as GlyphId,
@@ -1093,5 +1088,5 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
         tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut GposCursiveHash
             as *mut GposCursiveHash;
     }
-    return (*subtable).length == 0 as usize;
+    return (*subtable).len() == 0 as usize;
 }

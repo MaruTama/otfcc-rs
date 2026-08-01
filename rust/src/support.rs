@@ -4,7 +4,6 @@ pub mod base64;
 pub mod binio;
 pub mod buffer;
 pub mod ctype_compat;
-pub mod cvec;
 pub mod getopt;
 pub mod glyph_order;
 pub mod handle;
