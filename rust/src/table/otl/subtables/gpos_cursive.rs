@@ -113,7 +113,7 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
                         }
                         (*subtable).push(GposCursiveEntry {
                             target: otfcc_handle_dup(
-                                *(*targets).glyphs.offset(j as isize) as Handle,
+                                (*(*targets).glyphs.offset(j as isize)).clone() as Handle,
                             ) as GlyphHandle,
                             enter: enter,
                             exit: exit,
@@ -208,7 +208,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_cursive(
         push_to_coverage(
             cov,
             otfcc_handle_dup(
-                (&(*subtable))[j as usize].target as Handle,
+                (&(*subtable))[j as usize].target.clone() as Handle,
             ) as GlyphHandle,
         );
         j = j.wrapping_add(1);

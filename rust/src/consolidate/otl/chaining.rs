@@ -167,7 +167,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             if !(*(*rule).apply.offset(j_1 as isize)).lookup.name.is_null() {
                 let fresh0 = k_0;
                 k_0 = k_0.wrapping_add(1);
-                *(*rule).apply.offset(fresh0 as isize) = *(*rule).apply.offset(j_1 as isize);
+                *(*rule).apply.offset(fresh0 as isize) = (*(*rule).apply.offset(j_1 as isize)).clone();
             }
             j_1 = j_1.wrapping_add(1);
         }

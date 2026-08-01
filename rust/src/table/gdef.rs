@@ -288,7 +288,7 @@ pub unsafe extern "C" fn otfcc_read_gdef(
                                         );
                                         v.glyph =
                                             otfcc_handle_dup(
-                                                *(*cov).glyphs.offset(j as isize) as Handle,
+                                                (*(*cov).glyphs.offset(j as isize)).clone() as Handle,
                                             )
                                                 as GlyphHandle;
                                         (*gdef).lig_carets.push(v);
@@ -561,7 +561,7 @@ unsafe extern "C" fn write_lig_carets(mut lc: *const LigCaretTable) -> *mut BkBl
     while (j as usize) < records.len() {
         push_to_coverage(
             cov,
-            otfcc_handle_dup(records[j as usize].glyph as Handle) as GlyphHandle,
+            otfcc_handle_dup(records[j as usize].glyph.clone() as Handle) as GlyphHandle,
         );
         j = j.wrapping_add(1);
     }

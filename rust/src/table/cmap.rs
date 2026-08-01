@@ -21,7 +21,7 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::support::buffer::{buffree, buflen, bufnew, bufseek, bufwrite16b, bufwrite24b, bufwrite32b, bufwrite8, bufwrite_buf};
 use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsfromlonglong, sdslen, sdsnewlen};
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct CmapEntry {
     pub hh: UtHashHandle,
@@ -34,7 +34,7 @@ pub struct CmapUvsKey {
     pub unicode: u32,
     pub selector: u32,
 }
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct CmapUvsEntry {
     pub hh: UtHashHandle,

@@ -82,7 +82,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                 while (j as ::core::ffi::c_int) < (*targets).num_glyphs as ::core::ffi::c_int {
                     (*subtable).push(GposSingleEntry {
                         target: otfcc_handle_dup(
-                            *(*targets).glyphs.offset(j as isize) as Handle,
+                            (*(*targets).glyphs.offset(j as isize)).clone() as Handle,
                         ) as GlyphHandle,
                         value: v,
                     });
@@ -116,7 +116,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                     while (j_0 as ::core::ffi::c_int) < (*targets).num_glyphs as ::core::ffi::c_int {
                         (*subtable).push(GposSingleEntry {
                             target: otfcc_handle_dup(
-                                *(*targets).glyphs.offset(j_0 as isize) as Handle,
+                                (*(*targets).glyphs.offset(j_0 as isize)).clone() as Handle,
                             ) as GlyphHandle,
                             value: read_gpos_value(
                                 data,
@@ -230,7 +230,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
         push_to_coverage(
             cov,
             otfcc_handle_dup(
-                (&(*subtable))[j_0 as usize].target as Handle,
+                (&(*subtable))[j_0 as usize].target.clone() as Handle,
             ) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);

@@ -23,7 +23,7 @@ pub enum TsiEntryType {
     Cvt = 3,
     ReservedFffc = 4,
 }
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct TsiEntry {
     pub type_0: TsiEntryType,
@@ -40,7 +40,7 @@ pub type TsiTable = Vec<TsiEntry>;
 pub(crate) unsafe fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
     TsiEntry {
         type_0: e.type_0,
-        glyph: otfcc_handle_dup(e.glyph),
+        glyph: otfcc_handle_dup(e.glyph.clone()),
         content: sdsdup(e.content),
     }
 }

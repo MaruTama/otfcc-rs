@@ -164,10 +164,18 @@ pub(crate) unsafe extern "C" fn push_to_coverage(mut coverage: *mut Coverage, mu
     (*coverage).num_glyphs =
         ((*coverage).num_glyphs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
     grow_coverage(coverage, (*coverage).num_glyphs as u32);
-    *(*coverage)
-        .glyphs
-        .offset(((*coverage).num_glyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize) =
-        h;
+    // `ptr::write`, not assignment: `grow_coverage`'s `realloc` leaves this
+    // slot uninitialized (or holding an unrelated previous tenant's bytes),
+    // so `*ptr = h` would try to `Handle::drop` garbage before writing --
+    // the same "field assignment onto memory that was never a valid value"
+    // trap as the `GaspTable`/`x.write(...)` cases elsewhere in this crate,
+    // just at push-time instead of create-time.
+    ::core::ptr::write(
+        (*coverage)
+            .glyphs
+            .offset(((*coverage).num_glyphs as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+        h,
+    );
 }
 pub(crate) unsafe extern "C" fn read_coverage(
     mut data: *const u8,
@@ -2441,7 +2449,7 @@ pub(crate) unsafe extern "C" fn shrink_coverage(mut coverage: *mut Coverage, mut
         if !(*(*coverage).glyphs.offset(j as isize)).name.is_null() {
             let fresh0 = k;
             k = k.wrapping_add(1);
-            *(*coverage).glyphs.offset(fresh0 as isize) = *(*coverage).glyphs.offset(j as isize);
+            *(*coverage).glyphs.offset(fresh0 as isize) = (*(*coverage).glyphs.offset(j as isize)).clone();
         } else {
             otfcc_handle_dispose(
                 (*coverage).glyphs.offset(j as isize) as *mut Handle,
@@ -2481,7 +2489,7 @@ pub(crate) unsafe extern "C" fn shrink_coverage(mut coverage: *mut Coverage, mut
                 *(*coverage)
                     .glyphs
                     .offset((rear as ::core::ffi::c_int - skip as ::core::ffi::c_int) as isize) =
-                    *(*coverage).glyphs.offset(rear as isize);
+                    (*(*coverage).glyphs.offset(rear as isize)).clone();
             }
             rear = rear.wrapping_add(1);
         }

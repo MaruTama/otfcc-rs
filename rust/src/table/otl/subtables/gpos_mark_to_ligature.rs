@@ -149,7 +149,7 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_ligature(
                             anchors: ::core::ptr::null_mut::<*mut Anchor>(),
                         };
                         lig.glyph = otfcc_handle_dup(
-                            *(*bases).glyphs.offset(j as isize) as Handle,
+                            (*(*bases).glyphs.offset(j as isize)).clone() as Handle,
                         ) as GlyphHandle;
                         let mut lig_attach_offset: u32 = lig_array_offset.wrapping_add(read_16u(
                             data.offset(lig_array_offset as isize)
@@ -887,7 +887,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
         push_to_coverage(
             marks,
             otfcc_handle_dup(
-                (&(*subtable).mark_array)[j as usize].glyph as Handle,
+                (&(*subtable).mark_array)[j as usize].glyph.clone() as Handle,
             ) as GlyphHandle,
         );
         j = j.wrapping_add(1);
@@ -898,7 +898,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
         push_to_coverage(
             bases,
             otfcc_handle_dup(
-                (&(*subtable).lig_array)[j_0 as usize].glyph as Handle,
+                (&(*subtable).lig_array)[j_0 as usize].glyph.clone() as Handle,
             ) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);

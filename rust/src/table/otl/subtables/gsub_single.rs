@@ -143,10 +143,10 @@ pub unsafe extern "C" fn otl_read_gsub_single(
                     while (j_1 as ::core::ffi::c_int) < (*from).num_glyphs as ::core::ffi::c_int {
                         (*subtable).push(GsubSingleEntry {
                             from: otfcc_handle_dup(
-                                *(*from).glyphs.offset(j_1 as isize) as Handle,
+                                (*(*from).glyphs.offset(j_1 as isize)).clone() as Handle,
                             ) as GlyphHandle,
                             to: otfcc_handle_dup(
-                                *(*to).glyphs.offset(j_1 as isize) as Handle,
+                                (*(*to).glyphs.offset(j_1 as isize)).clone() as Handle,
                             ) as GlyphHandle,
                         });
                         j_1 = j_1.wrapping_add(1);
@@ -258,7 +258,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
         push_to_coverage(
             cov,
             otfcc_handle_dup(
-                (&(*subtable))[j_0 as usize].from as Handle,
+                (&(*subtable))[j_0 as usize].from.clone() as Handle,
             ) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);

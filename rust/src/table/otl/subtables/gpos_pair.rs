@@ -2140,7 +2140,7 @@ unsafe extern "C" fn cov_from_cd(mut cd: *mut ClassDef) -> *mut Coverage {
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < (*cd).num_glyphs as ::core::ffi::c_int {
         *(*cov).glyphs.offset(j as isize) = otfcc_handle_dup(
-            *(*cd).glyphs.offset(j as isize) as Handle,
+            (*(*cd).glyphs.offset(j as isize)).clone() as Handle,
         ) as GlyphHandle;
         j = j.wrapping_add(1);
     }

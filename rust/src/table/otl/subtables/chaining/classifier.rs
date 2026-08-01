@@ -3361,7 +3361,7 @@ unsafe extern "C" fn build_rule(
         (*(*new_rule).apply.offset(j as isize)).index = (*(*rule).apply.offset(j as isize)).index;
         (*(*new_rule).apply.offset(j as isize)).lookup =
             otfcc_handle_dup(
-                (*(*rule).apply.offset(j as isize)).lookup as Handle,
+                (*(*rule).apply.offset(j as isize)).lookup.clone() as Handle,
             ) as LookupHandle;
         j = j.wrapping_add(1);
     }
