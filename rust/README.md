@@ -923,6 +923,61 @@ on the other platform before a commit is trusted.
   blocked on this — now resolves for free. Byte-identical on both platforms,
   no call-site behavior changed (`vendor::sds` was already the sole real
   implementation; this PR only removed the copies).
+- **Stage 6-2 phase 1: `sds`'s internal header is a single fixed shape,
+  not five variable ones.** The original (redis-derived) `sds` picked among
+  `SDS_TYPE_5`/`8`/`16`/`32`/`64` — `#[repr(C, packed)]` header structs of
+  increasing width, selected by a tag byte packed into the byte immediately
+  before the string data — to save memory across millions of tiny database
+  keys. otfcc handles a few thousand strings per font at most, so that
+  micro-optimization was pure complexity here with no payoff. Replaced with
+  one `#[repr(C)] struct SdsHeader { len: usize, cap: usize }`, unconditionally
+  allocated, removing the whole `SDS_TYPE_*` dispatch — `sds_hdr_size`/
+  `sds_req_type` and all five header structs are gone, and `sdslen`/`sdsavail`/
+  `sdssetlen`/`sdsalloc`/`sdssetalloc`/`sdsnewlen`/`sdsfree`/
+  `sds_make_room_for`/`sds_remove_free_space` each dropped their `match flags
+  & SDS_TYPE_MASK { ... }` branch in favor of one direct field access.
+  `sds_make_room_for`'s "different type, need a fresh allocation and a
+  header-byte copy" branch disappears entirely: with one header shape, growth
+  is always a plain `realloc`.
+  - **Why this is possible without touching any of the ~670 call sites**:
+    `SdsRaw` stays `*mut c_char`, still pointing directly at byte 0 of the
+    string content, header immediately before it, exactly as before — only
+    what's *at* that offset changed shape. This only works because the
+    previous `sdslen` dedup (above) had already confirmed, crate-wide, that
+    no file outside `vendor/sds.rs` does its own header-relative pointer
+    arithmetic; every other file only reaches an `sds`'s metadata through
+    this module's functions. A **true** `Vec<u8>`-backed representation
+    turned out not to be achievable at this phase for the same reason in
+    reverse: a `Vec<u8>`'s own `(ptr, len, cap)` triple doesn't live at a
+    fixed offset before its buffer, so making `Sds` a real `Vec<u8>` would
+    mean `SdsRaw` could no longer be a bare pointer to the data — which is
+    exactly the shape every `#[repr(C)]` struct field typed `SdsRaw` and
+    every direct-dereference call site (`.name as *const c_char` passed to a
+    C string function, `*s.offset(j)`, `memcmp(s1 as *const c_void, ...)`)
+    still assumes. Getting to a genuine `Vec<u8>`/`String` is Stage 6-2's
+    later phase, once call sites move off the raw-pointer API entirely and
+    `SdsRaw` fields in owning structs become real `Vec<u8>`/`String` fields —
+    at which point the header-before-data trick disappears on its own,
+    because ownership metadata lives in the struct field itself.
+  - **Three more functions turned out to be dead** by the same grep-for-
+    callers-both-internal-and-external discipline used throughout this
+    migration: `sds_incr_len`, `sds_alloc_ptr`, `sds_alloc_size` (0 callers
+    anywhere, including within `vendor/sds.rs` itself) — deleted rather than
+    reimplemented against the new header, since rewriting unreachable code
+    just to keep it unreachable serves nobody.
+  - **New unit tests target exactly what the rewrite could get wrong**:
+    zero-fill on a null `init`, embedded-NUL survival across repeated growth
+    (`sdscatlen` called 20× to force multiple reallocations), and that
+    `sdsdup` doesn't alias the original. The existing `SdsPart`/`sdsbuild!`
+    byte-for-byte-vs-`snprintf` tests all still pass unchanged, since they
+    only observe `sdslen`/content, never header shape.
+  - **Verification carried extra weight here**: this is the first change in
+    the migration to touch how *every* string in the crate is stored in
+    memory, not just one container type. Full pipeline (byte comparison
+    including `NotoNastaliqUrdu-Regular.ttf`, 10-payload round trips — which
+    exercise repeated dup/cat/free cycles — and the issue #1 golden test) came
+    back clean on both platforms, with no output byte or observable-capacity
+    behavior change anywhere.
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
