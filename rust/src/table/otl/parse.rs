@@ -18,7 +18,7 @@ use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, 
 use crate::support::json_funcs::otfcc_parse_flags;
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::support::json_ident::{json_ident};
-use crate::table::otl::{otfcc_delete_lookup, OTL_I_FEATURE_LIST, OTL_I_FEATURE_PTR, OTL_I_FEATURE_REF_LIST, OTL_I_LANG_SYSTEM_LIST, OTL_I_LANGUAGE_SYSTEM, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_PTR, OTL_I_LOOKUP_REF_LIST, OTL_I_SUBTABLE_LIST, TABLE_I_OTL};
+use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, init_feature_ptr, init_language_ptr, init_lookup_ptr, table_otl_create, table_otl_free};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::parse::{otl_parse_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_parse_cursive};
@@ -644,7 +644,7 @@ unsafe extern "C" fn _declare_lookup_parser(
         return false;
     }
     let mut lookup: *mut Lookup = ::core::ptr::null_mut::<Lookup>();
-    OTL_I_LOOKUP_PTR.init.expect("non-null function pointer")(&raw mut lookup);
+    init_lookup_ptr(&raw mut lookup);
     (*lookup).type_0 = llt;
     (*lookup).flags = otfcc_parse_flags(
         json_obj_get(
@@ -680,10 +680,7 @@ unsafe extern "C" fn _declare_lookup_parser(
             {
                 let mut _st: *mut Subtable =
                     parser.expect("non-null function pointer")(_subtable, options);
-                OTL_I_SUBTABLE_LIST.push.expect("non-null function pointer")(
-                    &raw mut (*lookup).subtables,
-                    _st as SubtablePtr,
-                );
+                (*lookup).subtables.push(_st as SubtablePtr);
             }
             j = j.wrapping_add(1);
         }
@@ -692,7 +689,7 @@ unsafe extern "C" fn _declare_lookup_parser(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    if (*lookup).subtables.length == 0 {
+    if (*lookup).subtables.is_empty() {
         (*(*options).logger)
             .log_sds
             .expect("non-null function pointer")(
@@ -2032,12 +2029,7 @@ unsafe extern "C" fn figure_out_features_from_json(
             (*(*features).u.object.values.offset(j as isize)).value as *mut JsonValue;
         if (*_feature).type_0 == JsonType::Array
         {
-            let mut al: LookupRefList = LookupRefList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<LookupRef>(),
-            };
-            OTL_I_LOOKUP_REF_LIST.init.expect("non-null function pointer")(&raw mut al);
+            let mut al: LookupRefList = Vec::new();
             let mut k: TableId = 0 as TableId;
             while (k as ::core::ffi::c_uint) < (*_feature).u.array.length {
                 let mut term: *mut JsonValue =
@@ -2370,10 +2362,7 @@ unsafe extern "C" fn figure_out_features_from_json(
                         }
                     }
                     if !item.is_null() {
-                        OTL_I_LOOKUP_REF_LIST.push.expect("non-null function pointer")(
-                            &raw mut al,
-                            (*item).lookup as LookupRef,
-                        );
+                        al.push((*item).lookup as LookupRef);
                     } else {
                         (*(*options).logger)
                             .log_sds
@@ -2396,7 +2385,7 @@ unsafe extern "C" fn figure_out_features_from_json(
                 }
                 k = k.wrapping_add(1);
             }
-            if al.length > 0 as usize {
+            if al.len() > 0 as usize {
                 let mut s: *mut FeatureHash = ::core::ptr::null_mut::<FeatureHash>();
                 let mut _hf_hashv_0: ::core::ffi::c_uint = 0;
                 let mut _hj_i_0: ::core::ffi::c_uint = 0;
@@ -2726,13 +2715,9 @@ unsafe extern "C" fn figure_out_features_from_json(
                     ) as *mut FeatureHash;
                     (*s).name = sdsnew(feature_name) as *mut ::core::ffi::c_char;
                     (*s).alias = false;
-                    OTL_I_FEATURE_PTR.init.expect("non-null function pointer")(&raw mut (*s).feature);
+                    init_feature_ptr(&raw mut (*s).feature);
                     (*(*s).feature).name = sdsdup((*s).name as SdsRaw);
-                    OTL_I_LOOKUP_REF_LIST
-                        .replace
-                        .expect("non-null function pointer")(
-                        &raw mut (*(*s).feature).lookups, al
-                    );
+                    otl_lookup_ref_list_replace(&raw mut (*(*s).feature).lookups, al);
                     let mut _ha_hashv: ::core::ffi::c_uint = 0;
                     let mut _hj_i_1: ::core::ffi::c_uint = 0;
                     let mut _hj_j_1: ::core::ffi::c_uint = 0;
@@ -3205,9 +3190,7 @@ unsafe extern "C" fn figure_out_features_from_json(
                             b"]. This feature will be ignored.\n",
                         ),
                     );
-                    OTL_I_LOOKUP_REF_LIST
-                        .dispose
-                        .expect("non-null function pointer")(&raw mut al);
+                    otl_lookup_ref_list_dispose(&raw mut al);
                 }
             } else {
                 (*(*options).logger)
@@ -3227,9 +3210,7 @@ unsafe extern "C" fn figure_out_features_from_json(
                         b"]. This feature will be ignored.\n",
                     ),
                 );
-                OTL_I_LOOKUP_REF_LIST
-                    .dispose
-                    .expect("non-null function pointer")(&raw mut al);
+                otl_lookup_ref_list_dispose(&raw mut al);
             }
         } else if (*_feature).type_0 == JsonType::String
         {
@@ -4374,12 +4355,7 @@ unsafe extern "C" fn figure_out_languages_from_json(
                     required_feature = (*rf).feature;
                 }
             }
-            let mut af: FeatureRefList = FeatureRefList {
-                length: 0,
-                capacity: 0,
-                items: ::core::ptr::null_mut::<FeatureRef>(),
-            };
-            OTL_I_FEATURE_REF_LIST.init.expect("non-null function pointer")(&raw mut af);
+            let mut af: FeatureRefList = Vec::new();
             let mut _features: *mut JsonValue = json_obj_get_type(
                 _language,
                 b"features\0" as *const u8 as *const ::core::ffi::c_char,
@@ -4721,16 +4697,13 @@ unsafe extern "C" fn figure_out_languages_from_json(
                             }
                         }
                         if !item.is_null() {
-                            OTL_I_FEATURE_REF_LIST.push.expect("non-null function pointer")(
-                                &raw mut af,
-                                (*item).feature as FeatureRef,
-                            );
+                            af.push((*item).feature as FeatureRef);
                         }
                     }
                     k = k.wrapping_add(1);
                 }
             }
-            if !required_feature.is_null() || af.length > 0 as usize {
+            if !required_feature.is_null() || af.len() > 0 as usize {
                 let mut s: *mut LanguageHash = ::core::ptr::null_mut::<LanguageHash>();
                 let mut _hf_hashv_1: ::core::ffi::c_uint = 0;
                 let mut _hj_i_1: ::core::ffi::c_uint = 0;
@@ -5059,17 +5032,10 @@ unsafe extern "C" fn figure_out_languages_from_json(
                         267 as ::core::ffi::c_ulong,
                     ) as *mut LanguageHash;
                     (*s).name = sdsnew(language_name) as *mut ::core::ffi::c_char;
-                    OTL_I_LANGUAGE_SYSTEM.init.expect("non-null function pointer")(
-                        &raw mut (*s).language,
-                    );
+                    init_language_ptr(&raw mut (*s).language);
                     (*(*s).language).name = sdsdup((*s).name as SdsRaw);
                     (*(*s).language).required_feature = required_feature as FeatureRef;
-                    OTL_I_FEATURE_REF_LIST
-                        .replace
-                        .expect("non-null function pointer")(
-                        &raw mut (*(*s).language).features,
-                        af,
-                    );
+                    otl_feature_ref_list_replace(&raw mut (*(*s).language).features, af);
                     let mut _ha_hashv: ::core::ffi::c_uint = 0;
                     let mut _hj_i_2: ::core::ffi::c_uint = 0;
                     let mut _hj_j_2: ::core::ffi::c_uint = 0;
@@ -5542,9 +5508,7 @@ unsafe extern "C" fn figure_out_languages_from_json(
                             b"]. This language term will be ignored.\n",
                         ),
                     );
-                    OTL_I_FEATURE_REF_LIST
-                        .dispose
-                        .expect("non-null function pointer")(&raw mut af);
+                    otl_feature_ref_list_dispose(&raw mut af);
                 }
             } else {
                 (*(*options).logger)
@@ -5564,9 +5528,7 @@ unsafe extern "C" fn figure_out_languages_from_json(
                         b"]. This language term will be ignored.\n",
                     ),
                 );
-                OTL_I_FEATURE_REF_LIST
-                    .dispose
-                    .expect("non-null function pointer")(&raw mut af);
+                otl_feature_ref_list_dispose(&raw mut af);
             }
         }
         j = j.wrapping_add(1);
@@ -5609,8 +5571,7 @@ pub unsafe extern "C" fn otfcc_parse_otl(
     let mut otl: *mut OtlTable = ::core::ptr::null_mut::<OtlTable>();
     let mut table: *mut JsonValue = json_obj_get_type(root, tag, JsonType::Object);
     if !table.is_null() {
-        otl = (
-            TABLE_I_OTL.create.expect("non-null function pointer"))();
+        otl = table_otl_create();
         languages = json_obj_get_type(
             table,
             b"languages\0" as *const u8 as *const ::core::ffi::c_char,
@@ -6451,10 +6412,7 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                     tmp = (if !lh.is_null() { (*lh).hh.next } else { NULL }) as *mut LookupHash
                         as *mut LookupHash;
                     while !s.is_null() {
-                        OTL_I_LOOKUP_LIST.push.expect("non-null function pointer")(
-                            &raw mut (*otl).lookups,
-                            (*s).lookup as LookupPtr,
-                        );
+                        (*otl).lookups.push((*s).lookup as LookupPtr);
                         let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s).hh;
                         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
                             free((*(*lh).hh.tbl).buckets as *mut ::core::ffi::c_void);
@@ -6520,10 +6478,7 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                         as *mut FeatureHash;
                     while !s_0.is_null() {
                         if !(*s_0).alias {
-                            OTL_I_FEATURE_LIST.push.expect("non-null function pointer")(
-                                &raw mut (*otl).features,
-                                (*s_0).feature as FeaturePtr,
-                            );
+                            (*otl).features.push((*s_0).feature as FeaturePtr);
                         }
                         let mut _hd_hh_del_0: *mut UtHashHandle = &raw mut (*s_0).hh;
                         if (*_hd_hh_del_0).prev.is_null() && (*_hd_hh_del_0).next.is_null() {
@@ -6594,10 +6549,7 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                     tmp_1 = (if !sh.is_null() { (*sh).hh.next } else { NULL }) as *mut LanguageHash
                         as *mut LanguageHash;
                     while !s_1.is_null() {
-                        OTL_I_LANG_SYSTEM_LIST.push.expect("non-null function pointer")(
-                            &raw mut (*otl).languages,
-                            (*s_1).language as LanguageSystemPtr,
-                        );
+                        (*otl).languages.push((*s_1).language as LanguageSystemPtr);
                         let mut _hd_hh_del_1: *mut UtHashHandle = &raw mut (*s_1).hh;
                         if (*_hd_hh_del_1).prev.is_null() && (*_hd_hh_del_1).next.is_null() {
                             free((*(*sh).hh.tbl).buckets as *mut ::core::ffi::c_void);
@@ -6690,7 +6642,7 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                 b".\n",
             ),
         );
-        TABLE_I_OTL.free.expect("non-null function pointer")(otl);
+        table_otl_free(otl);
     }
     return ::core::ptr::null_mut::<OtlTable>();
 }

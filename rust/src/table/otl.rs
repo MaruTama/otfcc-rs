@@ -8,7 +8,7 @@ pub mod parse;
 pub mod read;
 pub mod subtables;
 
-use libc::{free, malloc, memcpy, memset};
+use libc::{calloc, free};
 
 use crate::table::otl::classdef::{ClassDef};
 use crate::table::otl::coverage::{Coverage};
@@ -17,7 +17,6 @@ use crate::support::handle::{GlyphHandle, LookupHandle};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::vendor::sds::{SdsRaw};
-use crate::support::cvec::{CVecRaw, cvec_grow_to, cvec_init, cvec_push};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::table::otl::subtables::gpos_cursive::{I_SUBTABLE_GPOS_CURSIVE};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{I_SUBTABLE_GPOS_MARK_TO_LIGATURE};
@@ -365,7 +364,8 @@ pub struct GsubSingleEntry {
     pub from: GlyphHandle,
     pub to: GlyphHandle,
 }
-#[derive(Copy, Clone)]
+// `subtables: SubtableList`(`Vec<SubtablePtr>`)を値で持つため `Copy` を落とす。
+// 常に `*mut`/`*const` 経由でしか触られない（値渡し・値コピーの箇所は無い）。
 #[repr(C)]
 pub struct Lookup {
     pub name: SdsRaw,
@@ -374,14 +374,11 @@ pub struct Lookup {
     pub flags: u16,
     pub subtables: SubtableList,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct SubtableList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut SubtablePtr,
-}
 pub type SubtablePtr = *mut Subtable;
+// 所有するポインタ配列（各要素は `Lookup.type_0` に応じた型で解釈される
+// `*mut Subtable`）。分類その3: `Vec<*mut T>` への機械的置換に留め、
+// 要素の `Box` 化は Stage 6-4 に送る。
+pub type SubtableList = Vec<SubtablePtr>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GsubSingleSubtableVectorInterface {
@@ -504,163 +501,27 @@ pub struct GposMarkToLigatureSubtableElementInterface {
     pub create: Option<unsafe extern "C" fn() -> *mut GposMarkToLigatureSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> ()>,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct SubtableListVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut SubtableList, *const SubtableList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut SubtableList>,
-    pub free: Option<unsafe extern "C" fn(*mut SubtableList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut SubtableList, SubtablePtr) -> ()>,
-    pub dispose_dependent:
-        Option<unsafe extern "C" fn(*mut SubtableList, *const Lookup) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct SubtablePtrElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut SubtablePtr) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut SubtablePtr, *const SubtablePtr) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut SubtablePtr) -> ()>,
-}
 pub type LookupPtr = *mut Lookup;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LookupPtrElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut LookupPtr) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut LookupPtr, *const LookupPtr) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut LookupPtr) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LookupList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut LookupPtr,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LookupListVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut LookupList, *const LookupList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut LookupList>,
-    pub free: Option<unsafe extern "C" fn(*mut LookupList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut LookupList, LookupPtr) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut LookupList,
-            Option<unsafe extern "C" fn(*const LookupPtr, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-}
+// 所有するポインタ配列。分類その3、`SubtableList` と同じ扱い。
+pub type LookupList = Vec<LookupPtr>;
 pub type LookupRef = *const Lookup;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LookupRefElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut LookupRef) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut LookupRef, *const LookupRef) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut LookupRef) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LookupRefList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut LookupRef,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LookupRefListVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut LookupRefList, *const LookupRefList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut LookupRefList, LookupRefList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut LookupRefList>,
-    pub free: Option<unsafe extern "C" fn(*mut LookupRefList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut LookupRefList, LookupRef) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut LookupRefList,
-            Option<unsafe extern "C" fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-}
-#[derive(Copy, Clone)]
+// 所有しない参照配列（`LookupList` の要素を指すだけ）。分類その3。
+pub type LookupRefList = Vec<LookupRef>;
+// `lookups: LookupRefList`(`Vec<LookupRef>`)を値で持つため `Copy` を落とす。
+// `Lookup` と同じく常に `*mut`/`*const` 経由。
 #[repr(C)]
 pub struct Feature {
     pub name: SdsRaw,
     pub lookups: LookupRefList,
 }
 pub type FeaturePtr = *mut Feature;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FeaturePtrElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut FeaturePtr) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut FeaturePtr, *const FeaturePtr) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut FeaturePtr) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FeatureList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut FeaturePtr,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FeatureListVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut FeatureList, *const FeatureList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut FeatureList>,
-    pub free: Option<unsafe extern "C" fn(*mut FeatureList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut FeatureList, FeaturePtr) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut FeatureList,
-            Option<unsafe extern "C" fn(*const FeaturePtr, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-}
+// 所有するポインタ配列。
+pub type FeatureList = Vec<FeaturePtr>;
 pub type FeatureRef = *const Feature;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FeatureRefElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut FeatureRef) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut FeatureRef, *const FeatureRef) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut FeatureRef) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FeatureRefList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut FeatureRef,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FeatureRefListVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
-    pub copy:
-        Option<unsafe extern "C" fn(*mut FeatureRefList, *const FeatureRefList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
-    pub replace: Option<unsafe extern "C" fn(*mut FeatureRefList, FeatureRefList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut FeatureRefList>,
-    pub free: Option<unsafe extern "C" fn(*mut FeatureRefList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut FeatureRefList, FeatureRef) -> ()>,
-    pub filter_env: Option<
-        unsafe extern "C" fn(
-            *mut FeatureRefList,
-            Option<unsafe extern "C" fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool>,
-            *mut ::core::ffi::c_void,
-        ) -> (),
-    >,
-}
-#[derive(Copy, Clone)]
+// 所有しない参照配列（`FeatureList` の要素を指すだけ）。
+pub type FeatureRefList = Vec<FeatureRef>;
+// `required_feature`はポインタなので無関係、`features: FeatureRefList`
+// (`Vec<FeatureRef>`)を値で持つため `Copy` を落とす。
 #[repr(C)]
 pub struct LanguageSystem {
     pub name: SdsRaw,
@@ -668,48 +529,15 @@ pub struct LanguageSystem {
     pub features: FeatureRefList,
 }
 pub type LanguageSystemPtr = *mut LanguageSystem;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LanguageSystemPtrElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut LanguageSystemPtr) -> ()>,
-    pub copy: Option<
-        unsafe extern "C" fn(*mut LanguageSystemPtr, *const LanguageSystemPtr) -> (),
-    >,
-    pub dispose: Option<unsafe extern "C" fn(*mut LanguageSystemPtr) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LangSystemList {
-    pub length: usize,
-    pub capacity: usize,
-    pub items: *mut LanguageSystemPtr,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LangSystemListVectorInterface {
-    pub init: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
-    pub copy:
-        Option<unsafe extern "C" fn(*mut LangSystemList, *const LangSystemList) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut LangSystemList>,
-    pub free: Option<unsafe extern "C" fn(*mut LangSystemList) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut LangSystemList, LanguageSystemPtr) -> ()>,
-}
-#[derive(Copy, Clone)]
+// 所有するポインタ配列。
+pub type LangSystemList = Vec<LanguageSystemPtr>;
+// 3つとも値でVecを持つため `Copy` を落とす。`Font.gsub`/`Font.gpos` は
+// `*mut OtlTable` フィールドで、crate全体を通じて常にポインタ経由。
 #[repr(C)]
 pub struct OtlTable {
     pub lookups: LookupList,
     pub features: FeatureList,
     pub languages: LangSystemList,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct OtlTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut OtlTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut OtlTable, *const OtlTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut OtlTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut OtlTable>,
-    pub free: Option<unsafe extern "C" fn(*mut OtlTable) -> ()>,
 }
 #[inline]
 unsafe extern "C" fn dispose_subtable_dependent(
@@ -811,1080 +639,246 @@ unsafe extern "C" fn dispose_subtable_dependent(
         _ => {}
     };
 }
-static OTL_I_SUBTABLE_PTR: SubtablePtrElementInterface =
-    SubtablePtrElementInterface {
-        init: None,
-        copy: None,
-        dispose: None,
-    };
-#[inline]
-unsafe extern "C" fn otl_subtable_list_dispose_dependent(
-    mut arr: *mut SubtableList,
-    mut enclosure: *const Lookup,
+// `SubtablePtr`単体の要素インターフェースは全フィールドNoneだったため削除
+// （`SubtableList`の破棄は個々の要素ではなく型ごとdispatchする
+// `dispose_subtable_dependent`が担う——下記参照）。
+//
+// `.dispose`/`.copy`/`.create`/`.free`（非dependent版）はcrate全体で一度も
+// 呼ばれておらず削除。実際の破棄経路は全て`dispose_dependent`のみ。
+//
+// 破棄後に呼び出し元が enclosing 構造体自体を生の `free()` で解放する場合
+// （`otfcc_delete_lookup`）は `.clear()` ではなく `*arr = Vec::new()` で
+// バッキング配列ごと即座に解放する。`.clear()`は容量を保持したままなので
+// `libc::free`（Dropを起動しない）と組み合わせるとバッキング配列がリークする。
+pub(crate) unsafe fn otl_subtable_list_dispose_dependent(
+    arr: *mut SubtableList,
+    enclosure: *const Lookup,
 ) {
     if arr.is_null() {
         return;
     }
-    let mut j: usize = (*arr).length;
-    loop {
-        let fresh0 = j;
-        j = j.wrapping_sub(1);
-        if !(fresh0 != 0) {
-            break;
-        }
-        dispose_subtable_dependent(
-            (*arr).items.offset(j as isize) as *mut SubtablePtr,
-            enclosure,
-        );
+    for subtable in (*arr).iter_mut() {
+        dispose_subtable_dependent(subtable as *mut SubtablePtr, enclosure);
     }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<SubtablePtr>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
+    *arr = Vec::new();
 }
-#[inline]
-unsafe fn otl_subtable_list_as_cvec(arr: *mut SubtableList) -> *mut CVecRaw<SubtablePtr> {
-    arr as *mut CVecRaw<SubtablePtr>
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_init(arr: *mut SubtableList) {
-    cvec_init(otl_subtable_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_free(mut x: *mut SubtableList) {
-    if x.is_null() {
-        return;
-    }
-    otl_subtable_list_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_create() -> *mut SubtableList {
-    let mut x: *mut SubtableList =
-        malloc(::core::mem::size_of::<SubtableList>() as usize) as *mut SubtableList;
-    otl_subtable_list_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_push(arr: *mut SubtableList, elem: SubtablePtr) {
-    cvec_push(otl_subtable_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_grow_to(arr: *mut SubtableList, target: usize) {
-    cvec_grow_to(otl_subtable_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_copy(
-    mut dst: *mut SubtableList,
-    mut src: *const SubtableList,
-) {
-    otl_subtable_list_init(dst);
-    otl_subtable_list_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if OTL_I_SUBTABLE_PTR.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            OTL_I_SUBTABLE_PTR.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut SubtablePtr,
-                (*src).items.offset(j as isize) as *mut SubtablePtr as *const SubtablePtr,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            let ref mut fresh4 = *(*dst).items.offset(j_0 as isize);
-            *fresh4 = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_subtable_list_dispose(mut arr: *mut SubtableList) {
-    if arr.is_null() {
-        return;
-    }
-    if OTL_I_SUBTABLE_PTR.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh5 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh5 != 0) {
-                break;
-            }
-            OTL_I_SUBTABLE_PTR.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut SubtablePtr,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<SubtablePtr>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
-}
-pub static OTL_I_SUBTABLE_LIST: SubtableListVectorInterface = {
-    SubtableListVectorInterface {
-        init: Some(otl_subtable_list_init as unsafe extern "C" fn(*mut SubtableList) -> ()),
-        copy: Some(
-            otl_subtable_list_copy
-                as unsafe extern "C" fn(*mut SubtableList, *const SubtableList) -> (),
-        ),
-        dispose: Some(
-            otl_subtable_list_dispose as unsafe extern "C" fn(*mut SubtableList) -> (),
-        ),
-        create: Some(otl_subtable_list_create),
-        free: Some(otl_subtable_list_free as unsafe extern "C" fn(*mut SubtableList) -> ()),
-        push: Some(
-            otl_subtable_list_push
-                as unsafe extern "C" fn(*mut SubtableList, SubtablePtr) -> (),
-        ),
-        dispose_dependent: Some(
-            otl_subtable_list_dispose_dependent
-                as unsafe extern "C" fn(*mut SubtableList, *const Lookup) -> (),
-        ),
-    }
-};
-pub unsafe extern "C" fn otfcc_delete_lookup(mut lookup: *mut Lookup) {
+pub unsafe extern "C" fn otfcc_delete_lookup(lookup: *mut Lookup) {
     if lookup.is_null() {
         return;
     }
-    OTL_I_SUBTABLE_LIST
-        .dispose_dependent
-        .expect("non-null function pointer")(&raw mut (*lookup).subtables, lookup);
+    otl_subtable_list_dispose_dependent(&raw mut (*lookup).subtables, lookup);
     sdsfree((*lookup).name);
     free(lookup as *mut ::core::ffi::c_void);
-    lookup = ::core::ptr::null_mut::<Lookup>();
 }
+// `__caryll_allocate_clean`（callocの罠が当てはまらないゼロ埋めアロケータ）
+// で新しい `Lookup` を確保し、フィールドを埋めてから呼び出し元が
+// `LookupList` に push する。生存: `table/otl/{read,parse}.rs`から直接呼ぶ。
 #[inline]
-unsafe extern "C" fn init_lookup_ptr(mut entry: *mut LookupPtr) {
+pub(crate) unsafe fn init_lookup_ptr(entry: *mut LookupPtr) {
     *entry = __caryll_allocate_clean(
         ::core::mem::size_of::<Lookup>() as usize,
         47 as ::core::ffi::c_ulong,
     ) as LookupPtr;
     (**entry).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    OTL_I_SUBTABLE_LIST.init.expect("non-null function pointer")(&raw mut (**entry).subtables);
+    (**entry).subtables = Vec::new();
 }
 #[inline]
-unsafe extern "C" fn dispose_lookup_ptr(mut entry: *mut LookupPtr) {
+pub(crate) unsafe fn dispose_lookup_ptr(entry: *mut LookupPtr) {
     otfcc_delete_lookup(*entry);
 }
-pub static OTL_I_LOOKUP_PTR: LookupPtrElementInterface = {
-    LookupPtrElementInterface {
-        init: Some(otl_lookup_ptr_init as unsafe extern "C" fn(*mut LookupPtr) -> ()),
-        copy: Some(
-            otl_lookup_ptr_copy
-                as unsafe extern "C" fn(*mut LookupPtr, *const LookupPtr) -> (),
-        ),
-        dispose: Some(otl_lookup_ptr_dispose as unsafe extern "C" fn(*mut LookupPtr) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn otl_lookup_ptr_dispose(mut x: *mut LookupPtr) {
-    dispose_lookup_ptr(x);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ptr_copy(
-    mut dst: *mut LookupPtr,
-    mut src: *const LookupPtr,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<LookupPtr>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ptr_init(mut x: *mut LookupPtr) {
-    init_lookup_ptr(x);
-}
-#[inline]
-unsafe fn otl_lookup_list_as_cvec(arr: *mut LookupList) -> *mut CVecRaw<LookupPtr> {
-    arr as *mut CVecRaw<LookupPtr>
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_init(arr: *mut LookupList) {
-    cvec_init(otl_lookup_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_filter_env(
-    mut arr: *mut LookupList,
-    mut fn_0: Option<unsafe extern "C" fn(*const LookupPtr, *mut ::core::ffi::c_void) -> bool>,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut LookupPtr,
-            env,
-        ) {
-            if j != k {
-                let ref mut fresh6 = *(*arr).items.offset(j as isize);
-                *fresh6 = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if OTL_I_LOOKUP_PTR.dispose.is_some() {
-                OTL_I_LOOKUP_PTR.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut LookupPtr,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_push(arr: *mut LookupList, elem: LookupPtr) {
-    cvec_push(otl_lookup_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_grow_to(arr: *mut LookupList, target: usize) {
-    cvec_grow_to(otl_lookup_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_copy(
-    mut dst: *mut LookupList,
-    mut src: *const LookupList,
-) {
-    otl_lookup_list_init(dst);
-    otl_lookup_list_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if OTL_I_LOOKUP_PTR.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            OTL_I_LOOKUP_PTR.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut LookupPtr,
-                (*src).items.offset(j as isize) as *mut LookupPtr as *const LookupPtr,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            let ref mut fresh9 = *(*dst).items.offset(j_0 as isize);
-            *fresh9 = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_dispose(mut arr: *mut LookupList) {
+// `LookupPtr`単体の`.copy`（`otl_lookup_ptr_copy`、生ポインタのmemcpy）は
+// `LookupList`自体の`.copy`（テーブル全体クローン、死んでいる）からしか
+// 呼ばれておらず削除。
+// テーブル全体の `.copy`（`otl_lookup_list_copy`、生存していた `LookupPtr`
+// 単体copyと同じく死んでいる）は削除。`.dispose`は`dispose_otl`から生存
+// （enclosing `OtlTable`が生の`free()`で解放される直前に呼ばれるため
+// `SubtableList`と同じ理由で`.clear()`ではなくフルドロップにする）。
+pub(crate) unsafe fn otl_lookup_list_dispose(arr: *mut LookupList) {
     if arr.is_null() {
         return;
     }
-    if OTL_I_LOOKUP_PTR.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh10 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh10 != 0) {
-                break;
-            }
-            OTL_I_LOOKUP_PTR.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut LookupPtr,
-            );
-        }
+    for lookup in (*arr).iter_mut() {
+        dispose_lookup_ptr(lookup as *mut LookupPtr);
     }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<LookupPtr>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
+    *arr = Vec::new();
 }
-#[inline]
-unsafe extern "C" fn otl_lookup_list_free(mut x: *mut LookupList) {
-    if x.is_null() {
-        return;
-    }
-    otl_lookup_list_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_list_create() -> *mut LookupList {
-    let mut x: *mut LookupList =
-        malloc(::core::mem::size_of::<LookupList>() as usize) as *mut LookupList;
-    otl_lookup_list_init(x);
-    return x;
-}
-pub static OTL_I_LOOKUP_LIST: LookupListVectorInterface = {
-    LookupListVectorInterface {
-        init: Some(otl_lookup_list_init as unsafe extern "C" fn(*mut LookupList) -> ()),
-        copy: Some(
-            otl_lookup_list_copy
-                as unsafe extern "C" fn(*mut LookupList, *const LookupList) -> (),
-        ),
-        dispose: Some(otl_lookup_list_dispose as unsafe extern "C" fn(*mut LookupList) -> ()),
-        create: Some(otl_lookup_list_create),
-        free: Some(otl_lookup_list_free as unsafe extern "C" fn(*mut LookupList) -> ()),
-        push: Some(
-            otl_lookup_list_push as unsafe extern "C" fn(*mut LookupList, LookupPtr) -> (),
-        ),
-        filter_env: Some(
-            otl_lookup_list_filter_env
-                as unsafe extern "C" fn(
-                    *mut LookupList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const LookupPtr,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_dispose(mut _x: *mut LookupRef) {}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_init(mut x: *mut LookupRef) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<LookupRef>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_copy(
-    mut dst: *mut LookupRef,
-    mut src: *const LookupRef,
+// 元の「スワップして末尾を切り詰め」ループを`Vec::retain`に素直に置き換え。
+pub(crate) unsafe fn otl_lookup_list_filter_env(
+    arr: *mut LookupList,
+    fn_0: Option<unsafe extern "C" fn(*const LookupPtr, *mut ::core::ffi::c_void) -> bool>,
+    env: *mut ::core::ffi::c_void,
 ) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<LookupRef>() as usize,
-    );
-}
-pub static OTL_I_LOOKUP_REF: LookupRefElementInterface = {
-    LookupRefElementInterface {
-        init: Some(otl_lookup_ref_init as unsafe extern "C" fn(*mut LookupRef) -> ()),
-        copy: Some(
-            otl_lookup_ref_copy
-                as unsafe extern "C" fn(*mut LookupRef, *const LookupRef) -> (),
-        ),
-        dispose: Some(otl_lookup_ref_dispose as unsafe extern "C" fn(*mut LookupRef) -> ()),
-    }
-};
-pub static OTL_I_LOOKUP_REF_LIST: LookupRefListVectorInterface = {
-    LookupRefListVectorInterface {
-        init: Some(otl_lookup_ref_list_init as unsafe extern "C" fn(*mut LookupRefList) -> ()),
-        copy: Some(
-            otl_lookup_ref_list_copy
-                as unsafe extern "C" fn(*mut LookupRefList, *const LookupRefList) -> (),
-        ),
-        dispose: Some(
-            otl_lookup_ref_list_dispose as unsafe extern "C" fn(*mut LookupRefList) -> (),
-        ),
-        replace: Some(
-            otl_lookup_ref_list_replace
-                as unsafe extern "C" fn(*mut LookupRefList, LookupRefList) -> (),
-        ),
-        create: Some(otl_lookup_ref_list_create),
-        free: Some(otl_lookup_ref_list_free as unsafe extern "C" fn(*mut LookupRefList) -> ()),
-        push: Some(
-            otl_lookup_ref_list_push
-                as unsafe extern "C" fn(*mut LookupRefList, LookupRef) -> (),
-        ),
-        filter_env: Some(
-            otl_lookup_ref_list_filter_env
-                as unsafe extern "C" fn(
-                    *mut LookupRefList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const LookupRef,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe fn otl_lookup_ref_list_as_cvec(arr: *mut LookupRefList) -> *mut CVecRaw<LookupRef> {
-    arr as *mut CVecRaw<LookupRef>
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_init(arr: *mut LookupRefList) {
-    cvec_init(otl_lookup_ref_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_filter_env(
-    mut arr: *mut LookupRefList,
-    mut fn_0: Option<unsafe extern "C" fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool>,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut LookupRef,
-            env,
-        ) {
-            if j != k {
-                let ref mut fresh11 = *(*arr).items.offset(j as isize);
-                *fresh11 = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
+    (*arr).retain(|&item| {
+        if fn_0.expect("non-null function pointer")(&item as *const LookupPtr, env) {
+            true
         } else {
-            if OTL_I_LOOKUP_REF.dispose.is_some() {
-                OTL_I_LOOKUP_REF.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut LookupRef,
-                );
-            } else {
-            };
+            dispose_lookup_ptr(&item as *const LookupPtr as *mut LookupPtr);
+            false
         }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
+    });
 }
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_push(arr: *mut LookupRefList, elem: LookupRef) {
-    cvec_push(otl_lookup_ref_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_grow_to(arr: *mut LookupRefList, target: usize) {
-    cvec_grow_to(otl_lookup_ref_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_create() -> *mut LookupRefList {
-    let mut x: *mut LookupRefList =
-        malloc(::core::mem::size_of::<LookupRefList>() as usize) as *mut LookupRefList;
-    otl_lookup_ref_list_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_copy(
-    mut dst: *mut LookupRefList,
-    mut src: *const LookupRefList,
-) {
-    otl_lookup_ref_list_init(dst);
-    otl_lookup_ref_list_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if OTL_I_LOOKUP_REF.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            OTL_I_LOOKUP_REF.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut LookupRef,
-                (*src).items.offset(j as isize) as *mut LookupRef as *const LookupRef,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            let ref mut fresh14 = *(*dst).items.offset(j_0 as isize);
-            *fresh14 = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_dispose(mut arr: *mut LookupRefList) {
+// `LookupRef`単体の要素インターフェース(`otl_lookup_ref_init`/`_copy`/
+// `_dispose`)は`LookupRefList`自体の死んだ`.copy`スロットからしか呼ばれて
+// おらず削除——`.dispose`(`otl_lookup_ref_dispose`)も含め、`LookupRef`は
+// 所有物を持たない（`LookupList`が指し先の`Lookup`を所有する）ため、
+// disposeは何もしない。`Vec<LookupRef>`自身の`Drop`だけで十分。
+// `LookupRefList`は所有物を持たない要素の配列。disposeはバッキング配列を
+// 解放するだけ（要素そのものへの処理は不要）。`.copy`（テーブル全体クローン）
+// は死んでいたため削除。
+pub(crate) unsafe fn otl_lookup_ref_list_dispose(arr: *mut LookupRefList) {
     if arr.is_null() {
         return;
     }
-    if OTL_I_LOOKUP_REF.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh15 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh15 != 0) {
-                break;
-            }
-            OTL_I_LOOKUP_REF.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut LookupRef,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<LookupRef>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
+    *arr = Vec::new();
 }
-#[inline]
-unsafe extern "C" fn otl_lookup_ref_list_replace(
-    mut dst: *mut LookupRefList,
-    src: LookupRefList,
+// 元のスワップ&切り詰めループを`Vec::retain`に。要素のdisposeは無いので
+// 述語の結果をそのまま`retain`の判定に使うだけで済む。
+pub(crate) unsafe fn otl_lookup_ref_list_filter_env(
+    arr: *mut LookupRefList,
+    fn_0: Option<unsafe extern "C" fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool>,
+    env: *mut ::core::ffi::c_void,
 ) {
-    otl_lookup_ref_list_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<LookupRefList>() as usize,
-    );
+    (*arr).retain(|&item| fn_0.expect("non-null function pointer")(&item as *const LookupRef, env));
+}
+// `.replace`の唯一の呼び出し箇所(`table/otl/parse.rs`)は毎回、直前に
+// `init_feature_ptr`で作った空のdestに対して呼ばれる——単純な move-assign
+// で置き換え可能（旧`dispose`+`memcpy`と等価、Rustの代入が古い値を
+// 正しくドロップする）。
+pub(crate) unsafe fn otl_lookup_ref_list_replace(dst: *mut LookupRefList, src: LookupRefList) {
+    *dst = src;
 }
 #[inline]
-unsafe extern "C" fn otl_lookup_ref_list_free(mut x: *mut LookupRefList) {
-    if x.is_null() {
-        return;
-    }
-    otl_lookup_ref_list_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn init_feature_ptr(mut feature: *mut FeaturePtr) {
+pub(crate) unsafe fn init_feature_ptr(feature: *mut FeaturePtr) {
     *feature = __caryll_allocate_clean(
         ::core::mem::size_of::<Feature>() as usize,
         61 as ::core::ffi::c_ulong,
     ) as FeaturePtr;
-    OTL_I_LOOKUP_REF_LIST.init.expect("non-null function pointer")(&raw mut (**feature).lookups);
+    (**feature).lookups = Vec::new();
 }
 #[inline]
-unsafe extern "C" fn dispose_feature_ptr(mut feature: *mut FeaturePtr) {
+pub(crate) unsafe fn dispose_feature_ptr(feature: *mut FeaturePtr) {
     if (*feature).is_null() {
         return;
     }
     if !(**feature).name.is_null() {
         sdsfree((**feature).name);
     }
-    OTL_I_LOOKUP_REF_LIST
-        .dispose
-        .expect("non-null function pointer")(&raw mut (**feature).lookups);
+    otl_lookup_ref_list_dispose(&raw mut (**feature).lookups);
     free(*feature as *mut ::core::ffi::c_void);
     *feature = ::core::ptr::null_mut::<Feature>();
 }
-#[inline]
-unsafe extern "C" fn otl_feature_ptr_dispose(mut x: *mut FeaturePtr) {
-    dispose_feature_ptr(x);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ptr_copy(
-    mut dst: *mut FeaturePtr,
-    mut src: *const FeaturePtr,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FeaturePtr>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ptr_init(mut x: *mut FeaturePtr) {
-    init_feature_ptr(x);
-}
-pub static OTL_I_FEATURE_PTR: FeaturePtrElementInterface = {
-    FeaturePtrElementInterface {
-        init: Some(otl_feature_ptr_init as unsafe extern "C" fn(*mut FeaturePtr) -> ()),
-        copy: Some(
-            otl_feature_ptr_copy
-                as unsafe extern "C" fn(*mut FeaturePtr, *const FeaturePtr) -> (),
-        ),
-        dispose: Some(otl_feature_ptr_dispose as unsafe extern "C" fn(*mut FeaturePtr) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn otl_feature_list_grow_to(arr: *mut FeatureList, target: usize) {
-    cvec_grow_to(otl_feature_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_free(mut x: *mut FeatureList) {
-    if x.is_null() {
-        return;
-    }
-    otl_feature_list_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_create() -> *mut FeatureList {
-    let mut x: *mut FeatureList =
-        malloc(::core::mem::size_of::<FeatureList>() as usize) as *mut FeatureList;
-    otl_feature_list_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_push(arr: *mut FeatureList, elem: FeaturePtr) {
-    cvec_push(otl_feature_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe fn otl_feature_list_as_cvec(arr: *mut FeatureList) -> *mut CVecRaw<FeaturePtr> {
-    arr as *mut CVecRaw<FeaturePtr>
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_init(arr: *mut FeatureList) {
-    cvec_init(otl_feature_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_copy(
-    mut dst: *mut FeatureList,
-    mut src: *const FeatureList,
-) {
-    otl_feature_list_init(dst);
-    otl_feature_list_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if OTL_I_FEATURE_PTR.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            OTL_I_FEATURE_PTR.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut FeaturePtr,
-                (*src).items.offset(j as isize) as *mut FeaturePtr as *const FeaturePtr,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            let ref mut fresh19 = *(*dst).items.offset(j_0 as isize);
-            *fresh19 = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_feature_list_dispose(mut arr: *mut FeatureList) {
+// `FeaturePtr`単体の`.copy`(生ポインタmemcpy)は`FeatureList`の死んだ
+// `.copy`からしか呼ばれておらず削除。
+// テーブル全体の`.copy`（死んでいる）は削除。`.dispose`は`dispose_otl`から
+// 生存（`SubtableList`/`LookupList`と同じ理由でフルドロップ）。
+pub(crate) unsafe fn otl_feature_list_dispose(arr: *mut FeatureList) {
     if arr.is_null() {
         return;
     }
-    if OTL_I_FEATURE_PTR.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh20 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh20 != 0) {
-                break;
-            }
-            OTL_I_FEATURE_PTR.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut FeaturePtr,
-            );
-        }
+    for feature in (*arr).iter_mut() {
+        dispose_feature_ptr(feature as *mut FeaturePtr);
     }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<FeaturePtr>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
+    *arr = Vec::new();
 }
-pub static OTL_I_FEATURE_LIST: FeatureListVectorInterface = {
-    FeatureListVectorInterface {
-        init: Some(otl_feature_list_init as unsafe extern "C" fn(*mut FeatureList) -> ()),
-        copy: Some(
-            otl_feature_list_copy
-                as unsafe extern "C" fn(*mut FeatureList, *const FeatureList) -> (),
-        ),
-        dispose: Some(otl_feature_list_dispose as unsafe extern "C" fn(*mut FeatureList) -> ()),
-        create: Some(otl_feature_list_create),
-        free: Some(otl_feature_list_free as unsafe extern "C" fn(*mut FeatureList) -> ()),
-        push: Some(
-            otl_feature_list_push
-                as unsafe extern "C" fn(*mut FeatureList, FeaturePtr) -> (),
-        ),
-        filter_env: Some(
-            otl_feature_list_filter_env
-                as unsafe extern "C" fn(
-                    *mut FeatureList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const FeaturePtr,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn otl_feature_list_filter_env(
-    mut arr: *mut FeatureList,
-    mut fn_0: Option<unsafe extern "C" fn(*const FeaturePtr, *mut ::core::ffi::c_void) -> bool>,
-    mut env: *mut ::core::ffi::c_void,
+pub(crate) unsafe fn otl_feature_list_filter_env(
+    arr: *mut FeatureList,
+    fn_0: Option<unsafe extern "C" fn(*const FeaturePtr, *mut ::core::ffi::c_void) -> bool>,
+    env: *mut ::core::ffi::c_void,
 ) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut FeaturePtr,
-            env,
-        ) {
-            if j != k {
-                let ref mut fresh16 = *(*arr).items.offset(j as isize);
-                *fresh16 = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
+    (*arr).retain(|&item| {
+        if fn_0.expect("non-null function pointer")(&item as *const FeaturePtr, env) {
+            true
         } else {
-            if OTL_I_FEATURE_PTR.dispose.is_some() {
-                OTL_I_FEATURE_PTR.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut FeaturePtr,
-                );
-            } else {
-            };
+            dispose_feature_ptr(&item as *const FeaturePtr as *mut FeaturePtr);
+            false
         }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
+    });
 }
-pub static OTL_I_FEATURE_REF: FeatureRefElementInterface = {
-    FeatureRefElementInterface {
-        init: Some(otl_feature_ref_init as unsafe extern "C" fn(*mut FeatureRef) -> ()),
-        copy: Some(
-            otl_feature_ref_copy
-                as unsafe extern "C" fn(*mut FeatureRef, *const FeatureRef) -> (),
-        ),
-        dispose: Some(otl_feature_ref_dispose as unsafe extern "C" fn(*mut FeatureRef) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn otl_feature_ref_copy(
-    mut dst: *mut FeatureRef,
-    mut src: *const FeatureRef,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FeatureRef>() as usize,
-    );
+// `FeatureRef`単体の要素インターフェースは`FeatureRefList`の死んだ`.copy`
+// からしか呼ばれておらず削除。`FeatureRef`は所有物を持たない
+// （`FeatureList`が指し先の`Feature`を所有する）。
+// `.replace`の唯一の呼び出し箇所(`table/otl/parse.rs`)は`init_language_ptr`
+// で作った空のdestに対して呼ばれる——move-assignで置き換え可能。
+pub(crate) unsafe fn otl_feature_ref_list_replace(dst: *mut FeatureRefList, src: FeatureRefList) {
+    *dst = src;
 }
-#[inline]
-unsafe extern "C" fn otl_feature_ref_dispose(mut _x: *mut FeatureRef) {}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_init(mut x: *mut FeatureRef) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<FeatureRef>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_grow_to(arr: *mut FeatureRefList, target: usize) {
-    cvec_grow_to(otl_feature_ref_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_copy(
-    mut dst: *mut FeatureRefList,
-    mut src: *const FeatureRefList,
-) {
-    otl_feature_ref_list_init(dst);
-    otl_feature_ref_list_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if OTL_I_FEATURE_REF.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            OTL_I_FEATURE_REF.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut FeatureRef,
-                (*src).items.offset(j as isize) as *mut FeatureRef as *const FeatureRef,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            let ref mut fresh24 = *(*dst).items.offset(j_0 as isize);
-            *fresh24 = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_dispose(mut arr: *mut FeatureRefList) {
+// `LookupRefList`と同じく所有物を持たない要素の配列。
+pub(crate) unsafe fn otl_feature_ref_list_dispose(arr: *mut FeatureRefList) {
     if arr.is_null() {
         return;
     }
-    if OTL_I_FEATURE_REF.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh25 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh25 != 0) {
-                break;
-            }
-            OTL_I_FEATURE_REF.dispose.expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut FeatureRef,
-            );
-        }
-    }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<FeatureRef>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
+    *arr = Vec::new();
 }
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_replace(
-    mut dst: *mut FeatureRefList,
-    src: FeatureRefList,
+pub(crate) unsafe fn otl_feature_ref_list_filter_env(
+    arr: *mut FeatureRefList,
+    fn_0: Option<unsafe extern "C" fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool>,
+    env: *mut ::core::ffi::c_void,
 ) {
-    otl_feature_ref_list_dispose(dst);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        &raw const src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FeatureRefList>() as usize,
-    );
+    (*arr).retain(|&item| fn_0.expect("non-null function pointer")(&item as *const FeatureRef, env));
 }
 #[inline]
-unsafe extern "C" fn otl_feature_ref_list_free(mut x: *mut FeatureRefList) {
-    if x.is_null() {
-        return;
-    }
-    otl_feature_ref_list_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_create() -> *mut FeatureRefList {
-    let mut x: *mut FeatureRefList =
-        malloc(::core::mem::size_of::<FeatureRefList>() as usize) as *mut FeatureRefList;
-    otl_feature_ref_list_init(x);
-    return x;
-}
-pub static OTL_I_FEATURE_REF_LIST: FeatureRefListVectorInterface = {
-    FeatureRefListVectorInterface {
-        init: Some(otl_feature_ref_list_init as unsafe extern "C" fn(*mut FeatureRefList) -> ()),
-        copy: Some(
-            otl_feature_ref_list_copy
-                as unsafe extern "C" fn(*mut FeatureRefList, *const FeatureRefList) -> (),
-        ),
-        dispose: Some(
-            otl_feature_ref_list_dispose as unsafe extern "C" fn(*mut FeatureRefList) -> (),
-        ),
-        replace: Some(
-            otl_feature_ref_list_replace
-                as unsafe extern "C" fn(*mut FeatureRefList, FeatureRefList) -> (),
-        ),
-        create: Some(otl_feature_ref_list_create),
-        free: Some(otl_feature_ref_list_free as unsafe extern "C" fn(*mut FeatureRefList) -> ()),
-        push: Some(
-            otl_feature_ref_list_push
-                as unsafe extern "C" fn(*mut FeatureRefList, FeatureRef) -> (),
-        ),
-        filter_env: Some(
-            otl_feature_ref_list_filter_env
-                as unsafe extern "C" fn(
-                    *mut FeatureRefList,
-                    Option<
-                        unsafe extern "C" fn(
-                            *const FeatureRef,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
-                    >,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_filter_env(
-    mut arr: *mut FeatureRefList,
-    mut fn_0: Option<unsafe extern "C" fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool>,
-    mut env: *mut ::core::ffi::c_void,
-) {
-    let mut j: usize = 0 as usize;
-    let mut k: usize = 0 as usize;
-    while k < (*arr).length {
-        if fn_0.expect("non-null function pointer")(
-            (*arr).items.offset(k as isize) as *mut FeatureRef,
-            env,
-        ) {
-            if j != k {
-                let ref mut fresh21 = *(*arr).items.offset(j as isize);
-                *fresh21 = *(*arr).items.offset(k as isize);
-            }
-            j = j.wrapping_add(1);
-        } else {
-            if OTL_I_FEATURE_REF.dispose.is_some() {
-                OTL_I_FEATURE_REF.dispose.expect("non-null function pointer")(
-                    (*arr).items.offset(k as isize) as *mut FeatureRef,
-                );
-            } else {
-            };
-        }
-        k = k.wrapping_add(1);
-    }
-    (*arr).length = j;
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_push(arr: *mut FeatureRefList, elem: FeatureRef) {
-    cvec_push(otl_feature_ref_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe fn otl_feature_ref_list_as_cvec(arr: *mut FeatureRefList) -> *mut CVecRaw<FeatureRef> {
-    arr as *mut CVecRaw<FeatureRef>
-}
-#[inline]
-unsafe extern "C" fn otl_feature_ref_list_init(arr: *mut FeatureRefList) {
-    cvec_init(otl_feature_ref_list_as_cvec(arr));
-}
-#[inline]
-unsafe extern "C" fn init_language_ptr(mut language: *mut LanguageSystemPtr) {
+pub(crate) unsafe fn init_language_ptr(language: *mut LanguageSystemPtr) {
     *language = __caryll_allocate_clean(
         ::core::mem::size_of::<LanguageSystem>() as usize,
         77 as ::core::ffi::c_ulong,
     ) as LanguageSystemPtr;
-    OTL_I_FEATURE_REF_LIST.init.expect("non-null function pointer")(&raw mut (**language).features);
+    (**language).features = Vec::new();
 }
 #[inline]
-unsafe extern "C" fn dispose_language_ptr(mut language: *mut LanguageSystemPtr) {
+pub(crate) unsafe fn dispose_language_ptr(language: *mut LanguageSystemPtr) {
     if (*language).is_null() {
         return;
     }
     if !(**language).name.is_null() {
         sdsfree((**language).name);
     }
-    OTL_I_FEATURE_REF_LIST
-        .dispose
-        .expect("non-null function pointer")(&raw mut (**language).features);
+    otl_feature_ref_list_dispose(&raw mut (**language).features);
     free(*language as *mut ::core::ffi::c_void);
     *language = ::core::ptr::null_mut::<LanguageSystem>();
 }
-pub static OTL_I_LANGUAGE_SYSTEM: LanguageSystemPtrElementInterface = {
-    LanguageSystemPtrElementInterface {
-        init: Some(init_language_ptr as unsafe extern "C" fn(*mut LanguageSystemPtr) -> ()),
-        copy: None,
-        dispose: Some(dispose_language_ptr as unsafe extern "C" fn(*mut LanguageSystemPtr) -> ()),
-    }
-};
-#[inline]
-unsafe fn otl_lang_system_list_as_cvec(arr: *mut LangSystemList) -> *mut CVecRaw<LanguageSystemPtr> {
-    arr as *mut CVecRaw<LanguageSystemPtr>
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_init(arr: *mut LangSystemList) {
-    cvec_init(otl_lang_system_list_as_cvec(arr));
-}
-pub static OTL_I_LANG_SYSTEM_LIST: LangSystemListVectorInterface = {
-    LangSystemListVectorInterface {
-        init: Some(otl_lang_system_list_init as unsafe extern "C" fn(*mut LangSystemList) -> ()),
-        copy: Some(
-            otl_lang_system_list_copy
-                as unsafe extern "C" fn(*mut LangSystemList, *const LangSystemList) -> (),
-        ),
-        dispose: Some(
-            otl_lang_system_list_dispose as unsafe extern "C" fn(*mut LangSystemList) -> (),
-        ),
-        create: Some(otl_lang_system_list_create),
-        free: Some(otl_lang_system_list_free as unsafe extern "C" fn(*mut LangSystemList) -> ()),
-        push: Some(
-            otl_lang_system_list_push
-                as unsafe extern "C" fn(*mut LangSystemList, LanguageSystemPtr) -> (),
-        ),
-    }
-};
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_push(arr: *mut LangSystemList, elem: LanguageSystemPtr) {
-    cvec_push(otl_lang_system_list_as_cvec(arr), elem);
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_grow_to(arr: *mut LangSystemList, target: usize) {
-    cvec_grow_to(otl_lang_system_list_as_cvec(arr), target);
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_copy(
-    mut dst: *mut LangSystemList,
-    mut src: *const LangSystemList,
-) {
-    otl_lang_system_list_init(dst);
-    otl_lang_system_list_grow_to(dst, (*src).length);
-    (*dst).length = (*src).length;
-    if OTL_I_LANGUAGE_SYSTEM.copy.is_some() {
-        let mut j: usize = 0 as usize;
-        while j < (*src).length {
-            OTL_I_LANGUAGE_SYSTEM.copy.expect("non-null function pointer")(
-                (*dst).items.offset(j as isize) as *mut LanguageSystemPtr,
-                (*src).items.offset(j as isize) as *mut LanguageSystemPtr
-                    as *const LanguageSystemPtr,
-            );
-            j = j.wrapping_add(1);
-        }
-    } else {
-        let mut j_0: usize = 0 as usize;
-        while j_0 < (*src).length {
-            let ref mut fresh29 = *(*dst).items.offset(j_0 as isize);
-            *fresh29 = *(*src).items.offset(j_0 as isize);
-            j_0 = j_0.wrapping_add(1);
-        }
-    };
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_dispose(mut arr: *mut LangSystemList) {
+// テーブル全体の`.copy`（死んでいる）は削除。`.dispose`は`dispose_otl`から
+// 生存（同じ理由でフルドロップ）。このコンテナだけ`.filter_env`スロットが
+// 元から無い——言語システム自体は間引かれず、`.features`(FeatureRefList)
+// だけが間引かれる。
+pub(crate) unsafe fn otl_lang_system_list_dispose(arr: *mut LangSystemList) {
     if arr.is_null() {
         return;
     }
-    if OTL_I_LANGUAGE_SYSTEM.dispose.is_some() {
-        let mut j: usize = (*arr).length;
-        loop {
-            let fresh30 = j;
-            j = j.wrapping_sub(1);
-            if !(fresh30 != 0) {
-                break;
-            }
-            OTL_I_LANGUAGE_SYSTEM
-                .dispose
-                .expect("non-null function pointer")(
-                (*arr).items.offset(j as isize) as *mut LanguageSystemPtr
-            );
-        }
+    for language in (*arr).iter_mut() {
+        dispose_language_ptr(language as *mut LanguageSystemPtr);
     }
-    free((*arr).items as *mut ::core::ffi::c_void);
-    (*arr).items = ::core::ptr::null_mut::<LanguageSystemPtr>();
-    (*arr).length = 0 as usize;
-    (*arr).capacity = 0 as usize;
+    *arr = Vec::new();
 }
+// `calloc`、`malloc`ではない: `init_otl`が`.lookups`/`.features`/`.languages`
+// へ直接フィールド代入(`= Vec::new()`)するため、gaspと同じ罠が当てはまる。
 #[inline]
-unsafe extern "C" fn otl_lang_system_list_free(mut x: *mut LangSystemList) {
-    if x.is_null() {
-        return;
-    }
-    otl_lang_system_list_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn otl_lang_system_list_create() -> *mut LangSystemList {
-    let mut x: *mut LangSystemList =
-        malloc(::core::mem::size_of::<LangSystemList>() as usize) as *mut LangSystemList;
-    otl_lang_system_list_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn init_otl(mut table: *mut OtlTable) {
-    OTL_I_LOOKUP_LIST.init.expect("non-null function pointer")(&raw mut (*table).lookups);
-    OTL_I_FEATURE_LIST.init.expect("non-null function pointer")(&raw mut (*table).features);
-    OTL_I_LANG_SYSTEM_LIST.init.expect("non-null function pointer")(&raw mut (*table).languages);
-}
-#[inline]
-unsafe extern "C" fn dispose_otl(mut table: *mut OtlTable) {
-    OTL_I_LOOKUP_LIST.dispose.expect("non-null function pointer")(&raw mut (*table).lookups);
-    OTL_I_FEATURE_LIST.dispose.expect("non-null function pointer")(&raw mut (*table).features);
-    OTL_I_LANG_SYSTEM_LIST
-        .dispose
-        .expect("non-null function pointer")(&raw mut (*table).languages);
-}
-#[inline]
-unsafe extern "C" fn table_otl_dispose(mut x: *mut OtlTable) {
-    dispose_otl(x);
-}
-#[inline]
-unsafe extern "C" fn table_otl_free(mut x: *mut OtlTable) {
-    if x.is_null() {
-        return;
-    }
-    table_otl_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn table_otl_create() -> *mut OtlTable {
-    let mut x: *mut OtlTable =
-        malloc(::core::mem::size_of::<OtlTable>() as usize) as *mut OtlTable;
-    table_otl_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_otl_init(mut x: *mut OtlTable) {
+pub(crate) unsafe fn table_otl_create() -> *mut OtlTable {
+    let x: *mut OtlTable =
+        calloc(1, ::core::mem::size_of::<OtlTable>() as usize) as *mut OtlTable;
     init_otl(x);
+    x
 }
-pub static TABLE_I_OTL: OtlTableElementInterface = {
-    OtlTableElementInterface {
-        init: Some(table_otl_init as unsafe extern "C" fn(*mut OtlTable) -> ()),
-        copy: Some(table_otl_copy as unsafe extern "C" fn(*mut OtlTable, *const OtlTable) -> ()),
-        dispose: Some(table_otl_dispose as unsafe extern "C" fn(*mut OtlTable) -> ()),
-        create: Some(table_otl_create),
-        free: Some(table_otl_free as unsafe extern "C" fn(*mut OtlTable) -> ()),
-    }
-};
 #[inline]
-unsafe extern "C" fn table_otl_copy(mut dst: *mut OtlTable, mut src: *const OtlTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<OtlTable>() as usize,
-    );
+unsafe fn init_otl(table: *mut OtlTable) {
+    (*table).lookups = Vec::new();
+    (*table).features = Vec::new();
+    (*table).languages = Vec::new();
 }
+// enclosing `OtlTable`自体が直後に生の`free()`で解放されるため、3つとも
+// `.clear()`ではなくフルドロップ。
+#[inline]
+pub(crate) unsafe fn table_otl_free(x: *mut OtlTable) {
+    if x.is_null() {
+        return;
+    }
+    otl_lookup_list_dispose(&raw mut (*x).lookups);
+    otl_feature_list_dispose(&raw mut (*x).features);
+    otl_lang_system_list_dispose(&raw mut (*x).languages);
+    free(x as *mut ::core::ffi::c_void);
+}
+// テーブル全体の`.copy`（`table_otl_copy`、生ポインタのmemcpy）は
+// crate全体で一度も呼ばれておらず削除——Vec所有下でのmemcpyは
+// 3つの内側リストすべての二重解放になるため、`.clone()`への移植も不要。
 
 #[derive(Copy, Clone)]
 #[repr(C)]

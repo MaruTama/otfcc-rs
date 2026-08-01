@@ -11,7 +11,7 @@ use crate::vendor::sds::{Byte, Dec5, Hex2};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::otl::{Feature, FeatureList, FeaturePtr, FeatureRef, LanguageSystem, LanguageSystemPtr, Lookup, LookupPtr, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
-use crate::table::otl::{otfcc_delete_lookup, OTL_I_FEATURE_LIST, OTL_I_FEATURE_PTR, OTL_I_FEATURE_REF_LIST, OTL_I_LANG_SYSTEM_LIST, OTL_I_LANGUAGE_SYSTEM, OTL_I_LOOKUP_LIST, OTL_I_LOOKUP_PTR, OTL_I_LOOKUP_REF_LIST, OTL_I_SUBTABLE_LIST, TABLE_I_OTL};
+use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_subtable_list_dispose_dependent, init_feature_ptr, init_language_ptr, init_lookup_ptr, table_otl_create, table_otl_free};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
 use crate::table::otl::subtables::extend::{otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend};
@@ -128,9 +128,7 @@ unsafe extern "C" fn parse_language(
     let mut rid: TableId = 0;
     let mut feature_count: TableId = 0;
     if table_length < base.wrapping_add(6 as u32) {
-        OTL_I_FEATURE_REF_LIST
-            .dispose
-            .expect("non-null function pointer")(&raw mut (*lang).features);
+        otl_feature_ref_list_dispose(&raw mut (*lang).features);
         (*lang).required_feature = ::core::ptr::null::<Feature>();
         return;
     } else {
@@ -138,8 +136,8 @@ unsafe extern "C" fn parse_language(
             data.offset(base as isize)
                 .offset(2 as ::core::ffi::c_int as isize) as *const u8,
         ) as TableId;
-        if (rid as usize) < (*features).length {
-            (*lang).required_feature = *(*features).items.offset(rid as isize) as FeatureRef;
+        if (rid as usize) < (*features).len() {
+            (*lang).required_feature = (&(*features))[rid as usize] as FeatureRef;
         } else {
             (*lang).required_feature = ::core::ptr::null::<Feature>();
         }
@@ -155,11 +153,8 @@ unsafe extern "C" fn parse_language(
                     .offset((2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize)
                     as *const u8,
             ) as TableId;
-            if (feature_index as usize) < (*features).length {
-                OTL_I_FEATURE_REF_LIST.push.expect("non-null function pointer")(
-                    &raw mut (*lang).features,
-                    *(*features).items.offset(feature_index as isize) as FeatureRef,
-                );
+            if (feature_index as usize) < (*features).len() {
+                (*lang).features.push((&(*features))[feature_index as usize] as FeatureRef);
             }
             j = j.wrapping_add(1);
         }
@@ -176,8 +171,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
     let mut feature_list_offset: u32 = 0;
     let mut lookup_list_offset: u32 = 0;
     let mut current_block: u64;
-    let mut table: *mut OtlTable = (
-        TABLE_I_OTL.create.expect("non-null function pointer"))();
+    let mut table: *mut OtlTable = table_otl_create();
     if !table.is_null() {
         if !(table_length < 10 as u32) {
             script_list_offset =
@@ -210,9 +204,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                 }
                                 let mut lookup: *mut Lookup =
                                     ::core::ptr::null_mut::<Lookup>();
-                                OTL_I_LOOKUP_PTR.init.expect("non-null function pointer")(
-                                    &raw mut lookup,
-                                );
+                                init_lookup_ptr(&raw mut lookup);
                                 (*lookup)._offset = lookup_list_offset.wrapping_add(read_16u(
                                     data.offset(lookup_list_offset as isize)
                                         .offset(2 as ::core::ffi::c_int as isize)
@@ -230,10 +222,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                     lookup_type_base,
                                     read_16u(data.offset((*lookup)._offset as isize) as *const u8),
                                 );
-                                OTL_I_LOOKUP_LIST.push.expect("non-null function pointer")(
-                                    &raw mut (*table).lookups,
-                                    lookup as LookupPtr,
-                                );
+                                (*table).lookups.push(lookup as LookupPtr);
                                 j = j.wrapping_add(1);
                             }
                             match current_block {
@@ -263,11 +252,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                             }
                                             let mut feature: *mut Feature =
                                                 ::core::ptr::null_mut::<Feature>();
-                                            OTL_I_FEATURE_PTR
-                                                .init
-                                                .expect("non-null function pointer")(
-                                                &raw mut feature,
-                                            );
+                                            init_feature_ptr(&raw mut feature);
                                             let mut tag: u32 = read_32u(
                                                 data.offset(feature_list_offset as isize)
                                                     .offset(2 as ::core::ffi::c_int as isize)
@@ -359,12 +344,9 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                         as *const u8,
                                                 )
                                                     as TableId;
-                                                if (lookupid as usize) < (*table).lookups.length {
-                                                    let mut lookup_0: *mut Lookup = *(*table)
-                                                        .lookups
-                                                        .items
-                                                        .offset(lookupid as isize)
-                                                        as *mut Lookup;
+                                                if (lookupid as usize) < (*table).lookups.len() {
+                                                    let lookup_0: *mut Lookup =
+                                                        (&(*table).lookups)[lookupid as usize];
                                                     if (*lookup_0).name.is_null() {
                                                         if !(*options).glyph_name_prefix.is_null() {
                                                             let fresh3 = lnk;
@@ -402,21 +384,11 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                             );
                                                         }
                                                     }
-                                                    OTL_I_LOOKUP_REF_LIST
-                                                        .push
-                                                        .expect("non-null function pointer")(
-                                                        &raw mut (*feature).lookups,
-                                                        lookup_0 as LookupRef,
-                                                    );
+                                                    (*feature).lookups.push(lookup_0 as LookupRef);
                                                 }
                                                 k = k.wrapping_add(1);
                                             }
-                                            OTL_I_FEATURE_LIST
-                                                .push
-                                                .expect("non-null function pointer")(
-                                                &raw mut (*table).features,
-                                                feature as FeaturePtr,
-                                            );
+                                            (*table).features.push(feature as FeaturePtr);
                                             j_0 = j_0.wrapping_add(1);
                                         }
                                         match current_block {
@@ -540,13 +512,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                     let mut lang: *mut LanguageSystem = ::core::ptr::null_mut::<
                                                                         LanguageSystem,
                                                                     >();
-                                                                    OTL_I_LANGUAGE_SYSTEM
-                                                                        .init
-                                                                        .expect(
-                                                                        "non-null function pointer",
-                                                                    )(
-                                                                        &raw mut lang
-                                                                    );
+                                                                    init_language_ptr(&raw mut lang);
                                                                     (*lang).name = crate::sdsbuild!(
                                                                         sdsempty(),
                                                                         Byte((tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
@@ -567,14 +533,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                         lang,
                                                                         &raw mut (*table).features,
                                                                     );
-                                                                    OTL_I_LANG_SYSTEM_LIST
-                                                                        .push
-                                                                        .expect(
-                                                                            "non-null function pointer",
-                                                                        )(
-                                                                        &raw mut (*table).languages,
-                                                                        lang as LanguageSystemPtr,
-                                                                    );
+                                                                    (*table).languages.push(lang as LanguageSystemPtr);
                                                                 }
                                                                 let mut lang_sys_count: TableId =
                                                                     read_16u(
@@ -616,13 +575,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                     let mut lang_0: *mut LanguageSystem = ::core::ptr::null_mut::<
                                                                         LanguageSystem,
                                                                     >();
-                                                                    OTL_I_LANGUAGE_SYSTEM
-                                                                        .init
-                                                                        .expect(
-                                                                        "non-null function pointer",
-                                                                    )(
-                                                                        &raw mut lang_0
-                                                                    );
+                                                                    init_language_ptr(&raw mut lang_0);
                                                                     (*lang_0).name = crate::sdsbuild!(
                                                                         sdsempty(),
                                                                         Byte((tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
@@ -645,26 +598,17 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                         lang_0,
                                                                         &raw mut (*table).features,
                                                                     );
-                                                                    OTL_I_LANG_SYSTEM_LIST
-                                                                        .push
-                                                                        .expect(
-                                                                            "non-null function pointer",
-                                                                        )(
-                                                                        &raw mut (*table).languages,
-                                                                        lang_0 as LanguageSystemPtr,
-                                                                    );
+                                                                    (*table).languages.push(lang_0 as LanguageSystemPtr);
                                                                     k_0 = k_0.wrapping_add(1);
                                                                 }
                                                                 j_2 = j_2.wrapping_add(1);
                                                             }
                                                             let mut j_3: TableId = 0 as TableId;
                                                             while (j_3 as usize)
-                                                                < (*table).lookups.length
+                                                                < (*table).lookups.len()
                                                             {
-                                                                if (**(*table)
-                                                                    .lookups
-                                                                    .items
-                                                                    .offset(j_3 as isize))
+                                                                if (*(&(*table)
+                                                                    .lookups)[j_3 as usize])
                                                                 .name
                                                                 .is_null()
                                                                 {
@@ -672,36 +616,20 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                         .glyph_name_prefix
                                                                         .is_null()
                                                                     {
-                                                                        let ref mut fresh5 =
-                                                                            (**(*table)
-                                                                                .lookups
-                                                                                .items
-                                                                                .offset(
-                                                                                    j_3 as isize,
-                                                                                ))
-                                                                            .name;
-                                                                        *fresh5 = crate::sdsbuild!(
+                                                                        (*(&mut (*table).lookups)[j_3 as usize]).name = crate::sdsbuild!(
                                                                             sdsempty(),
                                                                             b"lookup_",
                                                                             (*options).glyph_name_prefix,
                                                                             b"_",
-                                                                            Hex2((**(*table).lookups.items.offset(j_3 as isize)).type_0.raw()),
+                                                                            Hex2((*(&(*table).lookups)[j_3 as usize]).type_0.raw()),
                                                                             b"_",
                                                                             j_3 as ::core::ffi::c_int,
                                                                         );
                                                                     } else {
-                                                                        let ref mut fresh6 =
-                                                                            (**(*table)
-                                                                                .lookups
-                                                                                .items
-                                                                                .offset(
-                                                                                    j_3 as isize,
-                                                                                ))
-                                                                            .name;
-                                                                        *fresh6 = crate::sdsbuild!(
+                                                                        (*(&mut (*table).lookups)[j_3 as usize]).name = crate::sdsbuild!(
                                                                             sdsempty(),
                                                                             b"lookup_",
-                                                                            Hex2((**(*table).lookups.items.offset(j_3 as isize)).type_0.raw()),
+                                                                            Hex2((*(&(*table).lookups)[j_3 as usize]).type_0.raw()),
                                                                             b"_",
                                                                             j_3 as ::core::ffi::c_int,
                                                                         );
@@ -725,7 +653,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
         }
     }
     if !table.is_null() {
-        TABLE_I_OTL.free.expect("non-null function pointer")(table);
+        table_otl_free(table);
     }
     return ::core::ptr::null_mut::<OtlTable>();
 }
@@ -769,10 +697,7 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
             max_glyphs,
             options,
         );
-        OTL_I_SUBTABLE_LIST.push.expect("non-null function pointer")(
-            &raw mut (*lookup).subtables,
-            subtable as SubtablePtr,
-        );
+        (*lookup).subtables.push(subtable as SubtablePtr);
         j = j.wrapping_add(1);
     }
     if (*lookup).type_0 == OTL_TYPE_GSUB_EXTEND
@@ -780,9 +705,9 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
     {
         (*lookup).type_0 = OTL_TYPE_UNKNOWN;
         let mut j_0: TableId = 0 as TableId;
-        while (j_0 as usize) < (*lookup).subtables.length {
-            if !(*(*lookup).subtables.items.offset(j_0 as isize)).is_null() {
-                (*lookup).type_0 = (**(*lookup).subtables.items.offset(j_0 as isize))
+        while (j_0 as usize) < (*lookup).subtables.len() {
+            if !(&(*lookup).subtables)[j_0 as usize].is_null() {
+                (*lookup).type_0 = (*(&(*lookup).subtables)[j_0 as usize])
                     .extend
                     .type_0;
                 break;
@@ -792,52 +717,43 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
         }
         if (*lookup).type_0 != OTL_TYPE_UNKNOWN {
             let mut j_1: TableId = 0 as TableId;
-            while (j_1 as usize) < (*lookup).subtables.length {
-                if !(*(*lookup).subtables.items.offset(j_1 as isize)).is_null()
-                    && (**(*lookup).subtables.items.offset(j_1 as isize))
+            while (j_1 as usize) < (*lookup).subtables.len() {
+                if !(&(*lookup).subtables)[j_1 as usize].is_null()
+                    && (*(&(*lookup).subtables)[j_1 as usize])
                         .extend
                         .type_0
                         == (*lookup).type_0
                 {
-                    let mut st: *mut Subtable =
-                        (**(*lookup).subtables.items.offset(j_1 as isize))
+                    let st: *mut Subtable =
+                        (*(&(*lookup).subtables)[j_1 as usize])
                             .extend
                             .subtable as *mut Subtable;
                     free(
-                        *(*lookup).subtables.items.offset(j_1 as isize) as *mut ::core::ffi::c_void
+                        (&(*lookup).subtables)[j_1 as usize] as *mut ::core::ffi::c_void
                     );
-                    let ref mut fresh0 = *(*lookup).subtables.items.offset(j_1 as isize);
-                    *fresh0 = ::core::ptr::null_mut::<Subtable>();
-                    let ref mut fresh1 = *(*lookup).subtables.items.offset(j_1 as isize);
-                    *fresh1 = st as SubtablePtr;
-                } else if !(*(*lookup).subtables.items.offset(j_1 as isize)).is_null() {
+                    (&mut (*lookup).subtables)[j_1 as usize] = st as SubtablePtr;
+                } else if !(&(*lookup).subtables)[j_1 as usize].is_null() {
                     let mut temp: *mut Lookup = ::core::ptr::null_mut::<Lookup>();
-                    OTL_I_LOOKUP_PTR.init.expect("non-null function pointer")(&raw mut temp);
-                    (*temp).type_0 = (**(*lookup).subtables.items.offset(j_1 as isize))
+                    init_lookup_ptr(&raw mut temp);
+                    (*temp).type_0 = (*(&(*lookup).subtables)[j_1 as usize])
                         .extend
                         .type_0;
-                    OTL_I_SUBTABLE_LIST.push.expect("non-null function pointer")(
-                        &raw mut (*temp).subtables,
-                        (**(*lookup).subtables.items.offset(j_1 as isize))
+                    (*temp).subtables.push(
+                        (*(&(*lookup).subtables)[j_1 as usize])
                             .extend
                             .subtable as SubtablePtr,
                     );
                     otfcc_delete_lookup(temp);
                     temp = ::core::ptr::null_mut::<Lookup>();
                     free(
-                        *(*lookup).subtables.items.offset(j_1 as isize) as *mut ::core::ffi::c_void
+                        (&(*lookup).subtables)[j_1 as usize] as *mut ::core::ffi::c_void
                     );
-                    let ref mut fresh2 = *(*lookup).subtables.items.offset(j_1 as isize);
-                    *fresh2 = ::core::ptr::null_mut::<Subtable>();
+                    (&mut (*lookup).subtables)[j_1 as usize] = ::core::ptr::null_mut::<Subtable>();
                 }
                 j_1 = j_1.wrapping_add(1);
             }
         } else {
-            OTL_I_SUBTABLE_LIST
-                .dispose_dependent
-                .expect("non-null function pointer")(
-                &raw mut (*lookup).subtables, lookup
-            );
+            otl_subtable_list_dispose_dependent(&raw mut (*lookup).subtables, lookup);
             return;
         }
     }
@@ -885,16 +801,16 @@ pub unsafe extern "C" fn otfcc_read_otl(
                     );
                     if otl.is_null() {
                         if !otl.is_null() {
-                            TABLE_I_OTL.free.expect("non-null function pointer")(otl);
+                            table_otl_free(otl);
                         }
                         otl = ::core::ptr::null_mut::<OtlTable>();
                     } else {
                         let mut j: TableId = 0 as TableId;
-                        while (j as usize) < (*otl).lookups.length {
+                        while (j as usize) < (*otl).lookups.len() {
                             otfcc_read_otl_lookup(
                                 data,
                                 length,
-                                *(*otl).lookups.items.offset(j as isize) as *mut Lookup,
+                                (&(*otl).lookups)[j as usize],
                                 max_glyphs,
                                 options,
                             );

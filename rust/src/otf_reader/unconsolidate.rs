@@ -9,7 +9,7 @@ use crate::support::alloc::{__caryll_allocate_clean};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{GlyphId, Pos, TableId};
+use crate::support::primitives::{GlyphId, Pos};
 use crate::vendor::sds::{Hex2Upper, Hex4Upper, SdsRaw};
 use crate::font::caryll_font::{Font};
 use crate::support::{NULL};
@@ -56,7 +56,7 @@ use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
 use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
 use crate::table::vorg::{TABLE_I_VORG};
 use crate::table::hmtx::{TABLE_I_HMTX};
-use crate::table::otl::{OTL_I_SUBTABLE_LIST};
+use crate::table::otl::{otl_subtable_list_dispose_dependent};
 use crate::table::vmtx::{TABLE_I_VMTX};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew};
 use crate::vf::vq::{I_VQ};
@@ -457,18 +457,12 @@ unsafe extern "C" fn unconsolidate_chaining(
     // genuinely dead code upstream, not a c2rust artifact. Confirmed by
     // inspection: the loop body only reads subtable fields into a local
     // accumulator with no other side effects. Omitted here.
-    let mut newsts: SubtableList = SubtableList {
-        length: 0,
-        capacity: 0,
-        items: ::core::ptr::null_mut::<SubtablePtr>(),
-    };
-    OTL_I_SUBTABLE_LIST.init.expect("non-null function pointer")(&raw mut newsts);
-    for j in 0..(*lookup).subtables.length as TableId {
-        let slot = (*lookup).subtables.items.offset(j as isize);
-        if (*slot).is_null() {
+    let mut newsts: SubtableList = Vec::new();
+    for j in 0..(*lookup).subtables.len() {
+        let sub: SubtablePtr = (&(*lookup).subtables)[j];
+        if sub.is_null() {
             continue;
         }
-        let sub: SubtablePtr = *slot;
         if (*sub).chaining.type_0 == ChainingType::Poly {
             let rules_count = (*sub).chaining.c2rust_unnamed.c2rust_unnamed.rules_count;
             for k in 0..rules_count as ::core::ffi::c_int {
@@ -487,16 +481,13 @@ unsafe extern "C" fn unconsolidate_chaining(
                 (*st).chaining.c2rust_unnamed.rule = **rule_slot;
                 free(*rule_slot as *mut ::core::ffi::c_void);
                 *rule_slot = ::core::ptr::null_mut::<ChainingRule>();
-                OTL_I_SUBTABLE_LIST.push.expect("non-null function pointer")(
-                    &raw mut newsts,
-                    st as SubtablePtr,
-                );
+                newsts.push(st as SubtablePtr);
             }
             free((*sub).chaining.c2rust_unnamed.c2rust_unnamed.rules as *mut ::core::ffi::c_void);
             (*sub).chaining.c2rust_unnamed.c2rust_unnamed.rules =
                 ::core::ptr::null_mut::<*mut ChainingRule>();
             free(sub as *mut ::core::ffi::c_void);
-            *slot = ::core::ptr::null_mut::<Subtable>();
+            (&mut (*lookup).subtables)[j] = ::core::ptr::null_mut::<Subtable>();
         } else if (*sub).chaining.type_0 == ChainingType::Canonical {
             let st_0: *mut Subtable = __caryll_allocate_clean(
                 ::core::mem::size_of::<Subtable>() as usize,
@@ -504,16 +495,11 @@ unsafe extern "C" fn unconsolidate_chaining(
             ) as *mut Subtable;
             (*st_0).chaining.type_0 = ChainingType::Canonical;
             (*st_0).chaining.c2rust_unnamed.rule = (*sub).chaining.c2rust_unnamed.rule;
-            OTL_I_SUBTABLE_LIST.push.expect("non-null function pointer")(
-                &raw mut newsts,
-                st_0 as SubtablePtr,
-            );
-            *slot = ::core::ptr::null_mut::<Subtable>();
+            newsts.push(st_0 as SubtablePtr);
+            (&mut (*lookup).subtables)[j] = ::core::ptr::null_mut::<Subtable>();
         }
     }
-    OTL_I_SUBTABLE_LIST
-        .dispose_dependent
-        .expect("non-null function pointer")(&raw mut (*lookup).subtables, lookup);
+    otl_subtable_list_dispose_dependent(&raw mut (*lookup).subtables, lookup);
     (*lookup).subtables = newsts;
 }
 unsafe extern "C" fn expand_chain(font: *mut Font, lookup: *mut Lookup, table: *mut OtlTable) {
@@ -526,14 +512,14 @@ unsafe extern "C" fn expand_chain(font: *mut Font, lookup: *mut Lookup, table: *
 }
 unsafe extern "C" fn expand_chaining_lookups(font: *mut Font) {
     if !(*font).gsub.is_null() {
-        for j in 0..(*(*font).gsub).lookups.length {
-            let lookup: *mut Lookup = *(*(*font).gsub).lookups.items.offset(j as isize) as *mut Lookup;
+        for j in 0..(*(*font).gsub).lookups.len() {
+            let lookup: *mut Lookup = (&(*(*font).gsub).lookups)[j];
             expand_chain(font, lookup, (*font).gsub);
         }
     }
     if !(*font).gpos.is_null() {
-        for j in 0..(*(*font).gpos).lookups.length {
-            let lookup: *mut Lookup = *(*(*font).gpos).lookups.items.offset(j as isize) as *mut Lookup;
+        for j in 0..(*(*font).gpos).lookups.len() {
+            let lookup: *mut Lookup = (&(*(*font).gpos).lookups)[j];
             expand_chain(font, lookup, (*font).gpos);
         }
     }

@@ -91,15 +91,14 @@ pub unsafe extern "C" fn consolidate_chaining(
         let mut h: *mut LookupHandle = &raw mut (*(*rule).apply.offset(j_0 as isize)).lookup;
         if !(*h).name.is_null() {
             let mut k: TableId = 0 as TableId;
-            while (k as usize) < (*table).lookups.length {
-                if !(*(*table).lookups.items.offset(k as isize)).is_null() {
-                    if !((**(*table).lookups.items.offset(k as isize))
+            while (k as usize) < (*table).lookups.len() {
+                if !(&(*table).lookups)[k as usize].is_null() {
+                    if !((*(&(*table).lookups)[k as usize])
                         .subtables
-                        .length
-                        == 0)
+                        .is_empty())
                     {
                         if !(strcmp(
-                            (**(*table).lookups.items.offset(k as isize)).name
+                            (*(&(*table).lookups)[k as usize]).name
                                 as *const ::core::ffi::c_char,
                             (*h).name as *const ::core::ffi::c_char,
                         ) != 0 as ::core::ffi::c_int)
@@ -108,7 +107,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                             handle_consolidate_to(
                                 h as *mut Handle,
                                 k as GlyphId,
-                                (**(*table).lookups.items.offset(k as isize)).name,
+                                (*(&(*table).lookups)[k as usize]).name,
                             );
                         }
                     }
@@ -137,7 +136,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             }
         } else if (*h).state == HandleState::Index
         {
-            if (*h).index as usize >= (*table).lookups.length {
+            if (*h).index as usize >= (*table).lookups.len() {
                 (*(*options).logger)
                     .log_sds
                     .expect("non-null function pointer")(
@@ -156,7 +155,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             handle_consolidate_to(
                 h as *mut Handle,
                 (*h).index,
-                (**(*table).lookups.items.offset((*h).index as isize)).name,
+                (*(&(*table).lookups)[(*h).index as usize]).name,
             );
         }
         j_0 = j_0.wrapping_add(1);

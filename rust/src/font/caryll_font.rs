@@ -64,7 +64,7 @@ use crate::table::hmtx::{TABLE_I_HMTX};
 use crate::table::maxp::{TABLE_I_MAXP};
 use crate::table::meta::types::{TABLE_I_META};
 use crate::table::name::{table_name_create, table_name_free};
-use crate::table::otl::{TABLE_I_OTL};
+use crate::table::otl::{table_otl_create, table_otl_free};
 use crate::table::post::{I_TABLE_POST};
 use crate::table::vhea::{TABLE_I_VHEA};
 use crate::table::vmtx::{TABLE_I_VMTX};
@@ -139,8 +139,7 @@ unsafe extern "C" fn create_font_table(
             return table_name_create() as *mut ::core::ffi::c_void;
         }
         1196643650 | 1196445523 => {
-            return (
-                TABLE_I_OTL.create.expect("non-null function pointer"))() as *mut ::core::ffi::c_void;
+            return table_otl_create() as *mut ::core::ffi::c_void;
         }
         _ => return NULL,
     };
@@ -275,14 +274,14 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
         }
         1196643650 => {
             if !(*font).gsub.is_null() {
-                TABLE_I_OTL.free.expect("non-null function pointer")((*font).gsub);
+                table_otl_free((*font).gsub);
                 (*font).gsub = ::core::ptr::null_mut::<OtlTable>();
             }
             return;
         }
         1196445523 => {
             if !(*font).gpos.is_null() {
-                TABLE_I_OTL.free.expect("non-null function pointer")((*font).gpos);
+                table_otl_free((*font).gpos);
                 (*font).gpos = ::core::ptr::null_mut::<OtlTable>();
             }
             return;
