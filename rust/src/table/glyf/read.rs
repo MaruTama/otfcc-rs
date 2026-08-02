@@ -279,8 +279,8 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
         j_1 = j_1.wrapping_add(1);
     }
     (*contours).shrink_to_fit();
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut cx);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut cy);
+    // `cx`/`cy` are plain owned locals, never moved out, so they auto-drop
+    // when this function returns -- no explicit dispose call is needed.
     return g;
 }
 unsafe extern "C" fn otfcc_read_composite_glyph(

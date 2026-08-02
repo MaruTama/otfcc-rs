@@ -1130,8 +1130,8 @@ unsafe extern "C" fn build_outline(
         j = j.wrapping_add(1);
     }
     (*g).contours.shrink_to_fit();
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut cx);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut cy);
+    // `cx`/`cy` are plain owned locals, never moved out, so they auto-drop
+    // when this function returns -- no explicit dispose call is needed.
     CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut local_subrs);
     free(stack.stack as *mut ::core::ffi::c_void);
     stack.stack = ::core::ptr::null_mut::<CffValue>();
@@ -1375,14 +1375,16 @@ unsafe extern "C" fn apply_cff_matrix(
                             y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone(),
                         ) as VQ,
                     );
-                    I_VQ.dispose.expect("non-null function pointer")(&raw mut zx);
-                    I_VQ.dispose.expect("non-null function pointer")(&raw mut zy);
+                    // `zx`/`zy` are plain owned locals, never moved out, so
+                    // they auto-drop at the end of this iteration -- no
+                    // explicit dispose call is needed.
                     k = k.wrapping_add(1);
                 }
                 j = j.wrapping_add(1);
             }
-            I_VQ.dispose.expect("non-null function pointer")(&raw mut x);
-            I_VQ.dispose.expect("non-null function pointer")(&raw mut y);
+            // `x`/`y` are plain owned locals, never moved out, so they
+            // auto-drop at the end of this block -- no explicit dispose
+            // call is needed.
         }
         jj = jj.wrapping_add(1);
     }

@@ -44,7 +44,6 @@ pub struct Point {
 pub struct PointElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut Point) -> ()>,
     pub copy: Option<unsafe extern "C" fn(*mut Point, *const Point) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut Point) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> Point>,
     pub dup: Option<unsafe extern "C" fn(Point) -> Point>,
 }
@@ -180,14 +179,6 @@ unsafe extern "C" fn copy_point(mut dst: *mut Point, mut src: *const Point) {
     I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).y, &raw const (*src).y);
     (*dst).on_curve = (*src).on_curve;
 }
-unsafe extern "C" fn dispose_point(mut p: *mut Point) {
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*p).x);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*p).y);
-}
-#[inline]
-unsafe extern "C" fn glyf_point_dispose(mut x: *mut Point) {
-    dispose_point(x);
-}
 #[inline]
 unsafe extern "C" fn glyf_point_empty() -> Point {
     let mut x: Point = Point {
@@ -214,7 +205,6 @@ pub static GLYF_I_POINT: PointElementInterface = {
         copy: Some(
             glyf_point_copy as unsafe extern "C" fn(*mut Point, *const Point) -> (),
         ),
-        dispose: Some(glyf_point_dispose as unsafe extern "C" fn(*mut Point) -> ()),
         empty: Some(glyf_point_empty),
         dup: Some(glyf_point_dup as unsafe extern "C" fn(Point) -> Point),
     }
