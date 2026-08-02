@@ -1510,9 +1510,95 @@ on the other platform before a commit is trusted.
     `LookupRef` corresponds to (a bare `as LookupRef` cast on a `Box`
     doesn't compile; comparing the two `*const Lookup`s directly does).
   - Zero behavior change otherwise, verified with the standard full
-    pipeline (build, 44 tests, ABI, byte comparison — twice on macOS —
-    round trips, issue #1 golden test) plus the new lookup-alias regression
-    test, on macOS; Linux verification and the PR are next.
+    pipeline (build, 44 tests, ABI, byte comparison, round trips, issue #1
+    golden test) plus the new lookup-alias regression test, on both macOS
+    and Linux. Merged as PR #77.
+- **`GlyfTable` → `Vec<Option<Box<Glyph>>>`, last of the group.** The other
+  three (`LangSystemList`/`FeatureList`/`LookupList`) are always
+  push-populated, so plain `Vec<Box<T>>` was enough. `GlyfTable` is
+  different: `table_glyf_create_n` pre-sizes the table to the glyph count
+  up front, and callers (CFF extraction, TrueType `glyf` parsing) fill each
+  GID in afterward by index — meaning a slot can legitimately be observed
+  unset partway through, and `consolidate_glyf` explicitly patches any GID
+  that never got filled with a fresh empty glyph. `Box<Glyph>` can never be
+  null, so the element type is `Option<Box<Glyph>>`, not `Box<Glyph>` —
+  the one place in this whole "owned pointer array" group where the
+  container shape itself had to change, not just the pointee.
+  - **`Glyph`'s `Drop` is smaller than `Lookup`'s, for the opposite reason
+    `Handle` made `Feature`/`LanguageSystem`'s small**: only `name` (sds)
+    and `instructions` (a raw `*mut u8` byte buffer) are manually torn
+    down. Everything else auto-drops correctly already —
+    `horizontal_origin`/`advance_width`/`vertical_origin`/`advance_height`
+    (`VQ`, whose own `I_VQ.dispose` is just `shift = Vec::new()`, exactly
+    what a `VQ` field drop already does for free), the four `Vec` fields
+    (`contours`/`references`/`stem_h`/`stem_v`/`hint_masks`/
+    `contour_masks`, matching the existing `Contour`/`ReferenceList`
+    comments from the earlier `glyf` PR), and `fd_select`
+    (a `Handle`, which has had a real `Drop` since the crate-wide `Handle`
+    conversion — see the Stage 6-2/6-4 investigation notes below).
+  - **The construction site keeps its C name.** Unlike `new_lookup`/
+    `new_feature`/`new_language` (all newly-private, never called outside
+    their own conversion), `otfcc_new_glyf_glyph` is called from three
+    other files (`consolidate.rs`, `table/cff.rs`, `table/glyf/read.rs`),
+    so it kept its existing name and just changed its return type from
+    `*mut Glyph` to `Box<Glyph>` — renaming would have been a pure
+    surface-area increase for no benefit.
+  - **The "returns `Box`, but the caller keeps mutating through a raw
+    pointer for the rest of the function" pattern appears three times**
+    (`table/cff.rs`'s `build_outline`, and the two `otfcc_read_*_glyph`
+    functions in `table/glyf/read.rs` that just return the finished
+    `Box<Glyph>` directly and need no split at all). `build_outline` is the
+    interesting one: it stores the glyph into the table *before* the CFF
+    charstring interpreter has finished filling it in (the interpreter
+    context holds a `*mut Glyph` it mutates incrementally as it walks the
+    charstring), so the `Box` is moved into `Some(...)` in the `Vec` slot
+    immediately, and a `*mut Glyph` taken from the same local *before* that
+    move keeps pointing at the same heap allocation afterward — moving a
+    `Box` moves only the handle, never the allocation, the same guarantee
+    `feature_index`'s pointer-identity comparison already relied on twice
+    in this migration. Assigning into an already-correctly-sized `Vec`
+    slot (`table_glyf_create_n` pre-sized it) doesn't reallocate, so this
+    is not a dangling-pointer hazard the way it would be if the `Vec`
+    itself could still grow.
+  - **A second, more subtle case of the same shape survives *inside*
+    `get_point_coordinates`/`consolidate_anchor_ref`** (`consolidate.rs`):
+    these two mutually-recursive functions resolve anchored component
+    references by walking into *other* glyphs' `references` through the
+    table and mutating `ComponentReference.is_anchored` in place (cycle
+    detection during resolution) — so, despite reading far more than they
+    write, `table: *mut GlyfTable` could not be narrowed to `*const`
+    the way `otf_writer/stat.rs`'s read-only glyph-stat functions could.
+    Confirmed by grepping the full body of both functions for `(*rr).field
+    =`-shaped assignments before deciding either way, the same
+    read-vs-write audit this whole migration has relied on at every
+    `*mut`/`*const` boundary.
+  - **`*const`/`*mut` retyping happened at roughly the same scale as the
+    `LookupList` PR**, spread across `table/glyf.rs` (dump/parse helpers —
+    `glyf_dump_glyph`, `glyf_glyph_dump_contours`/`_references`/
+    `_stemdefs`/`_maskdefs` all turned out to take `*mut` only because
+    c2rust never distinguishes const-correctness, not because anything
+    mutates), `table/glyf/build.rs`, `libcff/charstring_il.rs` (three
+    charstring-compiling functions, likewise read-only), `table/cff.rs`,
+    `consolidate.rs`, `otf_reader/unconsolidate.rs`, and
+    `otf_writer/stat.rs`. Each site's mutability was decided by grepping
+    that specific function's body for an actual field assignment through
+    the pointer, not assumed from the parameter's original C-translated
+    `mut` qualifier — `stat_single_glyph` and `name_glyph_by_hash` in
+    particular looked mutable at a glance (both take a `*mut` and touch a
+    `ComponentReference` obtained from the glyph table) but turned out to
+    only ever read through it.
+  - Zero behavior change, verified with the standard full pipeline (build,
+    44 tests, ABI, byte comparison — twice on macOS, once on Linux — round
+    trips, issue #1 golden test, plus the lookup-alias regression test)
+    on both macOS and Linux. `KRName-Regular.otf`'s CFF extraction and the
+    TrueType payloads' `glyf` read/build/consolidate paths already drive
+    every branch touched here end to end, so no synthetic payload was
+    needed. **This completes the "owned pointer array" group** (`LangSystemList`
+    → `FeatureList` → `LookupList` → `GlyfTable`) begun after PR #74;
+    `SubtableList` stays `Vec<*mut Subtable>` permanently rather than
+    joining this group, since `Subtable`'s `#[repr(C)] union` has no
+    discriminant of its own and can't be `Box`-owned without the
+    `ManuallyDrop` treatment Stage 6-1 already gave it.
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

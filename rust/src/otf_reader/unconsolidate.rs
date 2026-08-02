@@ -112,8 +112,8 @@ unsafe extern "C" fn hash_vq(buf: *mut Buffer, x: VQ) {
     }
 }
 pub unsafe extern "C" fn name_glyph_by_hash(
-    mut g: *mut Glyph,
-    mut glyf: *mut GlyfTable,
+    mut g: *const Glyph,
+    mut glyf: *const GlyfTable,
 ) -> GlyphHash {
     let buf: *mut Buffer = bufnew();
     bufwrite8(buf, 'H' as i32 as u8);
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn name_glyph_by_hash(
     for j in 0..(*g).references.len() {
         let r: *const ComponentReference = &(&(*g).references)[j];
         let mut h: GlyphHash = name_glyph_by_hash(
-            (&(*glyf))[(*r).glyph.index as usize],
+            (&(*glyf))[(*r).glyph.index as usize].as_deref().unwrap() as *const Glyph,
             glyf,
         );
         bufwrite_bytes(
@@ -253,7 +253,7 @@ unsafe extern "C" fn create_glyph_order(
         prefix = sdsempty();
     }
     for j in 0..num_glyphs {
-        let mut g: *mut Glyph = (&(*(*font).glyf))[j as usize];
+        let mut g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j as usize].as_mut().unwrap();
         if (*options).name_glyphs_by_hash {
             let h: GlyphHash = name_glyph_by_hash(g, (*font).glyf);
             let mut gname: SdsRaw = sdsempty();
@@ -398,11 +398,11 @@ unsafe extern "C" fn create_glyph_order(
         if j_1 > 1 {
             name_0 = crate::sdsbuild!(sdsempty(), prefix, b"glyph", j_1 as ::core::ffi::c_int);
         } else if j_1 == 1 {
-            if !(&(*(*font).glyf))[1 as usize].is_null()
-                && (*(&(*(*font).glyf))[1 as usize])
+            if (&(*(*font).glyf))[1 as usize].is_some()
+                && (&(*(*font).glyf))[1 as usize].as_deref().unwrap()
                 .contours
                 .is_empty()
-                && (*(&(*(*font).glyf))[1 as usize])
+                && (&(*(*font).glyf))[1 as usize].as_deref().unwrap()
                 .references
                 .is_empty()
             {
@@ -425,7 +425,7 @@ unsafe extern "C" fn name_glyphs(mut font: *mut Font, mut gord: *mut GlyphOrder)
         return;
     }
     for j in 0..(*(*font).glyf).len() as GlyphId {
-        let g: *mut Glyph = (&(*(*font).glyf))[j as usize];
+        let g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j as usize].as_mut().unwrap();
         let mut glyph_name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
         OTFCC_PKG_GLYPH_ORDER
             .name_a_field_shared
@@ -520,7 +520,7 @@ unsafe extern "C" fn merge_hmtx(font: *mut Font) {
     }
     let count_a: u32 = (*(*font).hhea).number_of_metrics as u32;
     for j in 0..(*(*font).glyf).len() as GlyphId {
-        let g: *mut Glyph = (&(*(*font).glyf))[j as usize];
+        let g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j as usize].as_mut().unwrap();
         let adw: Pos = (*(*(*font).hmtx).metrics.offset(
             (if (j as u32) < count_a {
                 j as u32
@@ -574,7 +574,7 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
         (*font).vorg = ::core::ptr::null_mut::<VorgTable>();
     }
     for j_1 in 0..(*(*font).glyf).len() as GlyphId {
-        let g: *mut Glyph = (&(*(*font).glyf))[j_1 as usize];
+        let g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j_1 as usize].as_mut().unwrap();
         let adh: Pos = (*(*(*font).vmtx).metrics.offset(
             (if (j_1 as u32) < count_a {
                 j_1 as u32
@@ -614,7 +614,7 @@ unsafe extern "C" fn merge_ltsh(font: *mut Font) {
     if !(*font).glyf.is_null() && !(*font).ltsh.is_null() {
         let n = ((*(*font).glyf).len() as GlyphId).min((*(*font).ltsh).num_glyphs);
         for j in 0..n {
-            (*(&mut (*(*font).glyf))[j as usize]).y_pel =
+            (&mut (*(*font).glyf))[j as usize].as_mut().unwrap().y_pel =
                 *(*(*font).ltsh).y_pels.offset(j as isize);
         }
     }

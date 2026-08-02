@@ -90,8 +90,8 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
     mut start: FontFilePointer,
     mut number_of_contours: ShapeId,
     mut _options: *const Options,
-) -> *mut Glyph {
-    let mut g: *mut Glyph = otfcc_new_glyf_glyph();
+) -> Box<Glyph> {
+    let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     let mut contours: *mut ContourList = &raw mut (*g).contours;
     let mut points_in_glyph: ShapeId = 0 as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
@@ -286,8 +286,8 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
 unsafe extern "C" fn otfcc_read_composite_glyph(
     mut start: FontFilePointer,
     mut options: *const Options,
-) -> *mut Glyph {
-    let mut g: *mut Glyph = otfcc_new_glyf_glyph();
+) -> Box<Glyph> {
+    let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     let mut flags: ComponentFlags = ComponentFlags::empty();
     let mut offset: u32 = 0 as u32;
     let mut glyph_has_instruction: bool = false;
@@ -455,10 +455,10 @@ unsafe extern "C" fn otfcc_read_glyph(
     mut data: FontFilePointer,
     mut offset: u32,
     mut options: *const Options,
-) -> *mut Glyph {
+) -> Box<Glyph> {
     let mut start: FontFilePointer = data.offset(offset as isize);
     let mut number_of_contours: i16 = read_16u(start as *const u8) as i16;
-    let mut g: *mut Glyph = ::core::ptr::null_mut::<Glyph>();
+    let mut g: Box<Glyph>;
     if number_of_contours as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
         g = otfcc_read_simple_glyph(
             start.offset(10 as ::core::ffi::c_int as isize),
@@ -1120,7 +1120,7 @@ unsafe extern "C" fn polymorphize(
                             shared_tuples: data.offset(be32((*header).shared_tuples_offset) as isize)
                                 as *mut F2Dot14,
                             coord_dimensions: 2 as u8,
-                            allow_iup: !(*(&(*glyf))[j as usize]).contours.is_empty(),
+                            allow_iup: !(&(*glyf))[j as usize].as_deref().unwrap().contours.is_empty(),
                             n_phantom_points: (*ctx).n_phantom_points,
                         };
                         let mut glyph_variation_data_offset: u32 = 0 as u32;
@@ -1148,7 +1148,7 @@ unsafe extern "C" fn polymorphize(
                             as *mut GlyphVariationData;
                         polymorphize_glyph(
                             j,
-                            (&(*glyf))[j as usize],
+                            &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap(),
                             &raw mut tpctx,
                             gvd,
                             options,
@@ -1311,14 +1311,13 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                                                 as isize,
                                         )
                                     {
-                                        (*glyf).push(otfcc_read_glyph(
+                                        (*glyf).push(Some(otfcc_read_glyph(
                                             data_0,
                                             *offsets.offset(j_0 as isize),
                                             options,
-                                        )
-                                            as GlyphPtr);
+                                        )));
                                     } else {
-                                        (*glyf).push(otfcc_new_glyf_glyph() as GlyphPtr);
+                                        (*glyf).push(Some(otfcc_new_glyf_glyph()));
                                     }
                                     j_0 = j_0.wrapping_add(1);
                                 }
