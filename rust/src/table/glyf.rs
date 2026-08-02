@@ -105,15 +105,13 @@ pub struct ComponentReferenceElementInterface {
     pub copy: Option<
         unsafe extern "C" fn(*mut ComponentReference, *const ComponentReference) -> (),
     >,
-    pub dispose: Option<unsafe extern "C" fn(*mut ComponentReference) -> ()>,
     pub empty: Option<unsafe extern "C" fn() -> ComponentReference>,
     pub dup: Option<unsafe extern "C" fn(ComponentReference) -> ComponentReference>,
 }
-/// A glyph's component references. Each [`ComponentReference`] owns a
-/// `GlyphHandle`, which -- by this crate's `Handle` convention -- stays
-/// `Copy` and is never auto-dropped, so unlike [`Contour`] this container
-/// still needs an explicit per-element dispose pass (see
-/// `dispose_reference_list`) before it can be dropped or cleared.
+/// A glyph's component references. Each [`ComponentReference`] embeds two
+/// `VQ`s and a `GlyphHandle`, all of which now own their allocations for
+/// real and auto-drop, so -- like [`Contour`] -- dropping/clearing this
+/// container needs no explicit per-element dispose pass.
 pub type ReferenceList = Vec<ComponentReference>;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -301,16 +299,6 @@ unsafe extern "C" fn copy_glyf_reference(
     (*dst).use_my_metrics = (*src).use_my_metrics;
 }
 #[inline]
-unsafe extern "C" fn dispose_glyf_reference(mut ref_0: *mut ComponentReference) {
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*ref_0).x);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*ref_0).y);
-    otfcc_handle_dispose(&raw mut (*ref_0).glyph);
-}
-#[inline]
-unsafe extern "C" fn glyf_component_reference_dispose(mut x: *mut ComponentReference) {
-    dispose_glyf_reference(x);
-}
-#[inline]
 unsafe extern "C" fn glyf_component_reference_dup(
     src: ComponentReference,
 ) -> ComponentReference {
@@ -394,10 +382,6 @@ pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
                     *const ComponentReference,
                 ) -> (),
         ),
-        dispose: Some(
-            glyf_component_reference_dispose
-                as unsafe extern "C" fn(*mut ComponentReference) -> (),
-        ),
         empty: Some(glyf_component_reference_empty),
         dup: Some(
             glyf_component_reference_dup
@@ -405,19 +389,12 @@ pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
         ),
     }
 };
-/// Disposes every element's `GlyphHandle` (Rust's auto-drop already frees
-/// each `ComponentReference`'s `x`/`y` `VQ` `Vec`s, but not the `Handle`,
-/// which stays `Copy` by this crate's convention) and then empties the
-/// backing `Vec` -- `*refs = Vec::new()`, not `.clear()`, so a caller that
-/// immediately `free()`s the enclosing struct doesn't leak the old
-/// allocation (see rust/README.md).
+/// Every `ComponentReference` field auto-drops now, so this is just
+/// `*refs = Vec::new()`, not `.clear()` -- a caller that immediately
+/// `free()`s the enclosing struct doesn't leak the old allocation (see
+/// rust/README.md).
 #[inline]
 unsafe fn dispose_reference_list(refs: *mut ReferenceList) {
-    for r in (*refs).iter_mut() {
-        GLYF_I_COMPONENT_REFERENCE
-            .dispose
-            .expect("non-null function pointer")(r as *mut ComponentReference);
-    }
     *refs = Vec::new();
 }
 pub unsafe extern "C" fn otfcc_new_glyf_glyph() -> *mut Glyph {

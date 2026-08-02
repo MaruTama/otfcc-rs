@@ -169,9 +169,9 @@ unsafe extern "C" fn consolidate_glyph_references(
                     b".\n",
                 ),
             );
-            GLYF_I_COMPONENT_REFERENCE
-                .dispose
-                .expect("non-null function pointer")(r as *mut ComponentReference);
+            // `retain_mut` drops rejected elements itself -- every
+            // `ComponentReference` field auto-drops -- so no explicit
+            // dispose call is needed here anymore.
         }
         ok
     });
@@ -434,9 +434,9 @@ pub unsafe extern "C" fn get_point_coordinates(
         );
         let mut success: bool =
             get_point_coordinates(table, &raw mut ref_0, n, stated, x, y, options);
-        GLYF_I_COMPONENT_REFERENCE
-            .dispose
-            .expect("non-null function pointer")(&raw mut ref_0);
+        // `ref_0` is a plain owned local; every field auto-drops when it
+        // goes out of scope here (or at the `return true` below), so no
+        // explicit dispose call is needed.
         if success {
             return true;
         }
@@ -590,16 +590,11 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
             );
         }
         (*rr).is_anchored = RefAnchorStatus::AnchorConsolidated;
-        I_VQ.dispose.expect("non-null function pointer")(&raw mut rrx);
-        I_VQ.dispose.expect("non-null function pointer")(&raw mut rry);
     }
-    GLYF_I_COMPONENT_REFERENCE
-        .dispose
-        .expect("non-null function pointer")(&raw mut rr1);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut inner_x);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut inner_y);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut outer_x);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut outer_y);
+    // `rr1`/`inner_x`/`inner_y`/`outer_x`/`outer_y` (and, in this branch,
+    // `rrx`/`rry`) are all plain owned locals that were never moved out --
+    // they auto-drop at the `return false` below, so no explicit dispose
+    // calls are needed.
     return false;
 }
 pub unsafe extern "C" fn consolidate_glyf(
@@ -642,9 +637,9 @@ pub unsafe extern "C" fn consolidate_glyf(
                 consolidate_anchor_ref((*font).glyf, &raw mut gr, rr, options);
                 r = r.wrapping_add(1);
             }
-            GLYF_I_COMPONENT_REFERENCE
-                .dispose
-                .expect("non-null function pointer")(&raw mut gr);
+            // `gr` is a plain owned local; every field auto-drops when it
+            // goes out of scope at the end of this block, so no explicit
+            // dispose call is needed.
             ___loggedstep_v = false;
             (*(*options).logger)
                 .finish
