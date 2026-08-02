@@ -13,12 +13,12 @@ use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonValue, JsonType};
 use crate::support::{NULL, TRUE_0};
-use crate::table::otl::{Feature, FeaturePtr, FeatureRef, FeatureRefList, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
+use crate::table::otl::{Feature, FeatureRef, FeatureRefList, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::json_funcs::otfcc_parse_flags;
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::support::json_ident::{json_ident};
-use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, init_feature_ptr, new_language, init_lookup_ptr, table_otl_create, table_otl_free};
+use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, new_feature, new_language, init_lookup_ptr, table_otl_create, table_otl_free};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::parse::{otl_parse_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_parse_cursive};
@@ -2715,7 +2715,12 @@ unsafe extern "C" fn figure_out_features_from_json(
                     ) as *mut FeatureHash;
                     (*s).name = sdsnew(feature_name) as *mut ::core::ffi::c_char;
                     (*s).alias = false;
-                    init_feature_ptr(&raw mut (*s).feature);
+                    // Same transient-owner shape as `LanguageHash` (see the
+                    // `Box::from_raw` where the loop below pushes it): the
+                    // uthash node holds this raw, then either the push takes
+                    // ownership back or -- for an alias node created below --
+                    // the pointer is copied without ever being freed twice.
+                    (*s).feature = Box::into_raw(new_feature());
                     (*(*s).feature).name = sdsdup((*s).name as SdsRaw);
                     otl_lookup_ref_list_replace(&raw mut (*(*s).feature).lookups, al);
                     let mut _ha_hashv: ::core::ffi::c_uint = 0;
@@ -6485,7 +6490,12 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                         as *mut FeatureHash;
                     while !s_0.is_null() {
                         if !(*s_0).alias {
-                            (*otl).features.push((*s_0).feature as FeaturePtr);
+                            // Takes ownership back from the uthash node (see
+                            // the `Box::into_raw` above); the alias node's
+                            // copy of the same pointer is never pushed and
+                            // never freed on its own, so this is the one
+                            // place `.feature` becomes owned again.
+                            (*otl).features.push(Box::from_raw((*s_0).feature));
                         }
                         let mut _hd_hh_del_0: *mut UtHashHandle = &raw mut (*s_0).hh;
                         if (*_hd_hh_del_0).prev.is_null() && (*_hd_hh_del_0).next.is_null() {
