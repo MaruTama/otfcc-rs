@@ -372,8 +372,8 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
         }
         c = c.wrapping_add(1);
     }
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut x);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut y);
+    // `x`/`y` are plain owned locals, never moved out, so they auto-drop
+    // when this function returns -- no explicit dispose call is needed.
     let mut hasmask: bool = !(*g).hint_masks.is_empty() || !(*g).contour_masks.is_empty();
     let glyph_adw_const: Pos =
         I_VQ.get_still.expect("non-null function pointer")((*g).advance_width.clone()) as Pos;

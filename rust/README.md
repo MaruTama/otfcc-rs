@@ -1273,6 +1273,42 @@ on the other platform before a commit is trusted.
   - Zero behavior change, verified with the standard full pipeline (build,
     44 tests, ABI, byte comparison — 3× on both platforms — round trips,
     issue #1 golden test).
+- **Audited the ~20 remaining `I_VQ.dispose` call sites flagged in the
+  previous PR, one ownership trace at a time.** The split turned out close
+  to even, and confirms the rule the two previous PRs established: a manual
+  dispose call is redundant exactly when the value it disposes is a plain
+  Rust-owned local or `Vec` element that's about to auto-drop anyway (scope
+  exit, function return, or a container reset via `Vec::new()`/`.clear()`),
+  and it's still load-bearing when the value is reached through a raw
+  pointer into `malloc`'d/`__caryll_allocate_clean`'d memory that gets freed
+  with a bare `free()` call — `free()` doesn't run Rust destructors, so
+  nothing else would ever free that `VQ`'s backing `Vec`.
+  - **Six sites across four files were redundant** (`libcff/charstring_il.rs`,
+    two spots in `table/cff.rs`, `table/glyf/read.rs`): all locals declared
+    with `let mut x: VQ = …` (or similar), never moved out, disposed
+    immediately before the enclosing function returns or the enclosing block
+    ends. Each pair collapses to a one-line comment; no logic changed.
+  - **Three sites are genuine and untouched**: `table/cff.rs`'s
+    `dispose_font_matrix` and `table/glyf.rs`'s `otfcc_delete_glyf_glyph`
+    both operate on a `*mut CffFontMatrix`/`*mut Glyph` that a bare `free()`
+    call follows a few lines later; `otf_writer/stat.rs`'s two call sites are
+    the same `CffFontMatrix` shape. All three are exactly the "raw pointer +
+    manual `free()`" case the rule above predicts stays necessary.
+  - **`dispose_point`/`glyf_point_dispose` turned out to be simpler than
+    either category — plain dead code**, not merely redundant: grepping for
+    `GLYF_I_POINT.dispose` and the two function names found no caller
+    anywhere (the `Contour = Vec<Point>` conversion, well before this PR
+    chain started, already noted in its own comment that no dispose loop was
+    needed for `Point`, since it owns no `Handle` — this vtable slot was
+    apparently never wired up to begin with). Deleted outright, along with
+    the `.dispose` field on `PointElementInterface` and its static
+    initializer entry — this is a vtable-reachability finding (PR #50/#51's
+    check), the different kind of thing the previous PR's `empty`/`dup` note
+    was about, turning up as a side effect of reading through every call site
+    rather than a deliberate audit of its own.
+  - Zero behavior change, verified with the standard full pipeline (build,
+    44 tests, ABI, byte comparison — 3× on both platforms — round trips,
+    issue #1 golden test).
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
