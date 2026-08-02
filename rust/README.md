@@ -1309,6 +1309,31 @@ on the other platform before a commit is trusted.
   - Zero behavior change, verified with the standard full pipeline (build,
     44 tests, ABI, byte comparison — 3× on both platforms — round trips,
     issue #1 golden test).
+- **Followed up on the previous PR's `empty`/`dup` note: `PointElementInterface`
+  and `ComponentReferenceElementInterface` both had two dead vtable fields
+  each.** Same method as PR #50/#51 — grep every `GLYF_I_POINT.<field>`/
+  `GLYF_I_COMPONENT_REFERENCE.<field>` call site (including the split-across-
+  lines form the naive same-line grep in the previous PR's investigation
+  would have missed, now checked with a small Python scan instead of `grep`)
+  and see which fields are ever actually dispatched *through the vtable*,
+  independent of whether the backing function is still called directly.
+  - **`PointElementInterface`**: `.init`/`.dup` are live (dispatched from
+    `table/cff.rs`, `table/glyf.rs`, `libcff/charstring_il.rs`); `.copy`/
+    `.empty` are not. `glyf_point_empty` has no caller at all (direct or
+    vtable) — deleted outright. `glyf_point_copy`/`copy_point` are *not*
+    deleted despite `.copy` being dead, because `glyf_point_dup` (very much
+    alive) calls `glyf_point_copy` directly — the same "field dead, backing
+    function alive by direct call" split this whole PR series keeps finding.
+  - **`ComponentReferenceElementInterface`**: `.init`/`.empty` are live
+    (`otf_writer/stat.rs`, `consolidate.rs`, `table/glyf/read.rs`); `.copy`/
+    `.dup` are not, and — unlike `Point` — nothing calls
+    `glyf_component_reference_dup` directly either, so the whole chain
+    (`glyf_component_reference_dup` → `glyf_component_reference_copy` →
+    `copy_glyf_reference`) is genuinely dead and all three were deleted, not
+    just the vtable fields.
+  - Zero behavior change, verified with the standard full pipeline (build,
+    44 tests, ABI, byte comparison — 3× on both platforms — round trips,
+    issue #1 golden test).
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

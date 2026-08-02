@@ -8,7 +8,7 @@ unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{HandleState, handle_from_name, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose, otfcc_handle_empty};
+use crate::support::handle::{HandleState, handle_from_name, FdHandle, GlyphHandle, Handle, otfcc_handle_dispose, otfcc_handle_empty};
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{ILogger};
@@ -43,8 +43,6 @@ pub struct Point {
 #[repr(C)]
 pub struct PointElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut Point) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut Point, *const Point) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> Point>,
     pub dup: Option<unsafe extern "C" fn(Point) -> Point>,
 }
 /// A single outline contour, owned point-by-point. Plain `Vec<Point>`: every
@@ -101,11 +99,7 @@ pub struct ComponentReference {
 #[repr(C)]
 pub struct ComponentReferenceElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut ComponentReference) -> ()>,
-    pub copy: Option<
-        unsafe extern "C" fn(*mut ComponentReference, *const ComponentReference) -> (),
-    >,
     pub empty: Option<unsafe extern "C" fn() -> ComponentReference>,
-    pub dup: Option<unsafe extern "C" fn(ComponentReference) -> ComponentReference>,
 }
 /// A glyph's component references. Each [`ComponentReference`] embeds two
 /// `VQ`s and a `GlyphHandle`, all of which now own their allocations for
@@ -180,32 +174,12 @@ unsafe extern "C" fn copy_point(mut dst: *mut Point, mut src: *const Point) {
     (*dst).on_curve = (*src).on_curve;
 }
 #[inline]
-unsafe extern "C" fn glyf_point_empty() -> Point {
-    let mut x: Point = Point {
-        x: VQ {
-            kernel: 0.,
-            shift: Vec::new(),
-        },
-        y: VQ {
-            kernel: 0.,
-            shift: Vec::new(),
-        },
-        on_curve: 0,
-    };
-    glyf_point_init(&raw mut x);
-    return x;
-}
-#[inline]
 unsafe extern "C" fn glyf_point_init(mut x: *mut Point) {
     create_point(x);
 }
 pub static GLYF_I_POINT: PointElementInterface = {
     PointElementInterface {
         init: Some(glyf_point_init as unsafe extern "C" fn(*mut Point) -> ()),
-        copy: Some(
-            glyf_point_copy as unsafe extern "C" fn(*mut Point, *const Point) -> (),
-        ),
-        empty: Some(glyf_point_empty),
         dup: Some(glyf_point_dup as unsafe extern "C" fn(Point) -> Point),
     }
 };
@@ -268,64 +242,6 @@ unsafe extern "C" fn init_glyf_reference(mut ref_0: *mut ComponentReference) {
     (*ref_0).round_to_grid = false;
     (*ref_0).use_my_metrics = false;
 }
-unsafe extern "C" fn copy_glyf_reference(
-    mut dst: *mut ComponentReference,
-    mut src: *const ComponentReference,
-) {
-    I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).x, &raw const (*src).x);
-    I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).y, &raw const (*src).y);
-    otfcc_handle_copy(
-        &raw mut (*dst).glyph,
-        &raw const (*src).glyph,
-    );
-    (*dst).a = (*src).a;
-    (*dst).b = (*src).b;
-    (*dst).c = (*src).c;
-    (*dst).d = (*src).d;
-    (*dst).is_anchored = (*src).is_anchored;
-    (*dst).inner = (*src).inner;
-    (*dst).outer = (*src).outer;
-    (*dst).round_to_grid = (*src).round_to_grid;
-    (*dst).use_my_metrics = (*src).use_my_metrics;
-}
-#[inline]
-unsafe extern "C" fn glyf_component_reference_dup(
-    src: ComponentReference,
-) -> ComponentReference {
-    let mut dst: ComponentReference = ComponentReference {
-        x: VQ {
-            kernel: 0.,
-            shift: Vec::new(),
-        },
-        y: VQ {
-            kernel: 0.,
-            shift: Vec::new(),
-        },
-        round_to_grid: false,
-        use_my_metrics: false,
-        glyph: Handle {
-            state: HandleState::Empty,
-            index: 0,
-            name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-        },
-        a: 0.,
-        b: 0.,
-        c: 0.,
-        d: 0.,
-        is_anchored: RefAnchorStatus::Xy,
-        inner: 0,
-        outer: 0,
-    };
-    glyf_component_reference_copy(&raw mut dst, &raw const src);
-    return dst;
-}
-#[inline]
-unsafe extern "C" fn glyf_component_reference_copy(
-    mut dst: *mut ComponentReference,
-    mut src: *const ComponentReference,
-) {
-    copy_glyf_reference(dst, src);
-}
 #[inline]
 unsafe extern "C" fn glyf_component_reference_empty() -> ComponentReference {
     let mut x: ComponentReference = ComponentReference {
@@ -365,18 +281,7 @@ pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
             glyf_component_reference_init
                 as unsafe extern "C" fn(*mut ComponentReference) -> (),
         ),
-        copy: Some(
-            glyf_component_reference_copy
-                as unsafe extern "C" fn(
-                    *mut ComponentReference,
-                    *const ComponentReference,
-                ) -> (),
-        ),
         empty: Some(glyf_component_reference_empty),
-        dup: Some(
-            glyf_component_reference_dup
-                as unsafe extern "C" fn(ComponentReference) -> ComponentReference,
-        ),
     }
 };
 /// Every `ComponentReference` field auto-drops now, so this is just
