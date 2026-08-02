@@ -1382,6 +1382,47 @@ on the other platform before a commit is trusted.
     `GlyfTable`): each is bigger than this one and, unlike `LanguageSystem`,
     their elements own further containers — so they want the same
     one-container-at-a-time treatment rather than a sweep.
+- **`FeatureList` → `Vec<Box<Feature>>`, second of the group.** Chosen next
+  because `Feature` turned out to be structurally identical to
+  `LanguageSystem` — one owned `sds` name plus a `Vec` of *borrowed*
+  references (`LookupRefList` here, `FeatureRefList` there) — so the same
+  `Drop` impl, the same `new_T() -> Box<T>` constructor shape, and the same
+  `otl_T_list_dispose` → `*arr = Vec::new()` collapse all applied unchanged.
+  - **One new wrinkle `LanguageSystem` didn't have: feature *aliasing*.**
+    `parse.rs`'s hash-dedup pass can register the same `Feature` allocation
+    under two different JSON keys — a real entry (`alias: false`) and an
+    alias entry (`alias: true`) that copies the same `*mut Feature` into a
+    second `FeatureHash` node without taking ownership. Verified before
+    touching anything that the push loop only transfers ownership
+    (`Box::from_raw`) for the non-alias node, and that neither node's
+    teardown path ever touches `.feature` directly (only `.name`/the node
+    itself) — so the alias node's copy is safely discarded, never freed
+    twice. Same transient-owner treatment as `LanguageHash`: `.feature`
+    stays a raw `*mut Feature`, `Box::into_raw` at construction,
+    `Box::from_raw` at the one push site.
+  - **`feature_is_not_empty`'s signature drops a level of indirection**
+    (`*const FeaturePtr` → `*const Feature`) along with the null check that
+    went with it — a `Box<Feature>` inside the `Vec` can never be null, so
+    the check `!(*r_feat).is_null()` (testing the *pointee*-of-the-pointee
+    for null) had nothing left to test.
+  - **`feature_index`'s pointer-identity comparison stays valid** across the
+    `Vec<*mut Feature>` → `Vec<Box<Feature>>` change: a `Box`'s heap address
+    doesn't move when the `Vec` reallocates (only the `Box` handle itself
+    does), so `&raw const *element == feature` compares the same addresses
+    the old raw-pointer equality did.
+  - **A pre-existing leak on three early-return paths disappears for free**:
+    `otfcc_read_otl_common`'s feature-parsing loop constructs a `feature`
+    before the length checks that can still `break` out of the loop early
+    without reaching the `.push()` — in C (and in the untouched `*mut`
+    version), that allocation was never freed. With `feature: Box<Feature>`,
+    an early `break` now drops it automatically at scope exit. Unobservable
+    in output bytes (leaks never are), same category as `shrink_coverage`'s
+    `Vec::truncate` fix earlier in this migration.
+  - Zero behavior change otherwise, verified with the standard full pipeline
+    (build, 44 tests, ABI, byte comparison — 3× on both platforms — round
+    trips, issue #1 golden test). `NotoNastaliqUrdu-Regular.ttf` drives
+    feature/lookup reading, consolidation, dumping and building end to end,
+    so no synthetic payload was needed.
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

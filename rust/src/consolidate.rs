@@ -41,7 +41,7 @@ use crate::table::glyf::{RefAnchorStatus, ComponentReference, Glyph, GlyphPtr, P
 
 
 
-use crate::table::otl::{Feature, FeaturePtr, FeatureRef, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, ChainingSubtable, GposCursiveSubtable, GposMarkToLigatureSubtable, GposMarkToSingleSubtable, GposPairSubtable, GposSingleSubtable, GsubLigatureSubtable, GsubMultiSubtable, GsubReverseSubtable, GsubSingleSubtable, OtlTable};
+use crate::table::otl::{Feature, FeatureRef, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, ChainingSubtable, GposCursiveSubtable, GposMarkToLigatureSubtable, GposMarkToSingleSubtable, GposPairSubtable, GposSingleSubtable, GsubLigatureSubtable, GsubMultiSubtable, GsubReverseSubtable, GsubSingleSubtable, OtlTable};
 use crate::table::otl::classdef::{ClassDef};
 
 
@@ -1108,10 +1108,10 @@ unsafe extern "C" fn lookup_is_not_empty(
     return !r_lut.is_null() && !(*r_lut).is_null() && !(**r_lut).subtables.is_empty();
 }
 unsafe extern "C" fn feature_is_not_empty(
-    mut r_feat: *const FeaturePtr,
+    mut r_feat: *const Feature,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
-    return !r_feat.is_null() && !(*r_feat).is_null() && !(**r_feat).lookups.is_empty();
+    return !r_feat.is_null() && !(*r_feat).lookups.is_empty();
 }
 unsafe extern "C" fn consolidate_otl_table(
     mut font: *mut Font,
@@ -1136,7 +1136,7 @@ unsafe extern "C" fn consolidate_otl_table(
         }
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*table).features.len() {
-            let feature: *mut Feature = (&(*table).features)[j_0 as usize];
+            let feature: *mut Feature = &raw mut *(&mut (*table).features)[j_0 as usize];
             otl_lookup_ref_list_filter_env(
                 &raw mut (*feature).lookups,
                 Some(
@@ -1179,7 +1179,7 @@ unsafe extern "C" fn consolidate_otl_table(
             Some(
                 feature_is_not_empty
                     as unsafe extern "C" fn(
-                        *const FeaturePtr,
+                        *const Feature,
                         *mut ::core::ffi::c_void,
                     ) -> bool,
             ),

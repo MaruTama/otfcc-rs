@@ -391,9 +391,23 @@ pub struct Feature {
     pub name: SdsRaw,
     pub lookups: LookupRefList,
 }
+/// `lookups: LookupRefList` (`Vec<LookupRef>`) needs no help -- it holds
+/// only *borrowed* `*const Lookup`s into `OtlTable.lookups`, so its own drop
+/// glue is enough. `name` is the only allocation `Feature` owns.
+impl Drop for Feature {
+    fn drop(&mut self) {
+        if !self.name.is_null() {
+            unsafe {
+                sdsfree(self.name);
+            }
+            self.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
+        }
+    }
+}
 pub type FeaturePtr = *mut Feature;
-// 所有するポインタ配列。
-pub type FeatureList = Vec<FeaturePtr>;
+// Stage 6-4, second of the "owned pointer array" group -- see
+// `LangSystemList`/`new_language` for the shape and rationale.
+pub type FeatureList = Vec<Box<Feature>>;
 pub type FeatureRef = *const Feature;
 // 所有しない参照配列（`FeatureList` の要素を指すだけ）。
 pub type FeatureRefList = Vec<FeatureRef>;
@@ -597,55 +611,46 @@ pub(crate) unsafe fn otl_lookup_ref_list_filter_env(
     (*arr).retain(|&item| fn_0.expect("non-null function pointer")(&item as *const LookupRef, env));
 }
 // `.replace`の唯一の呼び出し箇所(`table/otl/parse.rs`)は毎回、直前に
-// `init_feature_ptr`で作った空のdestに対して呼ばれる——単純な move-assign
+// `new_feature`で作った空のdestに対して呼ばれる——単純な move-assign
 // で置き換え可能（旧`dispose`+`memcpy`と等価、Rustの代入が古い値を
 // 正しくドロップする）。
 pub(crate) unsafe fn otl_lookup_ref_list_replace(dst: *mut LookupRefList, src: LookupRefList) {
     *dst = src;
 }
+/// Same shape as `new_language`: `Box` is the allocation, the struct
+/// literal is the zero-init the old `__caryll_allocate_clean` provided.
 #[inline]
-pub(crate) unsafe fn init_feature_ptr(feature: *mut FeaturePtr) {
-    *feature = __caryll_allocate_clean(
-        ::core::mem::size_of::<Feature>() as usize,
-        61 as ::core::ffi::c_ulong,
-    ) as FeaturePtr;
-    (**feature).lookups = Vec::new();
-}
-#[inline]
-pub(crate) unsafe fn dispose_feature_ptr(feature: *mut FeaturePtr) {
-    if (*feature).is_null() {
-        return;
-    }
-    if !(**feature).name.is_null() {
-        sdsfree((**feature).name);
-    }
-    otl_lookup_ref_list_dispose(&raw mut (**feature).lookups);
-    free(*feature as *mut ::core::ffi::c_void);
-    *feature = ::core::ptr::null_mut::<Feature>();
+pub(crate) fn new_feature() -> Box<Feature> {
+    Box::new(Feature {
+        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        lookups: Vec::new(),
+    })
 }
 // `FeaturePtr`単体の`.copy`(生ポインタmemcpy)は`FeatureList`の死んだ
 // `.copy`からしか呼ばれておらず削除。
 // テーブル全体の`.copy`（死んでいる）は削除。`.dispose`は`dispose_otl`から
 // 生存（`SubtableList`/`LookupList`と同じ理由でフルドロップ）。
+//
+// 要素が `Box<Feature>` になったので、per-element の dispose ループは不要:
+// `Vec` の drop glue が各 `Box` を解放し、`Feature::drop` が `name` を
+// `sdsfree` する。
 pub(crate) unsafe fn otl_feature_list_dispose(arr: *mut FeatureList) {
     if arr.is_null() {
         return;
-    }
-    for feature in (*arr).iter_mut() {
-        dispose_feature_ptr(feature as *mut FeaturePtr);
     }
     *arr = Vec::new();
 }
 pub(crate) unsafe fn otl_feature_list_filter_env(
     arr: *mut FeatureList,
-    fn_0: Option<unsafe extern "C" fn(*const FeaturePtr, *mut ::core::ffi::c_void) -> bool>,
+    fn_0: Option<unsafe extern "C" fn(*const Feature, *mut ::core::ffi::c_void) -> bool>,
     env: *mut ::core::ffi::c_void,
 ) {
-    (*arr).retain(|&item| {
-        if fn_0.expect("non-null function pointer")(&item as *const FeaturePtr, env) {
+    (*arr).retain(|item| {
+        if fn_0.expect("non-null function pointer")(&raw const **item, env) {
             true
         } else {
-            dispose_feature_ptr(&item as *const FeaturePtr as *mut FeaturePtr);
+            // Rejected: `retain` drops `*item` itself (a `Box<Feature>`),
+            // which frees `name` -- no explicit dispose call needed.
             false
         }
     });

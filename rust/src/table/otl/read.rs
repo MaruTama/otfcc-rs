@@ -10,8 +10,8 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::sds::{Byte, Dec5, Hex2};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
-use crate::table::otl::{Feature, FeatureList, FeaturePtr, FeatureRef, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
-use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_subtable_list_dispose_dependent, init_feature_ptr, new_language, init_lookup_ptr, table_otl_create, table_otl_free};
+use crate::table::otl::{Feature, FeatureList, FeatureRef, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
+use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_subtable_list_dispose_dependent, new_feature, new_language, init_lookup_ptr, table_otl_create, table_otl_free};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
 use crate::table::otl::subtables::extend::{otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend};
@@ -137,7 +137,7 @@ unsafe extern "C" fn parse_language(
                 .offset(2 as ::core::ffi::c_int as isize) as *const u8,
         ) as TableId;
         if (rid as usize) < (*features).len() {
-            (*lang).required_feature = (&(*features))[rid as usize] as FeatureRef;
+            (*lang).required_feature = &raw const *(&(*features))[rid as usize] as FeatureRef;
         } else {
             (*lang).required_feature = ::core::ptr::null::<Feature>();
         }
@@ -154,7 +154,7 @@ unsafe extern "C" fn parse_language(
                     as *const u8,
             ) as TableId;
             if (feature_index as usize) < (*features).len() {
-                (*lang).features.push((&(*features))[feature_index as usize] as FeatureRef);
+                (*lang).features.push(&raw const *(&(*features))[feature_index as usize] as FeatureRef);
             }
             j = j.wrapping_add(1);
         }
@@ -250,9 +250,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                 current_block = 13460095289871124136;
                                                 break;
                                             }
-                                            let mut feature: *mut Feature =
-                                                ::core::ptr::null_mut::<Feature>();
-                                            init_feature_ptr(&raw mut feature);
+                                            let mut feature: Box<Feature> = new_feature();
                                             let mut tag: u32 = read_32u(
                                                 data.offset(feature_list_offset as isize)
                                                     .offset(2 as ::core::ffi::c_int as isize)
@@ -388,7 +386,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                 }
                                                 k = k.wrapping_add(1);
                                             }
-                                            (*table).features.push(feature as FeaturePtr);
+                                            (*table).features.push(feature);
                                             j_0 = j_0.wrapping_add(1);
                                         }
                                         match current_block {

@@ -13,7 +13,7 @@ use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SdsRaw};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::{NULL};
-use crate::table::otl::{Feature, FeaturePtr, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable};
+use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
@@ -388,7 +388,7 @@ unsafe extern "C" fn get_lookup_heuristics(
     {
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*table).features.len() {
-            let fea: *const Feature = (&(*table).features)[j as usize];
+            let fea: *const Feature = &raw const *(&(*table).features)[j as usize];
             if !(feature_name_to_tag((*fea).name) != 1986359924i32 as u32) {
                 let mut k: TableId = 0 as TableId;
                 while (k as usize) < (*fea).lookups.len() {
@@ -600,7 +600,7 @@ unsafe extern "C" fn feature_index(
 ) -> TableId {
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).features.len() {
-        if (&(*table).features)[j as usize] == feature as FeaturePtr {
+        if &raw const *(&(*table).features)[j as usize] == feature {
             return j;
         }
         j = j.wrapping_add(1);

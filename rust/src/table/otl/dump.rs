@@ -250,7 +250,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
             let mut features_0: *mut JsonValue = json_object_new((*table).features.len());
             let mut j_0: TableId = 0 as TableId;
             while (j_0 as usize) < (*table).features.len() {
-                let feature: *mut Feature = (&(*table).features)[j_0 as usize];
+                let feature: *const Feature = &raw const *(&(*table).features)[j_0 as usize];
                 let mut _feature: *mut JsonValue = json_array_new((*feature).lookups.len());
                 let mut k_0: TableId = 0 as TableId;
                 while (k_0 as usize) < (*feature).lookups.len() {
