@@ -15,5 +15,6 @@ cd "$(dirname "$0")/../.."
 
 ./rust/scripts/build-crate.sh
 ./rust/scripts/check-abi.sh
+./rust/scripts/compare-with-golden.sh
 ./rust/scripts/run-cycles.sh
 ./rust/scripts/test-lookup-alias.sh

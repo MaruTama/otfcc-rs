@@ -5,6 +5,14 @@
 # (rust/target/release/), byte-for-byte, on the same canonical input JSON for
 # each payload.
 #
+# NOT part of CI anymore (see .github/workflows/rust.yml and
+# rust/scripts/compare-with-golden.sh): CI checks the Rust build against the
+# frozen fixtures under tests/golden/ instead, which no longer requires c/ to
+# be present or buildable. This script is kept as a manual, on-demand way to
+# re-confirm Rust matches C -- most usefully right before running
+# rust/scripts/generate-golden.sh to refresh those fixtures after a
+# legitimate, intentionally-C-matching output change.
+#
 # Must run AFTER the Rust crate has been built (cargo build --release) and
 # on the SAME architecture as that build, so both binaries' outputs are
 # directly comparable without any cross-arch ambiguity.
@@ -72,10 +80,10 @@ CFF_PAYLOADS="KRName-Regular"
 # otfccdump stack-overflow on them (a pre-existing bug in the C CFF
 # interpreter — see rust/README.md), unrelated to this comparison.
 
-# Optional: the gvar (variable-font) payload from make-test-variable-font.py.
-# Needs fontTools, so it's generated as a separate CI step rather than always
-# required; skip if it wasn't generated.
-GVAR_PAYLOAD="build/gvar-test.ttf"
+# A frozen fixture (tests/payload/gvar-test.ttf, originally produced by
+# make-test-variable-font.py); see the comment in compare-with-golden.sh
+# for why it is committed rather than regenerated via fontTools here.
+GVAR_PAYLOAD="tests/payload/gvar-test.ttf"
 
 fail=0
 
