@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Compares the built Rust crate's output against frozen "golden" fixtures
-# under tests/golden/, byte-for-byte -- instead of rebuilding the C
+# Compares the built Rust crate's output against tests/golden/checksums.sha256
+# -- SHA-256 hashes of frozen "golden" output -- instead of rebuilding the C
 # toolchain from source and comparing against that on every run.
 #
-# The golden fixtures were captured from the Rust build at a point where
+# The golden checksums were captured from the Rust build at a point where
 # rust/scripts/compare-with-c.sh had just confirmed it byte-identical to C
 # on every payload (see rust/README.md for when and how); they are C's
 # approval, frozen. This script re-validates the crate against that frozen
@@ -11,16 +11,21 @@
 # c/ can now fall behind, be archived, or be removed without losing the
 # regression safety net compare-with-c.sh used to provide.
 #
+# Hashes, not the dump JSON / build output files themselves: see the header
+# of generate-golden.sh for why (repo size). tests/golden/dll-test.otf is
+# the one exception, kept as a real file -- also explained there.
+#
 # If a change *legitimately* alters output (a real bug fix, a new feature),
-# regenerate the fixtures this script checks against with
+# regenerate the checksums this script checks against with
 # rust/scripts/generate-golden.sh and commit the result alongside the
-# change that motivated it -- don't hand-edit files under tests/golden/.
+# change that motivated it -- don't hand-edit tests/golden/checksums.sha256.
 #
 # Must run AFTER the Rust crate has been built (cargo build --release).
 #
 # Invoke as: ./rust/scripts/compare-with-golden.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+. rust/scripts/sha256-of.sh
 
 RUST_BIN=rust/target/release
 if [ ! -x "${RUST_BIN}/otfccdump" ] || [ ! -x "${RUST_BIN}/otfccbuild" ]; then
@@ -29,15 +34,45 @@ if [ ! -x "${RUST_BIN}/otfccdump" ] || [ ! -x "${RUST_BIN}/otfccbuild" ]; then
 fi
 
 GOLDEN=tests/golden
+CHECKSUMS="${GOLDEN}/checksums.sha256"
 BUILD=build/compare-with-golden
 mkdir -p "${BUILD}"
 
 fail=0
 
-# Dumps `in` and compares against tests/golden/${name}.json, then builds
-# from the GOLDEN json (not the just-produced dump, so a dump regression
-# and a build regression are reported independently) and compares against
-# tests/golden/${name}.${ext}.
+golden_hash_of() {
+	# golden_hash_of <label> -- prints the recorded hash, or nothing (and a
+	# script-fatal message) if the label isn't in the manifest at all,
+	# which means generate-golden.sh needs to be run, not that the payload
+	# legitimately has no expectation.
+	local label="$1" hash
+	hash=$(awk -v l="${label}" '$2==l{print $1; found=1} END{exit !found}' "${CHECKSUMS}") || {
+		echo "ERROR: no golden checksum recorded for '${label}' -- run rust/scripts/generate-golden.sh" >&2
+		exit 1
+	}
+	printf '%s' "${hash}"
+}
+
+check() {
+	# check <file> <label> <description> -- hashes `file` and compares
+	# against the golden checksum recorded for `label`.
+	local file="$1" label="$2" desc="$3" want got
+	want="$(golden_hash_of "${label}")"
+	got="$(sha256_of "${file}")"
+	if [ "${want}" = "${got}" ]; then
+		echo "PASS  ${desc}: matches golden checksum"
+	else
+		echo "FAIL  ${desc}: does not match golden checksum"
+		fail=1
+	fi
+}
+
+# Dumps `in` and checks against the golden ${name}.json checksum, then
+# builds from the GOLDEN json (not the just-produced dump, so a dump
+# regression and a build regression are reported independently) and checks
+# against the golden ${name}.${ext} checksum. The build step needs the
+# dump's actual bytes as input, not just its hash, so it re-dumps rather
+# than trying to reuse a hash-verified-but-discarded copy.
 compare_payload() {
 	local name="$1" ext="$2" in="$3"
 
@@ -45,28 +80,20 @@ compare_payload() {
 	if ! "${RUST_BIN}/otfccdump" "${in}" -o "${BUILD}/${name}.json" --pretty; then
 		echo "FAIL  ${name} dump: Rust otfccdump exited non-zero"
 		fail=1
-	elif cmp -s "${GOLDEN}/${name}.json" "${BUILD}/${name}.json"; then
-		echo "PASS  ${name} dump: byte-identical to golden"
-	else
-		echo "FAIL  ${name} dump: differs from golden ($(cmp -l "${GOLDEN}/${name}.json" "${BUILD}/${name}.json" 2>/dev/null | wc -l) bytes)"
-		fail=1
+		return
 	fi
+	check "${BUILD}/${name}.json" "${name}.json" "${name} dump"
 
 	rm -f "${BUILD}/${name}.${ext}"
-	if ! "${RUST_BIN}/otfccbuild" "${GOLDEN}/${name}.json" -o "${BUILD}/${name}.${ext}" --keep-average-char-width --keep-modified-time; then
+	if ! "${RUST_BIN}/otfccbuild" "${BUILD}/${name}.json" -o "${BUILD}/${name}.${ext}" --keep-average-char-width --keep-modified-time; then
 		echo "FAIL  ${name}.${ext}: Rust otfccbuild exited non-zero"
 		fail=1
 		return
 	fi
-	if cmp -s "${GOLDEN}/${name}.${ext}" "${BUILD}/${name}.${ext}"; then
-		echo "PASS  ${name}.${ext}: byte-identical to golden"
-	else
-		echo "FAIL  ${name}.${ext}: differs from golden ($(cmp -l "${GOLDEN}/${name}.${ext}" "${BUILD}/${name}.${ext}" 2>/dev/null | wc -l) bytes)"
-		fail=1
-	fi
+	check "${BUILD}/${name}.${ext}" "${name}.${ext}" "${name}.${ext}"
 }
 
-echo "==> Comparing Rust output against frozen golden fixtures (tests/golden/)"
+echo "==> Comparing Rust output against golden checksums (tests/golden/checksums.sha256)"
 compare_payload NotoNastaliqUrdu-Regular ttf tests/payload/NotoNastaliqUrdu-Regular.ttf
 compare_payload iosevka-r ttf tests/payload/iosevka-r.ttf
 compare_payload BungeeColor-Regular_colr_Windows ttf tests/payload/BungeeColor-Regular_colr_Windows.ttf
@@ -91,21 +118,17 @@ if command -v python3 >/dev/null 2>&1; then
 	if ! "${RUST_BIN}/otfccdump" "${UNKNOWN_LOOKUP}" -o "${BUILD}/unknown-lookup.json" --pretty; then
 		echo "FAIL  unknown-lookup dump: Rust otfccdump exited non-zero"
 		fail=1
-	elif cmp -s "${GOLDEN}/unknown-lookup.json" "${BUILD}/unknown-lookup.json"; then
-		echo "PASS  unknown-lookup dump: byte-identical to golden"
 	else
-		echo "FAIL  unknown-lookup dump: differs from golden ($(cmp -l "${GOLDEN}/unknown-lookup.json" "${BUILD}/unknown-lookup.json" 2>/dev/null | wc -l) bytes)"
-		fail=1
+		check "${BUILD}/unknown-lookup.json" "unknown-lookup.json" "unknown-lookup dump"
 	fi
 else
 	echo "  (skipping unknown-lookup: python3 not found)"
 fi
 
 # meta-test / vdmx-test: the synthetic input JSON is regenerated fresh each
-# run (both generator scripts are pure byte-patchers over the golden
-# iosevka-r.json, no wall-clock input, so this is deterministic) and then
-# build + dump-of-build are compared against golden the same as any other
-# payload.
+# run (both generator scripts are pure byte-patchers over the iosevka-r
+# dump, no wall-clock input, so this is deterministic) and then build +
+# dump-of-build are checked against golden the same as any other payload.
 synth_payload() {
 	local name="$1" maker="$2"
 	if ! command -v python3 >/dev/null 2>&1; then
@@ -113,7 +136,7 @@ synth_payload() {
 		return
 	fi
 	local input="${BUILD}/${name}-input.json"
-	python3 "${maker}" "${GOLDEN}/iosevka-r.json" "${input}"
+	python3 "${maker}" "${BUILD}/iosevka-r.json" "${input}"
 
 	rm -f "${BUILD}/${name}.ttf"
 	if ! "${RUST_BIN}/otfccbuild" "${input}" -o "${BUILD}/${name}.ttf" --keep-average-char-width --keep-modified-time; then
@@ -121,22 +144,14 @@ synth_payload() {
 		fail=1
 		return
 	fi
-	if cmp -s "${GOLDEN}/${name}.ttf" "${BUILD}/${name}.ttf"; then
-		echo "PASS  ${name}.ttf: byte-identical to golden"
-	else
-		echo "FAIL  ${name}.ttf: differs from golden ($(cmp -l "${GOLDEN}/${name}.ttf" "${BUILD}/${name}.ttf" 2>/dev/null | wc -l) bytes)"
-		fail=1
-	fi
+	check "${BUILD}/${name}.ttf" "${name}.ttf" "${name}.ttf"
 
 	rm -f "${BUILD}/${name}.dump.json"
 	if ! "${RUST_BIN}/otfccdump" "${BUILD}/${name}.ttf" -o "${BUILD}/${name}.dump.json" --pretty; then
 		echo "FAIL  ${name} dump: Rust otfccdump exited non-zero"
 		fail=1
-	elif cmp -s "${GOLDEN}/${name}.dump.json" "${BUILD}/${name}.dump.json"; then
-		echo "PASS  ${name} dump: byte-identical to golden"
 	else
-		echo "FAIL  ${name} dump: differs from golden ($(cmp -l "${GOLDEN}/${name}.dump.json" "${BUILD}/${name}.dump.json" 2>/dev/null | wc -l) bytes)"
-		fail=1
+		check "${BUILD}/${name}.dump.json" "${name}.dump.json" "${name} dump"
 	fi
 }
 synth_payload meta-test rust/scripts/make-test-meta.py
@@ -164,9 +179,11 @@ elif [ -f "${DLL_RUST}" ]; then
 	# handful of timestamp bytes even from perfectly correct output. Use a
 	# fixed cap instead, generous enough for every timestamp/checksum field
 	# in the format (created + modified LONGDATETIMEs, checkSumAdjustment)
-	# to differ, but far too small for any real structural difference.
+	# to differ, but far too small for any real structural difference. This
+	# is also why dll-test.otf is a real committed file, not a checksum --
+	# a hash can't express "close enough".
 	TOLERANCE=32
-	python3 "$(dirname "$0")/test-dll.py" "${DLL_RUST}" "${GOLDEN}/Molengo-Regular.json" "${BUILD}/dll-rust-1.otf"
+	python3 "$(dirname "$0")/test-dll.py" "${DLL_RUST}" "${BUILD}/Molengo-Regular.json" "${BUILD}/dll-rust-1.otf"
 	golden_diff=$( (cmp -l "${GOLDEN}/dll-test.otf" "${BUILD}/dll-rust-1.otf" 2>/dev/null || true) | wc -l | tr -d ' ')
 	if [ "${golden_diff}" -le "${TOLERANCE}" ]; then
 		echo "PASS  otfccdll: matches golden (differs in ${golden_diff} bytes, within the ${TOLERANCE}-byte timestamp tolerance)"
@@ -179,7 +196,7 @@ else
 fi
 
 if [ "${fail}" -ne 0 ]; then
-	echo "==> FAILED: at least one payload's Rust output differs from the golden fixtures" >&2
+	echo "==> FAILED: at least one payload's Rust output differs from the golden checksums" >&2
 	exit 1
 fi
-echo "==> All payloads byte-identical to the golden fixtures"
+echo "==> All payloads match the golden checksums"

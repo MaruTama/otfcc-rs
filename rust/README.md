@@ -2486,12 +2486,40 @@ on the other platform before a commit is trusted.
     synthetic `unknown-lookup`/`meta-test`/`vdmx-test` payloads, and the
     `otfccdll` cdylib), the dump JSON and build output that `compare-with-c.sh`
     had just finished confirming byte-identical to C (PR #78's full-pipeline
-    run, both platforms) are committed under `tests/golden/` as the new
-    expected values. `rust/scripts/compare-with-golden.sh` reproduces the
-    exact same dump→build comparisons `compare-with-c.sh` did, just against
-    those committed files instead of a freshly built C binary — CI no longer
-    installs clang, builds `c/`, or needs `c/` checked out at all. The CI
-    workflow's `paths:` trigger dropped `c/**` accordingly.
+    run, both platforms) are hashed (SHA-256) into
+    `tests/golden/checksums.sha256`. `rust/scripts/compare-with-golden.sh`
+    reproduces the exact same dump→build comparisons `compare-with-c.sh`
+    did, hashing its own freshly-produced output and checking it against
+    the recorded checksum, instead of `cmp`-ing against a freshly built C
+    binary — CI no longer installs clang, builds `c/`, or needs `c/`
+    checked out at all. The CI workflow's `paths:` trigger dropped `c/**`
+    accordingly.
+  - **Checksums, not committed files, after a first pass committed the
+    actual output and the size didn't sit right.** The first version of
+    this PR committed the dump JSON and build output directly (the same
+    shape `tests/payload/*.json` already uses for fixtures) — correct, but
+    ~28MB, almost all of it one payload's pretty-printed dump
+    (`NotoNastaliqUrdu-Regular.json` alone was 14MB). A hash is exactly as
+    good at detecting "this changed" as the full bytes are: nothing here
+    needs the *content* of a stored golden file, only whether a freshly
+    produced one matches it, and equality-of-hash is exactly that
+    question. Re-thought after being asked directly whether the committed
+    files were actually necessary — they weren't; `tests/golden/` is 68KB
+    now. Two follow-on effects of dropping the content: (1) the *build*
+    step needs real input bytes, not a hash, so `compare-with-golden.sh`
+    re-dumps the payload itself (already hash-checked a moment earlier)
+    and builds from that, rather than reading a golden JSON file that no
+    longer exists; (2) `generate-golden.sh`'s review step changed from
+    `git diff --stat tests/golden/` (see *which files* moved) to
+    `git diff tests/golden/checksums.sha256` (see *which labels'* hashes
+    moved) — a hash diff can't show *what* changed the way a content diff
+    could, so the header comment now points at `compare-with-c.sh` (still
+    around, see below) for that when it's actually needed.
+  - **One committed file survives on purpose**: `tests/golden/dll-test.otf`
+    stays real bytes, not a hash, because the `otfccdll` comparison below
+    needs an actual byte-level diff count to apply its tolerance against —
+    "hash equal or not" can't express "close enough". At 62KB it isn't
+    what made the size worth reconsidering.
   - **`compare-with-c.sh` itself is not deleted** — it still builds C and
     compares against the live Rust build exactly as before, kept as a
     manual, on-demand tool for the one time it is still needed: re-confirming
