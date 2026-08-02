@@ -294,7 +294,7 @@ pub unsafe extern "C" fn otfcc_build_glyf(
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*table).len() {
             *loca.offset(j as isize) = (*bufglyf).cursor as u32;
-            let g: *mut Glyph = (&(*table))[j as usize];
+            let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
             bufclear(gbuf);
             if !(*g).contours.is_empty() {
                 glyf_build_simple(g, gbuf);

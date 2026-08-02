@@ -130,7 +130,7 @@ unsafe extern "C" fn il_curveto(
 }
 unsafe extern "C" fn _il_push_maskgroup(
     mut il: *mut CffCharstringIl,
-    mut masks: *mut MaskList,
+    mut masks: *const MaskList,
     mut contours: u16,
     mut points: u16,
     mut nh: u16,
@@ -186,7 +186,7 @@ unsafe extern "C" fn _il_push_maskgroup(
 }
 unsafe extern "C" fn il_push_masks(
     mut il: *mut CffCharstringIl,
-    mut g: *mut Glyph,
+    mut g: *const Glyph,
     mut contours: u16,
     mut points: u16,
     mut jh: *mut u16,
@@ -199,7 +199,7 @@ unsafe extern "C" fn il_push_masks(
     let stem_v_len = (*g).stem_v.len() as u16;
     _il_push_maskgroup(
         il,
-        &raw mut (*g).contour_masks,
+        &raw const (*g).contour_masks,
         contours,
         points,
         stem_h_len,
@@ -209,7 +209,7 @@ unsafe extern "C" fn il_push_masks(
     );
     _il_push_maskgroup(
         il,
-        &raw mut (*g).hint_masks,
+        &raw const (*g).hint_masks,
         contours,
         points,
         stem_h_len,
@@ -220,7 +220,7 @@ unsafe extern "C" fn il_push_masks(
 }
 unsafe extern "C" fn _il_push_stemgroup(
     mut il: *mut CffCharstringIl,
-    mut stems: *mut StemDefList,
+    mut stems: *const StemDefList,
     mut hasmask: bool,
     mut haswidth: bool,
     mut ophm: i32,
@@ -276,13 +276,13 @@ unsafe extern "C" fn _il_push_stemgroup(
 }
 unsafe extern "C" fn il_push_stems(
     mut il: *mut CffCharstringIl,
-    mut g: *mut Glyph,
+    mut g: *const Glyph,
     mut hasmask: bool,
     mut haswidth: bool,
 ) {
     _il_push_stemgroup(
         il,
-        &raw mut (*g).stem_h,
+        &raw const (*g).stem_h,
         hasmask,
         haswidth,
         OP_HSTEMHM,
@@ -290,7 +290,7 @@ unsafe extern "C" fn il_push_stems(
     );
     _il_push_stemgroup(
         il,
-        &raw mut (*g).stem_v,
+        &raw const (*g).stem_v,
         hasmask,
         haswidth,
         OP_VSTEMHM,
@@ -298,7 +298,7 @@ unsafe extern "C" fn il_push_stems(
     );
 }
 pub unsafe extern "C" fn cff_compile_glyph_to_il(
-    mut g: *mut Glyph,
+    mut g: *const Glyph,
     mut default_width: u16,
     mut nominal_width: u16,
 ) -> *mut CffCharstringIl {

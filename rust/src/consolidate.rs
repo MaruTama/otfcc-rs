@@ -33,7 +33,7 @@ use crate::table::cmap::{CmapEntry, CmapUvsEntry};
 
 
 
-use crate::table::glyf::{RefAnchorStatus, ComponentReference, Glyph, GlyphPtr, Point, PostscriptHintMask, PostscriptStemDef, GlyfTable};
+use crate::table::glyf::{RefAnchorStatus, ComponentReference, Glyph, Point, PostscriptHintMask, PostscriptStemDef, GlyfTable};
 
 
 
@@ -362,7 +362,7 @@ pub unsafe extern "C" fn get_point_coordinates(
     mut options: *const Options,
 ) -> bool {
     let mut j: GlyphId = (*gr).glyph.index;
-    let g: *mut Glyph = (&(*table))[j as usize];
+    let g: *mut Glyph = &raw mut **(&mut (*table))[j as usize].as_mut().unwrap();
     let mut c: ShapeId = 0 as ShapeId;
     while (c as usize) < (*g).contours.len() {
         let mut pj: ShapeId = 0 as ShapeId;
@@ -606,16 +606,20 @@ pub unsafe extern "C" fn consolidate_glyf(
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*(*font).glyf).len() {
-        if !(&(*(*font).glyf))[j as usize].is_null() {
-            consolidate_glyph((&(*(*font).glyf))[j as usize], font, options);
+        if (&(*(*font).glyf))[j as usize].is_some() {
+            consolidate_glyph(
+                &raw mut **(&mut (*(*font).glyf))[j as usize].as_mut().unwrap(),
+                font,
+                options,
+            );
         } else {
-            (&mut (*(*font).glyf))[j as usize] = otfcc_new_glyf_glyph() as GlyphPtr;
+            (&mut (*(*font).glyf))[j as usize] = Some(otfcc_new_glyf_glyph());
         }
         j = j.wrapping_add(1);
     }
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*(*font).glyf).len() {
-        let g: *mut Glyph = (&(*(*font).glyf))[j_0 as usize];
+        let g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j_0 as usize].as_mut().unwrap();
         (*(*options).logger)
             .start_sds
             .expect("non-null function pointer")(
@@ -1446,12 +1450,12 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*(*font).glyf).len() {
             let mut name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-            let glyf_name: SdsRaw = (*(&(*(*font).glyf))[j as usize]).name;
+            let glyf_name: SdsRaw = (&(*(*font).glyf))[j as usize].as_deref().unwrap().name;
             if !glyf_name.is_null() {
                 name = sdsdup(glyf_name);
             } else {
                 name = crate::sdsbuild!(sdsempty(), b"$$gid", j as ::core::ffi::c_int);
-                let ref mut fresh0 = (*(&mut (*(*font).glyf))[j as usize]).name;
+                let ref mut fresh0 = (&mut (*(*font).glyf))[j as usize].as_mut().unwrap().name;
                 *fresh0 = sdsdup(name);
             }
             if !OTFCC_PKG_GLYPH_ORDER
@@ -1499,8 +1503,8 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
                                 b".",
                             ),
                         );
-                        sdsfree((*(&(*(*font).glyf))[j as usize]).name);
-                        let ref mut fresh1 = (*(&mut (*(*font).glyf))[j as usize]).name;
+                        sdsfree((&(*(*font).glyf))[j as usize].as_deref().unwrap().name);
+                        let ref mut fresh1 = (&mut (*(*font).glyf))[j as usize].as_mut().unwrap().name;
                         *fresh1 = sdsdup(newname);
                     }
                     if success {

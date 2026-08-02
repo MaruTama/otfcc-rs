@@ -8,9 +8,8 @@ unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{HandleState, handle_from_name, FdHandle, GlyphHandle, Handle, otfcc_handle_dispose, otfcc_handle_empty};
+use crate::support::handle::{HandleState, handle_from_name, FdHandle, GlyphHandle, Handle, otfcc_handle_empty};
 use crate::support::stdio::{stderr};
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
@@ -140,12 +139,43 @@ pub struct Glyph {
     pub cid: GlyphId,
     pub stat: GlyphStat,
 }
+/// Only `name` and `instructions` need manual teardown here -- everything
+/// else either has no allocation of its own (`stat`, `cid`, ...) or is
+/// already a real Rust owner that auto-drops correctly on its own:
+/// `horizontal_origin`/`advance_width`/`vertical_origin`/`advance_height`
+/// (`VQ`, a plain `struct { kernel: Pos, shift: Vec<VqSegment> }` with no
+/// `Drop` impl of its own -- `I_VQ.dispose` is just `shift = Vec::new()`,
+/// which is exactly what happens for free when a `VQ` field is dropped),
+/// `contours`/`references`/`stem_h`/`stem_v`/`hint_masks`/`contour_masks`
+/// (plain `Vec`s per the comments on [`Contour`]/[`ReferenceList`] above),
+/// and `fd_select` (a `Handle`, which has owned its `name` and had a real
+/// `Drop` impl since the crate-wide `Handle` conversion -- calling
+/// `otfcc_handle_dispose` on it here too, the way the old manual
+/// `otfcc_delete_glyf_glyph` did, would be redundant with that, not wrong).
+impl Drop for Glyph {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.name.is_null() {
+                sdsfree(self.name);
+                self.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
+            }
+            if !self.instructions.is_null() {
+                free(self.instructions as *mut ::core::ffi::c_void);
+                self.instructions = ::core::ptr::null_mut::<u8>();
+            }
+        }
+    }
+}
 pub type GlyphPtr = *mut Glyph;
-/// The font's glyph table: an array of owned glyph pointers, indexed by GID.
-/// This is the "pointer array" shape (classification (3) in `rust/README.md`)
-/// -- the container is `Vec<*mut Glyph>`, but `Glyph` itself stays behind a
-/// raw pointer for now (Box-ifying the pointees is Stage 6-4, not this pass).
-pub type GlyfTable = Vec<GlyphPtr>;
+/// The font's glyph table: an array of owned glyphs, indexed by GID. Unlike
+/// the other three containers in this "owned pointer array" group
+/// (`LangSystemList`/`FeatureList`/`LookupList`, all `Vec<Box<T>>`), a slot
+/// here can be legitimately unset -- `table_glyf_create_n` pre-sizes the
+/// table to the glyph count before parsing/extracting fills each GID in,
+/// and `consolidate_glyf` patches any GID that never got filled with a
+/// fresh empty glyph. `Box<Glyph>` cannot represent "no glyph here" (a
+/// `Box` is never null), so the element type stays `Option<Box<Glyph>>`.
+pub type GlyfTable = Vec<Option<Box<Glyph>>>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GlyfIOContext {
@@ -284,80 +314,46 @@ pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
         empty: Some(glyf_component_reference_empty),
     }
 };
-/// Every `ComponentReference` field auto-drops now, so this is just
-/// `*refs = Vec::new()`, not `.clear()` -- a caller that immediately
-/// `free()`s the enclosing struct doesn't leak the old allocation (see
-/// rust/README.md).
-#[inline]
-unsafe fn dispose_reference_list(refs: *mut ReferenceList) {
-    *refs = Vec::new();
+/// `Box::new` is the allocation and the struct literal is the zero-init
+/// `__caryll_allocate_clean` (calloc) used to provide -- same shape as
+/// `new_lookup`/`new_feature`/`new_language`. Kept the `otfcc_`-prefixed C
+/// name (unlike those three) since this one is still called from outside
+/// this file (`consolidate.rs`, `table/cff.rs`, `table/glyf/read.rs`).
+pub unsafe extern "C" fn otfcc_new_glyf_glyph() -> Box<Glyph> {
+    Box::new(Glyph {
+        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        horizontal_origin: VQ { kernel: 0., shift: Vec::new() },
+        advance_width: VQ { kernel: 0., shift: Vec::new() },
+        vertical_origin: VQ { kernel: 0., shift: Vec::new() },
+        advance_height: VQ { kernel: 0., shift: Vec::new() },
+        contours: Vec::new(),
+        references: Vec::new(),
+        stem_h: Vec::new(),
+        stem_v: Vec::new(),
+        hint_masks: Vec::new(),
+        contour_masks: Vec::new(),
+        instructions_length: 0 as u16,
+        instructions: ::core::ptr::null_mut::<u8>(),
+        y_pel: 0 as u8,
+        fd_select: otfcc_handle_empty() as FdHandle,
+        cid: 0 as GlyphId,
+        stat: GlyphStat {
+            x_min: 0 as ::core::ffi::c_int as Pos,
+            x_max: 0 as ::core::ffi::c_int as Pos,
+            y_min: 0 as ::core::ffi::c_int as Pos,
+            y_max: 0 as ::core::ffi::c_int as Pos,
+            nest_depth: 0 as u16,
+            n_points: 0 as u16,
+            n_contours: 0 as u16,
+            n_composite_points: 0 as u16,
+            n_composite_contours: 0 as u16,
+        },
+    })
 }
-pub unsafe extern "C" fn otfcc_new_glyf_glyph() -> *mut Glyph {
-    let mut g: *mut Glyph = ::core::ptr::null_mut::<Glyph>();
-    g = __caryll_allocate_clean(
-        ::core::mem::size_of::<Glyph>() as usize,
-        78 as ::core::ffi::c_ulong,
-    ) as *mut Glyph;
-    (*g).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).horizontal_origin);
-    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).advance_width);
-    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).vertical_origin);
-    I_VQ.init.expect("non-null function pointer")(&raw mut (*g).advance_height);
-    (*g).contours = Vec::new();
-    (*g).references = Vec::new();
-    (*g).stem_h = Vec::new();
-    (*g).stem_v = Vec::new();
-    (*g).hint_masks = Vec::new();
-    (*g).contour_masks = Vec::new();
-    (*g).instructions_length = 0 as u16;
-    (*g).instructions = ::core::ptr::null_mut::<u8>();
-    (*g).fd_select = otfcc_handle_empty() as FdHandle;
-    (*g).y_pel = 0 as u8;
-    (*g).stat.x_min = 0 as ::core::ffi::c_int as Pos;
-    (*g).stat.x_max = 0 as ::core::ffi::c_int as Pos;
-    (*g).stat.y_min = 0 as ::core::ffi::c_int as Pos;
-    (*g).stat.y_max = 0 as ::core::ffi::c_int as Pos;
-    (*g).stat.nest_depth = 0 as u16;
-    (*g).stat.n_points = 0 as u16;
-    (*g).stat.n_contours = 0 as u16;
-    (*g).stat.n_composite_points = 0 as u16;
-    (*g).stat.n_composite_contours = 0 as u16;
-    return g;
-}
-unsafe extern "C" fn otfcc_delete_glyf_glyph(mut g: *mut Glyph) {
-    if g.is_null() {
-        return;
-    }
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).horizontal_origin);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).advance_width);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).vertical_origin);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*g).advance_height);
-    sdsfree((*g).name);
-    (*g).contours = Vec::new();
-    dispose_reference_list(&raw mut (*g).references);
-    (*g).stem_h = Vec::new();
-    (*g).stem_v = Vec::new();
-    (*g).hint_masks = Vec::new();
-    (*g).contour_masks = Vec::new();
-    if !(*g).instructions.is_null() {
-        free((*g).instructions as *mut ::core::ffi::c_void);
-        (*g).instructions = ::core::ptr::null_mut::<u8>();
-    }
-    otfcc_handle_dispose(&raw mut (*g).fd_select);
-    (*g).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    free(g as *mut ::core::ffi::c_void);
-    g = ::core::ptr::null_mut::<Glyph>();
-}
-/// Disposes every owned glyph (each `GlyphPtr` slot may be null while the
-/// table is being filled in, e.g. `otfcc_read_glyf`'s partially-built
-/// tables; `otfcc_delete_glyf_glyph` already no-ops on null) and then drops
-/// the backing `Vec` of pointers itself -- the pointees are freed above,
-/// this just reclaims the pointer array.
+/// Every slot's `Box<Glyph>` (where set) frees itself via `Glyph`'s own
+/// `Drop`; this just drops the backing `Vec` of `Option`s.
 #[inline]
 unsafe fn dispose_glyf_table(t: *mut GlyfTable) {
-    for &g in (*t).iter() {
-        otfcc_delete_glyf_glyph(g);
-    }
     *t = Vec::new();
 }
 pub(crate) unsafe extern "C" fn table_glyf_free(x: *mut GlyfTable) {
@@ -378,11 +374,13 @@ pub(crate) unsafe extern "C" fn table_glyf_create() -> *mut GlyfTable {
 }
 pub(crate) unsafe extern "C" fn table_glyf_create_n(n: usize) -> *mut GlyfTable {
     let x: *mut GlyfTable = malloc(::core::mem::size_of::<GlyfTable>() as usize) as *mut GlyfTable;
-    x.write(vec![::core::ptr::null_mut::<Glyph>(); n]);
+    let mut v: GlyfTable = Vec::with_capacity(n);
+    v.resize_with(n, || None);
+    x.write(v);
     x
 }
 unsafe extern "C" fn glyf_glyph_dump_contours(
-    mut g: *mut Glyph,
+    mut g: *const Glyph,
     mut target: *mut JsonValue,
     mut ctx: *const GlyfIOContext,
 ) {
@@ -428,7 +426,7 @@ unsafe extern "C" fn glyf_glyph_dump_contours(
     );
 }
 unsafe extern "C" fn glyf_glyph_dump_references(
-    mut g: *mut Glyph,
+    mut g: *const Glyph,
     mut target: *mut JsonValue,
     mut ctx: *const GlyfIOContext,
 ) {
@@ -438,7 +436,7 @@ unsafe extern "C" fn glyf_glyph_dump_references(
     let mut references: *mut JsonValue = json_array_new((*g).references.len());
     let mut k: ShapeId = 0 as ShapeId;
     while (k as usize) < (*g).references.len() {
-        let r: *mut ComponentReference = &raw mut (&mut (*g).references)[k as usize];
+        let r: *const ComponentReference = &raw const (&(*g).references)[k as usize];
         let mut ref_0: *mut JsonValue = json_object_new(9 as usize);
         json_object_push(
             ref_0,
@@ -519,7 +517,7 @@ unsafe extern "C" fn glyf_glyph_dump_references(
         references,
     );
 }
-unsafe extern "C" fn glyf_glyph_dump_stemdefs(mut stems: *mut StemDefList) -> *mut JsonValue {
+unsafe extern "C" fn glyf_glyph_dump_stemdefs(mut stems: *const StemDefList) -> *mut JsonValue {
     let stems: &Vec<PostscriptStemDef> = &*stems;
     let mut a: *mut JsonValue = json_array_new(stems.len());
     let mut j: ShapeId = 0 as ShapeId;
@@ -541,9 +539,9 @@ unsafe extern "C" fn glyf_glyph_dump_stemdefs(mut stems: *mut StemDefList) -> *m
     return a;
 }
 unsafe extern "C" fn glyf_glyph_dump_maskdefs(
-    mut masks: *mut MaskList,
-    mut hh: *mut StemDefList,
-    mut vv: *mut StemDefList,
+    mut masks: *const MaskList,
+    mut hh: *const StemDefList,
+    mut vv: *const StemDefList,
 ) -> *mut JsonValue {
     let masks: &Vec<PostscriptHintMask> = &*masks;
     let hh: &Vec<PostscriptStemDef> = &*hh;
@@ -600,7 +598,7 @@ unsafe extern "C" fn glyf_glyph_dump_maskdefs(
     return a;
 }
 unsafe extern "C" fn glyf_dump_glyph(
-    mut g: *mut Glyph,
+    mut g: *const Glyph,
     mut options: *const Options,
     mut ctx: *const GlyfIOContext,
 ) -> *mut JsonValue {
@@ -665,14 +663,14 @@ unsafe extern "C" fn glyf_dump_glyph(
             json_object_push(
                 glyph,
                 b"stemH\0" as *const u8 as *const ::core::ffi::c_char,
-                preserialize(glyf_glyph_dump_stemdefs(&raw mut (*g).stem_h)),
+                preserialize(glyf_glyph_dump_stemdefs(&raw const (*g).stem_h)),
             );
         }
         if !(*g).stem_v.is_empty() {
             json_object_push(
                 glyph,
                 b"stemV\0" as *const u8 as *const ::core::ffi::c_char,
-                preserialize(glyf_glyph_dump_stemdefs(&raw mut (*g).stem_v)),
+                preserialize(glyf_glyph_dump_stemdefs(&raw const (*g).stem_v)),
             );
         }
         if !(*g).hint_masks.is_empty() {
@@ -680,9 +678,9 @@ unsafe extern "C" fn glyf_dump_glyph(
                 glyph,
                 b"hintMasks\0" as *const u8 as *const ::core::ffi::c_char,
                 preserialize(glyf_glyph_dump_maskdefs(
-                    &raw mut (*g).hint_masks,
-                    &raw mut (*g).stem_h,
-                    &raw mut (*g).stem_v,
+                    &raw const (*g).hint_masks,
+                    &raw const (*g).stem_h,
+                    &raw const (*g).stem_v,
                 )),
             );
         }
@@ -691,9 +689,9 @@ unsafe extern "C" fn glyf_dump_glyph(
                 glyph,
                 b"contourMasks\0" as *const u8 as *const ::core::ffi::c_char,
                 preserialize(glyf_glyph_dump_maskdefs(
-                    &raw mut (*g).contour_masks,
-                    &raw mut (*g).stem_h,
-                    &raw mut (*g).stem_v,
+                    &raw const (*g).contour_masks,
+                    &raw const (*g).stem_h,
+                    &raw const (*g).stem_v,
                 )),
             );
         }
@@ -717,7 +715,7 @@ pub unsafe extern "C" fn otfcc_dump_glyphorder(
     let mut order: *mut JsonValue = json_array_new((*table).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*table).len() {
-        let g: GlyphPtr = (&(*table))[j as usize];
+        let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
         json_array_push(
             order,
             json_string_new_length(
@@ -753,7 +751,7 @@ pub unsafe extern "C" fn otfcc_dump_glyf(
         let mut glyf: *mut JsonValue = json_object_new((*table).len());
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*table).len() {
-            let g: *mut Glyph = (&(*table))[j as usize];
+            let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
             json_object_push(
                 glyf,
                 (*g).name as *const ::core::ffi::c_char,
@@ -1090,8 +1088,8 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
     mut glyphdump: *mut JsonValue,
     mut order_entry: *mut GlyphOrderEntry,
     mut options: *const Options,
-) -> *mut Glyph {
-    let mut g: *mut Glyph = otfcc_new_glyf_glyph();
+) -> Box<Glyph> {
+    let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     (*g).name = sdsdup((*order_entry).name);
     I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*g).advance_width,
@@ -1139,7 +1137,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
             b"contours\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Array,
         ),
-        g,
+        &raw mut *g,
     );
     glyf_parse_references(
         json_obj_get_type(
@@ -1147,7 +1145,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
             b"references\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Array,
         ),
-        g,
+        &raw mut *g,
     );
     if !(*options).ignore_hints {
         parse_ttinstr(
@@ -1155,7 +1153,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
                 glyphdump,
                 b"instructions\0" as *const u8 as *const ::core::ffi::c_char,
             ),
-            g as *mut ::core::ffi::c_void,
+            (&raw mut *g) as *mut ::core::ffi::c_void,
             Some(
                 make_instrs_for_glyph
                     as unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> (),
@@ -1582,10 +1580,10 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
                 }
                 if (*glyphdump).type_0 == JsonType::Object
                     && !order_entry.is_null()
-                    && (&(*glyf))[(*order_entry).gid as usize].is_null()
+                    && (&(*glyf))[(*order_entry).gid as usize].is_none()
                 {
                     (&mut (*glyf))[(*order_entry).gid as usize] =
-                        otfcc_glyf_parse_glyph(glyphdump, order_entry, options) as GlyphPtr;
+                        Some(otfcc_glyf_parse_glyph(glyphdump, order_entry, options));
                 }
                 json_value_free(glyphdump);
                 let mut v: *mut JsonValue = json_null_new();

@@ -24,7 +24,7 @@ use crate::libcff::charstring_il::{CffCharstringIl, CffCharstringInstruction};
 use crate::libcff::subr::{CffSubrDiagramIndex, CffSubrGraph, CffSubrRule};
 use crate::support::{NULL, FALSE_0, TRUE_0};
 use crate::table::fvar::{FvarTable};
-use crate::table::glyf::{Contour, Glyph, GlyphPtr, MaskList, Point, PostscriptHintMask, PostscriptStemDef, StemDefList, GlyfTable};
+use crate::table::glyf::{Contour, Glyph, MaskList, Point, PostscriptHintMask, PostscriptStemDef, StemDefList, GlyfTable};
 use crate::table::head::{HeadTable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 
@@ -990,8 +990,13 @@ unsafe extern "C" fn build_outline(
     mut options: *const Options,
 ) {
     let mut f: *mut CffFile = (*context).cff_file;
-    let mut g: *mut Glyph = otfcc_new_glyf_glyph();
-    (&mut (*(*context).glyphs))[i as usize] = g as GlyphPtr;
+    // `g` keeps pointing at the same heap allocation for the rest of this
+    // function (via `bc.g` below) even after the `Box` that owns it is
+    // moved into the table -- moving a `Box` moves only the handle, not
+    // the allocation it points at.
+    let mut g_owner: Box<Glyph> = otfcc_new_glyf_glyph();
+    let mut g: *mut Glyph = &raw mut *g_owner;
+    (&mut (*(*context).glyphs))[i as usize] = Some(g_owner);
     let mut seed: u64 = (*context).seed;
     let mut local_subrs: CffIndex = CffIndex {
         count_type: CffIndexCountType::U16,
@@ -1156,12 +1161,12 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         *(*charset).c2rust_unnamed.f0.glyph.offset(j as isize) as CffSid;
                     let mut glyphname: SdsRaw = sdsget_cff_sid(sid as u16, (*cff_file).string);
                     if !glyphname.is_null() {
-                        let ref mut fresh2 = (*(&mut (*glyphs))
-                            [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
+                        let ref mut fresh2 = (&mut (*glyphs))
+                            [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize].as_mut().unwrap()
                         .name;
                         *fresh2 = glyphname;
-                        (*(&mut (*glyphs))
-                            [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
+                        (&mut (*glyphs))
+                            [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize].as_mut().unwrap()
                         .cid = sid as GlyphId;
                     }
                     j = j.wrapping_add(1);
@@ -1185,9 +1190,9 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         if (glyphs_named_sofar as usize) < (*glyphs).len() && !glyphname_0.is_null()
                         {
                             let ref mut fresh3 =
-                                (*(&mut (*glyphs))[glyphs_named_sofar as usize]).name;
+                                (&mut (*glyphs))[glyphs_named_sofar as usize].as_mut().unwrap().name;
                             *fresh3 = glyphname_0;
-                            (*(&mut (*glyphs))[glyphs_named_sofar as usize]).cid =
+                            (&mut (*glyphs))[glyphs_named_sofar as usize].as_mut().unwrap().cid =
                                 sid_0 as GlyphId;
                         }
                         glyphs_named_sofar = glyphs_named_sofar.wrapping_add(1);
@@ -1215,9 +1220,9 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                             && !glyphname_1.is_null()
                         {
                             let ref mut fresh4 =
-                                (*(&mut (*glyphs))[glyphs_named_sofar_0 as usize]).name;
+                                (&mut (*glyphs))[glyphs_named_sofar_0 as usize].as_mut().unwrap().name;
                             *fresh4 = glyphname_1;
-                            (*(&mut (*glyphs))[glyphs_named_sofar_0 as usize]).cid =
+                            (&mut (*glyphs))[glyphs_named_sofar_0 as usize].as_mut().unwrap().cid =
                                 sid_1 as GlyphId;
                         }
                         glyphs_named_sofar_0 = glyphs_named_sofar_0.wrapping_add(1);
@@ -1237,8 +1242,8 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         *(*charset).c2rust_unnamed.f0.glyph.offset(j_2 as isize) as CffSid;
                     let mut glyphname_2: SdsRaw = sdsget_cff_sid(sid_2 as u16, (*cff_file).string);
                     if !glyphname_2.is_null() {
-                        let ref mut fresh5 = (*(&mut (*glyphs))
-                            [(j_2 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
+                        let ref mut fresh5 = (&mut (*glyphs))
+                            [(j_2 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize].as_mut().unwrap()
                         .name;
                         *fresh5 = glyphname_2;
                     }
@@ -1265,7 +1270,7 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                             && !glyphname_3.is_null()
                         {
                             let ref mut fresh6 =
-                                (*(&mut (*glyphs))[glyphs_named_sofar_1 as usize]).name;
+                                (&mut (*glyphs))[glyphs_named_sofar_1 as usize].as_mut().unwrap().name;
                             *fresh6 = glyphname_3;
                         }
                         glyphs_named_sofar_1 = glyphs_named_sofar_1.wrapping_add(1);
@@ -1294,7 +1299,7 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                             && !glyphname_4.is_null()
                         {
                             let ref mut fresh7 =
-                                (*(&mut (*glyphs))[glyphs_named_sofar_2 as usize]).name;
+                                (&mut (*glyphs))[glyphs_named_sofar_2 as usize].as_mut().unwrap().name;
                             *fresh7 = glyphname_4;
                         }
                         glyphs_named_sofar_2 = glyphs_named_sofar_2.wrapping_add(1);
@@ -1317,7 +1322,7 @@ unsafe extern "C" fn apply_cff_matrix(
 ) {
     let mut jj: GlyphId = 0 as GlyphId;
     while (jj as usize) < (*glyf).len() {
-        let g: *mut Glyph = (&(*glyf))[jj as usize];
+        let g: *mut Glyph = &raw mut **(&mut (*glyf))[jj as usize].as_mut().unwrap();
         let mut fd: *mut CffTable = cff;
         if !(*fd).fd_array.is_null()
             && ((*g).fd_select.index as ::core::ffi::c_int)
@@ -2243,7 +2248,7 @@ unsafe extern "C" fn cff_make_charstrings(
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*(*context).glyf).len() {
         let mut il: *mut CffCharstringIl = cff_compile_glyph_to_il(
-            (&(*(*context).glyf))[j as usize],
+            (&(*(*context).glyf))[j as usize].as_deref().unwrap() as *const Glyph,
             (*context).default_width,
             (*context).nominal_width_x,
         );
@@ -3518,7 +3523,7 @@ unsafe extern "C" fn cff_make_charset(
         } else {
             let mut j: GlyphId = 1 as GlyphId;
             while (j as usize) < (*glyf).len() {
-                sidof(string_hash, (*(&(*glyf))[j as usize]).name);
+                sidof(string_hash, (&(*glyf))[j as usize].as_deref().unwrap().name);
                 j = j.wrapping_add(1);
             }
             (*(*charset)
@@ -3528,7 +3533,7 @@ unsafe extern "C" fn cff_make_charset(
                 .offset(0 as ::core::ffi::c_int as isize))
             .first = sidof(
                 string_hash,
-                (*(&(*glyf))[1 as usize]).name,
+                (&(*glyf))[1 as usize].as_deref().unwrap().name,
             ) as u16;
             (*(*charset)
                 .c2rust_unnamed
@@ -3566,7 +3571,9 @@ unsafe extern "C" fn cff_make_fdselect(
     ) as *mut CffFdSelect;
     (*fds).t = CffFdSelectType::Unspecified;
     if !((*glyf).is_empty()) {
-        fdi0 = (*(&(*glyf))[0 as usize])
+        fdi0 = (&(*glyf))[0 as usize]
+            .as_deref()
+            .unwrap()
             .fd_select
             .index as u8;
         if fdi0 as ::core::ffi::c_int > (*cff).fd_array_count as ::core::ffi::c_int {
@@ -3575,7 +3582,7 @@ unsafe extern "C" fn cff_make_fdselect(
         current = fdi0;
         let mut j: GlyphId = 1 as GlyphId;
         while (j as usize) < (*glyf).len() {
-            let mut fdi: u8 = (*(&(*glyf))[j as usize]).fd_select.index as u8;
+            let mut fdi: u8 = (&(*glyf))[j as usize].as_deref().unwrap().fd_select.index as u8;
             if fdi as ::core::ffi::c_int > (*cff).fd_array_count as ::core::ffi::c_int {
                 fdi = 0 as u8;
             }
@@ -3606,11 +3613,11 @@ unsafe extern "C" fn cff_make_fdselect(
         let mut j_0: GlyphId = 1 as GlyphId;
         while (j_0 as usize) < (*glyf).len() {
             let mut fdi_0: u8 =
-                (*(&(*glyf))[j_0 as usize]).fd_select.index as u8;
+                (&(*glyf))[j_0 as usize].as_deref().unwrap().fd_select.index as u8;
             if fdi_0 as ::core::ffi::c_int > (*cff).fd_array_count as ::core::ffi::c_int {
                 fdi_0 = 0 as u8;
             }
-            if (*(&(*glyf))[j_0 as usize]).fd_select.index as ::core::ffi::c_int
+            if (&(*glyf))[j_0 as usize].as_deref().unwrap().fd_select.index as ::core::ffi::c_int
                 != current as ::core::ffi::c_int
             {
                 current = fdi_0;
