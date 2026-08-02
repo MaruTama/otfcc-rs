@@ -44,8 +44,8 @@ pub type OtlSplitBuilder = Option<
 pub struct ScriptStatHash {
     pub tag: SdsRaw,
     pub lc: u16,
-    pub dl: *mut LanguageSystem,
-    pub ll: *mut *mut LanguageSystem,
+    pub dl: *const LanguageSystem,
+    pub ll: *mut *const LanguageSystem,
     pub hh: UtHashHandle,
 }
 pub const LARGE_SUBTABLE_LIMIT: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
@@ -608,7 +608,7 @@ unsafe extern "C" fn feature_index(
     return 0xffff as TableId;
 }
 unsafe extern "C" fn write_language(
-    mut lang: *mut LanguageSystem,
+    mut lang: *const LanguageSystem,
     mut table: *const OtlTable,
 ) -> *mut BkBlock {
     if lang.is_null() {
@@ -651,7 +651,7 @@ unsafe extern "C" fn write_otl_script_and_languages(
     let mut h: *mut ScriptStatHash = ::core::ptr::null_mut::<ScriptStatHash>();
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).languages.len() {
-        let language: *mut LanguageSystem = (&(*table).languages)[j as usize];
+        let language: *const LanguageSystem = &raw const *(&(*table).languages)[j as usize];
         let mut script_tag: SdsRaw =
             sdsnewlen((*language).name as *const ::core::ffi::c_void, 4 as usize);
         let mut is_default: bool = strncmp(
@@ -987,12 +987,12 @@ unsafe extern "C" fn write_otl_script_and_languages(
                 316 as ::core::ffi::c_ulong,
             ) as *mut ScriptStatHash;
             (*s).tag = script_tag;
-            (*s).dl = ::core::ptr::null_mut::<LanguageSystem>();
+            (*s).dl = ::core::ptr::null::<LanguageSystem>();
             (*s).ll = __caryll_allocate_clean(
-                (::core::mem::size_of::<*mut LanguageSystem>() as usize)
+                (::core::mem::size_of::<*const LanguageSystem>() as usize)
                     .wrapping_mul((*table).languages.len()),
                 319 as ::core::ffi::c_ulong,
-            ) as *mut *mut LanguageSystem;
+            ) as *mut *const LanguageSystem;
             if is_default {
                 (*s).dl = language;
                 (*s).lc = 0 as u16;
@@ -1507,7 +1507,7 @@ unsafe extern "C" fn write_otl_script_and_languages(
         }
         sdsfree((*s_0).tag);
         free((*s_0).ll as *mut ::core::ffi::c_void);
-        (*s_0).ll = ::core::ptr::null_mut::<*mut LanguageSystem>();
+        (*s_0).ll = ::core::ptr::null_mut::<*const LanguageSystem>();
         free(s_0 as *mut ::core::ffi::c_void);
         s_0 = ::core::ptr::null_mut::<ScriptStatHash>();
         s_0 = tmp;

@@ -1334,6 +1334,54 @@ on the other platform before a commit is trusted.
   - Zero behavior change, verified with the standard full pipeline (build,
     44 tests, ABI, byte comparison — 3× on both platforms — round trips,
     issue #1 golden test).
+- **Stage 6-4 proper begins: `LangSystemList` → `Vec<Box<LanguageSystem>>`,
+  the pilot for the "owned pointer array" shape.** Stage 6-1 deliberately
+  stopped at `Vec<*mut T>` for the seven containers in plan classification
+  「その3」, deferring the pointee's `Box`-ification to Stage 6-4 on the
+  don't-move-three-things-at-once rule `VQ` taught. This is the first of
+  those to actually get its elements boxed, chosen as the pilot because it
+  is by far the smallest: 3 push sites, 4 read sites, one constructor, one
+  dispose function.
+  - **`LanguageSystem` gets a real `Drop`** that `sdsfree`s its `name` — the
+    only allocation it owns. `required_feature` and `features` both hold
+    *borrowed* `*const Feature`s into the same table's `features` list, so
+    the `Vec<FeatureRef>` needs no help beyond its own drop glue. With that,
+    `Vec<Box<LanguageSystem>>` frees everything by itself:
+    `otl_lang_system_list_dispose` collapses to `*arr = Vec::new()` and
+    `dispose_language_ptr` is deleted outright.
+  - **The `__caryll_allocate_clean`-into-an-out-parameter constructor is
+    gone.** `init_language_ptr(&raw mut lang)` becomes `new_language() ->
+    Box<LanguageSystem>` — `Box` is the allocation and the struct literal is
+    the zero-init the `calloc` used to provide, so the whole
+    "calloc-vs-malloc placement" question this migration keeps running into
+    stops applying to this type.
+  - **The uthash node in `parse.rs` is the interesting case**: it is a
+    *transient owner* — `LanguageHash.language` holds the `LanguageSystem`
+    while the node is alive, then hands it to `(*otl).languages` before the
+    node itself is `free()`d. Kept as a raw pointer (a `Box` field inside a
+    `__caryll_allocate_clean`'d node freed with bare `free()` would never
+    drop), with `Box::into_raw` at the construction site and `Box::from_raw`
+    at the push site making the transfer explicit. Verified first that every
+    node reaches that push — the loop that drains the hash pushes each
+    `.language` unconditionally before freeing the node, and nothing else in
+    the file frees a `LanguageSystem`.
+  - **`ScriptStatHash`'s `dl`/`ll` fields became `*const`** (`build.rs`).
+    They borrow `LanguageSystem`s out of the table and never free them (only
+    `free((*s).ll)`, the pointer *array*), so `*const` is the honest type now
+    that the `Vec` owns `Box`es rather than raw pointers — the compiler asked
+    for this, and it is the right answer rather than a cast to silence it.
+    Element addresses stay stable across `Vec` growth exactly as before,
+    since it is the `Box` that moves, not the `LanguageSystem`.
+  - Zero behavior change, verified with the standard full pipeline (build,
+    44 tests, ABI, byte comparison — 3× on both platforms — round trips,
+    issue #1 golden test). `NotoNastaliqUrdu-Regular.ttf` drives script/
+    language-system reading, consolidation, dumping and building end to end,
+    so no synthetic payload was needed.
+  - **Remaining in this group** (`SubtableList`/`LookupList`/`FeatureList`,
+    plus the two non-owning `*const` reference lists that need no change, and
+    `GlyfTable`): each is bigger than this one and, unlike `LanguageSystem`,
+    their elements own further containers — so they want the same
+    one-container-at-a-time treatment rather than a sweep.
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

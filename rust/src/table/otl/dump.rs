@@ -195,7 +195,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
             let mut j: TableId = 0 as TableId;
             while (j as usize) < (*table).languages.len() {
                 let mut _lang: *mut JsonValue = json_object_new(5 as usize);
-                let lang: *mut LanguageSystem = (&(*table).languages)[j as usize];
+                let lang: *const LanguageSystem = &raw const *(&(*table).languages)[j as usize];
                 if !(*lang).required_feature.is_null() {
                     json_object_push(
                         _lang,
