@@ -405,9 +405,24 @@ pub struct LanguageSystem {
     pub required_feature: FeatureRef,
     pub features: FeatureRefList,
 }
-pub type LanguageSystemPtr = *mut LanguageSystem;
-// 所有するポインタ配列。
-pub type LangSystemList = Vec<LanguageSystemPtr>;
+/// Frees the only allocation a `LanguageSystem` owns. `required_feature`
+/// and `features` both hold *borrowed* `*const Feature`s into `OtlTable`'s
+/// own `features` list, so nothing there needs freeing -- `features`'s
+/// backing `Vec` drops itself.
+impl Drop for LanguageSystem {
+    fn drop(&mut self) {
+        if !self.name.is_null() {
+            unsafe {
+                sdsfree(self.name);
+            }
+            self.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
+        }
+    }
+}
+// Stage 6-4 pilot for the "owned pointer array" shape (plan classification
+// その3): the elements are `Box`es now, not raw `*mut`, so the `Vec`'s own
+// drop glue frees every element -- see rust/README.md.
+pub type LangSystemList = Vec<Box<LanguageSystem>>;
 // 3つとも値でVecを持つため `Copy` を落とす。`Font.gsub`/`Font.gpos` は
 // `*mut OtlTable` フィールドで、crate全体を通じて常にポインタ経由。
 #[repr(C)]
@@ -638,7 +653,7 @@ pub(crate) unsafe fn otl_feature_list_filter_env(
 // `FeatureRef`単体の要素インターフェースは`FeatureRefList`の死んだ`.copy`
 // からしか呼ばれておらず削除。`FeatureRef`は所有物を持たない
 // （`FeatureList`が指し先の`Feature`を所有する）。
-// `.replace`の唯一の呼び出し箇所(`table/otl/parse.rs`)は`init_language_ptr`
+// `.replace`の唯一の呼び出し箇所(`table/otl/parse.rs`)は`new_language`
 // で作った空のdestに対して呼ばれる——move-assignで置き換え可能。
 pub(crate) unsafe fn otl_feature_ref_list_replace(dst: *mut FeatureRefList, src: FeatureRefList) {
     *dst = src;
@@ -657,36 +672,29 @@ pub(crate) unsafe fn otl_feature_ref_list_filter_env(
 ) {
     (*arr).retain(|&item| fn_0.expect("non-null function pointer")(&item as *const FeatureRef, env));
 }
+/// Replaces the old `__caryll_allocate_clean`-into-a-`*mut`-out-parameter
+/// constructor: `Box` is the allocation, and the struct literal is the
+/// zero-initialization the `calloc` used to provide.
 #[inline]
-pub(crate) unsafe fn init_language_ptr(language: *mut LanguageSystemPtr) {
-    *language = __caryll_allocate_clean(
-        ::core::mem::size_of::<LanguageSystem>() as usize,
-        77 as ::core::ffi::c_ulong,
-    ) as LanguageSystemPtr;
-    (**language).features = Vec::new();
-}
-#[inline]
-pub(crate) unsafe fn dispose_language_ptr(language: *mut LanguageSystemPtr) {
-    if (*language).is_null() {
-        return;
-    }
-    if !(**language).name.is_null() {
-        sdsfree((**language).name);
-    }
-    otl_feature_ref_list_dispose(&raw mut (**language).features);
-    free(*language as *mut ::core::ffi::c_void);
-    *language = ::core::ptr::null_mut::<LanguageSystem>();
+pub(crate) fn new_language() -> Box<LanguageSystem> {
+    Box::new(LanguageSystem {
+        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        required_feature: ::core::ptr::null::<Feature>(),
+        features: Vec::new(),
+    })
 }
 // テーブル全体の`.copy`（死んでいる）は削除。`.dispose`は`dispose_otl`から
 // 生存（同じ理由でフルドロップ）。このコンテナだけ`.filter_env`スロットが
 // 元から無い——言語システム自体は間引かれず、`.features`(FeatureRefList)
 // だけが間引かれる。
+//
+// 要素が `Box<LanguageSystem>` になったので、per-element の dispose ループは
+// 不要: `Vec` の drop glue が各 `Box` を解放し、`LanguageSystem::drop` が
+// `name` を `sdsfree` する。`.clear()` ではなく `Vec::new()` なのは従来通り
+// （呼び出し元が直後に enclosing 構造体を生 `free()` するケースがあるため）。
 pub(crate) unsafe fn otl_lang_system_list_dispose(arr: *mut LangSystemList) {
     if arr.is_null() {
         return;
-    }
-    for language in (*arr).iter_mut() {
-        dispose_language_ptr(language as *mut LanguageSystemPtr);
     }
     *arr = Vec::new();
 }

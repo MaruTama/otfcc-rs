@@ -13,12 +13,12 @@ use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonValue, JsonType};
 use crate::support::{NULL, TRUE_0};
-use crate::table::otl::{Feature, FeaturePtr, FeatureRef, FeatureRefList, LanguageSystem, LanguageSystemPtr, Lookup, LookupPtr, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
+use crate::table::otl::{Feature, FeaturePtr, FeatureRef, FeatureRefList, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::json_funcs::otfcc_parse_flags;
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::support::json_ident::{json_ident};
-use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, init_feature_ptr, init_language_ptr, init_lookup_ptr, table_otl_create, table_otl_free};
+use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, init_feature_ptr, new_language, init_lookup_ptr, table_otl_create, table_otl_free};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::parse::{otl_parse_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_parse_cursive};
@@ -5032,7 +5032,14 @@ unsafe extern "C" fn figure_out_languages_from_json(
                         267 as ::core::ffi::c_ulong,
                     ) as *mut LanguageHash;
                     (*s).name = sdsnew(language_name) as *mut ::core::ffi::c_char;
-                    init_language_ptr(&raw mut (*s).language);
+                    // The uthash node is a transient owner: it holds the
+                    // `LanguageSystem` as a raw pointer (it is itself
+                    // `__caryll_allocate_clean`'d and `free()`d, so a `Box`
+                    // field here would never be dropped) and hands ownership
+                    // back to a `Box` at the push site below, before the node
+                    // is freed. Every node reaches that push -- see the
+                    // `Box::from_raw` there.
+                    (*s).language = Box::into_raw(new_language());
                     (*(*s).language).name = sdsdup((*s).name as SdsRaw);
                     (*(*s).language).required_feature = required_feature as FeatureRef;
                     otl_feature_ref_list_replace(&raw mut (*(*s).language).features, af);
@@ -6549,7 +6556,10 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                     tmp_1 = (if !sh.is_null() { (*sh).hh.next } else { NULL }) as *mut LanguageHash
                         as *mut LanguageHash;
                     while !s_1.is_null() {
-                        (*otl).languages.push((*s_1).language as LanguageSystemPtr);
+                        // Takes ownership back from the uthash node (see the
+                        // `Box::into_raw` above); the node itself is freed a
+                        // few lines below, without touching `.language`.
+                        (*otl).languages.push(Box::from_raw((*s_1).language));
                         let mut _hd_hh_del_1: *mut UtHashHandle = &raw mut (*s_1).hh;
                         if (*_hd_hh_del_1).prev.is_null() && (*_hd_hh_del_1).next.is_null() {
                             free((*(*sh).hh.tbl).buckets as *mut ::core::ffi::c_void);

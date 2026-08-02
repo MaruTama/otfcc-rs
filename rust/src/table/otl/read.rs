@@ -10,8 +10,8 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::sds::{Byte, Dec5, Hex2};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
-use crate::table::otl::{Feature, FeatureList, FeaturePtr, FeatureRef, LanguageSystem, LanguageSystemPtr, Lookup, LookupPtr, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
-use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_subtable_list_dispose_dependent, init_feature_ptr, init_language_ptr, init_lookup_ptr, table_otl_create, table_otl_free};
+use crate::table::otl::{Feature, FeatureList, FeaturePtr, FeatureRef, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
+use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_subtable_list_dispose_dependent, init_feature_ptr, new_language, init_lookup_ptr, table_otl_create, table_otl_free};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
 use crate::table::otl::subtables::extend::{otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend};
@@ -509,10 +509,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                     data.offset(script_offset_0 as isize) as *const u8,
                                                                 ) as TableId;
                                                                 if default_lang_system_0 != 0 {
-                                                                    let mut lang: *mut LanguageSystem = ::core::ptr::null_mut::<
-                                                                        LanguageSystem,
-                                                                    >();
-                                                                    init_language_ptr(&raw mut lang);
+                                                                    let mut lang: Box<LanguageSystem> = new_language();
                                                                     (*lang).name = crate::sdsbuild!(
                                                                         sdsempty(),
                                                                         Byte((tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
@@ -530,10 +527,10 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                                 default_lang_system_0
                                                                                     as u32,
                                                                             ),
-                                                                        lang,
+                                                                        &raw mut *lang,
                                                                         &raw mut (*table).features,
                                                                     );
-                                                                    (*table).languages.push(lang as LanguageSystemPtr);
+                                                                    (*table).languages.push(lang);
                                                                 }
                                                                 let mut lang_sys_count: TableId =
                                                                     read_16u(
@@ -572,10 +569,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                             )
                                                                             .offset(4 as ::core::ffi::c_int as isize) as *const u8,
                                                                     ) as TableId;
-                                                                    let mut lang_0: *mut LanguageSystem = ::core::ptr::null_mut::<
-                                                                        LanguageSystem,
-                                                                    >();
-                                                                    init_language_ptr(&raw mut lang_0);
+                                                                    let mut lang_0: Box<LanguageSystem> = new_language();
                                                                     (*lang_0).name = crate::sdsbuild!(
                                                                         sdsempty(),
                                                                         Byte((tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
@@ -595,10 +589,10 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                             .wrapping_add(
                                                                                 lang_sys as u32,
                                                                             ),
-                                                                        lang_0,
+                                                                        &raw mut *lang_0,
                                                                         &raw mut (*table).features,
                                                                     );
-                                                                    (*table).languages.push(lang_0 as LanguageSystemPtr);
+                                                                    (*table).languages.push(lang_0);
                                                                     k_0 = k_0.wrapping_add(1);
                                                                 }
                                                                 j_2 = j_2.wrapping_add(1);

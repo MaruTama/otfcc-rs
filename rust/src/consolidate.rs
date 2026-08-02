@@ -1152,7 +1152,7 @@ unsafe extern "C" fn consolidate_otl_table(
         }
         let mut j_1: TableId = 0 as TableId;
         while (j_1 as usize) < (*table).languages.len() {
-            let lang: *mut LanguageSystem = (&(*table).languages)[j_1 as usize];
+            let lang: *mut LanguageSystem = &raw mut *(&mut (*table).languages)[j_1 as usize];
             otl_feature_ref_list_filter_env(
                 &raw mut (*lang).features,
                 Some(
