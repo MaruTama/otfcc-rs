@@ -41,7 +41,7 @@ use crate::table::glyf::{RefAnchorStatus, ComponentReference, Glyph, GlyphPtr, P
 
 
 
-use crate::table::otl::{Feature, FeatureRef, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, ChainingSubtable, GposCursiveSubtable, GposMarkToLigatureSubtable, GposMarkToSingleSubtable, GposPairSubtable, GposSingleSubtable, GsubLigatureSubtable, GsubMultiSubtable, GsubReverseSubtable, GsubSingleSubtable, OtlTable};
+use crate::table::otl::{Feature, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, ChainingSubtable, GposCursiveSubtable, GposMarkToLigatureSubtable, GposMarkToSingleSubtable, GposPairSubtable, GposSingleSubtable, GsubLigatureSubtable, GsubMultiSubtable, GsubReverseSubtable, GsubSingleSubtable, OtlTable};
 use crate::table::otl::classdef::{ClassDef};
 
 
@@ -1102,10 +1102,10 @@ unsafe extern "C" fn feature_ref_is_not_empty(
     return !r_feat.is_null() && !(*r_feat).is_null() && !(**r_feat).lookups.is_empty();
 }
 unsafe extern "C" fn lookup_is_not_empty(
-    mut r_lut: *const LookupPtr,
+    mut r_lut: *const Lookup,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
-    return !r_lut.is_null() && !(*r_lut).is_null() && !(**r_lut).subtables.is_empty();
+    return !r_lut.is_null() && !(*r_lut).subtables.is_empty();
 }
 unsafe extern "C" fn feature_is_not_empty(
     mut r_feat: *const Feature,
@@ -1129,7 +1129,7 @@ unsafe extern "C" fn consolidate_otl_table(
             otfcc_consolidate_lookup(
                 font,
                 table,
-                (&(*table).lookups)[j as usize],
+                &raw mut *(&mut (*table).lookups)[j as usize],
                 options,
             );
             j = j.wrapping_add(1);
@@ -1170,7 +1170,7 @@ unsafe extern "C" fn consolidate_otl_table(
             &raw mut (*table).lookups,
             Some(
                 lookup_is_not_empty
-                    as unsafe extern "C" fn(*const LookupPtr, *mut ::core::ffi::c_void) -> bool,
+                    as unsafe extern "C" fn(*const Lookup, *mut ::core::ffi::c_void) -> bool,
             ),
             NULL,
         );

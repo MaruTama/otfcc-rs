@@ -75,6 +75,12 @@ jobs:
       - name: Run dump/build cycles (Rust only)
         run: ./rust/scripts/run-cycles.sh
 
+      # Regression test for the GSUB lookup-alias double-push bug (Rust-only
+      # fix; see rust/README.md). C crashes on this input, so unlike every
+      # other make-test-*.py payload it cannot go through compare-with-c.sh.
+      - name: Lookup-alias regression test (Rust only)
+        run: ./rust/scripts/test-lookup-alias.sh
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"

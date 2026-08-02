@@ -24,7 +24,7 @@ use crate::vendor::sds::{sdsempty};
 unsafe extern "C" fn _declare_lookup_dumper(
     mut llt: LookupType,
     mut dumper: Option<unsafe extern "C" fn(*const Subtable) -> *mut JsonValue>,
-    mut lookup: *mut Lookup,
+    mut lookup: *const Lookup,
     mut dump: *mut JsonValue,
 ) {
     if (*lookup).type_0 == llt {
@@ -70,7 +70,7 @@ unsafe extern "C" fn _declare_lookup_dumper(
         );
     }
 }
-unsafe extern "C" fn _dump_lookup(mut lookup: *mut Lookup, mut dump: *mut JsonValue) {
+unsafe extern "C" fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut JsonValue) {
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_SINGLE,
         Some(otl_gsub_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
@@ -297,7 +297,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
             let mut j_1: TableId = 0 as TableId;
             while (j_1 as usize) < (*table).lookups.len() {
                 let mut _lookup: *mut JsonValue = json_object_new(5 as usize);
-                let lookup: *mut Lookup = (&(*table).lookups)[j_1 as usize];
+                let lookup: *const Lookup = &raw const *(&(*table).lookups)[j_1 as usize];
                 _dump_lookup(lookup, _lookup);
                 json_object_push(
                     lookups,

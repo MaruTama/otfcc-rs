@@ -14,7 +14,6 @@ use crate::table::otl::classdef::{ClassDef};
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{GlyphHandle, LookupHandle};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::vendor::sds::{SdsRaw};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
@@ -343,6 +342,25 @@ pub struct Lookup {
     pub flags: u16,
     pub subtables: SubtableList,
 }
+/// `SubtableList`'s elements are still raw `*mut Subtable` (plan
+/// classification その3's pointee `Box`-ification is a separate,
+/// type-dispatched job -- `Subtable` is a union, and knowing which variant
+/// each element holds needs `self.type_0`, not just the element's own type).
+/// `otl_subtable_list_dispose_dependent` already does exactly that dispatch,
+/// so `drop` just calls it on `self`, then frees `name` -- the same two
+/// steps `otfcc_delete_lookup` used to do before its own `free()`, which a
+/// `Box<Lookup>`'s own deallocation now provides.
+impl Drop for Lookup {
+    fn drop(&mut self) {
+        unsafe {
+            otl_subtable_list_dispose_dependent(&raw mut self.subtables, self as *const Lookup);
+            if !self.name.is_null() {
+                sdsfree(self.name);
+                self.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
+            }
+        }
+    }
+}
 pub type SubtablePtr = *mut Subtable;
 // 所有するポインタ配列（各要素は `Lookup.type_0` に応じた型で解釈される
 // `*mut Subtable`）。分類その3: `Vec<*mut T>` への機械的置換に留め、
@@ -379,8 +397,10 @@ pub struct GposPairSubtableElementInterface {
     pub free: Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
 }
 pub type LookupPtr = *mut Lookup;
-// 所有するポインタ配列。分類その3、`SubtableList` と同じ扱い。
-pub type LookupList = Vec<LookupPtr>;
+// Stage 6-4, third of the group -- see `LangSystemList`/`FeatureList` for
+// the shape. `Lookup`'s own `Drop` (above) now does the type-dispatched
+// `SubtableList` teardown `SubtableList` itself still can't do on its own.
+pub type LookupList = Vec<Box<Lookup>>;
 pub type LookupRef = *const Lookup;
 // 所有しない参照配列（`LookupList` の要素を指すだけ）。分類その3。
 pub type LookupRefList = Vec<LookupRef>;
@@ -532,57 +552,58 @@ pub(crate) unsafe fn otl_subtable_list_dispose_dependent(
     }
     *arr = Vec::new();
 }
+// Only ever called on a `Lookup` that hasn't been pushed into a `LookupList`
+// yet -- the not-yet-owned scratch/rejection cases in `table/otl/{read,
+// parse}.rs`. Reclaims the `Box` `new_lookup`/`Box::into_raw` produced and
+// drops it, which now does the subtable teardown and `name` free that this
+// function's body used to spell out directly.
 pub unsafe extern "C" fn otfcc_delete_lookup(lookup: *mut Lookup) {
     if lookup.is_null() {
         return;
     }
-    otl_subtable_list_dispose_dependent(&raw mut (*lookup).subtables, lookup);
-    sdsfree((*lookup).name);
-    free(lookup as *mut ::core::ffi::c_void);
+    drop(Box::from_raw(lookup));
 }
-// `__caryll_allocate_clean`（callocの罠が当てはまらないゼロ埋めアロケータ）
-// で新しい `Lookup` を確保し、フィールドを埋めてから呼び出し元が
-// `LookupList` に push する。生存: `table/otl/{read,parse}.rs`から直接呼ぶ。
+/// Same shape as `new_language`/`new_feature`: `Box` is the allocation, the
+/// struct literal is the zero-init the old `__caryll_allocate_clean`
+/// provided.
 #[inline]
-pub(crate) unsafe fn init_lookup_ptr(entry: *mut LookupPtr) {
-    *entry = __caryll_allocate_clean(
-        ::core::mem::size_of::<Lookup>() as usize,
-        47 as ::core::ffi::c_ulong,
-    ) as LookupPtr;
-    (**entry).name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    (**entry).subtables = Vec::new();
-}
-#[inline]
-pub(crate) unsafe fn dispose_lookup_ptr(entry: *mut LookupPtr) {
-    otfcc_delete_lookup(*entry);
+pub(crate) fn new_lookup() -> Box<Lookup> {
+    Box::new(Lookup {
+        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        type_0: OTL_TYPE_UNKNOWN,
+        _offset: 0,
+        flags: 0,
+        subtables: Vec::new(),
+    })
 }
 // `LookupPtr`単体の`.copy`（`otl_lookup_ptr_copy`、生ポインタのmemcpy）は
 // `LookupList`自体の`.copy`（テーブル全体クローン、死んでいる）からしか
 // 呼ばれておらず削除。
 // テーブル全体の `.copy`（`otl_lookup_list_copy`、生存していた `LookupPtr`
-// 単体copyと同じく死んでいる）は削除。`.dispose`は`dispose_otl`から生存
-// （enclosing `OtlTable`が生の`free()`で解放される直前に呼ばれるため
-// `SubtableList`と同じ理由で`.clear()`ではなくフルドロップにする）。
+// 単体copyと同じく死んでいる）は削除。
+//
+// 要素が `Box<Lookup>` になったので、per-element の dispose ループは不要:
+// `Vec` の drop glue が各 `Box` を解放し、`Lookup::drop` が type-dispatched
+// な `SubtableList` の破棄と `name` の `sdsfree` をやる。
 pub(crate) unsafe fn otl_lookup_list_dispose(arr: *mut LookupList) {
     if arr.is_null() {
         return;
-    }
-    for lookup in (*arr).iter_mut() {
-        dispose_lookup_ptr(lookup as *mut LookupPtr);
     }
     *arr = Vec::new();
 }
 // 元の「スワップして末尾を切り詰め」ループを`Vec::retain`に素直に置き換え。
 pub(crate) unsafe fn otl_lookup_list_filter_env(
     arr: *mut LookupList,
-    fn_0: Option<unsafe extern "C" fn(*const LookupPtr, *mut ::core::ffi::c_void) -> bool>,
+    fn_0: Option<unsafe extern "C" fn(*const Lookup, *mut ::core::ffi::c_void) -> bool>,
     env: *mut ::core::ffi::c_void,
 ) {
-    (*arr).retain(|&item| {
-        if fn_0.expect("non-null function pointer")(&item as *const LookupPtr, env) {
+    (*arr).retain(|item| {
+        if fn_0.expect("non-null function pointer")(&raw const **item, env) {
             true
         } else {
-            dispose_lookup_ptr(&item as *const LookupPtr as *mut LookupPtr);
+            // Rejected: `retain` drops `*item` (a `Box<Lookup>`) itself,
+            // running the same teardown `dispose_lookup_ptr` used to do
+            // manually -- no explicit call needed.
             false
         }
     });

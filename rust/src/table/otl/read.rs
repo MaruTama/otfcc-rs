@@ -10,8 +10,8 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::sds::{Byte, Dec5, Hex2};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
-use crate::table::otl::{Feature, FeatureList, FeatureRef, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
-use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_subtable_list_dispose_dependent, new_feature, new_language, init_lookup_ptr, table_otl_create, table_otl_free};
+use crate::table::otl::{Feature, FeatureList, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
+use crate::table::otl::{otl_feature_ref_list_dispose, otl_subtable_list_dispose_dependent, new_feature, new_language, new_lookup, table_otl_create, table_otl_free};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
 use crate::table::otl::subtables::extend::{otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend};
@@ -202,9 +202,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                     current_block = 12147880666119273379;
                                     break;
                                 }
-                                let mut lookup: *mut Lookup =
-                                    ::core::ptr::null_mut::<Lookup>();
-                                init_lookup_ptr(&raw mut lookup);
+                                let mut lookup: Box<Lookup> = new_lookup();
                                 (*lookup)._offset = lookup_list_offset.wrapping_add(read_16u(
                                     data.offset(lookup_list_offset as isize)
                                         .offset(2 as ::core::ffi::c_int as isize)
@@ -222,7 +220,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                     lookup_type_base,
                                     read_16u(data.offset((*lookup)._offset as isize) as *const u8),
                                 );
-                                (*table).lookups.push(lookup as LookupPtr);
+                                (*table).lookups.push(lookup);
                                 j = j.wrapping_add(1);
                             }
                             match current_block {
@@ -344,7 +342,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                     as TableId;
                                                 if (lookupid as usize) < (*table).lookups.len() {
                                                     let lookup_0: *mut Lookup =
-                                                        (&(*table).lookups)[lookupid as usize];
+                                                        &raw mut *(&mut (*table).lookups)[lookupid as usize];
                                                     if (*lookup_0).name.is_null() {
                                                         if !(*options).glyph_name_prefix.is_null() {
                                                             let fresh3 = lnk;
@@ -725,8 +723,11 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
                     );
                     (&mut (*lookup).subtables)[j_1 as usize] = st as SubtablePtr;
                 } else if !(&(*lookup).subtables)[j_1 as usize].is_null() {
-                    let mut temp: *mut Lookup = ::core::ptr::null_mut::<Lookup>();
-                    init_lookup_ptr(&raw mut temp);
+                    // A scratch `Lookup` purely to reuse its (now `Drop`-driven)
+                    // type-dispatched subtable teardown on this one subtable --
+                    // never pushed anywhere, so it's just let go out of scope
+                    // instead of the old explicit `otfcc_delete_lookup` call.
+                    let mut temp: Box<Lookup> = new_lookup();
                     (*temp).type_0 = (*(&(*lookup).subtables)[j_1 as usize])
                         .extend
                         .type_0;
@@ -735,8 +736,7 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
                             .extend
                             .subtable as SubtablePtr,
                     );
-                    otfcc_delete_lookup(temp);
-                    temp = ::core::ptr::null_mut::<Lookup>();
+                    drop(temp);
                     free(
                         (&(*lookup).subtables)[j_1 as usize] as *mut ::core::ffi::c_void
                     );
@@ -802,7 +802,7 @@ pub unsafe extern "C" fn otfcc_read_otl(
                             otfcc_read_otl_lookup(
                                 data,
                                 length,
-                                (&(*otl).lookups)[j as usize],
+                                &raw mut *(&mut (*otl).lookups)[j as usize],
                                 max_glyphs,
                                 options,
                             );
