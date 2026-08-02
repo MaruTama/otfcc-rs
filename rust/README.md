@@ -61,21 +61,30 @@ from those paths.
 ## Everyday use: just build and test
 
 CI (`.github/workflows/rust.yml`) and local development do **not**
-re-run c2rust. They just build the committed Rust source and check it:
+re-run c2rust, and — since `tests/golden/` was frozen (see below) — do
+**not** need `c/` present, built, or even checked out either:
 
 ```bash
-pip install fonttools && python3 rust/scripts/make-test-variable-font.py
-                                   # optional: adds the gvar payload below
-./rust/scripts/build-crate.sh   # cargo build --release + cargo test
-./rust/scripts/check-abi.sh     # the exported C ABI surface is unchanged
-./rust/scripts/compare-with-c.sh # build C with clang, compare byte-for-byte
-./rust/scripts/run-cycles.sh    # dump/build cycles against the Rust binaries
+./rust/scripts/build-crate.sh        # cargo build --release + cargo test
+./rust/scripts/check-abi.sh          # the exported C ABI surface is unchanged
+./rust/scripts/compare-with-golden.sh # compare byte-for-byte against tests/golden/
+./rust/scripts/run-cycles.sh         # dump/build cycles against the Rust binaries
 node rust/scripts/compare-roundtrips.js
 ```
 
 (`./rust/scripts/test.sh` = `build-crate.sh` + `check-abi.sh` +
-`run-cycles.sh`, for convenience.) None of this needs Docker, c2rust, or a
-specific architecture — plain `rustup`/`cargo` plus a C compiler.
+`compare-with-golden.sh` + `run-cycles.sh`, for convenience.) None of this
+needs Docker, c2rust, a C compiler, or a specific architecture — plain
+`rustup`/`cargo`.
+
+If you're changing behavior in a way that's meant to keep matching C (as
+opposed to a deliberate, intentional divergence), `compare-with-c.sh` is
+still there for that: it builds C with clang and compares byte-for-byte
+against the live Rust build, the same check `compare-with-golden.sh` now
+runs against a frozen snapshot instead. Confirm with it, then run
+`generate-golden.sh` to refresh `tests/golden/` and commit the result
+alongside the change that motivated it. See "CI decoupled from C" further
+down for the full story.
 
 The toolchain is **stable Rust, pinned** (`rust-toolchain.toml`: 1.97.1,
 edition 2024); rustup installs it on first build. The pin is deliberate, for the
@@ -2462,5 +2471,72 @@ on the other platform before a commit is trusted.
       (calloc) calls sized to the *whole* union for the `chaining`/`extend`
       variants, which stayed bare (not `ManuallyDrop`-wrapped) and were
       never touched here.
-  `tests/golden/` and hand `compare-with-c.sh`'s job over to it — otherwise
-  removing C removes the safety net that makes all of this checkable.
+- **CI decoupled from C: `tests/golden/` now carries `compare-with-c.sh`'s
+  job.** (This bullet fixes a stray, incomplete sentence fragment that used
+  to sit here — "`tests/golden/` and hand `compare-with-c.sh`'s job over to
+  it — otherwise removing C removes the safety net that makes all of this
+  checkable" — orphaned from whatever it was originally attached to; the
+  work it was gesturing at is what this bullet actually describes.)
+  Explicit instruction: it is fine for the Rust crate to diverge from C
+  from here on, but CI must keep confirming the *build output* stays
+  correct — so this captures C's approval as a frozen snapshot rather than
+  dropping the check.
+  - **What moved**: for every payload `compare-with-c.sh` already covered
+    (the 6 TTF + 1 CFF payloads, the gvar variable-font payload, the
+    synthetic `unknown-lookup`/`meta-test`/`vdmx-test` payloads, and the
+    `otfccdll` cdylib), the dump JSON and build output that `compare-with-c.sh`
+    had just finished confirming byte-identical to C (PR #78's full-pipeline
+    run, both platforms) are committed under `tests/golden/` as the new
+    expected values. `rust/scripts/compare-with-golden.sh` reproduces the
+    exact same dump→build comparisons `compare-with-c.sh` did, just against
+    those committed files instead of a freshly built C binary — CI no longer
+    installs clang, builds `c/`, or needs `c/` checked out at all. The CI
+    workflow's `paths:` trigger dropped `c/**` accordingly.
+  - **`compare-with-c.sh` itself is not deleted** — it still builds C and
+    compares against the live Rust build exactly as before, kept as a
+    manual, on-demand tool for the one time it is still needed: re-confirming
+    a legitimately output-changing fix still matches C's behavior before
+    running the new `rust/scripts/generate-golden.sh` to refresh
+    `tests/golden/` and committing the result alongside the change that
+    motivated it.
+  - **One payload had to become a real fixture instead of a build-time
+    generated one**: `gvar-test.ttf` (the variable-font payload) was
+    previously produced fresh every CI run by
+    `make-test-variable-font.py` via fontTools, which stamps
+    `head.created`/`head.modified` with the current wall-clock time when
+    they are not set explicitly. A freshly-regenerated copy would carry a
+    different embedded timestamp than whatever the frozen golden dump JSON
+    recorded, failing the comparison for a reason with nothing to do with
+    correctness. Committed the already-generated, already-verified
+    `build/gvar-test.ttf` as `tests/payload/gvar-test.ttf` instead — a
+    static fixture like every other payload in that directory —
+    and dropped the `pip install fonttools` / generation step from CI
+    entirely. `run-cycles.sh` and `compare-with-c.sh` both updated to read
+    it from the new fixed path, unconditionally (no more "skip if not
+    generated" branch).
+  - **The `otfccdll` comparison needed a different tolerance mechanism, not
+    just a different reference file.** `compare-with-c.sh`'s version
+    tolerated the cdylib API's lack of `--keep-modified-time` by diffing
+    two *fresh, same-run* builds against each other and requiring the
+    cross-implementation diff to be no larger than that self-diff — sound
+    when both sides are built moments apart, but not against a golden
+    fixture captured at an arbitrary earlier time: two fresh builds can
+    land in the same wall-clock second and diff by 0 bytes, which would
+    make *any* nonzero drift from the older golden file a spurious failure
+    (hit exactly this while writing the script — a real 0-vs-5-byte
+    failure on a byte-identical build). Replaced the dynamic baseline with
+    a fixed, generous tolerance (32 bytes — comfortably more than the
+    `created`/`modified` `LONGDATETIME`s and `checkSumAdjustment` combined
+    could ever contribute, far too small for any real structural
+    difference) instead.
+  - **Verified the new script against the just-generated fixtures on both
+    platforms** before wiring it into CI: `compare-with-golden.sh` (run
+    twice on macOS for determinism, once on Linux) reports every payload
+    byte-identical, alongside the standard `cargo test`, `check-abi.sh`,
+    `run-cycles.sh` + round trips, the issue #1 golden test, and
+    `test-lookup-alias.sh` — all still green.
+  - **`c/` itself is untouched** — this decouples CI's dependency on it,
+    it does not remove or archive the C source. Deleting `c/` outright
+    remains a separate, later decision; `tests/golden/` existing is what
+    would make that decision safe if it's ever made, not a claim that it
+    has been made.

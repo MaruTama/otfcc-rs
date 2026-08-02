@@ -1,8 +1,16 @@
 name: Rust build & compatibility
 
-# Verifies the checked-in Rust port (rust/) stays green:
-# it builds, its unit tests pass, and its output is byte-compatible with the
-# C toolchain built from the same tree. See rust/README.md.
+# Verifies the checked-in Rust port (rust/) stays green: it builds, its unit
+# tests pass, and its output is byte-compatible with the frozen "golden"
+# fixtures under tests/golden/. See rust/README.md.
+#
+# This does NOT build or compare against the C toolchain (c/) anymore --
+# compare-with-c.sh confirmed Rust byte-identical to C across every payload
+# through PR #78, and tests/golden/ is that confirmed-good output frozen in
+# place, so CI no longer needs c/ present, built, or even checked out.
+# rust/scripts/compare-with-c.sh still exists for a manual, on-demand
+# re-check against C (e.g. before regenerating tests/golden/ after a
+# legitimate output-changing fix); it's just no longer part of this workflow.
 #
 # This does NOT re-run c2rust (the C -> Rust transpile). The Rust source is
 # committed to the repo and hand-maintained; the transpile pipeline is retired
@@ -12,28 +20,25 @@ on:
   push:
     branches: [master]
     paths:
-      - "c/**"
       - "tests/**"
       - "rust/**"
       - ".github/workflows/rust.yml"
   pull_request:
     paths:
-      - "c/**"
       - "tests/**"
       - "rust/**"
       - ".github/workflows/rust.yml"
   workflow_dispatch: {}
 
 jobs:
-  # Standard amd64 runner, no Docker, no c2rust: builds the committed Rust
-  # source with the pinned stable toolchain (rust-toolchain.toml; rustup on the
-  # runner installs it automatically), runs `cargo test`, builds the C
-  # toolchain natively (c/dep/bin-linux/{premake5,ninja} are x86_64, matching
-  # this runner) with clang, and compares its output against the Rust build
-  # byte-for-byte on the same machine — including the gvar (variable-font)
-  # payload and the otfccdll cdylib, both built via ctypes against the same
-  # JSON input (see compare-with-c.sh). Finally runs the project's own
-  # round-trip stability tests against the Rust binaries.
+  # Standard amd64 runner, no Docker, no c2rust, no C toolchain: builds the
+  # committed Rust source with the pinned stable toolchain
+  # (rust-toolchain.toml; rustup on the runner installs it automatically),
+  # runs `cargo test`, and compares its output against tests/golden/
+  # byte-for-byte — including the gvar (variable-font) payload (itself a
+  # frozen fixture, tests/payload/gvar-test.ttf) and the otfccdll cdylib.
+  # Finally runs the project's own round-trip stability tests against the
+  # Rust binaries.
   build-test-compare:
     runs-on: ubuntu-latest
     steps:
@@ -42,11 +47,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Generate the gvar (variable-font) test payload
-        run: |
-          pip install --quiet fonttools
-          python3 rust/scripts/make-test-variable-font.py
 
       - name: Build the Rust crate and run cargo test
         run: ./rust/scripts/build-crate.sh
@@ -60,24 +60,15 @@ jobs:
       - name: Check the exported C ABI surface
         run: ./rust/scripts/check-abi.sh
 
-      # compare-with-c.sh builds the C toolchain with clang, not gcc: c2rust's
-      # transpile is based on parsing with clang's AST, and gcc vs clang
-      # produce measurably different floating-point rounding in this codebase
-      # (verified locally: a gcc build differs byte-for-byte from a clang
-      # build of the identical source on the identical machine). ubuntu-latest
-      # doesn't have clang preinstalled.
-      - name: Install clang
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq clang
-
-      - name: Build the C toolchain and compare output byte-for-byte
-        run: ./rust/scripts/compare-with-c.sh
+      - name: Compare output against the golden fixtures
+        run: ./rust/scripts/compare-with-golden.sh
 
       - name: Run dump/build cycles (Rust only)
         run: ./rust/scripts/run-cycles.sh
 
       # Regression test for the GSUB lookup-alias double-push bug (Rust-only
-      # fix; see rust/README.md). C crashes on this input, so unlike every
-      # other make-test-*.py payload it cannot go through compare-with-c.sh.
+      # fix; see rust/README.md). C crashes on this input, so it was never
+      # comparable against C and isn't part of the golden fixtures either.
       - name: Lookup-alias regression test (Rust only)
         run: ./rust/scripts/test-lookup-alias.sh
 
