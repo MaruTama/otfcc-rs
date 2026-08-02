@@ -1423,6 +1423,96 @@ on the other platform before a commit is trusted.
     trips, issue #1 golden test). `NotoNastaliqUrdu-Regular.ttf` drives
     feature/lookup reading, consolidation, dumping and building end to end,
     so no synthetic payload was needed.
+- **`LookupList` → `Vec<Box<Lookup>>`, third of the group — and it surfaced a
+  genuine pre-existing double-free bug in the original C source, fixed
+  Rust-only by explicit decision.**
+  - **`Lookup` can't get the same one-line `Drop` as `LanguageSystem`/
+    `Feature`.** Its `subtables: SubtableList` (`Vec<*mut Subtable>`) is a
+    genuinely owned container of a `#[repr(C)] union` with no discriminant
+    of its own — the live variant is only known via the *enclosing*
+    `Lookup.type_0`. Rust's automatic drop glue can't type-dispatch a union,
+    so `impl Drop for Lookup` calls the pre-existing
+    `otl_subtable_list_dispose_dependent(&raw mut self.subtables, self)`
+    helper (which already did exactly this type dispatch for the old manual
+    `otfcc_delete_lookup`) before `sdsfree`ing `name`. Everything else —
+    `new_lookup() -> Box<Lookup>`, the transient-owner `LookupHash.lookup`
+    treatment, `otl_lookup_list_dispose` collapsing to `*arr = Vec::new()` —
+    followed the `LanguageSystem`/`Feature` template unchanged.
+    `otfcc_delete_lookup` itself (still called directly elsewhere) became
+    `if lookup.is_null() { return; } drop(Box::from_raw(lookup));`.
+  - **Found while porting the alias handling `Feature` had already taught to
+    expect: `LookupHash` has no `alias` field, in the C original, not just
+    the Rust translation.** `FeatureHash` (`c/lib/table/otl/parse.c` and its
+    Rust translation both) has an `alias: bool` that the final drain loop
+    checks (`if (!s->alias) { push }`) before transferring ownership —
+    exactly the guard the `FeatureList` PR above relied on to prove no
+    double-free. `LookupHash` has no such field in *either* language, and
+    its drain loop pushes every node's `.lookup` unconditionally, alias
+    copies included. A JSON `"lookups"` object where one entry is a string
+    (an alias to an existing lookup, the same shape `"features"` supports)
+    therefore pushes the same `Lookup` pointer twice — a double-free on
+    disposal in C, and in a naive `Vec<Box<Lookup>>` translation, two
+    `Box::from_raw` calls on the same allocation.
+  - **Verified empirically, not just by reading, before deciding how to
+    fix it**: `rust/scripts/make-test-lookup-alias.py` (new) derives a
+    payload from `tests/payload/kltf-bugfont1.json` by turning one
+    `GSUB.lookups` entry into a string-valued alias of another. Built with
+    the pre-fix baseline (`git stash`) on both implementations: **C
+    segfaults (exit 139)**; **Rust hangs at 100% CPU** in an infinite loop
+    (the corrupted allocator free list from the double `Box::from_raw`
+    never terminates the internal search), had to be killed with `pkill -9`.
+  - **Two scope decisions were the user's, not mine, both confirmed via
+    `AskUserQuestion` before writing any fix**: (1) investigate and fix
+    correctly with a synthetic payload, rather than skip `LookupList` for
+    now or add a minimal double-free guard without the full `Box`
+    conversion; (2) fix Rust only, *not* the matching C bug — unlike issue
+    #1's dual-fix precedent, `c/lib/table/otl/parse.c` is intentionally
+    left untouched here.
+  - **The fix**: `LookupHash` gained an `alias: bool` field (with an
+    in-source comment recording this exact asymmetry and the empirical
+    evidence above), set `false` at the real-definition construction site
+    and `true` at the alias-construction site, mirroring `FeatureHash`
+    exactly. The drain loop's push becomes conditional on `!(*s).alias`,
+    same as the feature loop already was. Rebuilt from the pre-fix baseline
+    and reran the same payload: **exits 0, deterministic across repeated
+    runs, and the alias resolves to the same underlying `Lookup`** (a
+    feature that references both the real name and its alias now lists the
+    same lookup twice by name, not a phantom duplicate — lookup count in
+    the output is unchanged from the un-aliased source).
+  - **Because C still crashes on this input, it cannot go through
+    `compare-with-c.sh`'s byte-for-byte comparison** (there is nothing
+    correct for C to produce to compare against) — the usual
+    `make-test-*.py` pattern doesn't apply as-is. Added
+    `rust/scripts/test-lookup-alias.sh` instead: a Rust-only regression
+    test asserting (a) `otfccbuild` exits 0 on the alias payload, (b) three
+    repeated builds are byte-identical (the same kind of determinism check
+    that caught the `gasp` uninitialized-`Vec` bug earlier in this
+    migration — a corrupt-but-not-crashing build would slip past a single
+    run), (c) the lookup count is unchanged by the alias (proving the push
+    was actually skipped, not just that nothing crashed), and (d) a
+    dump → build → dump round trip is stable. Wired into `test.sh` and into
+    CI as its own step, alongside (not inside) `run-cycles.sh`.
+  - **Every other call site touched by `Vec<Box<Lookup>>` was the
+    established mechanical pattern**: `(&(*container))[idx]` now yields
+    `&Box<Lookup>` rather than a `Copy`-able raw pointer, so read-only
+    consumers (`otf_writer/stat.rs`'s `stat_max_context_otl`,
+    `table/otl/dump.rs`, two sites in `table/otl/build.rs`) take
+    `*const Lookup` via `&raw const *(&(*container))[idx]`, matching
+    whichever raw-pointer-ness their own `table`/`lookup` parameter already
+    had (a `*const OtlTable` parameter cannot yield `&mut`, so those follow
+    through as `*const` end to end); mutating consumers use `&raw mut`
+    through `&mut`. `_dump_lookup`/`_declare_lookup_dumper` in `dump.rs`
+    were retyped from `*mut Lookup` to `*const Lookup` to match — they were
+    always read-only despite the C-translated `mut` qualifier.
+    `feature_index`'s pointer-identity comparison pattern
+    (`&raw const *element == target`) reappears once more, in
+    `write_otl_features`'s search for which lookup index a feature's
+    `LookupRef` corresponds to (a bare `as LookupRef` cast on a `Box`
+    doesn't compile; comparing the two `*const Lookup`s directly does).
+  - Zero behavior change otherwise, verified with the standard full
+    pipeline (build, 44 tests, ABI, byte comparison — twice on macOS —
+    round trips, issue #1 golden test) plus the new lookup-alias regression
+    test, on macOS; Linux verification and the PR are next.
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

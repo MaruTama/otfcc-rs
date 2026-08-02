@@ -13,12 +13,12 @@ use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonValue, JsonType};
 use crate::support::{NULL, TRUE_0};
-use crate::table::otl::{Feature, FeatureRef, FeatureRefList, LanguageSystem, Lookup, LookupPtr, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
+use crate::table::otl::{Feature, FeatureRef, FeatureRefList, LanguageSystem, Lookup, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::support::json_funcs::otfcc_parse_flags;
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::support::json_ident::{json_ident};
-use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, new_feature, new_language, init_lookup_ptr, table_otl_create, table_otl_free};
+use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, new_feature, new_language, new_lookup, table_otl_create, table_otl_free};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::parse::{otl_parse_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_parse_cursive};
@@ -52,6 +52,18 @@ pub struct FeatureHash {
 #[repr(C)]
 pub struct LookupHash {
     pub name: *mut ::core::ffi::c_char,
+    /// Rust-only addition, not present in `c/`'s `lookup_hash` -- the C
+    /// original has this exact same "alias" shape (a JSON string value in
+    /// `"lookups"` makes a second hash node share `.lookup` with an existing
+    /// one) but no flag to tell the two apart, so its final drain loop
+    /// pushes *every* node's `.lookup` into `otl->lookups`, including the
+    /// alias's copy of an already-pushed pointer. `otl_iLookupList.dispose`
+    /// then frees that pointer twice. Confirmed with a synthetic payload:
+    /// segfaults C's otfccbuild, hangs Rust's pre-`Box` baseline. `Feature`'s
+    /// parallel alias path (`FeatureHash.alias`, just above) already skips
+    /// the push for its alias node -- this field gives `Lookup` the same
+    /// treatment, fixed in Rust only (see rust/README.md).
+    pub alias: bool,
     pub lookup: *mut Lookup,
     pub hh: UtHashHandle,
     pub order_type: LookupOrderType,
@@ -643,8 +655,11 @@ unsafe extern "C" fn _declare_lookup_parser(
         );
         return false;
     }
-    let mut lookup: *mut Lookup = ::core::ptr::null_mut::<Lookup>();
-    init_lookup_ptr(&raw mut lookup);
+    // Transient owner, same shape as `FeatureHash.feature`: raw here because
+    // `LookupHash.lookup` is raw, `Box::into_raw` at construction,
+    // `Box::from_raw` either at the rejection path below
+    // (`otfcc_delete_lookup`) or at the one non-alias push site far below.
+    let lookup: *mut Lookup = Box::into_raw(new_lookup());
     (*lookup).type_0 = llt;
     (*lookup).flags = otfcc_parse_flags(
         json_obj_get(
@@ -706,6 +721,7 @@ unsafe extern "C" fn _declare_lookup_parser(
         105 as ::core::ffi::c_ulong,
     ) as *mut LookupHash;
     (*item).name = sdsnew(lookup_name) as *mut ::core::ffi::c_char;
+    (*item).alias = false;
     (*lookup).name = sdsdup((*item).name as SdsRaw);
     (*item).lookup = lookup;
     (*item).order_type = LookupOrderType::File;
@@ -1485,6 +1501,7 @@ unsafe extern "C" fn figure_out_lookups_from_json(
                     132 as ::core::ffi::c_ulong,
                 ) as *mut LookupHash;
                 (*dup).name = sdsnew(lookup_name) as *mut ::core::ffi::c_char;
+                (*dup).alias = true;
                 (*dup).lookup = (*s).lookup;
                 (*dup).order_type = LookupOrderType::File;
                 (*dup).order_val = (if !lh.is_null() {
@@ -6424,7 +6441,14 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                     tmp = (if !lh.is_null() { (*lh).hh.next } else { NULL }) as *mut LookupHash
                         as *mut LookupHash;
                     while !s.is_null() {
-                        (*otl).lookups.push((*s).lookup as LookupPtr);
+                        if !(*s).alias {
+                            // Takes ownership back from the transient uthash
+                            // node (see the `Box::into_raw`/`new_lookup` at
+                            // construction); an alias node's copy of the same
+                            // pointer is never pushed and never freed on its
+                            // own -- see `LookupHash.alias`'s doc comment.
+                            (*otl).lookups.push(Box::from_raw((*s).lookup));
+                        }
                         let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s).hh;
                         if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
                             free((*(*lh).hh.tbl).buckets as *mut ::core::ffi::c_void);

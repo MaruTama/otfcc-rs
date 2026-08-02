@@ -92,24 +92,25 @@ pub unsafe extern "C" fn consolidate_chaining(
         if !(*h).name.is_null() {
             let mut k: TableId = 0 as TableId;
             while (k as usize) < (*table).lookups.len() {
-                if !(&(*table).lookups)[k as usize].is_null() {
-                    if !((*(&(*table).lookups)[k as usize])
-                        .subtables
-                        .is_empty())
+                // Every element is a `Box<Lookup>` now, never null, so the
+                // old null check is gone -- everything else here is plain
+                // field access through the `Box`, unchanged.
+                if !((*(&(*table).lookups)[k as usize])
+                    .subtables
+                    .is_empty())
+                {
+                    if !(strcmp(
+                        (*(&(*table).lookups)[k as usize]).name
+                            as *const ::core::ffi::c_char,
+                        (*h).name as *const ::core::ffi::c_char,
+                    ) != 0 as ::core::ffi::c_int)
                     {
-                        if !(strcmp(
-                            (*(&(*table).lookups)[k as usize]).name
-                                as *const ::core::ffi::c_char,
-                            (*h).name as *const ::core::ffi::c_char,
-                        ) != 0 as ::core::ffi::c_int)
-                        {
-                            found_lookup = true;
-                            handle_consolidate_to(
-                                h as *mut Handle,
-                                k as GlyphId,
-                                (*(&(*table).lookups)[k as usize]).name,
-                            );
-                        }
+                        found_lookup = true;
+                        handle_consolidate_to(
+                            h as *mut Handle,
+                            k as GlyphId,
+                            (*(&(*table).lookups)[k as usize]).name,
+                        );
                     }
                 }
                 k = k.wrapping_add(1);

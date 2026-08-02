@@ -13,7 +13,7 @@ use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SdsRaw};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::{NULL};
-use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable};
+use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
@@ -428,7 +428,7 @@ unsafe extern "C" fn write_otl_lookups(
     let mut last_offset: usize = 0 as usize;
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).lookups.len() {
-        let lookup: *mut Lookup = (&(*table).lookups)[j as usize];
+        let lookup: *const Lookup = &raw const *(&(*table).lookups)[j as usize];
         let mut heu: BuildHeuristics = get_lookup_heuristics(table, lookup);
         (*(*options).logger)
             .log_sds
@@ -489,7 +489,7 @@ unsafe extern "C" fn write_otl_lookups(
                 ),
             );
         }
-        let lookup_0: *mut Lookup = (&(*table).lookups)[j_1 as usize];
+        let lookup_0: *const Lookup = &raw const *(&(*table).lookups)[j_1 as usize];
         let can_be_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup_0);
         let use_extended_for_it: bool = use_extended as ::core::ffi::c_int != 0
             || *prefer_ext_for_this_lut.offset(j_1 as isize) as ::core::ffi::c_int != 0;
@@ -579,7 +579,7 @@ unsafe extern "C" fn write_otl_features(
             while (l as usize) < (*table).lookups.len() {
                 if (&(*(&(*table).features)[j as usize])
                     .lookups)[k as usize]
-                    == (&(*table).lookups)[l as usize] as LookupRef
+                    == &raw const *(&(*table).lookups)[l as usize]
                 {
                     bk_push(fea, &[bk_int(BkCellType::B16, (l as ::core::ffi::c_int) as u32)]);
                     break;

@@ -1051,7 +1051,7 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
     // for loop over the vector, confirmed against the original C source.
     let mut maxc: u16 = 1 as u16;
     for i in 0..(*table).lookups.len() {
-        let lookup: *mut Lookup = (&(*table).lookups)[i];
+        let lookup: *const Lookup = &raw const *(&(*table).lookups)[i];
         match (*lookup).type_0 {
             OTL_TYPE_GPOS_PAIR | OTL_TYPE_GPOS_MARK_TO_BASE | OTL_TYPE_GPOS_MARK_TO_LIGATURE
             | OTL_TYPE_GPOS_MARK_TO_MARK => {

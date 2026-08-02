@@ -503,13 +503,13 @@ unsafe extern "C" fn expand_chain(font: *mut Font, lookup: *mut Lookup, table: *
 unsafe extern "C" fn expand_chaining_lookups(font: *mut Font) {
     if !(*font).gsub.is_null() {
         for j in 0..(*(*font).gsub).lookups.len() {
-            let lookup: *mut Lookup = (&(*(*font).gsub).lookups)[j];
+            let lookup: *mut Lookup = &raw mut *(&mut (*(*font).gsub).lookups)[j];
             expand_chain(font, lookup, (*font).gsub);
         }
     }
     if !(*font).gpos.is_null() {
         for j in 0..(*(*font).gpos).lookups.len() {
-            let lookup: *mut Lookup = (&(*(*font).gpos).lookups)[j];
+            let lookup: *mut Lookup = &raw mut *(&mut (*(*font).gpos).lookups)[j];
             expand_chain(font, lookup, (*font).gpos);
         }
     }
