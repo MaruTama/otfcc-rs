@@ -256,6 +256,10 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
     };
 }
 
+// Not used in this file -- shared here (from the original C's dedup pass,
+// Stage 2) because `consolidate/otl/{gsub_single,gsub_reverse}.rs` both need
+// this exact `(fromid, fromname, toid, toname)` dedup-hash shape and import
+// it from here rather than each defining their own copy.
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GsubSingleMapHash {

@@ -1608,6 +1608,107 @@ on the other platform before a commit is trusted.
     joining this group, since `Subtable`'s `#[repr(C)] union` has no
     discriminant of its own and can't be `Box`-owned without the
     `ManuallyDrop` treatment Stage 6-1 already gave it.
+- **uthash → real Rust containers: first instance done, real scope of the
+  rest measured.** c2rust inlined every `HASH_ADD`/`HASH_FIND`/`HASH_ITER`
+  call site's expansion textually rather than sharing one implementation, so
+  `vendor/uthash.rs` itself is tiny (44 lines, just the three handle/table/
+  bucket structs) while ~24 distinct hash-table *instances* (structs with
+  their own `hh: UtHashHandle` field) are scattered across ~19 files, each
+  with its own full copy of uthash's insert/find/grow/sort/delete logic
+  (the Bob Jenkins hash alone is ~90 lines, repeated at every insert and
+  find site).
+  - **Investigated as a candidate for a from-scratch `Subtable` union → enum
+    conversion first, and set that aside.** The union's per-variant fields
+    are allocated at their own trimmed size (`malloc(size_of::<FieldType>())`,
+    not `size_of::<Subtable>()`) and the resulting pointer is reinterpret-cast
+    to `*mut Subtable` — safe today because access always goes through the
+    one field a `Lookup.type_0`-driven caller already knows is live, but
+    incompatible with a real `enum` (which needs the *whole* enum's size,
+    tag included, to construct any variant at all). Fixing that touches
+    all 11 subtables' `_create` functions, not just the ~58 field-access
+    call sites `union` → `enum` looks like on the surface — a materially
+    bigger job than it first appeared, so it's parked, not attempted here.
+  - **Picked up uthash → real containers instead, and the same
+    bigger-than-it-looks lesson applied again, for a different reason.**
+    This is not a mechanical "same values, different container" swap the
+    way `CVecRaw<T>` → `Vec<T>` (Stage 6-1) mostly was: uthash's `HASH_SORT`
+    and its "insert or find-and-skip" idiom carry real *behavioral* logic
+    (deduplication rules, output ordering) that has to be read and
+    understood per instance before it can be preserved, not just
+    transcribed. Confirmed by fully tracing one instance
+    (`consolidate_gsub_multi`/`GsubMultiHash`,
+    `consolidate/otl/gsub_multi.rs`) end to end before writing a line of
+    replacement code: it deduplicates by `from`-glyph id (first occurrence
+    wins, a later duplicate's already-consolidated `to` coverage is simply
+    dropped along with the pre-dedup input `Vec` when it's disposed — not
+    merged, not an error), then reads the surviving entries back out
+    **sorted ascending by that same id** (a `HASH_SORT` call right before
+    the `HASH_ITER`, easy to miss skimming the macro expansion, fatal to
+    miss when picking a replacement type).
+  - **That last point is why the replacement is `BTreeMap`, not
+    `IndexMap`**, despite `IndexMap` being the container this whole
+    investigation set out expecting to use (its insertion-order iteration
+    is what most of the other ~23 instances' `HASH_ITER`-without-`HASH_SORT`
+    call sites actually need — matching the read/dump/build order the JSON
+    and binary formats care about, per the `577 order-dependent sites`
+    figure in the Stage 6-1 finale notes above). This one instance sorts
+    before reading back, so its natural replacement is whichever container
+    is *already* sorted by key — a `BTreeMap`, needing no separate sort
+    step and no comparator function at all. **The concrete lesson for the
+    rest of this theme: check for a `HASH_SORT` before picking a
+    replacement container, every time — it will not be the same answer for
+    every instance.**
+  - **The rewrite is a ~1050-line function collapsing to ~70.** Almost the
+    entire original was the inlined Bob Jenkins hash computation, manual
+    bucket table creation/growth, and a hand-rolled merge sort — all of
+    which simply do not exist as source once `BTreeMap` does the hashing
+    (well, ordering) and iteration order internally.
+    `GsubMultiHash`/`by_from_id_multi` (the struct and sort comparator) are
+    deleted along with it; `consolidate_gsub_alternative` (a one-line
+    wrapper calling this same function, since `GSUB_ALTERNATE` reuses
+    `GSUB_MULTIPLE`'s subtable shape) needed no changes.
+  - **No committed payload has a `gsub_multiple` or `gsub_alternate` lookup
+    at all** (confirmed by grepping every payload's dumped lookup `"type"`
+    values before starting — the same check that has caught every prior
+    coverage gap in this migration), let alone one that exercises the
+    duplicate-`from` path specifically. `rust/scripts/
+    make-test-gsub-multi-dedup.py` (new) forges one: a single subtable with
+    **two JSON object members sharing the same key** ("from" glyph name).
+    A genuine JSON object can't have that — Python's `json` module (and
+    every conforming parser) silently collapses duplicate keys — but
+    otfcc's own vendored parser deliberately does not (`table/otl/parse.rs`
+    already relies on this for a different reason, see the "not redundant"
+    note on `json_obj_getnum` in the Stage 3 table above), and the
+    subtable reader iterates every raw member by index rather than by key
+    lookup, so the hand-written duplicate survives parsing as two separate
+    entries — the same shape two distinct rules for one input glyph would
+    take arriving from a binary font's rule array. Built with the pre-fix
+    (`git stash`) baseline and the post-fix crate side by side on the exact
+    same generated input: **byte-identical build output and byte-identical
+    re-dump**, both keeping the first rule's target and dropping the
+    second's, both on the same lookup name the two independently arrive at
+    through unrelated auto-renaming. Wired into `compare-with-golden.sh`/
+    `generate-golden.sh` alongside `meta-test`/`vdmx-test`.
+  - **Also fixed in passing**: `GsubSingleMapHash`
+    (`table/otl/subtables/gsub_single.rs`) looked identical to the dead
+    vtable-slot pattern this migration has repeatedly found and deleted —
+    defined but with zero references in its own file. It survived a closer
+    check: `consolidate/otl/{gsub_single,gsub_reverse}.rs` both import and
+    genuinely use it (a c2rust dedup artifact — two unrelated C translation
+    units apparently declared byte-identical local hash-node structs, and
+    the Stage 2 type-dedup pass folded them into one shared definition
+    living in a third, unrelated file). Left in place, now with a comment
+    explaining why a struct with no local users isn't dead here.
+  - Zero behavior change otherwise, verified with the standard full
+    pipeline (build, 44 tests, ABI, golden-checksum comparison, round
+    trips, issue #1 golden test, lookup-alias regression test) on both
+    macOS and Linux, plus the pre-fix-vs-post-fix baseline diff above.
+    **This is the first of ~23 remaining uthash instances** — each needs
+    the same "read the whole function, check for `HASH_SORT`, verify
+    against a synthetic duplicate/edge-case payload where the existing
+    corpus doesn't cover one" treatment individually; there is no
+    mechanical shortcut across instances the way `CVecRaw<T>` → `Vec<T>`
+    mostly was.
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
