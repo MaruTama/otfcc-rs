@@ -160,6 +160,8 @@ synth_payload gsub-multi-dedup rust/scripts/make-test-gsub-multi-dedup.py
 synth_payload gpos-single-dedup rust/scripts/make-test-gpos-single-dedup.py
 synth_payload gpos-cursive-dedup rust/scripts/make-test-gpos-cursive-dedup.py
 synth_payload gdef-ligcaret-dedup rust/scripts/make-test-gdef-ligcaret-dedup.py
+synth_payload gsub-single-dedup rust/scripts/make-test-gsub-single-dedup.py
+synth_payload gsub-reverse-dedup rust/scripts/make-test-gsub-reverse-dedup.py
 
 echo "==> Comparing Rust otfccdll (cdylib) output against golden"
 RUST_SO_EXT="so"
