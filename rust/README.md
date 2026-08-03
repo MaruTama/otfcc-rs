@@ -1763,6 +1763,42 @@ on the other platform before a commit is trusted.
     pre-fix baseline before joining the golden-checksum pipeline.
   - Zero behavior change otherwise, verified with the standard full
     pipeline on both macOS and Linux. **~21 uthash instances remain.**
+- **uthash → `BTreeMap`, fourth instance: `GdefLigCaretHash`
+  (`consolidate_gdef`, `consolidate/otl/gdef.rs`).** Only the
+  ligature-caret half of `consolidate_gdef` used uthash — the
+  `glyph_class_def`/`mark_attach_class_def` consolidation earlier in the
+  same function is untouched. Same overall shape (dedup by glyph id,
+  `HASH_SORT` before reading entries back out, `BTreeMap`), confirmed by
+  the same full read-first process, which turned up two genuine
+  differences from the previous three instances rather than the shape
+  alone:
+  - **No "missing glyph" warning.** All three previous instances log
+    `"[Consolidate] Ignored missing glyph /<name>."` when
+    `consolidate_handle` fails to resolve a glyph; this one silently skips
+    the entry instead. Preserved as-is — confirmed by reading the original
+    function, not assumed from the pattern.
+  - **A pre-existing leak on the duplicate path disappears for free.** The
+    original unconditionally `sdsdup`s the glyph name *before* checking
+    for a duplicate, leaking that copy whenever the entry turns out to be
+    a duplicate. The rewrite only dups the name when actually inserting
+    (first occurrence), reading the un-duplicated name directly for the
+    warning message instead — same category of incidental fix as the
+    `FeatureList` leak earlier in this migration, invisible in output
+    bytes and not chased down as a goal in itself.
+  - Duplicate found → logs `"[Consolidate] Detected caret value
+    double-mapping about glyph <name>"` (no trailing period, unlike the
+    other three instances' messages) then drops, not merges.
+  - **`NotoNastaliqUrdu-Regular.ttf`** has real (14-entry) `ligCarets`, so
+    the ordinary path was already covered by the existing golden-checksum
+    comparison. `rust/scripts/make-test-gdef-ligcaret-dedup.py` (new, same
+    duplicate-JSON-key technique) covers the duplicate-glyph path —
+    `ligCarets` is a JSON object keyed by glyph name, so the forged input
+    gives one glyph two member entries with different caret positions.
+    Verified byte-identical build output, re-dump, and warning message
+    against the pre-fix baseline before joining the golden-checksum
+    pipeline.
+  - Zero behavior change otherwise, verified with the standard full
+    pipeline on both macOS and Linux. **~20 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
