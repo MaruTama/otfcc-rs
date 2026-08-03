@@ -1709,6 +1709,40 @@ on the other platform before a commit is trusted.
     corpus doesn't cover one" treatment individually; there is no
     mechanical shortcut across instances the way `CVecRaw<T>` → `Vec<T>`
     mostly was.
+- **uthash → `BTreeMap`, second instance: `GposSingleHash`
+  (`consolidate_gpos_single`, `consolidate/otl/gpos_single.rs`).** Same
+  overall shape as `GsubMultiHash` (dedup by glyph id, `HASH_SORT` before
+  reading entries back out, `BTreeMap` for the same reason), confirmed by
+  the same full read-the-function-first process rather than assumed from
+  the similarity — worth doing anyway, because this instance's
+  found-a-duplicate branch is *not* the same as the first one's:
+  - **`GsubMultiHash` silently drops a later duplicate; `GposSingleHash`
+    drops it too, but logs a warning first** (`"[Consolidate] Detected
+    glyph double-mapping about /<name>."`) — a real behavioral difference
+    between two instances that looked interchangeable from their shape
+    alone, and exactly the kind of thing "read every instance individually,
+    no mechanical shortcut" (the closing note on the first instance) was
+    warning about. Preserved verbatim: the warning fires from the same
+    `if seen.contains_key(&fromid)` branch that used to be uthash's
+    `HASH_FIND`-succeeded case.
+  - **`NotoNastaliqUrdu-Regular.ttf`** (already in `tests/golden/`) **has
+    real `gpos_single` lookups**, so the ordinary (no-duplicate) path was
+    already exercised by the existing golden-checksum comparison before
+    this PR touched anything — confirmed by running it against the
+    unmodified crate first. The *duplicate*-target path, the entire reason
+    this uthash table existed, was not: no payload has two rules
+    positioning the same glyph within one subtable.
+    `rust/scripts/make-test-gpos-single-dedup.py` (new) forges one the same
+    way as the `gsub_multiple` script — a hand-written JSON object with two
+    members sharing the same key, which otfcc's vendored parser preserves
+    (member-by-index iteration) where a conforming parser would collapse
+    them. Verified byte-identical build output, re-dump, **and warning
+    message** against the pre-fix baseline on this payload before wiring it
+    into `compare-with-golden.sh`/`generate-golden.sh` alongside the first
+    instance.
+  - Zero behavior change otherwise, verified with the standard full
+    pipeline on both macOS and Linux, plus the baseline diff above.
+    **~22 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

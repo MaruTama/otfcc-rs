@@ -157,6 +157,7 @@ synth_payload() {
 synth_payload meta-test rust/scripts/make-test-meta.py
 synth_payload vdmx-test rust/scripts/make-test-vdmx.py
 synth_payload gsub-multi-dedup rust/scripts/make-test-gsub-multi-dedup.py
+synth_payload gpos-single-dedup rust/scripts/make-test-gpos-single-dedup.py
 
 echo "==> Comparing Rust otfccdll (cdylib) output against golden"
 RUST_SO_EXT="so"
