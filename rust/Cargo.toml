@@ -26,4 +26,5 @@ warnings = "deny"
 
 [dependencies]
 bitflags = "2.13.1"
+indexmap = "2.14.0"
 libc = "0.2.189"

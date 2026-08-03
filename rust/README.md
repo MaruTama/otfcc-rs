@@ -1982,6 +1982,82 @@ on the other platform before a commit is trusted.
     comparison and is kept.
   - Verified with the standard full pipeline on both macOS and Linux.
     **~16 uthash instances remain.**
+- **uthash → `IndexMap`, ninth instance: `FvarMaster`
+  (`table/fvar.rs`) — the first genuine use of `indexmap` in this
+  migration, and the first instance where an incomplete crate-wide `grep`
+  briefly led to the wrong conclusion.** Reading only within `fvar.rs`,
+  `.register_region` (the vtable slot that populates this table) appeared
+  to have zero call sites — matching the exact shape of a dead vtable
+  slot this migration has repeatedly found and deleted (`ScriptStatHash`'s
+  `.copy`, the `otl.rs`/glyf `.copy`/`.move_0` sweeps, etc.) — and a first
+  pass deleted the whole mechanism on that basis. The build immediately
+  failed: `table/glyf/read.rs` calls `TABLE_I_FVAR.register_region` while
+  parsing `gvar` tuple-variation headers, a call site outside `fvar.rs`
+  that a `fvar.rs`-scoped `grep` never surfaces. Reverted before
+  committing; **the fix here is to `grep` the whole crate for a vtable
+  slot's call sites, not just the file that defines it** — this migration
+  had already grepped crate-wide for every *type* name in each prior
+  instance, but this is the first time the search needed to cover a
+  *vtable slot field name* too.
+  - With that corrected, this table genuinely deduplicates by a
+    `VqRegion`'s full byte content (a fixed `dimensions` header plus a
+    variable-length trailing `spans` array, allocated as one contiguous
+    C "flexible array member" block — `vf/region.rs`, itself not yet
+    `Vec`-ified, deliberately left untouched here) rather than by a
+    simple key: `glyf/read.rs` registers a freshly built region for every
+    `gvar` tuple-variation header, and identical regions (very common —
+    many glyphs share the same variation axis span) collapse onto one
+    canonical, named "master" (`m1`, `m2`, ... in registration order),
+    which `json_new_vq_region` (during dump) and `otfcc_dump_fvar`'s
+    `"masters"` object (during dump) both read back out.
+  - **No `HASH_SORT` anywhere in this table either** (confirmed by
+    `grep`, the same check that mattered for `ScriptStatHash`) — output
+    order is registration order, since a master's very name is derived
+    from `(*fvar).masters.len()` at insert time. Unlike `ScriptStatHash`,
+    though, the number of masters here isn't bounded to a handful: a
+    `gvar` table can register a fresh region for every tuple-variation
+    header across every glyph, so a linear "already seen" scan (fine for
+    a font's small script count) would be a real algorithmic regression
+    here. `IndexMap<RegionKey, FvarMaster>` keeps insertion-order
+    iteration *and* O(1)-average lookup — the first time this migration's
+    long-flagged "`IndexMap` for the larger insertion-order-dependent
+    uthash tables" candidate is actually used. `RegionKey` is a thin
+    `*const VqRegion` wrapper with a hand-written `Hash`/`Eq` that reads
+    the same variable-length byte range the original `memcmp`-based key
+    did, so `VqRegion`'s C layout didn't need to change to make this
+    work.
+  - **A new class of calloc-safety question, resolved conservatively**:
+    every prior "malloc → calloc" fix in this migration concerned a
+    direct field assignment (`= Vec::new()`) reading calloc-zeroed
+    garbage as a `Vec`, which is documented-safe because a zeroed `Vec`
+    bit pattern *is* `Vec::new()`. `IndexMap` (a third-party type) has no
+    such documented guarantee, and likely holds a `NonNull` internally
+    that would be null (an invariant violation) if read from zeroed
+    memory. `init_fvar` was already correct here (`table_fvar_create`
+    already used `calloc`, inherited from `.axes`/`.instances`), but this
+    migration hadn't previously needed to ask whether a *new* field's
+    zero-representation was safe to construct-then-drop — `masters` gets
+    `::core::ptr::write(&raw mut (*fvar).masters, IndexMap::new())`
+    instead of a plain assignment, sidestepping the question entirely by
+    never reading (or dropping) whatever calloc left there.
+  - **Real functional coverage, not synthetic**: `gvar-test.ttf` (already
+    in `tests/golden/`) registers the same region from multiple tuple-
+    variation headers — confirmed empirically by counting `"m1"`
+    references in its dump (6, one being the master's own key, five
+    being `"on": "m1"` reuses) — so both the "new region" and "duplicate
+    region, dedup and free" branches run for real on this payload, not
+    just the first-registration path. Output stayed byte-identical to
+    the frozen golden checksum.
+  - `#[derive(Copy, Clone)]` and the `hh: UtHashHandle` field are dropped
+    from `FvarMaster` (never copied by value anywhere, only ever reached
+    through `*mut`/`*const FvarMaster`); `dispose_fvar`'s manual
+    linked-list walk collapses to iterating the drained `IndexMap` and
+    calling the same per-entry `dispose_fvar_master` (`sdsfree` the name,
+    `vq_delete_region` the region) each entry always needed.
+  - This is the crate's first dependency on `indexmap` (added to
+    `rust/Cargo.toml`, pulling in `hashbrown`/`equivalent` transitively).
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~15 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
