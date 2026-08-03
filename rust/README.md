@@ -1799,6 +1799,78 @@ on the other platform before a commit is trusted.
     pipeline.
   - Zero behavior change otherwise, verified with the standard full
     pipeline on both macOS and Linux. **~20 uthash instances remain.**
+- **uthash → `BTreeMap`, fifth and sixth instances: `GsubSingleMapHash`,
+  shared by `consolidate_gsub_single` (`consolidate/otl/gsub_single.rs`)
+  and `consolidate_gsub_reverse` (`consolidate/otl/gsub_reverse.rs`).**
+  Converted together in one PR since both share the same C-side dedup-hash
+  node type (a genuine Stage 2 dedup artifact, not a copy-paste — see the
+  `GsubSingleMapHash` note on the second instance above) and deleting it
+  requires converting both call sites. Read both in full before writing
+  either replacement, which is what caught the two differences below —
+  they do not actually behave alike despite sharing a hash node type.
+  - **`consolidate_gsub_single` is the closest match yet to the shape of
+    `handle_from_consolidated` seen so far**: dedup by `from`'s glyph id
+    (`BTreeMap`, `HASH_SORT`-equivalent ordering), with a
+    `"[Consolidate] Ignored missing glyph /<name>."` warning on either an
+    unresolved `from` or `to` handle (checked in that order, matching the
+    original), and `"[Consolidate] Double-mapping a glyph in a single
+    substitution /<name>."` on a duplicate `from`. **New element not seen
+    in any prior instance**: after the loop, if the survivor count is less
+    than the original entry count (some entries were dropped to a missing
+    glyph or a duplicate), a `"[Consolidate] In this lookup, some mappings
+    are ignored.\n"` warning fires — preserved by comparing
+    `seen.len() != subtable.len()` post-loop, the `BTreeMap` equivalent of
+    the original's post-loop `HASH_COUNT` check.
+  - **`consolidate_gsub_reverse` turned up a genuine, if narrow,
+    pre-existing memory-safety hazard — not just a behavioral quirk.** Its
+    dedup hash node aliased the *original* `SdsRaw` name pointers straight
+    out of `from`/`to` (`Vec<GlyphHandle>`, i.e. `Coverage`) rather than
+    `sdsdup`-ing them the way `consolidate_gsub_single`'s node does; the
+    original C code then truncated `from`/`to` to the survivor count
+    *before* reading those aliases back out to build the final handles.
+    That ordering was harmless in C (a length-field truncation frees
+    nothing), but `Coverage` became a real `Vec<GlyphHandle>` earlier in
+    this migration and `Handle` now owns its name via `Drop`
+    (`otfcc-stage6-vtable-copy-move-mostly-dead`-adjacent work) —
+    truncating first can drop, and free, a *surviving* entry whose
+    original index happens to land past the new (shorter) length, leaving
+    a still-pending alias in the hash table dangling before the
+    write-back loop reads it. Caught by fully reading the function rather
+    than assumed from `consolidate_gsub_single`'s shape, then confirmed
+    empirically: `rust/scripts/make-test-gsub-reverse-dedup.py` places its
+    duplicate glyph at index 0 and 2 of a 4-entry `match[0]` array (not at
+    the tail), so the surviving 4th entry is exactly the one truncation
+    would have dropped first. Running that payload through the *pre-fix*
+    binary did not visibly corrupt the output on this machine — a classic
+    non-deterministic UB outcome, plausible here because `free()` doesn't
+    clear memory and the two `sdsdup` calls between the truncation and the
+    dangling read happened not to reuse that exact block — but it is a
+    genuine use-after-free regardless of whether one particular run shows
+    it. The rewrite avoids the hazard by construction rather than
+    preserving the ordering: `sdsdup` every survivor's name into the
+    `BTreeMap` up front (independent, owned copies), then replace
+    `from`/`to` wholesale with freshly built `Vec`s from the map, instead
+    of truncating the originals in place and writing back into them.
+    `consolidate_gsub_reverse` also returns `false` unconditionally
+    (unlike every other instance's `subtable.len() == 0`) — preserved
+    exactly, a real quirk of the original rather than an oversight.
+  - Neither function has an existing payload exercising its *ordinary*
+    path, let alone its dedup path — confirmed by grepping every
+    committed payload's dumped lookup `"type"` values, zero
+    `gsub_reverse` lookups anywhere and zero `gsub_single` payloads with a
+    duplicate `from`. `rust/scripts/make-test-gsub-single-dedup.py` (new,
+    the established duplicate-JSON-key technique, since `gsub_single`'s
+    subtable is a JSON object) and `rust/scripts/
+    make-test-gsub-reverse-dedup.py` (new; `gsub_reverse`'s `match`/`to`
+    are plain JSON arrays, so no key-uniqueness trick is needed — a
+    hand-written array can just repeat a glyph name) both verified
+    byte-identical build output, re-dump, and warning text against the
+    pre-fix baseline before joining the golden-checksum pipeline.
+  - `GsubSingleMapHash` (`table/otl/subtables/gsub_single.rs`) is now
+    unused by either consumer and is deleted, along with each file's own
+    copy of the `by_from_id` comparator.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~18 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4

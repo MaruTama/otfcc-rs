@@ -10,13 +10,11 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubSingleEntry, Subtable, GsubSingleSubtable};
 use crate::table::otl::subtables::BuildHeuristics;
-use crate::vendor::uthash::{UtHashHandle};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
@@ -254,18 +252,4 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
         otl_coverage_free(cov);
         return bk_build_block(b_0);
     };
-}
-
-// Not used in this file -- shared here (from the original C's dedup pass,
-// Stage 2) because `consolidate/otl/{gsub_single,gsub_reverse}.rs` both need
-// this exact `(fromid, fromname, toid, toname)` dedup-hash shape and import
-// it from here rather than each defining their own copy.
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GsubSingleMapHash {
-    pub fromid: ::core::ffi::c_int,
-    pub fromname: SdsRaw,
-    pub toid: ::core::ffi::c_int,
-    pub toname: SdsRaw,
-    pub hh: UtHashHandle,
 }
