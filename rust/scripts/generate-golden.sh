@@ -96,6 +96,7 @@ synth_pair meta-test rust/scripts/make-test-meta.py
 synth_pair vdmx-test rust/scripts/make-test-vdmx.py
 synth_pair gsub-multi-dedup rust/scripts/make-test-gsub-multi-dedup.py
 synth_pair gpos-single-dedup rust/scripts/make-test-gpos-single-dedup.py
+synth_pair gpos-cursive-dedup rust/scripts/make-test-gpos-cursive-dedup.py
 
 echo "  dll-test.otf (kept as a real committed file, not a hash -- see header comment)"
 SO_EXT="so"

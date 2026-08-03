@@ -1743,6 +1743,26 @@ on the other platform before a commit is trusted.
   - Zero behavior change otherwise, verified with the standard full
     pipeline on both macOS and Linux, plus the baseline diff above.
     **~22 uthash instances remain.**
+- **uthash → `BTreeMap`, third instance: `GposCursiveHash`
+  (`consolidate_gpos_cursive`, `consolidate/otl/gpos_cursive.rs`).** Same
+  shape again (dedup by glyph id, `HASH_SORT` before reading entries back
+  out, `BTreeMap`), confirmed the same way — full read before writing any
+  replacement code, not assumed from the previous two instances' shape.
+  This one's found-a-duplicate branch logs a warning too, but with its own
+  distinct message (`"[Consolidate] Double-mapping a glyph in a cursive
+  positioning /<name>."`, not `GposSingleHash`'s `"Detected glyph
+  double-mapping"`) — a third instance, a third message, reinforcing that
+  each has to be checked rather than assumed to match the last one found.
+  `(enter, exit): (Anchor, Anchor)` (both `Copy`) stands in for
+  `GposSingleHash`'s single `PositionValue`.
+  - `NotoNastaliqUrdu-Regular.ttf` has real `gpos_cursive` lookups, so the
+    ordinary path was already covered; `rust/scripts/
+    make-test-gpos-cursive-dedup.py` (new, same duplicate-JSON-key
+    technique as the first two) covers the duplicate-target path, verified
+    byte-identical build output, re-dump, and warning message against the
+    pre-fix baseline before joining the golden-checksum pipeline.
+  - Zero behavior change otherwise, verified with the standard full
+    pipeline on both macOS and Linux. **~21 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
