@@ -2098,6 +2098,44 @@ on the other platform before a commit is trusted.
     far.
   - Verified with the standard full pipeline on both macOS and Linux.
     **~14 uthash instances remain.**
+- **uthash → `BTreeSet`, eleventh instance: `LigatureAggregator`
+  (`otfcc_build_gsub_ligature_subtable`, `table/otl/subtables/
+  gsub_ligature.rs`) — the first instance that isn't a map at all.**
+  Reading the whole ~1000-line function (rather than assuming the shape
+  from `by_gid` looking like every prior comparator) turned up that the
+  `LigatureAggregator` struct carries no data beyond the `gid` it's keyed
+  by — no companion value is ever attached to a node after it's found or
+  inserted. Its only two uses are (1) building a sorted, deduplicated
+  Coverage of "first glyphs" for the ligature lookup, and (2) re-scanning
+  the *entire* original subtable, per distinct gid, once to count and
+  once to emit each matching ligature rule into that glyph's
+  `LigatureSet` — an O(n²) two-pass filter over the original array, not
+  a lookup into stored per-gid data. `by_gid` is fed into a `HASH_SORT`,
+  so output order is ascending gid, the same shape as the six
+  `consolidate/otl/*.rs` instances and `SfntTableEntry`. Since there is
+  no value to carry, this isn't a map at all: `std::collections::
+  BTreeSet<i32>` (not `BTreeMap`) reproduces "sorted, deduplicated set of
+  glyph ids" directly, and the two re-scan passes are kept exactly as
+  in the original rather than restructured to look up stored data (doing
+  so would be a bigger, riskier rewrite than the uthash removal itself
+  called for).
+  - No warnings, no dedup-behavior question here at all — a `gid`
+    appearing on multiple ligature rules is the *entire point* of the
+    grouping (every rule with that starting glyph ends up in its
+    `LigatureSet`), unlike every previous instance's "duplicate key"
+    question.
+  - **Real functional coverage, not synthetic**: `NotoNastaliqUrdu-
+    Regular.ttf` (already in `tests/golden/`) has 5 `gsub_ligature`
+    lookups and `iosevka-r.ttf` has 1; both stayed byte-identical to
+    their frozen golden checksums. No synthetic payload needed.
+  - Hit the `dangerous_implicit_autorefs` lint on `(*(&(*subtable))
+    [j].from)[0]`-style expressions (`from: *mut Coverage`, so indexing
+    through the dereferenced pointer without an explicit intervening
+    `&` autorefs across a raw-pointer deref) — same lint, same fix
+    (accepting rustc's suggested explicit `&`) as the `otl` pointer-list
+    and `glyf` `Vec`-conversion PRs earlier in Stage 6-1.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~13 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
