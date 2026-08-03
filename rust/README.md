@@ -2058,6 +2058,46 @@ on the other platform before a commit is trusted.
     `rust/Cargo.toml`, pulling in `hashbrown`/`equivalent` transitively).
   - Verified with the standard full pipeline on both macOS and Linux.
     **~15 uthash instances remain.**
+- **uthash → `BTreeMap`, tenth instance: `SfntTableEntry`
+  (`otfcc_sfnt_builder_*`, `font/caryll_sfnt_builder.rs`) — back to
+  `BTreeMap` after two straight instances that needed something else.**
+  This table collects a font's top-level SFNT tables (`glyf`, `GSUB`,
+  `head`, ...) keyed by 4-byte tag while the binary file is being
+  assembled. Unlike `ScriptStatHash`/`FvarMaster`, this one's `by_tag`
+  comparator **is** fed into a `HASH_SORT` before the table directory is
+  written — confirmed by reading `otfcc_sfnt_builder_serialize` in full,
+  not assumed from the two immediately-prior instances' shape (which
+  would have pointed the wrong way) — and the sort isn't a stylistic
+  choice: the SFNT format itself requires the table directory sorted
+  ascending by tag. `BTreeMap<i32, SfntTableEntry>`'s always-sorted
+  iteration matches this exactly, the same shape as the six
+  `consolidate/otl/*.rs` instances earlier in this migration.
+  - Deduplicates by tag, first registration wins — a later
+    `otfcc_sfnt_builder_push_table` call for an already-present tag just
+    frees the newly-passed buffer and returns, **silently, no warning
+    logged** (confirmed by reading the insert branch's `else`, not
+    assumed) — a third distinct "duplicate" behavior in this migration,
+    after "warn and drop" (most `consolidate/otl/*.rs` instances) and
+    "drop with no warning at all" (`JsonObjEntry`).
+  - `create_segment` returns `SfntTableEntry` by value now instead of a
+    separately `malloc`'d node, since entries live directly inside the
+    `BTreeMap`.
+  - `SfntBuilder.tables` gets `ptr::write`, not a plain assignment, for
+    the same reason established for `IndexMap` in the previous instance:
+    `BTreeMap` is a `std` type but still has no documented guarantee
+    that reading calloc-zeroed bytes as a live, droppable instance is
+    safe, and `SfntBuilder` itself is `__caryll_allocate_clean`
+    (calloc)-allocated.
+  - **Real functional coverage, not synthetic**: every single payload in
+    this crate's test suite builds a binary font, so every one of them
+    exercises this table's insert-many/sort/serialize path, including
+    the `head` table's special-cased `checksumAdjustment` write-back —
+    and every one stayed byte-identical to its frozen golden checksum,
+    including the `otfccdll` cdylib comparison. No synthetic payload
+    needed; this is the most heavily-exercised instance converted so
+    far.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~14 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
