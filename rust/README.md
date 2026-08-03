@@ -1925,6 +1925,63 @@ on the other platform before a commit is trusted.
     elsewhere in the file and are kept.
   - Verified with the standard full pipeline on both macOS and Linux.
     **~17 uthash instances remain.**
+- **uthash → `HashMap`, eighth instance: `JsonObjEntry`
+  (`compare_json_objects`, `support/json_ident.rs`) — the first instance
+  in this migration where the right replacement is `HashMap`, not
+  `BTreeMap`/`Vec`/`IndexMap`.** `compare_json_objects` (called by
+  `json_ident`, which recursively compares two `JsonValue` trees for
+  structural equality) never produces ordered output of any kind — it
+  only returns a `bool` — so none of the three ordering-sensitive
+  containers used for prior instances applies. Values built from this
+  object can be arbitrarily large (a glyph-order-sized object, for
+  instance), so a linear scan the way `ScriptStatHash` used (small,
+  bounded script counts) would be a real algorithmic regression; `HashMap`
+  keeps the O(1)-average lookup the original uthash table had.
+  - **A key finding changed the whole design, found only by reading the
+    insertion loop rather than assuming "duplicate found" always means
+    "warn and drop" the way the six `consolidate/otl/*.rs` instances did**:
+    this table's insert is guarded by a `HASH_FIND`-before-add with no
+    `else` branch — if the key is already present, the loop does nothing
+    at all (no warning, no second node, nothing) and moves on. A later
+    member of `a` sharing an earlier member's key is silently and
+    completely ignored, not merely deduplicated into a second linked
+    node the way the consolidate-side instances kept (and warned about)
+    duplicates. `HashMap::entry(key).or_insert(...)` reproduces "first
+    occurrence wins, later duplicates vanish outright" exactly.
+  - Confirmed the "every distinct key must be matched" requirement by
+    reading through to the original's disposal loop, which also doubles
+    as the final correctness check (`allcheck = allcheck && (*e).check`
+    while freeing each node) — replaced by `seen.values().all(|(_,
+    checked)| *checked)` after the second loop, with no dispose step
+    needed since the `HashMap` (and the `&CStr` keys borrowed directly
+    from `a`'s own `JsonValue` tree, not `strdup`'d copies) are dropped
+    automatically.
+  - **Consequence worth recording, not fixed**: two JSON objects with the
+    same length but a *different* multiset of duplicate keys can compare
+    `json_ident`-equal to each other, as long as their sets of *distinct*
+    keys line up with matching values — because `compare_json_objects`
+    only ever tracks one entry per distinct key regardless of how many
+    times `a` repeats it. This was true of the original uthash version
+    too (a direct consequence of the no-`else`-branch insert just
+    described) and is preserved exactly, not tightened.
+  - **Real functional coverage, not synthetic**: `json_ident`'s only
+    other caller in the crate, `feature_merger_activate`
+    (`table/otl/parse.rs`), uses it to detect when two lookups being
+    built are structurally identical so one can alias the other instead
+    of duplicating it — exactly what `rust/scripts/test.sh`'s
+    "lookup-alias regression test" (`GSUB.lookups.lookup_alias_test`
+    aliasing `lookup_calt_0`) exercises end to end. That test passing is
+    direct evidence this rewrite's equality logic is correct for the
+    crate's one real call site; no new synthetic payload was needed.
+  - `JsonObjEntry` and the `use crate::vendor::uthash` import are deleted,
+    along with `__caryll_allocate_clean`, `NULL`, and the seven `libc`
+    symbols `exit`/`free`/`malloc`/`memcmp`/`memset`/`strdup`/`strlen`
+    that were used only inside the removed hash boilerplate — nine
+    now-unused imports in total; `strcmp` remains used in `json_ident`'s
+    string-value
+    comparison and is kept.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~16 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
