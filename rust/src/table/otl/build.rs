@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{exit, free, malloc, memcmp, memset, strlen, strncmp};
+use libc::{free, memcmp, strncmp};
 
 
 
@@ -12,10 +12,8 @@ use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::sds::{SdsRaw};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::support::{NULL};
 use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable};
 use crate::table::otl::subtables::BuildHeuristics;
-use crate::vendor::uthash::{HASH_BKT_CAPACITY_THRESH, HASH_INITIAL_NUM_BUCKETS, HASH_INITIAL_NUM_BUCKETS_LOG2, HASH_SIGNATURE, UtHashBucket, UtHashHandle, UtHashTable};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::subtables::chaining::build::{otfcc_chaining_lookup_is_contextual_lookup};
@@ -39,15 +37,6 @@ pub type OtlSplitBuilder = Option<
         *mut TableId,
     ) -> *mut *mut Buffer,
 >;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ScriptStatHash {
-    pub tag: SdsRaw,
-    pub lc: u16,
-    pub dl: *const LanguageSystem,
-    pub ll: *mut *const LanguageSystem,
-    pub hh: UtHashHandle,
-}
 pub const LARGE_SUBTABLE_LIMIT: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
 unsafe extern "C" fn feature_name_to_tag(name: SdsRaw) -> u32 {
     let mut tag: u32 = 0 as u32;
@@ -625,20 +614,22 @@ unsafe extern "C" fn write_language(
     }
     return root;
 }
+#[allow(improper_ctypes_definitions)] // internal call only, never crosses FFI
 unsafe extern "C" fn write_script(
-    mut script: *mut ScriptStatHash,
+    mut dl: *const LanguageSystem,
+    mut ll: &[*const LanguageSystem],
     mut table: *const OtlTable,
 ) -> *mut BkBlock {
-    let mut root: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, write_language((*script).dl, table)), bk_int(BkCellType::B16, ((*script).lc as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, write_language(dl, table)), bk_int(BkCellType::B16, (ll.len()) as u32)]);
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*script).lc as ::core::ffi::c_int {
+    while (j as usize) < ll.len() {
         let mut tag: SdsRaw = sdsnewlen(
-            (**(*script).ll.offset(j as isize))
+            (*ll[j as usize])
                 .name
                 .offset(5 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_void,
             4 as usize,
         );
-        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag(tag)) as u32), bk_ptr(BkCellType::P16, write_language(*(*script).ll.offset(j as isize), table))]);
+        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag(tag)) as u32), bk_ptr(BkCellType::P16, write_language(ll[j as usize], table))]);
         sdsfree(tag);
         j = j.wrapping_add(1);
     }
@@ -648,13 +639,36 @@ unsafe extern "C" fn write_otl_script_and_languages(
     mut table: *const OtlTable,
     mut _options: *const Options,
 ) -> *mut BkBlock {
-    let mut h: *mut ScriptStatHash = ::core::ptr::null_mut::<ScriptStatHash>();
+    // Groups languages by script tag (the first 4 bytes of `language.name`),
+    // tracking each script's default (dflt/DFLT) language separately from
+    // its other languages, in the order languages are first seen. Unlike
+    // every other uthash instance converted so far in this migration, the
+    // original C here never calls `HASH_SORT` before its `HASH_ITER` --
+    // output order is insertion order, not tag order, so `BTreeMap` (which
+    // this migration has used for every prior instance) is the wrong
+    // container. A plain `Vec` with a linear "already seen" scan preserves
+    // insertion order directly; the number of distinct scripts in a real
+    // font is small (typically single digits), so the O(n) scan costs
+    // nothing observable -- not worth introducing an `indexmap` dependency
+    // for a handful of entries (that crate remains the intended tool for
+    // the much larger order-dependent uthash tables noted in rust/README.md).
+    //
+    // A later language with the same script tag whose name is *also*
+    // dflt/DFLT silently overwrites the script's recorded default -- the
+    // original never guarded against a second default and neither does
+    // this rewrite; not a case this function warns about.
+    struct ScriptGroup {
+        tag: SdsRaw,
+        default_language: *const LanguageSystem,
+        languages: Vec<*const LanguageSystem>,
+    }
+    let mut scripts: Vec<ScriptGroup> = Vec::new();
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).languages.len() {
         let language: *const LanguageSystem = &raw const *(&(*table).languages)[j as usize];
-        let mut script_tag: SdsRaw =
+        let script_tag: SdsRaw =
             sdsnewlen((*language).name as *const ::core::ffi::c_void, 4 as usize);
-        let mut is_default: bool = strncmp(
+        let is_default: bool = strncmp(
             (*language).name.offset(5 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_char,
             b"DFLT\0" as *const u8 as *const ::core::ffi::c_char,
             4 as usize,
@@ -665,854 +679,52 @@ unsafe extern "C" fn write_otl_script_and_languages(
                 b"dflt\0" as *const u8 as *const ::core::ffi::c_char,
                 4 as usize,
             ) == 0 as ::core::ffi::c_int;
-        let mut s: *mut ScriptStatHash = ::core::ptr::null_mut::<ScriptStatHash>();
-        let mut _hf_hashv: ::core::ffi::c_uint = 0;
-        let mut _hj_i: ::core::ffi::c_uint = 0;
-        let mut _hj_j: ::core::ffi::c_uint = 0;
-        let mut _hj_k: ::core::ffi::c_uint = 0;
-        let mut _hj_key: *const ::core::ffi::c_uchar = script_tag as *const ::core::ffi::c_uchar;
-        _hf_hashv = 0xfeedbeef as ::core::ffi::c_uint;
-        _hj_j = 0x9e3779b9 as ::core::ffi::c_uint;
-        _hj_i = _hj_j;
-        _hj_k = strlen(script_tag as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
-        while _hj_k >= 12 as ::core::ffi::c_uint {
-            _hj_i = _hj_i.wrapping_add(
-                (*_hj_key.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                    .wrapping_add(
-                        (*_hj_key.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            << 8 as ::core::ffi::c_int,
-                    )
-                    .wrapping_add(
-                        (*_hj_key.offset(2 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            << 16 as ::core::ffi::c_int,
-                    )
-                    .wrapping_add(
-                        (*_hj_key.offset(3 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            << 24 as ::core::ffi::c_int,
-                    ),
-            );
-            _hj_j = _hj_j.wrapping_add(
-                (*_hj_key.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                    .wrapping_add(
-                        (*_hj_key.offset(5 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            << 8 as ::core::ffi::c_int,
-                    )
-                    .wrapping_add(
-                        (*_hj_key.offset(6 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            << 16 as ::core::ffi::c_int,
-                    )
-                    .wrapping_add(
-                        (*_hj_key.offset(7 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            << 24 as ::core::ffi::c_int,
-                    ),
-            );
-            _hf_hashv = _hf_hashv.wrapping_add(
-                (*_hj_key.offset(8 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                    .wrapping_add(
-                        (*_hj_key.offset(9 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            << 8 as ::core::ffi::c_int,
-                    )
-                    .wrapping_add(
-                        (*_hj_key.offset(10 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            << 16 as ::core::ffi::c_int,
-                    )
-                    .wrapping_add(
-                        (*_hj_key.offset(11 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            << 24 as ::core::ffi::c_int,
-                    ),
-            );
-            _hj_i = _hj_i.wrapping_sub(_hj_j);
-            _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-            _hj_i ^= _hf_hashv >> 13 as ::core::ffi::c_int;
-            _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-            _hj_j = _hj_j.wrapping_sub(_hj_i);
-            _hj_j ^= _hj_i << 8 as ::core::ffi::c_int;
-            _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-            _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-            _hf_hashv ^= _hj_j >> 13 as ::core::ffi::c_int;
-            _hj_i = _hj_i.wrapping_sub(_hj_j);
-            _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-            _hj_i ^= _hf_hashv >> 12 as ::core::ffi::c_int;
-            _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-            _hj_j = _hj_j.wrapping_sub(_hj_i);
-            _hj_j ^= _hj_i << 16 as ::core::ffi::c_int;
-            _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-            _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-            _hf_hashv ^= _hj_j >> 5 as ::core::ffi::c_int;
-            _hj_i = _hj_i.wrapping_sub(_hj_j);
-            _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-            _hj_i ^= _hf_hashv >> 3 as ::core::ffi::c_int;
-            _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-            _hj_j = _hj_j.wrapping_sub(_hj_i);
-            _hj_j ^= _hj_i << 10 as ::core::ffi::c_int;
-            _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-            _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-            _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-            _hj_key = _hj_key.offset(12 as ::core::ffi::c_int as isize);
-            _hj_k = _hj_k.wrapping_sub(12 as ::core::ffi::c_uint);
-        }
-        _hf_hashv = _hf_hashv
-            .wrapping_add(strlen(script_tag as *const ::core::ffi::c_char) as ::core::ffi::c_uint);
-        let mut current_block_50: u64;
-        match _hj_k {
-            11 => {
-                _hf_hashv = _hf_hashv.wrapping_add(
-                    (*_hj_key.offset(10 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        << 24 as ::core::ffi::c_int,
-                );
-                current_block_50 = 14823687005023999748;
-            }
-            10 => {
-                current_block_50 = 14823687005023999748;
-            }
-            9 => {
-                current_block_50 = 2331656302760911566;
-            }
-            8 => {
-                current_block_50 = 17352930546238167574;
-            }
-            7 => {
-                current_block_50 = 13740184123479751145;
-            }
-            6 => {
-                current_block_50 = 14860613234516215618;
-            }
-            5 => {
-                current_block_50 = 13669816829141938816;
-            }
-            4 => {
-                current_block_50 = 7711255570521815756;
-            }
-            3 => {
-                current_block_50 = 8659757378588889400;
-            }
-            2 => {
-                current_block_50 = 16517549058459909004;
-            }
-            1 => {
-                current_block_50 = 640113823387602610;
-            }
-            _ => {
-                current_block_50 = 15004371738079956865;
-            }
-        }
-        match current_block_50 {
-            14823687005023999748 => {
-                _hf_hashv = _hf_hashv.wrapping_add(
-                    (*_hj_key.offset(9 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        << 16 as ::core::ffi::c_int,
-                );
-                current_block_50 = 2331656302760911566;
-            }
-            _ => {}
-        }
-        match current_block_50 {
-            2331656302760911566 => {
-                _hf_hashv = _hf_hashv.wrapping_add(
-                    (*_hj_key.offset(8 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        << 8 as ::core::ffi::c_int,
-                );
-                current_block_50 = 17352930546238167574;
-            }
-            _ => {}
-        }
-        match current_block_50 {
-            17352930546238167574 => {
-                _hj_j = _hj_j.wrapping_add(
-                    (*_hj_key.offset(7 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        << 24 as ::core::ffi::c_int,
-                );
-                current_block_50 = 13740184123479751145;
-            }
-            _ => {}
-        }
-        match current_block_50 {
-            13740184123479751145 => {
-                _hj_j = _hj_j.wrapping_add(
-                    (*_hj_key.offset(6 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        << 16 as ::core::ffi::c_int,
-                );
-                current_block_50 = 14860613234516215618;
-            }
-            _ => {}
-        }
-        match current_block_50 {
-            14860613234516215618 => {
-                _hj_j = _hj_j.wrapping_add(
-                    (*_hj_key.offset(5 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        << 8 as ::core::ffi::c_int,
-                );
-                current_block_50 = 13669816829141938816;
-            }
-            _ => {}
-        }
-        match current_block_50 {
-            13669816829141938816 => {
-                _hj_j =
-                    _hj_j
-                        .wrapping_add(*_hj_key.offset(4 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint);
-                current_block_50 = 7711255570521815756;
-            }
-            _ => {}
-        }
-        match current_block_50 {
-            7711255570521815756 => {
-                _hj_i = _hj_i.wrapping_add(
-                    (*_hj_key.offset(3 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        << 24 as ::core::ffi::c_int,
-                );
-                current_block_50 = 8659757378588889400;
-            }
-            _ => {}
-        }
-        match current_block_50 {
-            8659757378588889400 => {
-                _hj_i = _hj_i.wrapping_add(
-                    (*_hj_key.offset(2 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        << 16 as ::core::ffi::c_int,
-                );
-                current_block_50 = 16517549058459909004;
-            }
-            _ => {}
-        }
-        match current_block_50 {
-            16517549058459909004 => {
-                _hj_i = _hj_i.wrapping_add(
-                    (*_hj_key.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        << 8 as ::core::ffi::c_int,
-                );
-                current_block_50 = 640113823387602610;
-            }
-            _ => {}
-        }
-        match current_block_50 {
-            640113823387602610 => {
-                _hj_i =
-                    _hj_i
-                        .wrapping_add(*_hj_key.offset(0 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint);
-            }
-            _ => {}
-        }
-        _hj_i = _hj_i.wrapping_sub(_hj_j);
-        _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-        _hj_i ^= _hf_hashv >> 13 as ::core::ffi::c_int;
-        _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-        _hj_j = _hj_j.wrapping_sub(_hj_i);
-        _hj_j ^= _hj_i << 8 as ::core::ffi::c_int;
-        _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-        _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-        _hf_hashv ^= _hj_j >> 13 as ::core::ffi::c_int;
-        _hj_i = _hj_i.wrapping_sub(_hj_j);
-        _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-        _hj_i ^= _hf_hashv >> 12 as ::core::ffi::c_int;
-        _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-        _hj_j = _hj_j.wrapping_sub(_hj_i);
-        _hj_j ^= _hj_i << 16 as ::core::ffi::c_int;
-        _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-        _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-        _hf_hashv ^= _hj_j >> 5 as ::core::ffi::c_int;
-        _hj_i = _hj_i.wrapping_sub(_hj_j);
-        _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-        _hj_i ^= _hf_hashv >> 3 as ::core::ffi::c_int;
-        _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-        _hj_j = _hj_j.wrapping_sub(_hj_i);
-        _hj_j ^= _hj_i << 10 as ::core::ffi::c_int;
-        _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-        _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-        _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-        s = ::core::ptr::null_mut::<ScriptStatHash>();
-        if !h.is_null() {
-            let mut _hf_bkt: ::core::ffi::c_uint = 0;
-            _hf_bkt = _hf_hashv
-                & (*(*h).hh.tbl)
-                    .num_buckets
-                    .wrapping_sub(1 as ::core::ffi::c_uint);
-            if 1 as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-                if !(*(*(*h).hh.tbl).buckets.offset(_hf_bkt as isize))
-                    .hh_head
-                    .is_null()
-                {
-                    s = ((*(*(*h).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
-                        as *mut ::core::ffi::c_char)
-                        .offset(-(*(*h).hh.tbl).hho)
-                        as *mut ::core::ffi::c_void as *mut ScriptStatHash
-                        as *mut ScriptStatHash;
-                } else {
-                    s = ::core::ptr::null_mut::<ScriptStatHash>();
-                }
-                while !s.is_null() {
-                    if (*s).hh.hashv == _hf_hashv
-                        && (*s).hh.keylen
-                            == strlen(script_tag as *const ::core::ffi::c_char)
-                                as ::core::ffi::c_uint
-                    {
-                        if memcmp(
-                            (*s).hh.key,
-                            script_tag as *const ::core::ffi::c_void,
-                            strlen(script_tag as *const ::core::ffi::c_char) as ::core::ffi::c_uint
-                                as usize,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            break;
-                        }
-                    }
-                    if !(*s).hh.hh_next.is_null() {
-                        s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                            .offset(-(*(*h).hh.tbl).hho)
-                            as *mut ::core::ffi::c_void
-                            as *mut ScriptStatHash
-                            as *mut ScriptStatHash;
-                    } else {
-                        s = ::core::ptr::null_mut::<ScriptStatHash>();
-                    }
-                }
-            }
-        }
-        if !s.is_null() {
-            if is_default {
-                (*s).dl = language;
-            } else {
-                (*s).lc = ((*s).lc as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
-                let ref mut fresh3 = *(*s)
-                    .ll
-                    .offset(((*s).lc as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize);
-                *fresh3 = language;
-            }
-            sdsfree(script_tag);
-        } else {
-            s = __caryll_allocate_clean(
-                ::core::mem::size_of::<ScriptStatHash>() as usize,
-                316 as ::core::ffi::c_ulong,
-            ) as *mut ScriptStatHash;
-            (*s).tag = script_tag;
-            (*s).dl = ::core::ptr::null::<LanguageSystem>();
-            (*s).ll = __caryll_allocate_clean(
-                (::core::mem::size_of::<*const LanguageSystem>() as usize)
-                    .wrapping_mul((*table).languages.len()),
-                319 as ::core::ffi::c_ulong,
-            ) as *mut *const LanguageSystem;
-            if is_default {
-                (*s).dl = language;
-                (*s).lc = 0 as u16;
-            } else {
-                (*s).lc = 1 as u16;
-                let ref mut fresh4 = *(*s)
-                    .ll
-                    .offset(((*s).lc as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize);
-                *fresh4 = language;
-            }
-            let mut _ha_hashv: ::core::ffi::c_uint = 0;
-            let mut _hj_i_0: ::core::ffi::c_uint = 0;
-            let mut _hj_j_0: ::core::ffi::c_uint = 0;
-            let mut _hj_k_0: ::core::ffi::c_uint = 0;
-            let mut _hj_key_0: *const ::core::ffi::c_uchar =
-                (*s).tag.offset(0 as ::core::ffi::c_int as isize) as *mut ::core::ffi::c_char
-                    as *const ::core::ffi::c_uchar;
-            _ha_hashv = 0xfeedbeef as ::core::ffi::c_uint;
-            _hj_j_0 = 0x9e3779b9 as ::core::ffi::c_uint;
-            _hj_i_0 = _hj_j_0;
-            _hj_k_0 = strlen((*s).tag as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
-            while _hj_k_0 >= 12 as ::core::ffi::c_uint {
-                _hj_i_0 = _hj_i_0.wrapping_add(
-                    (*_hj_key_0.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        .wrapping_add(
-                            (*_hj_key_0.offset(1 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 8 as ::core::ffi::c_int,
-                        )
-                        .wrapping_add(
-                            (*_hj_key_0.offset(2 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 16 as ::core::ffi::c_int,
-                        )
-                        .wrapping_add(
-                            (*_hj_key_0.offset(3 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 24 as ::core::ffi::c_int,
-                        ),
-                );
-                _hj_j_0 = _hj_j_0.wrapping_add(
-                    (*_hj_key_0.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        .wrapping_add(
-                            (*_hj_key_0.offset(5 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 8 as ::core::ffi::c_int,
-                        )
-                        .wrapping_add(
-                            (*_hj_key_0.offset(6 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 16 as ::core::ffi::c_int,
-                        )
-                        .wrapping_add(
-                            (*_hj_key_0.offset(7 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 24 as ::core::ffi::c_int,
-                        ),
-                );
-                _ha_hashv = _ha_hashv.wrapping_add(
-                    (*_hj_key_0.offset(8 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                        .wrapping_add(
-                            (*_hj_key_0.offset(9 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 8 as ::core::ffi::c_int,
-                        )
-                        .wrapping_add(
-                            (*_hj_key_0.offset(10 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 16 as ::core::ffi::c_int,
-                        )
-                        .wrapping_add(
-                            (*_hj_key_0.offset(11 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 24 as ::core::ffi::c_int,
-                        ),
-                );
-                _hj_i_0 = _hj_i_0.wrapping_sub(_hj_j_0);
-                _hj_i_0 = _hj_i_0.wrapping_sub(_ha_hashv);
-                _hj_i_0 ^= _ha_hashv >> 13 as ::core::ffi::c_int;
-                _hj_j_0 = _hj_j_0.wrapping_sub(_ha_hashv);
-                _hj_j_0 = _hj_j_0.wrapping_sub(_hj_i_0);
-                _hj_j_0 ^= _hj_i_0 << 8 as ::core::ffi::c_int;
-                _ha_hashv = _ha_hashv.wrapping_sub(_hj_i_0);
-                _ha_hashv = _ha_hashv.wrapping_sub(_hj_j_0);
-                _ha_hashv ^= _hj_j_0 >> 13 as ::core::ffi::c_int;
-                _hj_i_0 = _hj_i_0.wrapping_sub(_hj_j_0);
-                _hj_i_0 = _hj_i_0.wrapping_sub(_ha_hashv);
-                _hj_i_0 ^= _ha_hashv >> 12 as ::core::ffi::c_int;
-                _hj_j_0 = _hj_j_0.wrapping_sub(_ha_hashv);
-                _hj_j_0 = _hj_j_0.wrapping_sub(_hj_i_0);
-                _hj_j_0 ^= _hj_i_0 << 16 as ::core::ffi::c_int;
-                _ha_hashv = _ha_hashv.wrapping_sub(_hj_i_0);
-                _ha_hashv = _ha_hashv.wrapping_sub(_hj_j_0);
-                _ha_hashv ^= _hj_j_0 >> 5 as ::core::ffi::c_int;
-                _hj_i_0 = _hj_i_0.wrapping_sub(_hj_j_0);
-                _hj_i_0 = _hj_i_0.wrapping_sub(_ha_hashv);
-                _hj_i_0 ^= _ha_hashv >> 3 as ::core::ffi::c_int;
-                _hj_j_0 = _hj_j_0.wrapping_sub(_ha_hashv);
-                _hj_j_0 = _hj_j_0.wrapping_sub(_hj_i_0);
-                _hj_j_0 ^= _hj_i_0 << 10 as ::core::ffi::c_int;
-                _ha_hashv = _ha_hashv.wrapping_sub(_hj_i_0);
-                _ha_hashv = _ha_hashv.wrapping_sub(_hj_j_0);
-                _ha_hashv ^= _hj_j_0 >> 15 as ::core::ffi::c_int;
-                _hj_key_0 = _hj_key_0.offset(12 as ::core::ffi::c_int as isize);
-                _hj_k_0 = _hj_k_0.wrapping_sub(12 as ::core::ffi::c_uint);
-            }
-            _ha_hashv =
-                _ha_hashv.wrapping_add(
-                    strlen((*s).tag as *const ::core::ffi::c_char) as ::core::ffi::c_uint
-                );
-            let mut current_block_183: u64;
-            match _hj_k_0 {
-                11 => {
-                    _ha_hashv = _ha_hashv.wrapping_add(
-                        (*_hj_key_0.offset(10 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint)
-                            << 24 as ::core::ffi::c_int,
-                    );
-                    current_block_183 = 9646444951891790190;
-                }
-                10 => {
-                    current_block_183 = 9646444951891790190;
-                }
-                9 => {
-                    current_block_183 = 3334602948526645343;
-                }
-                8 => {
-                    current_block_183 = 2212965138932432936;
-                }
-                7 => {
-                    current_block_183 = 10274451560863855454;
-                }
-                6 => {
-                    current_block_183 = 14269574886101392281;
-                }
-                5 => {
-                    current_block_183 = 12841885000613847604;
-                }
-                4 => {
-                    current_block_183 = 9712482253163437245;
-                }
-                3 => {
-                    current_block_183 = 3099469230490028345;
-                }
-                2 => {
-                    current_block_183 = 10402200969996848048;
-                }
-                1 => {
-                    current_block_183 = 3799609926439758155;
-                }
-                _ => {
-                    current_block_183 = 5832582820025303349;
-                }
-            }
-            match current_block_183 {
-                9646444951891790190 => {
-                    _ha_hashv = _ha_hashv.wrapping_add(
-                        (*_hj_key_0.offset(9 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint)
-                            << 16 as ::core::ffi::c_int,
-                    );
-                    current_block_183 = 3334602948526645343;
-                }
-                _ => {}
-            }
-            match current_block_183 {
-                3334602948526645343 => {
-                    _ha_hashv = _ha_hashv.wrapping_add(
-                        (*_hj_key_0.offset(8 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint)
-                            << 8 as ::core::ffi::c_int,
-                    );
-                    current_block_183 = 2212965138932432936;
-                }
-                _ => {}
-            }
-            match current_block_183 {
-                2212965138932432936 => {
-                    _hj_j_0 = _hj_j_0.wrapping_add(
-                        (*_hj_key_0.offset(7 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint)
-                            << 24 as ::core::ffi::c_int,
-                    );
-                    current_block_183 = 10274451560863855454;
-                }
-                _ => {}
-            }
-            match current_block_183 {
-                10274451560863855454 => {
-                    _hj_j_0 = _hj_j_0.wrapping_add(
-                        (*_hj_key_0.offset(6 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint)
-                            << 16 as ::core::ffi::c_int,
-                    );
-                    current_block_183 = 14269574886101392281;
-                }
-                _ => {}
-            }
-            match current_block_183 {
-                14269574886101392281 => {
-                    _hj_j_0 = _hj_j_0.wrapping_add(
-                        (*_hj_key_0.offset(5 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint)
-                            << 8 as ::core::ffi::c_int,
-                    );
-                    current_block_183 = 12841885000613847604;
-                }
-                _ => {}
-            }
-            match current_block_183 {
-                12841885000613847604 => {
-                    _hj_j_0 = _hj_j_0
-                        .wrapping_add(*_hj_key_0.offset(4 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint);
-                    current_block_183 = 9712482253163437245;
-                }
-                _ => {}
-            }
-            match current_block_183 {
-                9712482253163437245 => {
-                    _hj_i_0 = _hj_i_0.wrapping_add(
-                        (*_hj_key_0.offset(3 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint)
-                            << 24 as ::core::ffi::c_int,
-                    );
-                    current_block_183 = 3099469230490028345;
-                }
-                _ => {}
-            }
-            match current_block_183 {
-                3099469230490028345 => {
-                    _hj_i_0 = _hj_i_0.wrapping_add(
-                        (*_hj_key_0.offset(2 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint)
-                            << 16 as ::core::ffi::c_int,
-                    );
-                    current_block_183 = 10402200969996848048;
-                }
-                _ => {}
-            }
-            match current_block_183 {
-                10402200969996848048 => {
-                    _hj_i_0 = _hj_i_0.wrapping_add(
-                        (*_hj_key_0.offset(1 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint)
-                            << 8 as ::core::ffi::c_int,
-                    );
-                    current_block_183 = 3799609926439758155;
-                }
-                _ => {}
-            }
-            match current_block_183 {
-                3799609926439758155 => {
-                    _hj_i_0 = _hj_i_0
-                        .wrapping_add(*_hj_key_0.offset(0 as ::core::ffi::c_int as isize)
-                            as ::core::ffi::c_uint);
-                }
-                _ => {}
-            }
-            _hj_i_0 = _hj_i_0.wrapping_sub(_hj_j_0);
-            _hj_i_0 = _hj_i_0.wrapping_sub(_ha_hashv);
-            _hj_i_0 ^= _ha_hashv >> 13 as ::core::ffi::c_int;
-            _hj_j_0 = _hj_j_0.wrapping_sub(_ha_hashv);
-            _hj_j_0 = _hj_j_0.wrapping_sub(_hj_i_0);
-            _hj_j_0 ^= _hj_i_0 << 8 as ::core::ffi::c_int;
-            _ha_hashv = _ha_hashv.wrapping_sub(_hj_i_0);
-            _ha_hashv = _ha_hashv.wrapping_sub(_hj_j_0);
-            _ha_hashv ^= _hj_j_0 >> 13 as ::core::ffi::c_int;
-            _hj_i_0 = _hj_i_0.wrapping_sub(_hj_j_0);
-            _hj_i_0 = _hj_i_0.wrapping_sub(_ha_hashv);
-            _hj_i_0 ^= _ha_hashv >> 12 as ::core::ffi::c_int;
-            _hj_j_0 = _hj_j_0.wrapping_sub(_ha_hashv);
-            _hj_j_0 = _hj_j_0.wrapping_sub(_hj_i_0);
-            _hj_j_0 ^= _hj_i_0 << 16 as ::core::ffi::c_int;
-            _ha_hashv = _ha_hashv.wrapping_sub(_hj_i_0);
-            _ha_hashv = _ha_hashv.wrapping_sub(_hj_j_0);
-            _ha_hashv ^= _hj_j_0 >> 5 as ::core::ffi::c_int;
-            _hj_i_0 = _hj_i_0.wrapping_sub(_hj_j_0);
-            _hj_i_0 = _hj_i_0.wrapping_sub(_ha_hashv);
-            _hj_i_0 ^= _ha_hashv >> 3 as ::core::ffi::c_int;
-            _hj_j_0 = _hj_j_0.wrapping_sub(_ha_hashv);
-            _hj_j_0 = _hj_j_0.wrapping_sub(_hj_i_0);
-            _hj_j_0 ^= _hj_i_0 << 10 as ::core::ffi::c_int;
-            _ha_hashv = _ha_hashv.wrapping_sub(_hj_i_0);
-            _ha_hashv = _ha_hashv.wrapping_sub(_hj_j_0);
-            _ha_hashv ^= _hj_j_0 >> 15 as ::core::ffi::c_int;
-            (*s).hh.hashv = _ha_hashv;
-            (*s).hh.key = (*s).tag.offset(0 as ::core::ffi::c_int as isize)
-                as *mut ::core::ffi::c_char as *mut ::core::ffi::c_void;
-            (*s).hh.keylen = strlen((*s).tag as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
-            if h.is_null() {
-                (*s).hh.next = NULL;
-                (*s).hh.prev = NULL;
-                (*s).hh.tbl = malloc(::core::mem::size_of::<UtHashTable>() as usize)
-                    as *mut UtHashTable as *mut UtHashTable;
-                if (*s).hh.tbl.is_null() {
-                    exit(-(1 as ::core::ffi::c_int));
-                } else {
-                    memset(
-                        (*s).hh.tbl as *mut ::core::ffi::c_void,
-                        '\0' as i32,
-                        ::core::mem::size_of::<UtHashTable>() as usize,
-                    );
-                    (*(*s).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
-                    (*(*s).hh.tbl).num_buckets = HASH_INITIAL_NUM_BUCKETS;
-                    (*(*s).hh.tbl).log2_num_buckets = HASH_INITIAL_NUM_BUCKETS_LOG2;
-                    (*(*s).hh.tbl).hho = (&raw mut (*s).hh as *mut ::core::ffi::c_char)
-                        .offset_from(s as *mut ::core::ffi::c_char)
-                        as ::core::ffi::c_long
-                        as isize;
-                    (*(*s).hh.tbl).buckets = malloc(
-                        (32 as usize)
-                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
-                    ) as *mut UtHashBucket;
-                    (*(*s).hh.tbl).signature = HASH_SIGNATURE as u32;
-                    if (*(*s).hh.tbl).buckets.is_null() {
-                        exit(-(1 as ::core::ffi::c_int));
-                    } else {
-                        memset(
-                            (*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void,
-                            '\0' as i32,
-                            (32 as usize)
-                                .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
-                        );
-                    }
-                }
-                h = s;
-            } else {
-                (*s).hh.tbl = (*h).hh.tbl;
-                (*s).hh.next = NULL;
-                (*s).hh.prev = ((*(*h).hh.tbl).tail as *mut ::core::ffi::c_char)
-                    .offset(-(*(*h).hh.tbl).hho)
-                    as *mut ::core::ffi::c_void;
-                (*(*(*h).hh.tbl).tail).next = s as *mut ::core::ffi::c_void;
-                (*(*h).hh.tbl).tail = &raw mut (*s).hh as *mut UtHashHandle;
-            }
-            let mut _ha_bkt: ::core::ffi::c_uint = 0;
-            (*(*h).hh.tbl).num_items = (*(*h).hh.tbl).num_items.wrapping_add(1);
-            _ha_bkt = _ha_hashv
-                & (*(*h).hh.tbl)
-                    .num_buckets
-                    .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _ha_head: *mut UtHashBucket =
-                (*(*h).hh.tbl).buckets.offset(_ha_bkt as isize) as *mut UtHashBucket;
-            (*_ha_head).count = (*_ha_head).count.wrapping_add(1);
-            (*s).hh.hh_next = (*_ha_head).hh_head as *mut UtHashHandle;
-            (*s).hh.hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
-            if !(*_ha_head).hh_head.is_null() {
-                (*(*_ha_head).hh_head).hh_prev = &raw mut (*s).hh as *mut UtHashHandle;
-            }
-            (*_ha_head).hh_head = &raw mut (*s).hh as *mut UtHashHandle;
-            if (*_ha_head).count
-                >= (*_ha_head)
-                    .expand_mult
-                    .wrapping_add(1 as ::core::ffi::c_uint)
-                    .wrapping_mul(HASH_BKT_CAPACITY_THRESH)
-                && (*(*s).hh.tbl).noexpand == 0
+        let mut found: Option<usize> = None;
+        for (idx, group) in scripts.iter().enumerate() {
+            if sdslen(group.tag) == sdslen(script_tag)
+                && memcmp(
+                    group.tag as *const ::core::ffi::c_void,
+                    script_tag as *const ::core::ffi::c_void,
+                    sdslen(script_tag) as usize,
+                ) == 0 as ::core::ffi::c_int
             {
-                let mut _he_bkt: ::core::ffi::c_uint = 0;
-                let mut _he_bkt_i: ::core::ffi::c_uint = 0;
-                let mut _he_thh: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
-                let mut _he_hh_nxt: *mut UtHashHandle = ::core::ptr::null_mut::<UtHashHandle>();
-                let mut _he_new_buckets: *mut UtHashBucket =
-                    ::core::ptr::null_mut::<UtHashBucket>();
-                let mut _he_newbkt: *mut UtHashBucket = ::core::ptr::null_mut::<UtHashBucket>();
-                _he_new_buckets = malloc(
-                    (2 as usize)
-                        .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
-                        .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
-                ) as *mut UtHashBucket;
-                if _he_new_buckets.is_null() {
-                    exit(-(1 as ::core::ffi::c_int));
+                found = Some(idx);
+                break;
+            }
+        }
+        match found {
+            Some(idx) => {
+                if is_default {
+                    scripts[idx].default_language = language;
                 } else {
-                    memset(
-                        _he_new_buckets as *mut ::core::ffi::c_void,
-                        '\0' as i32,
-                        (2 as usize)
-                            .wrapping_mul((*(*s).hh.tbl).num_buckets as usize)
-                            .wrapping_mul(::core::mem::size_of::<UtHashBucket>() as usize),
-                    );
-                    (*(*s).hh.tbl).ideal_chain_maxlen = ((*(*s).hh.tbl).num_items
-                        >> (*(*s).hh.tbl)
-                            .log2_num_buckets
-                            .wrapping_add(1 as ::core::ffi::c_uint))
-                    .wrapping_add(
-                        if (*(*s).hh.tbl).num_items
-                            & (*(*s).hh.tbl)
-                                .num_buckets
-                                .wrapping_mul(2 as ::core::ffi::c_uint)
-                                .wrapping_sub(1 as ::core::ffi::c_uint)
-                            != 0 as ::core::ffi::c_uint
-                        {
-                            1 as ::core::ffi::c_uint
-                        } else {
-                            0 as ::core::ffi::c_uint
-                        },
-                    );
-                    (*(*s).hh.tbl).nonideal_items = 0 as ::core::ffi::c_uint;
-                    _he_bkt_i = 0 as ::core::ffi::c_uint;
-                    while _he_bkt_i < (*(*s).hh.tbl).num_buckets {
-                        _he_thh = (*(*(*s).hh.tbl).buckets.offset(_he_bkt_i as isize)).hh_head
-                            as *mut UtHashHandle;
-                        while !_he_thh.is_null() {
-                            _he_hh_nxt = (*_he_thh).hh_next;
-                            _he_bkt = (*_he_thh).hashv
-                                & (*(*s).hh.tbl)
-                                    .num_buckets
-                                    .wrapping_mul(2 as ::core::ffi::c_uint)
-                                    .wrapping_sub(1 as ::core::ffi::c_uint);
-                            _he_newbkt =
-                                _he_new_buckets.offset(_he_bkt as isize) as *mut UtHashBucket;
-                            (*_he_newbkt).count = (*_he_newbkt).count.wrapping_add(1);
-                            if (*_he_newbkt).count > (*(*s).hh.tbl).ideal_chain_maxlen {
-                                (*(*s).hh.tbl).nonideal_items =
-                                    (*(*s).hh.tbl).nonideal_items.wrapping_add(1);
-                                (*_he_newbkt).expand_mult = (*_he_newbkt)
-                                    .count
-                                    .wrapping_div((*(*s).hh.tbl).ideal_chain_maxlen);
-                            }
-                            (*_he_thh).hh_prev = ::core::ptr::null_mut::<UtHashHandle>();
-                            (*_he_thh).hh_next = (*_he_newbkt).hh_head as *mut UtHashHandle;
-                            if !(*_he_newbkt).hh_head.is_null() {
-                                (*(*_he_newbkt).hh_head).hh_prev = _he_thh;
-                            }
-                            (*_he_newbkt).hh_head = _he_thh as *mut UtHashHandle;
-                            _he_thh = _he_hh_nxt;
-                        }
-                        _he_bkt_i = _he_bkt_i.wrapping_add(1);
-                    }
-                    free((*(*s).hh.tbl).buckets as *mut ::core::ffi::c_void);
-                    (*(*s).hh.tbl).num_buckets = (*(*s).hh.tbl)
-                        .num_buckets
-                        .wrapping_mul(2 as ::core::ffi::c_uint);
-                    (*(*s).hh.tbl).log2_num_buckets =
-                        (*(*s).hh.tbl).log2_num_buckets.wrapping_add(1);
-                    (*(*s).hh.tbl).buckets = _he_new_buckets;
-                    (*(*s).hh.tbl).ineff_expands = if (*(*s).hh.tbl).nonideal_items
-                        > (*(*s).hh.tbl).num_items >> 1 as ::core::ffi::c_int
-                    {
-                        (*(*s).hh.tbl)
-                            .ineff_expands
-                            .wrapping_add(1 as ::core::ffi::c_uint)
-                    } else {
-                        0 as ::core::ffi::c_uint
-                    };
-                    if (*(*s).hh.tbl).ineff_expands > 1 as ::core::ffi::c_uint {
-                        (*(*s).hh.tbl).noexpand = 1 as ::core::ffi::c_uint;
-                    }
+                    scripts[idx].languages.push(language);
+                }
+                sdsfree(script_tag);
+            }
+            None => {
+                if is_default {
+                    scripts.push(ScriptGroup {
+                        tag: script_tag,
+                        default_language: language,
+                        languages: Vec::new(),
+                    });
+                } else {
+                    scripts.push(ScriptGroup {
+                        tag: script_tag,
+                        default_language: ::core::ptr::null::<LanguageSystem>(),
+                        languages: vec![language],
+                    });
                 }
             }
         }
         j = j.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (if !h.is_null() {
-            (*(*h).hh.tbl).num_items
-        } else {
-            0 as ::core::ffi::c_uint
-        }) as u32)]);
-    let mut s_0: *mut ScriptStatHash = ::core::ptr::null_mut::<ScriptStatHash>();
-    let mut tmp: *mut ScriptStatHash = ::core::ptr::null_mut::<ScriptStatHash>();
-    s_0 = h;
-    tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut ScriptStatHash
-        as *mut ScriptStatHash;
-    while !s_0.is_null() {
-        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag((*s_0).tag)) as u32), bk_ptr(BkCellType::P16, write_script(s_0, table))]);
-        let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s_0).hh;
-        if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
-            free((*(*h).hh.tbl).buckets as *mut ::core::ffi::c_void);
-            free((*h).hh.tbl as *mut ::core::ffi::c_void);
-            h = ::core::ptr::null_mut::<ScriptStatHash>();
-        } else {
-            let mut _hd_bkt: ::core::ffi::c_uint = 0;
-            if _hd_hh_del == (*(*h).hh.tbl).tail {
-                (*(*h).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho)
-                    as *mut UtHashHandle
-                    as *mut UtHashHandle;
-            }
-            if !(*_hd_hh_del).prev.is_null() {
-                let ref mut fresh5 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho)
-                    as *mut UtHashHandle))
-                    .next;
-                *fresh5 = (*_hd_hh_del).next;
-            } else {
-                h = (*_hd_hh_del).next as *mut ScriptStatHash as *mut ScriptStatHash;
-            }
-            if !(*_hd_hh_del).next.is_null() {
-                let ref mut fresh6 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho)
-                    as *mut UtHashHandle))
-                    .prev;
-                *fresh6 = (*_hd_hh_del).prev;
-            }
-            _hd_bkt = (*_hd_hh_del).hashv
-                & (*(*h).hh.tbl)
-                    .num_buckets
-                    .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _hd_head: *mut UtHashBucket =
-                (*(*h).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UtHashBucket;
-            (*_hd_head).count = (*_hd_head).count.wrapping_sub(1);
-            if (*_hd_head).hh_head == _hd_hh_del {
-                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UtHashHandle;
-            }
-            if !(*_hd_hh_del).hh_prev.is_null() {
-                (*(*_hd_hh_del).hh_prev).hh_next = (*_hd_hh_del).hh_next;
-            }
-            if !(*_hd_hh_del).hh_next.is_null() {
-                (*(*_hd_hh_del).hh_next).hh_prev = (*_hd_hh_del).hh_prev;
-            }
-            (*(*h).hh.tbl).num_items = (*(*h).hh.tbl).num_items.wrapping_sub(1);
-        }
-        sdsfree((*s_0).tag);
-        free((*s_0).ll as *mut ::core::ffi::c_void);
-        (*s_0).ll = ::core::ptr::null_mut::<*const LanguageSystem>();
-        free(s_0 as *mut ::core::ffi::c_void);
-        s_0 = ::core::ptr::null_mut::<ScriptStatHash>();
-        s_0 = tmp;
-        tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut ScriptStatHash
-            as *mut ScriptStatHash;
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (scripts.len()) as u32)]);
+    for group in &scripts {
+        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag(group.tag)) as u32), bk_ptr(BkCellType::P16, write_script(group.default_language, &group.languages, table))]);
+    }
+    for group in scripts {
+        sdsfree(group.tag);
     }
     return root;
 }

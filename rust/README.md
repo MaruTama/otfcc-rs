@@ -1871,6 +1871,60 @@ on the other platform before a commit is trusted.
     copy of the `by_from_id` comparator.
   - Verified with the standard full pipeline on both macOS and Linux.
     **~18 uthash instances remain.**
+- **uthash → `Vec`, seventh instance: `ScriptStatHash`
+  (`write_otl_script_and_languages`, `table/otl/build.rs`) — the first
+  instance in this migration where the right replacement is a plain `Vec`,
+  not `BTreeMap`.** Self-contained to one file (unlike the `ClassNameHash`
+  instances in `table/otl/subtables/gpos_common.rs` and the two
+  `gpos_mark_to_{single,ligature}.rs` files, which were surveyed as the
+  next candidate and set aside — that hash table is built in one file,
+  looked up read-only in two others, and disposed in each of those two,
+  a materially bigger unit of work than a single self-contained instance).
+  - This function groups a font's languages by script tag (the first 4
+    bytes of `language.name`) while writing the OTL `Script`/`LangSys`
+    binary tables — not a dedup pass. Reading it in full turned up the
+    reason `BTreeMap` (used for every uthash instance so far) would have
+    been the *wrong* container here: **the original C never calls
+    `HASH_SORT` before its `HASH_ITER`** over this table, unlike every
+    prior instance. Output order is insertion order, not tag order.
+    `BTreeMap`'s iteration order is always key order, so using it here
+    would have silently reordered a font's `Script` table entries whenever
+    the source data's own script order isn't already alphabetical.
+  - Replaced with a plain `Vec<ScriptGroup>` and a linear "already seen"
+    scan by tag instead of `IndexMap` (the container this migration's
+    plan names for the ~577 other insertion-order-dependent uthash/output
+    sites, per the "genuine library win" survey in this file). The number
+    of distinct scripts in a real font is small — typically single
+    digits — so an O(n) scan over an O(n)-sized `Vec` costs nothing
+    observable, and pulling in a new dependency for a handful of entries
+    isn't warranted. `IndexMap` remains the intended tool for the larger
+    order-dependent tables (glyph order, lookup order, coverage order)
+    noted elsewhere in this file.
+  - No warnings anywhere in the original function (confirmed by grepping
+    for logger calls in the range) — the simplest instance yet to verify
+    for behavior preservation, since there's no message text to match.
+  - A later language sharing a script tag with an existing entry, whose
+    name is *also* dflt/DFLT, silently overwrites that script's recorded
+    default language — the original never guarded against a second
+    default and the rewrite doesn't either; not a case worth warning
+    about, just preserved as-is.
+  - **No new synthetic payload needed.** `iosevka-r.ttf` (already in
+    `tests/golden/`) has four distinct scripts (`DFLT`/`cyrl`/`grek`/
+    `latn`) in both its `GSUB` and `GPOS` tables, and its `GSUB` table's
+    `cyrl` script has *two* languages — `cyrl_DFLT` (the default) and
+    `cyrl_SRB ` (a non-default) — exercising both the multi-script
+    grouping and the default-plus-others-within-one-script path for real,
+    not synthetically. `tests/golden/checksums.sha256` needed no
+    regeneration at all for this instance: every existing payload's
+    output, including `iosevka-r`, stayed byte-identical to the frozen
+    baseline on the first build after the rewrite.
+  - `ScriptStatHash` is deleted along with the `use crate::vendor::uthash`
+    import and five now-unused `libc` imports (`exit`/`malloc`/`memset`/
+    `strlen`, plus `NULL`) that were used only inside the removed
+    resize/hash-compute boilerplate; `free`/`memcmp`/`strncmp` remain used
+    elsewhere in the file and are kept.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~17 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
