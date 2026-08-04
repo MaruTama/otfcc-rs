@@ -2186,6 +2186,68 @@ on the other platform before a commit is trusted.
     for either branch.
   - Verified with the standard full pipeline on both macOS and Linux.
     **~12 uthash instances remain.**
+- **uthash → `IndexSet`, thirteenth instance: `PairClassifierHash`
+  (`otl_read_gpos_pair`'s Format 1 branch, `table/otl/subtables/
+  gpos_pair.rs`) — the largest single-function rewrite in this migration
+  so far, and the first instance used across three separate phases of
+  one function rather than build-then-iterate-once.** GPOS `PairPos`
+  Format 1 (individual glyph pairs, no explicit classes on the wire)
+  gets converted into the same `first`/`second`/`matrix` class-grid
+  representation Format 2 already carries explicitly — so reading Format
+  1 has to *synthesize* a class def for the "second" glyph of every
+  pair. `PairClassifierHash` is that synthesis: keyed by gid, deduped,
+  each distinct gid assigned the next sequential class id (1-based —
+  class 0 means "not covered") at insertion.
+  - The same hash instance is threaded through three phases without
+    ever being rebuilt: **(1) build** — read every pair once, insert
+    each "second" gid; **(2) size and allocate** — `(*subtable).second`'s
+    `glyphs`/`classes` and the `first_values`/`second_values` grids are
+    sized from the hash's final item count; **(3) look up (not
+    insert)** — re-read the *same* pairs a second time, look up each
+    "second" gid's already-assigned class id to know where in the grid
+    to place its position value, silently skipping (not panicking) on
+    an unmatched lookup, matching the original's `if !s_0.is_null()`
+    guard exactly; **(4) finalize** — walk the set once more to populate
+    `(*subtable).second`'s `glyphs`/`classes` before returning. No
+    `HASH_SORT` is used here, but since cid is assigned as
+    `num_items + 1` at insert time, insertion order and cid-ascending
+    order are the same order by construction — the same shape as
+    `SfntTableEntry`'s `HASH_SORT`-free-but-still-ordered case, reached
+    by a different route.
+  - No value beyond presence needs to be carried once cid is derived
+    from position, so this is `indexmap::IndexSet<i32>`, not a map — the
+    same simplification as `LigatureAggregator`'s `BTreeSet`, extended
+    to a case that also needs `IndexMap`'s O(1) average lookup (a
+    `Vec`-based linear scan would have been fine for `LigatureAggregator`
+    given the shape data set there but not guaranteed for every font's
+    kerning table). `get_index_of` doubles as both the phase-1
+    "already inserted?" check (via `insert_full`, one line replacing
+    roughly 950 lines of find-then-insert-then-resize boilerplate) and
+    the phase-3 lookup.
+  - Read the whole ~1500-line span before writing any replacement code,
+    per this migration's standing discipline — worth calling out here
+    specifically because the temptation to assume "found → some
+    per-node payload, not-found → insert" (the shape of every
+    `consolidate/otl/*.rs` instance) would have been wrong: there is no
+    per-node payload at all, only presence and position.
+  - **Real, non-synthetic coverage confirmed at the binary level, not
+    inferred from the JSON dump shape** (which looks identical for
+    Format 1 and Format 2 sources, since both converge on the same
+    `first`/`second`/`matrix` output): a small script reading each
+    payload's raw `GPOS` table directly confirmed
+    `BungeeColor-Regular_colr_Windows.ttf` has one Format 1 `PairPos`
+    subtable, and its dumped `"second"` map has 19 distinct glyphs each
+    assigned a unique sequential class 1–19 with no two glyphs sharing a
+    class — exactly this rewrite's dedup shape, not Format 2's
+    author-chosen class grouping (visible elsewhere in the same file's
+    other subtable, where several glyphs share one class). That payload
+    stayed byte-identical to its frozen golden checksum. No synthetic
+    payload needed.
+  - `PairClassifierHash` is deleted; `by_pair_second_glyph` (a
+    different, unrelated comparator used on the *build* side of this
+    file) is untouched.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~11 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
