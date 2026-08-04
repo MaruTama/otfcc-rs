@@ -2136,6 +2136,56 @@ on the other platform before a commit is trusted.
     and `glyf` `Vec`-conversion PRs earlier in Stage 6-1.
   - Verified with the standard full pipeline on both macOS and Linux.
     **~13 uthash instances remain.**
+- **uthash → `IndexMap`, twelfth instance: `CffSidEntry`
+  (`sidof`/`cffstrings_to_indexblob`, `table/cff.rs`) — the second use of
+  `indexmap` in this migration, for the same reason as `FvarMaster`.**
+  `sidof` interns a string into the CFF string table, returning its SID
+  (391 + registration index) — deduplicating identical strings, assigning
+  each new one the next sequential SID. Used for both FD-dict metadata
+  strings (CID-keyed CFF: `cidRegistry`/`version`/`notice`/... per FD) and,
+  for non-CID CFF, **every glyph name in the font** via `cff_make_charset`
+  — so, like `FvarMaster`'s regions, the number of distinct strings here
+  is not a small bounded count the way `ScriptStatHash`'s script count
+  was; a linear scan would be a real algorithmic regression for a
+  large-glyph-count non-CID font. `by_sid` is fed a `HASH_SORT`, but
+  registration order *is* SID order by construction (`sid = HASH_COUNT`
+  at insert time), so `IndexMap`'s native insertion-order iteration needs
+  no separate sort step, the same shape as the `FvarMaster` PR.
+  - **A new fidelity question, resolved conservatively rather than
+    simplified away**: the original's dedup key is `strlen`-bounded (the
+    Bob Jenkins hash and the `memcmp` are both driven by `strlen(s)`),
+    but the *stored* value is the full sds-length `sdsdup`. Two strings
+    identical only up to their first NUL byte would therefore be treated
+    as the same string by the original, with only the first's full
+    content (NUL and beyond) surviving to the output. This crate's own
+    prior notes on `%s`/non-UTF-8 glyph names establish that arbitrary
+    byte content in a glyph name is a real, anticipated case here, not a
+    hypothetical -- so this rewrite preserves the `strlen`-bounded key
+    exactly (`CStr::from_ptr(s).to_bytes()`) rather than switching to the
+    full sds length, even though the latter would have been simpler and
+    the difference is very unlikely to ever be observed in a real font.
+  - `CffSidEntry` and `by_sid` are deleted; `FdArrayCompileContext
+    .string_hash` and the `sidof`/`cff_make_fd_dict`/`cff_make_fdarray`/
+    `cff_make_charset`/`cffstrings_to_indexblob` signatures thread
+    `*mut indexmap::IndexMap<Vec<u8>, SdsRaw>` through unchanged in
+    shape (still `&raw mut string_hash` at every call site) -- only the
+    pointee type changed, so the whole call chain across five functions
+    compiled correctly on the first attempt after the type change, with
+    only unused-import errors left to clean up.
+  - **Real functional coverage across both branches, not synthetic**:
+    `KRName-Regular.otf`'s CFF is CID-keyed (confirmed via its own dump's
+    `isCID: true`) and stayed byte-identical to its frozen golden
+    checksum, exercising the FD-dict-string path. `WorkSans-Regular.json`
+    (the "fj" — from-JSON — payload already in `rust/scripts/
+    run-cycles.sh`/`compare-roundtrips.js`, excluded only from dump-side
+    testing because the *matching* `.otf` triggers a pre-existing,
+    unrelated CFF-interpreter stack overflow on read) is non-CID with
+    786 glyphs, exercising `sidof` for hundreds of real glyph names
+    through the exact large-scale path `IndexMap` was chosen for; its
+    round-trip stability check passed. No new synthetic payload needed
+    for either branch.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~12 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
