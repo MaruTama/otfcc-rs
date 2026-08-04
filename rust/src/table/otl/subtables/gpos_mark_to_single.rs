@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, memcmp, strlen};
+use libc::{free};
 
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
@@ -15,11 +15,8 @@ use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::support::{NULL};
 use crate::table::otl::{Anchor, BaseArray, BaseRecord, Subtable, GposMarkToSingleSubtable};
 use crate::table::otl::subtables::{BuildHeuristics};
-use crate::table::otl::subtables::gpos_common::{ClassNameHash};
-use crate::vendor::uthash::{UtHashBucket, UtHashHandle};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
@@ -287,14 +284,10 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
 unsafe extern "C" fn parse_bases(
     mut _bases: *mut JsonValue,
     mut subtable: *mut GposMarkToSingleSubtable,
-    mut h: *mut *mut ClassNameHash,
+    mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
     mut options: *const Options,
 ) {
-    let mut class_count: GlyphClass = (if !(*h).is_null() {
-        (*(**h).hh.tbl).num_items
-    } else {
-        0 as ::core::ffi::c_uint
-    }) as GlyphClass;
+    let class_count: GlyphClass = (*h).len() as GlyphClass;
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < (*_bases).u.object.length {
         let mut gname: *mut ::core::ffi::c_char =
@@ -329,361 +322,37 @@ unsafe extern "C" fn parse_bases(
         } else {
             let mut k_0: GlyphClass = 0 as GlyphClass;
             while (k_0 as ::core::ffi::c_uint) < (*base_record).u.object.length {
-                let mut class_name: SdsRaw = sdsnewlen(
-                    (*(*base_record).u.object.values.offset(k_0 as isize)).name
-                        as *const ::core::ffi::c_void,
-                    (*(*base_record).u.object.values.offset(k_0 as isize)).name_length as usize,
-                );
-                let mut s: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
-                let mut _hf_hashv: ::core::ffi::c_uint = 0;
-                let mut _hj_i: ::core::ffi::c_uint = 0;
-                let mut _hj_j: ::core::ffi::c_uint = 0;
-                let mut _hj_k: ::core::ffi::c_uint = 0;
-                let mut _hj_key: *const ::core::ffi::c_uchar =
-                    class_name as *const ::core::ffi::c_uchar;
-                _hf_hashv = 0xfeedbeef as ::core::ffi::c_uint;
-                _hj_j = 0x9e3779b9 as ::core::ffi::c_uint;
-                _hj_i = _hj_j;
-                _hj_k = strlen(class_name as *const ::core::ffi::c_char) as ::core::ffi::c_uint;
-                while _hj_k >= 12 as ::core::ffi::c_uint {
-                    _hj_i = _hj_i.wrapping_add(
-                        (*_hj_key.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            .wrapping_add(
-                                (*_hj_key.offset(1 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_uint)
-                                    << 8 as ::core::ffi::c_int,
-                            )
-                            .wrapping_add(
-                                (*_hj_key.offset(2 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_uint)
-                                    << 16 as ::core::ffi::c_int,
-                            )
-                            .wrapping_add(
-                                (*_hj_key.offset(3 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_uint)
-                                    << 24 as ::core::ffi::c_int,
+                let name_ptr: *mut ::core::ffi::c_char =
+                    (*(*base_record).u.object.values.offset(k_0 as isize)).name;
+                // `strlen`-bounded, matching `otl_parse_mark_array`'s
+                // registration key exactly.
+                let class_name: Vec<u8> =
+                    ::core::ffi::CStr::from_ptr(name_ptr).to_bytes().to_vec();
+                match (*h).get(&class_name) {
+                    None => {
+                        (*(*options).logger)
+                            .log_sds
+                            .expect("non-null function pointer")(
+                            (*options).logger as *mut ILogger,
+                            LOG_VL_IMPORTANT,
+                            LoggerType::Warning,
+                            crate::sdsbuild!(
+                                sdsempty(),
+                                b"[OTFCC-fea] Invalid anchor class name <",
+                                name_ptr,
+                                b"> for /",
+                                gname,
+                                b". This base anchor is ignored.\n",
                             ),
-                    );
-                    _hj_j = _hj_j.wrapping_add(
-                        (*_hj_key.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            .wrapping_add(
-                                (*_hj_key.offset(5 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_uint)
-                                    << 8 as ::core::ffi::c_int,
-                            )
-                            .wrapping_add(
-                                (*_hj_key.offset(6 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_uint)
-                                    << 16 as ::core::ffi::c_int,
-                            )
-                            .wrapping_add(
-                                (*_hj_key.offset(7 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_uint)
-                                    << 24 as ::core::ffi::c_int,
-                            ),
-                    );
-                    _hf_hashv = _hf_hashv.wrapping_add(
-                        (*_hj_key.offset(8 as ::core::ffi::c_int as isize) as ::core::ffi::c_uint)
-                            .wrapping_add(
-                                (*_hj_key.offset(9 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_uint)
-                                    << 8 as ::core::ffi::c_int,
-                            )
-                            .wrapping_add(
-                                (*_hj_key.offset(10 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_uint)
-                                    << 16 as ::core::ffi::c_int,
-                            )
-                            .wrapping_add(
-                                (*_hj_key.offset(11 as ::core::ffi::c_int as isize)
-                                    as ::core::ffi::c_uint)
-                                    << 24 as ::core::ffi::c_int,
-                            ),
-                    );
-                    _hj_i = _hj_i.wrapping_sub(_hj_j);
-                    _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-                    _hj_i ^= _hf_hashv >> 13 as ::core::ffi::c_int;
-                    _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-                    _hj_j = _hj_j.wrapping_sub(_hj_i);
-                    _hj_j ^= _hj_i << 8 as ::core::ffi::c_int;
-                    _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-                    _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-                    _hf_hashv ^= _hj_j >> 13 as ::core::ffi::c_int;
-                    _hj_i = _hj_i.wrapping_sub(_hj_j);
-                    _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-                    _hj_i ^= _hf_hashv >> 12 as ::core::ffi::c_int;
-                    _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-                    _hj_j = _hj_j.wrapping_sub(_hj_i);
-                    _hj_j ^= _hj_i << 16 as ::core::ffi::c_int;
-                    _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-                    _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-                    _hf_hashv ^= _hj_j >> 5 as ::core::ffi::c_int;
-                    _hj_i = _hj_i.wrapping_sub(_hj_j);
-                    _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-                    _hj_i ^= _hf_hashv >> 3 as ::core::ffi::c_int;
-                    _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-                    _hj_j = _hj_j.wrapping_sub(_hj_i);
-                    _hj_j ^= _hj_i << 10 as ::core::ffi::c_int;
-                    _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-                    _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-                    _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-                    _hj_key = _hj_key.offset(12 as ::core::ffi::c_int as isize);
-                    _hj_k = _hj_k.wrapping_sub(12 as ::core::ffi::c_uint);
-                }
-                _hf_hashv = _hf_hashv.wrapping_add(
-                    strlen(class_name as *const ::core::ffi::c_char) as ::core::ffi::c_uint
-                );
-                let mut current_block_56: u64;
-                match _hj_k {
-                    11 => {
-                        _hf_hashv = _hf_hashv.wrapping_add(
-                            (*_hj_key.offset(10 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 24 as ::core::ffi::c_int,
                         );
-                        current_block_56 = 14536411282452634839;
                     }
-                    10 => {
-                        current_block_56 = 14536411282452634839;
-                    }
-                    9 => {
-                        current_block_56 = 9913348930486913067;
-                    }
-                    8 => {
-                        current_block_56 = 1505195771936801158;
-                    }
-                    7 => {
-                        current_block_56 = 15021600489117130768;
-                    }
-                    6 => {
-                        current_block_56 = 8233865231112875104;
-                    }
-                    5 => {
-                        current_block_56 = 3771526520438017190;
-                    }
-                    4 => {
-                        current_block_56 = 6788034837040873263;
-                    }
-                    3 => {
-                        current_block_56 = 17257476062468164659;
-                    }
-                    2 => {
-                        current_block_56 = 16976244951184097103;
-                    }
-                    1 => {
-                        current_block_56 = 14519719227392997025;
-                    }
-                    _ => {
-                        current_block_56 = 8151474771948790331;
-                    }
-                }
-                match current_block_56 {
-                    14536411282452634839 => {
-                        _hf_hashv = _hf_hashv.wrapping_add(
-                            (*_hj_key.offset(9 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 16 as ::core::ffi::c_int,
+                    Some(&class_id) => {
+                        *base.anchors.offset(class_id as isize) = otl_parse_anchor(
+                            (*(*base_record).u.object.values.offset(k_0 as isize)).value
+                                as *mut JsonValue,
                         );
-                        current_block_56 = 9913348930486913067;
-                    }
-                    _ => {}
-                }
-                match current_block_56 {
-                    9913348930486913067 => {
-                        _hf_hashv = _hf_hashv.wrapping_add(
-                            (*_hj_key.offset(8 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 8 as ::core::ffi::c_int,
-                        );
-                        current_block_56 = 1505195771936801158;
-                    }
-                    _ => {}
-                }
-                match current_block_56 {
-                    1505195771936801158 => {
-                        _hj_j = _hj_j.wrapping_add(
-                            (*_hj_key.offset(7 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 24 as ::core::ffi::c_int,
-                        );
-                        current_block_56 = 15021600489117130768;
-                    }
-                    _ => {}
-                }
-                match current_block_56 {
-                    15021600489117130768 => {
-                        _hj_j = _hj_j.wrapping_add(
-                            (*_hj_key.offset(6 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 16 as ::core::ffi::c_int,
-                        );
-                        current_block_56 = 8233865231112875104;
-                    }
-                    _ => {}
-                }
-                match current_block_56 {
-                    8233865231112875104 => {
-                        _hj_j = _hj_j.wrapping_add(
-                            (*_hj_key.offset(5 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 8 as ::core::ffi::c_int,
-                        );
-                        current_block_56 = 3771526520438017190;
-                    }
-                    _ => {}
-                }
-                match current_block_56 {
-                    3771526520438017190 => {
-                        _hj_j = _hj_j
-                            .wrapping_add(*_hj_key.offset(4 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint);
-                        current_block_56 = 6788034837040873263;
-                    }
-                    _ => {}
-                }
-                match current_block_56 {
-                    6788034837040873263 => {
-                        _hj_i = _hj_i.wrapping_add(
-                            (*_hj_key.offset(3 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 24 as ::core::ffi::c_int,
-                        );
-                        current_block_56 = 17257476062468164659;
-                    }
-                    _ => {}
-                }
-                match current_block_56 {
-                    17257476062468164659 => {
-                        _hj_i = _hj_i.wrapping_add(
-                            (*_hj_key.offset(2 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 16 as ::core::ffi::c_int,
-                        );
-                        current_block_56 = 16976244951184097103;
-                    }
-                    _ => {}
-                }
-                match current_block_56 {
-                    16976244951184097103 => {
-                        _hj_i = _hj_i.wrapping_add(
-                            (*_hj_key.offset(1 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint)
-                                << 8 as ::core::ffi::c_int,
-                        );
-                        current_block_56 = 14519719227392997025;
-                    }
-                    _ => {}
-                }
-                match current_block_56 {
-                    14519719227392997025 => {
-                        _hj_i = _hj_i
-                            .wrapping_add(*_hj_key.offset(0 as ::core::ffi::c_int as isize)
-                                as ::core::ffi::c_uint);
-                    }
-                    _ => {}
-                }
-                _hj_i = _hj_i.wrapping_sub(_hj_j);
-                _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-                _hj_i ^= _hf_hashv >> 13 as ::core::ffi::c_int;
-                _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-                _hj_j = _hj_j.wrapping_sub(_hj_i);
-                _hj_j ^= _hj_i << 8 as ::core::ffi::c_int;
-                _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-                _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-                _hf_hashv ^= _hj_j >> 13 as ::core::ffi::c_int;
-                _hj_i = _hj_i.wrapping_sub(_hj_j);
-                _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-                _hj_i ^= _hf_hashv >> 12 as ::core::ffi::c_int;
-                _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-                _hj_j = _hj_j.wrapping_sub(_hj_i);
-                _hj_j ^= _hj_i << 16 as ::core::ffi::c_int;
-                _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-                _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-                _hf_hashv ^= _hj_j >> 5 as ::core::ffi::c_int;
-                _hj_i = _hj_i.wrapping_sub(_hj_j);
-                _hj_i = _hj_i.wrapping_sub(_hf_hashv);
-                _hj_i ^= _hf_hashv >> 3 as ::core::ffi::c_int;
-                _hj_j = _hj_j.wrapping_sub(_hf_hashv);
-                _hj_j = _hj_j.wrapping_sub(_hj_i);
-                _hj_j ^= _hj_i << 10 as ::core::ffi::c_int;
-                _hf_hashv = _hf_hashv.wrapping_sub(_hj_i);
-                _hf_hashv = _hf_hashv.wrapping_sub(_hj_j);
-                _hf_hashv ^= _hj_j >> 15 as ::core::ffi::c_int;
-                s = ::core::ptr::null_mut::<ClassNameHash>();
-                if !(*h).is_null() {
-                    let mut _hf_bkt: ::core::ffi::c_uint = 0;
-                    _hf_bkt = _hf_hashv
-                        & (*(**h).hh.tbl)
-                            .num_buckets
-                            .wrapping_sub(1 as ::core::ffi::c_uint);
-                    if 1 as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-                        if !(*(*(**h).hh.tbl).buckets.offset(_hf_bkt as isize))
-                            .hh_head
-                            .is_null()
-                        {
-                            s = ((*(*(**h).hh.tbl).buckets.offset(_hf_bkt as isize)).hh_head
-                                as *mut ::core::ffi::c_char)
-                                .offset(-(*(**h).hh.tbl).hho)
-                                as *mut ::core::ffi::c_void
-                                as *mut ClassNameHash
-                                as *mut ClassNameHash;
-                        } else {
-                            s = ::core::ptr::null_mut::<ClassNameHash>();
-                        }
-                        while !s.is_null() {
-                            if (*s).hh.hashv == _hf_hashv
-                                && (*s).hh.keylen
-                                    == strlen(class_name as *const ::core::ffi::c_char)
-                                        as ::core::ffi::c_uint
-                            {
-                                if memcmp(
-                                    (*s).hh.key,
-                                    class_name as *const ::core::ffi::c_void,
-                                    strlen(class_name as *const ::core::ffi::c_char)
-                                        as ::core::ffi::c_uint
-                                        as usize,
-                                ) == 0 as ::core::ffi::c_int
-                                {
-                                    break;
-                                }
-                            }
-                            if !(*s).hh.hh_next.is_null() {
-                                s = ((*s).hh.hh_next as *mut ::core::ffi::c_char)
-                                    .offset(-(*(**h).hh.tbl).hho)
-                                    as *mut ::core::ffi::c_void
-                                    as *mut ClassNameHash
-                                    as *mut ClassNameHash;
-                            } else {
-                                s = ::core::ptr::null_mut::<ClassNameHash>();
-                            }
-                        }
                     }
                 }
-                if s.is_null() {
-                    (*(*options).logger)
-                        .log_sds
-                        .expect(
-                            "non-null function pointer",
-                        )(
-                        (*options).logger as *mut ILogger,
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[OTFCC-fea] Invalid anchor class name <",
-                            class_name,
-                            b"> for /",
-                            gname,
-                            b". This base anchor is ignored.\n",
-                        ),
-                    );
-                } else {
-                    *base.anchors.offset((*s).class_id as isize) = otl_parse_anchor(
-                        (*(*base_record).u.object.values.offset(k_0 as isize)).value
-                            as *mut JsonValue,
-                    );
-                }
-                sdsfree(class_name);
                 k_0 = k_0.wrapping_add(1);
             }
             (*subtable).base_array.push(base);
@@ -709,74 +378,10 @@ pub unsafe extern "C" fn otl_gpos_parse_mark_to_single(
         return ::core::ptr::null_mut::<Subtable>();
     }
     let mut st: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
-    let mut h: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
+    let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
     otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h, options);
-    (*st).class_count = (if !h.is_null() {
-        (*(*h).hh.tbl).num_items
-    } else {
-        0 as ::core::ffi::c_uint
-    }) as GlyphClass;
+    (*st).class_count = h.len() as GlyphClass;
     parse_bases(_bases, st, &raw mut h, options);
-    let mut s: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
-    let mut tmp: *mut ClassNameHash = ::core::ptr::null_mut::<ClassNameHash>();
-    s = h;
-    tmp = (if !h.is_null() { (*h).hh.next } else { NULL }) as *mut ClassNameHash
-        as *mut ClassNameHash;
-    while !s.is_null() {
-        let mut _hd_hh_del: *mut UtHashHandle = &raw mut (*s).hh;
-        if (*_hd_hh_del).prev.is_null() && (*_hd_hh_del).next.is_null() {
-            free((*(*h).hh.tbl).buckets as *mut ::core::ffi::c_void);
-            free((*h).hh.tbl as *mut ::core::ffi::c_void);
-            h = ::core::ptr::null_mut::<ClassNameHash>();
-        } else {
-            let mut _hd_bkt: ::core::ffi::c_uint = 0;
-            if _hd_hh_del == (*(*h).hh.tbl).tail {
-                (*(*h).hh.tbl).tail = ((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho)
-                    as *mut UtHashHandle
-                    as *mut UtHashHandle;
-            }
-            if !(*_hd_hh_del).prev.is_null() {
-                let ref mut fresh2 = (*(((*_hd_hh_del).prev as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho)
-                    as *mut UtHashHandle))
-                    .next;
-                *fresh2 = (*_hd_hh_del).next;
-            } else {
-                h = (*_hd_hh_del).next as *mut ClassNameHash as *mut ClassNameHash;
-            }
-            if !(*_hd_hh_del).next.is_null() {
-                let ref mut fresh3 = (*(((*_hd_hh_del).next as *mut ::core::ffi::c_char)
-                    .offset((*(*h).hh.tbl).hho)
-                    as *mut UtHashHandle))
-                    .prev;
-                *fresh3 = (*_hd_hh_del).prev;
-            }
-            _hd_bkt = (*_hd_hh_del).hashv
-                & (*(*h).hh.tbl)
-                    .num_buckets
-                    .wrapping_sub(1 as ::core::ffi::c_uint);
-            let mut _hd_head: *mut UtHashBucket =
-                (*(*h).hh.tbl).buckets.offset(_hd_bkt as isize) as *mut UtHashBucket;
-            (*_hd_head).count = (*_hd_head).count.wrapping_sub(1);
-            if (*_hd_head).hh_head == _hd_hh_del {
-                (*_hd_head).hh_head = (*_hd_hh_del).hh_next as *mut UtHashHandle;
-            }
-            if !(*_hd_hh_del).hh_prev.is_null() {
-                (*(*_hd_hh_del).hh_prev).hh_next = (*_hd_hh_del).hh_next;
-            }
-            if !(*_hd_hh_del).hh_next.is_null() {
-                (*(*_hd_hh_del).hh_next).hh_prev = (*_hd_hh_del).hh_prev;
-            }
-            (*(*h).hh.tbl).num_items = (*(*h).hh.tbl).num_items.wrapping_sub(1);
-        }
-        sdsfree((*s).class_name);
-        free(s as *mut ::core::ffi::c_void);
-        s = ::core::ptr::null_mut::<ClassNameHash>();
-        s = tmp;
-        tmp = (if !tmp.is_null() { (*tmp).hh.next } else { NULL }) as *mut ClassNameHash
-            as *mut ClassNameHash;
-    }
     return st as *mut Subtable;
 }
 pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
