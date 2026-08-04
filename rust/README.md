@@ -2248,6 +2248,77 @@ on the other platform before a commit is trusted.
     file) is untouched.
   - Verified with the standard full pipeline on both macOS and Linux.
     **~11 uthash instances remain.**
+- **uthash → `BTreeMap`, fourteenth instance: `ClassNameHash`
+  (`otl_parse_mark_array`, `table/otl/subtables/gpos_common.rs`) — the
+  first instance spanning three files, set aside once already earlier in
+  this migration as bigger scope than a single self-contained instance,
+  revisited after enough of the larger multi-phase/multi-file patterns
+  (`SfntTableEntry`, `CffSidEntry`, `PairClassifierHash`) had been done
+  to make it tractable.** This table interns GPOS mark/base anchor class
+  *names* (JSON-authored strings like `"top"`/`"bottom"`, not the numeric
+  classes the binary format uses) into sequential numeric class ids
+  while parsing `gpos_mark_to_single`/`gpos_mark_to_ligature` JSON.
+  Built once in `otl_parse_mark_array` (`gpos_common.rs`), then handed by
+  pointer to `parse_bases` in each of the other two files for read-only
+  lookup, then disposed by each of those files' top-level entry function
+  — a genuinely cross-file container, not just a cross-file *type*.
+  - **The renumbering is alphabetical by class name, not insertion
+    order** — confirmed by finding `compare_class_hash` (a plain
+    `strcmp`) fed into a `HASH_SORT`, and finding *two* separate
+    `class_id`-assignment sites: an insert-time placeholder
+    (`HASH_COUNT`, i.e. arbitrary/insertion-order) at the first site,
+    silently overwritten at the second by a sequential counter walked
+    over the post-sort order. Missing this distinction was exactly the
+    trap `FvarMaster`/`ScriptStatHash`/`SfntTableEntry` earlier in this
+    migration would have set up an intuition for ("if in doubt, assume
+    insertion order") — this instance breaks that intuition, and only
+    reading both assignment sites (not just the first one found by
+    grepping `class_id =`) caught it.
+  - `BTreeMap<Vec<u8>, GlyphClass>` reproduces the alphabetical order for
+    free (`Vec<u8>`'s `Ord` matches `strcmp`'s byte-wise comparison on
+    the NUL-free byte sequences both use), so the whole `HASH_SORT` step
+    collapses to `for (rank, id) in map.values_mut().enumerate() { *id =
+    rank as GlyphClass; }` after every mark has been registered — no
+    separate sort algorithm needed, the same win as `SfntTableEntry`.
+  - **A mark's `mark_class` is written twice, once with a placeholder,
+    once for real** — the original's first pass sets it from the
+    insert-time (pre-renumbering) id, immediately stale once the
+    alphabetical renumbering runs; a second pass re-derives each
+    anchor-bearing mark's class name from the *same* JSON node
+    (mirrored exactly here — marks don't carry their own class-name
+    string, so both passes independently re-read `_marks`) and
+    overwrites `mark_class` with the final id. Since the first value is
+    always overwritten for every mark that gets one at all, this
+    rewrite skips computing it in the first pass entirely (just
+    registers presence via `.entry(...).or_insert(0)`) rather than
+    reproducing a lookup whose result is guaranteed to be thrown away.
+  - **`strlen`-bounded dedup key, not the JSON string's own tracked
+    length** — same fidelity question as `CffSidEntry`, resolved the
+    same way and for the same reason (anchor class names are
+    user-authored JSON strings, not guaranteed free of embedded NULs).
+    Confirmed by checking `sdsbuild!`'s `SdsPart` impl for `SdsRaw`/`*mut
+    c_char`: it `strlen`s regardless of the sds's own tracked length, so
+    the original's warning message (`"[OTFCC-fea] Invalid anchor class
+    name <...>"`, built from an `SdsRaw`) was *already* silently
+    `strlen`-truncated the same way — meaning this rewrite's warning,
+    built directly from the raw JSON name pointer, matches byte-for-byte
+    with no extra allocation needed.
+  - **Real, substantial coverage, not synthetic**:
+    `NotoNastaliqUrdu-Regular.ttf` (already in `tests/golden/`) has 11
+    real `gpos_mark_to_base` lookups and 1 `gpos_mark_to_ligature`
+    lookup — an Arabic script font, where diacritic mark positioning
+    onto base letters and onto ligatures is central, not incidental.
+    Its dump-then-rebuild round trip drives both files'
+    `otl_parse_mark_array`/`parse_bases` rewrites through real,
+    multi-class alphabetical renumbering, and the rebuilt binary stayed
+    byte-identical to its frozen golden checksum. No synthetic payload
+    needed.
+  - `ClassNameHash` and `compare_class_hash` are deleted from
+    `gpos_common.rs`; both consumer files' disposal loops (walking and
+    freeing each hash node) are gone entirely, since a `BTreeMap<Vec<u8>,
+    _>` with no raw-pointer values needs no manual cleanup.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~10 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
