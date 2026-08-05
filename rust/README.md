@@ -2319,6 +2319,81 @@ on the other platform before a commit is trusted.
     _>` with no raw-pointer values needs no manual cleanup.
   - Verified with the standard full pipeline on both macOS and Linux.
     **~10 uthash instances remain.**
+- **uthash → `BTreeMap`, fifteenth instance: `BaseHash`/`MarkHash`/`LigHash`
+  (`rust/src/consolidate/otl/mark.rs`)**. Three separate uthash tables in
+  one file, all used the same way: `consolidate_mark_array`,
+  `consolidate_base_array`, and `consolidate_lig_array` each build a
+  table keyed by *resolved glyph id* (not name — `HASH_ADD_INT`, hashing
+  the raw `c_int` gid, not a string), feed it through `HASH_SORT` with a
+  `by_gid` comparator (`(*a).gid - (*b).gid`, i.e. plain ascending
+  numeric order) before the final `HASH_ITER`, then throw the table away
+  once its contents are pushed back into a freshly emptied `MarkArray`/
+  `BaseArray`/`LigatureArray`. `GlyphId` (`u16`) is `Ord` in exactly that
+  order, so `BTreeMap<GlyphId, _>` reproduces `HASH_SORT` for free, same
+  as every earlier gid/index-keyed instance in this migration.
+  - **Two different "value already present" behaviors, both preserved
+    exactly.** `consolidate_mark_array` only inserts when the entry is
+    vacant **and** `anchor.present` **and** `mark_class < class_count`;
+    any of the three failing (including "already present") logs the
+    *same* "Ignored invalid or double-mapping mark definition" warning —
+    expressed as `Entry::Vacant(v) if <extra condition> => { v.insert(...) }
+    _ => { warn(...) }`, so a guard failure on `Vacant` falls through to
+    the same `_` arm as `Occupied` without a second lookup.
+    `consolidate_base_array`/`consolidate_lig_array` have no extra
+    condition — `Entry::Vacant`/`Entry::Occupied` is the whole check —
+    but log a *different* message ("Ignored anchor double-definition").
+  - **Ownership transfer, not a copy, for the two anchor-array fields.**
+    Unlike the mark case (`name: sdsdup(...)`, a real copy — the original
+    `MarkRecord`'s own `Handle` survives untouched and gets disposed
+    normally later), `consolidate_base_array`/`consolidate_lig_array`
+    *steal* the `anchors`/`anchors` (component-indexed, `*mut *mut
+    Anchor`) pointer straight out of the source array's element and null
+    the source field out — `let ref mut fresh0 = (&mut
+    (*base_array))[k].anchors; *fresh0 = null_mut();` — so that the
+    subsequent `dispose_base_array(base_array)` (which unconditionally
+    frees every element's `anchors`) doesn't double-free the pointer that
+    now lives in the map. When an entry is instead rejected as a
+    duplicate, its `anchors` pointer is deliberately left in place, so
+    that same `dispose_*_array` call is what frees it — the "leak
+    prevention" for the rejected duplicate is not bespoke cleanup code in
+    the hash-table path at all, it's simply *not stealing*, and letting
+    the ordinary end-of-function disposal do its normal job.
+  - No `name`/gid stored in the map values beyond what's needed to
+    rebuild — `MarkHashValue { name, mark_class, anchor }`, `BaseHashValue
+    { name, anchors }`, `LigHashValue { name, component_count, anchors }`
+    — `name` is an `SdsRaw` `sdsdup`'d copy in all three cases (sds itself
+    is untouched by this migration, per the established scope boundary),
+    freed with `sdsfree` right after each output push, same as the
+    original's post-`HASH_ITER` cleanup.
+  - **No coverage gap needed real chasing this time, but no free ride
+    either.** `NotoNastaliqUrdu-Regular.ttf` (11 `gpos_mark_to_base` + 1
+    `gpos_mark_to_ligature` lookups) exercises the *ordinary* insert path
+    for all three tables through the existing golden checksum, but no
+    committed payload has a *duplicate* glyph within one subtable's
+    `marks`/`bases` JSON object, so the dedup branches — the entire
+    reason these three uthash tables existed — had never actually run
+    under test. Closed with `rust/scripts/make-test-mark-consolidate-dedup.py`
+    (same raw-JSON-duplicate-key technique as `make-test-gpos-single-dedup.py`
+    et al.): one forged `gpos_mark_to_base` lookup with a duplicate
+    `marks` entry and a duplicate `bases` entry, and one forged
+    `gpos_mark_to_ligature` lookup with a duplicate ligature `bases`
+    entry, each pair sharing a glyph name so the *second* JSON member
+    parses into a second array element that collides by gid with the
+    first at consolidation time. Confirmed by hand (before freezing the
+    golden checksum) that all three warnings fire and the surviving
+    values are the *first* occurrence's, not the second's — then wired
+    into `generate-golden.sh`/`compare-with-golden.sh` as
+    `mark-consolidate-dedup`, an additions-only change to
+    `tests/golden/checksums.sha256`.
+  - `BaseHash`/`MarkHash`/`LigHash` and their `base_by_gid`/`mark_by_gid`/
+    `lig_by_gid` comparators are deleted; no manual `HASH_DEL`/`free`
+    node-walk survives — dropping the `BTreeMap` (or just letting
+    `into_iter()` drain it) is enough, since map values own nothing the
+    map itself needs to know about (the `anchors` pointers and `name`
+    are moved out to the pushed record / freed explicitly, same as
+    before).
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~9 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
