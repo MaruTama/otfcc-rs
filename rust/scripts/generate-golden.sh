@@ -100,6 +100,7 @@ synth_pair gpos-cursive-dedup rust/scripts/make-test-gpos-cursive-dedup.py
 synth_pair gdef-ligcaret-dedup rust/scripts/make-test-gdef-ligcaret-dedup.py
 synth_pair gsub-single-dedup rust/scripts/make-test-gsub-single-dedup.py
 synth_pair gsub-reverse-dedup rust/scripts/make-test-gsub-reverse-dedup.py
+synth_pair mark-consolidate-dedup rust/scripts/make-test-mark-consolidate-dedup.py
 
 echo "  dll-test.otf (kept as a real committed file, not a hash -- see header comment)"
 SO_EXT="so"
