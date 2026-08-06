@@ -2394,6 +2394,89 @@ on the other platform before a commit is trusted.
     before).
   - Verified with the standard full pipeline on both macOS and Linux.
     **~9 uthash instances remain.**
+- **uthash → `IndexSet`/`IndexMap`, sixteenth instance: `CoverageEntry`
+  (`rust/src/table/otl/coverage.rs`'s `read_coverage`, plus a second,
+  cross-file copy of the *same* struct in `rust/src/table/otl/classdef.rs`
+  reused by `read_class_def` and `expand_class_def`)**. Flagged early in
+  this migration's plan as "shared with classdef.rs" and set aside for
+  exactly that reason — the two files import the identical `CoverageEntry`
+  type (`gid: c_int`, `cov_index: c_int`, `hh: UtHashHandle`), so neither
+  side could be converted independently without breaking the other's
+  `use`. Turned out to be four separate hash usages, not one, each with
+  its own dedup-key-vs-sort-key relationship — **the actual finding of
+  this instance is that identical uthash-boilerplate shapes can still
+  need different container strategies**, contradicting the assumption
+  (built up over the previous fifteen instances) that "same struct,
+  same comparator name" meant "same rewrite".
+  - **`read_coverage` Format 1 (glyph list)**: dedups by gid, sorts by
+    `covIndex` — but `covIndex` was assigned `j` (the loop's own
+    position) *only at insertion time* (skipped duplicates never
+    advance it), so the sequence of inserted `covIndex` values is
+    already strictly increasing. Sorting by it is provably a no-op:
+    `indexmap::IndexSet<GlyphId>` (dedups on `.insert()`, iterates in
+    insertion order) reproduces the exact final order with no sort step
+    and no need to track `covIndex` at all — the value doesn't matter,
+    only presence and position, same finding as `PairClassifierHash`.
+  - **`read_coverage` Format 2 (gid ranges) is the opposite case**: here
+    `covIndex` is `startCoverageIndex + k` where `k` is the *absolute
+    gid*, confirmed against `c/lib/table/otl/coverage.c` line 89 to rule
+    out a transpilation artifact — not `startCoverageIndex + (k -
+    start)`, which is what a "position within the whole coverage table"
+    would actually need. Whether this is a pre-existing upstream quirk
+    or intentional wasn't investigated (out of scope — preserve, don't
+    fix), but its consequence is decisive: within one range `covIndex`
+    is monotonic with `k`, but *across* ranges it is not generally
+    monotonic with insertion order once ranges are out of file order or
+    overlapping. Reproduced with `indexmap::IndexMap<GlyphId, i32>`
+    (dedup by gid, first occurrence wins, insertion order preserved for
+    tie-breaking) collected into a `Vec` and stable-sorted by the stored
+    `covIndex` — `Vec::sort_by_key` is stable, matching `HASH_SORT`'s
+    documented mergesort stability.
+  - **`classdef.rs`'s `read_class_def` Format 2 repurposes the same
+    field for a different, dump-visible purpose**: `covIndex` here holds
+    the *class value*, not a position, so `HASH_SORT`-by-it orders the
+    resulting `ClassDef` by ascending class value, not by gid — visible
+    directly in `dump_class_def`'s walk order. Same
+    `IndexMap`-then-stable-sort shape as coverage Format 2, sorting by
+    the stored class instead.
+  - **`expand_class_def` has no `HASH_SORT` call at all** — confirmed by
+    grep before writing any replacement code (the only `by_cov_index(`
+    call site in the file belongs to `read_class_def`, well before this
+    function starts), so its final walk is plain insertion order, which
+    `IndexMap` gives for free with no sort step. The function reuses one
+    hash table across two phases sharing the same map, the same
+    multi-phase shape as `PairClassifierHash`: phase 1 inserts every
+    `(gid, class)` from the old, partial `ClassDef` (`ocd`, first
+    occurrence wins); phase 2 walks the target `Coverage` and inserts
+    any glyph not already present with class 0. The rewrite collapsed
+    from roughly 1600 lines (two ~700-line find-then-insert blocks) to
+    about 20.
+  - No warning/log call exists anywhere in either file's uthash paths —
+    confirmed by grep before starting — so, unlike the `consolidate/otl`
+    instances, there was no message fidelity to preserve, only ordering.
+  - **Real, non-synthetic coverage for every path touched**:
+    `BungeeColor-Regular_colr_Windows.ttf` (already in `tests/golden/`,
+    per the `PairClassifierHash` bullet above) has a Format 2
+    class-based `GPOS` pair subtable in the same file as its Format 1
+    one, which drives `read_class_def`'s Format 2 branch and
+    `expand_class_def` on every build; every other payload's ordinary
+    `Coverage` reads drive `read_coverage` Format 1 (and Format 2 where
+    present). The genuinely adversarial case for Format 2 — out-of-order
+    or overlapping ranges, where the sort-vs-insertion-order distinction
+    would actually produce different output — isn't reachable through
+    any JSON→build round trip (the builder always emits well-formed,
+    non-overlapping, ascending ranges), so it was verified by direct
+    reasoning about the formula rather than a synthetic payload, the
+    same bar as `read_coverage` Format 1's provably-a-no-op sort. All
+    payloads stayed byte-identical to their frozen golden checksums; no
+    checksum regeneration needed.
+  - `CoverageEntry` and both files' `by_cov_index` comparators are
+    deleted entirely (the struct's only two importers are these two
+    files, confirmed by a crate-wide grep before deletion). `by_gid`/
+    `by_handle_gid`/`ClassDefSortRecord` (the `qsort`-based *build*-side
+    comparators, unrelated to uthash) are untouched.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~8 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
