@@ -2625,6 +2625,59 @@ on the other platform before a commit is trusted.
     this one, since it's the first of three sharing one file, matching
     how `CoverageEntry` and `ClassifierHash` were only counted once
     each file's full set of instances was done.**
+- **uthash → `Vec`, nineteenth instance: `FeatureHash`
+  (`rust/src/table/otl/parse.rs`)**, the second of the three name-keyed
+  hashes in this file. `LanguageHash` remains for a follow-up PR.
+  - **Same asymmetric shape as `LookupHash`, confirmed by re-checking
+    rather than assumed from the pattern**: `figure_out_features_from_json`
+    rejects a real (array-valued) feature declaration outright if its
+    name already exists (`[OTFCC-fea] Duplicate feature`, disposing the
+    freshly-built `LookupRefList` without merging), but an alias entry
+    (a JSON string value under `"features"`) only checks that its
+    *target* name exists — never its own — so, same as `LookupHash`,
+    two entries can legitimately share a name and this stays a `Vec`
+    with reverse (most-recent-wins) search, not a dedup map.
+  - **The sort key this time genuinely does equal the would-be dedup
+    key** (`by_feature_name`: byte-wise `strcmp` on `name`) — unlike
+    `LookupHash`'s `order_type`/`order_val`, which came apart from
+    insertion order once `lookupOrder` promoted a subset of entries.
+    That equality doesn't make `BTreeMap` usable here either, for the
+    same reason it couldn't for `LookupHash`: a `BTreeMap` can't hold
+    two entries under one key, and aliases mean it must be able to.
+    So this is `Vec` for the same structural reason as `LookupHash`,
+    just sorted by a different key at drain time — `fh.sort_by(|a, b|
+    a.name.cmp(&b.name))`, `Vec<u8>`'s byte-wise `Ord` matching `strcmp`
+    on NUL-free byte sequences exactly, the same equivalence this
+    migration has relied on since `ClassNameHash`. `by_feature_name`
+    itself is gone, subsumed by the container.
+  - **This `fh` is itself consumed by two more functions that had to
+    change in step**: `figure_out_features_from_json` receives `lh`
+    (now `&Vec<LookupEntry>`, from the `LookupHash` PR) to resolve a
+    feature's lookup-name array; `figure_out_languages_from_json`
+    receives this PR's `fh` (now `&Vec<FeatureEntry>`) to resolve a
+    language's `requiredFeature` and `features` array the same way.
+    Both became `.iter().rev().find(...)` at their respective call
+    sites, matching every other by-name lookup in this file so far.
+  - **The final drain's ownership split matches `LookupHash` exactly**:
+    `.feature` is only taken back via `Box::from_raw` for non-alias
+    entries (an alias's copy of the same pointer is never freed on its
+    own), while `.name` was always freed regardless of `alias` (its own
+    independent `sdsnew`-allocated copy, never shared) — `Vec<u8>`
+    replacing that field needs no explicit free at all, so the manual
+    `HASH_ITER`+`HASH_DEL`+`free` walk for `fh` is gone entirely, same
+    as it was for `lh`.
+  - **Real coverage**: every payload with any GSUB/GPOS feature at all
+    exercises the ordinary (non-alias, non-duplicate) path through
+    `figure_out_features_from_json`, which is all of them. The alias
+    and duplicate-rejection branches aren't separately exercised by any
+    committed payload, but their logic is unchanged from `LookupHash`'s
+    already-verified shape (the lookup-alias regression test covers the
+    identical mechanism one type up), so no new synthetic payload was
+    added for this PR specifically. All payloads stayed byte-identical
+    to golden; no regeneration needed.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **`LanguageHash` in this same file remains for a follow-up PR — the
+    uthash-instance counter isn't decremented yet.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
