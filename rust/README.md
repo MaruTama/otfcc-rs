@@ -2678,6 +2678,50 @@ on the other platform before a commit is trusted.
   - Verified with the standard full pipeline on both macOS and Linux.
     **`LanguageHash` in this same file remains for a follow-up PR — the
     uthash-instance counter isn't decremented yet.**
+- **uthash → `BTreeMap`, twentieth instance: `LanguageHash`
+  (`rust/src/table/otl/parse.rs`)**, the third and last of this file's
+  name-keyed hashes.
+  - **The one genuinely simple case of the three, confirmed rather than
+    assumed**: grep before touching any code confirmed `"languages"`
+    has no string-value (alias) case at all — `figure_out_languages_from_json`
+    only ever branches on `JsonType::Object`, never `JsonType::String`,
+    and `LanguageHash` itself has no `alias` field to begin with. With
+    no alias mechanism, a duplicate name is unconditionally rejected
+    (`[OTFCC-fea] Duplicate language item`, disposing the freshly-built
+    `FeatureRefList`) with no bypass, so every name really is unique —
+    the first name-keyed hash in this file where the dedup key and the
+    `HASH_SORT` key (`by_language_name`, byte-wise `strcmp` on `name`,
+    same as `by_feature_name`) coincide *and* stay usable, unlike
+    `LookupHash`/`FeatureHash` where aliasing ruled a map out despite
+    the same coincidence. `BTreeMap<Vec<u8>, *mut LanguageSystem>`
+    applies directly, no wrapper value struct needed since the only
+    payload is the one pointer — same reasoning as `PairClassifierHash`
+    (IndexSet, not a map) for "don't carry a value the map doesn't
+    need," just landing on a different container here since a name
+    *is* needed as the map's own key. `by_language_name` is gone,
+    subsumed by the container's natural `Ord`, and no explicit sort
+    call is needed at drain time either (unlike `LookupHash`/
+    `FeatureHash`'s deferred `sort_by`) since `BTreeMap` iterates
+    presorted.
+  - **This is the last of the three, so the whole uthash-boilerplate
+    import list for this file finally goes**: `exit`/`free`/`malloc`/
+    `memcmp`/`memset`/`strlen` from `libc`, `__caryll_allocate_clean`,
+    `NULL`, the entire `vendor::uthash` import line, and `sdsdup`/
+    `sdsfree` — all unused the moment this PR's `cargo build` ran,
+    confirming no other code in this 6,700-line file depended on any
+    of them. `strcmp`/`strncmp` remain (used by the lookup-type/
+    feature-merge string comparisons, unrelated to hashing).
+  - **Real coverage**: every payload with any `"languages"` entry at
+    all exercises the ordinary path (all of them, since a font with
+    OTL features always declares at least `DFLT`); the duplicate-name
+    rejection isn't separately exercised by any committed payload, but
+    its logic is unchanged from the already-verified `LookupHash`/
+    `FeatureHash` "reject and dispose" shape one level up, so no new
+    synthetic payload was added. All payloads stayed byte-identical to
+    golden; no regeneration needed.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **All three of `parse.rs`'s name-keyed hashes are now converted.
+    ~6 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
