@@ -26,7 +26,6 @@ use crate::support::sha1::{BYTE, Sha1Ctx};
 
 use crate::table::vorg::VorgTable;
 
-use crate::table::cmap::{CmapEntry};
 
 
 
@@ -362,34 +361,31 @@ unsafe extern "C" fn create_glyph_order(
                     .create
                     .expect("non-null function pointer"))();
         aglfn_setup_names(aglfn);
-        let mut s_0: *mut CmapEntry = ::core::ptr::null_mut::<CmapEntry>();
-        s_0 = (*(*font).cmap).unicodes;
-        while !s_0.is_null() {
-            if (*s_0).glyph.index as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+        for (&unicode, glyph) in (*(*font).cmap).unicodes.iter() {
+            if glyph.index as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
                 let mut name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-                if (*s_0).unicode > 0 as ::core::ffi::c_int
-                    && (*s_0).unicode < 0xffff as ::core::ffi::c_int
+                if unicode > 0 as ::core::ffi::c_int
+                    && unicode < 0xffff as ::core::ffi::c_int
                 {
                     OTFCC_PKG_GLYPH_ORDER
                         .name_a_field_shared
                         .expect("non-null function pointer")(
                         aglfn,
-                        (*s_0).unicode as GlyphId,
+                        unicode as GlyphId,
                         &raw mut name,
                     );
                 }
                 if name.is_null() {
-                    name = crate::sdsbuild!(sdsempty(), prefix, b"uni", Hex4Upper(((*s_0).unicode) as u32));
+                    name = crate::sdsbuild!(sdsempty(), prefix, b"uni", Hex4Upper(unicode as u32));
                 } else {
                     name = crate::sdsbuild!(sdsempty(), prefix, name);
                 }
                 OTFCC_PKG_GLYPH_ORDER
                     .set_by_gid
                     .expect("non-null function pointer")(
-                    glyph_order, (*s_0).glyph.index, name
+                    glyph_order, glyph.index, name
                 );
             }
-            s_0 = (*s_0).hh.next as *mut CmapEntry;
         }
         OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")(aglfn);
     }

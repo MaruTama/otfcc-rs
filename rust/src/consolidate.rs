@@ -28,7 +28,7 @@ use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup, tabl
 
 
 use crate::table::_tsi::{TsiEntryType, TsiTable, TsiEntry};
-use crate::table::cmap::{CmapEntry, CmapUvsEntry};
+use crate::table::cmap::{CmapUvsEntry};
 
 
 
@@ -659,13 +659,15 @@ pub unsafe extern "C" fn consolidate_cmap(
     mut options: *const Options,
 ) {
     if !(*font).glyph_order.is_null() && !(*font).cmap.is_null() {
-        let mut item: *mut CmapEntry = ::core::ptr::null_mut::<CmapEntry>();
-        item = (*(*font).cmap).unicodes;
-        while !item.is_null() {
+        // A failed resolution disposes the entry's `Handle` in place
+        // (leaving it in the map with an empty name) rather than
+        // removing the entry -- `dump_cmap`'s "skip if name is null"
+        // check is what actually hides it later.
+        for (&unicode, glyph) in (*(*font).cmap).unicodes.iter_mut() {
             if !OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
                 .expect("non-null function pointer")(
-                (*font).glyph_order, &raw mut (*item).glyph
+                (*font).glyph_order, glyph as *mut GlyphHandle
             ) {
                 (*(*options).logger)
                     .log_sds
@@ -676,15 +678,14 @@ pub unsafe extern "C" fn consolidate_cmap(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored mapping U+",
-                        Hex4Upper(((*item).unicode) as u32),
+                        Hex4Upper(unicode as u32),
                         b" to non-existent glyph /",
-                        (*item).glyph.name,
+                        glyph.name,
                         b".\n",
                     ),
                 );
-                otfcc_handle_dispose(&raw mut (*item).glyph);
+                otfcc_handle_dispose(glyph as *mut GlyphHandle);
             }
-            item = (*item).hh.next as *mut CmapEntry;
         }
     }
     if !(*font).glyph_order.is_null() && !(*font).cmap.is_null() {
