@@ -2477,6 +2477,85 @@ on the other platform before a commit is trusted.
     comparators, unrelated to uthash) are untouched.
   - Verified with the standard full pipeline on both macOS and Linux.
     **~8 uthash instances remain.**
+- **uthash → `BTreeMap`, seventeenth instance: `ClassifierHash`
+  (`rust/src/table/otl/subtables/chaining/classifier.rs`)**, the OTL
+  chaining/contextual-substitution classifier — the algorithm that
+  decides whether several adjacent per-glyph chaining rules can be
+  merged into one class-based (`ChainDef` format 2) subtable. The
+  smallest remaining uthash-macro count (77) of the untouched files,
+  but the densest in logic: one shared hash table read and written
+  across three functions (`class_compatible`, `build_rule`, `to_class`),
+  itself instantiated three times per subtable (`hb`/`hi`/`hf`, one
+  each for the backtrack/input/lookahead match positions).
+  - **The struct's own comparator (`by_gid_clsh`) sorts by the same gid
+    that's already the dedup key** — the same relationship as
+    `CoverageEntry`'s Format 1, so `BTreeMap<GlyphId, ClassifierValue>`
+    reproduces `to_class`'s `HASH_SORT`-then-walk with no separate sort
+    step, and `by_gid_clsh` itself is gone, fully subsumed by the
+    container.
+  - **A second, throwaway hash inside `class_compatible`'s "already
+    classified" branch turned out to need no value at all.** When
+    `cov`'s first glyph is already in `h` under some class `cls`, the
+    original builds a *second*, temporary hash (`revh`) of `cov`'s own
+    glyph ids purely to answer one question: does `h`'s *entire*
+    existing membership of class `cls` exactly equal `cov`'s glyph set
+    (not just "is `cov` a subset of it")? Read fully before writing any
+    code, since the shape looked at first like it might carry a payload
+    the way `h` itself does — it doesn't; every write to `revh`'s
+    `gname`/`cls` fields is dead, only presence is ever read back. A
+    bare `HashSet<GlyphId>`, collected directly from `cov`, replaces it;
+    the "every member of class `cls` in `h` must be in `cov`'s set"
+    check becomes a one-line `.iter().filter(...).all(...)`.
+  - **`gname` in both `h` and the old `revh` is an alias, not an owned
+    copy** — confirmed by grep: no `sdsfree` call exists anywhere in
+    this file, and the field is assigned directly from
+    `cov`'s own `GlyphHandle.name` (`gname: (&(*cov))[j].name`, no
+    `sdsdup`). It's a borrow into memory the `Lookup`/`Coverage`
+    structures already own and keep alive for the duration of
+    classification; `to_class`'s later `handle_from_consolidated` is
+    what actually duplicates it into the new `ClassDef`'s own `Handle`.
+    Preserved as a plain pointer copy in `ClassifierValue`, matching the
+    original exactly — no risk of a double free, since `SdsRaw` has no
+    `Drop` impl to begin with.
+  - **`to_class` never disposed the hash in the original either** —
+    confirmed by grep before touching `try_classify_around` (the only
+    caller): the three manual `HASH_ITER`+`HASH_DEL`+`free` drain loops
+    at the end of that function were *always* the thing that freed
+    `hb`/`hi`/`hf`, regardless of whether `to_class` had been called on
+    them earlier in the same call (it only sorts and reads). Changing
+    `hb`/`hi`/`hf` to owned `BTreeMap`s and `to_class`/`build_rule` to
+    borrow them (`&BTreeMap`, not consuming) lets Rust's ordinary
+    scope-exit `Drop` do exactly that job — the three ~60-line drain
+    loops are deleted outright, not replaced with anything.
+  - **One `None` arm in `build_rule` mirrors a null-pointer dereference
+    in the original that is unreachable in practice, not merely
+    convenient to assume so** — by the time `build_rule` runs for a
+    given match position, `class_compatible` has already run for that
+    exact `h` and glyph and never returns success without the glyph
+    being present in `h` afterward, so the original's unconditional
+    `(*s).cls` (no null check at all) never actually reads garbage in
+    a real invocation. Written as `match h.get(&gid) { Some(v) => ...,
+    None => 0 }` (falling back to the same "class 0" the empty-coverage
+    branch uses) rather than `.unwrap()`, matching this migration's
+    established handling of such algorithm-invariant-guaranteed `None`
+    arms (see `ClassNameHash`).
+  - **Real, substantial coverage confirmed at the binary level, not
+    assumed from the dump JSON's shape**: whether the classification
+    *merge* actually happens (`compatible_count > 1` in
+    `try_classify_around`, the branch that exercises `to_class`'s sort
+    and `class_compatible`'s `revset`/`allcheck` logic) depends on
+    whether adjacent rules happen to share compatible glyph classes, so
+    a small script parsing raw `GSUB`/`GPOS` bytes was used to check
+    for format-2 (class-based) `ChainContextSubst` subtables directly —
+    format 1 and 3 alone wouldn't prove anything, since those are what
+    the *unclassified* per-glyph-coverage path also produces. Rebuilding
+    `iosevka-r.ttf` from its own dump produces multiple format-2
+    subtables (`GSUB` lookups 25 and 50), confirming the merge path
+    genuinely runs, and the rebuild stayed byte-identical to its frozen
+    golden checksum. No synthetic payload needed.
+  - `ClassifierHash` and `by_gid_clsh` are deleted entirely.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **~7 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
