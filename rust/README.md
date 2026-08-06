@@ -2556,6 +2556,75 @@ on the other platform before a commit is trusted.
   - `ClassifierHash` and `by_gid_clsh` are deleted entirely.
   - Verified with the standard full pipeline on both macOS and Linux.
     **~7 uthash instances remain.**
+- **uthash → `Vec`, eighteenth instance: `LookupHash`
+  (`rust/src/table/otl/parse.rs`)**. `parse.rs` (6,692 lines) holds three
+  name-keyed hashes — `LookupHash`, `FeatureHash`, `LanguageHash` — big
+  enough that this PR converts only the first; the other two are left
+  for follow-up PRs, each getting the same care rather than three at
+  once. Chosen over `FeatureHash`/`LanguageHash` because it already
+  carried a documented Rust-only bugfix (the `alias` flag, see below),
+  making it the instance most worth getting exactly right first.
+  - **Not a dedup map — the reason this can't be `BTreeMap`/`IndexMap`
+    like every previous name-keyed instance.** `_declare_lookup_parser`
+    (the real-entry path) does check "does this name already exist"
+    before inserting, rejecting the declaration with a warning if so —
+    but the *alias* path (a JSON `"lookups"` string value) only checks
+    that its *target* name exists; it never checks whether its own new
+    name collides with something already there. So two entries *can*
+    legitimately share a name, and uthash's bucket-prepend insertion
+    means `HASH_FIND` on a duplicated key always resolves to the
+    *most-recently-inserted* match. `LookupEntry` stays a plain `Vec`
+    (append-only, preserving insertion order for exactly this reason),
+    and every "look up by name" call site — alias-target resolution,
+    the `lookupOrder` Force-promotion pass in `otfcc_parse_otl`, and a
+    feature's lookup-name resolution in `figure_out_features_from_json`
+    (which receives this same `lh`, now `&Vec<LookupEntry>`) — became
+    `.iter().rev().find(...)` (or `.iter_mut().rev()` for the one
+    mutating case), reproducing "most recent wins" exactly without a
+    second index structure; alias resolution is rare enough that an
+    O(n) reverse scan needs no justification beyond that.
+  - **The sort key (`by_lookup_order`: `order_type` then `order_val`)
+    is unrelated to the dedup question above** (moot here since there
+    is no dedup step) **but still doesn't match insertion order once
+    `lookupOrder` promotes a subset of entries to `Force`** — the same
+    "sort key can outlive insertion order" shape as `CoverageEntry`
+    Format 2. Resolved the same way: nothing between the `lookupOrder`
+    loop and the final drain needs `lh` in sorted order (`HASH_FIND`
+    doesn't care about the `HASH_SORT`-maintained iteration list, only
+    the untouched bucket chains), so the original's early
+    `HASH_SORT(lh, by_lookup_order)` call is deleted outright and
+    replaced with a single `lh.sort_by(...)` immediately before the
+    drain — `by_lookup_order` itself is gone, subsumed by adding
+    `PartialOrd, Ord` to `LookupOrderType`'s derive (its two variants'
+    declaration order already matches the comparator's numeric
+    comparison) and `Vec::sort_by`'s stability matching `HASH_SORT`'s
+    documented mergesort stability.
+  - **The final drain already only pushed non-alias entries' `.lookup`
+    into `otl.lookups`** (`Box::from_raw`, matching the alias flag's
+    original fix) **but always freed every entry's `.name`, alias or
+    not** — because `.name` was its own independent `sdsnew`-allocated
+    copy on the hash node, never shared, unlike `.lookup`. `Vec<u8>`
+    replacing that field needs no explicit free at all, matching every
+    other container conversion in this migration; the manual
+    `HASH_ITER`+`HASH_DEL`+`free` walk is gone, replaced by
+    `lh.into_iter()` and Rust's ordinary per-element drop.
+  - **Real, direct coverage for both mechanisms this instance touches**:
+    `rust/scripts/make-test-lookup-alias.py` (already part of every
+    `test.sh` run) exists specifically to regression-test the alias
+    fix — it segfaults C's otfccbuild and hung this crate's pre-`Box`
+    baseline, so a clean pass here is a strong signal the `alias`
+    semantics survived the rewrite intact. `lookupOrder` (the `Force`
+    promotion path) is present in `iosevka-r.json`, `WorkSans-Regular.json`,
+    and `kltf-bugfont1.json` already, so the sort-deferral change is
+    exercised by the standard payload set, not a synthetic addition.
+    All payloads stayed byte-identical to golden; no regeneration
+    needed.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **`FeatureHash`/`LanguageHash` in this same file remain for
+    follow-up PRs — the uthash-instance counter isn't decremented for
+    this one, since it's the first of three sharing one file, matching
+    how `CoverageEntry` and `ClassifierHash` were only counted once
+    each file's full set of instances was done.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
