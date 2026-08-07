@@ -3017,8 +3017,23 @@ on the other platform before a commit is trusted.
     on both platforms; no golden regeneration needed.
   - Verified with the standard full pipeline on both macOS and Linux, plus
     a fresh `compare-with-c.sh` run on both given the scope and the
-    deliberate bug fix. **`support/glyph_order.rs` is now fully converted.
-    ~3 uthash instances remain.**
+    deliberate bug fix. **`support/glyph_order.rs` is now fully converted.**
+- **uthash migration complete.** A crate-wide grep right after this PR
+  merged (`grep -rl "UtHashHandle\|vendor::uthash" src/`) turned up only
+  `vendor/uthash.rs` itself — the running "~N uthash instances remain"
+  counter threaded through this section had drifted low by a few over the
+  course of the migration (an estimate re-derived from memory at each
+  step, not a script-verified count), so the true final instance was this
+  one, not a separately-numbered twenty-fifth. **Follow-up cleanup PR**
+  deleted the now-fully-dead `vendor/uthash.rs` (44 lines: `UtHashHandle`/
+  `UtHashTable`/`UtHashBucket` struct defs and the `HASH_*` size/threshold
+  consts — the `HASH_ADD`/`HASH_FIND`/`HASH_SORT`/`HASH_ITER` *macros*
+  were never here in the first place, since c2rust had already expanded
+  every invocation inline at its call site during the original transpile)
+  and the `pub mod uthash;` line in `vendor.rs`. Verified with the
+  standard full pipeline on both macOS and Linux (no logic changed, so no
+  `compare-with-c.sh` re-run needed — this was confirmed dead code
+  removal, not a behavioral change).
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
