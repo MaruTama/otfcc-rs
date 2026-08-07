@@ -78,6 +78,10 @@ gen_pair KRName-Regular otf tests/payload/KRName-Regular.otf
 # in compare-with-golden.sh for why it is not regenerated via fontTools here.
 gen_pair gvar-test ttf tests/payload/gvar-test.ttf
 
+echo "  KRName-Regular-O2 (CFF subroutinize, dump already generated above)"
+"${BIN}/otfccbuild" "${SCRATCH}/KRName-Regular.json" -o "${SCRATCH}/KRName-Regular-O2.otf" -O2 -k --keep-modified-time
+record "${SCRATCH}/KRName-Regular-O2.otf" "KRName-Regular-O2.otf"
+
 echo "  unknown-lookup (dump only)"
 python3 rust/scripts/make-test-unknown-lookup.py tests/payload/iosevka-r.ttf "${SCRATCH}/unknown-lookup-src.ttf"
 "${BIN}/otfccdump" "${SCRATCH}/unknown-lookup-src.ttf" -o "${SCRATCH}/unknown-lookup.json" --pretty

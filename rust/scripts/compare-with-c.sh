@@ -150,6 +150,33 @@ else
 	echo "  (skipping gvar-test.ttf: not found; run rust/scripts/make-test-variable-font.py first)"
 fi
 
+# CFF subroutinization (-O2) was, until this comparison existed, never
+# exercised by anything in this suite: no other payload builds with -O2, so
+# add_doublet/add_singlet/check_doublet_match/check_singlet_match (the
+# CffSubrGraph.diagram_index singlet/doublet pattern matcher) had zero
+# coverage. Reuses KRName-Regular's JSON (already dumped by the compare_payload
+# call above) rather than a fresh synthetic payload -- CFF subroutinization
+# needs real repeated charstring structure to do anything, which a font this
+# size already has (confirmed: -O2 output is smaller than -O0 for it).
+KRNAME_JSON="${BUILD}/KRName-Regular.json"
+if [ -f "${KRNAME_JSON}" ]; then
+	rm -f "${BUILD}/KRName-Regular-O2.c.otf" "${BUILD}/KRName-Regular-O2.rust.otf"
+	if ! "${C_BIN}/otfccbuild" "${KRNAME_JSON}" -o "${BUILD}/KRName-Regular-O2.c.otf" -O2 -k --keep-modified-time; then
+		echo "FAIL  KRName-Regular-O2.otf: C otfccbuild exited non-zero"
+		fail=1
+	elif ! "${RUST_BIN}/otfccbuild" "${KRNAME_JSON}" -o "${BUILD}/KRName-Regular-O2.rust.otf" -O2 -k --keep-modified-time; then
+		echo "FAIL  KRName-Regular-O2.otf: Rust otfccbuild exited non-zero"
+		fail=1
+	elif cmp -s "${BUILD}/KRName-Regular-O2.c.otf" "${BUILD}/KRName-Regular-O2.rust.otf"; then
+		echo "PASS  KRName-Regular-O2.otf (CFF subroutinize): byte-identical"
+	else
+		echo "FAIL  KRName-Regular-O2.otf (CFF subroutinize): differs ($(cmp -l "${BUILD}/KRName-Regular-O2.c.otf" "${BUILD}/KRName-Regular-O2.rust.otf" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+else
+	echo "  (skipping KRName-Regular-O2.otf: ${KRNAME_JSON} not found)"
+fi
+
 # A lookup type otfcc does not recognise is *kept*, not clamped: the reader does
 # `type = read_16u(data) + base` and hands the result on, so such a lookup gets
 # no subtable, dumps as `{}`, and — with no name from the feature list — is named

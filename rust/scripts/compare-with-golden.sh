@@ -108,6 +108,22 @@ compare_payload KRName-Regular otf tests/payload/KRName-Regular.otf
 # golden dump in those two fields alone, on every run, for no real reason.
 compare_payload gvar-test ttf tests/payload/gvar-test.ttf
 
+# CFF subroutinization (-O2): see compare-with-c.sh for why this needed
+# adding (nothing else in this suite builds with -O2). Reuses the
+# KRName-Regular.json produced by the compare_payload call above.
+KRNAME_JSON="${BUILD}/KRName-Regular.json"
+if [ -f "${KRNAME_JSON}" ]; then
+	rm -f "${BUILD}/KRName-Regular-O2.otf"
+	if ! "${RUST_BIN}/otfccbuild" "${KRNAME_JSON}" -o "${BUILD}/KRName-Regular-O2.otf" -O2 -k --keep-modified-time; then
+		echo "FAIL  KRName-Regular-O2.otf: Rust otfccbuild exited non-zero"
+		fail=1
+	else
+		check "${BUILD}/KRName-Regular-O2.otf" "KRName-Regular-O2.otf" "KRName-Regular-O2.otf (CFF subroutinize)"
+	fi
+else
+	echo "  (skipping KRName-Regular-O2.otf: ${KRNAME_JSON} not found)"
+fi
+
 # A lookup type otfcc does not recognise is *kept*, not clamped (see
 # compare-with-c.sh for the full explanation). Dump only: both toolchains
 # refuse to build the resulting JSON, so there is nothing to build-compare.
