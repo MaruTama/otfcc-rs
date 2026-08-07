@@ -37,7 +37,7 @@ use crate::table::hmtx::HmtxTable;
 
 
 
-use crate::table::otl::{ChainingRule, Lookup, Subtable, SubtableList, SubtablePtr, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, OtlTable};
+use crate::table::otl::{ChainingRule, ChainingSubtable, Lookup, Subtable, SubtableList, SubtablePtr, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, OtlTable};
 
 
 
@@ -434,11 +434,11 @@ unsafe extern "C" fn unconsolidate_chaining(
         if sub.is_null() {
             continue;
         }
-        if (*sub).chaining.type_0 == ChainingType::Poly {
-            let rules_count = (*sub).chaining.c2rust_unnamed.c2rust_unnamed.rules_count;
+        let sub_chaining: *mut ChainingSubtable = &raw mut (*sub).chaining as *mut ChainingSubtable;
+        if (*sub_chaining).type_0 == ChainingType::Poly {
+            let rules_count = (*sub_chaining).c2rust_unnamed.c2rust_unnamed.rules_count;
             for k in 0..rules_count as ::core::ffi::c_int {
-                let rule_slot = (*sub)
-                    .chaining
+                let rule_slot = (*sub_chaining)
                     .c2rust_unnamed
                     .c2rust_unnamed
                     .rules
@@ -447,25 +447,45 @@ unsafe extern "C" fn unconsolidate_chaining(
                     ::core::mem::size_of::<Subtable>() as usize,
                     278 as ::core::ffi::c_ulong,
                 ) as *mut Subtable;
-                (*st).chaining.type_0 = ChainingType::Canonical;
-                // Transfer ownership of the rule out of *rule_slot.
-                (*st).chaining.c2rust_unnamed.rule = **rule_slot;
+                let st_chaining: *mut ChainingSubtable = &raw mut (*st).chaining as *mut ChainingSubtable;
+                (*st_chaining).type_0 = ChainingType::Canonical;
+                // Transfer ownership of the rule out of *rule_slot. `ChainingRule`
+                // is no longer `Copy` (it owns a `Vec`), so a plain struct-copy
+                // assignment no longer compiles -- `ptr::read` performs the same
+                // bitwise move explicitly, and `*rule_slot`'s backing allocation
+                // is freed right after without ever dropping the moved-from bytes.
+                ::core::ptr::write(
+                    &raw mut (*st_chaining).c2rust_unnamed.rule,
+                    ::core::mem::ManuallyDrop::new(::core::ptr::read(*rule_slot)),
+                );
                 free(*rule_slot as *mut ::core::ffi::c_void);
                 *rule_slot = ::core::ptr::null_mut::<ChainingRule>();
                 newsts.push(st as SubtablePtr);
             }
-            free((*sub).chaining.c2rust_unnamed.c2rust_unnamed.rules as *mut ::core::ffi::c_void);
-            (*sub).chaining.c2rust_unnamed.c2rust_unnamed.rules =
+            free((*sub_chaining).c2rust_unnamed.c2rust_unnamed.rules as *mut ::core::ffi::c_void);
+            (*sub_chaining).c2rust_unnamed.c2rust_unnamed.rules =
                 ::core::ptr::null_mut::<*mut ChainingRule>();
             free(sub as *mut ::core::ffi::c_void);
             (&mut (*lookup).subtables)[j] = ::core::ptr::null_mut::<Subtable>();
-        } else if (*sub).chaining.type_0 == ChainingType::Canonical {
+        } else if (*sub_chaining).type_0 == ChainingType::Canonical {
             let st_0: *mut Subtable = __caryll_allocate_clean(
                 ::core::mem::size_of::<Subtable>() as usize,
                 289 as ::core::ffi::c_ulong,
             ) as *mut Subtable;
-            (*st_0).chaining.type_0 = ChainingType::Canonical;
-            (*st_0).chaining.c2rust_unnamed.rule = (*sub).chaining.c2rust_unnamed.rule;
+            let st_0_chaining: *mut ChainingSubtable = &raw mut (*st_0).chaining as *mut ChainingSubtable;
+            (*st_0_chaining).type_0 = ChainingType::Canonical;
+            // Same disguised move as the `Poly` branch above, but note: `sub`
+            // (the whole outer `Subtable` block) is never `free()`'d on this
+            // branch in the original C, either -- an existing, intentional-looking
+            // leak that predates this conversion. `ptr::read` here preserves it
+            // exactly: the source bytes (including the moved-from `Vec` header)
+            // are left untouched in `sub`'s leaked allocation, never dropped.
+            ::core::ptr::write(
+                &raw mut (*st_0_chaining).c2rust_unnamed.rule,
+                ::core::mem::ManuallyDrop::new(::core::ptr::read(
+                    &raw const (*sub_chaining).c2rust_unnamed.rule as *const ChainingRule,
+                )),
+            );
             newsts.push(st_0 as SubtablePtr);
             (&mut (*lookup).subtables)[j] = ::core::ptr::null_mut::<Subtable>();
         }

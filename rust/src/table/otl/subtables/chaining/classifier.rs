@@ -146,19 +146,17 @@ unsafe extern "C" fn build_rule(
         }
         m = m.wrapping_add(1);
     }
-    (*new_rule).apply_count = (*rule).apply_count;
-    (*new_rule).apply = __caryll_allocate_clean(
-        (::core::mem::size_of::<ChainLookupApplication>() as usize)
-            .wrapping_mul((*new_rule).apply_count as usize),
-        108 as ::core::ffi::c_ulong,
-    ) as *mut ChainLookupApplication;
+    // Placement-construct: `new_rule` is fresh calloc'd (zeroed, not a
+    // valid `Vec` bit pattern) memory, so there is nothing to drop first.
+    ::core::ptr::write(
+        &raw mut (*new_rule).apply,
+        Vec::with_capacity((*rule).apply.len()),
+    );
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
-        (*(*new_rule).apply.offset(j as isize)).index = (*(*rule).apply.offset(j as isize)).index;
-        (*(*new_rule).apply.offset(j as isize)).lookup =
-            otfcc_handle_dup(
-                (*(*rule).apply.offset(j as isize)).lookup.clone() as Handle,
-            ) as LookupHandle;
+    while (j as usize) < (*rule).apply.len() {
+        let index = (&(*rule).apply)[j as usize].index;
+        let lookup = otfcc_handle_dup((&(*rule).apply)[j as usize].lookup.clone() as Handle) as LookupHandle;
+        (*new_rule).apply.push(ChainLookupApplication { index, lookup });
         j = j.wrapping_add(1);
     }
     return new_rule;
@@ -193,11 +191,13 @@ pub unsafe extern "C" fn try_classify_around(
     let mut hi: std::collections::BTreeMap<GlyphId, ClassifierValue> = std::collections::BTreeMap::new();
     let mut hf: std::collections::BTreeMap<GlyphId, ClassifierValue> = std::collections::BTreeMap::new();
     let subtable0_ptr: SubtablePtr = (&(*lookup).subtables)[j as usize];
-    let mut subtable0: *mut ChainingSubtable = &raw mut (*subtable0_ptr).chaining;
+    let mut subtable0: *mut ChainingSubtable =
+        &raw mut (*subtable0_ptr).chaining as *mut ChainingSubtable;
     let mut classno_b: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut classno_i: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut classno_f: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut rule0: *mut ChainingRule = &raw mut (*subtable0).c2rust_unnamed.rule;
+    let mut rule0: *mut ChainingRule =
+        &raw mut (*subtable0).c2rust_unnamed.rule as *mut ChainingRule;
     let mut m: TableId = 0 as TableId;
     loop {
         if !((m as ::core::ffi::c_int) < (*rule0).match_count as ::core::ffi::c_int) {
@@ -235,11 +235,9 @@ pub unsafe extern "C" fn try_classify_around(
             let mut k: TableId = (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
             's_74: while (k as usize) < (*lookup).subtables.len() {
                 let k_ptr: SubtablePtr = (&(*lookup).subtables)[k as usize];
+                let subtable_k: *mut ChainingSubtable = &raw mut (*k_ptr).chaining as *mut ChainingSubtable;
                 let mut rule: *mut ChainingRule =
-                    &raw mut (*k_ptr)
-                        .chaining
-                        .c2rust_unnamed
-                        .rule;
+                    &raw mut (*subtable_k).c2rust_unnamed.rule as *mut ChainingRule;
                 let mut allcheck: bool = true;
                 let mut m_0: TableId = 0 as TableId;
                 while (m_0 as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
@@ -306,11 +304,10 @@ pub unsafe extern "C" fn try_classify_around(
                         < compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int
                 {
                     let k_0_ptr: SubtablePtr = (&(*lookup).subtables)[k_0 as usize];
+                    let subtable_k_0: *mut ChainingSubtable =
+                        &raw mut (*k_0_ptr).chaining as *mut ChainingSubtable;
                     let mut rule_0: *mut ChainingRule =
-                        &raw mut (*k_0_ptr)
-                            .chaining
-                            .c2rust_unnamed
-                            .rule;
+                        &raw mut (*subtable_k_0).c2rust_unnamed.rule as *mut ChainingRule;
                     let ref mut fresh2 = *(*subtable0)
                         .c2rust_unnamed
                         .c2rust_unnamed
@@ -354,7 +351,7 @@ pub unsafe extern "C" fn otfcc_classified_build_chaining(
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*lookup).subtables.len() {
         let j_ptr: SubtablePtr = (&(*lookup).subtables)[j as usize];
-        let mut st0: *mut ChainingSubtable = &raw mut (*j_ptr).chaining;
+        let mut st0: *mut ChainingSubtable = &raw mut (*j_ptr).chaining as *mut ChainingSubtable;
         if !((*st0).type_0 as u64 != 0) {
             let mut st: *mut ChainingSubtable = st0;
             j = (j as ::core::ffi::c_int

@@ -39,19 +39,21 @@ pub unsafe extern "C" fn otl_parse_chaining(
                 .create
                 .expect("non-null function pointer"))();
     (*subtable).type_0 = ChainingType::Canonical;
-    let mut rule: *mut ChainingRule = &raw mut (*subtable).c2rust_unnamed.rule;
+    let mut rule: *mut ChainingRule =
+        &raw mut (*subtable).c2rust_unnamed.rule as *mut ChainingRule;
     (*rule).match_count = (*_match).u.array.length as TableId;
     (*rule).match_0 = __caryll_allocate_clean(
         (::core::mem::size_of::<*mut Coverage>() as usize)
             .wrapping_mul((*rule).match_count as usize),
         14 as ::core::ffi::c_ulong,
     ) as *mut *mut Coverage;
-    (*rule).apply_count = (*_apply).u.array.length as TableId;
-    (*rule).apply = __caryll_allocate_clean(
-        (::core::mem::size_of::<ChainLookupApplication>() as usize)
-            .wrapping_mul((*rule).apply_count as usize),
-        16 as ::core::ffi::c_ulong,
-    ) as *mut ChainLookupApplication;
+    // Placement-construct: `rule` sits inside the zeroed memory `create()`
+    // hands back (via `otl_init_chaining`'s `memset`), not a valid `Vec`
+    // bit pattern, so there is nothing to drop first.
+    ::core::ptr::write(
+        &raw mut (*rule).apply,
+        Vec::with_capacity((*_apply).u.array.length as usize),
+    );
     (*rule).input_begins = json_obj_getnum_fallback(
         _subtable,
         b"inputBegins\0" as *const u8 as *const ::core::ffi::c_char,
@@ -71,10 +73,9 @@ pub unsafe extern "C" fn otl_parse_chaining(
         j = j.wrapping_add(1);
     }
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
-        (*(*rule).apply.offset(j_0 as isize)).index = 0 as TableId;
-        (*(*rule).apply.offset(j_0 as isize)).lookup =
-            otfcc_handle_empty() as LookupHandle;
+    while (j_0 as ::core::ffi::c_int) < (*_apply).u.array.length as ::core::ffi::c_int {
+        let mut index: TableId = 0 as TableId;
+        let mut lookup: LookupHandle = otfcc_handle_empty() as LookupHandle;
         let mut _application: *mut JsonValue =
             *(*_apply).u.array.values.offset(j_0 as isize) as *mut JsonValue;
         if (*_application).type_0 == JsonType::Object
@@ -85,17 +86,17 @@ pub unsafe extern "C" fn otl_parse_chaining(
                 JsonType::String,
             );
             if !_ln.is_null() {
-                (*(*rule).apply.offset(j_0 as isize)).lookup =
-                    handle_from_name(sdsnewlen(
-                        (*_ln).u.string.ptr as *const ::core::ffi::c_void,
-                        (*_ln).u.string.length as usize,
-                    )) as LookupHandle;
-                (*(*rule).apply.offset(j_0 as isize)).index = json_obj_getnum(
+                lookup = handle_from_name(sdsnewlen(
+                    (*_ln).u.string.ptr as *const ::core::ffi::c_void,
+                    (*_ln).u.string.length as usize,
+                )) as LookupHandle;
+                index = json_obj_getnum(
                     _application,
                     b"at\0" as *const u8 as *const ::core::ffi::c_char,
                 ) as TableId;
             }
         }
+        (*rule).apply.push(ChainLookupApplication { index, lookup });
         j_0 = j_0.wrapping_add(1);
     }
     return subtable as *mut Subtable;
