@@ -28,7 +28,6 @@ use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup, tabl
 
 
 use crate::table::_tsi::{TsiEntryType, TsiTable, TsiEntry};
-use crate::table::cmap::{CmapUvsEntry};
 
 
 
@@ -689,13 +688,11 @@ pub unsafe extern "C" fn consolidate_cmap(
         }
     }
     if !(*font).glyph_order.is_null() && !(*font).cmap.is_null() {
-        let mut item_0: *mut CmapUvsEntry = ::core::ptr::null_mut::<CmapUvsEntry>();
-        item_0 = (*(*font).cmap).uvs;
-        while !item_0.is_null() {
+        for (key, glyph) in (*(*font).cmap).uvs.iter_mut() {
             if !OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
                 .expect("non-null function pointer")(
-                (*font).glyph_order, &raw mut (*item_0).glyph
+                (*font).glyph_order, glyph as *mut GlyphHandle
             ) {
                 (*(*options).logger)
                     .log_sds
@@ -708,17 +705,16 @@ pub unsafe extern "C" fn consolidate_cmap(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored UVS mapping [U+",
-                        Hex4Upper(((*item_0).key.unicode) as u32),
+                        Hex4Upper(key.unicode as u32),
                         b" U+",
-                        Hex4Upper(((*item_0).key.selector) as u32),
+                        Hex4Upper(key.selector as u32),
                         b"] to non-existent glyph /",
-                        (*item_0).glyph.name,
+                        glyph.name,
                         b".\n",
                     ),
                 );
-                otfcc_handle_dispose(&raw mut (*item_0).glyph);
+                otfcc_handle_dispose(glyph as *mut GlyphHandle);
             }
-            item_0 = (*item_0).hh.next as *mut CmapUvsEntry;
         }
     }
 }

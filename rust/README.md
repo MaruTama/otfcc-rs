@@ -2787,6 +2787,51 @@ on the other platform before a commit is trusted.
   - Verified with the standard full pipeline on both macOS and Linux.
     **`.uvs`/`CmapUvsEntry` in this same file remains for a follow-up PR —
     the uthash-instance counter isn't decremented yet.**
+- **uthash → `BTreeMap`, twenty-second instance (second half):
+  `CmapTable.uvs` (`rust/src/table/cmap.rs`)**, converting the
+  `CmapUvsEntry` hash to `BTreeMap<CmapUvsKey, GlyphHandle>` and completing
+  this file — the uthash-instance counter is decremented now.
+  - **Same shape as `.unicodes`, confirmed rather than assumed**: `by_uvs_key`
+    (`HASH_SORT`'s comparator) compares `(unicode, then selector)`, which is
+    exactly `CmapUvsKey`'s derived `Ord` (its two fields, `unicode` then
+    `selector`, compared in declaration order), and `HASH_FIND`'s key
+    equality is the same two-field comparison. Sort key, dedup key and
+    derived `Ord` all agree, so `BTreeMap<CmapUvsKey, GlyphHandle>` needs no
+    wrapper struct (the key carries both fields directly) and no explicit
+    sort at drain time — `by_uvs_key` itself is gone, subsumed by the
+    container.
+  - **`CmapUvsKey` gained `PartialEq`/`Eq`/`PartialOrd`/`Ord` derives**
+    (previously only `Copy`/`Clone`, since uthash did its own hashing and
+    `memcmp`); `CmapUvsEntry` itself — the wrapper struct holding `hh: UtHashHandle`,
+    `key: CmapUvsKey` and `glyph: GlyphHandle` — is gone entirely, same as
+    `CmapEntry` before it.
+  - **The four public accessor functions collapsed the same way `.unicodes`'s
+    did**: `otfcc_encode_cmap_uvs_by_index`/`_by_name` are a `.entry(c)` match
+    on `Vacant`/`Occupied` (insert-if-absent, no overwrite, no warning);
+    `otfcc_unmap_cmap_uvs` is `.remove(&c).is_some()`; `otfcc_cmap_lookup_uvs`
+    is `.get(&c)` plus a pointer cast. Each collapsed from ~250–450 lines of
+    Jenkins-hash-and-bucket-chain boilerplate to 4–9 lines.
+  - **`dispose_cmap` needed no explicit per-entry disposal at all**: with
+    both `.unicodes` and `.uvs` now `BTreeMap`s of `Handle`-owning values,
+    dropping each map (via assignment) runs every entry's `Handle::drop` in
+    turn — the two manual `HASH_ITER`+`HASH_DEL`+`free` walks this replaced
+    are both gone, and the function is four lines.
+  - **Cross-file consumer, one this time (not three)**: `consolidate.rs`'s
+    `consolidate_cmap` also walked `CmapUvsEntry` directly for its UVS half
+    (`otf_reader/unconsolidate.rs` and `otf_writer/stat.rs` only ever touched
+    `.unicodes`, confirmed by grep before starting). Converted to
+    `for (key, glyph) in (*(*font).cmap).uvs.iter_mut() { ... }`, matching
+    the `.unicodes` half converted in the previous PR.
+  - **Real coverage**: `KRName-Regular.otf` carries a real `cmap_uvs` table
+    (confirmed in its golden dump) and already exercises the full
+    read/parse/dump/build path for `.uvs` in every run of
+    `compare-with-c.sh`/`compare-with-golden.sh`; format-14's
+    default/non-default range logic in `build_format14_for_selector` is
+    driven by that same payload. No new synthetic payload was needed. All
+    payloads stayed byte-identical to golden; no regeneration needed.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **`cmap.rs` is now fully converted (both `.unicodes` and `.uvs`).
+    ~5 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
