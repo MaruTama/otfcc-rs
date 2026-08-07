@@ -26,7 +26,6 @@ use crate::table::ltsh::{LtshTable};
 
 use crate::table::vorg::{VorgEntry, VorgTable};
 
-use crate::table::cmap::{CmapEntry};
 
 
 
@@ -546,16 +545,13 @@ unsafe extern "C" fn stat_os_2_unicode_ranges(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
-    let mut item: *mut CmapEntry = ::core::ptr::null_mut::<CmapEntry>();
     let mut u1: u32 = 0 as u32;
     let mut u2: u32 = 0 as u32;
     let mut u3: u32 = 0 as u32;
     let mut u4: u32 = 0 as u32;
     let mut min_unicode: i32 = 0xffff as i32;
     let mut max_unicode: i32 = 0 as i32;
-    item = (*(*font).cmap).unicodes;
-    while !item.is_null() {
-        let mut u: ::core::ffi::c_int = (*item).unicode;
+    for (&u, _) in (*(*font).cmap).unicodes.iter() {
         if (u as i32) < min_unicode {
             min_unicode = u as i32;
         }
@@ -1005,7 +1001,6 @@ unsafe extern "C" fn stat_os_2_unicode_ranges(
         {
             u4 |= ((1 as ::core::ffi::c_int) << 26 as ::core::ffi::c_int) as u32;
         }
-        item = (*item).hh.next as *mut CmapEntry;
     }
     if !(*options).keep_unicode_ranges {
         (*(*font).os_2).ul_unicode_range1 = u1;

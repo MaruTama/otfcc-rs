@@ -2722,6 +2722,71 @@ on the other platform before a commit is trusted.
   - Verified with the standard full pipeline on both macOS and Linux.
     **All three of `parse.rs`'s name-keyed hashes are now converted.
     ~6 uthash instances remain.**
+- **uthash → `BTreeMap`, twenty-first instance (first half): `CmapTable.unicodes`
+  (`rust/src/table/cmap.rs`)**, converting the `CmapEntry` hash to
+  `BTreeMap<c_int, GlyphHandle>`. The sibling `.uvs`/`CmapUvsEntry` field is
+  deferred to a follow-up PR, so the uthash-instance counter isn't
+  decremented yet.
+  - **The first *persistent* hash instance in this migration.** Every prior
+    instance was a transient, build-then-drain scratch structure created
+    and consumed within one function or a small cooperating cluster.
+    `unicodes` is a long-lived field of `CmapTable` itself — read, written,
+    and iterated by many functions across the font's whole lifetime
+    (encode/unmap/lookup during parse and JSON encode, sorted iteration
+    during dump and binary build) — so this is closer to a Stage-6-1
+    "Vec-ify a persistent field" conversion than the usual
+    "build-then-drain" pattern.
+  - **Sort key == dedup key, same shape as `LanguageHash`**: `by_unicode`
+    (`HASH_SORT`'s comparator) sorts by the same `unicode` field that keys
+    the hash, so `BTreeMap<c_int, GlyphHandle>` needs no explicit sort at
+    drain time and `by_unicode` itself is gone.
+  - **`table_cmap_copy` deleted outright, confirmed dead first**: a raw
+    `memcpy` of the whole `CmapTable`, which would have had to `memcpy` a
+    `BTreeMap` — impossible without double-freeing its backing allocation.
+    Crate-wide grep confirmed no caller of `.copy` exists anywhere (only
+    `caryll_font.rs`'s `TABLE_I_CMAP.free` is called from outside this
+    file), so the slot and its vtable field were both removed rather than
+    worked around.
+  - **A cross-file consumer discovery not seen in any prior (transient)
+    instance**: `CmapEntry` turned out to be imported and walked directly
+    by three other files — `consolidate.rs`'s `consolidate_cmap`,
+    `otf_reader/unconsolidate.rs`'s AGLFN-naming walk, and
+    `otf_writer/stat.rs`'s `stat_os_2_unicode_ranges` — none of which showed
+    up from reading cmap.rs alone; all three surfaced only once `cargo
+    build` reported `unresolved import` after the struct was deleted. Each
+    was converted to `for (&unicode, glyph) in (*cmap).unicodes.iter()` (or
+    `.iter_mut()` for `consolidate_cmap`, which mutates `glyph` in place on
+    a failed name resolution), preserving each function's exact original
+    semantics (`stat.rs`'s ~450-line body of Unicode-block range checks was
+    left untouched by keeping the loop variable named `u`).
+  - **Found and fixed a pre-existing type-confusion bug inherited from the
+    original C** (`c/lib/table/cmap.c:109,122`): `otfcc_unmap_cmap_uvs` and
+    `otfcc_cmap_lookup_uvs` both declared their walk variable as
+    `cmap_Entry *s` instead of `cmap_UVS_Entry *s` (compare the correctly
+    typed sibling `otfcc_encodeCmapUVSByName`, which does use
+    `cmap_UVS_Entry *s`). uthash's `HASH_FIND`/`HASH_DEL` still worked
+    correctly regardless — they only dereference `&s->hh`, and `hh` is the
+    first field of both structs — but `&s->glyph` read from the wrong byte
+    offset (`CmapEntry.glyph` sits after a 4-byte `int unicode`;
+    `CmapUvsEntry.glyph` sits after an 8-byte `CmapUvsKey`), producing
+    garbage `Handle` data. Deleting `CmapEntry` broke both functions'
+    compilation, which is how this surfaced. `otfcc_unmap_cmap_uvs` is
+    fully dead (no callers anywhere in the crate), so retyping it is
+    behavior-neutral; `otfcc_cmap_lookup_uvs` **is** reachable (called
+    once, in the UVS parse path), so fixing its type annotation is a
+    deliberate, incidental memory-safety fix — same category as the
+    `LookupHash.alias` fix earlier in this migration. Both were retyped to
+    the correct `CmapUvsEntry` throughout.
+  - **Real coverage**: every payload with a `cmap` table exercises
+    encode/unmap/lookup/dump/build for `.unicodes` (all of them);
+    `NotoNastaliqUrdu-Regular.ttf` and `iosevka-r.ttf` in particular carry
+    large, non-trivial Unicode ranges that exercise the format-4/format-12
+    contiguous-run logic in `otfcc_build_cmap_format4`/`_format12`. No new
+    synthetic payload was needed. All payloads stayed byte-identical to
+    golden; no regeneration needed.
+  - Verified with the standard full pipeline on both macOS and Linux.
+    **`.uvs`/`CmapUvsEntry` in this same file remains for a follow-up PR —
+    the uthash-instance counter isn't decremented yet.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
