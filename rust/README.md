@@ -4116,3 +4116,113 @@ on the other platform before a commit is trusted.
     ("Exec format error"), a new instance of the same cross-platform
     build-artifact contamination class as the existing `build/`/`bin/`
     reset rule.
+- **Stage 6-4 follow-up: `ChainingRuleSet.rules` (`*mut *mut ChainingRule` +
+  `rules_count`) → `Vec<*mut ChainingRule>`.** The deferred half of the
+  `ChainingRule.apply` PR above — container only, matching the `otl`
+  pointer-list precedent (`LookupList`/`FeatureList`): pointees stay
+  individually heap-allocated raw pointers, `Box`-ification stays Stage
+  6-4's job for a later PR. `rules_count` is gone; every read site now uses
+  `.rules.len()`. 5 files: `table/otl.rs`,
+  `table/otl/subtables/chaining/{common,classifier,read,build}.rs`,
+  `otf_reader/unconsolidate.rs`.
+  - **The `ChainingBody` union needed `ManuallyDrop` on *both* variants,
+    not just `.rule`** — `rules: Vec<*mut ChainingRule>` losing `Copy`
+    means the union's other field (`c2rust_unnamed: ChainingRuleSet`) now
+    also needs wrapping, regardless of which variant is "logically active"
+    at a given moment; a union simply cannot hold a non-`Copy` field any
+    other way. This roughly doubled the extraction-site cast/hoist work
+    predicted by the earlier PR's "~30 more call sites" estimate turned
+    out accurate (51 `.c2rust_unnamed.c2rust_unnamed.*` sites across 5
+    files) — every one now goes through a single hoisted
+    `let ruleset: *mut ChainingRuleSet = &raw mut
+    (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;`
+    per function, then plain `(*ruleset).rules`/`.bc`/`.ic`/`.fc` from
+    there — the same idiom as the `.rule` extractions, just for the
+    sibling variant.
+  - **A landmine specific to this field, not seen with `.apply`:
+    `type_0` can be set to `Poly` before `.rules` is ever populated.**
+    `otl_read_contextual`/`otl_read_chaining` set `type_0 = Poly`
+    immediately after `create()` (freshly `memset`-zeroed memory), *then*
+    dispatch to a format handler that populates `.rules` — but the
+    unrecognised-format and too-short-table error paths free the subtable
+    in between, with `type_0 == Poly` but `.rules` still raw zeroed bytes.
+    Under the old raw-pointer field this was safe (`rules.is_null()` on a
+    zeroed pointer correctly reads as "nothing to walk"); under `Vec` it
+    would be immediate UB (a zeroed byte pattern is never a valid `Vec` —
+    calling anything on it, even a length check, reads invalid state).
+    Fixed by moving the placement-construct up to happen in the same
+    breath as the `type_0 = Poly` assignment (`ptr::write(&raw mut
+    (*ruleset).rules, Vec::new())`, immediately after, before any format
+    dispatch) rather than leaving it to whichever format handler runs —
+    every path from that point on, including the disposal-only error
+    paths, now sees a valid (possibly still-empty) `Vec`. `classifier.rs`'s
+    `try_classify_around` sets `type_0 = Classified` in the opposite order
+    (after `.rules` is already fully built), so it needed no such fix — a
+    fresh `calloc`'d `ChainingSubtable`'s `type_0` field reads as
+    `Canonical` (0) for the whole span before the explicit assignment at
+    the end, and nothing external observes that transient local value in
+    between. This asymmetry — placement-construct-with-the-flag vs.
+    populate-then-set-the-flag — is now the deciding question to ask
+    before touching any future "tagged union with a late discriminant
+    write" conversion in this crate.
+  - **`otl_dispose_chaining` got simpler, not more complex, once the
+    above held**: no more `.rules.is_null()` guard at all — by the time
+    `type_0 != Canonical` is observable there, `.rules` is *always* a
+    valid `Vec` (empty or not), so disposal is just "iterate, dispose
+    each pointee, `= Vec::new()`" unconditionally.
+  - **`unconsolidate_chaining`'s `Poly`-branch consumption loop** (the
+    inverse of construction: splitting a `ChainingRuleSet` back out into
+    individual `Canonical` subtables) uses `mem::take(&mut
+    (*ruleset).rules)` to get an owned `Vec<*mut ChainingRule>` to iterate
+    by value — this both hands over the pointer list and leaves a valid
+    empty `Vec` behind in the same expression, so the raw `free(sub as
+    *mut c_void)` right after (which does not run any Rust drop glue) has
+    nothing left to leak. Simpler than the manual "read a slot, null it,
+    free the whole array afterward" dance the old raw-pointer version
+    needed.
+  - **`compatible_count > 1` requires *three* mutually-compatible adjacent
+    subtables, not two** — `try_classify_around` only increments
+    `compatible_count` for subtables *after* the first one being tried, so
+    grouping needs the first plus two more to pass `class_compatible`.
+    Relevant because it changes what a synthetic test payload would need
+    to look like, and turned out to matter for a different reason below.
+  - **The "no current payload exercises the classifier" premise from the
+    original scoping PR was wrong, and it was checked before writing any
+    conversion code this time.** Built a synthetic 3-subtable
+    classifiable-group payload (`make-test-classified-chaining.py`,
+    modeled on `make-test-vdmx.py`) to fill the assumed gap, then
+    instrumented `try_classify_around`'s success branch with a temporary
+    `eprintln!` before wiring the script in, specifically to confirm the
+    synthetic payload was doing real work rather than silently no-op'ing.
+    It fired — but so did the *unmodified* `tests/payload/iosevka-r.ttf`,
+    three times per build (9/5/5 rules grouped), with no synthetic
+    payload involved at all: `iosevka-r`'s own `lookup_ccmp_1`/`lookup_calt_0`
+    chaining lookups already contain naturally-compatible adjacent
+    subtable runs, and this path was already being byte-compared on every
+    `compare-with-c.sh` run throughout this crate's history. Deleted the
+    synthetic payload script and the debug instrumentation rather than
+    ship a redundant test — real, already-wired coverage existed the
+    whole time, the earlier PR's assumption was simply never rechecked
+    against the actual data. Lesson for the next "is this exercised"
+    question: check with instrumentation before writing a synthetic
+    fixture, not after — a byte-identical `compare-with-c.sh` pass alone
+    cannot distinguish "this path ran and matched" from "this path never
+    ran," but a one-line `eprintln!` in the success branch can, cheaply,
+    and should be the first move.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including `iosevka-r.ttf`, now confirmed to genuinely exercise the
+    `Classified` build path), all 10 payloads' round trips, and the issue
+    #1 golden test. `rust/target` wiped alongside `build/`/`bin/` on every
+    platform switch this time, per the lesson recorded above.
+  - **`ChainingBody`/`ChainingRuleSet`/`ChainingRule` are now fully
+    `Vec`-backed on every field that can own memory.** The
+    `ChainingRule.apply`/`ChainingRuleSet.rules` pair was the last "leaf
+    type owns a `Handle` but its container isn't `Vec`-backed yet" gap
+    from the Stage 6-4 survey — that theme is now complete. Remaining
+    `Box`-ification of `ChainingRuleSet.rules`'s pointees (currently
+    `Vec<*mut ChainingRule>`, matching `LookupList`/`FeatureList`'s
+    still-raw-pointer shape) is deferred to whenever the crate takes on
+    `Vec<*mut T>` → `Vec<Box<T>>` as its own theme, not specific to
+    chaining.

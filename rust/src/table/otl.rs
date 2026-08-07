@@ -283,21 +283,23 @@ pub struct ChainingSubtable {
     pub type_0: ChainingType,
     pub c2rust_unnamed: ChainingBody,
 }
-// `rule: ChainingRule` is the only non-`Copy` field; `ManuallyDrop` wraps
-// just that variant so `c2rust_unnamed: ChainingRuleSet` (the
-// `Poly`/`Classified` shape, still fully `Copy` -- `.rules` remains an
-// unconverted `*mut *mut ChainingRule`, deferred to a follow-up PR since
-// no current payload exercises it) needs no change at all.
+// Both variants now own a `Vec` (`rule.apply`, `c2rust_unnamed.rules`), so
+// both need `ManuallyDrop` -- a union can't hold a non-`Copy` field any
+// other way, regardless of which variant it is.
 #[repr(C)]
 pub union ChainingBody {
     pub rule: ::core::mem::ManuallyDrop<ChainingRule>,
-    pub c2rust_unnamed: ChainingRuleSet,
+    pub c2rust_unnamed: ::core::mem::ManuallyDrop<ChainingRuleSet>,
 }
-#[derive(Copy, Clone)]
+/// `rules: *mut *mut ChainingRule` (the `Poly`/`Classified` shape) becomes
+/// `Vec<*mut ChainingRule>` -- container only, matching the `otl`
+/// pointer-list precedent (`LookupList`/`FeatureList`): the pointees stay
+/// individually heap-allocated raw pointers, `Box`-ification is Stage
+/// 6-4's job, not this one. `rules_count` is gone; every read site now
+/// uses `rules.len()`.
 #[repr(C)]
 pub struct ChainingRuleSet {
-    pub rules_count: TableId,
-    pub rules: *mut *mut ChainingRule,
+    pub rules: Vec<*mut ChainingRule>,
     pub bc: *mut ClassDef,
     pub ic: *mut ClassDef,
     pub fc: *mut ClassDef,
