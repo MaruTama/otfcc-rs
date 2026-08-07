@@ -35,7 +35,10 @@ pub unsafe extern "C" fn otfcc_chaining_lookup_is_contextual_lookup(
                 &raw const (*subtable).c2rust_unnamed.c2rust_unnamed as *const ChainingRuleSet;
             let mut k: TableId = 0 as TableId;
             while (k as usize) < (*ruleset).rules.len() {
-                let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize];
+                let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize]
+                    .as_deref()
+                    .expect("chaining rule slot should never be None at build time")
+                    as *const ChainingRule as *mut ChainingRule;
                 let mut n_backtrack: TableId = (*rule).input_begins;
                 let mut n_lookahead: TableId = ((*rule).match_count as ::core::ffi::c_int
                     - (*rule).input_ends as ::core::ffi::c_int)
@@ -139,8 +142,12 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     }
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < (*ruleset).rules.len() {
-        let mut ib: TableId = (*(&(*ruleset).rules)[j_0 as usize]).input_begins;
-        let mut start_class: TableId = (*(**(*(&(*ruleset).rules)[j_0 as usize])
+        let rule_j0: *mut ChainingRule = (&(*ruleset).rules)[j_0 as usize]
+            .as_deref()
+            .expect("chaining rule slot should never be None at build time")
+            as *const ChainingRule as *mut ChainingRule;
+        let mut ib: TableId = (*rule_j0).input_begins;
+        let mut start_class: TableId = (*(**(*rule_j0)
         .match_0
         .offset(ib as isize)))[0]
         .index as TableId;
@@ -160,7 +167,10 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
             let mut cset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
             let mut k: TableId = 0 as TableId;
             while (k as usize) < (*ruleset).rules.len() {
-                let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize];
+                let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize]
+                    .as_deref()
+                    .expect("chaining rule slot should never be None at build time")
+                    as *const ChainingRule as *mut ChainingRule;
                 let mut start_class_0: GlyphClass =
                     (*(**(*rule).match_0.offset((*rule).input_begins as isize)))[0]
                     .index as GlyphClass;
@@ -287,8 +297,12 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     }
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < (*ruleset).rules.len() {
-        let mut ib: TableId = (*(&(*ruleset).rules)[j_0 as usize]).input_begins;
-        let mut start_class: TableId = (*(**(*(&(*ruleset).rules)[j_0 as usize])
+        let rule_j0: *mut ChainingRule = (&(*ruleset).rules)[j_0 as usize]
+            .as_deref()
+            .expect("chaining rule slot should never be None at build time")
+            as *const ChainingRule as *mut ChainingRule;
+        let mut ib: TableId = (*rule_j0).input_begins;
+        let mut start_class: TableId = (*(**(*rule_j0)
         .match_0
         .offset(ib as isize)))[0]
         .index as TableId;
@@ -308,7 +322,10 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
             let mut cset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
             let mut k: TableId = 0 as TableId;
             while (k as usize) < (*ruleset).rules.len() {
-                let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize];
+                let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize]
+                    .as_deref()
+                    .expect("chaining rule slot should never be None at build time")
+                    as *const ChainingRule as *mut ChainingRule;
                 let mut start_class_0: GlyphClass =
                     (*(**(*rule).match_0.offset((*rule).input_begins as isize)))[0]
                     .index as GlyphClass;

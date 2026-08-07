@@ -92,15 +92,19 @@ unsafe extern "C" fn build_rule(
     hb: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
     hi: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
     hf: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
-) -> *mut ChainingRule {
-    let mut new_rule: *mut ChainingRule = ::core::ptr::null_mut::<ChainingRule>();
-    new_rule = __caryll_allocate_clean(
-        ::core::mem::size_of::<ChainingRule>() as usize,
-        88 as ::core::ffi::c_ulong,
-    ) as *mut ChainingRule;
-    (*new_rule).match_count = (*rule).match_count;
-    (*new_rule).input_begins = (*rule).input_begins;
-    (*new_rule).input_ends = (*rule).input_ends;
+) -> Box<ChainingRule> {
+    // `Box` is the allocation, the struct literal is the zero-init the old
+    // `__caryll_allocate_clean` provided -- see `read.rs`'s
+    // `general_read_contextual_rule`. This never fails (building from
+    // already-valid in-memory data, not parsing untrusted bytes), so
+    // unlike the `read.rs` constructors this returns `Box`, not `Option<Box>`.
+    let mut new_rule: Box<ChainingRule> = Box::new(ChainingRule {
+        match_count: (*rule).match_count,
+        input_begins: (*rule).input_begins,
+        input_ends: (*rule).input_ends,
+        match_0: ::core::ptr::null_mut::<*mut Coverage>(),
+        apply: Vec::new(),
+    });
     (*new_rule).match_0 = __caryll_allocate_clean(
         (::core::mem::size_of::<*mut Coverage>() as usize)
             .wrapping_mul((*new_rule).match_count as usize),
@@ -146,12 +150,10 @@ unsafe extern "C" fn build_rule(
         }
         m = m.wrapping_add(1);
     }
-    // Placement-construct: `new_rule` is fresh calloc'd (zeroed, not a
-    // valid `Vec` bit pattern) memory, so there is nothing to drop first.
-    ::core::ptr::write(
-        &raw mut (*new_rule).apply,
-        Vec::with_capacity((*rule).apply.len()),
-    );
+    // Plain assignment is fine here (unlike the calloc'd-memory case
+    // elsewhere in this crate): `Box::new` above already gave `.apply` a
+    // valid empty `Vec`, so there's a real (if empty) value to drop first.
+    (*new_rule).apply = Vec::with_capacity((*rule).apply.len());
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*rule).apply.len() {
         let index = (&(*rule).apply)[j as usize].index;
@@ -293,7 +295,7 @@ pub unsafe extern "C" fn try_classify_around(
                             as usize,
                     ),
                 );
-                (*ruleset).rules.push(build_rule(rule0, &hb, &hi, &hf));
+                (*ruleset).rules.push(Some(build_rule(rule0, &hb, &hi, &hf)));
                 let mut kk: TableId = 1 as TableId;
                 let mut k_0: TableId =
                     (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
@@ -306,7 +308,7 @@ pub unsafe extern "C" fn try_classify_around(
                         &raw mut (*k_0_ptr).chaining as *mut ChainingSubtable;
                     let mut rule_0: *mut ChainingRule =
                         &raw mut (*subtable_k_0).c2rust_unnamed.rule as *mut ChainingRule;
-                    (*ruleset).rules.push(build_rule(rule_0, &hb, &hi, &hf));
+                    (*ruleset).rules.push(Some(build_rule(rule_0, &hb, &hi, &hf)));
                     kk = kk.wrapping_add(1);
                     k_0 = k_0.wrapping_add(1);
                 }
