@@ -1072,9 +1072,9 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                     let subtable: *mut ChainingSubtable =
                         (&(*lookup).subtables)[si] as *mut ChainingSubtable;
                     if (maxc as ::core::ffi::c_int)
-                        < (*subtable).c2rust_unnamed.rule.match_count as ::core::ffi::c_int
+                        < (&(*subtable).c2rust_unnamed.rule).match_count as ::core::ffi::c_int
                     {
-                        maxc = (*subtable).c2rust_unnamed.rule.match_count as u16;
+                        maxc = (&(*subtable).c2rust_unnamed.rule).match_count as u16;
                     }
                 }
             }

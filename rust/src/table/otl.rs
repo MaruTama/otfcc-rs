@@ -149,7 +149,7 @@ impl LookupType {
 // Never copied or moved by value anywhere in the crate -- every use is
 // `*mut Subtable`/`*const Subtable`/`size_of::<Subtable>()`/
 // `null_mut::<Subtable>()`, so `Subtable` itself needs neither `Copy` nor
-// `Clone`. The 7 variants that now own a `Vec` (all container types that
+// `Clone`. The 8 variants that now own a `Vec` (all container types that
 // used to block their `Vec` conversion on this union) are wrapped in
 // `ManuallyDrop` -- the only field shape besides `Copy` a union may hold.
 // `ManuallyDrop<T>` is `#[repr(transparent)]`, so every extraction site
@@ -160,7 +160,7 @@ pub union Subtable {
     pub gsub_single: ::core::mem::ManuallyDrop<GsubSingleSubtable>,
     pub gsub_multi: ::core::mem::ManuallyDrop<GsubMultiSubtable>,
     pub gsub_ligature: ::core::mem::ManuallyDrop<GsubLigatureSubtable>,
-    pub chaining: ChainingSubtable,
+    pub chaining: ::core::mem::ManuallyDrop<ChainingSubtable>,
     pub gsub_reverse: GsubReverseSubtable,
     pub gpos_single: ::core::mem::ManuallyDrop<GposSingleSubtable>,
     pub gpos_pair: GposPairSubtable,
@@ -267,16 +267,30 @@ pub struct GsubReverseSubtable {
     pub match_0: *mut *mut Coverage,
     pub to: *mut Coverage,
 }
-#[derive(Copy, Clone)]
+// `chaining` (the `Subtable` union variant embedding this by value) is now
+// `ManuallyDrop`-wrapped, since `ChainingBody.rule` -- and therefore this
+// struct -- no longer stays `Copy` (see `ChainingRule`). Neither `Copy` nor
+// `Clone` can be derived once a union field is non-`Copy` (a union can't
+// know which variant is active, so an automatic `Clone` impl is unsound);
+// this matches the other `ManuallyDrop`-wrapped host structs
+// (`GposMarkToSingleSubtable`/`GposMarkToLigatureSubtable`), which also
+// derive neither. Nothing calls `.clone()` on this type -- the vtable's
+// `.copy` slot (`subtable_chaining_copy`) is a raw `memcpy`, not
+// `Clone::clone`, and is confirmed dead (never called outside its own
+// static initializer).
 #[repr(C)]
 pub struct ChainingSubtable {
     pub type_0: ChainingType,
     pub c2rust_unnamed: ChainingBody,
 }
-#[derive(Copy, Clone)]
+// `rule: ChainingRule` is the only non-`Copy` field; `ManuallyDrop` wraps
+// just that variant so `c2rust_unnamed: ChainingRuleSet` (the
+// `Poly`/`Classified` shape, still fully `Copy` -- `.rules` remains an
+// unconverted `*mut *mut ChainingRule`, deferred to a follow-up PR since
+// no current payload exercises it) needs no change at all.
 #[repr(C)]
 pub union ChainingBody {
-    pub rule: ChainingRule,
+    pub rule: ::core::mem::ManuallyDrop<ChainingRule>,
     pub c2rust_unnamed: ChainingRuleSet,
 }
 #[derive(Copy, Clone)]
@@ -288,16 +302,22 @@ pub struct ChainingRuleSet {
     pub ic: *mut ClassDef,
     pub fc: *mut ClassDef,
 }
-#[derive(Copy, Clone)]
+/// Replaces the calloc'd raw array `apply: *mut ChainLookupApplication` +
+/// `apply_count: TableId` -- the last remaining "leaf type owns a `Handle`
+/// but its container isn't `Vec`-backed yet" gap in this crate. No
+/// `apply_count` field survives: every read site now uses `apply.len()`.
+#[derive(Clone)]
 #[repr(C)]
 pub struct ChainingRule {
     pub match_count: TableId,
     pub input_begins: TableId,
     pub input_ends: TableId,
     pub match_0: *mut *mut Coverage,
-    pub apply_count: TableId,
-    pub apply: *mut ChainLookupApplication,
+    pub apply: Vec<ChainLookupApplication>,
 }
+/// `lookup: LookupHandle` (= `Handle`) already has a real `Drop`/`Clone`
+/// impl (the Handle pilot), so `Vec<ChainLookupApplication>`'s own drop
+/// glue disposes every element correctly with no extra `Drop` impl here.
 #[derive(Clone)]
 #[repr(C)]
 pub struct ChainLookupApplication {

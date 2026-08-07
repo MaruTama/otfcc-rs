@@ -3994,3 +3994,125 @@ on the other platform before a commit is trusted.
     remains a separate, later decision; `tests/golden/` existing is what
     would make that decision safe if it's ever made, not a claim that it
     has been made.
+- **Stage 6-4: `ChainingRule.apply` (`*mut ChainLookupApplication` +
+  `apply_count`) → `Vec<ChainLookupApplication>`.** The last remaining
+  "leaf type owns a `Handle` but its container isn't `Vec`-backed yet" gap
+  from the Stage 6-4 survey — closing it means every `Handle`-owning leaf
+  in the crate now sits in a real container. `apply_count` is gone
+  entirely; every read site uses `.apply.len()`.
+  - **The union cascade turned out to be real, and one size bigger than the
+    plan estimated.** `ChainLookupApplication` losing `Copy` (it now holds
+    a `Vec`) forces `ChainingRule` off `Copy`, which — because
+    `ChainingBody` is a union with `rule: ChainingRule` as one of its two
+    variants — forces `rule` into `ManuallyDrop<ChainingRule>` (a union
+    can't hold a non-`Copy` field any other way). That in turn forces
+    `ChainingSubtable` (the struct wrapping `ChainingBody`) off `Copy`,
+    which forces `Subtable.chaining` — the *outer* union's variant — into
+    `ManuallyDrop<ChainingSubtable>` too: the eighth variant to get this
+    treatment, joining the seven from the earlier `Subtable`
+    `ManuallyDrop` PR. `ChainingRuleSet` (the `Poly`/`Classified` shape,
+    `ChainingBody`'s other variant) is untouched and stays `Copy` — `.rules`
+    remains an unconverted `*mut *mut ChainingRule`, deferred below.
+  - **Neither `ChainingSubtable` nor `ChainingBody` derive `Clone` anymore**
+    (previously they did, matching most `ManuallyDrop`-wrapped host
+    structs) — deriving `Clone` on a union requires the union to
+    implement `Copy` (`rustc`'s own diagnostic: "the trait bound
+    `ChainingBody: Copy` is not satisfied"), which is exactly what just
+    became impossible. Confirmed nothing calls `.clone()` on either type
+    before dropping the derive — the vtable's `.copy` slot
+    (`subtable_chaining_copy`) is a raw `memcpy`, not `Clone::clone`, and
+    like every other `ManuallyDrop`-wrapped variant's `.copy` slot in this
+    crate, is confirmed dead (never called outside its own static
+    initializer).
+  - **Plain field access through a `ManuallyDrop` union field needs help
+    in two different ways, and only one of them was anticipated.** Reads
+    that stop at the wrapped field itself (`&raw const (*ptr).chaining as
+    *const ChainingSubtable`) were already the established idiom from the
+    `Subtable` `ManuallyDrop` PR. What wasn't anticipated: `rustc` also
+    denies *plain field writes* one level through the wrapper
+    (`(*st).chaining.type_0 = …` — "not automatically applying `DerefMut`
+    on `ManuallyDrop` union field... writing to this reference calls the
+    destructor for the old value") and denies `dangerous_implicit_autorefs`
+    on *plain field reads* that chain through the wrapper without an
+    explicit pointer cast (`(*_subtable).chaining.type_0 == …` in
+    `otfcc_build_chaining`/`otfcc_build_contextual` and
+    `(*subtable).c2rust_unnamed.rule.match_count` in
+    `otf_writer/stat.rs`, a tenth file this PR touched that no file-scoped
+    `grep` for `chaining/` turned up — only `cargo build`'s own errors
+    found it). Both were fixed the same way as the established
+    `ManuallyDrop`-extraction idiom: hoist to an explicitly-cast local
+    pointer once (`let subtable_chaining: *mut ChainingSubtable = &raw mut
+    (*ptr).chaining as *mut ChainingSubtable;`) before projecting further,
+    rather than chaining through the raw union-field access inline.
+  - **`.apply[idx]` indexing needed the same `dangerous_implicit_autorefs`
+    treatment already used for the `otl` pointer-list PR, at every read
+    site** — `Index`/`IndexMut` dispatch through a raw pointer's
+    dereferenced field autorefs a `&`/`&mut Vec`, which the lint denies
+    without an explicit reference. ~20 sites across
+    `chaining/{build,classifier,dump}.rs` and `consolidate/otl/chaining.rs`
+    were mechanically rewritten from `(*rule).apply[i]` to
+    `(&(*rule).apply)[i]` (or `(&mut (*rule).apply)[i]` at the one write
+    site, forming `h: *mut LookupHandle` in `consolidate_chaining`) — no
+    `suggested_replacement` came back in `cargo build
+    --message-format=json` this time (unlike the `otl` pointer-list PR),
+    so this pass was done by hand against the plain diagnostic text
+    instead of machine-applied.
+  - **`consolidate/otl/chaining.rs`'s manual compaction loop becomes
+    `Vec::retain`, with the early-return guarded exactly as before**: the
+    original only compacted (and potentially returned `true` for "drop
+    this rule") when `apply_count != 0` to start; translated as `if
+    !(*rule).apply.is_empty() { (*rule).apply.retain(|app|
+    !app.lookup.name.is_null()); if (*rule).apply.is_empty() { return
+    true; } }` rather than an unconditional `retain` + empty-check, which
+    would have (incorrectly) started returning `true` for rules that never
+    had any applies at all.
+  - **`otf_reader/unconsolidate.rs`'s `unconsolidate_chaining` was the
+    genuinely risky file** — the only one with real struct-move semantics,
+    not just mechanical retyping. Both `Poly`- and `Canonical`-branch
+    struct-copy assignments (`(*st).chaining.c2rust_unnamed.rule =
+    **rule_slot;` and `(*st_0)....rule = (*sub)....rule;`) relied on
+    `ChainingRule: Copy` to express "move the rule's ownership into the
+    new canonical subtable." Rewritten as explicit
+    `ptr::write(&raw mut (*st_chaining).c2rust_unnamed.rule,
+    ManuallyDrop::new(ptr::read(...)))` pairs — `ptr::read` performs the
+    same bitwise move without invoking `Vec`'s drop glue on the
+    moved-from bytes, and the source allocation is freed (`Poly` branch)
+    or intentionally left alone (`Canonical` branch) exactly as before.
+    **The `Canonical` branch's pre-existing leak — `sub`, the whole outer
+    `Subtable` block, is never `free()`'d on that path — was preserved
+    byte-for-byte, not fixed**: fixing it would have been a behavioral
+    change riding along with a mechanical conversion, exactly the kind of
+    scope creep this migration's methodology avoids. `ptr::read`'s
+    semantics make this preservation automatic — the moved-from bytes in
+    `sub`'s allocation are left untouched and never dropped, so the leak
+    persists in the same shape it always had.
+  - **`ChainingRuleSet.rules` (the `Poly`/`Classified` shape) stays
+    deferred, but its elements needed fixing anyway** — a subtlety the
+    plan's file-scoping got right for the wrong reason. `.rules: *mut *mut
+    ChainingRule` is an unconverted raw array of pointers to the *same*
+    `ChainingRule` type, so every `.apply`/`.apply_count` read reached
+    through it (in `otfcc_build_chaining_classes`,
+    `otfcc_build_contextual_classes`, `otfcc_chaining_lookup_is_contextual_lookup`)
+    needed the identical `.len()`/indexing conversion as the `.rule`
+    single-instance path, even though `ChainingRuleSet` itself never
+    changes shape. The type change ripples through every consumer of
+    `ChainingRule`, regardless of which union variant reaches it.
+  - **Real coverage, no synthetic payload needed**: `NotoNastaliqUrdu-Regular.ttf`
+    (41 GSUB + 1 GPOS chaining lookups), `iosevka-r.ttf` (2, also the
+    issue #1 golden payload), and `Molengo-Regular.ttf` (1) all exercise
+    the `.apply`/`Canonical` shape through read/parse/build/dump — checked
+    with `otfccdump` against every payload before scoping the PR, and
+    confirmed none of them use the `Poly`/`Classified` shape (`.rules`),
+    which is why deferring it is safe today.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    including the chaining-heavy ones above, all 10 payloads' round trips,
+    and the issue #1 golden test. `rust/target` had to be wiped alongside
+    the usual `build/ninja build/obj bin/release-x64 bin/x64` when
+    switching platforms this time — it had accumulated macOS arm64
+    `cargo build --release` binaries from earlier in the session, which
+    the Linux container then tried (and failed) to execute directly
+    ("Exec format error"), a new instance of the same cross-platform
+    build-artifact contamination class as the existing `build/`/`bin/`
+    reset rule.

@@ -10,11 +10,11 @@ use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new};
 
 pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut JsonValue {
-    let mut subtable: *const ChainingSubtable = &raw const (*_subtable).chaining;
+    let mut subtable: *const ChainingSubtable = &raw const (*_subtable).chaining as *const ChainingSubtable;
     if (*subtable).type_0 as u64 != 0 {
         return json_null_new();
     }
-    let mut rule: *const ChainingRule = &raw const (*subtable).c2rust_unnamed.rule;
+    let mut rule: *const ChainingRule = &raw const (*subtable).c2rust_unnamed.rule as *const ChainingRule;
     let mut _st: *mut JsonValue = json_object_new(4 as usize);
     let mut _match: *mut JsonValue = json_array_new((*rule).match_count as usize);
     let mut j: TableId = 0 as TableId;
@@ -32,20 +32,20 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *m
         b"match\0" as *const u8 as *const ::core::ffi::c_char,
         _match,
     );
-    let mut _apply: *mut JsonValue = json_array_new((*rule).apply_count as usize);
+    let mut _apply: *mut JsonValue = json_array_new((*rule).apply.len());
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
+    while (j_0 as usize) < (*rule).apply.len() {
         let mut _application: *mut JsonValue = json_object_new(2 as usize);
         json_object_push(
             _application,
             b"at\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*(*rule).apply.offset(j_0 as isize)).index as i64),
+            json_integer_new((&(*rule).apply)[j_0 as usize].index as i64),
         );
         json_object_push(
             _application,
             b"lookup\0" as *const u8 as *const ::core::ffi::c_char,
             json_string_new(
-                (*(*rule).apply.offset(j_0 as isize)).lookup.name as *const ::core::ffi::c_char,
+                (&(*rule).apply)[j_0 as usize].lookup.name as *const ::core::ffi::c_char,
             ),
         );
         json_array_push(_apply, _application);

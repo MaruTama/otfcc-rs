@@ -2,12 +2,11 @@
 use libc::{free, malloc, memcpy, memset};
 use crate::table::otl::classdef::otl_class_def_free;
 use crate::table::otl::coverage::{Coverage, otl_coverage_free};
-use crate::support::handle::{otfcc_handle_dispose};
 
 use crate::support::primitives::{TableId};
 
 
-use crate::table::otl::{ChainingSubtableElementInterface, ChainLookupApplication, ChainingRule, ChainingSubtable};
+use crate::table::otl::{ChainingSubtableElementInterface, ChainingRule, ChainingSubtable};
 
 pub unsafe extern "C" fn otl_init_chaining(mut subtable: *mut ChainingSubtable) {
     memset(
@@ -52,7 +51,7 @@ pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut ChainingSubtabl
             );
         }
     } else {
-        close_rule(&raw mut (*subtable).c2rust_unnamed.rule);
+        close_rule(&raw mut (*subtable).c2rust_unnamed.rule as *mut ChainingRule);
     };
 }
 pub static I_SUBTABLE_CHAINING: ChainingSubtableElementInterface = {
@@ -119,16 +118,12 @@ unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
         free((*rule).match_0 as *mut ::core::ffi::c_void);
         (*rule).match_0 = ::core::ptr::null_mut::<*mut Coverage>();
     }
-    if !rule.is_null() && !(*rule).apply.is_null() {
-        let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
-            otfcc_handle_dispose(
-                &raw mut (*(*rule).apply.offset(j as isize)).lookup,
-            );
-            j = j.wrapping_add(1);
-        }
-        free((*rule).apply as *mut ::core::ffi::c_void);
-        (*rule).apply = ::core::ptr::null_mut::<ChainLookupApplication>();
+    if !rule.is_null() {
+        // Each element's `.lookup: LookupHandle` already has a real `Drop`
+        // (the Handle pilot), so dropping the `Vec` disposes every element
+        // correctly -- the old per-element `otfcc_handle_dispose` loop +
+        // `free()` is now redundant.
+        (*rule).apply = Vec::new();
     }
 }
 #[inline]

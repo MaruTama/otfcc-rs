@@ -3,7 +3,7 @@ use libc::{free};
 
 use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_index, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
+use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
@@ -175,7 +175,9 @@ pub unsafe extern "C" fn general_read_contextual_rule(
         83 as ::core::ffi::c_ulong,
     ) as *mut ChainingRule;
     (*rule).match_0 = ::core::ptr::null_mut::<*mut Coverage>();
-    (*rule).apply = ::core::ptr::null_mut::<ChainLookupApplication>();
+    // Placement-construct: `rule` is fresh calloc'd (zeroed, not a valid
+    // `Vec` bit pattern) memory, so there is nothing to drop first.
+    ::core::ptr::write(&raw mut (*rule).apply, Vec::new());
     let mut minus_one_q: u16 = (if minus_one as ::core::ffi::c_int != 0 {
         1 as ::core::ffi::c_int
     } else {
@@ -240,16 +242,10 @@ pub unsafe extern "C" fn general_read_contextual_rule(
                 );
                 j = j.wrapping_add(1);
             }
-            (*rule).apply_count = n_apply as TableId;
-            (*rule).apply = __caryll_allocate_clean(
-                (::core::mem::size_of::<ChainLookupApplication>() as usize)
-                    .wrapping_mul((*rule).apply_count as usize),
-                108 as ::core::ffi::c_ulong,
-            ) as *mut ChainLookupApplication;
+            (*rule).apply = Vec::with_capacity(n_apply as usize);
             let mut j_0: TableId = 0 as TableId;
             while (j_0 as ::core::ffi::c_int) < n_apply as ::core::ffi::c_int {
-                (*(*rule).apply.offset(j_0 as isize)).index = ((*rule).input_begins
-                    as ::core::ffi::c_int
+                let index = ((*rule).input_begins as ::core::ffi::c_int
                     + read_16u(
                         data.offset(offset as isize)
                             .offset(4 as ::core::ffi::c_int as isize)
@@ -263,21 +259,21 @@ pub unsafe extern "C" fn general_read_contextual_rule(
                             as *const u8,
                     ) as ::core::ffi::c_int)
                     as TableId;
-                (*(*rule).apply.offset(j_0 as isize)).lookup =
-                    handle_from_index(read_16u(
-                        data.offset(offset as isize)
-                            .offset(4 as ::core::ffi::c_int as isize)
-                            .offset(
-                                (2 as ::core::ffi::c_int
-                                    * ((*rule).match_count as ::core::ffi::c_int
-                                        - minus_one_q as ::core::ffi::c_int))
-                                    as isize,
-                            )
-                            .offset((j_0 as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
-                            .offset(2 as ::core::ffi::c_int as isize)
-                            as *const u8,
-                    )
-                        as GlyphId) as LookupHandle;
+                let lookup = handle_from_index(read_16u(
+                    data.offset(offset as isize)
+                        .offset(4 as ::core::ffi::c_int as isize)
+                        .offset(
+                            (2 as ::core::ffi::c_int
+                                * ((*rule).match_count as ::core::ffi::c_int
+                                    - minus_one_q as ::core::ffi::c_int))
+                                as isize,
+                        )
+                        .offset((j_0 as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
+                        .offset(2 as ::core::ffi::c_int as isize)
+                        as *const u8,
+                )
+                    as GlyphId) as LookupHandle;
+                (*rule).apply.push(ChainLookupApplication { index, lookup });
                 j_0 = j_0.wrapping_add(1);
             }
             reverse_backtracks(rule);
@@ -668,7 +664,9 @@ pub unsafe extern "C" fn general_read_chaining_rule(
         247 as ::core::ffi::c_ulong,
     ) as *mut ChainingRule;
     (*rule).match_0 = ::core::ptr::null_mut::<*mut Coverage>();
-    (*rule).apply = ::core::ptr::null_mut::<ChainLookupApplication>();
+    // Placement-construct: `rule` is fresh calloc'd (zeroed, not a valid
+    // `Vec` bit pattern) memory, so there is nothing to drop first.
+    ::core::ptr::write(&raw mut (*rule).apply, Vec::new());
     let mut minus_one_q: u16 = (if minus_one as ::core::ffi::c_int != 0 {
         1 as ::core::ffi::c_int
     } else {
@@ -860,17 +858,10 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                             );
                             j_1 = j_1.wrapping_add(1);
                         }
-                        (*rule).apply_count = n_apply;
-                        (*rule).apply = __caryll_allocate_clean(
-                            (::core::mem::size_of::<ChainLookupApplication>() as usize)
-                                .wrapping_mul((*rule).apply_count as usize),
-                            285 as ::core::ffi::c_ulong,
-                        )
-                            as *mut ChainLookupApplication;
+                        (*rule).apply = Vec::with_capacity(n_apply as usize);
                         let mut j_2: TableId = 0 as TableId;
                         while (j_2 as ::core::ffi::c_int) < n_apply as ::core::ffi::c_int {
-                            (*(*rule).apply.offset(j_2 as isize)).index = ((*rule).input_begins
-                                as ::core::ffi::c_int
+                            let index = ((*rule).input_begins as ::core::ffi::c_int
                                 + read_16u(
                                     data.offset(offset as isize)
                                         .offset(8 as ::core::ffi::c_int as isize)
@@ -886,26 +877,26 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                         ) as *const u8,
                                 ) as ::core::ffi::c_int)
                                 as TableId;
-                            (*(*rule).apply.offset(j_2 as isize)).lookup =
-                                handle_from_index(
-                                    read_16u(
-                                        data.offset(offset as isize)
-                                            .offset(8 as ::core::ffi::c_int as isize)
-                                            .offset(
-                                                (2 as ::core::ffi::c_int
-                                                    * ((*rule).match_count as ::core::ffi::c_int
-                                                        - minus_one_q as ::core::ffi::c_int))
-                                                    as isize,
-                                            )
-                                            .offset(
-                                                (j_2 as ::core::ffi::c_int
-                                                    * 4 as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                            .offset(2 as ::core::ffi::c_int as isize)
-                                            as *const u8,
-                                    ) as GlyphId,
-                                ) as LookupHandle;
+                            let lookup = handle_from_index(
+                                read_16u(
+                                    data.offset(offset as isize)
+                                        .offset(8 as ::core::ffi::c_int as isize)
+                                        .offset(
+                                            (2 as ::core::ffi::c_int
+                                                * ((*rule).match_count as ::core::ffi::c_int
+                                                    - minus_one_q as ::core::ffi::c_int))
+                                                as isize,
+                                        )
+                                        .offset(
+                                            (j_2 as ::core::ffi::c_int
+                                                * 4 as ::core::ffi::c_int)
+                                                as isize,
+                                        )
+                                        .offset(2 as ::core::ffi::c_int as isize)
+                                        as *const u8,
+                                ) as GlyphId,
+                            ) as LookupHandle;
+                            (*rule).apply.push(ChainLookupApplication { index, lookup });
                             j_2 = j_2.wrapping_add(1);
                         }
                         reverse_backtracks(rule);
@@ -1307,16 +1298,12 @@ unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
         free((*rule).match_0 as *mut ::core::ffi::c_void);
         (*rule).match_0 = ::core::ptr::null_mut::<*mut Coverage>();
     }
-    if !rule.is_null() && !(*rule).apply.is_null() {
-        let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*rule).apply_count as ::core::ffi::c_int {
-            otfcc_handle_dispose(
-                &raw mut (*(*rule).apply.offset(j as isize)).lookup,
-            );
-            j = j.wrapping_add(1);
-        }
-        free((*rule).apply as *mut ::core::ffi::c_void);
-        (*rule).apply = ::core::ptr::null_mut::<ChainLookupApplication>();
+    if !rule.is_null() {
+        // Each element's `.lookup: LookupHandle` already has a real `Drop`
+        // (the Handle pilot), so dropping the `Vec` disposes every element
+        // correctly -- the old per-element `otfcc_handle_dispose` loop +
+        // `free()` is now redundant.
+        (*rule).apply = Vec::new();
     }
 }
 #[inline]
