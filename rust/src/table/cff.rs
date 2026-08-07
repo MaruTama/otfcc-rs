@@ -21,7 +21,7 @@ use crate::libcff::cff_fdselect::{CffFdSelectType, CffFdSelect, CffFdSelectRange
 use crate::libcff::cff_index::{CffIndexCountType, CffIndex};
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::charstring_il::{CffCharstringIl, CffCharstringInstruction};
-use crate::libcff::subr::{CffSubrDiagramIndex, CffSubrGraph, CffSubrRule};
+use crate::libcff::subr::{CffSubrGraph, CffSubrRule};
 use crate::support::{FALSE_0, TRUE_0};
 use crate::table::fvar::{FvarTable};
 use crate::table::glyf::{Contour, Glyph, MaskList, Point, PostscriptHintMask, PostscriptStemDef, StemDefList, GlyfTable};
@@ -162,7 +162,6 @@ pub union CffDoubleBits {
     pub u: u64,
     pub d: ::core::ffi::c_double,
 }
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffCharstringBuilderContext {
     pub glyf: *mut GlyfTable,
@@ -2817,7 +2816,7 @@ unsafe extern "C" fn writecff_cid_keyed(
         graph: CffSubrGraph {
             root: ::core::ptr::null_mut::<CffSubrRule>(),
             last: ::core::ptr::null_mut::<CffSubrRule>(),
-            diagram_index: ::core::ptr::null_mut::<CffSubrDiagramIndex>(),
+            diagram_index: std::collections::HashMap::new(),
             total_rules: 0,
             total_char_strings: 0,
             do_subroutinize: false,

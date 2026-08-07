@@ -2832,6 +2832,93 @@ on the other platform before a commit is trusted.
   - Verified with the standard full pipeline on both macOS and Linux.
     **`cmap.rs` is now fully converted (both `.unicodes` and `.uvs`).
     ~5 uthash instances remain.**
+- **uthash → `HashMap`, twenty-third instance: `CffSubrGraph.diagram_index`
+  (`rust/src/libcff/subr.rs`)**, converting the `CffSubrDiagramIndex` hash
+  (variable-length byte-string keys) to `HashMap<Vec<u8>, CffSubrDiagramIndexEntry>`.
+  - **The first genuinely *pervasive* single-file hash in this migration**:
+    unlike every prior instance (built and drained within one function or a
+    small cooperating cluster), this table is read, written, and deleted
+    from across six different functions spread over the whole file
+    (`unlink_node`, `add_doublet`, `add_singlet`, `check_doublet_match`,
+    `check_singlet_match`, plus disposal) — the CFF subroutine-graph
+    deduplication algorithm's shared state for the whole file.
+  - **One table, two arities, sharing one keyspace on purpose**: entries for
+    "singlet" (one-node) and "doublet" (two-node) charstring patterns live
+    in the same hash, keyed by a variable-length byte fingerprint
+    (`get_singlet_hash_key`/`get_doublet_hash_key`) whose leading byte
+    (`'1'` vs `'2'`) keeps the two arities from ever colliding — confirmed
+    by reading both key-builders rather than assumed, since a collision
+    would have been silently wrong instead of a crash. No `HASH_SORT`
+    anywhere and the only whole-table walk is disposal, so order never
+    matters: `HashMap`, not `BTreeMap`.
+  - **`key: *mut u8` and `hh: UtHashHandle` both vanish from the value
+    struct** (`CffSubrDiagramIndex` → `CffSubrDiagramIndexEntry { arity,
+    start }`) — grepped first to confirm `.key` is never read for anything
+    but the hash itself (only ever set on insert, freed on delete), so
+    `HashMap`'s own key fully subsumes it, matching every by-name/by-key
+    hash converted so far in this migration.
+  - **Three different call shapes for the same table, each translated on
+    its own merits rather than by analogy**: `add_doublet`/`add_singlet`
+    are unconditional upserts (`HashMap::insert` replacing the whole value
+    on a duplicate key reproduces the original's "found → overwrite
+    `.start`, drop the new key; not found → allocate and insert" exactly,
+    since the found branch never touched `.arity` and a doublet-keyed
+    entry's arity is always 2 regardless). `check_doublet_match`/
+    `check_singlet_match` are search-with-conditional-insert — an
+    `.entry()` match on `Vacant`/`Occupied`, where the vacant arm inserts
+    and returns one bool while the occupied arm reads `.arity`/`.start` to
+    decide whether to fire `process_match_doublet`/`process_match_singlet`
+    and returns a *different* bool per arity (doublet's "no match" arm
+    returns `true`, singlet's returns `false` — confirmed by reading each
+    function's tail rather than assuming symmetry between the two, since
+    they are not symmetric). `unlink_node` is search-with-conditional-delete,
+    once for each arity, deleting an entry only if it is still pointing at
+    the node being unlinked (some other node may have since claimed that
+    key's slot) — `.get()` then a conditional `.remove()`.
+  - **`get_singlet_hash_key`/`get_doublet_hash_key` rewritten to build
+    `Vec<u8>` directly** (`.push`/`.extend_from_slice`) instead of
+    `__caryll_allocate_clean` + manual `memcpy` at computed offsets — same
+    byte layout (header bytes, payload, trailing NUL), so keys built here
+    compare equal to the old `memcmp`-compared keys. Dropped `extern "C"`
+    from both (confirmed by grep: all 6 call sites are internal to this
+    file, none through an FFI/vtable boundary) since `Vec<u8>` isn't
+    FFI-safe.
+  - **`CffSubrGraph.diagram_index`'s disposal collapsed to a bare field
+    reassignment**: the entries own nothing (`arity: u8` and
+    `start: *mut CffSubrNode` are both `Copy`), so dropping the map is the
+    whole disposal — the manual `HASH_ITER`+`HASH_DEL`+`free` walk is gone.
+  - **`.copy`/`.create`/`.free` deleted from `CffSubrGraphElementInterface`,
+    confirmed dead first**: crate-wide grep found only `.init`/`.dispose`
+    called from outside this file (`table/cff.rs`), and the backing
+    functions (`cff_subr_graph_copy`'s raw `memcpy`, `cff_subr_graph_create`,
+    `cff_subr_graph_free`) were referenced only by the vtable's own static
+    initializer — never called, matching the `table_cmap_copy`/
+    `TABLE_I_COLR`-precedent pattern. `CffSubrGraph` and its one embedding
+    struct (`table/cff.rs`'s `CffCharstringBuilderContext`) both drop
+    `Copy`/`Clone` as a result; the sole call site already constructs and
+    uses both purely by pointer, so this was a clean removal.
+  - **Found and closed a real coverage gap, not a synthetic-payload
+    substitute**: CFF subroutinization (`-O2`, `--subroutinize`) was never
+    exercised anywhere in this test suite before this PR — no script built
+    with `-O2`, so `add_doublet`/`add_singlet`/`check_doublet_match`/
+    `check_singlet_match` (this whole conversion's actual logic) had zero
+    coverage. Rather than write a synthetic payload, reused
+    `KRName-Regular.otf`'s already-dumped JSON (it has enough repeated
+    charstring structure that `-O2` measurably shrinks it: 21572 bytes at
+    `-O0` vs 18464 at `-O2`) and added a `-O2 -k` build step to
+    `compare-with-c.sh`, `compare-with-golden.sh`, and
+    `generate-golden.sh`, labeled `KRName-Regular-O2.otf`. Confirmed
+    byte-identical to a freshly built C toolchain on both macOS and Linux
+    before freezing it as a new golden checksum entry — this is the
+    highest-risk single change in this migration to date (the first
+    genuinely new algorithmic path this port has had to prove correct
+    against C from scratch, not just re-shape existing verified behavior),
+    so it got its own from-scratch C comparison rather than relying on the
+    frozen golden alone.
+  - Verified with the standard full pipeline on both macOS and Linux, plus
+    a fresh `compare-with-c.sh` run on both (not just golden) given the
+    above. **`libcff/subr.rs` is now fully converted.
+    ~4 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
