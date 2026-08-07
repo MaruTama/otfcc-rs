@@ -12,8 +12,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos};
 use crate::vendor::sds::{Hex2Upper, Hex4Upper, SdsRaw};
 use crate::font::caryll_font::{Font};
-use crate::support::{NULL};
-use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
+use crate::support::glyph_order::{GlyphOrder};
 use crate::support::sha1::{BYTE, Sha1Ctx};
 
 
@@ -333,25 +332,11 @@ unsafe extern "C" fn create_glyph_order(
         && !(*options).ignore_glyph_order
         && !(*options).name_glyphs_by_gid
     {
-        let mut s: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
-        let mut tmp: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
-        s = (*(*(*font).post).post_name_map).by_gid;
-        tmp = (if !(*(*(*font).post).post_name_map).by_gid.is_null() {
-            (*(*(*(*font).post).post_name_map).by_gid).hh_id.next
-        } else {
-            NULL
-        }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
-        while !s.is_null() {
+        for (_, &s) in (*(*(*font).post).post_name_map).by_gid.iter() {
             let mut gname_1: SdsRaw = crate::sdsbuild!(sdsempty(), prefix, (*s).name);
             OTFCC_PKG_GLYPH_ORDER
                 .set_by_gid
                 .expect("non-null function pointer")(glyph_order, (*s).gid, gname_1);
-            s = tmp;
-            tmp = (if !tmp.is_null() {
-                (*tmp).hh_id.next
-            } else {
-                NULL
-            }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
         }
     }
     if !(*font).cmap.is_null() && !(*options).name_glyphs_by_gid {
