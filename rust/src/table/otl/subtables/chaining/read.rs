@@ -13,7 +13,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 
 use crate::support::{NULL};
-use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Subtable, ChainingType, ChainingSubtable};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::vendor::sds::{sdsempty};
 pub type CoverageReaderHandler = Option<
@@ -295,7 +295,6 @@ unsafe extern "C" fn read_contextual_format1(
     let mut first_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let mut chain_sub_rule_set_count: TableId = 0;
     let mut total_rules: TableId = 0;
-    let mut jj: TableId = 0;
     let mut current_block: u64;
     if !(table_length < offset.wrapping_add(6 as u32)) {
         cov_offset = offset.wrapping_add(read_16u(
@@ -356,14 +355,11 @@ unsafe extern "C" fn read_contextual_format1(
                 match current_block {
                     10321976752019472029 => {}
                     _ => {
-                        (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = total_rules;
-                        (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
-                            (::core::mem::size_of::<*mut ChainingRule>() as usize)
-                                .wrapping_mul(total_rules as usize),
-                            144 as ::core::ffi::c_ulong,
-                        )
-                            as *mut *mut ChainingRule;
-                        jj = 0 as TableId;
+                        let ruleset: *mut ChainingRuleSet = &raw mut (*subtable)
+                            .c2rust_unnamed
+                            .c2rust_unnamed
+                            as *mut ChainingRuleSet;
+                        (*ruleset).rules = Vec::with_capacity(total_rules as usize);
                         let mut j_0: TableId = 0 as TableId;
                         while (j_0 as ::core::ffi::c_int)
                             < chain_sub_rule_set_count as ::core::ffi::c_int
@@ -391,12 +387,7 @@ unsafe extern "C" fn read_contextual_format1(
                                         ) as *const u8,
                                 )
                                     as u32);
-                                let ref mut fresh21 = *(*subtable)
-                                    .c2rust_unnamed
-                                    .c2rust_unnamed
-                                    .rules
-                                    .offset(jj as isize);
-                                *fresh21 = general_read_contextual_rule(
+                                let rule_ptr = general_read_contextual_rule(
                                     data,
                                     table_length,
                                     sr_offset,
@@ -419,8 +410,7 @@ unsafe extern "C" fn read_contextual_format1(
                                     max_glyphs,
                                     NULL,
                                 );
-                                jj = (jj as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
-                                    as TableId;
+                                (*ruleset).rules.push(rule_ptr);
                                 k = k.wrapping_add(1);
                             }
                             j_0 = j_0.wrapping_add(1);
@@ -445,7 +435,6 @@ unsafe extern "C" fn read_contextual_format2(
     let mut cds: *mut ClassDefs = ::core::ptr::null_mut::<ClassDefs>();
     let mut chain_sub_class_set_cnt: TableId = 0;
     let mut total_rules: TableId = 0;
-    let mut jj: TableId = 0;
     if !(table_length < offset.wrapping_add(8 as u32)) {
         cds = ::core::ptr::null_mut::<ClassDefs>();
         cds = __caryll_allocate_clean(
@@ -488,14 +477,9 @@ unsafe extern "C" fn read_contextual_format2(
                 }
                 j = j.wrapping_add(1);
             }
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = total_rules;
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
-                (::core::mem::size_of::<*mut ChainingRule>() as usize)
-                    .wrapping_mul(total_rules as usize),
-                186 as ::core::ffi::c_ulong,
-            )
-                as *mut *mut ChainingRule;
-            jj = 0 as TableId;
+            let ruleset: *mut ChainingRuleSet =
+                &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
+            (*ruleset).rules = Vec::with_capacity(total_rules as usize);
             let mut j_0: TableId = 0 as TableId;
             while (j_0 as ::core::ffi::c_int) < chain_sub_class_set_cnt as ::core::ffi::c_int {
                 let mut src_offset_0: u32 = read_16u(
@@ -521,12 +505,7 @@ unsafe extern "C" fn read_contextual_format2(
                                     ) as *const u8,
                             ) as u32,
                         );
-                        let ref mut fresh20 = *(*subtable)
-                            .c2rust_unnamed
-                            .c2rust_unnamed
-                            .rules
-                            .offset(jj as isize);
-                        *fresh20 = general_read_contextual_rule(
+                        let rule_ptr = general_read_contextual_rule(
                             data,
                             table_length,
                             sr_offset,
@@ -548,7 +527,7 @@ unsafe extern "C" fn read_contextual_format2(
                             max_glyphs,
                             cds as *mut ::core::ffi::c_void,
                         );
-                        jj = (jj as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
+                        (*ruleset).rules.push(rule_ptr);
                         k = k.wrapping_add(1);
                     }
                 }
@@ -587,6 +566,14 @@ pub unsafe extern "C" fn otl_read_contextual(
                 .create
                 .expect("non-null function pointer"))();
     (*subtable).type_0 = ChainingType::Poly;
+    let ruleset: *mut ChainingRuleSet =
+        &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
+    // Placement-construct: `subtable` is fresh from `create()`'s `memset`
+    // (zeroed, not a valid `Vec` bit pattern), so there is nothing to drop
+    // first. Every downstream construction path (format1/format2/format3,
+    // and the error paths that dispose the subtable without ever reaching
+    // one) now sees a valid, possibly-still-empty `Vec` from this point on.
+    ::core::ptr::write(&raw mut (*ruleset).rules, Vec::new());
     if !(table_length < offset.wrapping_add(2 as u32)) {
         format = read_16u(data.offset(offset as isize) as *const u8);
         if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
@@ -596,19 +583,7 @@ pub unsafe extern "C" fn otl_read_contextual(
             return read_contextual_format2(subtable, data, table_length, offset, max_glyphs)
                 as *mut Subtable;
         } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = 1 as TableId;
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
-                (::core::mem::size_of::<*mut ChainingRule>() as usize)
-                    .wrapping_mul(1 as usize),
-                231 as ::core::ffi::c_ulong,
-            )
-                as *mut *mut ChainingRule;
-            let ref mut fresh15 = *(*subtable)
-                .c2rust_unnamed
-                .c2rust_unnamed
-                .rules
-                .offset(0 as ::core::ffi::c_int as isize);
-            *fresh15 = general_read_contextual_rule(
+            let rule_ptr = general_read_contextual_rule(
                 data,
                 table_length,
                 offset.wrapping_add(2 as u32),
@@ -629,6 +604,7 @@ pub unsafe extern "C" fn otl_read_contextual(
                 max_glyphs,
                 NULL,
             );
+            (*ruleset).rules.push(rule_ptr);
             return subtable as *mut Subtable;
         }
     }
@@ -921,7 +897,6 @@ unsafe extern "C" fn read_chaining_format1(
     let mut first_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let mut chain_sub_rule_set_count: TableId = 0;
     let mut total_rules: TableId = 0;
-    let mut jj: TableId = 0;
     let mut current_block: u64;
     if !(table_length < offset.wrapping_add(6 as u32)) {
         cov_offset = offset.wrapping_add(read_16u(
@@ -982,14 +957,11 @@ unsafe extern "C" fn read_chaining_format1(
                 match current_block {
                     17398460390698728049 => {}
                     _ => {
-                        (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = total_rules;
-                        (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
-                            (::core::mem::size_of::<*mut ChainingRule>() as usize)
-                                .wrapping_mul(total_rules as usize),
-                            321 as ::core::ffi::c_ulong,
-                        )
-                            as *mut *mut ChainingRule;
-                        jj = 0 as TableId;
+                        let ruleset: *mut ChainingRuleSet = &raw mut (*subtable)
+                            .c2rust_unnamed
+                            .c2rust_unnamed
+                            as *mut ChainingRuleSet;
+                        (*ruleset).rules = Vec::with_capacity(total_rules as usize);
                         let mut j_0: TableId = 0 as TableId;
                         while (j_0 as ::core::ffi::c_int)
                             < chain_sub_rule_set_count as ::core::ffi::c_int
@@ -1017,12 +989,7 @@ unsafe extern "C" fn read_chaining_format1(
                                         ) as *const u8,
                                 )
                                     as u32);
-                                let ref mut fresh14 = *(*subtable)
-                                    .c2rust_unnamed
-                                    .c2rust_unnamed
-                                    .rules
-                                    .offset(jj as isize);
-                                *fresh14 = general_read_chaining_rule(
+                                let rule_ptr = general_read_chaining_rule(
                                     data,
                                     table_length,
                                     sr_offset,
@@ -1045,8 +1012,7 @@ unsafe extern "C" fn read_chaining_format1(
                                     max_glyphs,
                                     NULL,
                                 );
-                                jj = (jj as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
-                                    as TableId;
+                                (*ruleset).rules.push(rule_ptr);
                                 k = k.wrapping_add(1);
                             }
                             j_0 = j_0.wrapping_add(1);
@@ -1071,7 +1037,6 @@ unsafe extern "C" fn read_chaining_format2(
     let mut cds: *mut ClassDefs = ::core::ptr::null_mut::<ClassDefs>();
     let mut chain_sub_class_set_cnt: TableId = 0;
     let mut total_rules: TableId = 0;
-    let mut jj: TableId = 0;
     if !(table_length < offset.wrapping_add(12 as u32)) {
         cds = ::core::ptr::null_mut::<ClassDefs>();
         cds = __caryll_allocate_clean(
@@ -1128,14 +1093,9 @@ unsafe extern "C" fn read_chaining_format2(
                 }
                 j = j.wrapping_add(1);
             }
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = total_rules;
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
-                (::core::mem::size_of::<*mut ChainingRule>() as usize)
-                    .wrapping_mul(total_rules as usize),
-                363 as ::core::ffi::c_ulong,
-            )
-                as *mut *mut ChainingRule;
-            jj = 0 as TableId;
+            let ruleset: *mut ChainingRuleSet =
+                &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
+            (*ruleset).rules = Vec::with_capacity(total_rules as usize);
             let mut j_0: TableId = 0 as TableId;
             while (j_0 as ::core::ffi::c_int) < chain_sub_class_set_cnt as ::core::ffi::c_int {
                 let mut src_offset_0: u32 = read_16u(
@@ -1160,12 +1120,7 @@ unsafe extern "C" fn read_chaining_format2(
                         ) as u32;
                         let mut sr_offset: u32 =
                             offset.wrapping_add(src_offset_0).wrapping_add(dsr_offset);
-                        let ref mut fresh11 = *(*subtable)
-                            .c2rust_unnamed
-                            .c2rust_unnamed
-                            .rules
-                            .offset(jj as isize);
-                        *fresh11 = general_read_chaining_rule(
+                        let rule_ptr = general_read_chaining_rule(
                             data,
                             table_length,
                             sr_offset,
@@ -1187,7 +1142,7 @@ unsafe extern "C" fn read_chaining_format2(
                             max_glyphs,
                             cds as *mut ::core::ffi::c_void,
                         );
-                        jj = (jj as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
+                        (*ruleset).rules.push(rule_ptr);
                         k = k.wrapping_add(1);
                     }
                 }
@@ -1226,6 +1181,10 @@ pub unsafe extern "C" fn otl_read_chaining(
                 .create
                 .expect("non-null function pointer"))();
     (*subtable).type_0 = ChainingType::Poly;
+    let ruleset: *mut ChainingRuleSet =
+        &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
+    // Placement-construct: see the identical comment in `otl_read_contextual`.
+    ::core::ptr::write(&raw mut (*ruleset).rules, Vec::new());
     if !(table_length < offset.wrapping_add(2 as u32)) {
         format = read_16u(data.offset(offset as isize) as *const u8);
         if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
@@ -1235,19 +1194,7 @@ pub unsafe extern "C" fn otl_read_chaining(
             return read_chaining_format2(subtable, data, table_length, offset, max_glyphs)
                 as *mut Subtable;
         } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count = 1 as TableId;
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
-                (::core::mem::size_of::<*mut ChainingRule>() as usize)
-                    .wrapping_mul(1 as usize),
-                407 as ::core::ffi::c_ulong,
-            )
-                as *mut *mut ChainingRule;
-            let ref mut fresh0 = *(*subtable)
-                .c2rust_unnamed
-                .c2rust_unnamed
-                .rules
-                .offset(0 as ::core::ffi::c_int as isize);
-            *fresh0 = general_read_chaining_rule(
+            let rule_ptr = general_read_chaining_rule(
                 data,
                 table_length,
                 offset.wrapping_add(2 as u32),
@@ -1268,6 +1215,7 @@ pub unsafe extern "C" fn otl_read_chaining(
                 max_glyphs,
                 NULL,
             );
+            (*ruleset).rules.push(rule_ptr);
             return subtable as *mut Subtable;
         }
     }

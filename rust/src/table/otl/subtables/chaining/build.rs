@@ -11,7 +11,7 @@ use crate::support::primitives::{GlyphClass, TableId};
 
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::table::otl::{ChainingRule, Lookup, Subtable, SubtablePtr, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, ChainingSubtable};
+use crate::table::otl::{ChainingRule, ChainingRuleSet, Lookup, Subtable, SubtablePtr, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, ChainingSubtable};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
@@ -31,15 +31,11 @@ pub unsafe extern "C" fn otfcc_chaining_lookup_is_contextual_lookup(
         let mut subtable: *const ChainingSubtable = &raw const (*subtable_ptr).chaining as *const ChainingSubtable;
         if (*subtable).type_0 == ChainingType::Classified
         {
+            let ruleset: *const ChainingRuleSet =
+                &raw const (*subtable).c2rust_unnamed.c2rust_unnamed as *const ChainingRuleSet;
             let mut k: TableId = 0 as TableId;
-            while (k as ::core::ffi::c_int)
-                < (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count as ::core::ffi::c_int
-            {
-                let mut rule: *mut ChainingRule = *(*subtable)
-                    .c2rust_unnamed
-                    .c2rust_unnamed
-                    .rules
-                    .offset(k as isize);
+            while (k as usize) < (*ruleset).rules.len() {
+                let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize];
                 let mut n_backtrack: TableId = (*rule).input_begins;
                 let mut n_lookahead: TableId = ((*rule).match_count as ::core::ffi::c_int
                     - (*rule).input_ends as ::core::ffi::c_int)
@@ -113,53 +109,43 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     mut _subtable: *const Subtable,
 ) -> *mut Buffer {
     let mut subtable: *const ChainingSubtable = &raw const (*_subtable).chaining as *const ChainingSubtable;
-    let coverage: *mut Coverage =
-        &raw mut (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).glyphs;
+    let ruleset: *const ChainingRuleSet =
+        &raw const (*subtable).c2rust_unnamed.c2rust_unnamed as *const ChainingRuleSet;
+    let coverage: *mut Coverage = &raw mut (*(*ruleset).ic).glyphs;
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             coverage,
         ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
-            (*subtable).c2rust_unnamed.c2rust_unnamed.bc,
+            (*ruleset).bc,
         ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
-            (*subtable).c2rust_unnamed.c2rust_unnamed.ic,
+            (*ruleset).ic,
         ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
-            (*subtable).c2rust_unnamed.c2rust_unnamed.fc,
-        ))), bk_int(BkCellType::B16, ((*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+            (*ruleset).fc,
+        ))), bk_int(BkCellType::B16, ((*(*ruleset).ic).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as u32)]);
     let mut rcpg: *mut GlyphClass = ::core::ptr::null_mut::<GlyphClass>();
     rcpg = __caryll_allocate_clean(
         (::core::mem::size_of::<GlyphClass>() as usize).wrapping_mul(
-            ((*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+            ((*(*ruleset).ic).maxclass as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as usize,
         ),
         81 as ::core::ffi::c_ulong,
     ) as *mut GlyphClass;
     let mut j: GlyphClass = 0 as GlyphClass;
     while j as ::core::ffi::c_int
-        <= (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+        <= (*(*ruleset).ic).maxclass as ::core::ffi::c_int
     {
         *rcpg.offset(j as isize) = 0 as GlyphClass;
         j = j.wrapping_add(1);
     }
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int)
-        < (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count as ::core::ffi::c_int
-    {
-        let mut ib: TableId = (**(*subtable)
-            .c2rust_unnamed
-            .c2rust_unnamed
-            .rules
-            .offset(j_0 as isize))
-        .input_begins;
-        let mut start_class: TableId = (*(**(**(*subtable)
-            .c2rust_unnamed
-            .c2rust_unnamed
-            .rules
-            .offset(j_0 as isize))
+    while (j_0 as usize) < (*ruleset).rules.len() {
+        let mut ib: TableId = (*(&(*ruleset).rules)[j_0 as usize]).input_begins;
+        let mut start_class: TableId = (*(**(*(&(*ruleset).rules)[j_0 as usize])
         .match_0
         .offset(ib as isize)))[0]
         .index as TableId;
         if start_class as ::core::ffi::c_int
-            <= (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+            <= (*(*ruleset).ic).maxclass as ::core::ffi::c_int
         {
             let ref mut fresh2 = *rcpg.offset(start_class as isize);
             *fresh2 = (*fresh2 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
@@ -168,19 +154,13 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     }
     let mut j_1: GlyphClass = 0 as GlyphClass;
     while j_1 as ::core::ffi::c_int
-        <= (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+        <= (*(*ruleset).ic).maxclass as ::core::ffi::c_int
     {
         if *rcpg.offset(j_1 as isize) != 0 {
             let mut cset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
             let mut k: TableId = 0 as TableId;
-            while (k as ::core::ffi::c_int)
-                < (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count as ::core::ffi::c_int
-            {
-                let mut rule: *mut ChainingRule = *(*subtable)
-                    .c2rust_unnamed
-                    .c2rust_unnamed
-                    .rules
-                    .offset(k as isize);
+            while (k as usize) < (*ruleset).rules.len() {
+                let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize];
                 let mut start_class_0: GlyphClass =
                     (*(**(*rule).match_0.offset((*rule).input_begins as isize)))[0]
                     .index as GlyphClass;
@@ -281,49 +261,39 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     mut _subtable: *const Subtable,
 ) -> *mut Buffer {
     let mut subtable: *const ChainingSubtable = &raw const (*_subtable).chaining as *const ChainingSubtable;
-    let coverage: *mut Coverage =
-        &raw mut (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).glyphs;
+    let ruleset: *const ChainingRuleSet =
+        &raw const (*subtable).c2rust_unnamed.c2rust_unnamed as *const ChainingRuleSet;
+    let coverage: *mut Coverage = &raw mut (*(*ruleset).ic).glyphs;
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             coverage,
         ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
-            (*subtable).c2rust_unnamed.c2rust_unnamed.ic,
-        ))), bk_int(BkCellType::B16, ((*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+            (*ruleset).ic,
+        ))), bk_int(BkCellType::B16, ((*(*ruleset).ic).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as u32)]);
     let mut rcpg: *mut GlyphClass = ::core::ptr::null_mut::<GlyphClass>();
     rcpg = __caryll_allocate_clean(
         (::core::mem::size_of::<GlyphClass>() as usize).wrapping_mul(
-            ((*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+            ((*(*ruleset).ic).maxclass as ::core::ffi::c_int
                 + 1 as ::core::ffi::c_int) as usize,
         ),
         186 as ::core::ffi::c_ulong,
     ) as *mut GlyphClass;
     let mut j: GlyphClass = 0 as GlyphClass;
     while j as ::core::ffi::c_int
-        <= (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+        <= (*(*ruleset).ic).maxclass as ::core::ffi::c_int
     {
         *rcpg.offset(j as isize) = 0 as GlyphClass;
         j = j.wrapping_add(1);
     }
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int)
-        < (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count as ::core::ffi::c_int
-    {
-        let mut ib: TableId = (**(*subtable)
-            .c2rust_unnamed
-            .c2rust_unnamed
-            .rules
-            .offset(j_0 as isize))
-        .input_begins;
-        let mut start_class: TableId = (*(**(**(*subtable)
-            .c2rust_unnamed
-            .c2rust_unnamed
-            .rules
-            .offset(j_0 as isize))
+    while (j_0 as usize) < (*ruleset).rules.len() {
+        let mut ib: TableId = (*(&(*ruleset).rules)[j_0 as usize]).input_begins;
+        let mut start_class: TableId = (*(**(*(&(*ruleset).rules)[j_0 as usize])
         .match_0
         .offset(ib as isize)))[0]
         .index as TableId;
         if start_class as ::core::ffi::c_int
-            <= (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+            <= (*(*ruleset).ic).maxclass as ::core::ffi::c_int
         {
             let ref mut fresh3 = *rcpg.offset(start_class as isize);
             *fresh3 = (*fresh3 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
@@ -332,19 +302,13 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     }
     let mut j_1: GlyphClass = 0 as GlyphClass;
     while j_1 as ::core::ffi::c_int
-        <= (*(*subtable).c2rust_unnamed.c2rust_unnamed.ic).maxclass as ::core::ffi::c_int
+        <= (*(*ruleset).ic).maxclass as ::core::ffi::c_int
     {
         if *rcpg.offset(j_1 as isize) != 0 {
             let mut cset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
             let mut k: TableId = 0 as TableId;
-            while (k as ::core::ffi::c_int)
-                < (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count as ::core::ffi::c_int
-            {
-                let mut rule: *mut ChainingRule = *(*subtable)
-                    .c2rust_unnamed
-                    .c2rust_unnamed
-                    .rules
-                    .offset(k as isize);
+            while (k as usize) < (*ruleset).rules.len() {
+                let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize];
                 let mut start_class_0: GlyphClass =
                     (*(**(*rule).match_0.offset((*rule).input_begins as isize)))[0]
                     .index as GlyphClass;

@@ -9,7 +9,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphClass, GlyphId, TableId};
 use crate::vendor::sds::{SdsRaw};
 
-use crate::table::otl::{ChainLookupApplication, ChainingRule, Lookup, Subtable, SubtablePtr, ChainingType, ChainingSubtable};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Lookup, Subtable, SubtablePtr, ChainingType, ChainingSubtable};
 use crate::table::otl::subtables::chaining::build::{otfcc_build_chaining, otfcc_build_contextual, otfcc_chaining_lookup_is_contextual_lookup};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 #[derive(Copy, Clone)]
@@ -281,21 +281,19 @@ pub unsafe extern "C" fn try_classify_around(
                     ::core::mem::size_of::<ChainingSubtable>() as usize,
                     170 as ::core::ffi::c_ulong,
                 ) as *mut ChainingSubtable;
-                (*subtable0).c2rust_unnamed.c2rust_unnamed.rules_count =
-                    (compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
-                (*subtable0).c2rust_unnamed.c2rust_unnamed.rules = __caryll_allocate_clean(
-                    (::core::mem::size_of::<*mut ChainingRule>() as usize).wrapping_mul(
-                        (compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
+                let ruleset: *mut ChainingRuleSet =
+                    &raw mut (*subtable0).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
+                // Placement-construct: `subtable0` is fresh calloc'd
+                // (zeroed, not a valid `Vec` bit pattern), so there is
+                // nothing to drop first.
+                ::core::ptr::write(
+                    &raw mut (*ruleset).rules,
+                    Vec::with_capacity(
+                        (compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
+                            as usize,
                     ),
-                    172 as ::core::ffi::c_ulong,
-                )
-                    as *mut *mut ChainingRule;
-                let ref mut fresh1 = *(*subtable0)
-                    .c2rust_unnamed
-                    .c2rust_unnamed
-                    .rules
-                    .offset(0 as ::core::ffi::c_int as isize);
-                *fresh1 = build_rule(rule0, &hb, &hi, &hf);
+                );
+                (*ruleset).rules.push(build_rule(rule0, &hb, &hi, &hf));
                 let mut kk: TableId = 1 as TableId;
                 let mut k_0: TableId =
                     (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
@@ -308,19 +306,14 @@ pub unsafe extern "C" fn try_classify_around(
                         &raw mut (*k_0_ptr).chaining as *mut ChainingSubtable;
                     let mut rule_0: *mut ChainingRule =
                         &raw mut (*subtable_k_0).c2rust_unnamed.rule as *mut ChainingRule;
-                    let ref mut fresh2 = *(*subtable0)
-                        .c2rust_unnamed
-                        .c2rust_unnamed
-                        .rules
-                        .offset(kk as isize);
-                    *fresh2 = build_rule(rule_0, &hb, &hi, &hf);
+                    (*ruleset).rules.push(build_rule(rule_0, &hb, &hi, &hf));
                     kk = kk.wrapping_add(1);
                     k_0 = k_0.wrapping_add(1);
                 }
                 (*subtable0).type_0 = ChainingType::Classified;
-                (*subtable0).c2rust_unnamed.c2rust_unnamed.bc = to_class(&hb);
-                (*subtable0).c2rust_unnamed.c2rust_unnamed.ic = to_class(&hi);
-                (*subtable0).c2rust_unnamed.c2rust_unnamed.fc = to_class(&hf);
+                (*ruleset).bc = to_class(&hb);
+                (*ruleset).ic = to_class(&hi);
+                (*ruleset).fc = to_class(&hf);
                 *classified_st = subtable0;
             }
         }

@@ -6,7 +6,7 @@ use crate::table::otl::coverage::{Coverage, otl_coverage_free};
 use crate::support::primitives::{TableId};
 
 
-use crate::table::otl::{ChainingSubtableElementInterface, ChainingRule, ChainingSubtable};
+use crate::table::otl::{ChainingSubtableElementInterface, ChainingRule, ChainingRuleSet, ChainingSubtable};
 
 pub unsafe extern "C" fn otl_init_chaining(mut subtable: *mut ChainingSubtable) {
     memset(
@@ -17,38 +17,26 @@ pub unsafe extern "C" fn otl_init_chaining(mut subtable: *mut ChainingSubtable) 
 }
 pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut ChainingSubtable) {
     if (*subtable).type_0 as u64 != 0 {
-        if !(*subtable).c2rust_unnamed.c2rust_unnamed.rules.is_null() {
-            let mut j: TableId = 0 as TableId;
-            while (j as ::core::ffi::c_int)
-                < (*subtable).c2rust_unnamed.c2rust_unnamed.rules_count as ::core::ffi::c_int
-            {
-                delete_rule(
-                    *(*subtable)
-                        .c2rust_unnamed
-                        .c2rust_unnamed
-                        .rules
-                        .offset(j as isize),
-                );
-                j = j.wrapping_add(1);
-            }
-            free((*subtable).c2rust_unnamed.c2rust_unnamed.rules as *mut ::core::ffi::c_void);
-            (*subtable).c2rust_unnamed.c2rust_unnamed.rules =
-                ::core::ptr::null_mut::<*mut ChainingRule>();
+        // Every creation site that sets `type_0` to `Poly`/`Classified`
+        // placement-constructs `.rules` (a valid, possibly-empty `Vec`) in
+        // the same breath -- see `read.rs`/`classifier.rs` -- so by the
+        // time `type_0 != Canonical` is observable here, `.rules` is
+        // always a valid `Vec`, never the raw zeroed bytes `create()`'s
+        // `memset` leaves behind. No `is_null()`-style guard needed.
+        let ruleset: *mut ChainingRuleSet =
+            &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
+        for rule_ptr in (*ruleset).rules.iter() {
+            delete_rule(*rule_ptr);
         }
-        if !(*subtable).c2rust_unnamed.c2rust_unnamed.bc.is_null() {
-            otl_class_def_free(
-                (*subtable).c2rust_unnamed.c2rust_unnamed.bc,
-            );
+        (*ruleset).rules = Vec::new();
+        if !(*ruleset).bc.is_null() {
+            otl_class_def_free((*ruleset).bc);
         }
-        if !(*subtable).c2rust_unnamed.c2rust_unnamed.ic.is_null() {
-            otl_class_def_free(
-                (*subtable).c2rust_unnamed.c2rust_unnamed.ic,
-            );
+        if !(*ruleset).ic.is_null() {
+            otl_class_def_free((*ruleset).ic);
         }
-        if !(*subtable).c2rust_unnamed.c2rust_unnamed.fc.is_null() {
-            otl_class_def_free(
-                (*subtable).c2rust_unnamed.c2rust_unnamed.fc,
-            );
+        if !(*ruleset).fc.is_null() {
+            otl_class_def_free((*ruleset).fc);
         }
     } else {
         close_rule(&raw mut (*subtable).c2rust_unnamed.rule as *mut ChainingRule);
