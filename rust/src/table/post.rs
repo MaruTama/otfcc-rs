@@ -9,8 +9,7 @@ use crate::support::primitives::{F16Dot16, FontFilePointer, GlyphId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::support::{NULL};
-use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
+use crate::support::glyph_order::{GlyphOrder};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getbool, json_obj_getnum};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_sds};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
@@ -651,49 +650,23 @@ pub unsafe extern "C" fn otfcc_build_post(
     bufwrite32b(buf, (*post).min_mem_type1);
     bufwrite32b(buf, (*post).max_mem_type1);
     if (*post).version == 0x20000 as F16Dot16 {
-        bufwrite16b(
-            buf,
-            (if !(*glyphorder).by_name.is_null() {
-                (*(*(*glyphorder).by_name).hh_name.tbl).num_items
-            } else {
-                0 as ::core::ffi::c_uint
-            }) as u16,
-        );
-        let mut s: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
-        let mut tmp: *mut GlyphOrderEntry = ::core::ptr::null_mut::<GlyphOrderEntry>();
-        s = (*glyphorder).by_name;
-        tmp = (if !(*glyphorder).by_name.is_null() {
-            (*(*glyphorder).by_name).hh_name.next
-        } else {
-            NULL
-        }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
-        while !s.is_null() {
+        // Walks `by_gid` (ascending gid order), not `by_name`: by the time
+        // this runs, `by_name`'s uthash chain had already been sorted by
+        // `order_glyphs` (json_reader.rs) into exactly this order and
+        // `by_gid` built by walking it -- so this reproduces the original's
+        // effective iteration order without depending on `HashMap`'s
+        // (unspecified) iteration order the way a literal `by_name` walk
+        // would have to.
+        bufwrite16b(buf, (*glyphorder).by_gid.len() as u16);
+        for (_, &s) in (*glyphorder).by_gid.iter() {
             bufwrite16b(
                 buf,
                 (258 as ::core::ffi::c_int + (*s).gid as ::core::ffi::c_int) as u16,
             );
-            s = tmp;
-            tmp = (if !tmp.is_null() {
-                (*tmp).hh_name.next
-            } else {
-                NULL
-            }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
         }
-        s = (*glyphorder).by_name;
-        tmp = (if !(*glyphorder).by_name.is_null() {
-            (*(*glyphorder).by_name).hh_name.next
-        } else {
-            NULL
-        }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
-        while !s.is_null() {
+        for (_, &s) in (*glyphorder).by_gid.iter() {
             bufwrite8(buf, sdslen((*s).name) as u8);
             bufwrite_sds(buf, (*s).name);
-            s = tmp;
-            tmp = (if !tmp.is_null() {
-                (*tmp).hh_name.next
-            } else {
-                NULL
-            }) as *mut GlyphOrderEntry as *mut GlyphOrderEntry;
         }
     }
     return buf;

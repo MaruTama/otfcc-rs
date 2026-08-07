@@ -2919,6 +2919,106 @@ on the other platform before a commit is trusted.
     a fresh `compare-with-c.sh` run on both (not just golden) given the
     above. **`libcff/subr.rs` is now fully converted.
     ~4 uthash instances remain.**
+- **uthash → `BTreeMap`/`HashMap`, twenty-fourth instance:
+  `GlyphOrder.by_gid`/`by_name` (`rust/src/support/glyph_order.rs`)**, the
+  largest and structurally most novel instance in this migration — a
+  genuine dual index, not a pair of independent hashes like `CmapTable`'s
+  `.unicodes`/`.uvs`. Every `GlyphOrderEntry` carried two simultaneous
+  uthash handles (`hh_id`, `hh_name`), threading the *same* heap-allocated
+  entry into two separate tables at once. Spans five files:
+  `support/glyph_order.rs`, `json_reader.rs`, `table/post.rs`,
+  `otf_reader/unconsolidate.rs`, `table/glyf.rs` — discovered by grep
+  *before* starting, not by build-error surprise this time.
+  - **Design confirmed before writing any code** (see the session's
+    discussion): entries stay individually heap-allocated and raw-pointer-
+    referenced, ownership model unchanged (deferred to Stage 6-4, matching
+    every prior instance) — `by_gid`/`by_name` are non-owning indices over
+    that one set of allocations, not owners in their own right. `by_gid:
+    BTreeMap<GlyphId, *mut GlyphOrderEntry>` — no `HASH_SORT` ever existed
+    on it, but `order_glyphs` (json_reader.rs) rebuilds it from scratch by
+    inserting gids 0, 1, 2, ... in ascending order after sorting
+    `by_name`, and the OTF-read path (`otfcc_set_glyph_order_by_gid`)
+    inserts in the gid order its callers already iterate in — a
+    `BTreeMap` reproduces the original's effective iteration order
+    exactly. `by_name: HashMap<Vec<u8>, *mut GlyphOrderEntry>` — only ever
+    point-looked-up by name day to day; the one place needing a different
+    order (`order_glyphs`, sorting by `(order_type, order_entry)`, *not*
+    alphabetically) already does its own explicit sort at the point of
+    use, the same "sort key != dedup key, defer to drain time" shape as
+    `LookupHash`/`FeatureHash`.
+  - **Confirmed the two tables can never diverge in membership before
+    touching the design**: every insertion path (`otfcc_set_glyph_order_by_gid`,
+    `otfcc_set_glyph_order_by_name`) inserts into both tables in the same
+    call; `set_order_by_name` (json_reader.rs, the JSON-parse-time
+    registration path) touches `by_name` only and leaves `by_gid` untouched
+    until `order_glyphs` rebuilds it wholesale at the end — so `by_gid`
+    never accumulates placeholder/colliding gids that a `BTreeMap` could
+    silently lose, the one scenario that would have broken this design.
+  - **`dispose_glyph_order` walks `by_gid` once, frees each entry, then
+    clears both maps** — matching the original's single-`HASH_ITER`-frees-
+    both-indices shape, but simpler: `by_name` never owned anything of its
+    own, so clearing it needs no walk at all.
+  - **`.copy`/`.move_0`/`.replace`/`.copy_replace` deleted from
+    `GlyphOrderPackage`, confirmed dead first**: all four were raw
+    `memcpy`s of the whole `GlyphOrder` (incompatible with owned
+    containers regardless), and crate-wide grep found none of the four
+    called anywhere outside the vtable's own static initializer and each
+    other — same shape as `table_cmap_copy`/`CFF_I_SUBR_GRAPH`'s dead
+    slots. `.init`/`.dispose` kept (reachable indirectly through
+    `.create`/`.free`, which *are* called externally, 594 times for
+    `.set_by_gid` alone via `support/aglfn.rs`'s AGLFN static table).
+  - **`otfcc_glyph_order_create`'s `malloc` needed no `calloc` fix** (the
+    gasp/CFF-subr-graph trap): `init_glyph_order` was rewritten to
+    `ptr::write` (placement-construct) rather than a plain field
+    assignment, since its one live caller always hands it fresh,
+    uninitialized memory — matching `cmap.rs`'s `init_cmap` precedent, and
+    sidestepping the malloc/calloc question entirely rather than auditing
+    for it.
+  - **Found and fixed a second pre-existing C bug this session** (first
+    was `cmap.c`'s UVS type confusion): `otfcc_gordConsolidateHandle`
+    (`c/lib/support/glyph-order.c:83`) reads
+    `HASH_FIND(hhName, go->byGID, &(h->index), sizeof(glyphid_t), t)` —
+    the `hhName` selector on a search of `byGID` by a *gid* key. Since a
+    glyph name is essentially never exactly `sizeof(glyphid_t)` (2) bytes
+    long, this fallback search (meant to recover a stale `Consolidated`-
+    state handle by index when its name no longer resolves) could never
+    find anything — confirmed by finding the exact analogous, *correctly*
+    typed search one branch down for `HANDLE_STATE_INDEX`
+    (`otfcc_gordNameAFieldShared`, `hhID`/`byGID`), which is what this
+    line was clearly meant to call. Fixed to a proper `by_gid.get(&h.index)`
+    lookup. Confirmed via a full `compare-with-c.sh` run on both platforms
+    that no committed payload exercises the diverging path (byte-identical
+    to the still-buggy C throughout), so this is a correctness fix with no
+    observable effect on any current payload — same category as the
+    `LookupHash.alias`/`cmap.c` UVS fixes earlier in this migration.
+  - **`table/post.rs`'s format-2.0 name table required rethinking one
+    walk, not just retyping it**: `otfcc_build_post` originally walked
+    `by_name`'s uthash chain directly for output, relying on that chain
+    still being in the `(order_type, order_entry)` order `order_glyphs`
+    had sorted it into earlier in the pipeline (in a different file) — an
+    order this migration's `by_name: HashMap` does not and cannot
+    preserve. Since that effective order is, by construction, the same as
+    ascending gid order (gids were assigned 0, 1, 2, ... in exactly that
+    traversal), rewrote the walk over `by_gid.iter()` instead, which is
+    definitionally gid-ascending and reproduces the same byte sequence
+    without leaning on `by_name`'s vanished implicit ordering.
+    `otf_reader/unconsolidate.rs`'s AGLFN-derived-name registration loop
+    (walking a *different* `GlyphOrder`, `post_name_map.by_gid`, to
+    register names into the font's real `glyph_order`) needed no such
+    rethinking — its two tables' entries have distinct, non-interacting
+    gid spaces, so plain `.iter()` order was never load-bearing there.
+  - **Real coverage**: every payload with any named glyphs exercises both
+    tables end to end (`otfcc_set_glyph_order_by_name`/`_by_gid`,
+    `order_glyphs`, `otfcc_gord_consolidate_handle`'s `Name`/`Index`
+    branches, `otfcc_build_post`'s format-2.0 walk for `KRName-Regular.otf`
+    specifically, since it's the one payload with a real `post` v2 table)
+    — all of them, so no new synthetic payload was needed. All payloads
+    stayed byte-identical to golden *and* to a freshly built C toolchain
+    on both platforms; no golden regeneration needed.
+  - Verified with the standard full pipeline on both macOS and Linux, plus
+    a fresh `compare-with-c.sh` run on both given the scope and the
+    deliberate bug fix. **`support/glyph_order.rs` is now fully converted.
+    ~3 uthash instances remain.**
 - **Rust naming for the whole crate is done** (types, enum variants,
   constants, statics, locals, functions, struct fields and modules — see
   each above) and all three naming `allow`s are gone from `lib.rs`. Stage 4
