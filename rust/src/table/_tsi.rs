@@ -7,12 +7,11 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_sds};
+use crate::support::buffer::{bufnew, bufnwrite8, bufwrite16b, bufwrite32b};
 use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdslen, sdsnewlen};
+use crate::vendor::sds::{sdsempty, sdsnewlen};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -28,29 +27,22 @@ pub enum TsiEntryType {
 pub struct TsiEntry {
     pub type_0: TsiEntryType,
     pub glyph: GlyphHandle,
-    pub content: SdsRaw,
+    pub content: Vec<u8>,
 }
 pub type TsiTable = Vec<TsiEntry>;
-// `TsiEntry` derives only `Clone`, not `Copy` (it embeds `GlyphHandle`, which
-// now owns its `sds` name for real -- `Handle`'s `Drop`/`Clone`, Stage 6-4's
-// `Handle` pilot -- and a derived `Clone` would still only alias `content`,
-// the raw `sds` this struct owns directly). `TABLE_I_TSI.copy` (whole-table
-// clone) was dead before this conversion and is deleted below, not ported --
-// the one real duplicate this file needs is per-element (`tsi_entry_dup`,
-// used once from `consolidate.rs`), not a `Vec::clone()`.
+// `TsiEntry` derives only `Clone`, not `Copy` (it embeds `GlyphHandle`,
+// which owns its `sds` name for real -- `Handle`'s `Drop`/`Clone`, Stage
+// 6-4's `Handle` pilot -- and `content` is now a real `Vec<u8>`, also not
+// `Copy`). `TABLE_I_TSI.copy` (whole-table clone) was dead before this
+// conversion and is deleted below, not ported -- the one real duplicate
+// this file needs is per-element (`tsi_entry_dup`, used once from
+// `consolidate.rs`), not a `Vec::clone()`.
 pub(crate) unsafe fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
     TsiEntry {
         type_0: e.type_0,
         glyph: otfcc_handle_dup(e.glyph.clone()),
-        content: sdsdup(e.content),
+        content: e.content.clone(),
     }
-}
-// Only `content` needs manual freeing here: it's a raw `sds`, not a
-// `Handle`, so it has no automatic drop glue. `.glyph`'s name frees itself
-// when the entry is dropped.
-unsafe fn dispose_tsi_entry(e: *mut TsiEntry) {
-    sdsfree((*e).content);
-    (*e).content = ::core::ptr::null_mut::<::core::ffi::c_char>();
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -58,23 +50,18 @@ pub struct TsiBuildTarget {
     pub index_part: *mut Buffer,
     pub text_part: *mut Buffer,
 }
-// `table_tsi_dispose`'s job: dispose every entry's `Handle` + `content` sds
-// before the backing `Vec` itself is dropped/reset -- same convention as
-// `table_name_dispose`/`clear_lig_carets`.
-unsafe fn table_tsi_dispose(arr: *mut TsiTable) {
-    if arr.is_null() {
-        return;
-    }
-    for e in (*arr).iter_mut() {
-        dispose_tsi_entry(e as *mut TsiEntry);
-    }
-    (*arr).clear();
-}
+// `.glyph` (a `Handle`) and `.content` (now a `Vec<u8>`) both have real
+// drop glue on their own, so a `TsiEntry` (and therefore a `TsiTable`)
+// tears itself down correctly with no manual per-element walk needed --
+// `drop_in_place` runs it through the raw pointer the malloc'd `TsiTable`
+// is behind, same as `table_tsi_free`'s siblings elsewhere in this crate
+// now that `close_rule`'s equivalent for `ChainingRule` established the
+// pattern.
 pub(crate) unsafe fn table_tsi_free(x: *mut TsiTable) {
     if x.is_null() {
         return;
     }
-    table_tsi_dispose(x);
+    ::core::ptr::drop_in_place(x);
     free(x as *mut ::core::ffi::c_void);
 }
 pub(crate) unsafe fn table_tsi_create() -> *mut TsiTable {
@@ -219,7 +206,7 @@ pub unsafe extern "C" fn otfcc_read_tsi(
                     index: 0,
                     name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
                 },
-                content: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                content: Vec::new(),
             };
             match gid as ::core::ffi::c_int {
                 65530 => {
@@ -241,10 +228,11 @@ pub unsafe extern "C" fn otfcc_read_tsi(
                     ) as GlyphHandle;
                 }
             }
-            entry.content = sdsnewlen(
-                text_part.data.offset(text_offset as isize) as *const ::core::ffi::c_void,
+            entry.content = ::core::slice::from_raw_parts(
+                text_part.data.offset(text_offset as isize),
                 text_length as usize,
-            );
+            )
+            .to_vec();
             (*tsi).push(entry);
         }
         j = j.wrapping_add(1);
@@ -283,8 +271,8 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
                         _glyphs,
                         (*entry).glyph.name as *const ::core::ffi::c_char,
                         json_string_new_length(
-                            sdslen((*entry).content) as ::core::ffi::c_uint,
-                            (*entry).content as *const ::core::ffi::c_char,
+                            (*entry).content.len() as ::core::ffi::c_uint,
+                            (*entry).content.as_ptr() as *const ::core::ffi::c_char,
                         ),
                     );
                 }
@@ -326,8 +314,8 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
                         _extra,
                         extra_key,
                         json_string_new_length(
-                            sdslen((*entry_0).content) as ::core::ffi::c_uint,
-                            (*entry_0).content as *const ::core::ffi::c_char,
+                            (*entry_0).content.len() as ::core::ffi::c_uint,
+                            (*entry_0).content.as_ptr() as *const ::core::ffi::c_char,
                         ),
                     );
                 }
@@ -394,10 +382,11 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                             glyph: handle_from_name(
                                 sdsnewlen(_gid as *const ::core::ffi::c_void, _gidlen),
                             ) as GlyphHandle,
-                            content: sdsnewlen(
-                                (*_content).u.string.ptr as *const ::core::ffi::c_void,
+                            content: ::core::slice::from_raw_parts(
+                                (*_content).u.string.ptr as *const u8,
                                 (*_content).u.string.length as usize,
-                            ),
+                            )
+                            .to_vec(),
                         });
                 }
                 j = j.wrapping_add(1);
@@ -424,10 +413,11 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                         (*tsi).push(TsiEntry {
                                 type_0: TsiEntryType::Cvt,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
-                                content: sdsnewlen(
-                                    (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
+                                content: ::core::slice::from_raw_parts(
+                                    (*_content_0).u.string.ptr as *const u8,
                                     (*_content_0).u.string.length as usize,
-                                ),
+                                )
+                                .to_vec(),
                             });
                     } else if strcmp(_key, b"fpgm\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
@@ -435,10 +425,11 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                         (*tsi).push(TsiEntry {
                                 type_0: TsiEntryType::Fpgm,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
-                                content: sdsnewlen(
-                                    (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
+                                content: ::core::slice::from_raw_parts(
+                                    (*_content_0).u.string.ptr as *const u8,
                                     (*_content_0).u.string.length as usize,
-                                ),
+                                )
+                                .to_vec(),
                             });
                     } else if strcmp(_key, b"prep\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
@@ -446,10 +437,11 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                         (*tsi).push(TsiEntry {
                                 type_0: TsiEntryType::Prep,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
-                                content: sdsnewlen(
-                                    (*_content_0).u.string.ptr as *const ::core::ffi::c_void,
+                                content: ::core::slice::from_raw_parts(
+                                    (*_content_0).u.string.ptr as *const u8,
                                     (*_content_0).u.string.length as usize,
-                                ),
+                                )
+                                .to_vec(),
                             });
                     }
                 }
@@ -489,7 +481,7 @@ unsafe extern "C" fn push_tsi_entries(
         while keep != 0 {
             if !((*entry).type_0 as ::core::ffi::c_uint != type_0 as ::core::ffi::c_uint) {
                 let mut length_sofar: usize = (*(*target).text_part).cursor;
-                bufwrite_sds((*target).text_part, (*entry).content);
+                bufnwrite8((*target).text_part, &(*entry).content);
                 let mut length_after: usize = (*(*target).text_part).cursor;
                 bufwrite16b((*target).index_part, propergid(entry, type_0) as u16);
                 if length_after.wrapping_sub(length_sofar) < 0x8000 as usize {
