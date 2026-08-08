@@ -18,7 +18,7 @@ use crate::support::{NULL};
 use crate::bk::bkblock::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::support::buffer::{buffree, buflen, bufnew, bufseek, bufwrite16b, bufwrite24b, bufwrite32b, bufwrite8, bufwrite_buf};
-use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
+use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_from_bytes};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsfromlonglong, sdslen, sdsnewlen};
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
@@ -693,7 +693,7 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
         if !(*table).unicodes.is_empty() {
             let mut cmap: *mut JsonValue = json_object_new((*table).unicodes.len());
             for (&unicode, glyph) in (*table).unicodes.iter() {
-                if !glyph.name.is_null() {
+                if !glyph.name.is_empty() {
                     let mut key: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
                     if (*options).decimal_cmap {
                         key = sdsfromlonglong(unicode as ::core::ffi::c_longlong);
@@ -703,10 +703,7 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
                     json_object_push(
                         cmap,
                         key as *const ::core::ffi::c_char,
-                        json_string_new_length(
-                            sdslen(glyph.name) as ::core::ffi::c_uint,
-                            glyph.name as *const ::core::ffi::c_char,
-                        ),
+                        json_string_new_from_bytes(&glyph.name),
                     );
                     sdsfree(key);
                 }
@@ -720,7 +717,7 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
         if !(*table).uvs.is_empty() {
             let mut uvs: *mut JsonValue = json_object_new((*table).uvs.len());
             for (key, glyph) in (*table).uvs.iter() {
-                if !glyph.name.is_null() {
+                if !glyph.name.is_empty() {
                     let mut key_0: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
                     if (*options).decimal_cmap {
                         key_0 = crate::sdsbuild!(
@@ -741,10 +738,7 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
                     json_object_push(
                         uvs,
                         key_0 as *const ::core::ffi::c_char,
-                        json_string_new_length(
-                            sdslen(glyph.name) as ::core::ffi::c_uint,
-                            glyph.name as *const ::core::ffi::c_char,
-                        ),
+                        json_string_new_from_bytes(&glyph.name),
                     );
                     sdsfree(key_0);
                 }
@@ -818,7 +812,7 @@ unsafe extern "C" fn parse_cmap_unicodes(
                         b"U+",
                         Hex4Upper(unicode as u32),
                         b" is already mapped to ",
-                        (*current_map).name,
+                        &(*current_map).name,
                         b". Assignment to ",
                         gname,
                         b" is ignored.",
@@ -892,7 +886,7 @@ unsafe extern "C" fn parse_cmap_uvs(
                         b" U+",
                         Hex4Upper((k.selector) as u32),
                         b" is already mapped to ",
-                        (*current_map).name,
+                        &(*current_map).name,
                         b". Assignment to ",
                         gname,
                         b" is ignored.",
@@ -1207,7 +1201,7 @@ unsafe extern "C" fn build_format14_for_selector(
     for (key, glyph) in (*cmap).uvs.iter() {
         let mut u: Unicode = key.unicode as Unicode;
         if !(key.selector != selector || u >= MAX_UNICODE as Unicode) {
-            if !glyph.name.is_null() {
+            if !glyph.name.is_empty() {
                 let mut uvs_gid: GlyphId = glyph.index;
                 let mut g: *mut GlyphHandle = TABLE_I_CMAP
                     .lookup

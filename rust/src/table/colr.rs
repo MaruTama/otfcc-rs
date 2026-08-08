@@ -15,7 +15,7 @@ use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_p
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::bk::bkgraph::{bk_build_block};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_from_bytes};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 #[derive(Clone)]
 #[repr(C)]
@@ -159,7 +159,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                         glyph: Handle {
                                             state: HandleState::Empty,
                                             index: 0,
-                                            name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                                            name: Vec::new(),
                                         },
                                         layers: Vec::new(),
                                     };
@@ -276,7 +276,7 @@ pub unsafe extern "C" fn otfcc_dump_colr(
                 json_object_push(
                     _map,
                     b"from\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_string_new(mapping.glyph.name as *const ::core::ffi::c_char),
+                    json_string_new_from_bytes(&mapping.glyph.name),
                 );
                 let mut _layers: *mut JsonValue = json_array_new(mapping.layers.len());
                 let mut __caryll_index_0: usize = 0 as usize;
@@ -288,7 +288,7 @@ pub unsafe extern "C" fn otfcc_dump_colr(
                         json_object_push(
                             _layer,
                             b"layer\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_string_new(layer.glyph.name as *const ::core::ffi::c_char),
+                            json_string_new_from_bytes(&layer.glyph.name),
                         );
                         json_object_push(
                             _layer,
@@ -367,7 +367,7 @@ pub unsafe extern "C" fn otfcc_parse_colr(
                         glyph: Handle {
                             state: HandleState::Empty,
                             index: 0,
-                            name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                            name: Vec::new(),
                         },
                         layers: Vec::new(),
                     };

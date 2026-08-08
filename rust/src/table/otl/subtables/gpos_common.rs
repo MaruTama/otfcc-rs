@@ -85,7 +85,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
             glyph: Handle {
                 state: HandleState::Empty,
                 index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                name: Vec::new(),
             },
             mark_class: 0,
             anchor: Anchor {

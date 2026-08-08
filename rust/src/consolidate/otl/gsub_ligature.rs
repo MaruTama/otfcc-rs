@@ -72,7 +72,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (&(*subtable))[k as usize].to.name,
+                    &(&(*subtable))[k as usize].to.name,
                     b".\n",
                 ),
             );
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignoring empty ligature substitution to glyph /",
-                        (&(*subtable))[k as usize].to.name,
+                        &(&(*subtable))[k as usize].to.name,
                         b".\n",
                     ),
                 );

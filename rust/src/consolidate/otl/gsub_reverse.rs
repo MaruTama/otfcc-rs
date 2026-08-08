@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::table::otl::coverage::{Coverage};
-use crate::support::handle::{handle_from_consolidated, GlyphHandle};
+use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
@@ -12,7 +12,7 @@ use crate::font::caryll_font::{Font};
 use crate::table::otl::{Subtable, GsubReverseSubtable, OtlTable};
 
 use crate::consolidate::otl::common::{fontop_consolidate_coverage};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, SdsRaw};
+use crate::vendor::sds::{sdsempty};
 
 pub unsafe extern "C" fn consolidate_gsub_reverse(
     mut font: *mut Font,
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     // freed memory. Owned copies collected up front, with `from`/`to`
     // rebuilt from scratch afterward, sidestep the ordering hazard
     // entirely instead of preserving it.
-    let mut seen: std::collections::BTreeMap<i32, (SdsRaw, i32, SdsRaw)> =
+    let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, i32, Vec<u8>)> =
         std::collections::BTreeMap::new();
     let n: usize = (*from).len().min((*to).len());
     let mut k: usize = 0;
@@ -71,14 +71,14 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
-                    (&(*from))[k].name,
+                    &(&(*from))[k].name,
                     b".\n",
                 ),
             );
         } else {
             let toid: i32 = (&(*to))[k].index as i32;
-            let fromname: SdsRaw = sdsdup((&(*from))[k].name);
-            let toname: SdsRaw = sdsdup((&(*to))[k].name);
+            let fromname: Vec<u8> = (&(*from))[k].name.clone();
+            let toname: Vec<u8> = (&(*to))[k].name.clone();
             seen.insert(fromid, (fromname, toid, toname));
         }
         k = k.wrapping_add(1);
@@ -100,10 +100,16 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     *from = Vec::new();
     *to = Vec::new();
     for (fromid, (fromname, toid, toname)) in seen {
-        (*from).push(handle_from_consolidated(fromid as GlyphId, fromname) as GlyphHandle);
-        (*to).push(handle_from_consolidated(toid as GlyphId, toname) as GlyphHandle);
-        sdsfree(fromname);
-        sdsfree(toname);
+        (*from).push(Handle {
+            state: HandleState::Consolidated,
+            index: fromid as GlyphId,
+            name: fromname,
+        } as GlyphHandle);
+        (*to).push(Handle {
+            state: HandleState::Consolidated,
+            index: toid as GlyphId,
+            name: toname,
+        } as GlyphHandle);
     }
     return false;
 }

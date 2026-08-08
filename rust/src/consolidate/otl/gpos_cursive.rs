@@ -1,12 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::handle::{handle_from_consolidated, GlyphHandle};
+use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::font::caryll_font::{Font};
 
 
@@ -40,7 +39,7 @@ use crate::table::otl::{Anchor, GposCursiveEntry, Subtable, GposCursiveSubtable,
 
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
+use crate::vendor::sds::{sdsempty};
 
 
 
@@ -61,7 +60,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
     // `consolidate_gpos_single`'s uthash -> `BTreeMap` rewrite
     // (rust/README.md), with `(enter, exit): (Anchor, Anchor)` in place of
     // that one's single `PositionValue`.
-    let mut seen: std::collections::BTreeMap<i32, (SdsRaw, Anchor, Anchor)> =
+    let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, Anchor, Anchor)> =
         std::collections::BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).len() {
@@ -80,7 +79,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (&(*subtable))[k as usize].target.name,
+                    &(&(*subtable))[k as usize].target.name,
                     b".\n",
                 ),
             );
@@ -96,12 +95,12 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Double-mapping a glyph in a cursive positioning /",
-                        (&(*subtable))[k as usize].target.name,
+                        &(&(*subtable))[k as usize].target.name,
                         b".\n",
                     ),
                 );
             } else {
-                let fromname: SdsRaw = sdsdup((&(*subtable))[k as usize].target.name);
+                let fromname: Vec<u8> = (&(*subtable))[k as usize].target.name.clone();
                 let enter: Anchor = (&(*subtable))[k as usize].enter;
                 let exit: Anchor = (&(*subtable))[k as usize].exit;
                 seen.insert(fromid, (fromname, enter, exit));
@@ -112,11 +111,14 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
     dispose_gpos_cursive_subtable(subtable);
     for (fromid, (fromname, enter, exit)) in seen {
         (*subtable).push(GposCursiveEntry {
-            target: handle_from_consolidated(fromid as GlyphId, fromname) as GlyphHandle,
+            target: Handle {
+                state: HandleState::Consolidated,
+                index: fromid as GlyphId,
+                name: fromname,
+            } as GlyphHandle,
             enter,
             exit,
         });
-        sdsfree(fromname);
     }
     return (*subtable).len() == 0 as usize;
 }

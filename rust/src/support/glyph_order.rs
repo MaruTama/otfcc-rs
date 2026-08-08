@@ -199,8 +199,7 @@ unsafe extern "C" fn otfcc_gord_consolidate_handle(
     mut h: *mut GlyphHandle,
 ) -> bool {
     if (*h).state == HandleState::Consolidated {
-        let name_bytes =
-            std::slice::from_raw_parts((*h).name as *const u8, sdslen((*h).name)).to_vec();
+        let name_bytes = (*h).name.clone();
         if let Some(&t) = (*go).by_name.get(&name_bytes) {
             handle_consolidate_to(h as *mut Handle, (*t).gid, (*t).name);
             return true;
@@ -219,8 +218,7 @@ unsafe extern "C" fn otfcc_gord_consolidate_handle(
             return true;
         }
     } else if (*h).state == HandleState::Name {
-        let name_bytes =
-            std::slice::from_raw_parts((*h).name as *const u8, sdslen((*h).name)).to_vec();
+        let name_bytes = (*h).name.clone();
         if let Some(&t) = (*go).by_name.get(&name_bytes) {
             handle_consolidate_to(h as *mut Handle, (*t).gid, (*t).name);
             return true;

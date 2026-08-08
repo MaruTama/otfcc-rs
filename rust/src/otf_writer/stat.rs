@@ -169,7 +169,7 @@ pub unsafe extern "C" fn stat_single_glyph(
             glyph: Handle {
                 state: HandleState::Empty,
                 index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                name: Vec::new(),
             },
             a: 0.,
             b: 0.,
@@ -286,7 +286,7 @@ pub unsafe extern "C" fn stat_glyf(mut font: *mut Font, mut options: *const Opti
             glyph: Handle {
                 state: HandleState::Empty,
                 index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                name: Vec::new(),
             },
             a: 0.,
             b: 0.,

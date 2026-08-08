@@ -10,7 +10,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite_bufdel};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_string_new};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_string_new_from_bytes};
 use crate::vendor::sds::{sdsnewlen};
 /// A glyph coverage set: C by way of c2rust had this as a hand-rolled
 /// `malloc`/`realloc` array (`num_glyphs`/`capacity`/`glyphs: *mut
@@ -51,6 +51,10 @@ pub(crate) unsafe extern "C" fn otl_coverage_dispose(x: *mut Coverage) {
     // redundant, the same finding as the `Handle` Drop/Clone PR.
     *x = Vec::new();
 }
+// `Handle` (aliased `GlyphHandle`) now owns a `Vec<u8>` name, so passing it
+// by value trips `improper_ctypes_definitions`; this is never called across
+// a real FFI boundary (c2rust artifact, not `#[no_mangle]`).
+#[allow(improper_ctypes_definitions)]
 pub(crate) unsafe extern "C" fn push_to_coverage(coverage: *mut Coverage, h: GlyphHandle) {
     (*coverage).push(h);
 }
@@ -163,7 +167,7 @@ pub(crate) unsafe extern "C" fn dump_coverage(coverage: *const Coverage) -> *mut
     for j in 0..(*coverage).len() {
         json_array_push(
             a,
-            json_string_new((&(*coverage))[j].name as *const ::core::ffi::c_char),
+            json_string_new_from_bytes(&(&(*coverage))[j].name),
         );
     }
     return preserialize(a);
@@ -332,7 +336,7 @@ pub(crate) unsafe extern "C" fn shrink_coverage(coverage: *mut Coverage, dosort:
     // original leaked that name; `truncate` doesn't.
     let mut k: usize = 0;
     for j in 0..(*coverage).len() {
-        if !(&(*coverage))[j].name.is_null() {
+        if !(&(*coverage))[j].name.is_empty() {
             let elem = (&(*coverage))[j].clone();
             (&mut (*coverage))[k] = elem;
             k += 1;

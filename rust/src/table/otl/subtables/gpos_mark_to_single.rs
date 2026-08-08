@@ -21,7 +21,7 @@ use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, dispose_mark_array, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
-use crate::vendor::json_builder::{json_integer_new, json_object_new, json_object_push, json_object_push_length, json_string_new_length};
+use crate::vendor::json_builder::{json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsfree, sdslen, sdsnewlen};
 unsafe extern "C" fn delete_base_array_item(mut entry: *mut BaseRecord) {
     otfcc_handle_dispose(&raw mut (*entry).glyph);
@@ -210,10 +210,9 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
             b"y\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new((&(*subtable).mark_array)[j as usize].anchor.y as i64),
         );
-        json_object_push(
+        json_object_push_bytes_key(
             _marks,
-            (&(*subtable).mark_array)[j as usize].glyph.name
-                as *const ::core::ffi::c_char,
+            &(&(*subtable).mark_array)[j as usize].glyph.name,
             preserialize(_mark),
         );
         j = j.wrapping_add(1);
@@ -260,11 +259,9 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
             }
             k = k.wrapping_add(1);
         }
-        json_object_push(
+        json_object_push_bytes_key(
             _bases,
-            (&(*subtable).base_array)[j_0 as usize]
-                .glyph
-                .name as *const ::core::ffi::c_char,
+            &(&(*subtable).base_array)[j_0 as usize].glyph.name,
             preserialize(_base),
         );
         j_0 = j_0.wrapping_add(1);
@@ -296,7 +293,7 @@ unsafe extern "C" fn parse_bases(
             glyph: Handle {
                 state: HandleState::Empty,
                 index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                name: Vec::new(),
             },
             anchors: ::core::ptr::null_mut::<Anchor>(),
         };

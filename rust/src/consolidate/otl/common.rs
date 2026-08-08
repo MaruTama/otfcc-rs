@@ -68,7 +68,7 @@ pub unsafe extern "C" fn fontop_consolidate_coverage(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (*h).name,
+                    &(*h).name,
                     b".\n",
                 ),
             );
@@ -102,7 +102,7 @@ pub unsafe extern "C" fn fontop_consolidate_class_def(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (*h).name,
+                    &(*h).name,
                     b".\n",
                 ),
             );

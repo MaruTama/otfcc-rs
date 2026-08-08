@@ -9,7 +9,6 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, Pos, ShapeId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
@@ -18,7 +17,7 @@ use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -144,7 +143,7 @@ unsafe extern "C" fn read_lig_caret_record(
         glyph: Handle {
             state: HandleState::Empty,
             index: 0,
-            name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+            name: Vec::new(),
         },
         carets: Vec::new(),
     };
@@ -330,7 +329,7 @@ unsafe extern "C" fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut Js
     let mut _carets: *mut JsonValue = json_object_new(lig_carets.len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < lig_carets.len() {
-        let mut name: SdsRaw = lig_carets[j as usize].glyph.name;
+        let name: &[u8] = &lig_carets[j as usize].glyph.name;
         let carets: &Vec<CaretValue> = &lig_carets[j as usize].carets;
         let mut _record: *mut JsonValue = json_array_new(carets.len());
         let mut k: GlyphId = 0 as GlyphId;
@@ -352,11 +351,7 @@ unsafe extern "C" fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut Js
             json_array_push(_record, _cv);
             k = k.wrapping_add(1);
         }
-        json_object_push(
-            _carets,
-            name as *const ::core::ffi::c_char,
-            preserialize(_record),
-        );
+        json_object_push_bytes_key(_carets, name, preserialize(_record));
         j = j.wrapping_add(1);
     }
     return _carets;
@@ -430,7 +425,7 @@ unsafe extern "C" fn lig_caret_from_json(
                 glyph: Handle {
                     state: HandleState::Empty,
                     index: 0,
-                    name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                    name: Vec::new(),
                 },
                 carets: Vec::new(),
             };

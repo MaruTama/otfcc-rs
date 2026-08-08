@@ -10,7 +10,7 @@ use crate::support::primitives::{GlyphId};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufnwrite8, bufwrite16b, bufwrite32b};
-use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
+use crate::vendor::json_builder::{json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -204,7 +204,7 @@ pub unsafe extern "C" fn otfcc_read_tsi(
                 glyph: Handle {
                     state: HandleState::Empty,
                     index: 0,
-                    name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                    name: Vec::new(),
                 },
                 content: Vec::new(),
             };
@@ -267,9 +267,9 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
                 if !((*entry).type_0 as ::core::ffi::c_uint
                     != TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint)
                 {
-                    json_object_push(
+                    json_object_push_bytes_key(
                         _glyphs,
-                        (*entry).glyph.name as *const ::core::ffi::c_char,
+                        &(*entry).glyph.name,
                         json_string_new_length(
                             (*entry).content.len() as ::core::ffi::c_uint,
                             (*entry).content.as_ptr() as *const ::core::ffi::c_char,
