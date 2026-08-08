@@ -18,8 +18,8 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdslen, sdsnewlen};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_from_bytes};
+use crate::vendor::sds::{sdsnewlen};
 unsafe extern "C" fn delete_gsub_ligature_entry(mut entry: *mut GsubLigatureEntry) {
     otfcc_handle_dispose(&raw mut (*entry).to);
     otl_coverage_free((*entry).from);
@@ -264,10 +264,7 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(
         json_object_push(
             entry,
             b"to\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new_length(
-                sdslen((&(*subtable))[j as usize].to.name) as ::core::ffi::c_uint,
-                (&(*subtable))[j as usize].to.name as *const ::core::ffi::c_char,
-            ),
+            json_string_new_from_bytes(&(&(*subtable))[j as usize].to.name),
         );
         json_array_push(st, preserialize(entry));
         j = j.wrapping_add(1);

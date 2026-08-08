@@ -19,7 +19,7 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::vendor::json_builder::{json_object_new, json_object_push};
+use crate::vendor::json_builder::{json_object_new, json_object_push_bytes_key};
 use crate::vendor::sds::{sdsnewlen};
 unsafe extern "C" fn delete_gsub_multi_entry(mut entry: *mut GsubMultiEntry) {
     otfcc_handle_dispose(&raw mut (*entry).from);
@@ -123,9 +123,9 @@ pub unsafe extern "C" fn otl_gsub_dump_multi(
     let st: *mut JsonValue = json_object_new((*subtable).len());
     for j in 0..(*subtable).len() as GlyphId {
         let entry = &(&(*subtable))[j as usize];
-        json_object_push(
+        json_object_push_bytes_key(
             st,
-            (*entry).from.name as *const ::core::ffi::c_char,
+            &(*entry).from.name,
             OTL_I_COVERAGE.dump.expect("non-null function pointer")((*entry).to),
         );
     }

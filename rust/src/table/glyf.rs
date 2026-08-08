@@ -27,7 +27,7 @@ use crate::support::json_funcs::{json_boolof, json_new_position, json_obj_get, j
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::vendor::json::{json_value_free};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new_from_bytes, json_string_new_length};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdslen, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
@@ -288,7 +288,7 @@ unsafe extern "C" fn glyf_component_reference_empty() -> ComponentReference {
         glyph: Handle {
             state: HandleState::Empty,
             index: 0,
-            name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+            name: Vec::new(),
         },
         a: 0.,
         b: 0.,
@@ -441,10 +441,7 @@ unsafe extern "C" fn glyf_glyph_dump_references(
         json_object_push(
             ref_0,
             b"glyph\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new_length(
-                sdslen((*r).glyph.name) as ::core::ffi::c_uint,
-                (*r).glyph.name as *const ::core::ffi::c_char,
-            ),
+            json_string_new_from_bytes(&(*r).glyph.name),
         );
         json_object_push(
             ref_0,
@@ -639,7 +636,7 @@ unsafe extern "C" fn glyf_dump_glyph(
         json_object_push(
             glyph,
             b"CFF_fdSelect\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new((*g).fd_select.name as *const ::core::ffi::c_char),
+            json_string_new_from_bytes(&(*g).fd_select.name),
         );
         json_object_push(
             glyph,
@@ -925,7 +922,7 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *mut JsonValue) -> Compon
             ) as ShapeId;
         }
     } else {
-        ref_0.glyph.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
+        ref_0.glyph.name = Vec::new();
         I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.x,
             I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)

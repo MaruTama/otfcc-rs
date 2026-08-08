@@ -1,7 +1,14 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+// `Handle` now owns a `Vec<u8>` name, so every `extern "C" fn` here that
+// passes/returns `Handle` by value trips `improper_ctypes_definitions` --
+// none of these are `#[no_mangle]` (the crate's only real FFI surface is
+// the 4 symbols in `ffi/dll.rs`), so `extern "C"` here is c2rust's calling-
+// convention residue, not real FFI. Same rationale as `CaretValueRecord`/
+// `GsubLigatureSubtable` elsewhere in the crate.
+#![allow(improper_ctypes_definitions)]
 use crate::support::primitives::{GlyphId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::sds::{sdsdup, sdsfree};
+use crate::vendor::sds::{sdsfree, sdslen};
 
 /// Which of `Handle`'s fields is meaningful.
 ///
@@ -23,11 +30,20 @@ pub enum HandleState {
     Name = 2,
     Consolidated = 3,
 }
+/// `name` was a raw `sds` (`SdsRaw`) since the `Handle` pilot (PR #68) gave
+/// it real `Drop`/`Clone` wrapped around `sdsfree`/`sdsdup` -- this PR
+/// replaces the storage itself with `Vec<u8>` (not `String`: glyph/lookup
+/// names come from font data and are not guaranteed valid UTF-8). `state`/
+/// `index` are already `Copy`, so `#[derive(Clone)]` now composes
+/// correctly on its own -- the manual `Clone`/`Drop` impls this struct
+/// used to need (wrapping `sdsdup`/`sdsfree`) are gone; `Vec<u8>` already
+/// has both.
+#[derive(Clone)]
 #[repr(C)]
 pub struct Handle {
     pub state: HandleState,
     pub index: GlyphId,
-    pub name: SdsRaw,
+    pub name: Vec<u8>,
 }
 pub type GlyphHandle = Handle;
 pub type LookupHandle = Handle;
@@ -36,44 +52,7 @@ impl Default for Handle {
         Handle {
             state: HandleState::Empty,
             index: 0,
-            name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
-        }
-    }
-}
-/// Deep copy: duplicates `name` via `sdsdup` rather than aliasing the
-/// pointer, so a `Handle` can never end up with two owners of the same
-/// allocation. Every struct embedding a `Handle`/`GlyphHandle`/`LookupHandle`
-/// field relies on this: `#[derive(Clone)]` on the outer struct composes
-/// correctly (field-by-field `.clone()`) only because this impl is correct on
-/// its own.
-impl Clone for Handle {
-    fn clone(&self) -> Self {
-        unsafe {
-            Handle {
-                state: self.state,
-                index: self.index,
-                name: if self.name.is_null() {
-                    ::core::ptr::null_mut::<::core::ffi::c_char>()
-                } else {
-                    sdsdup(self.name)
-                },
-            }
-        }
-    }
-}
-/// The reason `Handle` was kept `Copy` everywhere in the crate until now:
-/// once it owns `name` for real, every place that used to bitwise-copy a
-/// `Handle` through a raw pointer (`let h = *ptr;`) needs to become an
-/// explicit `.clone()` (duplicate) or a genuine move -- the compiler enforces
-/// this at every call site (`cannot move out of ... which is behind a raw
-/// pointer`), which is what made this conversion tractable to verify.
-impl Drop for Handle {
-    fn drop(&mut self) {
-        if !self.name.is_null() {
-            unsafe {
-                sdsfree(self.name);
-            }
-            self.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
+            name: Vec::new(),
         }
     }
 }
@@ -113,19 +92,45 @@ pub(crate) unsafe extern "C" fn handle_from_index(mut id: GlyphId) -> Handle {
     let mut h: Handle = Handle {
         state: HandleState::Index,
         index: id,
-        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        name: Vec::new(),
     };
     return h;
+}
+// Callers still pass an owned `SdsRaw` here -- keeping these three
+// functions' public signatures `SdsRaw`-in means none of their ~40 call
+// sites across the crate need to change, only the conversion internals
+// here. `handle_from_name` takes ownership of `s` (the same contract the
+// old `h.name = s;` had), so it copies the bytes out and frees the
+// now-redundant `sds` allocation; `handle_from_consolidated`/
+// `handle_consolidate_to` only ever borrowed `s` (the caller already
+// `sdsdup`'d before calling, and frees its own copy afterward), so they
+// just copy the bytes without touching `s`'s lifetime.
+pub(crate) unsafe fn sds_to_vec(s: SdsRaw) -> Vec<u8> {
+    ::core::slice::from_raw_parts(s as *const u8, sdslen(s)).to_vec()
+}
+/// Compares a `Handle.name`-shaped `Vec<u8>` against a null-terminated
+/// `sds`/C string the way `strcmp(a.name, b.name) == 0` used to, before
+/// `Handle.name` stopped being `SdsRaw`: truncates at the first embedded
+/// NUL on the `Vec<u8>` side (matching `strcmp`'s own behavior on `other`).
+/// Doesn't null-check `other` -- `strcmp` was already UB on a null argument,
+/// so this preserves the original risk profile rather than adding a new one.
+pub(crate) unsafe fn handle_name_eq_cstr(name: &[u8], other: *const ::core::ffi::c_char) -> bool {
+    let name_trunc = match name.iter().position(|&b| b == 0) {
+        Some(p) => &name[..p],
+        None => name,
+    };
+    name_trunc == ::core::ffi::CStr::from_ptr(other).to_bytes()
 }
 pub(crate) unsafe extern "C" fn handle_from_name(mut s: SdsRaw) -> Handle {
     let mut h: Handle = Handle {
         state: HandleState::Empty,
         index: 0 as GlyphId,
-        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        name: Vec::new(),
     };
     if !s.is_null() {
         h.state = HandleState::Name;
-        h.name = s;
+        h.name = sds_to_vec(s);
+        sdsfree(s);
     }
     return h;
 }
@@ -133,7 +138,7 @@ pub(crate) unsafe extern "C" fn handle_from_consolidated(mut id: GlyphId, mut s:
     let mut h: Handle = Handle {
         state: HandleState::Consolidated,
         index: id,
-        name: sdsdup(s),
+        name: sds_to_vec(s),
     };
     return h;
 }
@@ -145,7 +150,7 @@ pub(crate) unsafe extern "C" fn handle_consolidate_to(
     otfcc_handle_dispose(h as *mut Handle);
     (*h).state = HandleState::Consolidated;
     (*h).index = id;
-    (*h).name = sdsdup(name);
+    (*h).name = sds_to_vec(name);
 }
 pub type FdHandle = Handle;
 
@@ -179,7 +184,7 @@ mod tests {
             let h = otfcc_handle_empty();
             assert_eq!(h.state, HandleState::Empty);
             assert_eq!(h.index, 0);
-            assert!(h.name.is_null());
+            assert!(h.name.is_empty());
         }
     }
 
@@ -189,7 +194,7 @@ mod tests {
             let h = handle_from_index(42);
             assert_eq!(h.state, HandleState::Index);
             assert_eq!(h.index, 42);
-            assert!(h.name.is_null());
+            assert!(h.name.is_empty());
         }
     }
 }
