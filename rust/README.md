@@ -4414,3 +4414,57 @@ on the other platform before a commit is trusted.
     here); `Handle.name` itself (the single highest-leverage remaining
     field, touching nearly every other leaf type in the crate) is a
     separate, larger future PR given its crate-wide fan-out.
+- **Stage 6-2 phase 2, second field: `FpgmPrepTable.tag` → `Vec<u8>`.**
+  Picked as the next `sds` sweep target for the same reason as
+  `TsiEntry.content` — small, provably self-contained blast radius (one
+  file, `table/fpgm_prep.rs`, 250 lines) — but this one turned out to be
+  a different shape entirely: `.tag` is **write-only**. Grepped every
+  read of `(*table).tag`/`.tag` in this file and its two external
+  callers (`font/caryll_font.rs`, only via `.free`) before converting —
+  found none. `table_dump_table_fpgm_prep`/`otfcc_build_fpgm_prep` both
+  already have the same string available as their own `tag: *const
+  c_char` parameter and never reach for the field. Converted the type
+  anyway rather than deleting the field outright — removing a field is
+  a scope-creeping cleanup riding along with a type-only PR, and this
+  crate's methodology has consistently kept those separate (confirm a
+  field or slot is dead, note it, but don't fold its removal into an
+  unrelated conversion unless the two are inseparable, as `ChainingRule`'s
+  `Drop` impl was to `Vec<Box<_>>` two PRs ago).
+  - **`FpgmPrepTable` loses `Copy`/`Clone` outright, not just `Copy`** —
+    unlike every leaf type converted so far in this sweep, nothing calls
+    `.clone()` on this one either (it's a single-instance table behind
+    `*mut FpgmPrepTable`, `font.fpgm`/`font.prep`, never stored in an
+    array), so there was no reason to keep a `Clone` impl it would never
+    exercise.
+  - **`.copy` (`table_fpgm_prep_copy`, a raw `memcpy`) was already dead**
+    before this PR and would have become unsound after it (a `Vec` field
+    can't survive a byte-for-byte struct copy without aliasing) — the
+    same "grep every call site, walk up one level if the immediate
+    caller is itself unreached" check from every earlier vtable-slot
+    audit in this migration, confirmed via `font/caryll_font.rs` only
+    ever calling `.free` on this table's vtable. Deleted the function and
+    set the vtable slot to `None`, matching the established pattern for
+    confirmed-dead slots elsewhere (`OTL_I_CARET_VALUE`'s `init`/`copy`/
+    `dispose`, this migration's `GdefTable` PR) rather than leaving a
+    function that would silently corrupt memory if some future change
+    ever wired it back up.
+  - **Both construction sites (`otfcc_read_fpgm_prep`, `otfcc_parse_fpgm_prep`)
+    needed `ptr::write`, not plain assignment** — `table_fpgm_prep_create`
+    is still `malloc` + `memset`-zero (`table_fpgm_prep_init`), so `.tag`
+    starts as invalid `Vec` bytes immediately after `create()`, same
+    landmine class as every other "first write onto freshly calloc'd
+    memory" site in this migration. The parse-direction site additionally
+    switched from `sdsnew(tag)` to the crate's established
+    `CStr::from_ptr(tag).to_bytes().to_vec()` idiom (already used in
+    `table/otl/parse.rs`/`table/cff.rs`) for turning a borrowed C string
+    parameter into an owned byte vector.
+  - **Real coverage, no synthetic payload needed**: `Molengo-Regular.ttf`,
+    `iosevka-r.ttf`, and `vtt.ttf` all carry real `fpgm`/`prep` tables
+    (confirmed via `otfccdump` against every payload before starting),
+    driving both the read and parse construction paths — and therefore
+    both `ptr::write` sites — through the standard `compare-with-c.sh`
+    run.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test.
