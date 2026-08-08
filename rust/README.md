@@ -4468,3 +4468,49 @@ on the other platform before a commit is trusted.
     and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
     ABI export guard, `compare-with-c.sh` byte-identical on every payload,
     all 10 payloads' round trips, and the issue #1 golden test.
+- **Stage 6-2 phase 2, third field: `MetaEntry.data` → `Vec<u8>`.** Same
+  selection criterion as the two before it — self-contained blast radius,
+  this time the whole `table/meta/{types,dump,build,parse,read}.rs`
+  module (5 files, no external references to `MetaEntry` beyond a
+  documentation comment in `table/name.rs`).
+  - **`.data: Vec<u8>`, not `String`** — `meta` table entries can be either
+    UTF-8 tag strings or arbitrary base64-decoded binary (the `dlng`/`slng`
+    string tags vs. e.g. a raw `appl` blob), so `Vec<u8>` is the only
+    honest representation, matching `TsiEntry.content`'s reasoning.
+  - **`table_meta_copy` (the `.copy` vtable slot, a field-by-field
+    `.entries.clone()`) was the only place in the entire module that
+    called `.clone()` on anything meta-related** — confirmed dead first
+    (only `.create`/`.free` are ever called from outside this module,
+    via `table/meta/{parse,read}.rs`'s own `TABLE_I_META.create` and
+    `font/caryll_font.rs`'s `.free`), then deleted along with the
+    `#[derive(Clone)]` on both `MetaEntry` and `MetaTable` that only
+    existed to support it — the same "confirm dead, delete rather than
+    make unsound" pattern as `FpgmPrepTable.copy` the PR before this one.
+  - **`dispose_meta_table`'s per-element `dispose_meta_entry` loop
+    disappeared** once `.data: Vec<u8>` had real drop glue — `.entries =
+    Vec::new();` alone now tears everything down correctly, same as
+    `TsiTable`'s and `ChainingRule`'s containers.
+  - **`parse_meta_data` returns `Option<Vec<u8>>`, not a plain `Vec<u8>`**
+    — unlike `TsiEntry.content`'s parse path, this one can genuinely
+    return "no data" (neither a `string` key, a `base64` key, nor a bare
+    JSON string matched), and the caller already checked for that with
+    an `is_null()` guard before pushing. `if let Some(data) = ...`
+    replaces that guard directly. Needed a function-level
+    `#[allow(improper_ctypes_definitions)]` — `Option<Vec<u8>>` isn't
+    FFI-safe and this function's `extern "C"` is a c2rust artifact from
+    the original signature, never a real ABI boundary (only called from
+    `otfcc_parse_meta` in the same file) — same reasoning already used
+    elsewhere in this migration for non-FFI-safe return types on
+    internal-only `extern "C"` functions.
+  - **Real coverage already existed, no new synthetic payload needed**:
+    `make-test-meta.py` (added when `MetaEntry` was first `Vec`-ified,
+    several PRs before this migration reached `sds`) already injects both
+    a string-tag and a base64-tag entry and is wired into
+    `compare-with-c.sh` as `meta-test.ttf`/`meta-test dump` — both
+    directions (the `is_string_tag` dump branch and the `base64_encode`/
+    `base64_decode` branch) confirmed byte-identical on both platforms.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    including `meta-test.ttf`, all 10 payloads' round trips, and the
+    issue #1 golden test.
