@@ -1350,11 +1350,13 @@ unsafe extern "C" fn consolidate_tsi(
         return;
     }
     let mut consolidated: *mut TsiTable = table_tsi_create();
-    let mut gid_entries: *mut SdsRaw = ::core::ptr::null_mut::<SdsRaw>();
-    gid_entries = __caryll_allocate_clean(
-        (::core::mem::size_of::<SdsRaw>() as usize).wrapping_mul((*(*font).glyf).len()),
-        448 as ::core::ffi::c_ulong,
-    ) as *mut SdsRaw;
+    // `Option<Vec<u8>>` per slot preserves the old null/non-null
+    // distinction (`None` = "no entry yet for this GID", `Some` = has
+    // content, even if empty) that the raw `*mut SdsRaw` array's
+    // `is_null()` checks relied on -- a plain assignment below correctly
+    // drops whatever was there before, so the old explicit
+    // free-before-overwrite is now implicit.
+    let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; (*(*font).glyf).len()];
     let entries: &mut Vec<TsiEntry> = &mut *tsi;
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
@@ -1370,12 +1372,8 @@ unsafe extern "C" fn consolidate_tsi(
                     (*font).glyph_order,
                     &raw mut (*entry).glyph,
                 ) {
-                    if !(*gid_entries.offset((*entry).glyph.index as isize)).is_null() {
-                        sdsfree(*gid_entries.offset((*entry).glyph.index as isize));
-                    }
-                    let ref mut fresh2 = *gid_entries.offset((*entry).glyph.index as isize);
-                    *fresh2 = (*entry).content;
-                    (*entry).content = ::core::ptr::null_mut::<::core::ffi::c_char>();
+                    gid_entries[(*entry).glyph.index as usize] =
+                        Some(::core::mem::take(&mut (*entry).content));
                 } else {
                     (*(*options).logger)
                         .log_sds
@@ -1408,7 +1406,7 @@ unsafe extern "C" fn consolidate_tsi(
                 index: 0,
                 name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
             },
-            content: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+            content: Vec::new(),
         };
         e_0.type_0 = TsiEntryType::Glyph;
         e_0.glyph =
@@ -1416,17 +1414,11 @@ unsafe extern "C" fn consolidate_tsi(
         OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")((*font).glyph_order, &raw mut e_0.glyph);
-        e_0.content = if !(*gid_entries.offset(j as isize)).is_null() {
-            *gid_entries.offset(j as isize)
-        } else {
-            sdsempty()
-        };
+        e_0.content = gid_entries[j as usize].take().unwrap_or_default();
         (*consolidated).push(e_0);
         j = j.wrapping_add(1);
     }
     table_tsi_free(tsi);
-    free(gid_entries as *mut ::core::ffi::c_void);
-    gid_entries = ::core::ptr::null_mut::<SdsRaw>();
     (*consolidated).sort_by(|a, b| {
         (a.type_0 as u32)
             .cmp(&(b.type_0 as u32))

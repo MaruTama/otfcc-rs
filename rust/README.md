@@ -4341,3 +4341,76 @@ on the other platform before a commit is trusted.
     verification environment; determinism-under-repetition plus the
     standard byte-comparison suite is this crate's established bar
     absent one, consistent with every earlier PR in this migration.
+- **Stage 6-2 phase 2 (re-scoped): `TsiEntry.content` → `Vec<u8>`, the
+  first field-level `sds` unwind since the phase-2 investigation stalled
+  in the earlier session.** That investigation's blocker (`Handle`'s
+  `Copy`-ness cascading crate-wide) was resolved by the `Handle` pilot
+  (PR #68) and confirmed clear again before starting: `TsiEntry` already
+  derives only `Clone`, not `Copy`, so this field's type change has zero
+  ripple onto sibling leaf types. Picked as the pilot for continuing the
+  ~1,084-call-site `sds*()` sweep (of which 586 are `support/aglfn.rs`'s
+  one-shape-repeated static-table `sdsnew` calls, not representative of
+  the interesting remainder) specifically because its blast radius is
+  fully contained to two files (`table/_tsi.rs`, `consolidate.rs`) — no
+  other file references `TsiEntry.content` directly.
+  - **`TsiEntry` needs no `Drop` impl of its own** — both fields
+    (`glyph: GlyphHandle`, already real `Drop`; `content: Vec<u8>`, now
+    real `Drop`) tear themselves down correctly on their own, so a plain
+    `#[derive(Clone)]` struct with no manual destructor is enough. This
+    made `dispose_tsi_entry`/`table_tsi_dispose`'s per-element loop fully
+    redundant, same as `ChainingRule` the PR before this one:
+    `table_tsi_free` shrank to `drop_in_place` + `free`, no manual walk.
+  - **`consolidate_tsi`'s `gid_entries` scratch array converts alongside
+    `.content`, not separately** — it's a `*mut SdsRaw` array (one slot
+    per glyph) that exists purely to redistribute `.content` values by
+    GID, so its element type is coupled to `.content`'s by construction.
+    Went with `Vec<Option<Vec<u8>>>` (replacing the `__caryll_allocate_clean`
+    calloc + manual `free`) specifically to preserve a real semantic
+    distinction the raw-pointer version encoded: `is_null()` meant "no
+    entry yet for this GID", which is not the same state as "entry
+    exists with zero-length content" (`sdsempty()`'s fallback case) —
+    `None` vs. `Some(Vec::new())` reproduces that distinction exactly,
+    where a bare `Vec<Vec<u8>>` could not have. The explicit
+    free-before-overwrite (`if !is_null() { sdsfree(...) }`) disappears
+    without replacement: a plain `gid_entries[idx] = Some(...)` in Rust
+    always drops whatever was there first, automatically.
+  - **`mem::take`/`.take()` replace two of this migration's now-familiar
+    "move out, leave the source neutralized" idioms** — `mem::take(&mut
+    (*entry).content)` (moves `.content` out of the source `TsiEntry`
+    into the scratch array slot, leaving a valid empty `Vec` behind
+    exactly where the old code left a null pointer) and
+    `gid_entries[j].take().unwrap_or_default()` (moves the scratch
+    value back out into the freshly-consolidated entry, `None` → empty
+    `Vec` matching the old `sdsempty()` fallback). Neither needed
+    `unsafe`, unlike the raw-pointer-based moves earlier in this
+    migration (`ptr::read`/`ManuallyDrop`) — ordinary safe-Rust
+    ownership transfer was enough once both sides were real Rust values.
+  - **Byte-copying helpers substitute directly for their `sds` counterparts
+    with no semantic gap**: `sdsnewlen(ptr, len)` (parse/read directions)
+    → `slice::from_raw_parts(ptr, len).to_vec()`; `sdslen`/cast-to-`sds`
+    (dump direction, for `json_string_new_length`'s `(len, ptr)` pair) →
+    `.len()`/`.as_ptr()`; `bufwrite_sds` (build direction) →
+    `bufnwrite8`, an existing `&[u8]`-based buffer-write helper from the
+    `c_variadic` removal PR (#29) that this conversion is the first to
+    reuse for a genuinely `Vec<u8>`-backed field rather than a temporary
+    slice.
+  - **Real coverage, no synthetic payload needed**: `vtt.ttf` carries
+    real `TSI_01`/`TSI_23` data (confirmed by the `NameTable`/`TsiTable`
+    Vec-ification PR, #60) and already drives read/parse/build/dump plus
+    `consolidate_tsi`'s GID-redistribution path (including the
+    `None`/`Some` distinction above, since `vtt.ttf` has both `Glyph`-type
+    entries needing redistribution and `Fpgm`/`Prep`/`Cvt` entries that
+    don't) through the standard `compare-with-c.sh` run.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    including `vtt.ttf`, all 10 payloads' round trips, and the issue #1
+    golden test.
+  - **Remaining `sds*()` call sites after this PR**: still roughly 1,050
+    (crate-wide sweep continues field by field / file by file — no
+    single next target chosen yet). `support/aglfn.rs`'s 586 mechanical
+    `sdsnew` calls stay as `sds` until `GlyphOrderEntry`'s own name field
+    is converted (a much larger, `GlyphOrder`-wide change, not attempted
+    here); `Handle.name` itself (the single highest-leverage remaining
+    field, touching nearly every other leaf type in the crate) is a
+    separate, larger future PR given its crate-wide fan-out.
