@@ -4220,9 +4220,124 @@ on the other platform before a commit is trusted.
     `Vec`-backed on every field that can own memory.** The
     `ChainingRule.apply`/`ChainingRuleSet.rules` pair was the last "leaf
     type owns a `Handle` but its container isn't `Vec`-backed yet" gap
-    from the Stage 6-4 survey — that theme is now complete. Remaining
-    `Box`-ification of `ChainingRuleSet.rules`'s pointees (currently
-    `Vec<*mut ChainingRule>`, matching `LookupList`/`FeatureList`'s
-    still-raw-pointer shape) is deferred to whenever the crate takes on
-    `Vec<*mut T>` → `Vec<Box<T>>` as its own theme, not specific to
-    chaining.
+    from the Stage 6-4 survey — that theme is now complete.
+- **`ChainingRuleSet.rules` → `Vec<Option<Box<ChainingRule>>>`, joining the
+  `LangSystemList`/`FeatureList`/`LookupList`/`GlyfTable` "owned pointer
+  array" group** (that group's README entry called itself closed after
+  `GlyfTable`, before this type existed as a candidate — this reopens it
+  for one more member, the only remaining `Vec<*mut T>` container left
+  anywhere in `table/`). `Option`, not plain `Box`, because
+  `general_read_contextual_rule`/`general_read_chaining_rule` can fail on
+  truncated/malformed font data and the pre-`Box` code pushed a null
+  element in that case with no downstream null check — asked the user
+  which shape to use given that wrinkle, since it's a real design choice,
+  not a mechanical translation; `Vec<Option<Box<T>>>` (matching the
+  `GlyfTable` precedent) was the answer. Every consumption site treats a
+  `None` as unreachable in practice (`.expect(...)`, which panics instead
+  of the old null-pointer-deref UB on the one hand if that latent path is
+  ever actually hit — no current payload does).
+  - **`ChainingRule` gained a real `Drop` impl** (frees `.match_0`'s array
+    and each `Coverage` it points to; `.apply`'s `Vec` already disposes
+    itself) — this is what makes `Box<ChainingRule>` safe to drop
+    automatically instead of needing the old manual `close_rule`/
+    `delete_rule` dispose pair. `close_rule` (still needed for the
+    `Canonical` variant, `ChainingBody.rule: ManuallyDrop<ChainingRule>`,
+    which is never `Box`-owned) shrank to a one-line
+    `ptr::drop_in_place(rule)` that runs the same `Drop` impl through a
+    raw pointer instead. `delete_rule` — used only to tear down a
+    `Vec<*mut ChainingRule>` element — disappeared entirely, in both its
+    copies (`common.rs`'s and the c2rust-duplicated one in `read.rs`):
+    `otl_dispose_chaining`'s `Poly`/`Classified` branch is now just
+    `(*ruleset).rules = Vec::new();`, no per-element loop, since dropping
+    the `Vec` now drops every `Some(Box<ChainingRule>)` correctly on its
+    own. Dropped `#[derive(Clone)]` from `ChainingRule` in the same
+    change — a derived `Clone` would shallow-copy `match_0`, aliasing two
+    rules onto one heap array that `Drop` then frees twice; nothing in
+    the crate ever called `.clone()` on it, so this closes a latent
+    footgun rather than breaking anything live.
+  - **The two `read.rs` binary-format constructors
+    (`general_read_contextual_rule`/`general_read_chaining_rule`) needed
+    real restructuring, not just a signature change** — matching the
+    established `Box::new` + struct-literal pattern (`new_lookup`,
+    `otfcc_new_glyf_glyph`) rather than the shortcut of wrapping an
+    existing `__caryll_allocate_clean` (libc `calloc`) pointer with
+    `Box::from_raw`. Checked first whether that shortcut had any
+    precedent in the crate: every existing `Box::from_raw` call site
+    (`otfcc_delete_lookup`, three sites in `table/otl/parse.rs`)
+    reconstitutes a pointer that started life as `Box::new` and was
+    handed out via `Box::into_raw` for C-shaped passing — never a
+    genuinely `malloc`'d pointer. Wrapping a `calloc`'d pointer directly
+    would "work" today (the `System` allocator is backed by the platform
+    `malloc`/`free` on both targets this crate verifies), but it isn't
+    the pattern anywhere else in the crate and would rely on that
+    allocator-equivalence holding rather than being guaranteed by the
+    language — not worth the shortcut. Once each function starts from a
+    `Box::new(ChainingRule { ...zeroed... })`, almost the entire body is
+    untouched: `(*rule).field = ...` reads exactly the same through
+    `Box`'s `Deref`/`DerefMut` as it did through the raw pointer, so only
+    the declaration and the two return points (`Some(rule)` on success,
+    `None` on every early-exit path) needed to change. The failure paths
+    got strictly simpler, not more complex: the old code called
+    `delete_rule(rule)` explicitly before returning null; the new code
+    just returns `None`, and `rule`'s `Drop` (now real, via `ChainingRule`)
+    runs automatically as the local variable goes out of scope, correctly
+    tearing down whatever partial state (`.match_0` array, `.apply`
+    entries) construction had reached by that point.
+  - **`classifier.rs`'s `build_rule` (the reverse direction — building a
+    `Classified` subtable's rules from already-consolidated JSON-sourced
+    data during BUILD, not parsing binary) got the same `Box::new`
+    treatment, but returns plain `Box<ChainingRule>`, not `Option`** —
+    unlike the `read.rs` constructors, this never fails; it transforms
+    already-valid in-memory structures, with no truncated-data escape
+    hatch to represent. Its one `Vec::with_capacity` reassignment for
+    `.apply` also lost its `ptr::write` placement-construct: since
+    `Box::new`'s struct literal already gives `.apply` a valid (if empty)
+    `Vec`, a plain `=` correctly drops that empty `Vec` first before
+    replacing it — no landmine, unlike the calloc'd-memory sites
+    elsewhere in this migration where a plain assignment would try to
+    drop garbage bytes.
+  - **`unconsolidate_chaining`'s `Poly`-branch move got simpler, not more
+    complex, converting from raw pointers to `Box`.** The previous PR's
+    `ptr::read(rule_ptr)` + `ManuallyDrop::new(...)` dance — needed
+    because a raw `*mut ChainingRule` has no compiler-tracked ownership to
+    move out of — is replaced by `*boxed_rule`: moving a value out of a
+    `Box<T>` is one of the few operations the compiler special-cases to
+    allow directly (unlike moving out of an arbitrary raw pointer or
+    reference), so `ManuallyDrop::new(*boxed_rule)` reads as what it is —
+    take the rule out of its box, hand it to the union's `ManuallyDrop`
+    slot — with no unsafe `ptr::read` needed at all. The explicit
+    `free(rule_ptr as *mut c_void)` call is also gone: moving out of the
+    `Box` deallocates its own heap slot automatically, through the same
+    allocator that `general_read_contextual_rule`/`general_read_chaining_rule`
+    used to create it (`Box::new`, i.e. Rust's global allocator, not
+    `libc::free` — consistent throughout, since nothing here mixes
+    allocators the way a `Box::from_raw`-on-`calloc` shortcut would have).
+  - **Every read-side consumption of `.rules[idx]` in `build.rs`
+    (5 sites across `otfcc_chaining_lookup_is_contextual_lookup`,
+    `otfcc_build_chaining_classes`, `otfcc_build_contextual_classes`)
+    became `.as_deref().expect(...)  as *const ChainingRule as *mut
+    ChainingRule`** — reads a `&ChainingRule` out of the `Option<Box<_>>`
+    slot without taking ownership (these functions only ever read),
+    then casts to match the raw-pointer-based signatures
+    (`reverse_backtracks`, etc.) every other function in this file
+    already uses for `ChainingRule` regardless of how it's owned. `None`
+    is provably unreachable at these specific call sites even more
+    strongly than at the `read.rs`/`unconsolidate.rs` sites above: every
+    `.rules` a build-direction function ever sees was *just* constructed
+    fresh by `classifier.rs`'s `build_rule` (`Box`, never `Option`,
+    wrapped in `Some` at the one push site) moments earlier in the same
+    call — parsing failure, the only source of `None`, cannot occur on
+    that path at all.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test. Also ran
+    three repeated dump→build cycles of `NotoNastaliqUrdu-Regular.ttf`
+    (the heaviest chaining payload) on macOS and diffed each output
+    byte-for-byte against the next, given this PR changes allocator and
+    `Drop` behavior more than most container-only `Vec` conversions in
+    this migration — all three identical, no leak/use-after-free-shaped
+    corruption. No memory checker (valgrind/ASan) available in either
+    verification environment; determinism-under-repetition plus the
+    standard byte-comparison suite is this crate's established bar
+    absent one, consistent with every earlier PR in this migration.

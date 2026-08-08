@@ -165,19 +165,21 @@ pub unsafe extern "C" fn general_read_contextual_rule(
     mut fn_0: CoverageReaderHandler,
     max_glyphs: GlyphId,
     mut userdata: *mut ::core::ffi::c_void,
-) -> *mut ChainingRule {
+) -> Option<Box<ChainingRule>> {
     let mut n_input: u16 = 0;
     let mut n_apply: u16 = 0;
     let mut jj: u16 = 0;
-    let mut rule: *mut ChainingRule = ::core::ptr::null_mut::<ChainingRule>();
-    rule = __caryll_allocate_clean(
-        ::core::mem::size_of::<ChainingRule>() as usize,
-        83 as ::core::ffi::c_ulong,
-    ) as *mut ChainingRule;
-    (*rule).match_0 = ::core::ptr::null_mut::<*mut Coverage>();
-    // Placement-construct: `rule` is fresh calloc'd (zeroed, not a valid
-    // `Vec` bit pattern) memory, so there is nothing to drop first.
-    ::core::ptr::write(&raw mut (*rule).apply, Vec::new());
+    // `Box` is the allocation, the struct literal is the zero-init the old
+    // `__caryll_allocate_clean` provided -- same shape as `new_lookup`/
+    // `otfcc_new_glyf_glyph`. Every `(*rule).field` access below still
+    // works unchanged through the `Box`'s `Deref`/`DerefMut`.
+    let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
+        match_count: 0 as TableId,
+        input_begins: 0 as TableId,
+        input_ends: 0 as TableId,
+        match_0: ::core::ptr::null_mut::<*mut Coverage>(),
+        apply: Vec::new(),
+    });
     let mut minus_one_q: u16 = (if minus_one as ::core::ffi::c_int != 0 {
         1 as ::core::ffi::c_int
     } else {
@@ -276,13 +278,14 @@ pub unsafe extern "C" fn general_read_contextual_rule(
                 (*rule).apply.push(ChainLookupApplication { index, lookup });
                 j_0 = j_0.wrapping_add(1);
             }
-            reverse_backtracks(rule);
-            return rule;
+            reverse_backtracks(&mut *rule as *mut ChainingRule);
+            return Some(rule);
         }
     }
-    delete_rule(rule);
-    rule = ::core::ptr::null_mut::<ChainingRule>();
-    return ::core::ptr::null_mut::<ChainingRule>();
+    // `rule` (whatever partial state it reached) drops here automatically --
+    // `ChainingRule`'s `Drop` impl tears down `.match_0` correctly, no
+    // manual `delete_rule` call needed.
+    return None;
 }
 unsafe extern "C" fn read_contextual_format1(
     mut subtable: *mut ChainingSubtable,
@@ -628,21 +631,21 @@ pub unsafe extern "C" fn general_read_chaining_rule(
     mut fn_0: CoverageReaderHandler,
     max_glyphs: GlyphId,
     mut userdata: *mut ::core::ffi::c_void,
-) -> *mut ChainingRule {
+) -> Option<Box<ChainingRule>> {
     let mut n_back: TableId = 0;
     let mut n_input: TableId = 0;
     let mut n_lookaround: TableId = 0;
     let mut n_apply: TableId = 0;
     let mut jj: TableId = 0;
-    let mut rule: *mut ChainingRule = ::core::ptr::null_mut::<ChainingRule>();
-    rule = __caryll_allocate_clean(
-        ::core::mem::size_of::<ChainingRule>() as usize,
-        247 as ::core::ffi::c_ulong,
-    ) as *mut ChainingRule;
-    (*rule).match_0 = ::core::ptr::null_mut::<*mut Coverage>();
-    // Placement-construct: `rule` is fresh calloc'd (zeroed, not a valid
-    // `Vec` bit pattern) memory, so there is nothing to drop first.
-    ::core::ptr::write(&raw mut (*rule).apply, Vec::new());
+    // `Box` is the allocation, the struct literal is the zero-init the old
+    // `__caryll_allocate_clean` provided -- see `general_read_contextual_rule`.
+    let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
+        match_count: 0 as TableId,
+        input_begins: 0 as TableId,
+        input_ends: 0 as TableId,
+        match_0: ::core::ptr::null_mut::<*mut Coverage>(),
+        apply: Vec::new(),
+    });
     let mut minus_one_q: u16 = (if minus_one as ::core::ffi::c_int != 0 {
         1 as ::core::ffi::c_int
     } else {
@@ -875,16 +878,15 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                             (*rule).apply.push(ChainLookupApplication { index, lookup });
                             j_2 = j_2.wrapping_add(1);
                         }
-                        reverse_backtracks(rule);
-                        return rule;
+                        reverse_backtracks(&mut *rule as *mut ChainingRule);
+                        return Some(rule);
                     }
                 }
             }
         }
     }
-    delete_rule(rule);
-    rule = ::core::ptr::null_mut::<ChainingRule>();
-    return ::core::ptr::null_mut::<ChainingRule>();
+    // `rule` drops here automatically -- see `general_read_contextual_rule`.
+    return None;
 }
 unsafe extern "C" fn read_chaining_format1(
     mut subtable: *mut ChainingSubtable,
@@ -1229,39 +1231,6 @@ pub unsafe extern "C" fn otl_read_chaining(
     );
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
-}
-#[inline]
-unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
-    if !rule.is_null()
-        && !(*rule).match_0.is_null()
-        && (*rule).match_count as ::core::ffi::c_int != 0
-    {
-        let mut k: TableId = 0 as TableId;
-        while (k as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-            otl_coverage_free(
-                *(*rule).match_0.offset(k as isize),
-            );
-            k = k.wrapping_add(1);
-        }
-        free((*rule).match_0 as *mut ::core::ffi::c_void);
-        (*rule).match_0 = ::core::ptr::null_mut::<*mut Coverage>();
-    }
-    if !rule.is_null() {
-        // Each element's `.lookup: LookupHandle` already has a real `Drop`
-        // (the Handle pilot), so dropping the `Vec` disposes every element
-        // correctly -- the old per-element `otfcc_handle_dispose` loop +
-        // `free()` is now redundant.
-        (*rule).apply = Vec::new();
-    }
-}
-#[inline]
-unsafe extern "C" fn delete_rule(mut rule: *mut ChainingRule) {
-    if rule.is_null() {
-        return;
-    }
-    close_rule(rule);
-    free(rule as *mut ::core::ffi::c_void);
-    rule = ::core::ptr::null_mut::<ChainingRule>();
 }
 #[inline]
 unsafe extern "C" fn reverse_backtracks(mut rule: *mut ChainingRule) {

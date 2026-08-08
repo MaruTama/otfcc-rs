@@ -292,14 +292,19 @@ pub union ChainingBody {
     pub c2rust_unnamed: ::core::mem::ManuallyDrop<ChainingRuleSet>,
 }
 /// `rules: *mut *mut ChainingRule` (the `Poly`/`Classified` shape) becomes
-/// `Vec<*mut ChainingRule>` -- container only, matching the `otl`
-/// pointer-list precedent (`LookupList`/`FeatureList`): the pointees stay
-/// individually heap-allocated raw pointers, `Box`-ification is Stage
-/// 6-4's job, not this one. `rules_count` is gone; every read site now
-/// uses `rules.len()`.
+/// `Vec<Option<Box<ChainingRule>>>` -- joining the `LangSystemList`/
+/// `FeatureList`/`LookupList`/`GlyfTable` "owned pointer array" group.
+/// `Option` (not plain `Box`) because `general_read_contextual_rule`/
+/// `general_read_chaining_rule` can fail on truncated/malformed font data
+/// and the pre-`Vec` code pushed a null element in that case with no
+/// downstream null check -- `None` reproduces that shape exactly, and
+/// every consumption site treats a `None` as unreachable-in-practice
+/// (`.expect(...)`, which panics instead of the old null-pointer-deref UB
+/// if that latent path is ever actually hit). `rules_count` is gone;
+/// every read site now uses `rules.len()`.
 #[repr(C)]
 pub struct ChainingRuleSet {
-    pub rules: Vec<*mut ChainingRule>,
+    pub rules: Vec<Option<Box<ChainingRule>>>,
     pub bc: *mut ClassDef,
     pub ic: *mut ClassDef,
     pub fc: *mut ClassDef,
@@ -308,7 +313,17 @@ pub struct ChainingRuleSet {
 /// `apply_count: TableId` -- the last remaining "leaf type owns a `Handle`
 /// but its container isn't `Vec`-backed yet" gap in this crate. No
 /// `apply_count` field survives: every read site now uses `apply.len()`.
-#[derive(Clone)]
+///
+/// `Drop` replaces the old `close_rule` helper's manual `match_0` teardown
+/// (`apply`'s `Vec` already disposes itself). Needed now that `.rules`
+/// owns its elements via `Box<ChainingRule>` -- dropping the `Vec` must
+/// fully tear down each rule, not just free the box's own allocation.
+/// `close_rule` still exists for the `Canonical` variant (`ChainingBody.rule:
+/// ManuallyDrop<ChainingRule>`, never `Box`-owned), but now just calls
+/// `ptr::drop_in_place` to run this same `Drop` impl through a raw pointer.
+/// No `Clone` (removed): a derived one would shallow-copy `match_0`,
+/// aliasing two `ChainingRule`s onto one heap array that `Drop` then frees
+/// twice -- nothing in the crate actually calls `.clone()` on this type.
 #[repr(C)]
 pub struct ChainingRule {
     pub match_count: TableId,
@@ -316,6 +331,21 @@ pub struct ChainingRule {
     pub input_ends: TableId,
     pub match_0: *mut *mut Coverage,
     pub apply: Vec<ChainLookupApplication>,
+}
+impl Drop for ChainingRule {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.match_0.is_null() && self.match_count as ::core::ffi::c_int != 0 {
+                let mut k: TableId = 0 as TableId;
+                while (k as ::core::ffi::c_int) < self.match_count as ::core::ffi::c_int {
+                    crate::table::otl::coverage::otl_coverage_free(*self.match_0.offset(k as isize));
+                    k = k.wrapping_add(1);
+                }
+                free(self.match_0 as *mut ::core::ffi::c_void);
+                self.match_0 = ::core::ptr::null_mut::<*mut Coverage>();
+            }
+        }
+    }
 }
 /// `lookup: LookupHandle` (= `Handle`) already has a real `Drop`/`Clone`
 /// impl (the Handle pilot), so `Vec<ChainLookupApplication>`'s own drop

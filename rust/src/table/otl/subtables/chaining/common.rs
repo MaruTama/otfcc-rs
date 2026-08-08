@@ -1,10 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
 use crate::table::otl::classdef::otl_class_def_free;
-use crate::table::otl::coverage::{Coverage, otl_coverage_free};
-
-use crate::support::primitives::{TableId};
-
 
 use crate::table::otl::{ChainingSubtableElementInterface, ChainingRule, ChainingRuleSet, ChainingSubtable};
 
@@ -25,9 +21,9 @@ pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut ChainingSubtabl
         // `memset` leaves behind. No `is_null()`-style guard needed.
         let ruleset: *mut ChainingRuleSet =
             &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
-        for rule_ptr in (*ruleset).rules.iter() {
-            delete_rule(*rule_ptr);
-        }
+        // Each element's `Box<ChainingRule>` (where `Some`) already has a
+        // real `Drop` (see `table/otl.rs`), so dropping the `Vec` disposes
+        // every rule correctly -- no manual per-element walk needed.
         (*ruleset).rules = Vec::new();
         if !(*ruleset).bc.is_null() {
             otl_class_def_free((*ruleset).bc);
@@ -90,36 +86,13 @@ unsafe extern "C" fn subtable_chaining_copy(
         ::core::mem::size_of::<ChainingSubtable>() as usize,
     );
 }
+/// The `Canonical` variant (`ChainingBody.rule: ManuallyDrop<ChainingRule>`)
+/// is never `Box`-owned, so `ManuallyDrop` suppresses its automatic `Drop` --
+/// this runs `ChainingRule`'s `Drop` impl explicitly through the raw
+/// pointer instead, exactly like disposing any other `ManuallyDrop` field.
 #[inline]
 unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
-    if !rule.is_null()
-        && !(*rule).match_0.is_null()
-        && (*rule).match_count as ::core::ffi::c_int != 0
-    {
-        let mut k: TableId = 0 as TableId;
-        while (k as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-            otl_coverage_free(
-                *(*rule).match_0.offset(k as isize),
-            );
-            k = k.wrapping_add(1);
-        }
-        free((*rule).match_0 as *mut ::core::ffi::c_void);
-        (*rule).match_0 = ::core::ptr::null_mut::<*mut Coverage>();
-    }
     if !rule.is_null() {
-        // Each element's `.lookup: LookupHandle` already has a real `Drop`
-        // (the Handle pilot), so dropping the `Vec` disposes every element
-        // correctly -- the old per-element `otfcc_handle_dispose` loop +
-        // `free()` is now redundant.
-        (*rule).apply = Vec::new();
+        ::core::ptr::drop_in_place(rule);
     }
-}
-#[inline]
-unsafe extern "C" fn delete_rule(mut rule: *mut ChainingRule) {
-    if rule.is_null() {
-        return;
-    }
-    close_rule(rule);
-    free(rule as *mut ::core::ffi::c_void);
-    rule = ::core::ptr::null_mut::<ChainingRule>();
 }
