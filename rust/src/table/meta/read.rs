@@ -6,7 +6,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::table::meta::types::{TABLE_I_META};
-use crate::vendor::sds::{sdsempty, sdsnewlen};
+use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn otfcc_read_meta(
     packet: Packet,
     mut options: *const Options,
@@ -66,12 +66,11 @@ pub unsafe extern "C" fn otfcc_read_meta(
                                 if !(table.length < offset.wrapping_add(length)) {
                                     (*meta).entries.push(MetaEntry {
                                         tag: tag,
-                                        data: sdsnewlen(
-                                            table.data.offset(offset as isize)
-                                                as *mut ::core::ffi::c_char
-                                                as *const ::core::ffi::c_void,
+                                        data: ::core::slice::from_raw_parts(
+                                            table.data.offset(offset as isize),
                                             length as usize,
-                                        ),
+                                        )
+                                        .to_vec(),
                                     });
                                 }
                                 j = j.wrapping_add(1);

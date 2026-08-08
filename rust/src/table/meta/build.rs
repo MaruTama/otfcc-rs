@@ -2,7 +2,6 @@
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::vendor::sds::{sdslen};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
@@ -23,9 +22,9 @@ pub unsafe extern "C" fn otfcc_build_meta(
         let mut e: *const MetaEntry = &entries[__caryll_index];
         while keep != 0 {
             bk_push(root, &[bk_int(BkCellType::B32, ((*e).tag) as u32), bk_ptr(BkCellType::P32, bk_new_block_from_string_len(
-                    sdslen((*e).data),
-                    (*e).data as *const ::core::ffi::c_char,
-                )), bk_int(BkCellType::B32, (sdslen((*e).data)) as u32)]);
+                    (*e).data.len(),
+                    (*e).data.as_ptr() as *const ::core::ffi::c_char,
+                )), bk_int(BkCellType::B32, ((*e).data.len()) as u32)]);
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;

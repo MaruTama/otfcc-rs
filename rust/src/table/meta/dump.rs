@@ -7,7 +7,7 @@ use crate::vendor::json::{JsonValue};
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_encode};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdsempty, sdslen};
+use crate::vendor::sds::{sdsempty};
 #[inline]
 unsafe extern "C" fn is_string_tag(mut tag: u32) -> bool {
     return tag == 1684827751i32 as u32 || tag == 1936485991i32 as u32;
@@ -67,15 +67,15 @@ pub unsafe extern "C" fn otfcc_dump_meta(
                         _e,
                         b"string\0" as *const u8 as *const ::core::ffi::c_char,
                         json_string_new_length(
-                            sdslen((*e).data) as ::core::ffi::c_uint,
-                            (*e).data as *const ::core::ffi::c_char,
+                            (*e).data.len() as ::core::ffi::c_uint,
+                            (*e).data.as_ptr() as *const ::core::ffi::c_char,
                         ),
                     );
                 } else {
                     let mut out_len: usize = 0 as usize;
                     let mut out: *mut u8 = base64_encode(
-                        (*e).data as *mut u8,
-                        sdslen((*e).data),
+                        (*e).data.as_ptr(),
+                        (*e).data.len(),
                         &raw mut out_len,
                     );
                     json_object_push(
