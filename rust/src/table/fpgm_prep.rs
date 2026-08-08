@@ -8,18 +8,27 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::JsonValue;
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite_bytes};
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::vendor::json_builder::{json_object_push};
-use crate::vendor::sds::{sdsempty, sdsfree, sdsnew};
+use crate::vendor::sds::{sdsempty};
 
-#[derive(Copy, Clone)]
+// `tag` is written on every construction path (read: unconditionally
+// null/empty; parse: `sdsnew(tag)`, now `CStr::from_ptr(tag).to_bytes()`)
+// but never actually read back anywhere in this file or its callers --
+// confirmed by grep before converting. Kept as a real field regardless
+// (removing it outright would be a scope-creeping cleanup riding along
+// with a type conversion); `Vec<u8>` replaces the raw `sds`, which forces
+// `Copy` off this struct. `.copy` (`table_fpgm_prep_copy`, a raw memcpy)
+// was already dead -- confirmed via the same "grep the call sites,
+// walk up if the caller itself is unreached" check used throughout this
+// migration (only `font/caryll_font.rs` uses this table's vtable, and
+// only through `.free`) -- so it's deleted rather than made unsound.
 #[repr(C)]
 pub struct FpgmPrepTable {
-    pub tag: SdsRaw,
+    pub tag: Vec<u8>,
     pub length: u32,
     pub bytes: *mut u8,
 }
@@ -34,9 +43,7 @@ pub struct FpgmPrepTableElementInterface {
 }
 #[inline]
 unsafe extern "C" fn dispose_fpgm_prep(mut table: *mut FpgmPrepTable) {
-    if !(*table).tag.is_null() {
-        sdsfree((*table).tag);
-    }
+    (*table).tag = Vec::new();
     if !(*table).bytes.is_null() {
         free((*table).bytes as *mut ::core::ffi::c_void);
         (*table).bytes = ::core::ptr::null_mut::<u8>();
@@ -63,18 +70,7 @@ unsafe extern "C" fn table_fpgm_prep_create() -> *mut FpgmPrepTable {
     let mut x: *mut FpgmPrepTable =
         malloc(::core::mem::size_of::<FpgmPrepTable>() as usize) as *mut FpgmPrepTable;
     table_fpgm_prep_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_fpgm_prep_copy(
-    mut dst: *mut FpgmPrepTable,
-    mut src: *const FpgmPrepTable,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<FpgmPrepTable>() as usize,
-    );
+    x
 }
 #[inline]
 unsafe extern "C" fn table_fpgm_prep_dispose(mut x: *mut FpgmPrepTable) {
@@ -83,10 +79,7 @@ unsafe extern "C" fn table_fpgm_prep_dispose(mut x: *mut FpgmPrepTable) {
 pub static TABLE_I_FPGM_PREP: FpgmPrepTableElementInterface = {
     FpgmPrepTableElementInterface {
         init: Some(table_fpgm_prep_init as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
-        copy: Some(
-            table_fpgm_prep_copy
-                as unsafe extern "C" fn(*mut FpgmPrepTable, *const FpgmPrepTable) -> (),
-        ),
+        copy: None,
         dispose: Some(table_fpgm_prep_dispose as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
         create: Some(table_fpgm_prep_create),
         free: Some(table_fpgm_prep_free as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
@@ -114,7 +107,9 @@ pub unsafe extern "C" fn otfcc_read_fpgm_prep(
                     let mut length: u32 = table.length;
                     t = (
                         TABLE_I_FPGM_PREP.create.expect("non-null function pointer"))();
-                    (*t).tag = ::core::ptr::null_mut::<::core::ffi::c_char>();
+                    // Placement-construct: `t` is fresh from `create()`'s
+                    // `memset` (zeroed, not a valid `Vec` bit pattern).
+                    ::core::ptr::write(&raw mut (*t).tag, Vec::new());
                     (*t).length = length;
                     (*t).bytes = __caryll_allocate_clean(
                         (::core::mem::size_of::<u8>() as usize)
@@ -205,7 +200,12 @@ pub unsafe extern "C" fn otfcc_parse_fpgm_prep(
         while ___loggedstep_v {
             t = (
                 TABLE_I_FPGM_PREP.create.expect("non-null function pointer"))();
-            (*t).tag = sdsnew(tag);
+            // Placement-construct: see the identical comment in
+            // `otfcc_read_fpgm_prep`.
+            ::core::ptr::write(
+                &raw mut (*t).tag,
+                ::core::ffi::CStr::from_ptr(tag).to_bytes().to_vec(),
+            );
             parse_ttinstr(
                 table,
                 t as *mut ::core::ffi::c_void,
