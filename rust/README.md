@@ -4710,3 +4710,112 @@ on the other platform before a commit is trusted.
     and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
     ABI export guard, `compare-with-c.sh` byte-identical on every payload,
     all 10 payloads' round trips, and the issue #1 golden test.
+- **The `sds` sweep's last four leaf fields, batched into one PR** at the
+  user's request ("まとめてsdsスイープを解消して" — resolve the remaining `sds`
+  sweep all together) rather than as four separate PRs. Each is scoped and
+  verified independently below, but landed as a single commit/PR since none
+  of the four touch the same struct.
+  - **`GlyphOrderEntry.name: SdsRaw` → `Vec<u8>`** (`support/glyph_order.rs`,
+    `json_reader.rs`, `otf_reader/unconsolidate.rs`, `table/post.rs`,
+    `table/glyf.rs`). The trickiest of the four, for a reason specific to
+    this type: `otfcc_set_glyph_order_by_gid`'s original `SdsRaw` return
+    value was a *borrowed* pointer into the entry's own storage that every
+    caller either discarded (~590 fire-and-forget registrations in
+    `support/aglfn.rs`/`table/post.rs`) or copied via `sds_to_vec` without
+    ever freeing. A `Vec<u8>` can't be borrowed out through an `extern "C"
+    fn` return the same way, so the return type changed to an owned
+    `Vec<u8>` clone of the canonical name — the ~590 discarding call sites
+    needed zero code changes (an unused return value just drops), and the
+    few call sites that captured it got simpler (no more `sds_to_vec`
+    step, the return is already the right type). Same treatment for
+    `otfcc_gord_name_a_field_shared`'s out-parameter (`*mut SdsRaw` →
+    `*mut Vec<u8>`). `otfcc_gord_consolidate_handle`'s three
+    `handle_consolidate_to` calls became direct `Handle{...}` construction
+    (the established simplification, since the name is already the right
+    type). New `sds_into_vec` helper in `support/handle.rs` (distinct from
+    `sds_to_vec`): takes ownership of *and frees* a possibly-null `SdsRaw`,
+    treating null as an empty `Vec` — for `otfcc_set_glyph_order_by_name`'s
+    JSON-parse caller, where the old code just stored a possibly-null
+    pointer directly. `dispose_glyph_order`'s per-entry loop needed an
+    explicit `(*entry).name = Vec::new();` before the raw `libc::free` of
+    each entry — same "manual drop-in-place before a raw free" requirement
+    as every other `*mut T`-owning, non-`Box`-allocated struct in this
+    migration (`libc::free` has no idea about `Vec`'s drop glue).
+  - **`Lookup.name`/`Feature.name`/`LanguageSystem.name: SdsRaw` → `Vec<u8>`**
+    (`table/otl.rs`, `table/otl/{build,parse,read,dump}.rs`,
+    `consolidate/otl/chaining.rs`). All three already had a real `Drop`
+    impl (or, for `Feature`/`LanguageSystem`, one whose *only* job was
+    freeing `name`) from the earlier `Box<Lookup>`/`Box<Feature>`/
+    `Box<LanguageSystem>` Stage-6-4 PR — `Lookup`'s `Drop` simplifies to
+    just its type-dispatched `SubtableList` teardown, and `Feature`/
+    `LanguageSystem` need no manual `Drop` impl at all anymore. New
+    `handle_name_eq_bytes` helper in `support/handle.rs` (alongside the
+    existing `handle_name_eq_cstr`): the same NUL-truncating comparison,
+    but for two `Vec<u8>`-shaped names now that `Lookup.name` moved off
+    `sds` too (`consolidate/otl/chaining.rs`'s lookup-by-name search used
+    to compare a `Handle.name` against a `Lookup.name` via `strcmp`-through-
+    `CStr`; both sides are `Vec<u8>` now). `table/otl/build.rs`'s
+    `feature_name_to_tag` (reads a tag's first 4 bytes) and its
+    `write_otl_script_and_languages`' local `ScriptGroup.tag` both widened
+    from `SdsRaw`/temporary-`sds` to `&[u8]`/`Vec<u8>` directly, since both
+    are entirely internal to this file. `table/otl/read.rs`'s ~6
+    `crate::sdsbuild!`-into-a-field sites (synthesizing default lookup/
+    feature/language names when the font omits one) needed a `let tmp =
+    sdsbuild!(...); field = sds_to_vec(tmp); sdsfree(tmp);` round trip
+    each, since `sdsbuild!` still only produces `SdsRaw`.
+  - **`CffTable`'s nine font-info fields → `Vec<u8>`** (`font_name`,
+    `version`, `notice`, `copyright`, `full_name`, `family_name`, `weight`,
+    `cid_registry`, `cid_ordering`; all in `table/cff.rs`). `CffTable`
+    loses `#[derive(Copy, Clone)]` (nine `Vec<u8>` fields forces it
+    regardless of any `Handle`-embedding concern) — confirmed safe first:
+    every use of the type is behind `*mut CffTable`/`*const CffTable`
+    (including `fd_array: *mut *mut CffTable`, itself a pointer array, not
+    a value array), so there was no cascade. `table_cff_copy` (the `.copy`
+    vtable slot, a raw `memcpy`) was already unreachable from any live
+    call site and is deleted outright (matching this migration's
+    established pattern for confirmed-dead slots) rather than left in
+    place, where it would have become unsound (a `memcpy`'d `Vec<u8>`
+    aliases its heap buffer). `dispose_fd` (called from `table_cff_free`
+    right before a raw `libc::free` of the whole struct) needed the same
+    "explicit drop-in-place before the raw free" treatment as
+    `GlyphOrderEntry` above, for all nine fields. `sidof` (the CFF
+    string-interning helper used to build the CFF string INDEX) had been
+    left taking `SdsRaw` in the `Glyph.name` PR specifically *because* it
+    was shared with these nine still-`sds` fields — now that they're
+    `Vec<u8>` too, `sidof` finally widens to `&[u8]` directly, and the two
+    `Glyph.name` call sites in `cff_make_charset` drop the temporary-`sds`
+    round trip that PR had to add as a workaround.
+  - **`NameRecord.name_string: SdsRaw` → `Vec<u8>`** (`table/name.rs`
+    only). `NameRecord` loses `Copy` (keeps `Clone`) for the same reason
+    as `CffTable` above. `table_name_dispose`'s explicit per-record
+    `dispose_name_record` loop is gone — `Vec::clear()` on
+    `Vec<NameRecord>` already drops each element in place, which now runs
+    `NameRecord`'s own (derived) drop glue and frees `name_string`'s
+    buffer for free, the same simplification every other leaf-type
+    conversion in this sweep got. `support/unicodeconv.rs`'s
+    `utf8toutf16be` (used once, in this file's `otfcc_build_name`) was
+    deliberately *not* widened to `&[u8]` — its internals are a non-trivial
+    hand-rolled UTF-8 decoder walking raw pointers derived from `sdslen`,
+    complex enough that touching it for a single call site wasn't worth
+    the risk, so a temporary `sds` copy is round-tripped at that one call
+    site instead (same reasoning as `sidof` before this PR widened it: a
+    helper's internals only get touched when it's cheap and safe to do
+    so, otherwise the caller absorbs a round trip).
+  - **No new synthetic payloads needed for any of the four** — glyph
+    naming, OTL lookup/feature/language naming, CFF font info, and the
+    `name` table are all exercised by essentially every existing payload;
+    `unknown-lookup.ttf` (added for an earlier PR) specifically drives the
+    default-name-synthesis paths in `table/otl/read.rs` (51 GSUB lookups,
+    many needing synthesized names), and `KRName-Regular.otf`/
+    `KRName-Regular-O2.otf` drive the CFF font-info read/dump/build paths.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test.
+  - **This closes the `sds` sweep for leaf-type struct fields entirely.**
+    The only remaining `sds` usage in the crate is `vendor/sds.rs`'s own
+    API surface (by design, permanent) and `support/aglfn.rs`'s ~586
+    mechanical `sdsnew` calls feeding `set_by_gid` (already `Vec<u8>`-safe
+    on the receiving end; converting the call sites themselves was never
+    in scope and remains not worth doing — they're already about as
+    simple as C-string literals get).

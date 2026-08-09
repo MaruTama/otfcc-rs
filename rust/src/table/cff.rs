@@ -4,7 +4,7 @@ unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{handle_from_index, sds_to_vec, FdHandle};
+use crate::support::handle::{handle_from_index, sds_into_vec, sds_to_vec, FdHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::logger::{ILogger};
@@ -45,8 +45,8 @@ use crate::support::buffer::{buffree, bufnew, bufwrite_bufdel, bufwrite_sds};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{json_new_vq};
 use crate::table::glyf::{GLYF_I_POINT, otfcc_new_glyf_glyph, table_glyf_create_n};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdscat, sdsdup, sdsempty, sdsfree, sdslen, sdsnew, sdsnewlen};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsnew, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
 #[derive(Clone)]
@@ -86,17 +86,25 @@ pub struct CffPrivateDict {
     pub default_width_x: ::core::ffi::c_double,
     pub nominal_width_x: ::core::ffi::c_double,
 }
-#[derive(Copy, Clone)]
+// `Copy`/`Clone` dropped: nine fields are now `Vec<u8>` (the `sds` sweep
+// reached `CffTable`'s font-info fields). Every use of this type is behind
+// `*mut CffTable`/`*const CffTable` (confirmed by grep before starting;
+// `fd_array: *mut *mut CffTable` is likewise a pointer array, never a value
+// copy) so there was no cascade to chase -- `table_cff_copy` (the `.copy`
+// vtable slot, a raw `memcpy`) was already unreachable from any live call
+// site and is deleted below rather than left as a would-be-unsound
+// landmine, matching this migration's established pattern for confirmed
+// -dead vtable slots.
 #[repr(C)]
 pub struct CffTable {
-    pub font_name: SdsRaw,
+    pub font_name: Vec<u8>,
     pub is_cid: bool,
-    pub version: SdsRaw,
-    pub notice: SdsRaw,
-    pub copyright: SdsRaw,
-    pub full_name: SdsRaw,
-    pub family_name: SdsRaw,
-    pub weight: SdsRaw,
+    pub version: Vec<u8>,
+    pub notice: Vec<u8>,
+    pub copyright: Vec<u8>,
+    pub full_name: Vec<u8>,
+    pub family_name: Vec<u8>,
+    pub weight: Vec<u8>,
     pub is_fixed_pitch: bool,
     pub italic_angle: ::core::ffi::c_double,
     pub underline_position: ::core::ffi::c_double,
@@ -108,8 +116,8 @@ pub struct CffTable {
     pub stroke_width: ::core::ffi::c_double,
     pub private_dict: *mut CffPrivateDict,
     pub font_matrix: *mut CffFontMatrix,
-    pub cid_registry: SdsRaw,
-    pub cid_ordering: SdsRaw,
+    pub cid_registry: Vec<u8>,
+    pub cid_ordering: Vec<u8>,
     pub cid_supplement: u32,
     pub cid_font_version: ::core::ffi::c_double,
     pub cid_font_revision: ::core::ffi::c_double,
@@ -233,15 +241,20 @@ unsafe extern "C" fn dispose_font_matrix(mut fm: *mut CffFontMatrix) {
 }
 #[inline]
 unsafe extern "C" fn dispose_fd(mut fd: *mut CffTable) {
-    sdsfree((*fd).version);
-    sdsfree((*fd).notice);
-    sdsfree((*fd).copyright);
-    sdsfree((*fd).full_name);
-    sdsfree((*fd).family_name);
-    sdsfree((*fd).weight);
-    sdsfree((*fd).font_name);
-    sdsfree((*fd).cid_registry);
-    sdsfree((*fd).cid_ordering);
+    // Explicit drop-in-place for each `Vec<u8>` field before this struct is
+    // eventually raw-`free`'d by `table_cff_free` -- `libc::free` has no
+    // idea about `Vec`'s drop glue, so each backing byte buffer must be
+    // torn down here or it leaks (same landmine class as `GlyphOrderEntry`
+    // elsewhere in this migration).
+    (*fd).version = Vec::new();
+    (*fd).notice = Vec::new();
+    (*fd).copyright = Vec::new();
+    (*fd).full_name = Vec::new();
+    (*fd).family_name = Vec::new();
+    (*fd).weight = Vec::new();
+    (*fd).font_name = Vec::new();
+    (*fd).cid_registry = Vec::new();
+    (*fd).cid_ordering = Vec::new();
     dispose_font_matrix((*fd).font_matrix);
     free((*fd).font_matrix as *mut ::core::ffi::c_void);
     (*fd).font_matrix = ::core::ptr::null_mut::<CffFontMatrix>();
@@ -267,7 +280,12 @@ unsafe extern "C" fn table_cff_free(mut x: *mut CffTable) {
 pub static TABLE_I_CFF: CffTableElementInterface = {
     CffTableElementInterface {
         init: Some(table_cff_init as unsafe extern "C" fn(*mut CffTable) -> ()),
-        copy: Some(table_cff_copy as unsafe extern "C" fn(*mut CffTable, *const CffTable) -> ()),
+        // `.copy` (`table_cff_copy`, a raw `memcpy`) was already unreachable
+        // from any live call site before this field's type change, and
+        // would become unsound after it (a `memcpy`'d `Vec<u8>` aliases its
+        // heap buffer) -- deleted rather than left as a landmine, matching
+        // this migration's established pattern for confirmed-dead slots.
+        copy: None,
         dispose: Some(table_cff_dispose as unsafe extern "C" fn(*mut CffTable) -> ()),
         create: Some(table_cff_create),
         free: Some(table_cff_free as unsafe extern "C" fn(*mut CffTable) -> ()),
@@ -287,14 +305,6 @@ unsafe extern "C" fn table_cff_init(mut x: *mut CffTable) {
 #[inline]
 unsafe extern "C" fn table_cff_dispose(mut x: *mut CffTable) {
     dispose_fd(x);
-}
-#[inline]
-unsafe extern "C" fn table_cff_copy(mut dst: *mut CffTable, mut src: *const CffTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CffTable>() as usize,
-    );
 }
 unsafe extern "C" fn callback_extract_private(
     mut op: u32,
@@ -486,72 +496,86 @@ unsafe extern "C" fn callback_extract_fd(
     match op {
         0 => {
             if top != 0 {
-                (*meta).version = sdsget_cff_sid(
+                let tmp_version = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
                         .c2rust_unnamed
                         .i as u16,
                     (*file).string,
                 );
+                (*meta).version = sds_to_vec(tmp_version);
+                sdsfree(tmp_version);
             }
         }
         1 => {
             if top != 0 {
-                (*meta).notice = sdsget_cff_sid(
+                let tmp_notice = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
                         .c2rust_unnamed
                         .i as u16,
                     (*file).string,
                 );
+                (*meta).notice = sds_to_vec(tmp_notice);
+                sdsfree(tmp_notice);
             }
         }
         3072 => {
             if top != 0 {
-                (*meta).copyright = sdsget_cff_sid(
+                let tmp_copyright = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
                         .c2rust_unnamed
                         .i as u16,
                     (*file).string,
                 );
+                (*meta).copyright = sds_to_vec(tmp_copyright);
+                sdsfree(tmp_copyright);
             }
         }
         3110 => {
             if top != 0 {
-                (*meta).font_name = sdsget_cff_sid(
+                let tmp_font_name = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
                         .c2rust_unnamed
                         .i as u16,
                     (*file).string,
                 );
+                (*meta).font_name = sds_to_vec(tmp_font_name);
+                sdsfree(tmp_font_name);
             }
         }
         2 => {
             if top != 0 {
-                (*meta).full_name = sdsget_cff_sid(
+                let tmp_full_name = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
                         .c2rust_unnamed
                         .i as u16,
                     (*file).string,
                 );
+                (*meta).full_name = sds_to_vec(tmp_full_name);
+                sdsfree(tmp_full_name);
             }
         }
         3 => {
             if top != 0 {
-                (*meta).family_name = sdsget_cff_sid(
+                let tmp_family_name = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
                         .c2rust_unnamed
                         .i as u16,
                     (*file).string,
                 );
+                (*meta).family_name = sds_to_vec(tmp_family_name);
+                sdsfree(tmp_family_name);
             }
         }
         4 => {
             if top != 0 {
-                (*meta).weight = sdsget_cff_sid(
+                let tmp_weight = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
                         .c2rust_unnamed
                         .i as u16,
                     (*file).string,
                 );
+                (*meta).weight = sds_to_vec(tmp_weight);
+                sdsfree(tmp_weight);
             }
         }
         5 => {
@@ -667,18 +691,22 @@ unsafe extern "C" fn callback_extract_fd(
         3102 => {
             if top as ::core::ffi::c_int >= 3 as ::core::ffi::c_int {
                 (*meta).is_cid = true;
-                (*meta).cid_registry = sdsget_cff_sid(
+                let tmp_cid_registry = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 3 as ::core::ffi::c_int) as isize))
                         .c2rust_unnamed
                         .i as u16,
                     (*file).string,
                 );
-                (*meta).cid_ordering = sdsget_cff_sid(
+                (*meta).cid_registry = sds_to_vec(tmp_cid_registry);
+                sdsfree(tmp_cid_registry);
+                let tmp_cid_ordering = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize))
                         .c2rust_unnamed
                         .i as u16,
                     (*file).string,
                 );
+                (*meta).cid_ordering = sds_to_vec(tmp_cid_ordering);
+                sdsfree(tmp_cid_ordering);
                 (*meta).cid_supplement = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) as u32;
@@ -1457,8 +1485,10 @@ pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
                                 ) -> (),
                         ),
                     );
-                    if (*context.meta).font_name.is_null() {
-                        (*context.meta).font_name = sdsget_cff_sid(391 as u16, (*cff_file).name);
+                    if (*context.meta).font_name.is_empty() {
+                        let tmp_font_name = sdsget_cff_sid(391 as u16, (*cff_file).name);
+                        (*context.meta).font_name = sds_to_vec(tmp_font_name);
+                        sdsfree(tmp_font_name);
                     }
                     if (*cff_file).font_dict.count != 0 {
                         (*context.meta).fd_array_count = (*cff_file).font_dict.count as TableId;
@@ -1509,11 +1539,13 @@ pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
                             );
                             if (**(*context.meta).fd_array.offset(j as isize))
                                 .font_name
-                                .is_null()
+                                .is_empty()
                             {
+                                let tmp_subfont = crate::sdsbuild!(sdsempty(), b"_Subfont", j as ::core::ffi::c_int);
                                 let ref mut fresh1 =
                                     (**(*context.meta).fd_array.offset(j as isize)).font_name;
-                                *fresh1 = crate::sdsbuild!(sdsempty(), b"_Subfont", j as ::core::ffi::c_int);
+                                *fresh1 = sds_to_vec(tmp_subfont);
+                                sdsfree(tmp_subfont);
                             }
                             j = j.wrapping_add(1);
                         }
@@ -1690,53 +1722,53 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
             json_boolean_new((*table).is_cid as ::core::ffi::c_int),
         );
     }
-    if !(*table).version.is_null() {
+    if !(*table).version.is_empty() {
         json_object_push(
             _cff,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_from_sds((*table).version),
+            json_from_sds(&(*table).version),
         );
     }
-    if !(*table).notice.is_null() {
+    if !(*table).notice.is_empty() {
         json_object_push(
             _cff,
             b"notice\0" as *const u8 as *const ::core::ffi::c_char,
-            json_from_sds((*table).notice),
+            json_from_sds(&(*table).notice),
         );
     }
-    if !(*table).copyright.is_null() {
+    if !(*table).copyright.is_empty() {
         json_object_push(
             _cff,
             b"copyright\0" as *const u8 as *const ::core::ffi::c_char,
-            json_from_sds((*table).copyright),
+            json_from_sds(&(*table).copyright),
         );
     }
-    if !(*table).font_name.is_null() {
+    if !(*table).font_name.is_empty() {
         json_object_push(
             _cff,
             b"fontName\0" as *const u8 as *const ::core::ffi::c_char,
-            json_from_sds((*table).font_name),
+            json_from_sds(&(*table).font_name),
         );
     }
-    if !(*table).full_name.is_null() {
+    if !(*table).full_name.is_empty() {
         json_object_push(
             _cff,
             b"fullName\0" as *const u8 as *const ::core::ffi::c_char,
-            json_from_sds((*table).full_name),
+            json_from_sds(&(*table).full_name),
         );
     }
-    if !(*table).family_name.is_null() {
+    if !(*table).family_name.is_empty() {
         json_object_push(
             _cff,
             b"familyName\0" as *const u8 as *const ::core::ffi::c_char,
-            json_from_sds((*table).family_name),
+            json_from_sds(&(*table).family_name),
         );
     }
-    if !(*table).weight.is_null() {
+    if !(*table).weight.is_empty() {
         json_object_push(
             _cff,
             b"weight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_from_sds((*table).weight),
+            json_from_sds(&(*table).weight),
         );
     }
     if (*table).is_fixed_pitch {
@@ -1847,16 +1879,16 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
             pd_to_json((*table).private_dict),
         );
     }
-    if !(*table).cid_registry.is_null() && !(*table).cid_ordering.is_null() {
+    if !(*table).cid_registry.is_empty() && !(*table).cid_ordering.is_empty() {
         json_object_push(
             _cff,
             b"cidRegistry\0" as *const u8 as *const ::core::ffi::c_char,
-            json_from_sds((*table).cid_registry),
+            json_from_sds(&(*table).cid_registry),
         );
         json_object_push(
             _cff,
             b"cidOrdering\0" as *const u8 as *const ::core::ffi::c_char,
-            json_from_sds((*table).cid_ordering),
+            json_from_sds(&(*table).cid_ordering),
         );
         json_object_push(
             _cff,
@@ -1868,16 +1900,14 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
         let mut _fd_array: *mut JsonValue = json_object_new((*table).fd_array_count as usize);
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*table).fd_array_count as ::core::ffi::c_int {
-            let mut name: SdsRaw = (**(*table).fd_array.offset(j as isize)).font_name;
-            let ref mut fresh9 = (**(*table).fd_array.offset(j as isize)).font_name;
-            *fresh9 = ::core::ptr::null_mut::<::core::ffi::c_char>();
-            json_object_push(
+            let name: Vec<u8> =
+                ::core::mem::take(&mut (**(*table).fd_array.offset(j as isize)).font_name);
+            json_object_push_bytes_key(
                 _fd_array,
-                name as *const ::core::ffi::c_char,
+                &name,
                 fd_to_json(*(*table).fd_array.offset(j as isize)),
             );
-            let ref mut fresh10 = (**(*table).fd_array.offset(j as isize)).font_name;
-            *fresh10 = name;
+            (**(*table).fd_array.offset(j as isize)).font_name = name;
             j = j.wrapping_add(1);
         }
         json_object_push(
@@ -2039,28 +2069,28 @@ unsafe extern "C" fn fd_from_json(
     {
         return table;
     }
-    (*table).version = json_obj_getsds(
+    (*table).version = sds_into_vec(json_obj_getsds(
         dump,
         b"version\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).notice = json_obj_getsds(dump, b"notice\0" as *const u8 as *const ::core::ffi::c_char);
-    (*table).copyright = json_obj_getsds(
+    ));
+    (*table).notice = sds_into_vec(json_obj_getsds(dump, b"notice\0" as *const u8 as *const ::core::ffi::c_char));
+    (*table).copyright = sds_into_vec(json_obj_getsds(
         dump,
         b"copyright\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).font_name = json_obj_getsds(
+    ));
+    (*table).font_name = sds_into_vec(json_obj_getsds(
         dump,
         b"fontName\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).full_name = json_obj_getsds(
+    ));
+    (*table).full_name = sds_into_vec(json_obj_getsds(
         dump,
         b"fullName\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).family_name = json_obj_getsds(
+    ));
+    (*table).family_name = sds_into_vec(json_obj_getsds(
         dump,
         b"familyName\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).weight = json_obj_getsds(dump, b"weight\0" as *const u8 as *const ::core::ffi::c_char);
+    ));
+    (*table).weight = sds_into_vec(json_obj_getsds(dump, b"weight\0" as *const u8 as *const ::core::ffi::c_char));
     (*table).is_fixed_pitch = json_obj_getbool(
         dump,
         b"isFixedPitch\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2104,14 +2134,14 @@ unsafe extern "C" fn fd_from_json(
         b"privates\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,
     ));
-    (*table).cid_registry = json_obj_getsds(
+    (*table).cid_registry = sds_into_vec(json_obj_getsds(
         dump,
         b"cidRegistry\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).cid_ordering = json_obj_getsds(
+    ));
+    (*table).cid_ordering = sds_into_vec(json_obj_getsds(
         dump,
         b"cidOrdering\0" as *const u8 as *const ::core::ffi::c_char,
-    );
+    ));
     (*table).cid_supplement = json_obj_getint(
         dump,
         b"cidSupplement\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2153,20 +2183,16 @@ unsafe extern "C" fn fd_from_json(
                 options,
                 false,
             );
-            if !(**(*table).fd_array.offset(j as isize)).font_name.is_null() {
-                sdsfree((**(*table).fd_array.offset(j as isize)).font_name);
-            }
             let ref mut fresh12 = (**(*table).fd_array.offset(j as isize)).font_name;
-            *fresh12 = sdsnewlen(
-                (*(*fdarraydump).u.object.values.offset(j as isize)).name
-                    as *const ::core::ffi::c_void,
+            *fresh12 = ::core::slice::from_raw_parts(
+                (*(*fdarraydump).u.object.values.offset(j as isize)).name as *const u8,
                 (*(*fdarraydump).u.object.values.offset(j as isize)).name_length as usize,
-            );
+            ).to_vec();
             j = j.wrapping_add(1);
         }
     }
-    if (*table).font_name.is_null() {
-        (*table).font_name = sdsnew(b"CARYLL_CFFFONT\0" as *const u8 as *const ::core::ffi::c_char);
+    if (*table).font_name.is_empty() {
+        (*table).font_name = b"CARYLL_CFFFONT".to_vec();
     }
     if (*table).private_dict.is_null() {
         (*table).private_dict = otfcc_new_cff_private();
@@ -2187,17 +2213,16 @@ unsafe extern "C" fn fd_from_json(
         let mut fd0: *mut CffTable = *(*table).fd_array.offset(0 as ::core::ffi::c_int as isize);
         (*fd0).private_dict = (*table).private_dict;
         (*table).private_dict = otfcc_new_cff_private();
-        (*fd0).font_name = sdscat(
-            sdsdup((*table).font_name),
-            b"-subfont0\0" as *const u8 as *const ::core::ffi::c_char,
-        );
+        let mut subfont0_name = (*table).font_name.clone();
+        subfont0_name.extend_from_slice(b"-subfont0");
+        (*fd0).font_name = subfont0_name;
         (*table).is_cid = true;
     }
-    if (*table).is_cid as ::core::ffi::c_int != 0 && (*table).cid_registry.is_null() {
-        (*table).cid_registry = sdsnew(b"CARYLL\0" as *const u8 as *const ::core::ffi::c_char);
+    if (*table).is_cid as ::core::ffi::c_int != 0 && (*table).cid_registry.is_empty() {
+        (*table).cid_registry = b"CARYLL".to_vec();
     }
-    if (*table).is_cid as ::core::ffi::c_int != 0 && (*table).cid_ordering.is_null() {
-        (*table).cid_ordering = sdsnew(b"OTFCCAUTOCID\0" as *const u8 as *const ::core::ffi::c_char);
+    if (*table).is_cid as ::core::ffi::c_int != 0 && (*table).cid_ordering.is_empty() {
+        (*table).cid_ordering = b"OTFCCAUTOCID".to_vec();
     }
     return table;
 }
@@ -2282,15 +2307,16 @@ unsafe extern "C" fn cff_make_charstrings(
 // treated as the same string for dedup purposes (the original's exact
 // behavior), but the winning entry's full byte content, NUL and all, is
 // still what ends up in the output.
-unsafe fn sidof(h: *mut indexmap::IndexMap<Vec<u8>, SdsRaw>, s: SdsRaw) -> ::core::ffi::c_int {
-    let key: Vec<u8> = ::core::ffi::CStr::from_ptr(s as *const ::core::ffi::c_char)
-        .to_bytes()
-        .to_vec();
+unsafe fn sidof(h: *mut indexmap::IndexMap<Vec<u8>, SdsRaw>, s: &[u8]) -> ::core::ffi::c_int {
+    let key: Vec<u8> = match s.iter().position(|&b| b == 0) {
+        Some(p) => s[..p].to_vec(),
+        None => s.to_vec(),
+    };
     if let Some(idx) = (*h).get_index_of(&key) {
         return 391 as ::core::ffi::c_int + idx as ::core::ffi::c_int;
     }
     let idx = (*h).len();
-    (*h).insert(key, sdsdup(s));
+    (*h).insert(key, sdsnewlen(s.as_ptr() as *const ::core::ffi::c_void, s.len()));
     return 391 as ::core::ffi::c_int + idx as ::core::ffi::c_int;
 }
 unsafe extern "C" fn cffdict_givemeablank(mut dict: *mut CffDict) -> *mut CffDictEntry {
@@ -2392,26 +2418,26 @@ unsafe extern "C" fn cff_make_fd_dict(
 ) -> *mut CffDict {
     let mut dict: *mut CffDict = (
         CFF_I_DICT.create.expect("non-null function pointer"))();
-    if !(*fd).cid_registry.is_null() && !(*fd).cid_ordering.is_null() {
-        cffdict_input_ints(dict, OP_ROS as u32, &[(sidof(h, (*fd).cid_registry)) as i32, (sidof(h, (*fd).cid_ordering)) as i32, ((*fd).cid_supplement) as i32]);
+    if !(*fd).cid_registry.is_empty() && !(*fd).cid_ordering.is_empty() {
+        cffdict_input_ints(dict, OP_ROS as u32, &[(sidof(h, &(*fd).cid_registry)) as i32, (sidof(h, &(*fd).cid_ordering)) as i32, ((*fd).cid_supplement) as i32]);
     }
-    if !(*fd).version.is_null() {
-        cffdict_input_ints(dict, OP_VERSION as u32, &[(sidof(h, (*fd).version)) as i32]);
+    if !(*fd).version.is_empty() {
+        cffdict_input_ints(dict, OP_VERSION as u32, &[(sidof(h, &(*fd).version)) as i32]);
     }
-    if !(*fd).notice.is_null() {
-        cffdict_input_ints(dict, OP_NOTICE as u32, &[(sidof(h, (*fd).notice)) as i32]);
+    if !(*fd).notice.is_empty() {
+        cffdict_input_ints(dict, OP_NOTICE as u32, &[(sidof(h, &(*fd).notice)) as i32]);
     }
-    if !(*fd).copyright.is_null() {
-        cffdict_input_ints(dict, OP_COPYRIGHT as u32, &[(sidof(h, (*fd).copyright)) as i32]);
+    if !(*fd).copyright.is_empty() {
+        cffdict_input_ints(dict, OP_COPYRIGHT as u32, &[(sidof(h, &(*fd).copyright)) as i32]);
     }
-    if !(*fd).full_name.is_null() {
-        cffdict_input_ints(dict, OP_FULL_NAME as u32, &[(sidof(h, (*fd).full_name)) as i32]);
+    if !(*fd).full_name.is_empty() {
+        cffdict_input_ints(dict, OP_FULL_NAME as u32, &[(sidof(h, &(*fd).full_name)) as i32]);
     }
-    if !(*fd).family_name.is_null() {
-        cffdict_input_ints(dict, OP_FAMILY_NAME as u32, &[(sidof(h, (*fd).family_name)) as i32]);
+    if !(*fd).family_name.is_empty() {
+        cffdict_input_ints(dict, OP_FAMILY_NAME as u32, &[(sidof(h, &(*fd).family_name)) as i32]);
     }
-    if !(*fd).weight.is_null() {
-        cffdict_input_ints(dict, OP_WEIGHT as u32, &[(sidof(h, (*fd).weight)) as i32]);
+    if !(*fd).weight.is_empty() {
+        cffdict_input_ints(dict, OP_WEIGHT as u32, &[(sidof(h, &(*fd).weight)) as i32]);
     }
     cffdict_input_doubles(dict, OP_FONT_BBOX as u32, &[((*fd).font_b_box_left) as f64, ((*fd).font_b_box_bottom) as f64, ((*fd).font_b_box_right) as f64, ((*fd).font_b_box_top) as f64]);
     cffdict_input_ints(dict, OP_IS_FIXED_PITCH as u32, &[((*fd).is_fixed_pitch as ::core::ffi::c_int) as i32]);
@@ -2422,8 +2448,8 @@ unsafe extern "C" fn cff_make_fd_dict(
     if !(*fd).font_matrix.is_null() {
         cffdict_input_doubles(dict, OP_FONT_MATRIX as u32, &[((*(*fd).font_matrix).a) as f64, ((*(*fd).font_matrix).b) as f64, ((*(*fd).font_matrix).c) as f64, ((*(*fd).font_matrix).d) as f64, (I_VQ.get_still.expect("non-null function pointer")((*(*fd).font_matrix).x.clone())) as f64, (I_VQ.get_still.expect("non-null function pointer")((*(*fd).font_matrix).y.clone())) as f64]);
     }
-    if !(*fd).font_name.is_null() {
-        cffdict_input_ints(dict, OP_FONT_NAME as u32, &[(sidof(h, (*fd).font_name)) as i32]);
+    if !(*fd).font_name.is_empty() {
+        cffdict_input_ints(dict, OP_FONT_NAME as u32, &[(sidof(h, &(*fd).font_name)) as i32]);
     }
     if (*fd).cid_font_version != 0. {
         cffdict_input_doubles(dict, OP_CID_FONT_VERSION as u32, &[((*fd).cid_font_version) as f64]);
@@ -2553,29 +2579,26 @@ unsafe extern "C" fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffe
         (::core::mem::size_of::<u32>() as usize).wrapping_mul(2 as usize),
         1121 as ::core::ffi::c_ulong,
     ) as *mut u32;
-    if (*cff).font_name.is_null() {
-        (*cff).font_name = sdsnew(b"Caryll-CFF-FONT\0" as *const u8 as *const ::core::ffi::c_char);
+    if (*cff).font_name.is_empty() {
+        (*cff).font_name = b"Caryll-CFF-FONT".to_vec();
     }
     *(*name_index).offset.offset(0 as ::core::ffi::c_int as isize) = 1 as u32;
     *(*name_index).offset.offset(1 as ::core::ffi::c_int as isize) =
-        sdslen((*cff).font_name).wrapping_add(1 as usize) as u32;
+        (*cff).font_name.len().wrapping_add(1 as usize) as u32;
     (*name_index).data = __caryll_allocate_clean(
         (::core::mem::size_of::<u8>() as usize)
-            .wrapping_mul((1 as usize).wrapping_add(sdslen((*cff).font_name))),
+            .wrapping_mul((1 as usize).wrapping_add((*cff).font_name.len())),
         1125 as ::core::ffi::c_ulong,
     ) as *mut u8;
     memcpy(
         (*name_index).data as *mut ::core::ffi::c_void,
-        (*cff).font_name as *const ::core::ffi::c_void,
-        sdslen((*cff).font_name),
+        (*cff).font_name.as_ptr() as *const ::core::ffi::c_void,
+        (*cff).font_name.len(),
     );
     let mut buf: *mut Buffer =
         CFF_I_INDEX.build.expect("non-null function pointer")(name_index);
     CFF_I_INDEX.free.expect("non-null function pointer")(name_index);
-    if !(*cff).font_name.is_null() {
-        sdsfree((*cff).font_name);
-        (*cff).font_name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    }
+    (*cff).font_name = Vec::new();
     return buf;
 }
 unsafe extern "C" fn cff_make_charset(
@@ -2612,26 +2635,15 @@ unsafe extern "C" fn cff_make_charset(
         } else {
             let mut j: GlyphId = 1 as GlyphId;
             while (j as usize) < (*glyf).len() {
-                // `sidof` still takes an `SdsRaw` -- it's shared with the
-                // still-`sds` `CffFontInfo` fields (`cid_registry`,
-                // `version`, ... below), so a temporary `sds` copy of the
-                // glyph name is round-tripped here rather than widening
-                // `sidof` itself to `&[u8]`.
-                let name: &[u8] = &(&(*glyf))[j as usize].as_deref().unwrap().name;
-                let gname: SdsRaw = sdsnewlen(name.as_ptr() as *const ::core::ffi::c_void, name.len());
-                sidof(string_hash, gname);
-                sdsfree(gname);
+                sidof(string_hash, &(&(*glyf))[j as usize].as_deref().unwrap().name);
                 j = j.wrapping_add(1);
             }
-            let first_name: &[u8] = &(&(*glyf))[1 as usize].as_deref().unwrap().name;
-            let first_gname: SdsRaw = sdsnewlen(first_name.as_ptr() as *const ::core::ffi::c_void, first_name.len());
             (*(*charset)
                 .c2rust_unnamed
                 .f2
                 .range2
                 .offset(0 as ::core::ffi::c_int as isize))
-            .first = sidof(string_hash, first_gname) as u16;
-            sdsfree(first_gname);
+            .first = sidof(string_hash, &(&(*glyf))[1 as usize].as_deref().unwrap().name) as u16;
             (*(*charset)
                 .c2rust_unnamed
                 .f2
@@ -3061,9 +3073,9 @@ pub unsafe extern "C" fn otfcc_build_cff(
     return writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options);
 }
 #[inline]
-unsafe extern "C" fn json_from_sds(str: SdsRaw) -> *mut JsonValue {
+unsafe fn json_from_sds(str: &[u8]) -> *mut JsonValue {
     return json_string_new_length(
-        sdslen(str) as ::core::ffi::c_uint,
-        str as *const ::core::ffi::c_char,
+        str.len() as ::core::ffi::c_uint,
+        str.as_ptr() as *const ::core::ffi::c_char,
     );
 }

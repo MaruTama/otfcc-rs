@@ -15,7 +15,6 @@ use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{GlyphHandle, LookupHandle};
 
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
-use crate::vendor::sds::{SdsRaw};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::table::otl::subtables::gpos_cursive::{subtable_gpos_cursive_free};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{subtable_gpos_mark_to_ligature_free};
@@ -26,7 +25,6 @@ use crate::table::otl::subtables::gsub_ligature::{subtable_gsub_ligature_free};
 use crate::table::otl::subtables::gsub_multi::{subtable_gsub_multi_free};
 use crate::table::otl::subtables::gsub_reverse::{I_SUBTABLE_GSUB_REVERSE};
 use crate::table::otl::subtables::gsub_single::{subtable_gsub_single_free};
-use crate::vendor::sds::{sdsfree};
 
 
 /// Which gsub/gpos subtable format a lookup is, in otfcc's own numbering: the
@@ -388,7 +386,7 @@ pub struct GsubSingleEntry {
 // 常に `*mut`/`*const` 経由でしか触られない（値渡し・値コピーの箇所は無い）。
 #[repr(C)]
 pub struct Lookup {
-    pub name: SdsRaw,
+    pub name: Vec<u8>,
     pub type_0: LookupType,
     pub _offset: u32,
     pub flags: u16,
@@ -399,17 +397,13 @@ pub struct Lookup {
 /// type-dispatched job -- `Subtable` is a union, and knowing which variant
 /// each element holds needs `self.type_0`, not just the element's own type).
 /// `otl_subtable_list_dispose_dependent` already does exactly that dispatch,
-/// so `drop` just calls it on `self`, then frees `name` -- the same two
-/// steps `otfcc_delete_lookup` used to do before its own `free()`, which a
-/// `Box<Lookup>`'s own deallocation now provides.
+/// so `drop` just calls it on `self` -- `name` (a `Vec<u8>` since the `sds`
+/// sweep reached this field) now tears down for free, the same
+/// simplification `Glyph`'s own `Drop` got.
 impl Drop for Lookup {
     fn drop(&mut self) {
         unsafe {
             otl_subtable_list_dispose_dependent(&raw mut self.subtables, self as *const Lookup);
-            if !self.name.is_null() {
-                sdsfree(self.name);
-                self.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-            }
         }
     }
 }
@@ -460,22 +454,14 @@ pub type LookupRefList = Vec<LookupRef>;
 // `Lookup` と同じく常に `*mut`/`*const` 経由。
 #[repr(C)]
 pub struct Feature {
-    pub name: SdsRaw,
+    pub name: Vec<u8>,
     pub lookups: LookupRefList,
 }
 /// `lookups: LookupRefList` (`Vec<LookupRef>`) needs no help -- it holds
 /// only *borrowed* `*const Lookup`s into `OtlTable.lookups`, so its own drop
-/// glue is enough. `name` is the only allocation `Feature` owns.
-impl Drop for Feature {
-    fn drop(&mut self) {
-        if !self.name.is_null() {
-            unsafe {
-                sdsfree(self.name);
-            }
-            self.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-        }
-    }
-}
+/// glue is enough. `name` (a `Vec<u8>` since the `sds` sweep reached this
+/// field) now also tears down for free, so `Feature` needs no manual `Drop`
+/// impl at all anymore.
 pub type FeaturePtr = *mut Feature;
 // Stage 6-4, second of the "owned pointer array" group -- see
 // `LangSystemList`/`new_language` for the shape and rationale.
@@ -487,24 +473,16 @@ pub type FeatureRefList = Vec<FeatureRef>;
 // (`Vec<FeatureRef>`)を値で持つため `Copy` を落とす。
 #[repr(C)]
 pub struct LanguageSystem {
-    pub name: SdsRaw,
+    pub name: Vec<u8>,
     pub required_feature: FeatureRef,
     pub features: FeatureRefList,
 }
-/// Frees the only allocation a `LanguageSystem` owns. `required_feature`
-/// and `features` both hold *borrowed* `*const Feature`s into `OtlTable`'s
-/// own `features` list, so nothing there needs freeing -- `features`'s
-/// backing `Vec` drops itself.
-impl Drop for LanguageSystem {
-    fn drop(&mut self) {
-        if !self.name.is_null() {
-            unsafe {
-                sdsfree(self.name);
-            }
-            self.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-        }
-    }
-}
+/// `required_feature` and `features` both hold *borrowed* `*const
+/// Feature`s into `OtlTable`'s own `features` list, so nothing there needs
+/// freeing -- `features`'s backing `Vec` drops itself, and `name` (a
+/// `Vec<u8>` since the `sds` sweep reached this field) now also tears down
+/// for free, so `LanguageSystem` needs no manual `Drop` impl at all
+/// anymore.
 // Stage 6-4 pilot for the "owned pointer array" shape (plan classification
 // その3): the elements are `Box`es now, not raw `*mut`, so the `Vec`'s own
 // drop glue frees every element -- see rust/README.md.
@@ -621,7 +599,7 @@ pub unsafe extern "C" fn otfcc_delete_lookup(lookup: *mut Lookup) {
 #[inline]
 pub(crate) fn new_lookup() -> Box<Lookup> {
     Box::new(Lookup {
-        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        name: Vec::new(),
         type_0: OTL_TYPE_UNKNOWN,
         _offset: 0,
         flags: 0,
@@ -695,7 +673,7 @@ pub(crate) unsafe fn otl_lookup_ref_list_replace(dst: *mut LookupRefList, src: L
 #[inline]
 pub(crate) fn new_feature() -> Box<Feature> {
     Box::new(Feature {
-        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        name: Vec::new(),
         lookups: Vec::new(),
     })
 }
@@ -756,7 +734,7 @@ pub(crate) unsafe fn otl_feature_ref_list_filter_env(
 #[inline]
 pub(crate) fn new_language() -> Box<LanguageSystem> {
     Box::new(LanguageSystem {
-        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        name: Vec::new(),
         required_feature: ::core::ptr::null::<Feature>(),
         features: Vec::new(),
     })

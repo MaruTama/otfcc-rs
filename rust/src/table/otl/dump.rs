@@ -19,7 +19,7 @@ use crate::table::otl::subtables::gsub_ligature::{otl_gsub_dump_ligature};
 use crate::table::otl::subtables::gsub_multi::{otl_gsub_dump_multi};
 use crate::table::otl::subtables::gsub_reverse::{otl_gsub_dump_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_gsub_dump_single};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new, json_string_new_from_bytes};
 use crate::vendor::sds::{sdsempty};
 unsafe extern "C" fn _declare_lookup_dumper(
     mut llt: LookupType,
@@ -200,9 +200,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
                     json_object_push(
                         _lang,
                         b"requiredFeature\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_string_new(
-                            (*(*lang).required_feature).name as *const ::core::ffi::c_char,
-                        ),
+                        json_string_new_from_bytes(&(*(*lang).required_feature).name),
                     );
                 }
                 let mut features: *mut JsonValue = json_array_new((*lang).features.len());
@@ -211,10 +209,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
                     if !(&(*lang).features)[k as usize].is_null() {
                         json_array_push(
                             features,
-                            json_string_new(
-                                (*(&(*lang).features)[k as usize]).name
-                                    as *const ::core::ffi::c_char,
-                            ),
+                            json_string_new_from_bytes(&(*(&(*lang).features)[k as usize]).name),
                         );
                     }
                     k = k.wrapping_add(1);
@@ -224,7 +219,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
                     b"features\0" as *const u8 as *const ::core::ffi::c_char,
                     preserialize(features),
                 );
-                json_object_push(languages, (*lang).name as *const ::core::ffi::c_char, _lang);
+                json_object_push_bytes_key(languages, &(*lang).name, _lang);
                 j = j.wrapping_add(1);
             }
             json_object_push(
@@ -257,17 +252,14 @@ pub unsafe extern "C" fn otfcc_dump_otl(
                     if !(&(*feature).lookups)[k_0 as usize].is_null() {
                         json_array_push(
                             _feature,
-                            json_string_new(
-                                (*(&(*feature).lookups)[k_0 as usize]).name
-                                    as *const ::core::ffi::c_char,
-                            ),
+                            json_string_new_from_bytes(&(*(&(*feature).lookups)[k_0 as usize]).name),
                         );
                     }
                     k_0 = k_0.wrapping_add(1);
                 }
-                json_object_push(
+                json_object_push_bytes_key(
                     features_0,
-                    (*feature).name as *const ::core::ffi::c_char,
+                    &(*feature).name,
                     preserialize(_feature),
                 );
                 j_0 = j_0.wrapping_add(1);
@@ -299,14 +291,14 @@ pub unsafe extern "C" fn otfcc_dump_otl(
                 let mut _lookup: *mut JsonValue = json_object_new(5 as usize);
                 let lookup: *const Lookup = &raw const *(&(*table).lookups)[j_1 as usize];
                 _dump_lookup(lookup, _lookup);
-                json_object_push(
+                json_object_push_bytes_key(
                     lookups,
-                    (*lookup).name as *const ::core::ffi::c_char,
+                    &(*lookup).name,
                     _lookup,
                 );
                 json_array_push(
                     lookup_order,
-                    json_string_new((*lookup).name as *const ::core::ffi::c_char),
+                    json_string_new_from_bytes(&(*lookup).name),
                 );
                 j_1 = j_1.wrapping_add(1);
             }

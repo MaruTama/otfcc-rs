@@ -9,7 +9,6 @@ use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getin
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, LOG_VL_NOTICE, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonValue, JsonType};
 use crate::support::{TRUE_0};
 use crate::table::otl::{Feature, FeatureRef, FeatureRefList, LanguageSystem, Lookup, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
@@ -30,7 +29,7 @@ use crate::table::otl::subtables::gsub_reverse::{otl_gsub_parse_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_gsub_parse_single};
 use crate::vendor::json::{json_value_free};
 use crate::vendor::json_builder::{json_string_new_length};
-use crate::vendor::sds::{sdsempty, sdsnew};
+use crate::vendor::sds::{sdsempty};
 /// Replaces the uthash-based `FeatureHash`. Same shape as `LookupEntry`
 /// (see its doc comment) and for the same reason: a real feature
 /// declaration is rejected if its name already exists, but an alias
@@ -424,7 +423,7 @@ unsafe extern "C" fn _declare_lookup_parser(
         return false;
     }
     let order_val: u16 = lh.len() as u16;
-    (*lookup).name = sdsnew(lookup_name) as SdsRaw;
+    (*lookup).name = ::core::ffi::CStr::from_ptr(lookup_name).to_bytes().to_vec();
     lh.push(LookupEntry {
         name: name_bytes,
         alias: false,
@@ -623,7 +622,7 @@ unsafe fn figure_out_features_from_json(
                     // entry's copy of the same pointer is never freed on
                     // its own.
                     let feature: *mut Feature = Box::into_raw(new_feature());
-                    (*feature).name = sdsnew(feature_name) as SdsRaw;
+                    (*feature).name = feature_name_bytes.clone();
                     otl_lookup_ref_list_replace(&raw mut (*feature).lookups, al);
                     fh.push(FeatureEntry {
                         name: feature_name_bytes,
@@ -760,7 +759,7 @@ unsafe fn figure_out_languages_from_json(
                     // grep before starting), so every entry here really
                     // is unique and really does get pushed.
                     let language: *mut LanguageSystem = Box::into_raw(new_language());
-                    (*language).name = sdsnew(language_name) as SdsRaw;
+                    (*language).name = language_name_bytes.clone();
                     (*language).required_feature = required_feature as FeatureRef;
                     otl_feature_ref_list_replace(&raw mut (*language).features, af);
                     sh.insert(language_name_bytes, language);

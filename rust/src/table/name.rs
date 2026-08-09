@@ -1,5 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc};
+use crate::support::handle::{sds_to_vec};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint};
 use crate::support::binio::{read_16u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -14,39 +15,31 @@ use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite16b, bufwrite_buf, bufwrite_bytes};
 use crate::support::unicodeconv::{utf16be_to_utf8, utf8toutf16be};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdsempty, sdsfree, sdsgrowzero, sdslen, sdsnewlen};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsgrowzero, sdsnewlen};
 
-#[derive(Copy, Clone)]
+// `Copy` dropped (`name_string` is now `Vec<u8>`, the `sds` sweep's last
+// leaf field) -- `Clone` alone is enough, and nothing relied on
+// `Vec<NameRecord>: Clone` doing a deep copy (the whole-table `.copy` slot
+// was already dead before this conversion, per the earlier note this
+// replaces).
+#[derive(Clone)]
 #[repr(C)]
 pub struct NameRecord {
     pub platform_id: u16,
     pub encoding_id: u16,
     pub language_id: u16,
     pub name_id: u16,
-    pub name_string: SdsRaw,
+    pub name_string: Vec<u8>,
 }
 pub type NameTable = Vec<NameRecord>;
-// `NameRecord` stays `Copy` (like `MetaEntry` -- an owned `sds` field doesn't
-// block it, only a `Handle` embedding does, and even then only because of the
-// explicit-dup convention). Safe here specifically because `TABLE_I_NAME.copy`
-// (whole-table clone) was dead before this conversion and is deleted outright
-// below, not ported -- nothing ever relies on `Vec<NameRecord>: Clone` doing a
-// deep copy.
-unsafe fn dispose_name_record(r: *mut NameRecord) {
-    sdsfree((*r).name_string);
-    (*r).name_string = ::core::ptr::null_mut::<::core::ffi::c_char>();
-}
 pub const COPYRIGHT_LEN: ::core::ffi::c_int = 32 as ::core::ffi::c_int;
-// `table_name_dispose`'s job: free every record's `name_string` before the
-// backing `Vec` itself is dropped/reset (`NameRecord` owns `name_string` but
-// isn't wrapped in a `Drop` impl -- same convention as `MetaEntry`/
-// `CaretValueRecord`).
+// `.clear()` on `Vec<NameRecord>` already drops each element in place,
+// which now runs `NameRecord`'s own (derived) drop glue and frees
+// `name_string`'s backing buffer for free -- the explicit per-record
+// `dispose_name_record` loop this used to need is gone.
 unsafe fn table_name_dispose(arr: *mut NameTable) {
     if arr.is_null() {
         return;
-    }
-    for r in (*arr).iter_mut() {
-        dispose_name_record(r as *mut NameRecord);
     }
     (*arr).clear();
 }
@@ -119,7 +112,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                                     encoding_id: 0,
                                     language_id: 0,
                                     name_id: 0,
-                                    name_string: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                                    name_string: Vec::new(),
                                 };
                                 record.platform_id = read_16u(
                                     data.offset(6 as ::core::ffi::c_int as isize).offset(
@@ -154,7 +147,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                                         .offset(6 as ::core::ffi::c_int as isize)
                                         as *const u8,
                                 );
-                                record.name_string = ::core::ptr::null_mut::<::core::ffi::c_char>();
+                                record.name_string = Vec::new();
                                 let mut length_0: u16 = read_16u(
                                     data.offset(6 as ::core::ffi::c_int as isize)
                                         .offset(
@@ -174,21 +167,21 @@ pub unsafe extern "C" fn otfcc_read_name(
                                         as *const u8,
                                 );
                                 if should_decode_as_bytes(&raw mut record) {
-                                    let mut name_string: SdsRaw = sdsnewlen(
+                                    record.name_string = ::core::slice::from_raw_parts(
                                         data.offset(string_offset as isize)
                                             .offset(offset as ::core::ffi::c_int as isize)
-                                            as *const ::core::ffi::c_void,
+                                            as *const u8,
                                         length_0 as usize,
-                                    );
-                                    record.name_string = name_string;
+                                    ).to_vec();
                                 } else if should_decode_as_utf16(&raw mut record) {
-                                    let mut name_string_0: SdsRaw = utf16be_to_utf8(
+                                    let name_string_0: SdsRaw = utf16be_to_utf8(
                                         data.offset(string_offset as isize)
                                             .offset(offset as ::core::ffi::c_int as isize)
                                             as *const u8,
                                         length_0 as ::core::ffi::c_int,
                                     );
-                                    record.name_string = name_string_0;
+                                    record.name_string = sds_to_vec(name_string_0);
+                                    sdsfree(name_string_0);
                                 } else {
                                     let mut len: usize = 0 as usize;
                                     let mut buf: *mut u8 = base64_encode(
@@ -199,7 +192,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                                         &raw mut len,
                                     );
                                     record.name_string =
-                                        sdsnewlen(buf as *const ::core::ffi::c_void, len);
+                                        ::core::slice::from_raw_parts(buf as *const u8, len).to_vec();
                                     free(buf as *mut ::core::ffi::c_void);
                                     buf = ::core::ptr::null_mut::<u8>();
                                 }
@@ -278,8 +271,8 @@ pub unsafe extern "C" fn otfcc_dump_name(
                 record,
                 b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
                 json_string_new_length(
-                    sdslen((*r).name_string) as ::core::ffi::c_uint,
-                    (*r).name_string as *const ::core::ffi::c_char,
+                    (*r).name_string.len() as ::core::ffi::c_uint,
+                    (*r).name_string.as_ptr() as *const ::core::ffi::c_char,
                 ),
             );
             json_array_push(_name, record);
@@ -429,7 +422,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             encoding_id: 0,
                             language_id: 0,
                             name_id: 0,
-                            name_string: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                            name_string: Vec::new(),
                         };
                         record.platform_id = json_obj_getint(
                             _record,
@@ -452,10 +445,10 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
                             JsonType::String,
                         );
-                        record.name_string = sdsnewlen(
-                            (*str).u.string.ptr as *const ::core::ffi::c_void,
+                        record.name_string = ::core::slice::from_raw_parts(
+                            (*str).u.string.ptr as *const u8,
                             (*str).u.string.length as usize,
-                        );
+                        ).to_vec();
                         (*name).push(record);
                     }
                 }
@@ -501,21 +494,30 @@ pub unsafe extern "C" fn otfcc_build_name(
         let mut cbefore: usize = (*strings).cursor;
         if should_decode_as_utf16(record) {
             let mut words: usize = 0;
-            let mut u16: *mut u8 = utf8toutf16be((*record).name_string, &raw mut words);
+            // `utf8toutf16be` still takes an `SdsRaw` -- its internals walk
+            // raw pointers derived from `sdslen`, complex enough that
+            // widening it to `&[u8]` isn't worth the risk for its one call
+            // site, so a temporary `sds` copy is round-tripped here instead.
+            let tmp_name = sdsnewlen(
+                (*record).name_string.as_ptr() as *const ::core::ffi::c_void,
+                (*record).name_string.len(),
+            );
+            let mut u16: *mut u8 = utf8toutf16be(tmp_name, &raw mut words);
+            sdsfree(tmp_name);
             bufwrite_bytes(strings, words, u16);
             free(u16 as *mut ::core::ffi::c_void);
             u16 = ::core::ptr::null_mut::<u8>();
         } else if should_decode_as_bytes(record) {
             bufwrite_bytes(
                 strings,
-                sdslen((*record).name_string),
-                (*record).name_string as *mut u8,
+                (*record).name_string.len(),
+                (*record).name_string.as_ptr() as *mut u8,
             );
         } else {
             let mut length: usize = 0;
             let mut decoded: *mut u8 = base64_decode(
-                (*record).name_string as *mut u8,
-                sdslen((*record).name_string),
+                (*record).name_string.as_ptr() as *mut u8,
+                (*record).name_string.len(),
                 &raw mut length,
             );
             bufwrite_bytes(strings, length, decoded);
