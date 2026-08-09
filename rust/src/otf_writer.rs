@@ -163,7 +163,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             1280594760i32 as u32,
-            otfcc_build_ltsh((*font).ltsh, options),
+            otfcc_build_ltsh((*font).ltsh.as_deref(), options),
         );
         otfcc_sfnt_builder_push_table(
             builder,

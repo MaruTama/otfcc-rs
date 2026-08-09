@@ -1249,20 +1249,15 @@ unsafe extern "C" fn stat_ltsh(mut font: *mut Font) {
     if !need_ltsh {
         return;
     }
-    let mut ltsh: *mut LtshTable = ::core::ptr::null_mut::<LtshTable>();
-    ltsh = __caryll_allocate_clean(
-        ::core::mem::size_of::<LtshTable>() as usize,
-        610 as ::core::ffi::c_ulong,
-    ) as *mut LtshTable;
-    (*ltsh).num_glyphs = (*(*font).glyf).len() as GlyphId;
-    (*ltsh).y_pels = __caryll_allocate_clean(
-        (::core::mem::size_of::<u8>() as usize).wrapping_mul((*ltsh).num_glyphs as usize),
+    let num_glyphs = (*(*font).glyf).len() as GlyphId;
+    let y_pels = __caryll_allocate_clean(
+        (::core::mem::size_of::<u8>() as usize).wrapping_mul(num_glyphs as usize),
         612 as ::core::ffi::c_ulong,
     ) as *mut u8;
     for j_0 in 0..(*(*font).glyf).len() as GlyphId {
-        *(*ltsh).y_pels.offset(j_0 as isize) = (&(*(*font).glyf))[j_0 as usize].as_deref().unwrap().y_pel;
+        *y_pels.offset(j_0 as isize) = (&(*(*font).glyf))[j_0 as usize].as_deref().unwrap().y_pel;
     }
-    (*font).ltsh = ltsh;
+    (*font).ltsh = Some(Box::new(LtshTable { version: 0, num_glyphs, y_pels }));
 }
 pub unsafe extern "C" fn otfcc_stat_font(
     mut font: *mut Font,
