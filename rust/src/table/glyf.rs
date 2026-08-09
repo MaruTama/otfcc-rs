@@ -8,7 +8,7 @@ unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{HandleState, handle_from_name, sds_to_vec, FdHandle, GlyphHandle, Handle, otfcc_handle_empty};
+use crate::support::handle::{HandleState, handle_from_name, FdHandle, GlyphHandle, Handle, otfcc_handle_empty};
 use crate::support::stdio::{stderr};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
@@ -1089,7 +1089,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
     mut options: *const Options,
 ) -> Box<Glyph> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
-    (*g).name = sds_to_vec((*order_entry).name);
+    (*g).name = (*order_entry).name.clone();
     I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*g).advance_width,
         json_vq_of(

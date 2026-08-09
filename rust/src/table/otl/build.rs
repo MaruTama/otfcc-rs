@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, memcmp, strncmp};
+use libc::{free, strncmp};
 
 
 
@@ -10,7 +10,6 @@ use crate::logger::{LoggerType, LOG_VL_NOTICE, LOG_VL_PROGRESS, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
-use crate::vendor::sds::{SdsRaw};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable};
 use crate::table::otl::subtables::BuildHeuristics;
@@ -27,7 +26,7 @@ use crate::table::otl::subtables::gsub_ligature::{otfcc_build_gsub_ligature_subt
 use crate::table::otl::subtables::gsub_multi::{otfcc_build_gsub_multi_subtable_split};
 use crate::table::otl::subtables::gsub_reverse::{otfcc_build_gsub_reverse};
 use crate::table::otl::subtables::gsub_single::{otfcc_build_gsub_single_subtable};
-use crate::vendor::sds::{sdsempty, sdsfree, sdslen, sdsnewlen};
+use crate::vendor::sds::{sdsempty};
 pub type OtlBuilder =
     Option<unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer>;
 pub type OtlSplitBuilder = Option<
@@ -38,31 +37,31 @@ pub type OtlSplitBuilder = Option<
     ) -> *mut *mut Buffer,
 >;
 pub const LARGE_SUBTABLE_LIMIT: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
-unsafe extern "C" fn feature_name_to_tag(name: SdsRaw) -> u32 {
+fn feature_name_to_tag(name: &[u8]) -> u32 {
     let mut tag: u32 = 0 as u32;
-    if sdslen(name) > 0 as usize {
-        tag |= ((*name.offset(0 as ::core::ffi::c_int as isize) as u8 as ::core::ffi::c_int)
+    if name.len() > 0 as usize {
+        tag |= ((name[0 as usize] as u8 as ::core::ffi::c_int)
             << 24 as ::core::ffi::c_int) as u32;
     } else {
         tag |=
             ((' ' as i32 as u8 as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
     }
-    if sdslen(name) > 1 as usize {
-        tag |= ((*name.offset(1 as ::core::ffi::c_int as isize) as u8 as ::core::ffi::c_int)
+    if name.len() > 1 as usize {
+        tag |= ((name[1 as usize] as u8 as ::core::ffi::c_int)
             << 16 as ::core::ffi::c_int) as u32;
     } else {
         tag |=
             ((' ' as i32 as u8 as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
     }
-    if sdslen(name) > 2 as usize {
-        tag |= ((*name.offset(2 as ::core::ffi::c_int as isize) as u8 as ::core::ffi::c_int)
+    if name.len() > 2 as usize {
+        tag |= ((name[2 as usize] as u8 as ::core::ffi::c_int)
             << 8 as ::core::ffi::c_int) as u32;
     } else {
         tag |=
             ((' ' as i32 as u8 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
     }
-    if sdslen(name) > 3 as usize {
-        tag |= ((*name.offset(3 as ::core::ffi::c_int as isize) as u8 as ::core::ffi::c_int)
+    if name.len() > 3 as usize {
+        tag |= ((name[3 as usize] as u8 as ::core::ffi::c_int)
             << 0 as ::core::ffi::c_int) as u32;
     } else {
         tag |=
@@ -378,7 +377,7 @@ unsafe extern "C" fn get_lookup_heuristics(
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*table).features.len() {
             let fea: *const Feature = &raw const *(&(*table).features)[j as usize];
-            if !(feature_name_to_tag((*fea).name) != 1986359924i32 as u32) {
+            if !(feature_name_to_tag(&(*fea).name) != 1986359924i32 as u32) {
                 let mut k: TableId = 0 as TableId;
                 while (k as usize) < (*fea).lookups.len() {
                     if (&(*fea).lookups)[k as usize] == lut {
@@ -428,7 +427,7 @@ unsafe extern "C" fn write_otl_lookups(
             crate::sdsbuild!(
                 sdsempty(),
                 b"Building lookup ",
-                (*lookup).name,
+                &(*lookup).name,
                 b" (",
                 j as ::core::ffi::c_int,
                 b"/",
@@ -473,7 +472,7 @@ unsafe extern "C" fn write_otl_lookups(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"Lookup ",
-                    (*(&(*table).lookups)[j_1 as usize]).name,
+                    &(*(&(*table).lookups)[j_1 as usize]).name,
                     b" is empty.\n",
                 ),
             );
@@ -494,7 +493,7 @@ unsafe extern "C" fn write_otl_lookups(
                     b"[OTFCC-fea] Using extended OpenType table layout for ",
                     tag,
                     b"/",
-                    (*lookup_0).name,
+                    &(*lookup_0).name,
                     b".\n",
                 ),
             );
@@ -578,7 +577,7 @@ unsafe extern "C" fn write_otl_features(
             }
             k = k.wrapping_add(1);
         }
-        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag((*(&(*table).features)[j as usize]).name)) as u32), bk_ptr(BkCellType::P16, fea)]);
+        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag(&(*(&(*table).features)[j as usize]).name)) as u32), bk_ptr(BkCellType::P16, fea)]);
         j = j.wrapping_add(1);
     }
     return root;
@@ -623,14 +622,11 @@ unsafe extern "C" fn write_script(
     let mut root: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, write_language(dl, table)), bk_int(BkCellType::B16, (ll.len()) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as usize) < ll.len() {
-        let mut tag: SdsRaw = sdsnewlen(
-            (*ll[j as usize])
-                .name
-                .offset(5 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_void,
+        let tag: &[u8] = ::core::slice::from_raw_parts(
+            (*ll[j as usize]).name.as_ptr().offset(5 as ::core::ffi::c_int as isize),
             4 as usize,
         );
         bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag(tag)) as u32), bk_ptr(BkCellType::P16, write_language(ll[j as usize], table))]);
-        sdsfree(tag);
         j = j.wrapping_add(1);
     }
     return root;
@@ -658,7 +654,7 @@ unsafe extern "C" fn write_otl_script_and_languages(
     // original never guarded against a second default and neither does
     // this rewrite; not a case this function warns about.
     struct ScriptGroup {
-        tag: SdsRaw,
+        tag: Vec<u8>,
         default_language: *const LanguageSystem,
         languages: Vec<*const LanguageSystem>,
     }
@@ -666,28 +662,22 @@ unsafe extern "C" fn write_otl_script_and_languages(
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).languages.len() {
         let language: *const LanguageSystem = &raw const *(&(*table).languages)[j as usize];
-        let script_tag: SdsRaw =
-            sdsnewlen((*language).name as *const ::core::ffi::c_void, 4 as usize);
+        let script_tag: Vec<u8> =
+            ::core::slice::from_raw_parts((*language).name.as_ptr(), 4 as usize).to_vec();
         let is_default: bool = strncmp(
-            (*language).name.offset(5 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_char,
+            (*language).name.as_ptr().offset(5 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_char,
             b"DFLT\0" as *const u8 as *const ::core::ffi::c_char,
             4 as usize,
         ) == 0 as ::core::ffi::c_int
             || strncmp(
-                (*language).name.offset(5 as ::core::ffi::c_int as isize)
+                (*language).name.as_ptr().offset(5 as ::core::ffi::c_int as isize)
                     as *const ::core::ffi::c_char,
                 b"dflt\0" as *const u8 as *const ::core::ffi::c_char,
                 4 as usize,
             ) == 0 as ::core::ffi::c_int;
         let mut found: Option<usize> = None;
         for (idx, group) in scripts.iter().enumerate() {
-            if sdslen(group.tag) == sdslen(script_tag)
-                && memcmp(
-                    group.tag as *const ::core::ffi::c_void,
-                    script_tag as *const ::core::ffi::c_void,
-                    sdslen(script_tag) as usize,
-                ) == 0 as ::core::ffi::c_int
-            {
+            if group.tag == script_tag {
                 found = Some(idx);
                 break;
             }
@@ -699,7 +689,6 @@ unsafe extern "C" fn write_otl_script_and_languages(
                 } else {
                     scripts[idx].languages.push(language);
                 }
-                sdsfree(script_tag);
             }
             None => {
                 if is_default {
@@ -721,10 +710,7 @@ unsafe extern "C" fn write_otl_script_and_languages(
     }
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (scripts.len()) as u32)]);
     for group in &scripts {
-        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag(group.tag)) as u32), bk_ptr(BkCellType::P16, write_script(group.default_language, &group.languages, table))]);
-    }
-    for group in scripts {
-        sdsfree(group.tag);
+        bk_push(root, &[bk_int(BkCellType::B32, (feature_name_to_tag(&group.tag)) as u32), bk_ptr(BkCellType::P16, write_script(group.default_language, &group.languages, table))]);
     }
     return root;
 }

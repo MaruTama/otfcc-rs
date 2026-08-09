@@ -7,6 +7,7 @@ use libc::{free, strcmp, strtol};
 
 use crate::support::json_funcs::{json_obj_get_type};
 use crate::support::alloc::{__caryll_allocate_clean};
+use crate::support::handle::{sds_to_vec};
 use crate::otf_reader::FontBuilder;
 use crate::logger::{LoggerType, LOG_VL_NOTICE, ILogger};
 
@@ -82,7 +83,7 @@ unsafe extern "C" fn set_order_by_name(
     mut order_type: GlyphOrderPass,
     mut order_entry: u32,
 ) {
-    let name_bytes = std::slice::from_raw_parts(name as *const u8, sdslen(name)).to_vec();
+    let name_bytes = sds_to_vec(name);
     match (*go).by_name.get(&name_bytes) {
         None => {
             let mut s: *mut GlyphOrderEntry = __caryll_allocate_clean(
@@ -90,16 +91,24 @@ unsafe extern "C" fn set_order_by_name(
                 21 as ::core::ffi::c_ulong,
             ) as *mut GlyphOrderEntry;
             (*s).gid = -(1 as ::core::ffi::c_int) as GlyphId;
-            (*s).name = name;
+            (*s).name = name_bytes.clone();
             (*s).order_type = order_type;
             (*s).order_entry = order_entry;
             (*go).by_name.insert(name_bytes, s);
+            // The original moved `name` into `(*s).name` here (no separate
+            // free needed); now that the bytes are copied instead, the
+            // now-redundant `sds` needs an explicit free.
+            sdsfree(name);
         }
         Some(&s) => {
             if (*s).order_type > order_type {
                 (*s).order_type = order_type;
                 (*s).order_entry = order_entry;
             }
+            // `name` is deliberately left un-freed here, matching the
+            // original -- a pre-existing leak on the duplicate-name path
+            // (none of this function's callers free it either), preserved
+            // rather than fixed.
         }
     }
 }

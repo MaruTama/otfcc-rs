@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::table::otl::coverage::shrink_coverage;
-use crate::support::handle::{HandleState, handle_consolidate_to, handle_name_eq_cstr, Handle, otfcc_handle_dispose, LookupHandle};
+use crate::support::handle::{HandleState, handle_name_eq_bytes, Handle, otfcc_handle_dispose, LookupHandle};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
@@ -67,17 +67,16 @@ pub unsafe extern "C" fn consolidate_chaining(
                     .subtables
                     .is_empty())
                 {
-                    if handle_name_eq_cstr(
+                    if handle_name_eq_bytes(
                         &(*h).name,
-                        (*(&(*table).lookups)[k as usize]).name
-                            as *const ::core::ffi::c_char,
+                        &(*(&(*table).lookups)[k as usize]).name,
                     ) {
                         found_lookup = true;
-                        handle_consolidate_to(
-                            h as *mut Handle,
-                            k as GlyphId,
-                            (*(&(*table).lookups)[k as usize]).name,
-                        );
+                        *h = Handle {
+                            state: HandleState::Consolidated,
+                            index: k as GlyphId,
+                            name: (*(&(*table).lookups)[k as usize]).name.clone(),
+                        } as LookupHandle;
                     }
                 }
                 k = k.wrapping_add(1);
@@ -120,11 +119,12 @@ pub unsafe extern "C" fn consolidate_chaining(
                 );
                 (*h).index = 0 as GlyphId;
             }
-            handle_consolidate_to(
-                h as *mut Handle,
-                (*h).index,
-                (*(&(*table).lookups)[(*h).index as usize]).name,
-            );
+            let idx = (*h).index;
+            *h = Handle {
+                state: HandleState::Consolidated,
+                index: idx,
+                name: (*(&(*table).lookups)[idx as usize]).name.clone(),
+            } as LookupHandle;
         }
         j_0 = j_0.wrapping_add(1);
     }

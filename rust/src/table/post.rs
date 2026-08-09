@@ -11,11 +11,11 @@ use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::glyph_order::{GlyphOrder};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getbool, json_obj_getnum};
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_sds};
+use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json_builder::{json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdslen, sdsnew, sdsnewlen};
+use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -665,8 +665,8 @@ pub unsafe extern "C" fn otfcc_build_post(
             );
         }
         for (_, &s) in (*glyphorder).by_gid.iter() {
-            bufwrite8(buf, sdslen((*s).name) as u8);
-            bufwrite_sds(buf, (*s).name);
+            bufwrite8(buf, (*s).name.len() as u8);
+            bufwrite_bytes(buf, (*s).name.len(), (*s).name.as_ptr());
         }
     }
     return buf;

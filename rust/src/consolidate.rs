@@ -7,7 +7,7 @@ unsafe extern "C" {
 }
 
 
-use crate::support::handle::{HandleState, handle_consolidate_to, handle_from_index, handle_name_eq_cstr, sds_to_vec, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose};
+use crate::support::handle::{HandleState, handle_from_index, handle_name_eq_bytes, sds_to_vec, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -294,25 +294,26 @@ unsafe extern "C" fn consolidate_fd_select(
         if (*h).index as ::core::ffi::c_int >= (*cff).fd_array_count as ::core::ffi::c_int {
             (*h).index = 0 as GlyphId;
         }
-        handle_consolidate_to(
-            h as *mut Handle,
-            (*h).index,
-            (**(*cff).fd_array.offset((*h).index as isize)).font_name,
-        );
+        let idx = (*h).index;
+        *h = Handle {
+            state: HandleState::Consolidated,
+            index: idx,
+            name: (**(*cff).fd_array.offset(idx as isize)).font_name.clone(),
+        } as FdHandle;
     } else if !(*h).name.is_empty() {
         let mut found: bool = false;
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*cff).fd_array_count as ::core::ffi::c_int {
-            if handle_name_eq_cstr(
+            if handle_name_eq_bytes(
                 &(*h).name,
-                (**(*cff).fd_array.offset(j as isize)).font_name as *const ::core::ffi::c_char,
+                &(**(*cff).fd_array.offset(j as isize)).font_name,
             ) {
                 found = true;
-                handle_consolidate_to(
-                    h as *mut Handle,
-                    j as GlyphId,
-                    (**(*cff).fd_array.offset(j as isize)).font_name,
-                );
+                *h = Handle {
+                    state: HandleState::Consolidated,
+                    index: j as GlyphId,
+                    name: (**(*cff).fd_array.offset(j as isize)).font_name.clone(),
+                } as FdHandle;
                 break;
             } else {
                 j = j.wrapping_add(1);
@@ -736,7 +737,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), (*lookup).name),
+        crate::sdsbuild!(sdsempty(), &(*lookup).name),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -754,7 +755,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                         b"[Consolidate] Ignored empty subtable ",
                         j as ::core::ffi::c_int,
                         b" of lookup ",
-                        (*lookup).name,
+                        &(*lookup).name,
                         b".\n",
                     ),
                 );
@@ -782,7 +783,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                             b"[Consolidate] Ignored empty subtable ",
                             j as ::core::ffi::c_int,
                             b" of lookup ",
-                            (*lookup).name,
+                            &(*lookup).name,
                             b".\n",
                         ),
                     );
@@ -811,7 +812,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Lookup ",
-                    (*lookup).name,
+                    &(*lookup).name,
                     b" is empty and will be removed.\n",
                 ),
             );

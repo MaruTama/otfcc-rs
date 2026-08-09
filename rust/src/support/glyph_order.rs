@@ -1,12 +1,18 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+// `GlyphOrderEntry.name` and the two `*_a_field_shared`/`set_by_gid` vtable
+// slots now carry `Vec<u8>` across an `extern "C" fn` boundary -- none of
+// these are `#[no_mangle]` (this crate's only real FFI surface is the 4
+// symbols in `ffi/dll.rs`), so `extern "C"` here is c2rust's calling-
+// convention residue, not real FFI. Same rationale as `support/handle.rs`.
+#![allow(improper_ctypes_definitions)]
 use libc::{free, malloc};
 
-use crate::support::handle::{handle_consolidate_to, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{sds_to_vec, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::sds::{sdsempty, sdsfree, sdslen};
+use crate::vendor::sds::{sdsempty, sdsfree};
 /// Which pass of a JSON font's glyph naming placed a glyph, and therefore how
 /// strongly it is placed: the *lowest* pass wins, because `set_order_by_name`
 /// escalates an entry only when the new pass ranks below the one on record and
@@ -36,11 +42,10 @@ pub enum GlyphOrderPass {
     Glyf = 4,
 }
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GlyphOrderEntry {
     pub gid: GlyphId,
-    pub name: SdsRaw,
+    pub name: Vec<u8>,
     pub order_type: GlyphOrderPass,
     pub order_entry: u32,
 }
@@ -79,10 +84,10 @@ pub struct GlyphOrderPackage {
     pub dispose: Option<unsafe extern "C" fn(*mut GlyphOrder) -> ()>,
     pub create: Option<unsafe extern "C" fn() -> *mut GlyphOrder>,
     pub free: Option<unsafe extern "C" fn(*mut GlyphOrder) -> ()>,
-    pub set_by_gid: Option<unsafe extern "C" fn(*mut GlyphOrder, GlyphId, SdsRaw) -> SdsRaw>,
+    pub set_by_gid: Option<unsafe extern "C" fn(*mut GlyphOrder, GlyphId, SdsRaw) -> Vec<u8>>,
     pub set_by_name: Option<unsafe extern "C" fn(*mut GlyphOrder, SdsRaw, GlyphId) -> bool>,
     pub name_a_field_shared:
-        Option<unsafe extern "C" fn(*mut GlyphOrder, GlyphId, *mut SdsRaw) -> bool>,
+        Option<unsafe extern "C" fn(*mut GlyphOrder, GlyphId, *mut Vec<u8>) -> bool>,
     pub consolidate_handle:
         Option<unsafe extern "C" fn(*mut GlyphOrder, *mut GlyphHandle) -> bool>,
     pub lookup_name: Option<unsafe extern "C" fn(*mut GlyphOrder, SdsRaw) -> bool>,
@@ -102,9 +107,11 @@ unsafe extern "C" fn dispose_glyph_order(mut go: *mut GlyphOrder) {
     // owns anything of its own to free, only a second reference to the
     // same allocations, so clearing it needs no walk.
     for (_, &entry) in (*go).by_gid.iter() {
-        if !(*entry).name.is_null() {
-            sdsfree((*entry).name);
-        }
+        // Explicit drop-in-place before the raw `free`: `libc::free` has no
+        // idea about `Vec`'s drop glue, so the backing byte buffer must be
+        // torn down here or it leaks (same landmine class as `Handle`'s own
+        // disposal loops elsewhere in this migration).
+        (*entry).name = Vec::new();
         free(entry as *mut ::core::ffi::c_void);
     }
     (*go).by_gid = std::collections::BTreeMap::new();
@@ -133,39 +140,56 @@ unsafe extern "C" fn otfcc_glyph_order_create() -> *mut GlyphOrder {
     otfcc_glyph_order_init(x);
     return x;
 }
+// Returns an owned copy of the canonical name (was: a borrowed `SdsRaw`
+// pointer into the entry the caller never freed) -- callers that discard
+// the return value (the ~590 fire-and-forget `set_by_gid` calls in
+// `support/aglfn.rs`/`table/post.rs`) simply drop it immediately, no
+// leak, no code change needed there.
 unsafe extern "C" fn otfcc_set_glyph_order_by_gid(
     mut go: *mut GlyphOrder,
     mut gid: GlyphId,
     mut name: SdsRaw,
-) -> SdsRaw {
+) -> Vec<u8> {
     if let Some(&existing) = (*go).by_gid.get(&gid) {
         sdsfree(name);
-        return (*existing).name;
+        return (*existing).name.clone();
     }
-    let name_bytes = std::slice::from_raw_parts(name as *const u8, sdslen(name)).to_vec();
+    let name_bytes = sds_to_vec(name);
+    let final_bytes: Vec<u8>;
     if (*go).by_name.contains_key(&name_bytes) {
         sdsfree(name);
-        name = crate::sdsbuild!(sdsempty(), b"$$gid", gid as ::core::ffi::c_int);
+        let fallback: SdsRaw = crate::sdsbuild!(sdsempty(), b"$$gid", gid as ::core::ffi::c_int);
+        final_bytes = sds_to_vec(fallback);
+        sdsfree(fallback);
+    } else {
+        // The original moved `name` straight into `(*s).name` here (no
+        // separate free needed); now that the byte are copied into
+        // `final_bytes` instead, the now-redundant `sds` needs an explicit
+        // free.
+        sdsfree(name);
+        final_bytes = name_bytes;
     }
     let mut s: *mut GlyphOrderEntry = __caryll_allocate_clean(
         ::core::mem::size_of::<GlyphOrderEntry>() as usize,
         36 as ::core::ffi::c_ulong,
     ) as *mut GlyphOrderEntry;
     (*s).gid = gid;
-    (*s).name = name;
+    (*s).name = final_bytes.clone();
     (*go).by_gid.insert(gid, s);
-    let final_name_bytes =
-        std::slice::from_raw_parts((*s).name as *const u8, sdslen((*s).name)).to_vec();
-    (*go).by_name.insert(final_name_bytes, s);
-    return name;
+    (*go).by_name.insert(final_bytes.clone(), s);
+    return final_bytes;
 }
 unsafe extern "C" fn otfcc_set_glyph_order_by_name(
     mut go: *mut GlyphOrder,
     mut name: SdsRaw,
     mut gid: GlyphId,
 ) -> bool {
-    let name_bytes = std::slice::from_raw_parts(name as *const u8, sdslen(name)).to_vec();
+    let name_bytes = sds_to_vec(name);
     if (*go).by_name.contains_key(&name_bytes) {
+        // `name` is deliberately left un-freed here, matching the
+        // original: on this path ownership was never taken, so the
+        // caller stays responsible (`consolidate.rs`'s retry loop does
+        // free it, once, after the whole loop concludes).
         return false;
     }
     let mut s: *mut GlyphOrderEntry = __caryll_allocate_clean(
@@ -173,27 +197,35 @@ unsafe extern "C" fn otfcc_set_glyph_order_by_name(
         54 as ::core::ffi::c_ulong,
     ) as *mut GlyphOrderEntry;
     (*s).gid = gid;
-    (*s).name = name;
+    (*s).name = name_bytes.clone();
     (*go).by_gid.insert(gid, s);
     (*go).by_name.insert(name_bytes, s);
+    // The original moved `name` into `(*s).name` here (no separate free
+    // needed); now that the bytes are copied instead, the now-redundant
+    // `sds` needs an explicit free.
+    sdsfree(name);
     return true;
 }
 unsafe extern "C" fn otfcc_gord_name_a_field_shared(
     mut go: *mut GlyphOrder,
     mut gid: GlyphId,
-    mut field: *mut SdsRaw,
+    mut field: *mut Vec<u8>,
 ) -> bool {
     match (*go).by_gid.get(&gid) {
         Some(&t) => {
-            *field = (*t).name;
+            *field = (*t).name.clone();
             true
         }
         None => {
-            *field = ::core::ptr::null_mut::<::core::ffi::c_char>();
+            *field = Vec::new();
             false
         }
     }
 }
+// Builds the consolidated `Handle` directly rather than through
+// `handle_consolidate_to` (which still takes an `SdsRaw`) -- same
+// simplification already used throughout the `consolidate/otl/*.rs`
+// sweep, since the name is already the exact `Vec<u8>` a `Handle` wants.
 unsafe extern "C" fn otfcc_gord_consolidate_handle(
     mut go: *mut GlyphOrder,
     mut h: *mut GlyphHandle,
@@ -201,7 +233,7 @@ unsafe extern "C" fn otfcc_gord_consolidate_handle(
     if (*h).state == HandleState::Consolidated {
         let name_bytes = (*h).name.clone();
         if let Some(&t) = (*go).by_name.get(&name_bytes) {
-            handle_consolidate_to(h as *mut Handle, (*t).gid, (*t).name);
+            *h = Handle { state: HandleState::Consolidated, index: (*t).gid, name: (*t).name.clone() } as GlyphHandle;
             return true;
         }
         // Original C (glyph-order.c:83) passed the wrong hash-handle
@@ -214,27 +246,28 @@ unsafe extern "C" fn otfcc_gord_consolidate_handle(
         // by_gid lookup, exactly like otfcc_gord_name_a_field_shared's
         // already-correct search. Fixed here.
         if let Some(&t) = (*go).by_gid.get(&(*h).index) {
-            handle_consolidate_to(h as *mut Handle, (*t).gid, (*t).name);
+            *h = Handle { state: HandleState::Consolidated, index: (*t).gid, name: (*t).name.clone() } as GlyphHandle;
             return true;
         }
     } else if (*h).state == HandleState::Name {
         let name_bytes = (*h).name.clone();
         if let Some(&t) = (*go).by_name.get(&name_bytes) {
-            handle_consolidate_to(h as *mut Handle, (*t).gid, (*t).name);
+            *h = Handle { state: HandleState::Consolidated, index: (*t).gid, name: (*t).name.clone() } as GlyphHandle;
             return true;
         }
     } else if (*h).state == HandleState::Index {
-        let mut name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
+        let mut name: Vec<u8> = Vec::new();
         otfcc_gord_name_a_field_shared(go, (*h).index, &raw mut name);
-        if !name.is_null() {
-            handle_consolidate_to(h as *mut Handle, (*h).index, name);
+        if !name.is_empty() {
+            let idx = (*h).index;
+            *h = Handle { state: HandleState::Consolidated, index: idx, name } as GlyphHandle;
             return true;
         }
     }
     return false;
 }
 unsafe extern "C" fn gord_lookup_name(mut go: *mut GlyphOrder, mut name: SdsRaw) -> bool {
-    let name_bytes = std::slice::from_raw_parts(name as *const u8, sdslen(name)).to_vec();
+    let name_bytes = sds_to_vec(name);
     (*go).by_name.contains_key(&name_bytes)
 }
 pub static OTFCC_PKG_GLYPH_ORDER: GlyphOrderPackage = {
@@ -247,7 +280,7 @@ pub static OTFCC_PKG_GLYPH_ORDER: GlyphOrderPackage = {
         free: Some(otfcc_glyph_order_free as unsafe extern "C" fn(*mut GlyphOrder) -> ()),
         set_by_gid: Some(
             otfcc_set_glyph_order_by_gid
-                as unsafe extern "C" fn(*mut GlyphOrder, GlyphId, SdsRaw) -> SdsRaw,
+                as unsafe extern "C" fn(*mut GlyphOrder, GlyphId, SdsRaw) -> Vec<u8>,
         ),
         set_by_name: Some(
             otfcc_set_glyph_order_by_name
@@ -255,7 +288,7 @@ pub static OTFCC_PKG_GLYPH_ORDER: GlyphOrderPackage = {
         ),
         name_a_field_shared: Some(
             otfcc_gord_name_a_field_shared
-                as unsafe extern "C" fn(*mut GlyphOrder, GlyphId, *mut SdsRaw) -> bool,
+                as unsafe extern "C" fn(*mut GlyphOrder, GlyphId, *mut Vec<u8>) -> bool,
         ),
         consolidate_handle: Some(
             otfcc_gord_consolidate_handle
