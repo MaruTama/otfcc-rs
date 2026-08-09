@@ -6,7 +6,7 @@ use libc::{free};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-
+use crate::support::handle::{sds_to_vec};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos};
@@ -56,7 +56,7 @@ use crate::table::vorg::{TABLE_I_VORG};
 use crate::table::hmtx::{TABLE_I_HMTX};
 use crate::table::otl::{otl_subtable_list_dispose_dependent};
 use crate::table::vmtx::{TABLE_I_VMTX};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsnew};
 use crate::vf::vq::{I_VQ};
 
 #[derive(Copy, Clone)]
@@ -296,10 +296,7 @@ unsafe extern "C" fn create_glyph_order(
                     .expect("non-null function pointer")(
                     glyph_order, j, newname_0
                 );
-                if !(*g).name.is_null() {
-                    sdsfree((*g).name);
-                }
-                (*g).name = sdsdup(shared_name);
+                (*g).name = sds_to_vec(shared_name);
                 sdsfree(gname);
             } else {
                 let mut shared_name_0: SdsRaw = OTFCC_PKG_GLYPH_ORDER
@@ -307,23 +304,17 @@ unsafe extern "C" fn create_glyph_order(
                     .expect("non-null function pointer")(
                     glyph_order, j, gname
                 );
-                if !(*g).name.is_null() {
-                    sdsfree((*g).name);
-                }
-                (*g).name = sdsdup(shared_name_0);
+                (*g).name = sds_to_vec(shared_name_0);
             }
         } else if !((*options).ignore_glyph_order || (*options).name_glyphs_by_gid) {
-            if !(*g).name.is_null() {
-                let mut gname_0: SdsRaw = crate::sdsbuild!(sdsempty(), prefix, (*g).name);
+            if !(*g).name.is_empty() {
+                let mut gname_0: SdsRaw = crate::sdsbuild!(sdsempty(), prefix, &(*g).name);
                 let shared_name_1: SdsRaw = OTFCC_PKG_GLYPH_ORDER
                     .set_by_gid
                     .expect("non-null function pointer")(
                     glyph_order, j, gname_0
                 );
-                if !(*g).name.is_null() {
-                    sdsfree((*g).name);
-                }
-                (*g).name = sdsdup(shared_name_1);
+                (*g).name = sds_to_vec(shared_name_1);
             }
         }
     }
@@ -411,10 +402,7 @@ unsafe extern "C" fn name_glyphs(mut font: *mut Font, mut gord: *mut GlyphOrder)
         OTFCC_PKG_GLYPH_ORDER
             .name_a_field_shared
             .expect("non-null function pointer")(gord, j, &raw mut glyph_name);
-        if !(*g).name.is_null() {
-            sdsfree((*g).name);
-        }
-        (*g).name = sdsdup(glyph_name);
+        (*g).name = sds_to_vec(glyph_name);
     }
 }
 unsafe extern "C" fn unconsolidate_chaining(

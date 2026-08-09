@@ -8,7 +8,7 @@ unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{HandleState, handle_from_name, FdHandle, GlyphHandle, Handle, otfcc_handle_empty};
+use crate::support::handle::{HandleState, handle_from_name, sds_to_vec, FdHandle, GlyphHandle, Handle, otfcc_handle_empty};
 use crate::support::stdio::{stderr};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
@@ -27,8 +27,8 @@ use crate::support::json_funcs::{json_boolof, json_new_position, json_obj_get, j
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::vendor::json::{json_value_free};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new_from_bytes, json_string_new_length};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdslen, sdsnewlen};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_null_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes};
+use crate::vendor::sds::{sdsempty, sdsfree, sdslen, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
 #[derive(Clone)]
@@ -121,7 +121,7 @@ pub struct GlyphStat {
 #[derive(Clone)]
 #[repr(C)]
 pub struct Glyph {
-    pub name: SdsRaw,
+    pub name: Vec<u8>,
     pub horizontal_origin: VQ,
     pub advance_width: VQ,
     pub vertical_origin: VQ,
@@ -139,26 +139,24 @@ pub struct Glyph {
     pub cid: GlyphId,
     pub stat: GlyphStat,
 }
-/// Only `name` and `instructions` need manual teardown here -- everything
-/// else either has no allocation of its own (`stat`, `cid`, ...) or is
-/// already a real Rust owner that auto-drops correctly on its own:
-/// `horizontal_origin`/`advance_width`/`vertical_origin`/`advance_height`
-/// (`VQ`, a plain `struct { kernel: Pos, shift: Vec<VqSegment> }` with no
-/// `Drop` impl of its own -- `I_VQ.dispose` is just `shift = Vec::new()`,
-/// which is exactly what happens for free when a `VQ` field is dropped),
-/// `contours`/`references`/`stem_h`/`stem_v`/`hint_masks`/`contour_masks`
-/// (plain `Vec`s per the comments on [`Contour`]/[`ReferenceList`] above),
-/// and `fd_select` (a `Handle`, which has owned its `name` and had a real
-/// `Drop` impl since the crate-wide `Handle` conversion -- calling
-/// `otfcc_handle_dispose` on it here too, the way the old manual
-/// `otfcc_delete_glyf_glyph` did, would be redundant with that, not wrong).
+/// Only `instructions` needs manual teardown here now -- `name` (a
+/// `Vec<u8>` since the `sds` sweep reached this field) already tears down
+/// for free, and everything else either has no allocation of its own
+/// (`stat`, `cid`, ...) or is already a real Rust owner that auto-drops
+/// correctly on its own: `horizontal_origin`/`advance_width`/
+/// `vertical_origin`/`advance_height` (`VQ`, a plain `struct { kernel: Pos,
+/// shift: Vec<VqSegment> }` with no `Drop` impl of its own -- `I_VQ.dispose`
+/// is just `shift = Vec::new()`, which is exactly what happens for free
+/// when a `VQ` field is dropped), `contours`/`references`/`stem_h`/
+/// `stem_v`/`hint_masks`/`contour_masks` (plain `Vec`s per the comments on
+/// [`Contour`]/[`ReferenceList`] above), and `fd_select` (a `Handle`, which
+/// has owned its `name` and had a real `Drop` impl since the crate-wide
+/// `Handle` conversion -- calling `otfcc_handle_dispose` on it here too,
+/// the way the old manual `otfcc_delete_glyf_glyph` did, would be
+/// redundant with that, not wrong).
 impl Drop for Glyph {
     fn drop(&mut self) {
         unsafe {
-            if !self.name.is_null() {
-                sdsfree(self.name);
-                self.name = ::core::ptr::null_mut::<::core::ffi::c_char>();
-            }
             if !self.instructions.is_null() {
                 free(self.instructions as *mut ::core::ffi::c_void);
                 self.instructions = ::core::ptr::null_mut::<u8>();
@@ -321,7 +319,7 @@ pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
 /// this file (`consolidate.rs`, `table/cff.rs`, `table/glyf/read.rs`).
 pub unsafe extern "C" fn otfcc_new_glyf_glyph() -> Box<Glyph> {
     Box::new(Glyph {
-        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+        name: Vec::new(),
         horizontal_origin: VQ { kernel: 0., shift: Vec::new() },
         advance_width: VQ { kernel: 0., shift: Vec::new() },
         vertical_origin: VQ { kernel: 0., shift: Vec::new() },
@@ -715,10 +713,7 @@ pub unsafe extern "C" fn otfcc_dump_glyphorder(
         let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
         json_array_push(
             order,
-            json_string_new_length(
-                sdslen((*g).name) as ::core::ffi::c_uint,
-                (*g).name as *const ::core::ffi::c_char,
-            ),
+            json_string_new_from_bytes(&(*g).name),
         );
         j = j.wrapping_add(1);
     }
@@ -749,9 +744,9 @@ pub unsafe extern "C" fn otfcc_dump_glyf(
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*table).len() {
             let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
-            json_object_push(
+            json_object_push_bytes_key(
                 glyf,
-                (*g).name as *const ::core::ffi::c_char,
+                &(*g).name,
                 glyf_dump_glyph(g, options, ctx),
             );
             j = j.wrapping_add(1);
@@ -969,13 +964,20 @@ unsafe extern "C" fn wrong_instrs_for_glyph(
     mut pos: ::core::ffi::c_int,
 ) {
     let mut g: *mut Glyph = _g as *mut Glyph;
+    // `fprintf`'s `%s` needs a NUL-terminated buffer, so a NUL is appended
+    // to a byte-copy of `name` here -- this is a diagnostic-only print to
+    // stderr (never part of dumped/built output), so it doesn't need the
+    // NUL-truncation care the crate's other `Handle`/glyph-name-to-JSON
+    // sites take.
+    let mut name_cstr: Vec<u8> = (*g).name.clone();
+    name_cstr.push(0);
     fprintf(
         stderr,
         b"[OTFCC] TrueType instructions parse error : %s, at %d in /%s\n\0" as *const u8
             as *const ::core::ffi::c_char,
         reason,
         pos,
-        (*g).name,
+        name_cstr.as_ptr() as *const ::core::ffi::c_char,
     );
 }
 unsafe extern "C" fn parse_stems(mut sd: *mut JsonValue, mut stems: *mut StemDefList) {
@@ -1087,7 +1089,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
     mut options: *const Options,
 ) -> Box<Glyph> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
-    (*g).name = sdsdup((*order_entry).name);
+    (*g).name = sds_to_vec((*order_entry).name);
     I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*g).advance_width,
         json_vq_of(
