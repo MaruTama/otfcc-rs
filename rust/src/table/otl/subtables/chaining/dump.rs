@@ -7,7 +7,7 @@ use crate::support::primitives::{TableId};
 use crate::vendor::json::JsonValue;
 use crate::table::otl::{ChainingRule, Subtable, ChainingSubtable};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new_from_bytes};
 
 pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut JsonValue {
     let mut subtable: *const ChainingSubtable = &raw const (*_subtable).chaining as *const ChainingSubtable;
@@ -44,9 +44,7 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *m
         json_object_push(
             _application,
             b"lookup\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new(
-                (&(*rule).apply)[j_0 as usize].lookup.name as *const ::core::ffi::c_char,
-            ),
+            json_string_new_from_bytes(&(&(*rule).apply)[j_0 as usize].lookup.name),
         );
         json_array_push(_apply, _application);
         j_0 = j_0.wrapping_add(1);

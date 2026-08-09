@@ -1,12 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::handle::{handle_from_consolidated, GlyphHandle};
+use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::font::caryll_font::{Font};
 
 
@@ -40,7 +39,7 @@ use crate::table::otl::{GposSingleEntry, PositionValue, Subtable, GposSingleSubt
 
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
+use crate::vendor::sds::{sdsempty};
 
 
 
@@ -61,7 +60,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
     // `consolidate_gsub_multi`'s uthash -> `BTreeMap` rewrite
     // (rust/README.md), minus that one's coverage-consolidation step (a
     // `PositionValue` is a plain `Copy` struct, nothing to consolidate).
-    let mut seen: std::collections::BTreeMap<i32, (SdsRaw, PositionValue)> =
+    let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, PositionValue)> =
         std::collections::BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).len() {
@@ -80,7 +79,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (&(*subtable))[k as usize].target.name,
+                    &(&(*subtable))[k as usize].target.name,
                     b".\n",
                 ),
             );
@@ -96,12 +95,12 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Detected glyph double-mapping about /",
-                        (&(*subtable))[k as usize].target.name,
+                        &(&(*subtable))[k as usize].target.name,
                         b".\n",
                     ),
                 );
             } else {
-                let fromname: SdsRaw = sdsdup((&(*subtable))[k as usize].target.name);
+                let fromname: Vec<u8> = (&(*subtable))[k as usize].target.name.clone();
                 let v: PositionValue = (&(*subtable))[k as usize].value;
                 seen.insert(fromid, (fromname, v));
             }
@@ -111,10 +110,13 @@ pub unsafe extern "C" fn consolidate_gpos_single(
     dispose_gpos_single_subtable(subtable);
     for (fromid, (fromname, v)) in seen {
         (*subtable).push(GposSingleEntry {
-            target: handle_from_consolidated(fromid as GlyphId, fromname) as GlyphHandle,
+            target: Handle {
+                state: HandleState::Consolidated,
+                index: fromid as GlyphId,
+                name: fromname,
+            } as GlyphHandle,
             value: v,
         });
-        sdsfree(fromname);
     }
     return (*subtable).len() == 0 as usize;
 }

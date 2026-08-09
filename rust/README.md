@@ -4514,3 +4514,107 @@ on the other platform before a commit is trusted.
     ABI export guard, `compare-with-c.sh` byte-identical on every payload
     including `meta-test.ttf`, all 10 payloads' round trips, and the
     issue #1 golden test.
+- **`Handle.name: SdsRaw` → `Vec<u8>`.** The last leaf-type `sds` field in
+  the crate, and much larger in touch-point volume than the three fields
+  before it — `Handle` is embedded (directly or via `GlyphHandle`/
+  `LookupHandle`) throughout `table/**`, `consolidate/**`, and
+  `otf_reader/otf_writer`, so the fallout from changing its `name` field's
+  storage type reached ~30 files. Scoped up front with a foreground
+  Explore-agent inventory (100 call sites / 30 files / 4 categories:
+  raw-pointer passthrough, construction, comparison, other) before writing
+  any code, rather than discovering scope reactively through compiler
+  errors alone — the compiler was still used as the final authoritative
+  check, per this crate's established methodology, but starting from a
+  categorized map made the ~30-file sweep tractable instead of a blind
+  whack-a-mole.
+  - **New `sds_to_vec`/`handle_name_eq_cstr` helpers in `support/handle.rs`**.
+    `handle_from_name`/`handle_from_consolidated`/`handle_consolidate_to`
+    keep their existing `SdsRaw`-in public signatures (their ~40 call
+    sites across the crate still pass an owned or borrowed `sds`), so only
+    their internals changed: `sds_to_vec(s: SdsRaw) -> Vec<u8>` is the one
+    place that reads `sdslen`+`slice::from_raw_parts` to copy the bytes
+    out. `handle_name_eq_cstr(name: &[u8], other: *const c_char) -> bool`
+    replicates `strcmp(a.name, b.name) == 0` for the one comparison call
+    site (`chaining.rs`'s lookup-name match) that used to rely on `strcmp`
+    directly against the old `SdsRaw` field.
+  - **`impl SdsPart for &Vec<u8>` added to `vendor/sds.rs`**, matching the
+    *`*mut c_char`/`*const c_char`* impl's strlen/NUL-truncating semantics
+    — not the `&[u8]` impl's full-length semantics — specifically because
+    every existing `sdsbuild!` call site passing a `Handle.name` relied on
+    the old `SdsRaw`-typed field's NUL-truncating behavior. Using `&[u8]`
+    semantics instead would silently change output for any name containing
+    an embedded NUL (rare, but this crate has stayed deliberately paranoid
+    about byte-exact preservation for exactly this class of edge case).
+    Every `sdsbuild!` site touching a `Handle.name` needed an explicit `&`
+    added — the macro's `SdsPart` dispatch is UFCS-style (`Trait::method(x,
+    ...)`), not `x.method()`, so there is no automatic deref coercion from
+    `Vec<u8>` to `&Vec<u8>` to paper over a missing `&`.
+  - **New `json_string_new_from_bytes`/`json_object_push_bytes_key` helpers
+    in `vendor/json_builder.rs`**, for the ~15 call sites across
+    `table/**` that used to hand a `Handle.name`-typed `SdsRaw` straight
+    into `json_string_new`/`json_object_push` (both strlen-based). Same
+    NUL-truncation rationale as the `SdsPart` impl above, just for the
+    JSON-value and object-key positions instead of the `sdsbuild!` macro.
+  - **Simplification pattern, reused from the `ChainingRule.apply` PR**:
+    every consolidate-phase hash-map value struct that used to carry a
+    `sdsdup`'d `SdsRaw` name (later fed into `handle_from_consolidated` +
+    `sdsfree`) now just carries the `Vec<u8>` (via `.clone()`) and
+    constructs the final `Handle { state: HandleState::Consolidated,
+    index, name }` struct literal directly — the `handle_from_consolidated`
+    round trip through a byte copy it would only immediately re-copy is
+    gone. Applied throughout `consolidate.rs` and all of
+    `consolidate/otl/{mark,gdef,chaining,gpos_cursive,gpos_single,
+    gsub_ligature,gsub_multi,gsub_reverse,gsub_single}.rs`, plus
+    `table/otl/subtables/chaining/classifier.rs`'s `ClassifierValue.gname`
+    (converted from `SdsRaw` to `Vec<u8>` for the same reason — it's a
+    scratch value sourced from a `Handle.name` and fed right back into one).
+  - **Two structurally-dead-looking sites that were not**: `otf_writer/
+    stat.rs` builds two scratch `ComponentReference { glyph: Handle {
+    name: ... } }` literals that are immediately overwritten field-by-field
+    a few lines later — `name: Vec::new()` is correct there for the same
+    reason the crate's earlier `null_mut()` placeholders were, just spelled
+    differently for the new field type. `table/glyf.rs`'s
+    `glyf_parse_reference` has a genuine plain-field *write* (`ref_0.glyph.
+    name = Vec::new();`, not a struct literal) onto a `ComponentReference`
+    that was already validly constructed via `GLYF_I_COMPONENT_REFERENCE
+    .empty()` — confirmed that constructor already places a valid empty
+    `Vec` there before trusting the plain assignment (dropping an already-
+    empty `Vec` and replacing it with another is a safe no-op, unlike the
+    "malloc'd struct, first-ever write" landmine class this migration has
+    hit repeatedly elsewhere).
+  - **`support/glyph_order.rs`'s `otfcc_gord_consolidate_handle`** was the
+    single highest-value simplification the earlier scoping pass had
+    flagged: it used to hand-roll exactly what `sds_to_vec` now does
+    (`slice::from_raw_parts((*h).name as *const u8, sdslen((*h).name))
+    .to_vec()`) twice, to build a `Vec<u8>` lookup key from a `Handle.name`
+    that was *already* a `Vec<u8>` once the type changed — both sites
+    collapsed to `(*h).name.clone()`. `GlyphOrderEntry.name` itself is a
+    separate, still-`SdsRaw` field (a different struct, not `Handle`) and
+    was intentionally left alone.
+  - **Two `push_class_def`/`push_to_coverage` functions needed
+    function-level `#[allow(improper_ctypes_definitions)]`**, and
+    `support/handle.rs` needed a file-level one — passing a `Handle`/
+    `GlyphHandle` by value through an `extern "C" fn` signature is no
+    longer FFI-safe now that it owns a `Vec`. None of the affected
+    functions are `#[no_mangle]` (this crate's only real FFI surface is
+    the 4 symbols in `ffi/dll.rs`); every `extern "C"` here is c2rust's
+    calling-convention residue from the original C signature, not a real
+    ABI boundary — same reasoning already used for `CaretValueRecord`/
+    `GsubLigatureSubtable` earlier in this migration.
+  - **No new synthetic payloads needed** — `Handle.name` is exercised by
+    essentially every existing payload (it's the glyph/lookup name field
+    itself), so `compare-with-c.sh`'s existing corpus already drives every
+    construction/comparison/dump path touched by this PR, including the
+    `meta-test`/`vdmx-test`/`unknown-lookup` synthetic payloads added by
+    earlier PRs.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test.
+  - With this PR, every `Handle`/`GlyphHandle`/`LookupHandle`-typed field
+    the crate ever hung an `SdsRaw` name off has moved to `Vec<u8>`. The
+    remaining ~1,050 other `sds*()` call sites (dominated by
+    `support/aglfn.rs`'s 586 mechanical `sdsnew` calls, which stay `sds`
+    until `GlyphOrderEntry`'s own `name` field is converted) remain a much
+    larger, not-yet-scoped future theme — no commitment made to pursue
+    further after this PR.

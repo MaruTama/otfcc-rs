@@ -262,6 +262,33 @@ pub unsafe extern "C" fn json_object_push_nocopy(
 pub unsafe extern "C" fn json_string_new(mut buf: *const ::core::ffi::c_char) -> *mut JsonValue {
     return json_string_new_length(strlen(buf) as ::core::ffi::c_uint, buf);
 }
+/// `json_string_new`'s strlen-based truncation, for a `Handle.name`-shaped
+/// `Vec<u8>` (no longer a NUL-terminated `sds`/C string to hand to `strlen`
+/// directly): truncates at the first embedded NUL the same way `strlen`
+/// would, matching `SdsPart for &Vec<u8>` (`vendor/sds.rs`) and
+/// `handle_name_eq_cstr` (`support/handle.rs`).
+pub(crate) unsafe fn json_string_new_from_bytes(buf: &[u8]) -> *mut JsonValue {
+    let len = match buf.iter().position(|&b| b == 0) {
+        Some(p) => p,
+        None => buf.len(),
+    };
+    json_string_new_length(len as ::core::ffi::c_uint, buf.as_ptr() as *const ::core::ffi::c_char)
+}
+/// `json_object_push`'s strlen-based key truncation, for a
+/// `Handle.name`-shaped `Vec<u8>` key -- same NUL-truncation rationale as
+/// `json_string_new_from_bytes`, but for the object-key position rather
+/// than a string value.
+pub(crate) unsafe fn json_object_push_bytes_key(
+    object: *mut JsonValue,
+    name: &[u8],
+    value: *mut JsonValue,
+) -> *mut JsonValue {
+    let len = match name.iter().position(|&b| b == 0) {
+        Some(p) => p,
+        None => name.len(),
+    };
+    json_object_push_length(object, len as ::core::ffi::c_uint, name.as_ptr() as *const ::core::ffi::c_char, value)
+}
 pub unsafe extern "C" fn json_string_new_length(
     mut length: ::core::ffi::c_uint,
     mut buf: *const ::core::ffi::c_char,

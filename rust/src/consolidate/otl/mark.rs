@@ -2,13 +2,12 @@
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
-use crate::support::handle::{handle_from_consolidated, GlyphHandle};
+use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphClass, GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::font::caryll_font::{Font};
 
 
@@ -23,19 +22,19 @@ use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gpos_common::{dispose_mark_array};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{dispose_lig_array};
 use crate::table::otl::subtables::gpos_mark_to_single::{dispose_base_array};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
+use crate::vendor::sds::{sdsempty};
 
 struct MarkHashValue {
-    name: SdsRaw,
+    name: Vec<u8>,
     mark_class: GlyphClass,
     anchor: Anchor,
 }
 struct BaseHashValue {
-    name: SdsRaw,
+    name: Vec<u8>,
     anchors: *mut Anchor,
 }
 struct LigHashValue {
-    name: SdsRaw,
+    name: Vec<u8>,
     component_count: GlyphId,
     anchors: *mut *mut Anchor,
 }
@@ -64,7 +63,7 @@ unsafe extern "C" fn consolidate_mark_array(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored unknown glyph name ",
-                    (&(*mark_array))[k as usize].glyph.name,
+                    &(&(*mark_array))[k as usize].glyph.name,
                     b".",
                 ),
             );
@@ -75,7 +74,7 @@ unsafe extern "C" fn consolidate_mark_array(
             match h.entry(gid) {
                 Entry::Vacant(v) if anchor.present && mark_class < class_count => {
                     v.insert(MarkHashValue {
-                        name: sdsdup((&(*mark_array))[k as usize].glyph.name),
+                        name: (&(*mark_array))[k as usize].glyph.name.clone(),
                         mark_class,
                         anchor,
                     });
@@ -92,7 +91,7 @@ unsafe extern "C" fn consolidate_mark_array(
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
-                            (&(*mark_array))[k as usize].glyph.name,
+                            &(&(*mark_array))[k as usize].glyph.name,
                             b".",
                         ),
                     );
@@ -102,15 +101,23 @@ unsafe extern "C" fn consolidate_mark_array(
         k = k.wrapping_add(1);
     }
     dispose_mark_array(mark_array);
+    // `handle_from_consolidated` (which used to take `entry.name` as an
+    // owned `SdsRaw`, dup it internally, and leave the caller to free the
+    // original) is no longer needed here: `entry.name` is already the
+    // exact `Vec<u8>` a `Handle` wants, so it moves straight in -- no
+    // sds round trip, no `sdsfree` afterward.
     for (gid, entry) in h.into_iter() {
         (*mark_array).push(
             MarkRecord {
-                glyph: handle_from_consolidated(gid, entry.name) as GlyphHandle,
+                glyph: Handle {
+                    state: HandleState::Consolidated,
+                    index: gid,
+                    name: entry.name,
+                } as GlyphHandle,
                 mark_class: entry.mark_class,
                 anchor: entry.anchor,
             },
         );
-        sdsfree(entry.name);
     }
 }
 unsafe extern "C" fn consolidate_base_array(
@@ -137,7 +144,7 @@ unsafe extern "C" fn consolidate_base_array(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored unknown glyph name ",
-                    (&(*base_array))[k as usize].glyph.name,
+                    &(&(*base_array))[k as usize].glyph.name,
                     b".",
                 ),
             );
@@ -145,7 +152,7 @@ unsafe extern "C" fn consolidate_base_array(
             let gid: GlyphId = (&(*base_array))[k as usize].glyph.index;
             match h.entry(gid) {
                 Entry::Vacant(v) => {
-                    let name: SdsRaw = sdsdup((&(*base_array))[k as usize].glyph.name);
+                    let name: Vec<u8> = (&(*base_array))[k as usize].glyph.name.clone();
                     let anchors: *mut Anchor = (&(*base_array))[k as usize].anchors;
                     let ref mut fresh0 = (&mut (*base_array))[k as usize].anchors;
                     *fresh0 = ::core::ptr::null_mut::<Anchor>();
@@ -161,7 +168,7 @@ unsafe extern "C" fn consolidate_base_array(
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[Consolidate] Ignored anchor double-definition for /",
-                            (&(*base_array))[k as usize].glyph.name,
+                            &(&(*base_array))[k as usize].glyph.name,
                             b".",
                         ),
                     );
@@ -174,11 +181,14 @@ unsafe extern "C" fn consolidate_base_array(
     for (gid, entry) in h.into_iter() {
         (*base_array).push(
             BaseRecord {
-                glyph: handle_from_consolidated(gid, entry.name) as GlyphHandle,
+                glyph: Handle {
+                    state: HandleState::Consolidated,
+                    index: gid,
+                    name: entry.name,
+                } as GlyphHandle,
                 anchors: entry.anchors,
             },
         );
-        sdsfree(entry.name);
     }
 }
 unsafe extern "C" fn consolidate_lig_array(
@@ -205,7 +215,7 @@ unsafe extern "C" fn consolidate_lig_array(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored unknown glyph name ",
-                    (&(*lig_array))[k as usize].glyph.name,
+                    &(&(*lig_array))[k as usize].glyph.name,
                     b".",
                 ),
             );
@@ -213,7 +223,7 @@ unsafe extern "C" fn consolidate_lig_array(
             let gid: GlyphId = (&(*lig_array))[k as usize].glyph.index;
             match h.entry(gid) {
                 Entry::Vacant(v) => {
-                    let name: SdsRaw = sdsdup((&(*lig_array))[k as usize].glyph.name);
+                    let name: Vec<u8> = (&(*lig_array))[k as usize].glyph.name.clone();
                     let component_count: GlyphId = (&(*lig_array))[k as usize].component_count;
                     let anchors: *mut *mut Anchor = (&(*lig_array))[k as usize].anchors;
                     let ref mut fresh0 = (&mut (*lig_array))[k as usize].anchors;
@@ -230,7 +240,7 @@ unsafe extern "C" fn consolidate_lig_array(
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[Consolidate] Ignored anchor double-definition for /",
-                            (&(*lig_array))[k as usize].glyph.name,
+                            &(&(*lig_array))[k as usize].glyph.name,
                             b".",
                         ),
                     );
@@ -243,12 +253,15 @@ unsafe extern "C" fn consolidate_lig_array(
     for (gid, entry) in h.into_iter() {
         (*lig_array).push(
             LigatureBaseRecord {
-                glyph: handle_from_consolidated(gid, entry.name) as GlyphHandle,
+                glyph: Handle {
+                    state: HandleState::Consolidated,
+                    index: gid,
+                    name: entry.name,
+                } as GlyphHandle,
                 component_count: entry.component_count,
                 anchors: entry.anchors,
             },
         );
-        sdsfree(entry.name);
     }
 }
 pub unsafe extern "C" fn consolidate_mark_to_single(

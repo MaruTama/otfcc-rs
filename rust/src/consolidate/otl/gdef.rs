@@ -1,12 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::handle::{handle_from_consolidated, GlyphHandle};
+use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
-use crate::vendor::sds::{SdsRaw};
 
 use crate::font::caryll_font::{Font};
 
@@ -42,7 +41,7 @@ use crate::table::otl::classdef::ClassDef;
 use crate::consolidate::otl::common::{fontop_consolidate_class_def};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
+use crate::vendor::sds::{sdsempty};
 
 pub unsafe extern "C" fn consolidate_gdef(
     mut font: *mut Font,
@@ -93,7 +92,7 @@ pub unsafe extern "C" fn consolidate_gdef(
         // elsewhere) and disappears naturally here too, since this only
         // dups the name when actually inserting -- the warning message
         // reads the name directly off the un-consolidated entry instead.
-        let mut seen: std::collections::BTreeMap<i32, (SdsRaw, CaretValueList)> =
+        let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, CaretValueList)> =
             std::collections::BTreeMap::new();
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < lig_carets.len() {
@@ -114,12 +113,12 @@ pub unsafe extern "C" fn consolidate_gdef(
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[Consolidate] Detected caret value double-mapping about glyph ",
-                            lig_carets[j as usize].glyph.name,
+                            &lig_carets[j as usize].glyph.name,
                         ),
                     );
                 } else {
-                    let gname: SdsRaw = sdsdup(lig_carets[j as usize].glyph.name);
-                    if !gname.is_null() {
+                    let gname: Vec<u8> = lig_carets[j as usize].glyph.name.clone();
+                    if !gname.is_empty() {
                         let carets: CaretValueList =
                             ::core::mem::take(&mut lig_carets[j as usize].carets);
                         seen.insert(gid, (gname, carets));
@@ -131,10 +130,13 @@ pub unsafe extern "C" fn consolidate_gdef(
         clear_lig_carets(&raw mut (*gdef).lig_carets);
         for (gid, (gname, carets)) in seen {
             (*gdef).lig_carets.push(CaretValueRecord {
-                glyph: handle_from_consolidated(gid as GlyphId, gname) as GlyphHandle,
+                glyph: Handle {
+                    state: HandleState::Consolidated,
+                    index: gid as GlyphId,
+                    name: gname,
+                } as GlyphHandle,
                 carets,
             });
-            sdsfree(gname);
         }
     }
 }

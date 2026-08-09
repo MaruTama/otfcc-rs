@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::handle::{handle_from_consolidated, GlyphHandle};
+use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
@@ -12,7 +12,7 @@ use crate::table::otl::{GsubSingleEntry, Subtable, GsubSingleSubtable, OtlTable}
 
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gsub_single::{dispose_gsub_single_subtable};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, SdsRaw};
+use crate::vendor::sds::{sdsempty};
 
 pub unsafe extern "C" fn consolidate_gsub_single(
     mut font: *mut Font,
@@ -28,7 +28,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
     // `consolidate_gpos_single`'s uthash -> `BTreeMap` rewrite
     // (rust/README.md), with `to`'s `(id, name)` in place of a single
     // `PositionValue`.
-    let mut seen: std::collections::BTreeMap<i32, (SdsRaw, i32, SdsRaw)> =
+    let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, i32, Vec<u8>)> =
         std::collections::BTreeMap::new();
     let mut k: usize = 0 as usize;
     while k < (*subtable).len() {
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (&(*subtable))[k as usize].from.name,
+                    &(&(*subtable))[k as usize].from.name,
                     b".\n",
                 ),
             );
@@ -66,7 +66,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (&(*subtable))[k as usize].to.name,
+                    &(&(*subtable))[k as usize].to.name,
                     b".\n",
                 ),
             );
@@ -82,14 +82,14 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Double-mapping a glyph in a single substitution /",
-                        (&(*subtable))[k as usize].from.name,
+                        &(&(*subtable))[k as usize].from.name,
                         b".\n",
                     ),
                 );
             } else {
                 let toid: i32 = (&(*subtable))[k as usize].to.index as i32;
-                let fromname: SdsRaw = sdsdup((&(*subtable))[k as usize].from.name);
-                let toname: SdsRaw = sdsdup((&(*subtable))[k as usize].to.name);
+                let fromname: Vec<u8> = (&(*subtable))[k as usize].from.name.clone();
+                let toname: Vec<u8> = (&(*subtable))[k as usize].to.name.clone();
                 seen.insert(fromid, (fromname, toid, toname));
             }
         }
@@ -111,11 +111,17 @@ pub unsafe extern "C" fn consolidate_gsub_single(
     dispose_gsub_single_subtable(subtable);
     for (fromid, (fromname, toid, toname)) in seen {
         (*subtable).push(GsubSingleEntry {
-            from: handle_from_consolidated(fromid as GlyphId, fromname) as GlyphHandle,
-            to: handle_from_consolidated(toid as GlyphId, toname) as GlyphHandle,
+            from: Handle {
+                state: HandleState::Consolidated,
+                index: fromid as GlyphId,
+                name: fromname,
+            } as GlyphHandle,
+            to: Handle {
+                state: HandleState::Consolidated,
+                index: toid as GlyphId,
+                name: toname,
+            } as GlyphHandle,
         });
-        sdsfree(fromname);
-        sdsfree(toname);
     }
     return (*subtable).len() == 0 as usize;
 }

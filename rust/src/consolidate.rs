@@ -1,13 +1,13 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 pub mod otl;
 
-use libc::{free, strcmp};
+use libc::{free};
 unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
 
-use crate::support::handle::{HandleState, handle_consolidate_to, handle_from_index, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose};
+use crate::support::handle::{HandleState, handle_consolidate_to, handle_from_index, handle_name_eq_cstr, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -162,7 +162,7 @@ unsafe extern "C" fn consolidate_glyph_references(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored absent glyph component reference /",
-                    r.glyph.name,
+                    &r.glyph.name,
                     b" within /",
                     (*g).name,
                     b".\n",
@@ -299,15 +299,14 @@ unsafe extern "C" fn consolidate_fd_select(
             (*h).index,
             (**(*cff).fd_array.offset((*h).index as isize)).font_name,
         );
-    } else if !(*h).name.is_null() {
+    } else if !(*h).name.is_empty() {
         let mut found: bool = false;
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*cff).fd_array_count as ::core::ffi::c_int {
-            if strcmp(
-                (*h).name as *const ::core::ffi::c_char,
+            if handle_name_eq_cstr(
+                &(*h).name,
                 (**(*cff).fd_array.offset(j as isize)).font_name as *const ::core::ffi::c_char,
-            ) == 0 as ::core::ffi::c_int
-            {
+            ) {
                 found = true;
                 handle_consolidate_to(
                     h as *mut Handle,
@@ -329,7 +328,7 @@ unsafe extern "C" fn consolidate_fd_select(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] CID Subfont ",
-                    (*h).name,
+                    &(*h).name,
                     b" is not defined. (in glyph /",
                     gname,
                     b").\n",
@@ -337,7 +336,7 @@ unsafe extern "C" fn consolidate_fd_select(
             );
             otfcc_handle_dispose(h as *mut Handle);
         }
-    } else if !(*h).name.is_null() {
+    } else if !(*h).name.is_empty() {
         otfcc_handle_dispose(h as *mut Handle);
     }
 }
@@ -539,7 +538,7 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
                 b"Failed to access point ",
                 (*rr).outer as ::core::ffi::c_int,
                 b" in reference to ",
-                (*rr).glyph.name,
+                &(*rr).glyph.name,
                 b".",
             ),
         );
@@ -583,7 +582,7 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"Anchored reference to ",
-                    (*rr).glyph.name,
+                    &(*rr).glyph.name,
                     b" does not match its X/Y offset data.",
                 ),
             );
@@ -679,7 +678,7 @@ pub unsafe extern "C" fn consolidate_cmap(
                         b"[Consolidate] Ignored mapping U+",
                         Hex4Upper(unicode as u32),
                         b" to non-existent glyph /",
-                        glyph.name,
+                        &glyph.name,
                         b".\n",
                     ),
                 );
@@ -709,7 +708,7 @@ pub unsafe extern "C" fn consolidate_cmap(
                         b" U+",
                         Hex4Upper(key.selector as u32),
                         b"] to non-existent glyph /",
-                        glyph.name,
+                        &glyph.name,
                         b".\n",
                     ),
                 );
@@ -1264,7 +1263,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignored missing glyph of /",
-                        mapping.glyph.name,
+                        &mapping.glyph.name,
                     ),
                 );
             } else {
@@ -1272,7 +1271,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                     glyph: Handle {
                         state: HandleState::Empty,
                         index: 0,
-                        name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                        name: Vec::new(),
                     },
                     layers: Vec::new(),
                 };
@@ -1300,7 +1299,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                                 crate::sdsbuild!(
                                     sdsempty(),
                                     b"[Consolidate] Ignored missing glyph of /",
-                                    layer.glyph.name,
+                                    &layer.glyph.name,
                                 ),
                             );
                         } else {
@@ -1323,7 +1322,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[Consolidate] COLR decomposition for /",
-                            mapping.glyph.name,
+                            &mapping.glyph.name,
                             b" is empth",
                         ),
                     );
@@ -1384,7 +1383,7 @@ unsafe extern "C" fn consolidate_tsi(
                         crate::sdsbuild!(
                             sdsempty(),
                             b"[Consolidate] Ignored missing glyph of /",
-                            (*entry).glyph.name,
+                            &(*entry).glyph.name,
                         ),
                     );
                 }
@@ -1404,7 +1403,7 @@ unsafe extern "C" fn consolidate_tsi(
             glyph: Handle {
                 state: HandleState::Empty,
                 index: 0,
-                name: ::core::ptr::null_mut::<::core::ffi::c_char>(),
+                name: Vec::new(),
             },
             content: Vec::new(),
         };

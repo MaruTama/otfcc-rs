@@ -2,19 +2,18 @@
 
 use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, push_to_coverage};
-use crate::support::handle::{handle_from_consolidated, handle_from_index, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
+use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, HandleState, GlyphHandle, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphClass, GlyphId, TableId};
-use crate::vendor::sds::{SdsRaw};
 
 use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Lookup, Subtable, SubtablePtr, ChainingType, ChainingSubtable};
 use crate::table::otl::subtables::chaining::build::{otfcc_build_chaining, otfcc_build_contextual, otfcc_chaining_lookup_is_contextual_lookup};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct ClassifierValue {
-    pub gname: SdsRaw,
+    pub gname: Vec<u8>,
     pub cls: ::core::ffi::c_int,
 }
 unsafe extern "C" fn class_compatible(
@@ -78,7 +77,7 @@ unsafe extern "C" fn class_compatible(
             let mut j_2: GlyphId = 0 as GlyphId;
             while (j_2 as usize) < (*cov).len() {
                 let gid_4: GlyphId = (&(*cov))[j_2 as usize].index;
-                let gname: SdsRaw = (&(*cov))[j_2 as usize].name;
+                let gname: Vec<u8> = (&(*cov))[j_2 as usize].name.clone();
                 h.entry(gid_4).or_insert(ClassifierValue { gname, cls: new_cls });
                 j_2 = j_2.wrapping_add(1);
             }
@@ -176,7 +175,11 @@ unsafe extern "C" fn to_class(h: &std::collections::BTreeMap<GlyphId, Classifier
     for (&gid, v) in h.iter() {
         push_class_def(
             cd,
-            handle_from_consolidated(gid, v.gname) as GlyphHandle,
+            Handle {
+                state: HandleState::Consolidated,
+                index: gid,
+                name: v.gname.clone(),
+            } as GlyphHandle,
             v.cls as GlyphClass,
         );
     }

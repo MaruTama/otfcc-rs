@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{strcmp};
 use crate::table::otl::coverage::shrink_coverage;
-use crate::support::handle::{HandleState, handle_consolidate_to, Handle, otfcc_handle_dispose, LookupHandle};
+use crate::support::handle::{HandleState, handle_consolidate_to, handle_name_eq_cstr, Handle, otfcc_handle_dispose, LookupHandle};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
@@ -58,7 +57,7 @@ pub unsafe extern "C" fn consolidate_chaining(
     while (j_0 as usize) < (*rule).apply.len() {
         let mut found_lookup: bool = false;
         let mut h: *mut LookupHandle = &raw mut (&mut (*rule).apply)[j_0 as usize].lookup;
-        if !(*h).name.is_null() {
+        if !(*h).name.is_empty() {
             let mut k: TableId = 0 as TableId;
             while (k as usize) < (*table).lookups.len() {
                 // Every element is a `Box<Lookup>` now, never null, so the
@@ -68,12 +67,11 @@ pub unsafe extern "C" fn consolidate_chaining(
                     .subtables
                     .is_empty())
                 {
-                    if !(strcmp(
+                    if handle_name_eq_cstr(
+                        &(*h).name,
                         (*(&(*table).lookups)[k as usize]).name
                             as *const ::core::ffi::c_char,
-                        (*h).name as *const ::core::ffi::c_char,
-                    ) != 0 as ::core::ffi::c_int)
-                    {
+                    ) {
                         found_lookup = true;
                         handle_consolidate_to(
                             h as *mut Handle,
@@ -84,7 +82,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                 }
                 k = k.wrapping_add(1);
             }
-            if !found_lookup && !(&(*rule).apply)[j_0 as usize].lookup.name.is_null() {
+            if !found_lookup && !(&(*rule).apply)[j_0 as usize].lookup.name.is_empty() {
                 (*(*options).logger)
                     .log_sds
                     .expect(
@@ -96,7 +94,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Quoting an invalid lookup ",
-                        (&(*rule).apply)[j_0 as usize].lookup.name,
+                        &(&(*rule).apply)[j_0 as usize].lookup.name,
                         b". This lookup application is ignored.",
                     ),
                 );
@@ -133,7 +131,7 @@ pub unsafe extern "C" fn consolidate_chaining(
     if !(*rule).apply.is_empty() {
         // Was a manual compact-in-place loop over `apply_count` before
         // `.apply` became a `Vec` -- `retain` is the direct translation.
-        (*rule).apply.retain(|app| !app.lookup.name.is_null());
+        (*rule).apply.retain(|app| !app.lookup.name.is_empty());
         if (*rule).apply.is_empty() {
             return true;
         }

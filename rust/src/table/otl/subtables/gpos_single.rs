@@ -18,7 +18,7 @@ use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value, required_position_format};
-use crate::vendor::json_builder::{json_object_new, json_object_push};
+use crate::vendor::json_builder::{json_object_new, json_object_push_bytes_key};
 use crate::vendor::sds::{sdsnewlen};
 // `GposSingleEntry` holds only a `GlyphHandle` plus a plain `PositionValue`,
 // so dropping the `Vec` runs `Handle`'s own `Drop` for every entry -- no
@@ -156,9 +156,9 @@ pub unsafe extern "C" fn otl_gpos_dump_single(
     let mut st: *mut JsonValue = json_object_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
-        json_object_push(
+        json_object_push_bytes_key(
             st,
-            (&(*subtable))[j as usize].target.name as *const ::core::ffi::c_char,
+            &(&(*subtable))[j as usize].target.name,
             gpos_dump_value((&(*subtable))[j as usize].value),
         );
         j = j.wrapping_add(1);

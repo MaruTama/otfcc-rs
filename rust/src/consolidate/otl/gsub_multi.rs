@@ -1,13 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::table::otl::coverage::{Coverage, shrink_coverage};
-use crate::support::handle::{handle_from_consolidated, GlyphHandle};
+use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
-use crate::vendor::sds::{SdsRaw};
 
 use crate::font::caryll_font::{Font};
 
@@ -43,7 +42,7 @@ use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable, OtlTable};
 use crate::consolidate::otl::common::{fontop_consolidate_coverage};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gsub_multi::{dispose_gsub_multi_subtable};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
+use crate::vendor::sds::{sdsempty};
 
 
 
@@ -63,7 +62,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     // `fromid` right before reading entries back out, so the final order is
     // ascending by glyph id, not insertion order -- a `BTreeMap`'s iteration
     // order already is that, for free.
-    let mut seen: std::collections::BTreeMap<i32, (SdsRaw, *mut Coverage)> =
+    let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, *mut Coverage)> =
         std::collections::BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).len() {
@@ -82,7 +81,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                 crate::sdsbuild!(
                     sdsempty(),
                     b"[Consolidate] Ignored missing glyph /",
-                    (&(*subtable))[k as usize].from.name,
+                    &(&(*subtable))[k as usize].from.name,
                     b".\n",
                 ),
             );
@@ -104,14 +103,14 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                     crate::sdsbuild!(
                         sdsempty(),
                         b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /",
-                        (&(*subtable))[k as usize].from.name,
+                        &(&(*subtable))[k as usize].from.name,
                         b".\n",
                     ),
                 );
             } else {
                 let fromid: i32 = (&(*subtable))[k as usize].from.index as i32;
                 if !seen.contains_key(&fromid) {
-                    let fromname: SdsRaw = sdsdup((&(*subtable))[k as usize].from.name);
+                    let fromname: Vec<u8> = (&(*subtable))[k as usize].from.name.clone();
                     let to: *mut Coverage = (&(*subtable))[k as usize].to;
                     let ref mut fresh0 = (&mut (*subtable))[k as usize].to;
                     *fresh0 = ::core::ptr::null_mut::<Coverage>();
@@ -124,10 +123,13 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     dispose_gsub_multi_subtable(subtable);
     for (fromid, (fromname, to)) in seen {
         (*subtable).push(GsubMultiEntry {
-            from: handle_from_consolidated(fromid as GlyphId, fromname) as GlyphHandle,
+            from: Handle {
+                state: HandleState::Consolidated,
+                index: fromid as GlyphId,
+                name: fromname,
+            } as GlyphHandle,
             to,
         });
-        sdsfree(fromname);
     }
     return (*subtable).len() == 0 as usize;
 }

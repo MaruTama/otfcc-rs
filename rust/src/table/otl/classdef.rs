@@ -11,7 +11,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite_bufdel};
-use crate::vendor::json_builder::{json_integer_new, json_object_new, json_object_push};
+use crate::vendor::json_builder::{json_integer_new, json_object_new, json_object_push_bytes_key};
 use crate::vendor::sds::{sdsnewlen};
 /// `glyphs`/`classes` were a hand-rolled `malloc`/`realloc` pair of parallel
 /// arrays (grown, pushed to, and truncated only ever together -- confirmed
@@ -71,6 +71,10 @@ pub(crate) unsafe extern "C" fn otl_class_def_create() -> *mut ClassDef {
     });
     x
 }
+// `Handle` (aliased `GlyphHandle`) now owns a `Vec<u8>` name, so passing it
+// by value trips `improper_ctypes_definitions`; this is never called across
+// a real FFI boundary (c2rust artifact, not `#[no_mangle]`).
+#[allow(improper_ctypes_definitions)]
 pub(crate) unsafe extern "C" fn push_class_def(cd: *mut ClassDef, h: GlyphHandle, cls: GlyphClass) {
     (*cd).glyphs.push(h);
     (*cd).classes.push(cls);
@@ -211,9 +215,9 @@ pub(crate) unsafe extern "C" fn expand_class_def(
 pub(crate) unsafe extern "C" fn dump_class_def(cd: *const ClassDef) -> *mut JsonValue {
     let mut a: *mut JsonValue = json_object_new((*cd).glyphs.len());
     for j in 0..(*cd).glyphs.len() {
-        json_object_push(
+        json_object_push_bytes_key(
             a,
-            (&(*cd).glyphs)[j].name as *const ::core::ffi::c_char,
+            &(&(*cd).glyphs)[j].name,
             json_integer_new((&(*cd).classes)[j] as i64),
         );
     }
@@ -338,7 +342,7 @@ pub(crate) unsafe extern "C" fn shrink_class_def(cd: *mut ClassDef) {
     // reasoning as `shrink_coverage`.
     let mut k: usize = 0;
     for j in 0..(*cd).glyphs.len() {
-        if !(&(*cd).glyphs)[j].name.is_null() {
+        if !(&(*cd).glyphs)[j].name.is_empty() {
             let g = (&(*cd).glyphs)[j].clone();
             let c = (&(*cd).classes)[j];
             (&mut (*cd).glyphs)[k] = g;

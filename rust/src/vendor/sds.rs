@@ -339,6 +339,25 @@ impl<const N: usize> SdsPart for &[u8; N] {
     }
 }
 
+/// A `Handle`'s `name` (now `Vec<u8>`, previously a null-terminated
+/// `sds`/`SdsRaw` fed through the `*const c_char` impl below): appends up
+/// to the first embedded NUL, matching that impl's `%s`/`strlen` semantics
+/// exactly, since every existing call site passing a `Handle.name` into
+/// `sdsbuild!` relied on that truncation. An empty `Vec` (an unset
+/// `Handle`) appends nothing -- the `*const c_char` impl's literal
+/// `"(null)"` for a null pointer has no equivalent here (there's no
+/// "null vs. empty" distinction left once the storage is owned), which
+/// only changes warning-log wording for a handle with no name, never any
+/// dumped/built output.
+impl SdsPart for &Vec<u8> {
+    unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
+        match self.iter().position(|&b| b == 0) {
+            Some(nul_pos) => (&self[..nul_pos]).append_to(s),
+            None => (&self[..]).append_to(s),
+        }
+    }
+}
+
 /// A C string (`%s`): the bytes up to the terminating NUL.
 ///
 /// A null pointer appends `(null)`, which is what both glibc and Apple's libc

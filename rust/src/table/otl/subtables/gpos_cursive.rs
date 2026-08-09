@@ -19,7 +19,7 @@ use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_dump_anchor, otl_parse_anchor, otl_read_anchor};
-use crate::vendor::json_builder::{json_object_new, json_object_push};
+use crate::vendor::json_builder::{json_object_new, json_object_push, json_object_push_bytes_key};
 use crate::vendor::sds::{sdsnewlen};
 // `GposCursiveEntry` holds only a `GlyphHandle` plus two plain `Anchor`
 // values, so dropping the `Vec` runs `Handle`'s own `Drop` for every entry --
@@ -149,11 +149,7 @@ pub unsafe extern "C" fn otl_gpos_dump_cursive(
             b"exit\0" as *const u8 as *const ::core::ffi::c_char,
             otl_dump_anchor((&(*subtable))[j as usize].exit),
         );
-        json_object_push(
-            st,
-            (&(*subtable))[j as usize].target.name as *const ::core::ffi::c_char,
-            preserialize(rec),
-        );
+        json_object_push_bytes_key(st, &(&(*subtable))[j as usize].target.name, preserialize(rec));
         j = j.wrapping_add(1);
     }
     return st;
