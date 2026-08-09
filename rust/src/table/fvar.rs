@@ -6,7 +6,6 @@ use crate::support::json_funcs::{json_new_position, json_numof, json_object_push
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::JsonValue;
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::vf::axis::{VfAxes, VfAxis};
@@ -14,8 +13,8 @@ use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vv::VV;
 use crate::support::primitives::{otfcc_from_fixed};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_length, json_string_new, json_string_new_length};
-use crate::vendor::sds::{sdscatsds, sdsempty, sdsfree, sdsfromlonglong, sdslen, sdsnew};
+use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new, json_string_new_from_bytes};
+use crate::vendor::sds::{sdsempty};
 use crate::vf::region::{vq_axis_span_is_one, vq_delete_region};
 use crate::vf::vq::{I_VQ};
 pub struct FvarInstance {
@@ -31,7 +30,7 @@ pub struct FvarInstance {
 // `.copy`（`FVAR_I_INSTANCE_LIST.copy`）は一度も呼ばれておらず削除。
 pub type FvarInstanceList = Vec<FvarInstance>;
 pub struct FvarMaster {
-    pub name: SdsRaw,
+    pub name: Vec<u8>,
     pub region: *mut VqRegion,
 }
 // A `VqRegion` is a fixed header (`dimensions: ShapeId`) followed by a C
@@ -131,7 +130,6 @@ pub struct VariationAxisRecord {
 }
 #[inline]
 unsafe fn dispose_fvar_master(m: &FvarMaster) {
-    sdsfree(m.name);
     vq_delete_region(m.region);
 }
 // `table_fvar_create` uses `calloc`, so `axes`/`instances` already start
@@ -184,12 +182,7 @@ unsafe extern "C" fn fvar_register_region(
         vq_delete_region(region);
         return canonical;
     }
-    let s_master_id: SdsRaw = sdsfromlonglong(((*fvar).masters.len() as ::core::ffi::c_longlong) + 1);
-    let name: SdsRaw = sdscatsds(
-        sdsnew(b"m\0" as *const u8 as *const ::core::ffi::c_char),
-        s_master_id,
-    );
-    sdsfree(s_master_id);
+    let name: Vec<u8> = format!("m{}", (*fvar).masters.len() + 1).into_bytes();
     (*fvar).masters.insert(key, FvarMaster { name, region });
     region as *const VqRegion
 }
@@ -572,9 +565,9 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
         );
         let mut _masters: *mut JsonValue = json_object_new((*table).masters.len());
         for master in (*table).masters.values() {
-            json_object_push(
+            json_object_push_bytes_key(
                 _masters,
-                master.name as *const ::core::ffi::c_char,
+                &master.name,
                 preserialize(json_new_vq_region_explicit(master.region, table)),
             );
         }
@@ -759,11 +752,8 @@ pub unsafe extern "C" fn json_new_vq_region(
     let mut m: *const FvarMaster = TABLE_I_FVAR
         .find_master_by_region
         .expect("non-null function pointer")(fvar, rs);
-    if !m.is_null() && !(*m).name.is_null() {
-        return json_string_new_length(
-            sdslen((*m).name) as ::core::ffi::c_uint,
-            (*m).name as *const ::core::ffi::c_char,
-        );
+    if !m.is_null() && !(*m).name.is_empty() {
+        return json_string_new_from_bytes(&(*m).name);
     } else {
         return json_new_vq_region_explicit(rs, fvar);
     };

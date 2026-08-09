@@ -4618,3 +4618,34 @@ on the other platform before a commit is trusted.
     until `GlyphOrderEntry`'s own `name` field is converted) remain a much
     larger, not-yet-scoped future theme — no commitment made to pursue
     further after this PR.
+- **`FvarMaster.name: SdsRaw` → `Vec<u8>`.** A small, single-file follow-up
+  in the same `sds` sweep — `FvarMaster` (a variation-region "master" name
+  like `"m1"`, `"m2"`, ..., stored in `FvarTable.masters: IndexMap<RegionKey,
+  FvarMaster>`) is entirely private to `table/fvar.rs`, with no `Copy`/
+  `Clone` derive to lose (unlike every `Handle`-adjacent leaf type converted
+  so far, there was no `Copy` cascade to worry about here).
+  - **The name is crate-generated, not font-derived** — `fvar_register_region`
+    synthesizes it from an internal counter (`"m" + (masters.len() + 1)`)
+    rather than copying anything read from the font file or JSON input, so
+    unlike the `sdscatprintf`/`sdscatfmt` replacement sites elsewhere in
+    this migration (which stay byte-oriented specifically because they
+    carry font-derived, possibly-non-UTF-8 glyph names), this one site can
+    safely use `format!("m{}", ...).into_bytes()` — matching the existing
+    precedent in `support/ttinstr.rs`'s synthesized `PUSHB_N`/`PUSHW_N`
+    labels and `vendor/sds.rs`'s own `SdsPart` integer-formatter impls.
+  - **`dispose_fvar_master` loses its `sdsfree(m.name)` call** but keeps
+    the function (and its `vq_delete_region(m.region)` call) — same
+    pattern as every earlier leaf-type conversion: the `Vec<u8>` is torn
+    down for free when the owning `FvarMaster` is moved out of the
+    `IndexMap` and dropped at the end of `dispose_fvar`'s loop iteration,
+    but `region: *mut VqRegion` is still a raw pointer needing an explicit
+    call.
+  - **Real coverage, no synthetic payload needed**: `gvar-test.ttf` (the
+    existing variable-font payload) already drives both the master-naming
+    path (`fvar_register_region`, on every distinct tuple-variation region)
+    and the two dump-direction reads (`otfcc_dump_fvar`'s masters object,
+    `json_new_vq_region`'s named-region shortcut).
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test.
