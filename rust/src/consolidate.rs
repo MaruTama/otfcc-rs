@@ -7,7 +7,7 @@ unsafe extern "C" {
 }
 
 
-use crate::support::handle::{HandleState, handle_consolidate_to, handle_from_index, handle_name_eq_cstr, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose};
+use crate::support::handle::{HandleState, handle_consolidate_to, handle_from_index, handle_name_eq_cstr, sds_to_vec, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -75,7 +75,7 @@ use crate::table::otl::subtables::gsub_ligature::{subtable_gsub_ligature_free};
 use crate::table::otl::subtables::gsub_multi::{subtable_gsub_multi_free};
 use crate::table::otl::subtables::gsub_reverse::{I_SUBTABLE_GSUB_REVERSE};
 use crate::table::otl::subtables::gsub_single::{subtable_gsub_single_free};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
 pub type SubtableRemover = Option<unsafe extern "C" fn(*mut Subtable) -> ()>;
@@ -134,7 +134,7 @@ unsafe extern "C" fn consolidate_glyph_contours(
                     b"[Consolidate] Removed empty contour #",
                     j as ::core::ffi::c_int,
                     b" in glyph ",
-                    (*g).name,
+                    &(*g).name,
                     b".\n",
                 ),
             );
@@ -164,7 +164,7 @@ unsafe extern "C" fn consolidate_glyph_references(
                     b"[Consolidate] Ignored absent glyph component reference /",
                     &r.glyph.name,
                     b" within /",
-                    (*g).name,
+                    &(*g).name,
                     b".\n",
                 ),
             );
@@ -284,7 +284,7 @@ unsafe extern "C" fn consolidate_fd_select(
     mut h: *mut FdHandle,
     mut cff: *mut CffTable,
     mut options: *const Options,
-    gname: SdsRaw,
+    gname: &Vec<u8>,
 ) {
     if cff.is_null() || (*cff).fd_array.is_null() || (*cff).fd_array_count == 0 {
         return;
@@ -348,7 +348,7 @@ pub unsafe extern "C" fn consolidate_glyph(
     consolidate_glyph_contours(g, options);
     consolidate_glyph_references(g, font, options);
     consolidate_glyph_hints(g, options);
-    consolidate_fd_select(&raw mut (*g).fd_select, (*font).cff, options, (*g).name);
+    consolidate_fd_select(&raw mut (*g).fd_select, (*font).cff, options, &(*g).name);
 }
 pub unsafe extern "C" fn get_point_coordinates(
     mut table: *mut GlyfTable,
@@ -622,7 +622,7 @@ pub unsafe extern "C" fn consolidate_glyf(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), (*g).name),
+            crate::sdsbuild!(sdsempty(), &(*g).name),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
@@ -1438,13 +1438,17 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*(*font).glyf).len() {
             let mut name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-            let glyf_name: SdsRaw = (&(*(*font).glyf))[j as usize].as_deref().unwrap().name;
-            if !glyf_name.is_null() {
-                name = sdsdup(glyf_name);
+            let glyf_name_empty: bool = (&(*(*font).glyf))[j as usize].as_deref().unwrap().name.is_empty();
+            if !glyf_name_empty {
+                let glyf_name_bytes: &[u8] = &(&(*(*font).glyf))[j as usize].as_deref().unwrap().name;
+                name = sdsnewlen(
+                    glyf_name_bytes.as_ptr() as *const ::core::ffi::c_void,
+                    glyf_name_bytes.len(),
+                );
             } else {
                 name = crate::sdsbuild!(sdsempty(), b"$$gid", j as ::core::ffi::c_int);
                 let ref mut fresh0 = (&mut (*(*font).glyf))[j as usize].as_mut().unwrap().name;
-                *fresh0 = sdsdup(name);
+                *fresh0 = sds_to_vec(name);
             }
             if !OTFCC_PKG_GLYPH_ORDER
                 .set_by_name
@@ -1491,9 +1495,8 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
                                 b".",
                             ),
                         );
-                        sdsfree((&(*(*font).glyf))[j as usize].as_deref().unwrap().name);
                         let ref mut fresh1 = (&mut (*(*font).glyf))[j as usize].as_mut().unwrap().name;
-                        *fresh1 = sdsdup(newname);
+                        *fresh1 = sds_to_vec(newname);
                     }
                     if success {
                         break;

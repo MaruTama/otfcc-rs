@@ -4649,3 +4649,64 @@ on the other platform before a commit is trusted.
     and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
     ABI export guard, `compare-with-c.sh` byte-identical on every payload,
     all 10 payloads' round trips, and the issue #1 golden test.
+- **`Glyph.name: SdsRaw` → `Vec<u8>`.** The glyph's own name field
+  (distinct from the `Handle`-based glyph/lookup *references* the earlier
+  `Handle.name` PR converted). Larger than `FvarMaster` — four files
+  (`table/glyf.rs`, `consolidate.rs`, `otf_reader/unconsolidate.rs`,
+  `table/cff.rs`) rather than one — because `Glyph.name` is populated from
+  three independent directions (JSON/glyph-order parsing, the
+  consolidate-phase glyph-order registration/uniqueness pass, and CFF
+  charset-derived naming) and read back out by two (JSON dump, CFF
+  charset-building).
+  - **`Glyph` already had a real `Drop` impl** (from the earlier "glyf
+    残り4型" `Box<Glyph>` PR), so this conversion is a pure simplification
+    there: the `if !self.name.is_null() { sdsfree(...) }` block disappears
+    entirely, leaving only `instructions`' manual `free()`.
+  - **`support/handle.rs`'s `sds_to_vec` helper (added for the `Handle.name`
+    PR) does essentially all of the heavy lifting here** — every site that
+    used to `sdsdup` a shared/borrowed `SdsRaw` into `Glyph.name` (the
+    consolidate-phase glyph-order registration in both `consolidate.rs` and
+    `otf_reader/unconsolidate.rs`, and CFF charset-derived naming in
+    `table/cff.rs`) now calls `sds_to_vec` instead — same "copy the bytes,
+    don't touch the source's lifetime" contract, and the old paired
+    `if !name.is_null() { sdsfree(name); }` teardown before each
+    reassignment is now redundant (a plain `Vec<u8>` assignment already
+    drops the old value).
+  - **`table/cff.rs`'s CFF-charset-derived naming needed one more step
+    than a straight `sds_to_vec` swap**: `sdsget_cff_sid`/`form_cid_string`
+    return a *freshly allocated* `sds` with no other owner, so after
+    copying its bytes into `Glyph.name` via `sds_to_vec`, the now-redundant
+    `sds` needs an explicit `sdsfree` — unlike the "borrowed, shared, owned
+    elsewhere" sources `sds_to_vec` was originally written for. Six call
+    sites (one per charset-format branch, CID and non-CID) follow this
+    same `sds_to_vec` + `sdsfree` pair.
+  - **`sidof` (the CFF string-interning helper in `table/cff.rs`) was
+    deliberately left untouched** — it's shared between the two
+    `Glyph.name`-reading call sites (in `cff_make_charset`, building the
+    non-CID charset's glyph-name SIDs) and eight other call sites passing
+    `CffFontInfo`'s still-`SdsRaw` fields (`cid_registry`, `version`,
+    `notice`, `copyright`, `full_name`, `family_name`, `weight`,
+    `font_name` — a separate, not-yet-scoped `sds` theme). Widening
+    `sidof`'s signature to `&[u8]` would have forced touching all eight of
+    those unrelated call sites in the same PR, so instead the two
+    `Glyph.name` sites build a short-lived temporary `sds` via `sdsnewlen`
+    right before calling `sidof`, and free it immediately after — keeping
+    the two themes cleanly separable, at the cost of a small, contained
+    round trip.
+  - **One genuinely diagnostic-only site**: `wrong_instrs_for_glyph`
+    (`table/glyf.rs`) passes the glyph name into an `fprintf(stderr, "...%s...")`
+    call on a TrueType-instruction parse error. `fprintf`'s `%s` needs a
+    NUL-terminated buffer, which a bare `Vec<u8>` isn't — a byte-copy with
+    an appended NUL is built locally for this one call. Never part of
+    dumped/built output, so this doesn't need the NUL-truncation care the
+    crate's other glyph-name-to-JSON sites take (matching the existing
+    "(null)"-fallback carve-out already recorded for `SdsPart`).
+  - **Real coverage, no synthetic payload needed**: every existing payload
+    exercises `Glyph.name` (it's the glyph's own name), and `KRName-Regular.otf`/
+    `KRName-Regular-O2.otf` (CID CFF, non-CID CFF, and CFF subroutinized)
+    specifically drive `table/cff.rs`'s CID and non-CID charset-naming
+    branches in both directions.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test.
