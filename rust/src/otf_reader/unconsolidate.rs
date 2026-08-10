@@ -323,14 +323,14 @@ unsafe extern "C" fn create_glyph_order(
                 .expect("non-null function pointer")(glyph_order, (*s).gid, gname_1);
         }
     }
-    if !(*font).cmap.is_null() && !(*options).name_glyphs_by_gid {
+    if (*font).cmap.is_some() && !(*options).name_glyphs_by_gid {
         let mut aglfn: *mut GlyphOrder =
             (
                 OTFCC_PKG_GLYPH_ORDER
                     .create
                     .expect("non-null function pointer"))();
         aglfn_setup_names(aglfn);
-        for (&unicode, glyph) in (*(*font).cmap).unicodes.iter() {
+        for (&unicode, glyph) in (*font).cmap.as_ref().unwrap().unicodes.iter() {
             if glyph.index as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
                 let mut name_bytes: Vec<u8> = Vec::new();
                 if unicode > 0 as ::core::ffi::c_int

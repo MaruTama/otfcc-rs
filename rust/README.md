@@ -5017,3 +5017,75 @@ on the other platform before a commit is trusted.
     and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
     ABI export guard, `compare-with-c.sh` byte-identical on every payload,
     all 10 payloads' round trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化": `Font.cmap: *mut CmapTable` → `Option<Box<CmapTable>>`**,
+  the next field down the deferred-by-touch-count list (15 sites, lowest
+  of the six remaining "simple struct" candidates). Unlike every other
+  table converted in this theme so far, `CmapTable`'s fields
+  (`unicodes`/`uvs`) are already `BTreeMap<_, GlyphHandle>` from an
+  earlier uthash-removal PR, so — like `VdmxTable`/`CpalTable`/
+  `GaspTable`/`MetaTable` before it — no manual `Drop` impl was needed,
+  just `Box::new` construction.
+  - **A vtable-deletion grep mistake, caught by the compiler**: this
+    file's `CmapTableElementInterface` has four extra "method" slots
+    beyond the usual `init`/`dispose`/`create`/`free`
+    (`.encode_by_index`, `.lookup`, `.encode_uvs_by_index`, etc.) that
+    every other converted table's vtable lacks. A first-pass
+    `grep -n "TABLE_I_CMAP\."` (single-line anchored) found only the
+    `.create` call sites and concluded the method slots were "never
+    called through the vtable" — wrong: `read_uvs_default`/
+    `read_uvs_non_default`/`otfcc_build_cmap_format14` call
+    `TABLE_I_CMAP.lookup`/`.encode_uvs_by_index` with the method name on
+    its own line (`TABLE_I_CMAP\n    .lookup\n    .expect(...)`), which
+    a single-line-anchored `\.` pattern never matches. Deleting the
+    vtable anyway produced four `E0425: cannot find value TABLE_I_CMAP`
+    compile errors immediately — the mistake cost nothing beyond one
+    extra build/fix cycle, but it's a lesson for every future
+    vtable-deletion grep in this crate: **search for the bare
+    identifier** (`grep -n "TABLE_I_X"`, no anchored dot) so multi-line
+    method-call syntax can't hide a live call site. Fixed by replacing
+    the four call sites with direct calls to the vtable slots' backing
+    functions (`otfcc_cmap_lookup`, `otfcc_encode_cmap_uvs_by_index`),
+    which were already exported, ordinary functions — same behavior, no
+    vtable indirection needed. `.unmap`/`.unmap_uvs`/`.encode_by_name`/
+    the other two "by_name" slots were genuinely dead in vtable form
+    (confirmed via the corrected grep); kept as ordinary functions
+    rather than deleted, since removing live-looking public API during a
+    type-only conversion would be scope creep.
+  - **`otfcc_read_cmap`/`otfcc_parse_cmap` build the table incrementally
+    through helper functions that take a raw `*mut CmapTable`**
+    (`read_cmap_mapping_table`, `parse_cmap_unicodes`, etc.) — these
+    internal-only signatures were left unchanged; each entry point
+    constructs a local `Box<CmapTable>` up front and derives a
+    `*mut CmapTable` from it (`cmap_box.as_deref_mut().unwrap() as *mut
+    CmapTable` / `cmap_box.as_mut() as *mut CmapTable`) to hand to the
+    helpers, then returns the `Box` itself at the end. Matches the same
+    "helpers keep taking raw pointers, only the public entry/exit points
+    change type" pattern used for `VdmxTable`/`CpalTable`'s internal
+    build helpers.
+  - **`otfcc_read_cmap`'s corrupted-table branch previously did a raw
+    `free(cmap as *mut c_void)`**, bypassing `CmapTable`'s (implicit,
+    now-derived) drop glue — safe only because the two `BTreeMap`s were
+    still empty at that point (no subtable had been read yet when the
+    length check fails), so there was nothing to leak either way.
+    Replaced with `cmap_box = None;`, which is both simpler and now
+    actually runs the drop glue (a no-op on empty maps, but the
+    principled choice going forward).
+  - Four call sites outside `table/cmap.rs` needed the usual
+    `.is_null()`/`.is_some()` swap: `otf_reader/unconsolidate.rs`
+    (glyph-order AGLFN naming pass), `consolidate.rs`'s
+    `consolidate_cmap` (twice, for `.unicodes`/`.uvs`), and
+    `otf_writer/stat.rs`'s `stat_os_2` guard — the last of these wasn't
+    caught by the original call-site survey (a `grep -c` count of
+    `(*font).cmap` in `stat.rs` reported 2, but one of the two hits was
+    inside `stat_os_2_unicode_ranges`'s own body, which is only reached
+    through this guard, and the guard itself was on a `use`-adjacent
+    line the count still should have caught — recorded here as a
+    reminder that touch-count surveys are a planning aid, not a
+    replacement for actually building and reading every compiler error).
+  - **No new synthetic payload needed** — cmap is exercised by every
+    payload with any Unicode-mapped glyphs, already covered by
+    `compare-with-c.sh`/`run-cycles.sh`.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test.

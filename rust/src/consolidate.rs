@@ -657,12 +657,12 @@ pub unsafe extern "C" fn consolidate_cmap(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
-    if !(*font).glyph_order.is_null() && !(*font).cmap.is_null() {
+    if !(*font).glyph_order.is_null() && (*font).cmap.is_some() {
         // A failed resolution disposes the entry's `Handle` in place
         // (leaving it in the map with an empty name) rather than
         // removing the entry -- `dump_cmap`'s "skip if name is null"
         // check is what actually hides it later.
-        for (&unicode, glyph) in (*(*font).cmap).unicodes.iter_mut() {
+        for (&unicode, glyph) in (*font).cmap.as_mut().unwrap().unicodes.iter_mut() {
             if !OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
                 .expect("non-null function pointer")(
@@ -687,8 +687,8 @@ pub unsafe extern "C" fn consolidate_cmap(
             }
         }
     }
-    if !(*font).glyph_order.is_null() && !(*font).cmap.is_null() {
-        for (key, glyph) in (*(*font).cmap).uvs.iter_mut() {
+    if !(*font).glyph_order.is_null() && (*font).cmap.is_some() {
+        for (key, glyph) in (*font).cmap.as_mut().unwrap().uvs.iter_mut() {
             if !OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
                 .expect("non-null function pointer")(
