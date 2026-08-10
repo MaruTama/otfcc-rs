@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{calloc, free};
 use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, preserialize};
 use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
@@ -51,48 +50,26 @@ pub struct GdefTable {
     pub mark_attach_class_def: *mut ClassDef,
     pub lig_carets: LigCaretTable,
 }
-#[inline]
-unsafe extern "C" fn init_gdef(mut gdef: *mut GdefTable) {
-    (*gdef).glyph_class_def = ::core::ptr::null_mut::<ClassDef>();
-    (*gdef).mark_attach_class_def = ::core::ptr::null_mut::<ClassDef>();
-    (*gdef).lig_carets = Vec::new();
-}
-#[inline]
-unsafe extern "C" fn dispose_gdef(mut gdef: *mut GdefTable) {
-    if gdef.is_null() {
-        return;
+// Stage 6-4 "Box化": `glyph_class_def`/`mark_attach_class_def` are the only
+// allocations this struct owns beyond `lig_carets` (already a `Vec`, freed
+// by its own drop glue) -- left as raw pointers for this PR (their own
+// Box化 is a separate future task), freed the same way `dispose_gdef`
+// always did. Replaces the entire `table_gdef_init`/`_dispose`/`_create`/
+// `_free` quartet -- construction now goes through `Box::new` directly at
+// each call site (`otfcc_read_gdef`/`otfcc_parse_gdef`), matching the
+// `GaspTable`/`VorgTable` precedent.
+impl Drop for GdefTable {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.glyph_class_def.is_null() {
+                otl_class_def_free(self.glyph_class_def);
+            }
+            if !self.mark_attach_class_def.is_null() {
+                otl_class_def_free(self.mark_attach_class_def);
+            }
+            self.lig_carets.clear();
+        }
     }
-    if !(*gdef).glyph_class_def.is_null() {
-        otl_class_def_free((*gdef).glyph_class_def);
-    }
-    if !(*gdef).mark_attach_class_def.is_null() {
-        otl_class_def_free((*gdef).mark_attach_class_def);
-    }
-    clear_lig_carets(&raw mut (*gdef).lig_carets);
-}
-#[inline]
-unsafe extern "C" fn table_gdef_init(mut x: *mut GdefTable) {
-    init_gdef(x);
-}
-#[inline]
-unsafe extern "C" fn table_gdef_dispose(mut x: *mut GdefTable) {
-    dispose_gdef(x);
-}
-pub(crate) unsafe extern "C" fn table_gdef_create() -> *mut GdefTable {
-    // `calloc`, not `malloc`: `init_gdef` assigns straight into
-    // `(*gdef).lig_carets` (`= Vec::new()`), which drops whatever was already
-    // there first. See rust/README.md's `GaspTable` note -- same fix.
-    let mut x: *mut GdefTable =
-        calloc(1, ::core::mem::size_of::<GdefTable>() as usize) as *mut GdefTable;
-    table_gdef_init(x);
-    return x;
-}
-pub(crate) unsafe extern "C" fn table_gdef_free(mut x: *mut GdefTable) {
-    if x.is_null() {
-        return;
-    }
-    table_gdef_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
 }
 // `table_gdef_copy`'s old `memcpy`-based body is gone outright, not
 // `.clone()`-ported: it was unreachable even before this conversion (only
@@ -178,12 +155,12 @@ unsafe extern "C" fn read_lig_caret_record(
 pub unsafe extern "C" fn otfcc_read_gdef(
     packet: Packet,
     mut _options: *const Options,
-) -> *mut GdefTable {
+) -> Option<Box<GdefTable>> {
     let mut classdef_offset: u16 = 0;
     let mut lig_caret_offset: u16 = 0;
     let mut mark_attach_def_offset: u16 = 0;
     let mut current_block: u64;
-    let mut gdef: *mut GdefTable = ::core::ptr::null_mut::<GdefTable>();
+    let mut gdef: Option<Box<GdefTable>> = None;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -199,12 +176,16 @@ pub unsafe extern "C" fn otfcc_read_gdef(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut table_length: u32 = table.length;
                     if !(table_length < 12 as u32) {
-                        gdef = table_gdef_create();
+                        gdef = Some(Box::new(GdefTable {
+                            glyph_class_def: ::core::ptr::null_mut::<ClassDef>(),
+                            mark_attach_class_def: ::core::ptr::null_mut::<ClassDef>(),
+                            lig_carets: Vec::new(),
+                        }));
                         classdef_offset = read_16u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
                         if classdef_offset != 0 {
-                            (*gdef).glyph_class_def =
+                            gdef.as_mut().unwrap().glyph_class_def =
                                 read_class_def(
                                     data as *const u8,
                                     table_length,
@@ -283,7 +264,7 @@ pub unsafe extern "C" fn otfcc_read_gdef(
                                                 (&(*cov))[j as usize].clone() as Handle,
                                             )
                                                 as GlyphHandle;
-                                        (*gdef).lig_carets.push(v);
+                                        gdef.as_mut().unwrap().lig_carets.push(v);
                                         j = j.wrapping_add(1);
                                     }
                                     otl_coverage_free(cov);
@@ -300,7 +281,7 @@ pub unsafe extern "C" fn otfcc_read_gdef(
                                     read_16u(data.offset(10 as ::core::ffi::c_int as isize)
                                         as *const u8);
                                 if mark_attach_def_offset != 0 {
-                                    (*gdef).mark_attach_class_def =
+                                    gdef.as_mut().unwrap().mark_attach_class_def =
                                         read_class_def(
                                             data as *const u8,
                                             table_length,
@@ -311,8 +292,7 @@ pub unsafe extern "C" fn otfcc_read_gdef(
                             }
                         }
                     }
-                    table_gdef_free(gdef);
-                    gdef = ::core::ptr::null_mut::<GdefTable>();
+                    gdef = None;
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -356,14 +336,16 @@ unsafe extern "C" fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut Js
     }
     return _carets;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_gdef(
-    mut gdef: *const GdefTable,
+    gdef: Option<&GdefTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if gdef.is_null() {
-        return;
-    }
+    let gdef = match gdef {
+        Some(g) => g as *const GdefTable,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -479,8 +461,8 @@ unsafe extern "C" fn lig_caret_from_json(
 pub unsafe extern "C" fn otfcc_parse_gdef(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut GdefTable {
-    let mut gdef: *mut GdefTable = ::core::ptr::null_mut::<GdefTable>();
+) -> Option<Box<GdefTable>> {
+    let mut gdef: Option<Box<GdefTable>> = None;
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -496,13 +478,17 @@ pub unsafe extern "C" fn otfcc_parse_gdef(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            gdef = table_gdef_create();
-            (*gdef).glyph_class_def =
+            gdef = Some(Box::new(GdefTable {
+                glyph_class_def: ::core::ptr::null_mut::<ClassDef>(),
+                mark_attach_class_def: ::core::ptr::null_mut::<ClassDef>(),
+                lig_carets: Vec::new(),
+            }));
+            gdef.as_mut().unwrap().glyph_class_def =
                 OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(json_obj_get(
                     table,
                     b"glyphClassDef\0" as *const u8 as *const ::core::ffi::c_char,
                 ));
-            (*gdef).mark_attach_class_def =
+            gdef.as_mut().unwrap().mark_attach_class_def =
                 OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(json_obj_get(
                     table,
                     b"markAttachClassDef\0" as *const u8 as *const ::core::ffi::c_char,
@@ -512,7 +498,7 @@ pub unsafe extern "C" fn otfcc_parse_gdef(
                     table,
                     b"ligCarets\0" as *const u8 as *const ::core::ffi::c_char,
                 ),
-                &raw mut (*gdef).lig_carets,
+                &raw mut gdef.as_mut().unwrap().lig_carets,
             );
             ___loggedstep_v = false;
             (*(*options).logger)
@@ -562,13 +548,15 @@ unsafe extern "C" fn write_lig_carets(mut lc: *const LigCaretTable) -> *mut BkBl
     otl_coverage_free(cov);
     return lct;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_gdef(
-    mut gdef: *const GdefTable,
+    gdef: Option<&GdefTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if gdef.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let gdef = match gdef {
+        Some(g) => g as *const GdefTable,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut b_glyph_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_attach_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_lig_caret_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
