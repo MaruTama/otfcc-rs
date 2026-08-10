@@ -34,7 +34,7 @@ use crate::font::caryll_font::{Font};
 
 use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable, OtlTable};
 use crate::consolidate::otl::common::{fontop_consolidate_coverage};
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gsub_ligature::{subtable_gsub_ligature_replace};
 use crate::vendor::sds::{sdsempty};
 
@@ -60,7 +60,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
-            (*font).glyph_order,
+            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*subtable))[k as usize].to,
         ) {
             (*(*options).logger)

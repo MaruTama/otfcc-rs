@@ -42,7 +42,6 @@ use crate::table::vdmx::types::{VdmxTable};
 use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
 use crate::consolidate::{otfcc_consolidate_font};
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::cff::{TABLE_I_CFF};
 use crate::table::colr::{table_colr_free};
 use crate::table::svg::{table_svg_free};
@@ -95,7 +94,7 @@ pub struct Font {
     pub tsi_01: *mut TsiTable,
     pub tsi_23: *mut TsiTable,
     pub tsi5: *mut Tsi5Table,
-    pub glyph_order: *mut GlyphOrder,
+    pub glyph_order: Option<Box<GlyphOrder>>,
 }
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -323,7 +322,7 @@ unsafe extern "C" fn dispose_font(mut font: *mut Font) {
     delete_font_table(font, 1414744368i32 as u32);
     delete_font_table(font, 1414744370i32 as u32);
     delete_font_table(font, 1414744373i32 as u32);
-    OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")((*font).glyph_order);
+    (*font).glyph_order = None;
 }
 #[inline]
 unsafe extern "C" fn otfcc_font_dispose(mut x: *mut Font) {

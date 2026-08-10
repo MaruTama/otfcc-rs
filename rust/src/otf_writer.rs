@@ -12,6 +12,7 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
+use crate::support::glyph_order::{GlyphOrder};
 
 use crate::font::caryll_font::{FontSubtype, Font, IFontSerializer};
 use crate::font::caryll_sfnt_builder::{SfntBuilder};
@@ -136,7 +137,11 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1886352244i32 as u32,
-        otfcc_build_post((*font).post.as_deref(), (*font).glyph_order, options),
+        otfcc_build_post(
+            (*font).post.as_deref(),
+            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
+            options,
+        ),
     );
     otfcc_sfnt_builder_push_table(
         builder,

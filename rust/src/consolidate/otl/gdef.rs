@@ -39,7 +39,7 @@ use crate::table::otl::classdef::ClassDef;
 
 
 use crate::consolidate::otl::common::{fontop_consolidate_class_def};
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::vendor::sds::{sdsempty};
 
@@ -48,9 +48,13 @@ pub unsafe extern "C" fn consolidate_gdef(
     mut gdef: *mut GdefTable,
     mut options: *const Options,
 ) {
-    if font.is_null() || (*font).glyph_order.is_null() || gdef.is_null() {
+    if font.is_null() || (*font).glyph_order.is_none() || gdef.is_null() {
         return;
     }
+    let glyph_order: *mut GlyphOrder = (*font)
+        .glyph_order
+        .as_deref_mut()
+        .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
     if !(*gdef).glyph_class_def.is_null() {
         fontop_consolidate_class_def(font, (*gdef).glyph_class_def, options);
         OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*gdef).glyph_class_def);
@@ -99,7 +103,7 @@ pub unsafe extern "C" fn consolidate_gdef(
             if OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
                 .expect("non-null function pointer")(
-                (*font).glyph_order,
+                glyph_order,
                 &raw mut lig_carets[j as usize].glyph,
             ) {
                 let gid: i32 = lig_carets[j as usize].glyph.index as i32;

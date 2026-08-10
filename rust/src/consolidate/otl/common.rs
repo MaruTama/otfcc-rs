@@ -6,6 +6,7 @@ use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::font::caryll_font::{Font};
+use crate::support::glyph_order::{GlyphOrder};
 
 
 
@@ -57,7 +58,7 @@ pub unsafe extern "C" fn fontop_consolidate_coverage(
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
-            (*font).glyph_order, h as *mut GlyphHandle
+            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder), h as *mut GlyphHandle
         ) {
             (*(*options).logger)
                 .log_sds
@@ -91,7 +92,7 @@ pub unsafe extern "C" fn fontop_consolidate_class_def(
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
-            (*font).glyph_order, h as *mut GlyphHandle
+            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder), h as *mut GlyphHandle
         ) {
             (*(*options).logger)
                 .log_sds

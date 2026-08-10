@@ -5295,3 +5295,60 @@ on the other platform before a commit is trusted.
     ABI export guard, `compare-with-c.sh` byte-identical on every payload
     (including the `otfccdll` cdylib comparison), all 10 payloads' round
     trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化": `Font.glyph_order: *mut GlyphOrder` →
+  `Option<Box<GlyphOrder>>`**, the highest-blast-radius field in this theme
+  (17 files, ~26 touch sites) since `GlyphOrder` is used pervasively as a
+  bare raw pointer well beyond `Font.glyph_order` itself.
+  - **`GlyphOrder` stays a raw-pointer-constructible type everywhere except
+    `Font.glyph_order`**: `PostTable.post_name_map`, the `aglfn`/`gord`
+    locals in `otf_reader/unconsolidate.rs`'s `create_glyph_order`/
+    `otfcc_unconsolidate_font`, all keep going through
+    `OTFCC_PKG_GLYPH_ORDER.create`/`.free` unchanged — none of that vtable
+    was touched or deleted (unlike every previous Box化 PR in this theme).
+    A new `impl Drop for GlyphOrder` (walking `by_gid`, dropping each
+    entry's `name: Vec<u8>`, freeing the entry) coexists safely with this:
+    a raw pointer being `free()`'d never invokes a type's `Drop` impl, so
+    the two ownership styles don't interfere — `Drop::drop` only ever fires
+    for a `Box<GlyphOrder>` going out of scope, which after this PR is only
+    ever `Font.glyph_order`.
+  - **Two construction sites, one per pipeline**, both switched from
+    "`.create()` (malloc) then thread the raw pointer through population
+    calls" to "`Box::new(GlyphOrder { by_gid: BTreeMap::new(), by_name:
+    HashMap::new() })` up front, alias a raw pointer for the *unchanged*
+    population code, wrap in `Some(..)` at the return" — the
+    `GaspTable`/`CmapTable` "accumulator is `Box<X>` from the start" idiom.
+    Not `OTFCC_PKG_GLYPH_ORDER.create()` + `Box::from_raw`: `Box::from_raw`
+    requires the pointer to have come from Rust's global allocator, which a
+    bare libc `malloc` is not guaranteed to match.
+    - `consolidate.rs`'s `otfcc_consolidate_font` (OTF-read pipeline): only
+      constructs when `Font.glyph_order` is still `None` after
+      `otf_reader/unconsolidate.rs` has already named every glyph (that
+      earlier pass builds and discards its own *temporary*, unrelated
+      `GlyphOrder` just to backfill `Glyph.name`s, never touching
+      `Font.glyph_order`).
+    - `json_reader.rs`'s `parse_glyph_order` (JSON-parse pipeline):
+      unconditionally constructs and returns `Some(..)` even when the JSON
+      has no relevant keys (matching the old always-allocate C behavior,
+      same shape as the `post` PR's `otfcc_parse_post`).
+  - **~20 consumption sites**, each in a different, mostly single-touch
+    function taking `font: *mut Font` — no orchestrator-scale hoisting
+    needed. Functions with just a guard (`consolidate_glyf`/
+    `consolidate_otl_table`) became `.is_none()`/`.is_some()` checks;
+    functions with a guard *and* further use in the body
+    (`consolidate_cmap` 4 sites, `consolidate_colr` 3, `consolidate_tsi` 3,
+    `consolidate_gdef`/`consolidate_gsub_single` 2 each) each hoist a
+    single `let glyph_order: *mut GlyphOrder = (*font).glyph_order
+    .as_deref_mut().map_or(ptr::null_mut(), |g| g as *mut GlyphOrder);` at
+    function entry; the remaining single-touch call sites (`common.rs`,
+    `gsub_multi.rs`, `gpos_single.rs`, `gpos_cursive.rs`,
+    `gsub_ligature.rs`, `mark.rs` ×3, `otf_writer.rs`, `json_reader.rs`'s
+    `otfcc_parse_glyf` call) inline the same `.as_deref_mut().map_or(..)`
+    expression directly at the call.
+  - **No new synthetic payload needed** — every payload with a `glyf`
+    table already exercises `Font.glyph_order` on both pipelines, already
+    covered by `compare-with-c.sh`.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including the `otfccdll` cdylib comparison), all 10 payloads' round
+    trips, and the issue #1 golden test.
