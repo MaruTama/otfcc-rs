@@ -33,7 +33,7 @@ use crate::table::_tsi::{otfcc_dump_tsi};
 use crate::table::cmap::{otfcc_dump_cmap};
 use crate::table::cvt::{otfcc_dump_cvt};
 use crate::table::fpgm_prep::{table_dump_table_fpgm_prep};
-use crate::table::fvar::{otfcc_dump_fvar};
+use crate::table::fvar::{otfcc_dump_fvar, FvarTable};
 use crate::table::gasp::{otfcc_dump_gasp};
 use crate::table::glyf::{otfcc_dump_glyf};
 use crate::table::head::{otfcc_dump_head};
@@ -64,7 +64,7 @@ impl FontSerializer for JsonSerializer {
     if root.is_null() {
         return NULL;
     }
-    otfcc_dump_fvar((*font).fvar, root, options);
+    otfcc_dump_fvar((*font).fvar.as_deref(), root, options);
     otfcc_dump_head((*font).head.as_deref(), root, options);
     otfcc_dump_hhea((*font).hhea.as_deref(), root, options);
     otfcc_dump_maxp((*font).maxp.as_deref(), root, options);
@@ -79,7 +79,7 @@ impl FontSerializer for JsonSerializer {
         loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
         num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
         n_phantom_points: 4 as ShapeId,
-        fvar: (*font).fvar,
+        fvar: (*font).fvar.as_deref_mut().map_or(::core::ptr::null_mut(), |f| f as *mut FvarTable),
         has_vertical_metrics: (*font).vhea.is_some(),
         export_fd_select: !(*font).cff.is_null() && (*(*font).cff).is_cid as ::core::ffi::c_int != 0,
     };

@@ -1,6 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 #![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
-use libc::{calloc, free};
 
 use crate::support::json_funcs::{json_new_position, json_numof, json_object_push_tag, preserialize};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -86,14 +85,31 @@ pub struct FvarTable {
     pub instances: FvarInstanceList,
     pub masters: indexmap::IndexMap<RegionKey, FvarMaster>,
 }
+// Stage 6-4 "Box化": `masters`' values own a raw pointer (`region: *mut
+// VqRegion`) -- this `Drop` impl is the same "walk `masters`, dispose each
+// master" shape `dispose_fvar` already had. `Copy`/`Clone` were already
+// absent (no derive to drop).
+//
+// Note: as of this PR, `Font.fvar` still has no disposal call anywhere in
+// `caryll_font.rs`'s `dispose_font` -- that is a pre-existing leak (the
+// crate never freed the OTF-read `FvarTable` on font teardown even before
+// this conversion), not introduced here. Preserved rather than silently
+// fixed, matching this migration's discipline elsewhere (e.g. `BaseTable`'s
+// `delete_base_axis` leak, `otf_reader/unconsolidate.rs`'s
+// `unconsolidate_chaining` move) -- an opportunistic fix here would need
+// its own verification pass and is out of scope for a Box化-only PR.
+impl Drop for FvarTable {
+    fn drop(&mut self) {
+        unsafe {
+            for (_, master) in ::core::mem::take(&mut self.masters) {
+                dispose_fvar_master(&master);
+            }
+        }
+    }
+}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct FvarTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut FvarTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut FvarTable, *const FvarTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut FvarTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut FvarTable>,
-    pub free: Option<unsafe extern "C" fn(*mut FvarTable) -> ()>,
     pub register_region:
         Option<unsafe extern "C" fn(*mut FvarTable, *mut VqRegion) -> *const VqRegion>,
     pub find_master_by_region:
@@ -132,37 +148,6 @@ pub struct VariationAxisRecord {
 unsafe fn dispose_fvar_master(m: &FvarMaster) {
     vq_delete_region(m.region);
 }
-// `table_fvar_create` uses `calloc`, so `axes`/`instances` already start
-// zeroed and a direct `Vec::new()` assignment is safe (see rust/README.md:
-// the implicit drop of the old, calloc-zeroed `Vec` reads capacity 0 and
-// no-ops). `masters: IndexMap<...>` does NOT get the same treatment --
-// `IndexMap` is a third-party type with no documented guarantee that an
-// all-zero-bytes value is safe to construct or drop (unlike `Vec`, whose
-// zero representation is well-established); reading calloc'd garbage as a
-// real `IndexMap` before overwriting it could be UB. `ptr::write` sidesteps
-// the question entirely by never reading (or dropping) whatever was there.
-#[inline]
-unsafe extern "C" fn init_fvar(fvar: *mut FvarTable) {
-    (*fvar).axes = Vec::new();
-    (*fvar).instances = Vec::new();
-    ::core::ptr::write(&raw mut (*fvar).masters, indexmap::IndexMap::new());
-}
-// `libc::free` (called by `table_fvar_free` right after this) doesn't run
-// `Drop`, so the `Vec`/`IndexMap` fields must be reclaimed explicitly here.
-// `instances: Vec<FvarInstance>` needs no per-element dispose function the
-// way `SvgTable`/`NameTable` did -- `FvarInstance` only owns another `Vec`
-// (`coordinates: Vec<Pos>`, no raw pointers), so `Vec<FvarInstance>`'s own
-// `Drop` already recurses into every instance's `coordinates` for free.
-// `masters`'s values own raw pointers (`name`/`region`), so each needs an
-// explicit `dispose_fvar_master` the way the uthash disposal loop did.
-#[inline]
-unsafe extern "C" fn dispose_fvar(fvar: *mut FvarTable) {
-    (*fvar).axes = Vec::new();
-    (*fvar).instances = Vec::new();
-    for (_, master) in ::core::mem::take(&mut (*fvar).masters) {
-        dispose_fvar_master(&master);
-    }
-}
 // Deduplicates by `region`'s content (`RegionKey`), not identity: a
 // `region` that content-matches an already-registered master is freed
 // here and the existing master's own `region` is returned instead, so
@@ -195,46 +180,8 @@ unsafe extern "C" fn fvar_find_master_by_region(
         None => ::core::ptr::null::<FvarMaster>(),
     }
 }
-#[inline]
-unsafe extern "C" fn table_fvar_free(mut x: *mut FvarTable) {
-    if x.is_null() {
-        return;
-    }
-    table_fvar_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn table_fvar_dispose(mut x: *mut FvarTable) {
-    dispose_fvar(x);
-}
-#[inline]
-unsafe extern "C" fn table_fvar_init(mut x: *mut FvarTable) {
-    init_fvar(x);
-}
-// `calloc`, not `malloc`: `init_fvar` assigns straight into `(*fvar).axes`/
-// `.instances` (`= Vec::new()`), which reads (and implicitly drops) whatever
-// was there first -- garbage capacity/pointer bytes from `malloc` is UB, a
-// zeroed (capacity 0) `Vec` from `calloc` is a safe no-op drop. See the
-// `GaspTable` writeup in rust/README.md for the first time this bit.
-#[inline]
-unsafe extern "C" fn table_fvar_create() -> *mut FvarTable {
-    let mut x: *mut FvarTable =
-        calloc(1, ::core::mem::size_of::<FvarTable>() as usize) as *mut FvarTable;
-    table_fvar_init(x);
-    return x;
-}
 pub static TABLE_I_FVAR: FvarTableElementInterface = {
     FvarTableElementInterface {
-        init: Some(table_fvar_init as unsafe extern "C" fn(*mut FvarTable) -> ()),
-        // Whole-table `.copy` (`table_fvar_copy`, a raw `memcpy`) was never
-        // called anywhere -- confirmed dead the same way as every prior
-        // target's whole-table `.copy` slot -- and deleted outright rather
-        // than ported: a bitwise copy would now double-free `axes`/
-        // `instances`.
-        copy: None,
-        dispose: Some(table_fvar_dispose as unsafe extern "C" fn(*mut FvarTable) -> ()),
-        create: Some(table_fvar_create),
-        free: Some(table_fvar_free as unsafe extern "C" fn(*mut FvarTable) -> ()),
         register_region: Some(
             fvar_register_region
                 as unsafe extern "C" fn(*mut FvarTable, *mut VqRegion) -> *const VqRegion,
@@ -248,7 +195,7 @@ pub static TABLE_I_FVAR: FvarTableElementInterface = {
 pub unsafe extern "C" fn otfcc_read_fvar(
     packet: Packet,
     mut options: *const Options,
-) -> *mut FvarTable {
+) -> Option<Box<FvarTable>> {
     let mut header: *mut FVARHeader = ::core::ptr::null_mut::<FVARHeader>();
     let mut n_axes: u16 = 0;
     let mut instance_size_without_psnid: u16 = 0;
@@ -257,7 +204,6 @@ pub unsafe extern "C" fn otfcc_read_fvar(
     let mut n_instances: u16 = 0;
     let mut has_postscript_name_id: bool = false;
     let mut instance: *mut InstanceRecord = ::core::ptr::null_mut::<InstanceRecord>();
-    let mut fvar: *mut FvarTable = ::core::ptr::null_mut::<FvarTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -321,15 +267,14 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                                 as usize,
                                                         ))
                                                 {
-                                                    fvar = ::core::mem::transmute::<
-                                                        _,
-                                                        fn() -> *mut FvarTable,
-                                                    >(
-                                                        TABLE_I_FVAR
-                                                            .create
-                                                            .expect("non-null function pointer"),
-                                                    )(
-                                                    );
+                                                    let mut fvar_box: Box<FvarTable> = Box::new(FvarTable {
+                                                        major_version: 0,
+                                                        minor_version: 0,
+                                                        axes: Vec::new(),
+                                                        instances: Vec::new(),
+                                                        masters: indexmap::IndexMap::new(),
+                                                    });
+                                                    let fvar: *mut FvarTable = fvar_box.as_mut() as *mut FvarTable;
                                                     axis_record =
                                                         data.offset(be16((*header).axes_array_offset)
                                                             as ::core::ffi::c_int
@@ -431,7 +376,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                                                     }
                                                     (*fvar).axes.shrink_to_fit();
                                                     (*fvar).instances.shrink_to_fit();
-                                                    return fvar;
+                                                    return Some(fvar_box);
                                                 }
                                             }
                                         }
@@ -448,8 +393,10 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'fvar' corrupted.\n"),
                     );
-                    TABLE_I_FVAR.free.expect("non-null function pointer")(fvar);
-                    fvar = ::core::ptr::null_mut::<FvarTable>();
+                    // No `fvar` to free here: every path that constructs one
+                    // (deep inside the nested guards above) returns
+                    // immediately afterward, so this branch is only ever
+                    // reached before any allocation happens.
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -459,16 +406,17 @@ pub unsafe extern "C" fn otfcc_read_fvar(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<FvarTable>();
+    return None;
 }
 pub unsafe extern "C" fn otfcc_dump_fvar(
-    mut table: *const FvarTable,
+    table: Option<&FvarTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t as *const FvarTable,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
