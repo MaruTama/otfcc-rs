@@ -136,7 +136,7 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1886352244i32 as u32,
-        otfcc_build_post((*font).post, (*font).glyph_order, options),
+        otfcc_build_post((*font).post.as_deref(), (*font).glyph_order, options),
     );
     otfcc_sfnt_builder_push_table(
         builder,

@@ -1373,8 +1373,8 @@ pub unsafe extern "C" fn otfcc_stat_font(
     if !(*font).glyf.is_null() && !maxp.is_null() {
         (*maxp).num_glyphs = (*(*font).glyf).len() as u16;
     }
-    if !(*font).glyf.is_null() && !(*font).post.is_null() {
-        (*(*font).post).max_mem_type42 = (*(*font).glyf).len() as u32;
+    if !(*font).glyf.is_null() && (*font).post.is_some() {
+        (*font).post.as_deref_mut().unwrap().max_mem_type42 = (*(*font).glyf).len() as u32;
     }
     if !(*font).glyf.is_null()
         && !maxp.is_null()

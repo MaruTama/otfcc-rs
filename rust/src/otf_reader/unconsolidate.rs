@@ -311,12 +311,15 @@ unsafe extern "C" fn create_glyph_order(
             }
         }
     }
-    if !(*font).post.is_null()
-        && !(*(*font).post).post_name_map.is_null()
+    let post_name_map: *mut GlyphOrder = (*font)
+        .post
+        .as_deref()
+        .map_or(::core::ptr::null_mut(), |p| p.post_name_map);
+    if !post_name_map.is_null()
         && !(*options).ignore_glyph_order
         && !(*options).name_glyphs_by_gid
     {
-        for (_, &s) in (*(*(*font).post).post_name_map).by_gid.iter() {
+        for (_, &s) in (*post_name_map).by_gid.iter() {
             let mut gname_1: SdsRaw = crate::sdsbuild!(sdsempty(), prefix, &(*s).name);
             OTFCC_PKG_GLYPH_ORDER
                 .set_by_gid
