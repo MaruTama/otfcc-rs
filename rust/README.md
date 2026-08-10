@@ -5501,3 +5501,65 @@ on the other platform before a commit is trusted.
     ABI export guard, `compare-with-c.sh` byte-identical on every payload
     (including the `otfccdll` cdylib comparison), all 10 payloads' round
     trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化": `Font.glyf: *mut GlyfTable` → `Option<GlyfTable>`**
+  — the 6th and last field of the "already-Vec-backed" batch, deferred
+  from the previous PR because its construction/disposal is woven through
+  `table/glyf.rs` (1400+ lines) plus `glyf/read.rs`/`glyf/build.rs`,
+  rather than a single top-level site.
+  - **`Option<Vec<Option<Box<Glyph>>>>`, not `Option<Box<Vec<...>>>`** —
+    same reasoning as the previous batch (`GlyfTable` is already a bare
+    `pub type GlyfTable = Vec<Option<Box<Glyph>>>` alias; the elements are
+    already fully self-owning from an earlier pass in this migration, so
+    no new `Drop` impl was needed anywhere for this PR).
+  - **New pattern: `unwrap_glyf_table`, reusing the `unwrap_class_def`
+    idiom from `Tsi5Table`** — `table/cff.rs`'s CFF glyph extraction still
+    builds a `GlyfTable` through `table_glyf_create_n` as a bare
+    `*mut GlyfTable` (a separate, much larger conversion: `Font.cff` isn't
+    Box化'd yet, so widening that constructor to return an owned `Vec` was
+    out of scope). `unwrap_glyf_table` "adopts" that raw pointer at the
+    one point it actually needs to become `Font.glyf`
+    (`otf_reader.rs`'s CFF-path assignment): `ptr::read` moves the `Vec`
+    descriptor out, then the now-empty outer shell is released with a bare
+    `free` (not `table_glyf_free`, which would incorrectly try to drop the
+    `Vec` a second time). `table/cff.rs` and `table/otl.rs` themselves
+    needed **zero changes** — confirmed via grep that both only ever touch
+    `GlyfTable` as a type for their own internal scratch space, never
+    `Font.glyf` directly.
+  - **Producer functions converted directly**: `otfcc_parse_glyf`/
+    `otfcc_read_glyf` now return `Option<GlyfTable>` (accumulator-only-
+    constructed-under-nested-guards shape, same as every previous target —
+    the now-dead corrupted-table-branch frees were deleted, not adapted,
+    after confirming reachability the usual way). `otfcc_dump_glyf`/
+    `otfcc_build_glyf` take `Option<&GlyfTable>` and derive a raw pointer
+    once at function entry (`#[allow(improper_ctypes_definitions)]`, same
+    as the `Vec`-shaped fields from the previous PR).
+  - **By far the largest consumer surface of any field in this theme**:
+    101 compile errors on the first crate-wide build after converting the
+    field and the four producer functions, spread across 8 files. The
+    overwhelming majority (~60) were in `otf_writer/stat.rs`, which has
+    eight separate functions touching `(*font).glyf` with no local null
+    check of their own — each relies on a guard several call-levels up
+    (`otfcc_stat_font`'s own body, or transitively through `stat_os_2`).
+    Every one of them got the same "raw-pointer alias, derived once, with
+    a comment naming which caller's guard makes the `.unwrap()` safe"
+    treatment already established for `stat_maxp` in an earlier PR;
+    `otfcc_stat_font` itself got a third hoisted alias (`glyf`, alongside
+    the pre-existing `head`/`maxp`) plus a mechanical whole-function
+    `(*(*font).glyf)` → `(*glyf)` replace.
+  - **`consolidate.rs`, `otf_reader/unconsolidate.rs`, `otf_reader.rs`,
+    `otf_writer.rs`, `json_reader.rs`, `json_writer.rs`** all needed the
+    same per-function hoist treatment for their own `(*font).glyf` touch
+    sites — `create_glyph_order`/`name_glyphs` in `unconsolidate.rs` and
+    `merge_hmtx`/`merge_vmtx`/`merge_ltsh` each documented which caller's
+    guard justifies the `.unwrap()`/`.as_mut()`, matching the `stat.rs`
+    discipline throughout.
+  - **No new synthetic payloads needed** — `glyf` is exercised by nearly
+    every existing payload on both the TrueType and CFF-extraction paths
+    (`KRName-Regular.otf`'s CFF glyph extraction, `iosevka-r.ttf`/
+    `vtt.ttf`'s large-scale TrueType `glyf` read/build, plus the
+    `stat.rs`/`consolidate.rs` code paths they all drive).
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including the `otfccdll` cdylib comparison), all 10 payloads' round
+    trips, and the issue #1 golden test.

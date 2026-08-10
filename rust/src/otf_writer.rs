@@ -20,7 +20,7 @@ use crate::font::caryll_sfnt_builder::{SfntBuilder};
 use crate::table::cff::{CffAndGlyf};
 use crate::table::_tsi::TsiBuildTarget;
 
-use crate::table::glyf::GlyfAndLocaBuffers;
+use crate::table::glyf::{GlyfAndLocaBuffers, GlyfTable};
 
 use crate::font::caryll_sfnt_builder::{otfcc_sfnt_builder_push_table, otfcc_sfnt_builder_serialize, otfcc_delete_sfnt_builder, otfcc_new_sfnt_builder};
 use crate::otf_writer::stat::{otfcc_stat_font, otfcc_unstat_font};
@@ -87,7 +87,7 @@ impl FontSerializer for OtfSerializer {
     if (*font).subtype == FontSubtype::Ttf {
         let mut pair: GlyfAndLocaBuffers =
             otfcc_build_glyf(
-                (*font).glyf,
+                (*font).glyf.as_ref(),
                 (*font).head.as_deref_mut().map_or(::core::ptr::null_mut(), |h| h as *mut HeadTable),
                 options,
             );
@@ -96,7 +96,7 @@ impl FontSerializer for OtfSerializer {
     } else {
         let mut r: CffAndGlyf = CffAndGlyf {
             meta: (*font).cff,
-            glyphs: (*font).glyf,
+            glyphs: (*font).glyf.as_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable),
         };
         otfcc_sfnt_builder_push_table(
             builder,
@@ -271,11 +271,11 @@ impl FontSerializer for OtfSerializer {
     let mut target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23.as_ref(), options);
     otfcc_sfnt_builder_push_table(builder, 1414744370i32 as u32, target_0.index_part);
     otfcc_sfnt_builder_push_table(builder, 1414744371i32 as u32, target_0.text_part);
-    if !(*font).glyf.is_null() {
+    if let Some(glyf) = (*font).glyf.as_ref() {
         otfcc_sfnt_builder_push_table(
             builder,
             1414744373i32 as u32,
-            otfcc_build_tsi5((*font).tsi5.as_deref(), options, (*(*font).glyf).len() as GlyphId),
+            otfcc_build_tsi5((*font).tsi5.as_deref(), options, glyf.len() as GlyphId),
         );
     }
     if (*options).dummy_dsig {

@@ -370,7 +370,7 @@ impl FontBuilder for JsonReader {
     }
     (*font).vdmx = otfcc_parse_vdmx(root, options);
     (*font).vhea = otfcc_parse_vhea(root, options);
-    if !(*font).glyf.is_null() {
+    if (*font).glyf.is_some() {
         (*font).gsub = otfcc_parse_otl(
             root,
             options,

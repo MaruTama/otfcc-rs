@@ -18,7 +18,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
 
 
 use crate::table::cff::{CffAndGlyf};
-use crate::table::glyf::GlyfIOContext;
+use crate::table::glyf::{GlyfIOContext, unwrap_glyf_table};
 
 use crate::font::caryll_font::{OTFCC_I_FONT};
 use crate::otf_reader::unconsolidate::{otfcc_unconsolidate_font};
@@ -150,7 +150,7 @@ impl FontBuilder for OtfReader {
                     (*font).head.as_deref().map_or(::core::ptr::null(), |h| h as *const HeadTable),
                 );
             (*font).cff = cffpr.meta;
-            (*font).glyf = cffpr.glyphs;
+            (*font).glyf = unwrap_glyf_table(cffpr.glyphs);
             (*font).vhea = otfcc_read_vhea(packet, options);
             if (*font).vhea.is_some() {
                 (*font).vmtx = otfcc_read_vmtx(
@@ -162,18 +162,19 @@ impl FontBuilder for OtfReader {
                 (*font).vorg = otfcc_read_vorg(packet, options);
             }
         }
-        if !(*font).glyf.is_null() {
+        if let Some(glyf) = (*font).glyf.as_ref() {
+            let num_glyphs = glyf.len() as GlyphId;
             (*font).gsub = otfcc_read_otl(
                 packet,
                 options,
                 1196643650i32 as u32,
-                (*(*font).glyf).len() as GlyphId,
+                num_glyphs,
             );
             (*font).gpos = otfcc_read_otl(
                 packet,
                 options,
                 1196445523i32 as u32,
-                (*(*font).glyf).len() as GlyphId,
+                num_glyphs,
             );
             (*font).gdef = otfcc_read_gdef(packet, options);
         }

@@ -83,7 +83,7 @@ impl FontSerializer for JsonSerializer {
         has_vertical_metrics: (*font).vhea.is_some(),
         export_fd_select: !(*font).cff.is_null() && (*(*font).cff).is_cid as ::core::ffi::c_int != 0,
     };
-    otfcc_dump_glyf((*font).glyf, root, options, &raw mut ctx);
+    otfcc_dump_glyf((*font).glyf.as_ref(), root, options, &raw mut ctx);
     if !(*options).ignore_hints {
         table_dump_table_fpgm_prep(
             (*font).fpgm.as_deref(),
