@@ -62,7 +62,7 @@ use crate::table::otl::{table_otl_create, table_otl_free};
 #[repr(C)]
 pub struct Font {
     pub subtype: FontSubtype,
-    pub fvar: *mut FvarTable,
+    pub fvar: Option<Box<FvarTable>>,
     pub head: Option<Box<HeadTable>>,
     pub hhea: Option<Box<HheaTable>>,
     pub maxp: Option<Box<MaxpTable>>,

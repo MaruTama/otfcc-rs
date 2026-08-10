@@ -36,7 +36,7 @@ use crate::table::_tsi::{otfcc_read_tsi};
 use crate::table::cmap::{otfcc_read_cmap};
 use crate::table::cvt::{otfcc_read_cvt};
 use crate::table::fpgm_prep::{otfcc_read_fpgm_prep};
-use crate::table::fvar::{otfcc_read_fvar};
+use crate::table::fvar::{otfcc_read_fvar, FvarTable};
 use crate::table::gasp::{otfcc_read_gasp};
 use crate::table::glyf::read::{otfcc_read_glyf};
 use crate::table::head::{otfcc_read_head, HeadTable};
@@ -137,7 +137,7 @@ impl FontBuilder for OtfReader {
                 loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
                 num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
                 n_phantom_points: 4 as ShapeId,
-                fvar: (*font).fvar,
+                fvar: (*font).fvar.as_deref_mut().map_or(::core::ptr::null_mut(), |f| f as *mut FvarTable),
                 has_vertical_metrics: false,
                 export_fd_select: false,
             };

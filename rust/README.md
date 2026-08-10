@@ -5352,3 +5352,65 @@ on the other platform before a commit is trusted.
     ABI export guard, `compare-with-c.sh` byte-identical on every payload
     (including the `otfccdll` cdylib comparison), all 10 payloads' round
     trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化": `Font.fvar: *mut FvarTable` → `Option<Box<FvarTable>>`**.
+  Despite the plan's "pervasive via context structs" warning, `Font.fvar`
+  itself turned out to have only 3 real touch points — the "pervasiveness"
+  is entirely about `*mut FvarTable` being threaded through
+  `GlyfIOContext.fvar` (a `#[derive(Copy, Clone)]`, freshly-constructed-
+  per-call context struct, unrelated to `Font`'s own ownership) and a
+  handful of `::core::ptr::null::<FvarTable>()` literals in `table/cff.rs`/
+  `table/glyf.rs` for the non-variable-font case — none of that needed to
+  change.
+  - **`FvarTable`**: `masters: IndexMap<RegionKey, FvarMaster>`'s values own
+    a raw pointer (`region: *mut VqRegion`) — a new `Drop` impl walks
+    `masters` and calls the existing `dispose_fvar_master` per entry, same
+    shape `dispose_fvar` already had. `Copy`/`Clone` were already absent.
+    Deleted `.init`/`.copy`/`.dispose`/`.create`/`.free` from
+    `FvarTableElementInterface` and their backing functions
+    (`init_fvar`/`dispose_fvar`/`table_fvar_init`/`_dispose`/`_create`/
+    `_free`) — confirmed dead outside the file the same way as every prior
+    target. **Kept `.register_region`/`.find_master_by_region`**: these
+    operate on a bare `*mut FvarTable`/`*const FvarTable` from
+    `table/glyf/read.rs`'s gvar tuple-variation parsing, unrelated to
+    `Font`'s ownership of the table — `FvarTableElementInterface` shrinks
+    to just those two slots rather than being deleted outright, since (also
+    unlike every prior target) callers outside `table/fvar.rs` still
+    genuinely need it.
+  - **`otfcc_read_fvar`**: the old accumulator variable (`fvar: *mut
+    FvarTable`) was only ever assigned once, deep inside a long chain of
+    nested corruption-guards, immediately followed by unconditional
+    `axes`/`instances` population and an immediate `return` — no path
+    exists where the corrupted-table branch runs with a non-null `fvar`.
+    That let the conversion be simpler than usual: the `Box::new(FvarTable
+    { .. })` construction (with a raw-pointer alias for the unchanged
+    population loops) replaces the `.create()` call at that same deep
+    point, and the corrupted-table branch's `TABLE_I_FVAR.free(fvar)` call
+    is deleted outright (dead: there is never anything to free there)
+    rather than translated.
+  - **Pre-existing leak found, not fixed**: `caryll_font.rs`'s
+    `dispose_font` has never had a disposal call for `Font.fvar` — the SFNT
+    tag for `fvar` (1719034226) doesn't appear anywhere in
+    `delete_font_table`'s match, and no other cleanup path frees it either.
+    This predates this PR; converting the field type doesn't change it
+    (`Option<Box<FvarTable>>` is simply never set back to `None`, so the
+    `Box` — and by extension the new `Drop` impl — never runs for
+    `Font.fvar` specifically, matching the old always-leaked behavior
+    exactly). Not fixed here, same discipline as `BaseTable`'s
+    `delete_base_axis` leak and `otf_reader/unconsolidate.rs`'s
+    `unconsolidate_chaining` move earlier in this migration — preserving
+    byte-for-byte behavior takes priority over opportunistic fixes inside a
+    Box化-only PR.
+  - Two consumption sites needed `.as_deref_mut()`/`.as_deref()` updates:
+    `otf_reader.rs`/`json_writer.rs`'s `GlyfIOContext { fvar: .., .. }`
+    constructions, and `json_writer.rs`'s `otfcc_dump_fvar` call (whose
+    signature also moved to the standard `Option<&FvarTable>` +
+    `#[allow(improper_ctypes_definitions)]` shape used by every other
+    `otfcc_dump_X` in this migration).
+  - **No new synthetic payload needed** — `gvar-test.ttf` already exercises
+    `fvar`'s axes/instances/region-registration machinery end to end,
+    already covered by `compare-with-c.sh`.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including the `otfccdll` cdylib comparison), all 10 payloads' round
+    trips, and the issue #1 golden test.
