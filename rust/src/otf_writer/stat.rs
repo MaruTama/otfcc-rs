@@ -1431,11 +1431,11 @@ pub unsafe extern "C" fn otfcc_unstat_font(
     mut font: *mut Font,
     mut _options: *const Options,
 ) {
-    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, 1751412088i32 as u32);
-    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, 1752003704i32 as u32);
-    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, 1448038983i32 as u32);
-    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, 1986884728i32 as u32);
-    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, 1280594760i32 as u32);
+    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, crate::tag::TAG_HDMX);
+    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, crate::tag::TAG_HMTX);
+    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, crate::tag::TAG_VORG);
+    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, crate::tag::TAG_VMTX);
+    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, crate::tag::TAG_LTSH);
 }
 pub const FLT_MAX: ::core::ffi::c_float = __FLT_MAX__;
 pub const __FLT_MAX__: ::core::ffi::c_float = 3.40282347e+38f32;

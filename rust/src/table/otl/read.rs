@@ -796,9 +796,9 @@ pub unsafe extern "C" fn otfcc_read_otl(
                     otl = otfcc_read_otl_common(
                         data,
                         length,
-                        if tag == 1196643650i32 as u32 {
+                        if tag == crate::tag::TAG_GSUB {
                             OTL_TYPE_GSUB_UNKNOWN
-                        } else if tag == 1196445523i32 as u32 {
+                        } else if tag == crate::tag::TAG_GPOS {
                             OTL_TYPE_GPOS_UNKNOWN
                         } else {
                             OTL_TYPE_UNKNOWN

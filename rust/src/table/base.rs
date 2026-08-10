@@ -355,7 +355,7 @@ pub unsafe extern "C" fn otfcc_read_base(
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1111577413i32 as u32 {
+            if table.tag == crate::tag::TAG_BASE {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     let mut offset_h: u16 = 0;

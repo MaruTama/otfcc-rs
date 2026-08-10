@@ -57,7 +57,7 @@ pub struct TsiBuildTarget {
 // itself down correctly with no manual per-element walk needed.
 #[inline]
 unsafe extern "C" fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
-    if tag_index == 1414744368i32 as u32 {
+    if tag_index == crate::tag::TAG_TSI0 {
         return gid as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
             && gid as ::core::ffi::c_int != 0xfffc as ::core::ffi::c_int;
     } else {
