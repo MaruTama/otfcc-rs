@@ -211,7 +211,7 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1448038983i32 as u32,
-        otfcc_build_vorg((*font).vorg, options),
+        otfcc_build_vorg((*font).vorg.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
