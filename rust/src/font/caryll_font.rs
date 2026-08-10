@@ -47,7 +47,6 @@ use crate::table::base::{TABLE_I_BASE};
 use crate::table::cff::{TABLE_I_CFF};
 use crate::table::colr::{table_colr_free};
 use crate::table::gdef::{table_gdef_free};
-use crate::table::os_2::{TABLE_I_OS_2};
 use crate::table::svg::{table_svg_free};
 use crate::table::_tsi::{table_tsi_free};
 use crate::table::glyf::{table_glyf_free};
@@ -75,7 +74,7 @@ pub struct Font {
     pub head: *mut HeadTable,
     pub hhea: *mut HheaTable,
     pub maxp: *mut MaxpTable,
-    pub os_2: *mut Os2Table,
+    pub os_2: Option<Box<Os2Table>>,
     pub hmtx: Option<Box<HmtxTable>>,
     pub post: *mut PostTable,
     pub hdmx: Option<Box<HdmxTable>>,
@@ -162,10 +161,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1330863922 | 1330851634 => {
-            if !(*font).os_2.is_null() {
-                TABLE_I_OS_2.free.expect("non-null function pointer")((*font).os_2);
-                (*font).os_2 = ::core::ptr::null_mut::<Os2Table>();
-            }
+            (*font).os_2 = None;
             return;
         }
         1851878757 => {

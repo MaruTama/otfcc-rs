@@ -35,6 +35,7 @@ use crate::table::glyf::{RefAnchorStatus, ComponentReference, Contour, Glyph, Gl
 
 
 use crate::table::hmtx::{HorizontalMetric, HmtxTable};
+use crate::table::os_2::{Os2Table};
 
 
 
@@ -533,6 +534,7 @@ unsafe extern "C" fn stat_os_2_unicode_ranges(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
+    let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
     let mut u1: u32 = 0 as u32;
     let mut u2: u32 = 0 as u32;
     let mut u3: u32 = 0 as u32;
@@ -991,20 +993,20 @@ unsafe extern "C" fn stat_os_2_unicode_ranges(
         }
     }
     if !(*options).keep_unicode_ranges {
-        (*(*font).os_2).ul_unicode_range1 = u1;
-        (*(*font).os_2).ul_unicode_range2 = u2;
-        (*(*font).os_2).ul_unicode_range3 = u3;
-        (*(*font).os_2).ul_unicode_range4 = u4;
+        (*os_2).ul_unicode_range1 = u1;
+        (*os_2).ul_unicode_range2 = u2;
+        (*os_2).ul_unicode_range3 = u3;
+        (*os_2).ul_unicode_range4 = u4;
     }
     if min_unicode < 0x10000 as i32 {
-        (*(*font).os_2).us_first_char_index = min_unicode as u16;
+        (*os_2).us_first_char_index = min_unicode as u16;
     } else {
-        (*(*font).os_2).us_first_char_index = 0xffff as u16;
+        (*os_2).us_first_char_index = 0xffff as u16;
     }
     if max_unicode < 0x10000 as i32 {
-        (*(*font).os_2).us_last_char_index = max_unicode as u16;
+        (*os_2).us_last_char_index = max_unicode as u16;
     } else {
-        (*(*font).os_2).us_last_char_index = 0xffff as u16;
+        (*os_2).us_last_char_index = 0xffff as u16;
     };
 }
 unsafe extern "C" fn stat_os_2_average_width(
@@ -1014,6 +1016,7 @@ unsafe extern "C" fn stat_os_2_average_width(
     if (*options).keep_average_char_width {
         return;
     }
+    let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
     let mut total_width: u32 = 0 as u32;
     for j in 0..(*(*font).glyf).len() as GlyphId {
         let adw: Pos = I_VQ.get_still.expect("non-null function pointer")(
@@ -1023,7 +1026,7 @@ unsafe extern "C" fn stat_os_2_average_width(
             total_width = (total_width as Pos + adw) as u32;
         }
     }
-    (*(*font).os_2).x_avg_char_width =
+    (*os_2).x_avg_char_width =
         (total_width as usize).wrapping_div((*(*font).glyf).len()) as i16;
 }
 unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
@@ -1081,6 +1084,7 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
     return maxc;
 }
 unsafe extern "C" fn stat_max_context(mut font: *mut Font, mut _options: *const Options) {
+    let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
     let mut maxc: u16 = 1 as u16;
     if !(*font).gsub.is_null() {
         let mut maxc_gsub: u16 = stat_max_context_otl((*font).gsub);
@@ -1094,7 +1098,7 @@ unsafe extern "C" fn stat_max_context(mut font: *mut Font, mut _options: *const 
             maxc = maxc_gpos;
         }
     }
-    (*(*font).os_2).us_max_context = maxc;
+    (*os_2).us_max_context = maxc;
 }
 unsafe extern "C" fn stat_os_2(mut font: *mut Font, mut options: *const Options) {
     stat_os_2_unicode_ranges(font, options);
@@ -1359,7 +1363,7 @@ pub unsafe extern "C" fn otfcc_stat_font(
             }
         }
     }
-    if !(*font).os_2.is_null() && (*font).cmap.is_some() && !(*font).glyf.is_null() {
+    if (*font).os_2.is_some() && (*font).cmap.is_some() && !(*font).glyf.is_null() {
         stat_os_2(font, options);
     }
     if (*font).subtype == FontSubtype::Ttf {

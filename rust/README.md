@@ -5089,3 +5089,39 @@ on the other platform before a commit is trusted.
     and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
     ABI export guard, `compare-with-c.sh` byte-identical on every payload,
     all 10 payloads' round trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化": `Font.os_2: *mut Os2Table` → `Option<Box<Os2Table>>`**,
+  the next field down the deferred list (18 sites). `Os2Table` is a pure
+  scalar/fixed-size-array struct (39 fields, no owned pointers at all) —
+  the first genuinely `Copy`-safe struct converted in this theme, so
+  `#[derive(Copy, Clone)]` was left untouched on the struct itself (no
+  `Drop` impl, no aliasing hazard, nothing to remove).
+  - **Construction via `mem::zeroed()`, not a 39-field struct literal**:
+    the old `init_os2` did `memset` to all-zero then set `.version = 4`.
+    Since every field is an integer or fixed-size byte array (`u16`/
+    `i16`/`u32`/`[u8; 10]`/`[u8; 4]`), an all-zero bit pattern is valid
+    for all of them, so `let mut v: Os2Table = mem::zeroed(); v.version =
+    4; Box::new(v)` reproduces the exact same initial state as the old
+    `create()` without writing out every field by hand.
+  - **`otfcc_parse_os_2`'s old `if os_2.is_null() { return null; }`
+    guard became structurally dead** — it existed because the old
+    `table_os_2_create()`'s `malloc` could in principle fail and return
+    null; `Box::new` cannot return null (it aborts the process on
+    allocation failure instead), so there is no longer anything to
+    check. Removed rather than translated into an `Option` check that
+    could never fire.
+  - **`stat_os_2_unicode_ranges`/`stat_os_2_average_width`/
+    `stat_max_context`** (`otf_writer/stat.rs`) each hoist a single
+    `let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as
+    *mut Os2Table;` at the top (all three are only reachable through
+    `stat_os_2`, itself only called after a `(*font).os_2.is_some()`
+    guard at the call site), then every `(*(*font).os_2).field`
+    dereference in the body mechanically became `(*os_2).field` — same
+    pattern as the `LtshTable`/`VorgTable` pilots' "hoist once per
+    function" rule, just applied across three call sites sharing one
+    guard instead of one.
+  - **No new synthetic payload needed** — OS/2 is present in every
+    payload, already covered by `compare-with-c.sh`/`run-cycles.sh`.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test.
