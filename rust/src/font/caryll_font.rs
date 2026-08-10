@@ -42,7 +42,6 @@ use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
 use crate::consolidate::{otfcc_consolidate_font};
 use crate::table::cff::{TABLE_I_CFF};
-use crate::table::glyf::{table_glyf_free};
 use crate::table::name::{table_name_create};
 use crate::table::otl::{table_otl_create, table_otl_free};
 
@@ -70,7 +69,7 @@ pub struct Font {
     pub vmtx: Option<Box<VmtxTable>>,
     pub vorg: Option<Box<VorgTable>>,
     pub cff: *mut CffTable,
-    pub glyf: *mut GlyfTable,
+    pub glyf: Option<GlyfTable>,
     pub cmap: Option<Box<CmapTable>>,
     pub name: Option<NameTable>,
     pub meta: Option<Box<MetaTable>>,
@@ -191,10 +190,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1735162214 => {
-            if !(*font).glyf.is_null() {
-                table_glyf_free((*font).glyf);
-                (*font).glyf = ::core::ptr::null_mut::<GlyfTable>();
-            }
+            (*font).glyf = None;
             return;
         }
         1668112752 => {

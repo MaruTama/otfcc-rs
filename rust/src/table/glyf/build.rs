@@ -276,11 +276,13 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
         }
     }
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_glyf(
-    mut table: *const GlyfTable,
+    table: Option<&GlyfTable>,
     mut head: *mut HeadTable,
     mut _options: *const Options,
 ) -> GlyfAndLocaBuffers {
+    let table: *const GlyfTable = table.map_or(::core::ptr::null(), |t| t as *const GlyfTable);
     let mut bufglyf: *mut Buffer = bufnew();
     let mut bufloca: *mut Buffer = bufnew();
     if !table.is_null() && !head.is_null() {

@@ -270,16 +270,19 @@ pub unsafe extern "C" fn stat_glyf(mut font: *mut Font, mut options: *const Opti
     // Only ever called (from `otfcc_stat_font`) under a `.head.is_some()`
     // guard.
     let head: *mut HeadTable = (*font).head.as_deref_mut().unwrap() as *mut HeadTable;
+    // Only ever called (from `otfcc_stat_font`) under a `.glyf.is_some()`
+    // guard.
+    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let mut stated: *mut StatStatus = ::core::ptr::null_mut::<StatStatus>();
     stated = __caryll_allocate_clean(
-        (::core::mem::size_of::<StatStatus>() as usize).wrapping_mul((*(*font).glyf).len()),
+        (::core::mem::size_of::<StatStatus>() as usize).wrapping_mul((*glyf).len()),
         99 as ::core::ffi::c_ulong,
     ) as *mut StatStatus;
     let mut xmin: Pos = 0xffffffff as ::core::ffi::c_uint as Pos;
     let mut xmax: Pos = (0xffffffff as ::core::ffi::c_uint).wrapping_neg() as Pos;
     let mut ymin: Pos = 0xffffffff as ::core::ffi::c_uint as Pos;
     let mut ymax: Pos = (0xffffffff as ::core::ffi::c_uint).wrapping_neg() as Pos;
-    for j in 0..(*(*font).glyf).len() as GlyphId {
+    for j in 0..(*glyf).len() as GlyphId {
         let mut gr: ComponentReference = ComponentReference {
             x: VQ {
                 kernel: 0.,
@@ -314,8 +317,8 @@ pub unsafe extern "C" fn stat_glyf(mut font: *mut Font, mut options: *const Opti
         gr.b = 0 as ::core::ffi::c_int as Scale;
         gr.c = 0 as ::core::ffi::c_int as Scale;
         gr.d = 1 as ::core::ffi::c_int as Scale;
-        let ref mut fresh2 = (&mut (*(*font).glyf))[j as usize].as_mut().unwrap().stat;
-        *fresh2 = stat_single_glyph((*font).glyf, &raw mut gr, stated, 0 as u8, j, options);
+        let ref mut fresh2 = (&mut (*glyf))[j as usize].as_mut().unwrap().stat;
+        *fresh2 = stat_single_glyph(glyf, &raw mut gr, stated, 0 as u8, j, options);
         let mut thatstat: GlyphStat = *fresh2;
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
@@ -348,8 +351,11 @@ pub unsafe extern "C" fn stat_maxp(mut font: *mut Font) {
     let mut n_composite_points: u16 = 0 as u16;
     let mut n_composite_contours: u16 = 0 as u16;
     let mut inst_size: u16 = 0 as u16;
-    for j in 0..(*(*font).glyf).len() as GlyphId {
-        let g: *const Glyph = (&(*(*font).glyf))[j as usize].as_deref().unwrap() as *const Glyph;
+    // Only ever called (from `otfcc_stat_font`) under a `.glyf.is_some()`
+    // guard.
+    let glyf: *const GlyfTable = (*font).glyf.as_ref().unwrap() as *const GlyfTable;
+    for j in 0..(*glyf).len() as GlyphId {
+        let g: *const Glyph = (&(*glyf))[j as usize].as_deref().unwrap() as *const Glyph;
         if (*g).contours.len() > 0 as usize {
             if (*g).stat.n_points as ::core::ffi::c_int > n_points as ::core::ffi::c_int {
                 n_points = (*g).stat.n_points;
@@ -388,32 +394,33 @@ pub unsafe extern "C" fn stat_maxp(mut font: *mut Font) {
     (*maxp).max_size_of_instructions = inst_size;
 }
 unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options) {
-    if (*font).glyf.is_null() {
+    if (*font).glyf.is_none() {
         return;
     }
+    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     // Only ever called (from `otfcc_stat_font`) under a `.hhea.is_some()`
     // guard; `.head` is set unconditionally by the pipeline before this
     // point (used below to update `.flags`).
     let hhea: *mut HheaTable = (*font).hhea.as_deref_mut().unwrap() as *mut HheaTable;
     let head: *mut HeadTable = (*font).head.as_deref_mut().map_or(::core::ptr::null_mut(), |h| h as *mut HeadTable);
-    let mut count_a: GlyphId = (*(*font).glyf).len() as GlyphId;
+    let mut count_a: GlyphId = (*glyf).len() as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
     let mut lsb_at_x_0: bool = true;
     if (*font).subtype != FontSubtype::Cff {
         while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
             && I_VQ.get_still.expect("non-null function pointer")(
-                (&(*(*font).glyf))
+                (&(*glyf))
                     [(count_a as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize].as_deref().unwrap()
                 .advance_width.clone(),
             ) == I_VQ.get_still.expect("non-null function pointer")(
-                (&(*(*font).glyf))
+                (&(*glyf))
                     [(count_a as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as usize].as_deref().unwrap()
                 .advance_width.clone(),
             )
         {
             count_a = count_a.wrapping_sub(1);
         }
-        count_k = (*(*font).glyf).len().wrapping_sub(count_a as usize) as GlyphId;
+        count_k = (*glyf).len().wrapping_sub(count_a as usize) as GlyphId;
     }
     let metrics = __caryll_allocate_clean(
         (::core::mem::size_of::<HorizontalMetric>() as usize).wrapping_mul(count_a as usize),
@@ -427,8 +434,8 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
     let mut min_rsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
     let mut max_extent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
     let mut max_width: Length = 0 as ::core::ffi::c_int as Length;
-    for j in 0..(*(*font).glyf).len() as GlyphId {
-        let g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j as usize].as_mut().unwrap();
+    for j in 0..(*glyf).len() as GlyphId {
+        let g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
         if I_VQ.is_zero.expect("non-null function pointer")((*g).horizontal_origin.clone(), 1.0f64 / 1000.0f64)
         {
             I_VQ.replace.expect("non-null function pointer")(
@@ -477,29 +484,30 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
         as u16;
 }
 unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options) {
-    if (*font).glyf.is_null() {
+    if (*font).glyf.is_none() {
         return;
     }
+    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     // Only ever called (from `otfcc_stat_font`) under a `.vhea.is_some()`
     // guard.
     let vhea: *mut VheaTable = (*font).vhea.as_deref_mut().unwrap() as *mut VheaTable;
-    let mut count_a: GlyphId = (*(*font).glyf).len() as GlyphId;
+    let mut count_a: GlyphId = (*glyf).len() as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
     if !((*font).subtype == FontSubtype::Cff && !(*options).cff_short_vmtx) {
         while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
             && I_VQ.get_still.expect("non-null function pointer")(
-                (&(*(*font).glyf))
+                (&(*glyf))
                     [(count_a as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize].as_deref().unwrap()
                 .advance_height.clone(),
             ) == I_VQ.get_still.expect("non-null function pointer")(
-                (&(*(*font).glyf))
+                (&(*glyf))
                     [(count_a as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as usize].as_deref().unwrap()
                 .advance_height.clone(),
             )
         {
             count_a = count_a.wrapping_sub(1);
         }
-        count_k = (*(*font).glyf).len().wrapping_sub(count_a as usize) as GlyphId;
+        count_k = (*glyf).len().wrapping_sub(count_a as usize) as GlyphId;
     }
     let metrics = __caryll_allocate_clean(
         (::core::mem::size_of::<VerticalMetric>() as usize).wrapping_mul(count_a as usize),
@@ -513,8 +521,8 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
     let mut min_bsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
     let mut max_extent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
     let mut max_height: Length = 0 as ::core::ffi::c_int as Length;
-    for j in 0..(*(*font).glyf).len() as GlyphId {
-        let g: *const Glyph = (&(*(*font).glyf))[j as usize].as_deref().unwrap() as *const Glyph;
+    for j in 0..(*glyf).len() as GlyphId {
+        let g: *const Glyph = (&(*glyf))[j as usize].as_deref().unwrap() as *const Glyph;
         let vori: Pos =
             I_VQ.get_still.expect("non-null function pointer")((*g).vertical_origin.clone()) as Pos;
         let advh: Pos =
@@ -1035,17 +1043,20 @@ unsafe extern "C" fn stat_os_2_average_width(
         return;
     }
     let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
+    // Only ever called (from `otfcc_stat_font`, via `stat_os_2`) under a
+    // `.glyf.is_some()` guard.
+    let glyf: *const GlyfTable = (*font).glyf.as_ref().unwrap() as *const GlyfTable;
     let mut total_width: u32 = 0 as u32;
-    for j in 0..(*(*font).glyf).len() as GlyphId {
+    for j in 0..(*glyf).len() as GlyphId {
         let adw: Pos = I_VQ.get_still.expect("non-null function pointer")(
-            (&(*(*font).glyf))[j as usize].as_deref().unwrap().advance_width.clone(),
+            (&(*glyf))[j as usize].as_deref().unwrap().advance_width.clone(),
         ) as Pos;
         if adw > 0 as ::core::ffi::c_int as Pos {
             total_width = (total_width as Pos + adw) as u32;
         }
     }
     (*os_2).x_avg_char_width =
-        (total_width as usize).wrapping_div((*(*font).glyf).len()) as i16;
+        (total_width as usize).wrapping_div((*glyf).len()) as i16;
 }
 unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
     // c2rust's translation of otfcc's own `foreach(item, vector) { ... }`
@@ -1125,17 +1136,18 @@ unsafe extern "C" fn stat_os_2(mut font: *mut Font, mut options: *const Options)
 }
 pub const MAX_STAT_METRIC: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
 unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
-    if (*font).glyf.is_null() || (*font).cff.is_null() {
+    if (*font).glyf.is_none() || (*font).cff.is_null() {
         return;
     }
+    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let mut frequency: *mut u32 = ::core::ptr::null_mut::<u32>();
     frequency = __caryll_allocate_clean(
         (::core::mem::size_of::<u32>() as usize).wrapping_mul(4096 as usize),
         524 as ::core::ffi::c_ulong,
     ) as *mut u32;
-    for j in 0..(*(*font).glyf).len() as GlyphId {
+    for j in 0..(*glyf).len() as GlyphId {
         let int_width: u16 = I_VQ.get_still.expect("non-null function pointer")(
-            (&(*(*font).glyf))[j as usize].as_deref().unwrap().advance_width.clone(),
+            (&(*glyf))[j as usize].as_deref().unwrap().advance_width.clone(),
         ) as u16;
         if (int_width as ::core::ffi::c_int) < MAX_STAT_METRIC {
             let fresh1 = frequency.offset(int_width as isize);
@@ -1152,9 +1164,9 @@ unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
     }
     let mut nn: u16 = 0 as u16;
     let mut nnsum: u32 = 0 as u32;
-    for j_1 in 0..(*(*font).glyf).len() as GlyphId {
+    for j_1 in 0..(*glyf).len() as GlyphId {
         let adw: Pos = I_VQ.get_still.expect("non-null function pointer")(
-            (&(*(*font).glyf))[j_1 as usize].as_deref().unwrap().advance_width.clone(),
+            (&(*glyf))[j_1 as usize].as_deref().unwrap().advance_width.clone(),
         ) as Pos;
         if adw != maxj as ::core::ffi::c_int as Pos {
             nn = (nn as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
@@ -1181,21 +1193,22 @@ unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
     free(frequency as *mut ::core::ffi::c_void);
 }
 unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
-    if (*font).glyf.is_null()
+    if (*font).glyf.is_none()
         || (*font).cff.is_null()
         || (*font).vhea.is_none()
         || (*font).vmtx.is_none()
     {
         return;
     }
+    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let mut frequency: *mut u32 = ::core::ptr::null_mut::<u32>();
     frequency = __caryll_allocate_clean(
         (::core::mem::size_of::<u32>() as usize).wrapping_mul(4096 as usize),
         562 as ::core::ffi::c_ulong,
     ) as *mut u32;
-    for j in 0..(*(*font).glyf).len() as GlyphId {
+    for j in 0..(*glyf).len() as GlyphId {
         let vori: Pos = I_VQ.get_still.expect("non-null function pointer")(
-            (&(*(*font).glyf))[j as usize].as_deref().unwrap().vertical_origin.clone(),
+            (&(*glyf))[j as usize].as_deref().unwrap().vertical_origin.clone(),
         ) as Pos;
         if vori >= 0 as ::core::ffi::c_int as Pos && vori < MAX_STAT_METRIC as Pos {
             let fresh0 = frequency.offset(vori as u16 as isize);
@@ -1212,9 +1225,9 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
     }
     let default_vertical_origin = maxj as Pos;
     let mut n_vert_origs: GlyphId = 0 as GlyphId;
-    for j_1 in 0..(*(*font).glyf).len() as GlyphId {
+    for j_1 in 0..(*glyf).len() as GlyphId {
         let vori_0: Pos = I_VQ.get_still.expect("non-null function pointer")(
-            (&(*(*font).glyf))[j_1 as usize].as_deref().unwrap().vertical_origin.clone(),
+            (&(*glyf))[j_1 as usize].as_deref().unwrap().vertical_origin.clone(),
         ) as Pos;
         if vori_0 != maxj as ::core::ffi::c_int as Pos {
             n_vert_origs = (n_vert_origs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
@@ -1225,9 +1238,9 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
         587 as ::core::ffi::c_ulong,
     ) as *mut VorgEntry;
     let mut jj: GlyphId = 0 as GlyphId;
-    for j_2 in 0..(*(*font).glyf).len() as GlyphId {
+    for j_2 in 0..(*glyf).len() as GlyphId {
         let vori_1: Pos = I_VQ.get_still.expect("non-null function pointer")(
-            (&(*(*font).glyf))[j_2 as usize].as_deref().unwrap().vertical_origin.clone(),
+            (&(*glyf))[j_2 as usize].as_deref().unwrap().vertical_origin.clone(),
         ) as Pos;
         if vori_1 != maxj as ::core::ffi::c_int as Pos {
             (*entries.offset(jj as isize)).gid = j_2;
@@ -1243,12 +1256,13 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
     }));
 }
 unsafe extern "C" fn stat_ltsh(mut font: *mut Font) {
-    if (*font).glyf.is_null() {
+    if (*font).glyf.is_none() {
         return;
     }
+    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let mut need_ltsh: bool = false;
-    for j in 0..(*(*font).glyf).len() as GlyphId {
-        if (&(*(*font).glyf))[j as usize].as_deref().unwrap().y_pel as ::core::ffi::c_int
+    for j in 0..(*glyf).len() as GlyphId {
+        if (&(*glyf))[j as usize].as_deref().unwrap().y_pel as ::core::ffi::c_int
             > 1 as ::core::ffi::c_int
         {
             need_ltsh = true;
@@ -1257,13 +1271,13 @@ unsafe extern "C" fn stat_ltsh(mut font: *mut Font) {
     if !need_ltsh {
         return;
     }
-    let num_glyphs = (*(*font).glyf).len() as GlyphId;
+    let num_glyphs = (*glyf).len() as GlyphId;
     let y_pels = __caryll_allocate_clean(
         (::core::mem::size_of::<u8>() as usize).wrapping_mul(num_glyphs as usize),
         612 as ::core::ffi::c_ulong,
     ) as *mut u8;
-    for j_0 in 0..(*(*font).glyf).len() as GlyphId {
-        *y_pels.offset(j_0 as isize) = (&(*(*font).glyf))[j_0 as usize].as_deref().unwrap().y_pel;
+    for j_0 in 0..(*glyf).len() as GlyphId {
+        *y_pels.offset(j_0 as isize) = (&(*glyf))[j_0 as usize].as_deref().unwrap().y_pel;
     }
     (*font).ltsh = Some(Box::new(LtshTable { version: 0, num_glyphs, y_pels }));
 }
@@ -1282,7 +1296,8 @@ pub unsafe extern "C" fn otfcc_stat_font(
     // sites below.
     let head: *mut HeadTable = (*font).head.as_deref_mut().map_or(::core::ptr::null_mut(), |h| h as *mut HeadTable);
     let maxp: *mut MaxpTable = (*font).maxp.as_deref_mut().map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable);
-    if !(*font).glyf.is_null() && !head.is_null() {
+    let glyf: *mut GlyfTable = (*font).glyf.as_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable);
+    if !glyf.is_null() && !head.is_null() {
         stat_glyf(font, options);
         if !(*options).keep_modified_time {
             (*head).modified =
@@ -1309,8 +1324,8 @@ pub unsafe extern "C" fn otfcc_stat_font(
         {
             (*cff).font_b_box_right = (*head).x_max as ::core::ffi::c_double;
         }
-        if !(*font).glyf.is_null() && (*cff).is_cid {
-            (*cff).cid_count = (*(*font).glyf).len() as u32;
+        if !glyf.is_null() && (*cff).is_cid {
+            (*cff).cid_count = (*glyf).len() as u32;
         }
         if (*cff).is_cid {
             if !(*cff).font_matrix.is_null() {
@@ -1370,13 +1385,13 @@ pub unsafe extern "C" fn otfcc_stat_font(
         }
         stat_cff_widths(font);
     }
-    if !(*font).glyf.is_null() && !maxp.is_null() {
-        (*maxp).num_glyphs = (*(*font).glyf).len() as u16;
+    if !glyf.is_null() && !maxp.is_null() {
+        (*maxp).num_glyphs = (*glyf).len() as u16;
     }
-    if !(*font).glyf.is_null() && (*font).post.is_some() {
-        (*font).post.as_deref_mut().unwrap().max_mem_type42 = (*(*font).glyf).len() as u32;
+    if !glyf.is_null() && (*font).post.is_some() {
+        (*font).post.as_deref_mut().unwrap().max_mem_type42 = (*glyf).len() as u32;
     }
-    if !(*font).glyf.is_null()
+    if !glyf.is_null()
         && !maxp.is_null()
         && (*maxp).version == 0x10000 as F16Dot16
     {
@@ -1392,7 +1407,7 @@ pub unsafe extern "C" fn otfcc_stat_font(
             }
         }
     }
-    if (*font).os_2.is_some() && (*font).cmap.is_some() && !(*font).glyf.is_null() {
+    if (*font).os_2.is_some() && (*font).cmap.is_some() && !glyf.is_null() {
         stat_os_2(font, options);
     }
     if (*font).subtype == FontSubtype::Ttf {
@@ -1402,10 +1417,10 @@ pub unsafe extern "C" fn otfcc_stat_font(
     } else if !maxp.is_null() {
         (*maxp).version = 0x5000 as ::core::ffi::c_int as F16Dot16;
     }
-    if !(*font).glyf.is_null() && (*font).hhea.is_some() {
+    if !glyf.is_null() && (*font).hhea.is_some() {
         stat_hmtx(font, options);
     }
-    if !(*font).glyf.is_null() && (*font).vhea.is_some() {
+    if !glyf.is_null() && (*font).vhea.is_some() {
         stat_vmtx(font, options);
         stat_vorg(font);
     }

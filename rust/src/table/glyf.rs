@@ -348,27 +348,26 @@ pub unsafe extern "C" fn otfcc_new_glyf_glyph() -> Box<Glyph> {
         },
     })
 }
-/// Every slot's `Box<Glyph>` (where set) frees itself via `Glyph`'s own
-/// `Drop`; this just drops the backing `Vec` of `Option`s.
-#[inline]
-unsafe fn dispose_glyf_table(t: *mut GlyfTable) {
-    *t = Vec::new();
-}
-pub(crate) unsafe extern "C" fn table_glyf_free(x: *mut GlyfTable) {
-    if x.is_null() {
-        return;
+// Stage 6-4 "Box化": `Font.glyf` becomes `Option<Vec<Option<Box<Glyph>>>>`
+// (not `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
+// `table_glyf_create_n` stays: `table/cff.rs`'s CFF glyph extraction still
+// builds a `GlyfTable` through it as a bare `*mut GlyfTable` (a much larger,
+// separate conversion -- `Font.cff` itself isn't Box化'd yet), so
+// `unwrap_glyf_table` below "adopts" that raw pointer into a genuine owned
+// value at the one point it actually needs to become `Font.glyf` --
+// `ptr::read` moves the `Vec` value out (only its 3-word descriptor is
+// copied, not the heap buffer -- exactly what a normal Rust move does),
+// then the now-empty outer allocation is released with a bare `free`, not
+// `table_glyf_free` (deleted below), which would incorrectly try to drop
+// the `Vec` a second time. Same technique as `table/tsi5.rs`'s
+// `unwrap_class_def`.
+pub(crate) unsafe fn unwrap_glyf_table(raw: *mut GlyfTable) -> Option<GlyfTable> {
+    if raw.is_null() {
+        return None;
     }
-    dispose_glyf_table(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-/// `.write()`, not a field assignment: `GlyfTable` is directly `Vec<T>` (no
-/// wrapper struct), so this placement-constructs the whole value and never
-/// reads whatever `malloc` left behind -- same reasoning as `ColrTable`'s
-/// `table_colr_create` (rust/README.md).
-pub(crate) unsafe extern "C" fn table_glyf_create() -> *mut GlyfTable {
-    let x: *mut GlyfTable = malloc(::core::mem::size_of::<GlyfTable>() as usize) as *mut GlyfTable;
-    x.write(Vec::new());
-    x
+    let value = ::core::ptr::read(raw);
+    free(raw as *mut ::core::ffi::c_void);
+    Some(value)
 }
 pub(crate) unsafe extern "C" fn table_glyf_create_n(n: usize) -> *mut GlyfTable {
     let x: *mut GlyfTable = malloc(::core::mem::size_of::<GlyfTable>() as usize) as *mut GlyfTable;
@@ -723,15 +722,17 @@ pub unsafe extern "C" fn otfcc_dump_glyphorder(
         preserialize(order),
     );
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_glyf(
-    mut table: *const GlyfTable,
+    table: Option<&GlyfTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
     mut ctx: *const GlyfIOContext,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t as *const GlyfTable,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -1215,17 +1216,18 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
     }
     return g;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_parse_glyf(
     mut root: *const JsonValue,
     mut glyph_order: *mut GlyphOrder,
     mut options: *const Options,
-) -> *mut GlyfTable {
+) -> Option<GlyfTable> {
     if (*root).type_0 != JsonType::Object
         || glyph_order.is_null()
     {
-        return ::core::ptr::null_mut::<GlyfTable>();
+        return None;
     }
-    let mut glyf: *mut GlyfTable = ::core::ptr::null_mut::<GlyfTable>();
+    let mut glyf: Option<GlyfTable> = None;
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -1242,7 +1244,8 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             let mut num_glyphs: GlyphId = (*table).u.object.length as GlyphId;
-            glyf = table_glyf_create_n(num_glyphs as usize);
+            let mut glyf_val: GlyfTable = Vec::with_capacity(num_glyphs as usize);
+            glyf_val.resize_with(num_glyphs as usize, || None);
             let mut j: GlyphId = 0 as GlyphId;
             while (j as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int {
                 let mut gname: SdsRaw = sdsnewlen(
@@ -1261,9 +1264,9 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
                     .unwrap_or(::core::ptr::null_mut::<GlyphOrderEntry>());
                 if (*glyphdump).type_0 == JsonType::Object
                     && !order_entry.is_null()
-                    && (&(*glyf))[(*order_entry).gid as usize].is_none()
+                    && glyf_val[(*order_entry).gid as usize].is_none()
                 {
-                    (&mut (*glyf))[(*order_entry).gid as usize] =
+                    glyf_val[(*order_entry).gid as usize] =
                         Some(otfcc_glyf_parse_glyph(glyphdump, order_entry, options));
                 }
                 json_value_free(glyphdump);
@@ -1274,6 +1277,7 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
                 sdsfree(gname);
                 j = j.wrapping_add(1);
             }
+            glyf = Some(glyf_val);
             ___loggedstep_v = false;
             (*(*options).logger)
                 .finish
@@ -1283,7 +1287,7 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
         }
         return glyf;
     }
-    return ::core::ptr::null_mut::<GlyfTable>();
+    return None;
 }
 
 #[derive(Copy, Clone)]

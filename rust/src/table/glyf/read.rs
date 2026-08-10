@@ -18,7 +18,7 @@ use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VQSegType, VqSegment};
 use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{TABLE_I_FVAR};
-use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, glyf_contour_fill, otfcc_new_glyf_glyph, table_glyf_create, table_glyf_free};
+use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, glyf_contour_fill, otfcc_new_glyf_glyph};
 use crate::vendor::sds::{sdsempty};
 use crate::vf::region::{vq_create_region};
 use crate::vf::vq::{I_VQ};
@@ -1169,11 +1169,11 @@ pub unsafe extern "C" fn otfcc_read_glyf(
     packet: Packet,
     mut options: *const Options,
     mut ctx: *const GlyfIOContext,
-) -> *mut GlyfTable {
+) -> Option<GlyfTable> {
     let mut found_loca: bool = false;
     let mut current_block: u64;
     let mut offsets: *mut u32 = ::core::ptr::null_mut::<u32>();
-    let mut glyf: *mut GlyfTable = ::core::ptr::null_mut::<GlyfTable>();
+    let mut glyf: Option<GlyfTable> = None;
     offsets = __caryll_allocate_clean(
         (::core::mem::size_of::<u32>() as usize).wrapping_mul(
             ((*ctx).num_glyphs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
@@ -1293,14 +1293,15 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                                     LoggerType::Warning,
                                     crate::sdsbuild!(sdsempty(), b"table 'glyf' corrupted.\n"),
                                 );
-                                if !glyf.is_null() {
-                                    table_glyf_free(glyf);
-                                    glyf = ::core::ptr::null_mut::<GlyfTable>();
-                                }
+                                // No `glyf` to free here: every path that
+                                // constructs one (below) breaks out of this
+                                // loop and returns immediately afterward, so
+                                // this branch is only ever reached before
+                                // any allocation happens.
                                 __fortable_k2_0 = 0 as ::core::ffi::c_int;
                                 __notfound_0 = 0 as ::core::ffi::c_int;
                             } else {
-                                glyf = table_glyf_create();
+                                let mut glyf_val: GlyfTable = Vec::new();
                                 let mut j_0: GlyphId = 0 as GlyphId;
                                 while (j_0 as ::core::ffi::c_int)
                                     < (*ctx).num_glyphs as ::core::ffi::c_int
@@ -1311,16 +1312,17 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                                                 as isize,
                                         )
                                     {
-                                        (*glyf).push(Some(otfcc_read_glyph(
+                                        glyf_val.push(Some(otfcc_read_glyph(
                                             data_0,
                                             *offsets.offset(j_0 as isize),
                                             options,
                                         )));
                                     } else {
-                                        (*glyf).push(Some(otfcc_new_glyf_glyph()));
+                                        glyf_val.push(Some(otfcc_new_glyf_glyph()));
                                     }
                                     j_0 = j_0.wrapping_add(1);
                                 }
+                                glyf = Some(glyf_val);
                                 current_block = 5675710991063777755;
                                 break 's_126;
                             }
@@ -1339,7 +1341,12 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                         offsets = ::core::ptr::null_mut::<u32>();
                         offsets = ::core::ptr::null_mut::<u32>();
                     }
-                    polymorphize(packet, options, glyf, ctx);
+                    polymorphize(
+                        packet,
+                        options,
+                        glyf.as_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable),
+                        ctx,
+                    );
                     return glyf;
                 }
             }
@@ -1350,11 +1357,9 @@ pub unsafe extern "C" fn otfcc_read_glyf(
         offsets = ::core::ptr::null_mut::<u32>();
         offsets = ::core::ptr::null_mut::<u32>();
     }
-    if !glyf.is_null() {
-        table_glyf_free(glyf);
-        glyf = ::core::ptr::null_mut::<GlyfTable>();
-    }
-    return ::core::ptr::null_mut::<GlyfTable>();
+    // No `glyf` to free here: this point is only reached with `glyf` still
+    // `None` (every path that sets it returns immediately afterward).
+    return None;
 }
 #[inline]
 unsafe extern "C" fn be16(mut x: u16) -> u16 {

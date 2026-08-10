@@ -604,25 +604,26 @@ pub unsafe extern "C" fn consolidate_glyf(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
-    if (*font).glyph_order.is_none() || (*font).glyf.is_null() {
+    if (*font).glyph_order.is_none() || (*font).glyf.is_none() {
         return;
     }
+    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*(*font).glyf).len() {
-        if (&(*(*font).glyf))[j as usize].is_some() {
+    while (j as usize) < (*glyf).len() {
+        if (&(*glyf))[j as usize].is_some() {
             consolidate_glyph(
-                &raw mut **(&mut (*(*font).glyf))[j as usize].as_mut().unwrap(),
+                &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap(),
                 font,
                 options,
             );
         } else {
-            (&mut (*(*font).glyf))[j as usize] = Some(otfcc_new_glyf_glyph());
+            (&mut (*glyf))[j as usize] = Some(otfcc_new_glyf_glyph());
         }
         j = j.wrapping_add(1);
     }
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*(*font).glyf).len() {
-        let g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j_0 as usize].as_mut().unwrap();
+    while (j_0 as usize) < (*glyf).len() {
+        let g: *mut Glyph = &raw mut **(&mut (*glyf))[j_0 as usize].as_mut().unwrap();
         (*(*options).logger)
             .start_sds
             .expect("non-null function pointer")(
@@ -641,7 +642,7 @@ pub unsafe extern "C" fn consolidate_glyf(
             let mut r: ShapeId = 0 as ShapeId;
             while (r as usize) < (*g).references.len() {
                 let rr: *mut ComponentReference = &raw mut (&mut (*g).references)[r as usize];
-                consolidate_anchor_ref((*font).glyf, &raw mut gr, rr, options);
+                consolidate_anchor_ref(glyf, &raw mut gr, rr, options);
                 r = r.wrapping_add(1);
             }
             // `gr` is a plain owned local; every field auto-drops when it
@@ -1360,9 +1361,10 @@ unsafe extern "C" fn consolidate_tsi(
     mut _tsi: *mut Option<TsiTable>,
     mut options: *const Options,
 ) {
-    if font.is_null() || (*font).glyf.is_null() || (*_tsi).is_none() || (*font).glyph_order.is_none() {
+    if font.is_null() || (*font).glyf.is_none() || (*_tsi).is_none() || (*font).glyph_order.is_none() {
         return;
     }
+    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let glyph_order: *mut GlyphOrder = (*font)
         .glyph_order
         .as_deref_mut()
@@ -1374,7 +1376,7 @@ unsafe extern "C" fn consolidate_tsi(
     // `is_null()` checks relied on -- a plain assignment below correctly
     // drops whatever was there before, so the old explicit
     // free-before-overwrite is now implicit.
-    let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; (*(*font).glyf).len()];
+    let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; (*glyf).len()];
     let entries: &mut Vec<TsiEntry> = (*_tsi).as_mut().unwrap();
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
@@ -1416,7 +1418,7 @@ unsafe extern "C" fn consolidate_tsi(
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*(*font).glyf).len() {
+    while (j as usize) < (*glyf).len() {
         let mut e_0: TsiEntry = TsiEntry {
             type_0: TsiEntryType::Glyph,
             glyph: Handle {
@@ -1449,7 +1451,8 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
-    if !(*font).glyf.is_null() && (*font).glyph_order.is_none() {
+    let glyf: *mut GlyfTable = (*font).glyf.as_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable);
+    if !glyf.is_null() && (*font).glyph_order.is_none() {
         // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
         // (`malloc`) + `Box::from_raw` -- `Box::from_raw` requires the
         // pointer to have come from Rust's global allocator, which a bare
@@ -1463,18 +1466,18 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         });
         let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
         let mut j: GlyphId = 0 as GlyphId;
-        while (j as usize) < (*(*font).glyf).len() {
+        while (j as usize) < (*glyf).len() {
             let mut name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-            let glyf_name_empty: bool = (&(*(*font).glyf))[j as usize].as_deref().unwrap().name.is_empty();
+            let glyf_name_empty: bool = (&(*glyf))[j as usize].as_deref().unwrap().name.is_empty();
             if !glyf_name_empty {
-                let glyf_name_bytes: &[u8] = &(&(*(*font).glyf))[j as usize].as_deref().unwrap().name;
+                let glyf_name_bytes: &[u8] = &(&(*glyf))[j as usize].as_deref().unwrap().name;
                 name = sdsnewlen(
                     glyf_name_bytes.as_ptr() as *const ::core::ffi::c_void,
                     glyf_name_bytes.len(),
                 );
             } else {
                 name = crate::sdsbuild!(sdsempty(), b"$$gid", j as ::core::ffi::c_int);
-                let ref mut fresh0 = (&mut (*(*font).glyf))[j as usize].as_mut().unwrap().name;
+                let ref mut fresh0 = (&mut (*glyf))[j as usize].as_mut().unwrap().name;
                 *fresh0 = sds_to_vec(name);
             }
             if !OTFCC_PKG_GLYPH_ORDER
@@ -1522,7 +1525,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
                                 b".",
                             ),
                         );
-                        let ref mut fresh1 = (&mut (*(*font).glyf))[j as usize].as_mut().unwrap().name;
+                        let ref mut fresh1 = (&mut (*glyf))[j as usize].as_mut().unwrap().name;
                         *fresh1 = sds_to_vec(newname);
                     }
                     if success {
@@ -1563,7 +1566,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    if !(*font).glyf.is_null() {
+    if !glyf.is_null() {
         consolidate_otl(font, options);
     }
     (*(*options).logger)
