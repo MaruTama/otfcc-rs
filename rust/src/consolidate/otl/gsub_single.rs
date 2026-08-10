@@ -10,7 +10,7 @@ use crate::font::caryll_font::{Font};
 
 use crate::table::otl::{GsubSingleEntry, Subtable, GsubSingleSubtable, OtlTable};
 
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gsub_single::{dispose_gsub_single_subtable};
 use crate::vendor::sds::{sdsempty};
 
@@ -20,6 +20,10 @@ pub unsafe extern "C" fn consolidate_gsub_single(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
+    let glyph_order: *mut GlyphOrder = (*font)
+        .glyph_order
+        .as_deref_mut()
+        .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
     let mut subtable: *mut GsubSingleSubtable = &raw mut (*_subtable).gsub_single as *mut GsubSingleSubtable;
     // Deduplicates by `from`'s glyph id, first occurrence wins -- a later
     // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
@@ -35,7 +39,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
-            (*font).glyph_order,
+            glyph_order,
             &raw mut (&mut (*subtable))[k as usize].from,
         ) {
             (*(*options).logger)
@@ -54,7 +58,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         } else if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
-            (*font).glyph_order,
+            glyph_order,
             &raw mut (&mut (*subtable))[k as usize].to,
         ) {
             (*(*options).logger)

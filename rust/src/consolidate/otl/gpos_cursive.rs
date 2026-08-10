@@ -37,7 +37,7 @@ use crate::table::otl::{Anchor, GposCursiveEntry, Subtable, GposCursiveSubtable,
 
 
 
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
 use crate::vendor::sds::{sdsempty};
 
@@ -67,7 +67,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
-            (*font).glyph_order,
+            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*subtable))[k as usize].target,
         ) {
             (*(*options).logger)

@@ -77,6 +77,31 @@ pub struct GlyphOrder {
     pub by_gid: std::collections::BTreeMap<GlyphId, *mut GlyphOrderEntry>,
     pub by_name: std::collections::HashMap<Vec<u8>, *mut GlyphOrderEntry>,
 }
+// Stage 6-4 "Box化": `by_gid`/`by_name` are non-owning indices over the same
+// set of individually-`__caryll_allocate_clean`'d `GlyphOrderEntry`
+// allocations (see the comment on the struct above) -- this `Drop` impl is
+// the same "walk `by_gid` once, free each entry" shape `dispose_glyph_order`
+// below already has, needed because `BTreeMap`/`HashMap`'s own drop glue
+// only frees their internal node storage, not the raw `*mut
+// GlyphOrderEntry` pointers they hold as values.
+//
+// This type is still constructed and freed as a bare `*mut GlyphOrder` in
+// many places that are *not* `Font.glyph_order` (`PostTable.post_name_map`,
+// the `aglfn`/`gord` locals in `otf_reader/unconsolidate.rs`) -- those keep
+// going through `OTFCC_PKG_GLYPH_ORDER.create`/`.free` unchanged (a raw
+// pointer being `free()`'d never invokes this `Drop` impl; it only fires
+// for an owned value, i.e. a `Box<GlyphOrder>` going out of scope, which
+// after this PR is only ever `Font.glyph_order`).
+impl Drop for GlyphOrder {
+    fn drop(&mut self) {
+        unsafe {
+            for (_, &entry) in self.by_gid.iter() {
+                (*entry).name = Vec::new();
+                free(entry as *mut ::core::ffi::c_void);
+            }
+        }
+    }
+}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GlyphOrderPackage {

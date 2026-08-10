@@ -152,7 +152,10 @@ unsafe extern "C" fn consolidate_glyph_references(
     (*g).references.retain_mut(|r| {
         let ok = OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
-            .expect("non-null function pointer")((*font).glyph_order, &raw mut r.glyph);
+            .expect("non-null function pointer")(
+            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
+            &raw mut r.glyph,
+        );
         if !ok {
             (*(*options).logger)
                 .log_sds
@@ -601,7 +604,7 @@ pub unsafe extern "C" fn consolidate_glyf(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
-    if (*font).glyph_order.is_null() || (*font).glyf.is_null() {
+    if (*font).glyph_order.is_none() || (*font).glyf.is_null() {
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
@@ -658,7 +661,11 @@ pub unsafe extern "C" fn consolidate_cmap(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
-    if !(*font).glyph_order.is_null() && (*font).cmap.is_some() {
+    let glyph_order: *mut GlyphOrder = (*font)
+        .glyph_order
+        .as_deref_mut()
+        .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
+    if !glyph_order.is_null() && (*font).cmap.is_some() {
         // A failed resolution disposes the entry's `Handle` in place
         // (leaving it in the map with an empty name) rather than
         // removing the entry -- `dump_cmap`'s "skip if name is null"
@@ -667,7 +674,7 @@ pub unsafe extern "C" fn consolidate_cmap(
             if !OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
                 .expect("non-null function pointer")(
-                (*font).glyph_order, glyph as *mut GlyphHandle
+                glyph_order, glyph as *mut GlyphHandle
             ) {
                 (*(*options).logger)
                     .log_sds
@@ -688,12 +695,12 @@ pub unsafe extern "C" fn consolidate_cmap(
             }
         }
     }
-    if !(*font).glyph_order.is_null() && (*font).cmap.is_some() {
+    if !glyph_order.is_null() && (*font).cmap.is_some() {
         for (key, glyph) in (*font).cmap.as_mut().unwrap().uvs.iter_mut() {
             if !OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
                 .expect("non-null function pointer")(
-                (*font).glyph_order, glyph as *mut GlyphHandle
+                glyph_order, glyph as *mut GlyphHandle
             ) {
                 (*(*options).logger)
                     .log_sds
@@ -1120,7 +1127,7 @@ unsafe extern "C" fn consolidate_otl_table(
     mut table: *mut OtlTable,
     mut options: *const Options,
 ) {
-    if (*font).glyph_order.is_null() || table.is_null() {
+    if (*font).glyph_order.is_none() || table.is_null() {
         return;
     }
     loop {
@@ -1245,9 +1252,13 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
     }
 }
 unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
-    if font.is_null() || (*font).colr.is_null() || (*font).glyph_order.is_null() {
+    if font.is_null() || (*font).colr.is_null() || (*font).glyph_order.is_none() {
         return;
     }
+    let glyph_order: *mut GlyphOrder = (*font)
+        .glyph_order
+        .as_deref_mut()
+        .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
     let mut consolidated: *mut ColrTable = table_colr_create();
     let source: &mut Vec<ColrMapping> = &mut *(*font).colr;
     let mut __caryll_index: usize = 0 as usize;
@@ -1258,7 +1269,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
             if !OTFCC_PKG_GLYPH_ORDER
                 .consolidate_handle
                 .expect("non-null function pointer")(
-                (*font).glyph_order, &raw mut mapping.glyph
+                glyph_order, &raw mut mapping.glyph
             ) {
                 (*(*options).logger)
                     .log_sds
@@ -1293,7 +1304,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                         if !OTFCC_PKG_GLYPH_ORDER
                             .consolidate_handle
                             .expect("non-null function pointer")(
-                            (*font).glyph_order,
+                            glyph_order,
                             &raw mut layer.glyph,
                         ) {
                             (*(*options).logger)
@@ -1351,9 +1362,13 @@ unsafe extern "C" fn consolidate_tsi(
     mut options: *const Options,
 ) {
     let mut tsi: *mut TsiTable = *_tsi;
-    if font.is_null() || (*font).glyf.is_null() || tsi.is_null() || (*font).glyph_order.is_null() {
+    if font.is_null() || (*font).glyf.is_null() || tsi.is_null() || (*font).glyph_order.is_none() {
         return;
     }
+    let glyph_order: *mut GlyphOrder = (*font)
+        .glyph_order
+        .as_deref_mut()
+        .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
     let mut consolidated: *mut TsiTable = table_tsi_create();
     // `Option<Vec<u8>>` per slot preserves the old null/non-null
     // distinction (`None` = "no entry yet for this GID", `Some` = has
@@ -1374,7 +1389,7 @@ unsafe extern "C" fn consolidate_tsi(
                 if OTFCC_PKG_GLYPH_ORDER
                     .consolidate_handle
                     .expect("non-null function pointer")(
-                    (*font).glyph_order,
+                    glyph_order,
                     &raw mut (*entry).glyph,
                 ) {
                     gid_entries[(*entry).glyph.index as usize] =
@@ -1418,7 +1433,7 @@ unsafe extern "C" fn consolidate_tsi(
             handle_from_index(j) as GlyphHandle;
         OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
-            .expect("non-null function pointer")((*font).glyph_order, &raw mut e_0.glyph);
+            .expect("non-null function pointer")(glyph_order, &raw mut e_0.glyph);
         e_0.content = gid_entries[j as usize].take().unwrap_or_default();
         (*consolidated).push(e_0);
         j = j.wrapping_add(1);
@@ -1435,12 +1450,19 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
-    if !(*font).glyf.is_null() && (*font).glyph_order.is_null() {
-        let mut go: *mut GlyphOrder =
-            (
-                OTFCC_PKG_GLYPH_ORDER
-                    .create
-                    .expect("non-null function pointer"))();
+    if !(*font).glyf.is_null() && (*font).glyph_order.is_none() {
+        // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
+        // (`malloc`) + `Box::from_raw` -- `Box::from_raw` requires the
+        // pointer to have come from Rust's global allocator, which a bare
+        // libc `malloc` is not guaranteed to match. `go` stays a raw-pointer
+        // alias into `go_box` for the rest of this block (unchanged from
+        // here down), matching the `GaspTable`/`CmapTable` "accumulator is
+        // `Option<Box<X>>`/`Box<X>` from the start" idiom.
+        let mut go_box: Box<GlyphOrder> = Box::new(GlyphOrder {
+            by_gid: ::std::collections::BTreeMap::new(),
+            by_name: ::std::collections::HashMap::new(),
+        });
+        let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*(*font).glyf).len() {
             let mut name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -1512,7 +1534,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
             }
             j = j.wrapping_add(1);
         }
-        (*font).glyph_order = go;
+        (*font).glyph_order = Some(go_box);
     }
     (*(*options).logger)
         .start_sds

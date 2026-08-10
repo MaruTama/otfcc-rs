@@ -18,7 +18,7 @@ use crate::table::otl::{Anchor, BaseArray, BaseRecord, LigatureArray, LigatureBa
 
 
 
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gpos_common::{dispose_mark_array};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{dispose_lig_array};
 use crate::table::otl::subtables::gpos_mark_to_single::{dispose_base_array};
@@ -51,7 +51,7 @@ unsafe extern "C" fn consolidate_mark_array(
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
-            (*font).glyph_order,
+            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*mark_array))[k as usize].glyph,
         ) {
             (*(*options).logger)
@@ -132,7 +132,7 @@ unsafe extern "C" fn consolidate_base_array(
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
-            (*font).glyph_order,
+            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*base_array))[k as usize].glyph,
         ) {
             (*(*options).logger)
@@ -203,7 +203,7 @@ unsafe extern "C" fn consolidate_lig_array(
         if !OTFCC_PKG_GLYPH_ORDER
             .consolidate_handle
             .expect("non-null function pointer")(
-            (*font).glyph_order,
+            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*lig_array))[k as usize].glyph,
         ) {
             (*(*options).logger)

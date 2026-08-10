@@ -25,7 +25,6 @@ use crate::support::glyph_order::{GlyphOrderPass, GlyphOrder, GlyphOrderEntry};
 
 
 use crate::font::caryll_font::{OTFCC_I_FONT};
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::base::{otfcc_parse_base};
 use crate::table::cff::{otfcc_parse_cff};
 use crate::table::colr::{otfcc_parse_colr};
@@ -256,14 +255,20 @@ unsafe extern "C" fn place_order_entries_from_subtable(
 unsafe extern "C" fn parse_glyph_order(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut GlyphOrder {
-    let mut go: *mut GlyphOrder = (
-        OTFCC_PKG_GLYPH_ORDER
-            .create
-            .expect("non-null function pointer"))();
+) -> Option<Box<GlyphOrder>> {
+    // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
+    // (`malloc`) + `Box::from_raw` -- see the matching note in
+    // `consolidate.rs`'s `otfcc_consolidate_font`. `go` stays a raw-pointer
+    // alias into `go_box` for the rest of this function (unchanged from
+    // here down).
+    let mut go_box: Box<GlyphOrder> = Box::new(GlyphOrder {
+        by_gid: ::std::collections::BTreeMap::new(),
+        by_name: ::std::collections::HashMap::new(),
+    });
+    let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
     if (*root).type_0 != JsonType::Object
     {
-        return go;
+        return Some(go_box);
     }
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
@@ -313,7 +318,7 @@ unsafe extern "C" fn parse_glyph_order(
         }
     }
     order_glyphs(go);
-    return go;
+    return Some(go_box);
 }
 struct JsonReader;
 impl FontBuilder for JsonReader {
@@ -331,7 +336,11 @@ impl FontBuilder for JsonReader {
     }
     (*font).subtype = otfcc_decide_font_subtype_from_json(root);
     (*font).glyph_order = parse_glyph_order(root, options);
-    (*font).glyf = otfcc_parse_glyf(root, (*font).glyph_order, options);
+    (*font).glyf = otfcc_parse_glyf(
+        root,
+        (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
+        options,
+    );
     (*font).cff = otfcc_parse_cff(root, options);
     (*font).head = otfcc_parse_head(root, options);
     (*font).hhea = otfcc_parse_hhea(root, options);
