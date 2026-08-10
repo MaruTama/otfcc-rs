@@ -1115,14 +1115,14 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
 unsafe extern "C" fn stat_max_context(mut font: *mut Font, mut _options: *const Options) {
     let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
     let mut maxc: u16 = 1 as u16;
-    if !(*font).gsub.is_null() {
-        let mut maxc_gsub: u16 = stat_max_context_otl((*font).gsub);
+    if let Some(gsub) = (*font).gsub.as_deref() {
+        let mut maxc_gsub: u16 = stat_max_context_otl(gsub as *const OtlTable);
         if maxc_gsub as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
             maxc = maxc_gsub;
         }
     }
-    if !(*font).gpos.is_null() {
-        let mut maxc_gpos: u16 = stat_max_context_otl((*font).gpos);
+    if let Some(gpos) = (*font).gpos.as_deref() {
+        let mut maxc_gpos: u16 = stat_max_context_otl(gpos as *const OtlTable);
         if maxc_gpos as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
             maxc = maxc_gpos;
         }

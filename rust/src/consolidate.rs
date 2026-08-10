@@ -1213,7 +1213,7 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        consolidate_otl_table(font, (*font).gsub, options);
+        consolidate_otl_table(font, (*font).gsub.as_deref_mut().map_or(::core::ptr::null_mut(), |t| t as *mut OtlTable), options);
         ___loggedstep_v = false;
         (*(*options).logger)
             .finish
@@ -1227,7 +1227,7 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        consolidate_otl_table(font, (*font).gpos, options);
+        consolidate_otl_table(font, (*font).gpos.as_deref_mut().map_or(::core::ptr::null_mut(), |t| t as *mut OtlTable), options);
         ___loggedstep_v_0 = false;
         (*(*options).logger)
             .finish

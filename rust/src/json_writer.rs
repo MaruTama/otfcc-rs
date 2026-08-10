@@ -107,13 +107,13 @@ impl FontSerializer for JsonSerializer {
     }
     otfcc_dump_vdmx((*font).vdmx.as_deref(), root, options);
     otfcc_dump_otl(
-        (*font).gsub,
+        (*font).gsub.as_deref(),
         root,
         options,
         b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
     );
     otfcc_dump_otl(
-        (*font).gpos,
+        (*font).gpos.as_deref(),
         root,
         options,
         b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,

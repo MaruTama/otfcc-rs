@@ -15,7 +15,7 @@ use crate::table::otl::{Feature, FeatureRef, FeatureRefList, LanguageSystem, Loo
 use crate::support::json_funcs::otfcc_parse_flags;
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::support::json_ident::{json_ident};
-use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, new_feature, new_language, new_lookup, table_otl_create, table_otl_free};
+use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, new_feature, new_language, new_lookup};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::parse::{otl_parse_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_parse_cursive};
@@ -812,15 +812,17 @@ pub unsafe extern "C" fn otfcc_parse_otl(
     mut root: *const JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
-) -> *mut OtlTable {
+) -> Option<Box<OtlTable>> {
     let mut languages: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     let mut features: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     let mut lookups: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     let mut current_block: u64;
     let mut otl: *mut OtlTable = ::core::ptr::null_mut::<OtlTable>();
+    let mut otl_box: Option<Box<OtlTable>> = None;
     let mut table: *mut JsonValue = json_obj_get_type(root, tag, JsonType::Object);
     if !table.is_null() {
-        otl = table_otl_create();
+        otl_box = Some(Box::new(OtlTable { lookups: Vec::new(), features: Vec::new(), languages: Vec::new() }));
+        otl = otl_box.as_mut().unwrap().as_mut() as *mut OtlTable;
         languages = json_obj_get_type(
             table,
             b"languages\0" as *const u8 as *const ::core::ffi::c_char,
@@ -943,11 +945,11 @@ pub unsafe extern "C" fn otfcc_parse_otl(
             }
             match current_block {
                 12498981253432484999 => {}
-                _ => return otl,
+                _ => return otl_box,
             }
         }
     }
-    if !otl.is_null() {
+    if otl_box.is_some() {
         (*(*options).logger)
             .log_sds
             .expect("non-null function pointer")(
@@ -961,7 +963,6 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                 b".\n",
             ),
         );
-        table_otl_free(otl);
     }
-    return ::core::ptr::null_mut::<OtlTable>();
+    return None;
 }

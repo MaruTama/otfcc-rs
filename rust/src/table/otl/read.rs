@@ -11,7 +11,7 @@ use crate::vendor::sds::{Byte, Dec5, Hex2};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::otl::{Feature, FeatureList, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
-use crate::table::otl::{otl_feature_ref_list_dispose, otl_subtable_list_dispose_dependent, new_feature, new_language, new_lookup, table_otl_create, table_otl_free};
+use crate::table::otl::{otl_feature_ref_list_dispose, otl_subtable_list_dispose_dependent, new_feature, new_language, new_lookup};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
 use crate::table::otl::subtables::extend::{otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend};
@@ -166,12 +166,13 @@ unsafe extern "C" fn otfcc_read_otl_common(
     mut table_length: u32,
     mut lookup_type_base: LookupType,
     mut options: *const Options,
-) -> *mut OtlTable {
+) -> Option<Box<OtlTable>> {
     let mut script_list_offset: u32 = 0;
     let mut feature_list_offset: u32 = 0;
     let mut lookup_list_offset: u32 = 0;
     let mut current_block: u64;
-    let mut table: *mut OtlTable = table_otl_create();
+    let mut table_box: Box<OtlTable> = Box::new(OtlTable { lookups: Vec::new(), features: Vec::new(), languages: Vec::new() });
+    let table: *mut OtlTable = table_box.as_mut() as *mut OtlTable;
     if !table.is_null() {
         if !(table_length < 10 as u32) {
             script_list_offset =
@@ -643,7 +644,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                 }
                                                                 j_3 = j_3.wrapping_add(1);
                                                             }
-                                                            return table;
+                                                            return Some(table_box);
                                                         }
                                                     }
                                                 }
@@ -658,10 +659,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
             }
         }
     }
-    if !table.is_null() {
-        table_otl_free(table);
-    }
-    return ::core::ptr::null_mut::<OtlTable>();
+    return None;
 }
 unsafe extern "C" fn otfcc_read_otl_lookup(
     mut data: FontFilePointer,
@@ -779,8 +777,8 @@ pub unsafe extern "C" fn otfcc_read_otl(
     mut options: *const Options,
     mut tag: u32,
     mut max_glyphs: GlyphId,
-) -> *mut OtlTable {
-    let mut otl: *mut OtlTable = ::core::ptr::null_mut::<OtlTable>();
+) -> Option<Box<OtlTable>> {
+    let mut otl: Option<Box<OtlTable>> = None;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -807,18 +805,14 @@ pub unsafe extern "C" fn otfcc_read_otl(
                         },
                         options,
                     );
-                    if otl.is_null() {
-                        if !otl.is_null() {
-                            table_otl_free(otl);
-                        }
-                        otl = ::core::ptr::null_mut::<OtlTable>();
-                    } else {
+                    if let Some(otl_box) = otl.as_mut() {
+                        let otl_ptr: *mut OtlTable = otl_box.as_mut() as *mut OtlTable;
                         let mut j: TableId = 0 as TableId;
-                        while (j as usize) < (*otl).lookups.len() {
+                        while (j as usize) < (*otl_ptr).lookups.len() {
                             otfcc_read_otl_lookup(
                                 data,
                                 length,
-                                &raw mut *(&mut (*otl).lookups)[j as usize],
+                                &raw mut *(&mut (*otl_ptr).lookups)[j as usize],
                                 max_glyphs,
                                 options,
                             );
@@ -835,5 +829,5 @@ pub unsafe extern "C" fn otfcc_read_otl(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<OtlTable>();
+    return None;
 }
