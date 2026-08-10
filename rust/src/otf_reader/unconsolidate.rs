@@ -603,11 +603,13 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
     (*font).vmtx = ::core::ptr::null_mut::<VmtxTable>();
 }
 unsafe extern "C" fn merge_ltsh(font: *mut Font) {
-    if !(*font).glyf.is_null() && !(*font).ltsh.is_null() {
-        let n = ((*(*font).glyf).len() as GlyphId).min((*(*font).ltsh).num_glyphs);
-        for j in 0..n {
-            (&mut (*(*font).glyf))[j as usize].as_mut().unwrap().y_pel =
-                *(*(*font).ltsh).y_pels.offset(j as isize);
+    if !(*font).glyf.is_null() {
+        if let Some(ltsh) = &(*font).ltsh {
+            let n = ((*(*font).glyf).len() as GlyphId).min(ltsh.num_glyphs);
+            for j in 0..n {
+                (&mut (*(*font).glyf))[j as usize].as_mut().unwrap().y_pel =
+                    *ltsh.y_pels.offset(j as isize);
+            }
         }
     }
 }

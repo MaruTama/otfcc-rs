@@ -48,7 +48,6 @@ use crate::table::cff::{TABLE_I_CFF};
 use crate::table::colr::{table_colr_free};
 use crate::table::cpal::{table_cpal_free};
 use crate::table::gdef::{table_gdef_free};
-use crate::table::ltsh::{TABLE_I_LTSH};
 use crate::table::os_2::{TABLE_I_OS_2};
 use crate::table::svg::{table_svg_free};
 use crate::table::vorg::{TABLE_I_VORG};
@@ -73,7 +72,11 @@ use crate::table::vmtx::{TABLE_I_VMTX};
 
 
 
-#[derive(Copy, Clone)]
+// `Copy, Clone` dropped: `Font` gained `ltsh: Option<Box<LtshTable>>` (Stage
+// 6-4 pilot), which is never `Copy`. Grepping confirms `Font` is accessed
+// exclusively via `*mut Font`/`(*font).field` throughout the crate -- never
+// returned, constructed as a value literal, or `.clone()`'d -- so dropping
+// the derive is safe (same check as `CffTable`/`NameRecord`/`GlyphOrderEntry`).
 #[repr(C)]
 pub struct Font {
     pub subtype: FontSubtype,
@@ -98,7 +101,7 @@ pub struct Font {
     pub cvt_: *mut CvtTable,
     pub gasp: *mut GaspTable,
     pub vdmx: *mut VdmxTable,
-    pub ltsh: *mut LtshTable,
+    pub ltsh: Option<Box<LtshTable>>,
     pub gsub: *mut OtlTable,
     pub gpos: *mut OtlTable,
     pub gdef: *mut GdefTable,
@@ -266,10 +269,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1280594760 => {
-            if !(*font).ltsh.is_null() {
-                TABLE_I_LTSH.free.expect("non-null function pointer")((*font).ltsh);
-                (*font).ltsh = ::core::ptr::null_mut::<LtshTable>();
-            }
+            (*font).ltsh = None;
             return;
         }
         1196643650 => {

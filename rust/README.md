@@ -4819,3 +4819,73 @@ on the other platform before a commit is trusted.
     on the receiving end; converting the call sites themselves was never
     in scope and remains not worth doing — they're already about as
     simple as C-string literals get).
+- **Stage 6-4 "Box化" pilot: `Font.ltsh: *mut LtshTable` → `Option<Box<LtshTable>>`**,
+  the first of `Font`'s ~32 `*mut X`-typed table fields to make this move.
+  Chosen as the pilot for being the smallest/simplest: `LtshTable` owns
+  exactly one nested allocation (`y_pels: *mut u8`) and had no other
+  structural complications.
+  - **The entire `LtshTableElementInterface` vtable is gone** —
+    `table_ltsh_create`/`_init`/`_free`/`_dispose`/`_copy` all deleted.
+    Grepping confirmed only `.free` was ever called from outside
+    `table/ltsh.rs` (from `font/caryll_font.rs`'s `delete_font_table`);
+    `.init`/`.create`/`.copy`/`.dispose` were never called at all —
+    `otfcc_read_ltsh`/`stat_ltsh` already built the struct directly via
+    `__caryll_allocate_clean`, never through the vtable's `.create`. A
+    `Drop for LtshTable` impl (frees `y_pels` if non-null) replaces the
+    vtable's `.free`/`.dispose` pair; `Box::new` construction replaces
+    `.create`; `Option`'s null-pointer optimization replaces the old
+    null-`*mut LtshTable`-means-absent convention, for free, since `Font`
+    itself is `malloc`+`memset(0)`'d (calloc-equivalent) and an all-zero
+    `Option<Box<T>>` is a valid `None`.
+  - **`Box::new` construction, not `Box::from_raw`-wrapping-`calloc`** —
+    reconfirmed the crate's only sound pattern for introducing a new
+    `Box<T>`: build the value directly (`Box::new(LtshTable { version,
+    num_glyphs, y_pels })`), never `calloc`/`__caryll_allocate_clean` the
+    struct itself and then `Box::from_raw` it (unprecedented in this
+    crate, and technically violates `Box::from_raw`'s allocator-matching
+    contract). The nested `y_pels: *mut u8` array is still built via
+    `__caryll_allocate_clean` — it's never itself wrapped in a `Box`, only
+    manually freed by the `Drop` impl.
+  - **`LtshTable` dropped `#[derive(Copy, Clone)]`** — a `Drop` impl and
+    `Copy` are mutually exclusive, and `y_pels` needing single ownership
+    means `Copy` was already semantically wrong before this PR, just
+    unenforced (no call site ever relied on copying it by value).
+  - **The cascade landed on `Font` itself, not just `LtshTable`.** `Font`
+    embeds `ltsh` directly (not behind a pointer), so `Option<Box<LtshTable>>`
+    being non-`Copy` meant `Font` could no longer derive `Copy, Clone`
+    either (`E0204`/`E0277` on build). Grepped every use of `Font` in the
+    crate — it's accessed exclusively via `*mut Font`/`(*font).field`,
+    never returned by value, never constructed as a value literal outside
+    its own `otfcc_font_create`, never `.clone()`'d — so dropping the
+    derive outright was safe, the same check already applied to
+    `CffTable`/`NameRecord`/`GlyphOrderEntry` earlier in this migration.
+    This is expected to recur for every subsequent `Font` field this
+    theme converts, until the last raw-pointer field is gone and `Font`'s
+    `Copy`/`Clone` removal only needs doing once (this PR pays that cost).
+  - `otfcc_build_ltsh`'s parameter widened from `*const LtshTable` to
+    `Option<&LtshTable>` (internal-only call, never crosses the real FFI
+    boundary — matches the crate's established `#[allow(improper_ctypes_definitions)]`
+    rationale). `otf_writer.rs`'s one call site adapted via `.as_deref()`.
+  - `otf_reader/unconsolidate.rs`'s `merge_ltsh` and `otf_writer/stat.rs`'s
+    `stat_ltsh` (the read-merge and write-synthesize call sites) adapted to
+    `if let Some(ltsh) = &(*font).ltsh` / `Some(Box::new(LtshTable { .. }))`
+    respectively; no behavioral change.
+  - **No new synthetic payload needed** — LTSH is a TrueType-only table
+    (`FontSubtype::Ttf` gate in `otf_writer.rs`), and every existing
+    TrueType payload (`iosevka-r.ttf`, `vtt.ttf`, `Molengo-Regular.ttf`,
+    `NotoNastaliqUrdu-Regular.ttf`) already carries one, already exercised
+    by `compare-with-c.sh`/`run-cycles.sh`.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test.
+  - **This is the opening PR of Stage 6-4's "Box化" theme proper**
+    (converting `Font`'s remaining ~31 `*mut X` table fields to
+    `Option<Box<X>>` one at a time, per the user's explicit direction to
+    continue this theme after the `sds` sweep closed). The pattern this
+    PR establishes — delete the vtable, `Box::new` construction, `Drop`
+    for any nested owned pointers, `Option`'s null-pointer optimization,
+    and (once, here) the `Font: Copy/Clone` removal — is expected to
+    repeat with decreasing marginal cost for the simpler remaining fields,
+    and increasing care for fields whose tables embed `Vec`-backed
+    children (already non-`Copy`) or further nested pointers.
