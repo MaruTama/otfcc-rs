@@ -4889,3 +4889,40 @@ on the other platform before a commit is trusted.
     repeat with decreasing marginal cost for the simpler remaining fields,
     and increasing care for fields whose tables embed `Vec`-backed
     children (already non-`Copy`) or further nested pointers.
+- **Stage 6-4 "Box化", second field: `Font.vorg: *mut VorgTable` →
+  `Option<Box<VorgTable>>`.** Same shape as the `LtshTable` pilot —
+  `VorgTable` owns exactly one nested allocation (`entries: *mut VorgEntry`)
+  and its vtable had the identical dead-slot profile (only `.free` called
+  from outside `table/vorg.rs`, from `caryll_font.rs`'s table disposal and
+  `unconsolidate.rs`'s merge step; `.init`/`.copy`/`.create`/`.dispose`
+  never called at all). `VorgTableElementInterface` deleted entirely,
+  `Drop for VorgTable` frees `entries`, `Copy`/`Clone` dropped (same
+  "already semantically wrong, just unenforced" reasoning).
+  - **`Font` did not need its `Copy`/`Clone` removal repeated** — already
+    gone since the `LtshTable` pilot. Confirms the "one-time cost" framing
+    from that PR: subsequent fields in this theme pay only their own
+    per-type cost, not a recurring `Font`-wide one.
+  - `otf_reader/unconsolidate.rs`'s `merge_vmtx` (the one call site reading
+    `.vorg`'s contents before consuming it) switched from repeated
+    `(*(*font).vorg).field` dereferences to `if let Some(vorg) =
+    (*font).vorg.take()`, matching the "take, use the owned value, let it
+    drop" pattern already established for `Handle`/`LtshTable`; no separate
+    `TABLE_I_VORG.free` call needed afterward since the `Box` drops on its
+    own once `vorg` goes out of scope.
+  - `otf_writer/stat.rs`'s `stat_vorg` (the write-synthesize call site)
+    rebuilt to accumulate `default_vertical_origin`/`entries` as locals and
+    construct via `Box::new(VorgTable { .. })` at the end, replacing the
+    `__caryll_allocate_clean`-then-field-assign construction of the table
+    struct itself (the nested `entries` array is still built via
+    `__caryll_allocate_clean`, same as `LtshTable`'s `y_pels` — it's never
+    itself `Box`-wrapped, only freed by the `Drop` impl).
+  - `otfcc_build_vorg`'s parameter widened from `*const VorgTable` to
+    `Option<&VorgTable>` (`#[allow(improper_ctypes_definitions)]`, same
+    internal-only-call rationale as `otfcc_build_ltsh`).
+  - **No new synthetic payload needed** — VORG is exercised by every
+    payload with a `glyf` table and non-default vertical origins; already
+    covered by `compare-with-c.sh`/`run-cycles.sh`.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test.

@@ -1200,12 +1200,7 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
             maxj = j_0;
         }
     }
-    let mut vorg: *mut VorgTable = ::core::ptr::null_mut::<VorgTable>();
-    vorg = __caryll_allocate_clean(
-        ::core::mem::size_of::<VorgTable>() as usize,
-        578 as ::core::ffi::c_ulong,
-    ) as *mut VorgTable;
-    (*vorg).default_vertical_origin = maxj as Pos;
+    let default_vertical_origin = maxj as Pos;
     let mut n_vert_origs: GlyphId = 0 as GlyphId;
     for j_1 in 0..(*(*font).glyf).len() as GlyphId {
         let vori_0: Pos = I_VQ.get_still.expect("non-null function pointer")(
@@ -1215,8 +1210,7 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
             n_vert_origs = (n_vert_origs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
         }
     }
-    (*vorg).num_vert_origin_y_metrics = n_vert_origs;
-    (*vorg).entries = __caryll_allocate_clean(
+    let entries = __caryll_allocate_clean(
         (::core::mem::size_of::<VorgEntry>() as usize).wrapping_mul(n_vert_origs as usize),
         587 as ::core::ffi::c_ulong,
     ) as *mut VorgEntry;
@@ -1226,13 +1220,17 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
             (&(*(*font).glyf))[j_2 as usize].as_deref().unwrap().vertical_origin.clone(),
         ) as Pos;
         if vori_1 != maxj as ::core::ffi::c_int as Pos {
-            (*(*vorg).entries.offset(jj as isize)).gid = j_2;
-            (*(*vorg).entries.offset(jj as isize)).vertical_origin = vori_1 as i16;
+            (*entries.offset(jj as isize)).gid = j_2;
+            (*entries.offset(jj as isize)).vertical_origin = vori_1 as i16;
             jj = (jj as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
         }
     }
     free(frequency as *mut ::core::ffi::c_void);
-    (*font).vorg = vorg;
+    (*font).vorg = Some(Box::new(VorgTable {
+        num_vert_origin_y_metrics: n_vert_origs,
+        default_vertical_origin,
+        entries,
+    }));
 }
 unsafe extern "C" fn stat_ltsh(mut font: *mut Font) {
     if (*font).glyf.is_null() {

@@ -22,7 +22,6 @@ use crate::support::sha1::{BYTE, Sha1Ctx};
 
 
 
-use crate::table::vorg::VorgTable;
 
 
 
@@ -51,7 +50,6 @@ use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, 
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
 use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
-use crate::table::vorg::{TABLE_I_VORG};
 use crate::table::hmtx::{TABLE_I_HMTX};
 use crate::table::otl::{otl_subtable_list_dispose_dependent};
 use crate::table::vmtx::{TABLE_I_VMTX};
@@ -546,24 +544,20 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
     }
     let count_a: u32 = (*(*font).vhea).num_of_long_ver_metrics as u32;
     let mut vorgs: *mut Pos = ::core::ptr::null_mut::<Pos>();
-    if !(*font).vorg.is_null() {
+    if let Some(vorg) = (*font).vorg.take() {
         vorgs = __caryll_allocate_clean(
             (::core::mem::size_of::<Pos>() as usize).wrapping_mul((*(*font).glyf).len()),
             351 as ::core::ffi::c_ulong,
         ) as *mut Pos;
         for j in 0..(*(*font).glyf).len() as GlyphId {
-            *vorgs.offset(j as isize) = (*(*font).vorg).default_vertical_origin;
+            *vorgs.offset(j as isize) = vorg.default_vertical_origin;
         }
-        for j_0 in 0..(*(*font).vorg).num_vert_origin_y_metrics as GlyphId {
-            if ((*(*(*font).vorg).entries.offset(j_0 as isize)).gid as usize)
-                < (*(*font).glyf).len()
-            {
-                *vorgs.offset((*(*(*font).vorg).entries.offset(j_0 as isize)).gid as isize) =
-                    (*(*(*font).vorg).entries.offset(j_0 as isize)).vertical_origin as Pos;
+        for j_0 in 0..vorg.num_vert_origin_y_metrics as GlyphId {
+            if ((*vorg.entries.offset(j_0 as isize)).gid as usize) < (*(*font).glyf).len() {
+                *vorgs.offset((*vorg.entries.offset(j_0 as isize)).gid as isize) =
+                    (*vorg.entries.offset(j_0 as isize)).vertical_origin as Pos;
             }
         }
-        TABLE_I_VORG.free.expect("non-null function pointer")((*font).vorg);
-        (*font).vorg = ::core::ptr::null_mut::<VorgTable>();
     }
     for j_1 in 0..(*(*font).glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j_1 as usize].as_mut().unwrap();
