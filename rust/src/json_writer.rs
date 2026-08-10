@@ -71,7 +71,7 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_vhea((*font).vhea.as_deref(), root, options);
     otfcc_dump_post((*font).post.as_deref(), root, options);
     otfcc_dump_os_2((*font).os_2.as_deref(), root, options);
-    otfcc_dump_name((*font).name, root, options);
+    otfcc_dump_name((*font).name.as_ref(), root, options);
     otfcc_dump_meta((*font).meta.as_deref(), root, options);
     otfcc_dump_cmap((*font).cmap.as_deref(), root, options);
     otfcc_dump_cff((*font).cff, root, options);
@@ -121,21 +121,21 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_gdef((*font).gdef.as_deref(), root, options);
     otfcc_dump_base((*font).base.as_deref(), root, options);
     otfcc_dump_cpal((*font).cpal.as_deref(), root, options);
-    otfcc_dump_colr((*font).colr, root, options);
-    otfcc_dump_svg((*font).svg, root, options);
+    otfcc_dump_colr((*font).colr.as_ref(), root, options);
+    otfcc_dump_svg((*font).svg.as_ref(), root, options);
     otfcc_dump_tsi(
-        (*font).tsi_01,
+        (*font).tsi_01.as_ref(),
         root,
         options,
         b"TSI_01\0" as *const u8 as *const ::core::ffi::c_char,
     );
     otfcc_dump_tsi(
-        (*font).tsi_23,
+        (*font).tsi_23.as_ref(),
         root,
         options,
         b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    otfcc_dump_tsi5((*font).tsi5, root, options);
+    otfcc_dump_tsi5((*font).tsi5.as_deref(), root, options);
     return root as *mut ::core::ffi::c_void;
     }
 }

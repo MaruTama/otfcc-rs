@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc};
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint_fallback, preserialize};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
@@ -28,6 +27,11 @@ pub struct ColrMapping {
     pub layers: Vec<ColrLayer>,
 }
 pub type ColrTable = Vec<ColrMapping>;
+// Stage 6-4 "Box化": `Font.colr` becomes `Option<Vec<ColrMapping>>` (not
+// `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
+// `ColrMapping`/`ColrLayer` own only a `GlyphHandle`, which already has a
+// real `Drop` (Stage 6-4's `Handle` pilot), so a plain `Vec<ColrMapping>`'s
+// own `Drop` already frees everything recursively.
 
 // `ColrLayer`/`ColrMapping` embed `GlyphHandle`, which owns its `sds` name
 // for real (`Handle`'s `Drop`/`Clone`, Stage 6-4's `Handle` pilot), so a
@@ -48,44 +52,19 @@ fn colr_mapping_dup(m: &ColrMapping) -> ColrMapping {
         layers: m.layers.iter().map(colr_layer_dup).collect(),
     }
 }
-// `ColrLayer`/`ColrMapping` hold nothing but a `Handle` and (for the latter)
-// a `Vec<ColrLayer>` of the same shape, so dropping the `Vec<ColrMapping>`
-// runs `Handle`'s own `Drop` for every layer and every mapping -- no
-// per-element dtor needed anymore. `t` itself is *not* freed here (see
-// `table_colr_free`, which calls this first).
-unsafe fn dispose_colr_table(t: *mut ColrTable) {
-    *t = Vec::new();
-}
-pub(crate) unsafe fn table_colr_free(x: *mut ColrTable) {
-    if x.is_null() {
-        return;
-    }
-    dispose_colr_table(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-pub(crate) unsafe fn table_colr_create() -> *mut ColrTable {
-    let x: *mut ColrTable = malloc(::core::mem::size_of::<ColrTable>() as usize) as *mut ColrTable;
-    // `.write()`, not a field/deref assignment: this is placement-constructing
-    // the whole value into fresh (possibly uninitialized) memory, so nothing
-    // must be read or dropped first -- unlike `GaspTable`'s `calloc` fix
-    // (rust/README.md), which had other already-initialized fields around
-    // the `Vec` one. Correct regardless of what `malloc` left behind.
-    x.write(Vec::new());
-    x
-}
 static BASE_GLYPH_REC_LENGTH: usize = 6 as usize;
 static LAYER_REC_LENGTH: usize = 4 as usize;
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_read_colr(
     packet: Packet,
     mut options: *const Options,
-) -> *mut ColrTable {
+) -> Option<ColrTable> {
     let mut num_base_glyph_records: u16 = 0;
     let mut num_layer_records: u16 = 0;
     let mut offset_base_glyph_record: u32 = 0;
     let mut offset_layer_record: u32 = 0;
     let mut gids: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
     let mut colors: *mut ColorId = ::core::ptr::null_mut::<ColorId>();
-    let mut colr: *mut ColrTable = ::core::ptr::null_mut::<ColrTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -150,7 +129,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                         ) as ColorId;
                                     j = j.wrapping_add(1);
                                 }
-                                colr = table_colr_create();
+                                let mut colr: ColrTable = Vec::new();
                                 let mut j_0: GlyphId = 0 as GlyphId;
                                 while (j_0 as ::core::ffi::c_int)
                                     < num_base_glyph_records as ::core::ffi::c_int
@@ -221,10 +200,10 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                         }
                                         k = k.wrapping_add(1);
                                     }
-                                    (*colr).push(mapping);
+                                    colr.push(mapping);
                                     j_0 = j_0.wrapping_add(1);
                                 }
-                                return colr;
+                                return Some(colr);
                             }
                         }
                     }
@@ -236,8 +215,10 @@ pub unsafe extern "C" fn otfcc_read_colr(
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'COLR' corrupted.\n"),
                     );
-                    table_colr_free(colr);
-                    colr = ::core::ptr::null_mut::<ColrTable>();
+                    // No `colr` to free here: every path that constructs
+                    // one (deep inside the nested guards above) returns
+                    // immediately afterward, so this branch is only ever
+                    // reached before any allocation happens.
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -247,23 +228,25 @@ pub unsafe extern "C" fn otfcc_read_colr(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return colr;
+    return None;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_colr(
-    mut colr: *const ColrTable,
+    colr: Option<&ColrTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if colr.is_null() {
-        return;
-    }
+    let colr = match colr {
+        Some(c) => c,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"COLR"),
     );
-    let mappings: &Vec<ColrMapping> = &*colr;
+    let mappings: &Vec<ColrMapping> = colr;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _colr: *mut JsonValue = json_array_new(mappings.len());
@@ -323,10 +306,11 @@ pub unsafe extern "C" fn otfcc_dump_colr(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_parse_colr(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut ColrTable {
+) -> Option<ColrTable> {
     let mut _colr: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     _colr = json_obj_get_type(
         root,
@@ -334,9 +318,9 @@ pub unsafe extern "C" fn otfcc_parse_colr(
         JsonType::Array,
     );
     if _colr.is_null() {
-        return ::core::ptr::null_mut::<ColrTable>();
+        return None;
     }
-    let mut colr: *mut ColrTable = table_colr_create();
+    let mut colr: ColrTable = Vec::new();
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -409,7 +393,7 @@ pub unsafe extern "C" fn otfcc_parse_colr(
                         }
                         k = k.wrapping_add(1);
                     }
-                    (*colr).push(m);
+                    colr.push(m);
                 }
             }
             j = j.wrapping_add(1);
@@ -419,19 +403,17 @@ pub unsafe extern "C" fn otfcc_parse_colr(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    return colr;
+    return Some(colr);
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_colr(
-    mut _colr: *const ColrTable,
+    _colr: Option<&ColrTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if _colr.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
-    let src: &Vec<ColrMapping> = &*_colr;
-    if src.is_empty() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let src = match _colr {
+        Some(c) if !c.is_empty() => c,
+        _ => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut colr: ColrTable = src.iter().map(colr_mapping_dup).collect();
     colr.sort_by(|a, b| a.glyph.index.cmp(&b.glyph.index));
     let mut current_layer_index: GlyphId = 0 as GlyphId;
@@ -463,6 +445,8 @@ pub unsafe extern "C" fn otfcc_build_colr(
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (colr.len()) as u32), bk_ptr(BkCellType::P32, base_records), bk_ptr(BkCellType::P32, layer_records), bk_int(BkCellType::B16, (current_layer_index as ::core::ffi::c_int) as u32)]);
-    dispose_colr_table(&raw mut colr);
+    // `colr` drops naturally at the end of this scope -- no explicit
+    // dispose call needed (`ColrMapping`'s `Handle` fields already free
+    // themselves via their own `Drop`).
     return bk_build_block(root);
 }

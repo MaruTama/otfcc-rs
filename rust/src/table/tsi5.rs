@@ -20,10 +20,28 @@ use crate::vendor::json_builder::{json_object_push};
 
 
 pub type Tsi5Table = ClassDef;
+// Stage 6-4 "Box化": `Font.tsi5` becomes `Option<Box<Tsi5Table>>`.
+// `ClassDef` itself stays a raw-pointer-constructible type everywhere else
+// in the crate (`GdefTable.glyph_class_def`/`.mark_attach_class_def`, the
+// `OTL_I_CLASS_DEF` package used throughout `otl`/`gdef` consolidation) --
+// widening `otl_class_def_create`/`OTL_I_CLASS_DEF.parse` themselves to
+// return `Box<ClassDef>` would ripple across all of those, well beyond this
+// field's own scope. Instead, `unwrap_class_def` "adopts" the malloc'd
+// value into a genuine `Box`: `ptr::read` moves the `ClassDef` value out
+// (its `Vec` fields' heap buffers are unaffected, only the 3-word
+// descriptors are copied, exactly what a normal Rust move does), then the
+// now-empty outer allocation is released with a bare `free` -- not
+// `otl_class_def_free`, which would incorrectly try to drop the `Vec`s a
+// second time.
+unsafe fn unwrap_class_def(raw: *mut ClassDef) -> Box<ClassDef> {
+    let value = ::core::ptr::read(raw);
+    free(raw as *mut ::core::ffi::c_void);
+    Box::new(value)
+}
 pub unsafe extern "C" fn otfcc_read_tsi5(
     packet: Packet,
     mut _options: *const Options,
-) -> *mut Tsi5Table {
+) -> Option<Box<Tsi5Table>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -52,7 +70,7 @@ pub unsafe extern "C" fn otfcc_read_tsi5(
                         );
                         j = j.wrapping_add(1);
                     }
-                    return tsi5;
+                    return Some(unwrap_class_def(tsi5));
                 }
             }
             __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
@@ -60,16 +78,18 @@ pub unsafe extern "C" fn otfcc_read_tsi5(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<Tsi5Table>();
+    return None;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_tsi5(
-    mut table: *const Tsi5Table,
+    table: Option<&Tsi5Table>,
     mut root: *mut JsonValue,
     mut _options: *const Options,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t as *const Tsi5Table,
+        None => return,
+    };
     json_object_push(
         root,
         b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
@@ -79,7 +99,7 @@ pub unsafe extern "C" fn otfcc_dump_tsi5(
 pub unsafe extern "C" fn otfcc_parse_tsi5(
     mut root: *const JsonValue,
     mut _options: *const Options,
-) -> *mut Tsi5Table {
+) -> Option<Box<Tsi5Table>> {
     let mut _tsi: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     _tsi = json_obj_get_type(
         root,
@@ -87,18 +107,24 @@ pub unsafe extern "C" fn otfcc_parse_tsi5(
         JsonType::Object,
     );
     if _tsi.is_null() {
-        return ::core::ptr::null_mut::<Tsi5Table>();
+        return None;
     }
-    return OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(_tsi) as *mut Tsi5Table;
+    let raw = OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(_tsi);
+    if raw.is_null() {
+        return None;
+    }
+    return Some(unwrap_class_def(raw as *mut ClassDef));
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_tsi5(
-    mut tsi5: *const Tsi5Table,
+    tsi5: Option<&Tsi5Table>,
     mut _options: *const Options,
     mut num_glyphs: GlyphId,
 ) -> *mut Buffer {
-    if tsi5.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let tsi5 = match tsi5 {
+        Some(t) => t as *const Tsi5Table,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut tsi5cls: *mut u16 = ::core::ptr::null_mut::<u16>();
     tsi5cls = __caryll_allocate_clean(
         (::core::mem::size_of::<u16>() as usize).wrapping_mul(num_glyphs as usize),

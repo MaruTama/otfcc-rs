@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, strcmp};
+use libc::{strcmp};
 use crate::support::json_funcs::{json_obj_get_type};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
@@ -50,27 +50,11 @@ pub struct TsiBuildTarget {
     pub index_part: *mut Buffer,
     pub text_part: *mut Buffer,
 }
-// `.glyph` (a `Handle`) and `.content` (now a `Vec<u8>`) both have real
-// drop glue on their own, so a `TsiEntry` (and therefore a `TsiTable`)
-// tears itself down correctly with no manual per-element walk needed --
-// `drop_in_place` runs it through the raw pointer the malloc'd `TsiTable`
-// is behind, same as `table_tsi_free`'s siblings elsewhere in this crate
-// now that `close_rule`'s equivalent for `ChainingRule` established the
-// pattern.
-pub(crate) unsafe fn table_tsi_free(x: *mut TsiTable) {
-    if x.is_null() {
-        return;
-    }
-    ::core::ptr::drop_in_place(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-pub(crate) unsafe fn table_tsi_create() -> *mut TsiTable {
-    // `.write()`, not a field assignment -- same placement-construction
-    // reasoning as `table_name_create`.
-    let x: *mut TsiTable = malloc(::core::mem::size_of::<TsiTable>() as usize) as *mut TsiTable;
-    x.write(Vec::new());
-    x
-}
+// Stage 6-4 "Box化": `Font.tsi_01`/`Font.tsi_23` become `Option<Vec<TsiEntry>>`
+// (not `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
+// `.glyph` (a `Handle`) and `.content` (a `Vec<u8>`) both have real drop
+// glue on their own, so a `TsiEntry` (and therefore a `TsiTable`) tears
+// itself down correctly with no manual per-element walk needed.
 #[inline]
 unsafe extern "C" fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
     if tag_index == 1414744368i32 as u32 {
@@ -80,12 +64,13 @@ unsafe extern "C" fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
         return (gid as ::core::ffi::c_int) < 0xfffa as ::core::ffi::c_int;
     };
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_read_tsi(
     packet: Packet,
     mut _options: *const Options,
     mut tag_index: u32,
     mut tag_text: u32,
-) -> *mut TsiTable {
+) -> Option<TsiTable> {
     let mut text_part: PacketPiece = PacketPiece {
         tag: 0,
         check_sum: 0,
@@ -147,9 +132,9 @@ pub unsafe extern "C" fn otfcc_read_tsi(
         __fortable_count_0 += 1;
     }
     if text_part.tag == 0 || index_part.tag == 0 {
-        return ::core::ptr::null_mut::<TsiTable>();
+        return None;
     }
-    let mut tsi: *mut TsiTable = table_tsi_create();
+    let mut tsi: TsiTable = Vec::new();
     let mut j: u32 = 0 as u32;
     while j.wrapping_mul(8 as u32) < index_part.length {
         let mut gid: u16 = read_16u(
@@ -233,28 +218,30 @@ pub unsafe extern "C" fn otfcc_read_tsi(
                 text_length as usize,
             )
             .to_vec();
-            (*tsi).push(entry);
+            tsi.push(entry);
         }
         j = j.wrapping_add(1);
     }
-    return tsi;
+    return Some(tsi);
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_tsi(
-    mut tsi: *const TsiTable,
+    tsi: Option<&TsiTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
-    if tsi.is_null() {
-        return;
-    }
+    let tsi = match tsi {
+        Some(t) => t,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), tag),
     );
-    let entries: &Vec<TsiEntry> = &*tsi;
+    let entries: &Vec<TsiEntry> = tsi;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _tsi: *mut JsonValue = json_object_new(2 as usize);
@@ -341,17 +328,18 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_parse_tsi(
     mut root: *const JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
-) -> *mut TsiTable {
+) -> Option<TsiTable> {
     let mut _tsi: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     _tsi = json_obj_get_type(root, tag, JsonType::Object);
     if _tsi.is_null() {
-        return ::core::ptr::null_mut::<TsiTable>();
+        return None;
     }
-    let mut tsi: *mut TsiTable = table_tsi_create();
+    let mut tsi: TsiTable = Vec::new();
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -377,7 +365,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                 if !(_content.is_null()
                     || (*_content).type_0 != JsonType::String)
                 {
-                    (*tsi).push(TsiEntry {
+                    tsi.push(TsiEntry {
                             type_0: TsiEntryType::Glyph,
                             glyph: handle_from_name(
                                 sdsnewlen(_gid as *const ::core::ffi::c_void, _gidlen),
@@ -410,7 +398,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                     if strcmp(_key, b"cvt\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
-                        (*tsi).push(TsiEntry {
+                        tsi.push(TsiEntry {
                                 type_0: TsiEntryType::Cvt,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: ::core::slice::from_raw_parts(
@@ -422,7 +410,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                     } else if strcmp(_key, b"fpgm\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
-                        (*tsi).push(TsiEntry {
+                        tsi.push(TsiEntry {
                                 type_0: TsiEntryType::Fpgm,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: ::core::slice::from_raw_parts(
@@ -434,7 +422,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                     } else if strcmp(_key, b"prep\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
-                        (*tsi).push(TsiEntry {
+                        tsi.push(TsiEntry {
                                 type_0: TsiEntryType::Prep,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: ::core::slice::from_raw_parts(
@@ -453,7 +441,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    return tsi;
+    return Some(tsi);
 }
 unsafe extern "C" fn propergid(mut entry: *mut TsiEntry, type_0: TsiEntryType) -> GlyphId {
     match type_0 as ::core::ffi::c_uint {
@@ -514,10 +502,12 @@ unsafe extern "C" fn push_tsi_entries(
         items_pushed = (items_pushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
     }
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_tsi(
-    mut tsi: *const TsiTable,
+    tsi: Option<&TsiTable>,
     mut _options: *const Options,
 ) -> TsiBuildTarget {
+    let tsi: *const TsiTable = tsi.map_or(::core::ptr::null(), |t| t as *const TsiTable);
     let mut target: TsiBuildTarget = TsiBuildTarget {
         index_part: ::core::ptr::null_mut::<Buffer>(),
         text_part: ::core::ptr::null_mut::<Buffer>(),

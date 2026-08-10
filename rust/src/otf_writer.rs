@@ -127,7 +127,7 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1851878757i32 as u32,
-        otfcc_build_name((*font).name, options),
+        otfcc_build_name((*font).name.as_ref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
@@ -258,24 +258,24 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1129270354i32 as u32,
-        otfcc_build_colr((*font).colr, options),
+        otfcc_build_colr((*font).colr.as_ref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         1398163232i32 as u32,
-        otfcc_build_svg((*font).svg, options),
+        otfcc_build_svg((*font).svg.as_ref(), options),
     );
-    let mut target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01, options);
+    let mut target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01.as_ref(), options);
     otfcc_sfnt_builder_push_table(builder, 1414744368i32 as u32, target.index_part);
     otfcc_sfnt_builder_push_table(builder, 1414744369i32 as u32, target.text_part);
-    let mut target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23, options);
+    let mut target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23.as_ref(), options);
     otfcc_sfnt_builder_push_table(builder, 1414744370i32 as u32, target_0.index_part);
     otfcc_sfnt_builder_push_table(builder, 1414744371i32 as u32, target_0.text_part);
     if !(*font).glyf.is_null() {
         otfcc_sfnt_builder_push_table(
             builder,
             1414744373i32 as u32,
-            otfcc_build_tsi5((*font).tsi5, options, (*(*font).glyf).len() as GlyphId),
+            otfcc_build_tsi5((*font).tsi5.as_deref(), options, (*(*font).glyf).len() as GlyphId),
         );
     }
     if (*options).dummy_dsig {

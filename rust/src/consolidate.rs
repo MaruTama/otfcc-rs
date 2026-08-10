@@ -21,7 +21,7 @@ use crate::support::glyph_order::GlyphOrder;
 
 use crate::table::cff::{CffTable};
 use crate::table::gdef::{GdefTable};
-use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup, table_colr_create, table_colr_free};
+use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup};
 
 
 
@@ -63,7 +63,7 @@ use crate::consolidate::otl::gsub_reverse::{consolidate_gsub_reverse};
 use crate::consolidate::otl::gsub_single::{consolidate_gsub_single};
 use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::_tsi::{table_tsi_create, table_tsi_free, tsi_entry_dup};
+use crate::table::_tsi::{tsi_entry_dup};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, otfcc_new_glyf_glyph};
 use crate::table::otl::{otl_feature_list_filter_env, otl_feature_ref_list_filter_env, otl_lookup_list_filter_env, otl_lookup_ref_list_filter_env};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
@@ -1252,15 +1252,15 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
     }
 }
 unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
-    if font.is_null() || (*font).colr.is_null() || (*font).glyph_order.is_none() {
+    if font.is_null() || (*font).colr.is_none() || (*font).glyph_order.is_none() {
         return;
     }
     let glyph_order: *mut GlyphOrder = (*font)
         .glyph_order
         .as_deref_mut()
         .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
-    let mut consolidated: *mut ColrTable = table_colr_create();
-    let source: &mut Vec<ColrMapping> = &mut *(*font).colr;
+    let mut consolidated: ColrTable = Vec::new();
+    let source: &mut Vec<ColrMapping> = (*font).colr.as_mut().unwrap();
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < source.len() {
@@ -1328,7 +1328,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                     __caryll_index_0 = __caryll_index_0.wrapping_add(1);
                 }
                 if mapping.layers.len() != 0 {
-                    (*consolidated).push(m);
+                    consolidated.push(m);
                 } else {
                     (*(*options).logger)
                         .log_sds
@@ -1353,23 +1353,21 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    table_colr_free((*font).colr);
-    (*font).colr = consolidated;
+    (*font).colr = Some(consolidated);
 }
 unsafe extern "C" fn consolidate_tsi(
     mut font: *mut Font,
-    mut _tsi: *mut *mut TsiTable,
+    mut _tsi: *mut Option<TsiTable>,
     mut options: *const Options,
 ) {
-    let mut tsi: *mut TsiTable = *_tsi;
-    if font.is_null() || (*font).glyf.is_null() || tsi.is_null() || (*font).glyph_order.is_none() {
+    if font.is_null() || (*font).glyf.is_null() || (*_tsi).is_none() || (*font).glyph_order.is_none() {
         return;
     }
     let glyph_order: *mut GlyphOrder = (*font)
         .glyph_order
         .as_deref_mut()
         .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
-    let mut consolidated: *mut TsiTable = table_tsi_create();
+    let mut consolidated: TsiTable = Vec::new();
     // `Option<Vec<u8>>` per slot preserves the old null/non-null
     // distinction (`None` = "no entry yet for this GID", `Some` = has
     // content, even if empty) that the raw `*mut SdsRaw` array's
@@ -1377,7 +1375,7 @@ unsafe extern "C" fn consolidate_tsi(
     // drops whatever was there before, so the old explicit
     // free-before-overwrite is now implicit.
     let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; (*(*font).glyf).len()];
-    let entries: &mut Vec<TsiEntry> = &mut *tsi;
+    let entries: &mut Vec<TsiEntry> = (*_tsi).as_mut().unwrap();
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < entries.len() {
@@ -1410,7 +1408,7 @@ unsafe extern "C" fn consolidate_tsi(
                 }
             } else {
                 let e: TsiEntry = tsi_entry_dup(&*entry);
-                (*consolidated).push(e);
+                consolidated.push(e);
             }
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
@@ -1435,16 +1433,17 @@ unsafe extern "C" fn consolidate_tsi(
             .consolidate_handle
             .expect("non-null function pointer")(glyph_order, &raw mut e_0.glyph);
         e_0.content = gid_entries[j as usize].take().unwrap_or_default();
-        (*consolidated).push(e_0);
+        consolidated.push(e_0);
         j = j.wrapping_add(1);
     }
-    table_tsi_free(tsi);
-    (*consolidated).sort_by(|a, b| {
+    consolidated.sort_by(|a, b| {
         (a.type_0 as u32)
             .cmp(&(b.type_0 as u32))
             .then(a.glyph.index.cmp(&b.glyph.index))
     });
-    *_tsi = consolidated;
+    // Old `tsi` (the previous `*_tsi`) drops naturally here, when this
+    // assignment overwrites it -- no explicit `table_tsi_free` needed.
+    *_tsi = Some(consolidated);
 }
 pub unsafe extern "C" fn otfcc_consolidate_font(
     mut font: *mut Font,
@@ -1617,7 +1616,11 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
-        fontop_consolidate_class_def(font, (*font).tsi5 as *mut ClassDef, options);
+        fontop_consolidate_class_def(
+            font,
+            (*font).tsi5.as_deref_mut().map_or(::core::ptr::null_mut(), |c| c as *mut ClassDef),
+            options,
+        );
         ___loggedstep_v_4 = false;
         (*(*options).logger)
             .finish

@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, strcmp};
+use libc::{free, strcmp};
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint, json_obj_getsds, json_obj_getstr_share};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
@@ -17,7 +17,6 @@ use crate::support::buffer::{buffree, bufnew, bufwrite_buf, bufwrite_bytes};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsfree, sdslen};
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct SvgAssignment {
     pub start: GlyphId,
@@ -28,10 +27,21 @@ pub struct SvgAssignment {
 // は所有物だが `Handle`/`sds` ではなく `Buffer`（`buffree`）で、この形の Vec 化は
 // 初めて（`svg_assignment_dup` が `bufnew`+`bufwrite_buf` で本物のディープコピー
 // を行う——`ColrTable`/`TsiTable` と同じく `.clone()` には頼れない）。
+//
+// Stage 6-4 "Box化": `Font.svg` becomes `Option<Vec<SvgAssignment>>` (not
+// `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer, a
+// second `Box` layer would be pure overhead). For a plain `Vec<T>`'s own
+// `Drop` to correctly free every element's `document`, `T` needs a real
+// `Drop` impl -- `Copy`/`Clone` dropped (mutually exclusive with `Drop`;
+// nothing in this file relied on either: duplication always went through
+// `svg_assignment_dup`'s deep copy, never a derive).
 pub type SvgTable = Vec<SvgAssignment>;
-#[inline]
-unsafe extern "C" fn dispose_svg_assignment(mut a: *mut SvgAssignment) {
-    buffree((*a).document);
+impl Drop for SvgAssignment {
+    fn drop(&mut self) {
+        unsafe {
+            buffree(self.document);
+        }
+    }
 }
 #[inline]
 unsafe fn svg_assignment_empty() -> SvgAssignment {
@@ -42,8 +52,9 @@ unsafe fn svg_assignment_empty() -> SvgAssignment {
     }
 }
 /// 本物のディープコピー（`document` を指す `Buffer` を複製する）。
-/// `SvgAssignment` は `Copy` だが、素朴な `.clone()` は `document` ポインタを
-/// エイリアスするだけなので `otfcc_build_svg` のソート済みコピー生成には使えない。
+/// `document`(`*mut Buffer`)を素朴に`.clone()`すると単なるポインタのビット
+/// コピーになりエイリアスしてしまうため、`otfcc_build_svg`のソート済み
+/// コピー生成には使えない——明示的にディープコピーする。
 unsafe fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
     let mut dst: SvgAssignment = svg_assignment_empty();
     dst.start = src.start;
@@ -52,36 +63,13 @@ unsafe fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
     bufwrite_buf(dst.document, src.document);
     dst
 }
-pub(crate) unsafe fn table_svg_dispose(arr: *mut SvgTable) {
-    if arr.is_null() {
-        return;
-    }
-    for a in (*arr).iter_mut() {
-        dispose_svg_assignment(a as *mut SvgAssignment);
-    }
-    (*arr).clear();
-}
-pub(crate) unsafe fn table_svg_free(x: *mut SvgTable) {
-    if x.is_null() {
-        return;
-    }
-    table_svg_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-// `malloc` + placement construction（フィールド代入ではない）: `ColrTable`/
-// `NameTable`/`TsiTable` と同じ形なので calloc の罠は無関係。
-unsafe fn table_svg_create() -> *mut SvgTable {
-    let x: *mut SvgTable = malloc(::core::mem::size_of::<SvgTable>() as usize) as *mut SvgTable;
-    x.write(Vec::new());
-    x
-}
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_read_svg(
     packet: Packet,
     mut _options: *const Options,
-) -> *mut SvgTable {
+) -> Option<SvgTable> {
     let mut offset_to_svg_doc_index: u32 = 0;
     let mut num_entries: u16 = 0;
-    let mut svg: *mut SvgTable = ::core::ptr::null_mut::<SvgTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -108,7 +96,7 @@ pub unsafe extern "C" fn otfcc_read_svg(
                                             as u32,
                                     ))
                             {
-                                svg = table_svg_create();
+                                let mut svg: SvgTable = Vec::new();
                                 let mut j: GlyphId = 0 as GlyphId;
                                 while (j as ::core::ffi::c_int) < num_entries as ::core::ffi::c_int {
                                     let mut record: FontFilePointer = table
@@ -148,15 +136,17 @@ pub unsafe extern "C" fn otfcc_read_svg(
                                     } else {
                                         asg.document = bufnew();
                                     }
-                                    (*svg).push(asg);
+                                    svg.push(asg);
                                     j = j.wrapping_add(1);
                                 }
-                                return svg;
+                                return Some(svg);
                             }
                         }
                     }
-                    table_svg_dispose(svg);
-                    svg = ::core::ptr::null_mut::<SvgTable>();
+                    // No `svg` to dispose here: every path that constructs
+                    // one (deep inside the nested guards above) returns
+                    // immediately afterward, so this branch is only ever
+                    // reached before any allocation happens.
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -166,7 +156,7 @@ pub unsafe extern "C" fn otfcc_read_svg(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return svg;
+    return None;
 }
 unsafe extern "C" fn can_use_plain_format(mut buf: *const Buffer) -> bool {
     return (*buf).size > 4 as usize
@@ -190,21 +180,23 @@ unsafe extern "C" fn can_use_plain_format(mut buf: *const Buffer) -> bool {
             && *(*buf).data.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
                 == 'l' as i32;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_svg(
-    mut svg: *const SvgTable,
+    svg: Option<&SvgTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if svg.is_null() {
-        return;
-    }
+    let svg = match svg {
+        Some(s) => s,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
         crate::sdsbuild!(sdsempty(), b"SVG "),
     );
-    let entries: &Vec<SvgAssignment> = &*svg;
+    let entries: &Vec<SvgAssignment> = svg;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _svg: *mut JsonValue = json_array_new(entries.len());
@@ -275,10 +267,11 @@ pub unsafe extern "C" fn otfcc_dump_svg(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_parse_svg(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut SvgTable {
+) -> Option<SvgTable> {
     let mut _svg: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     _svg = json_obj_get_type(
         root,
@@ -286,9 +279,9 @@ pub unsafe extern "C" fn otfcc_parse_svg(
         JsonType::Array,
     );
     if _svg.is_null() {
-        return ::core::ptr::null_mut::<SvgTable>();
+        return None;
     }
-    let mut svg: *mut SvgTable = table_svg_create();
+    let mut svg: SvgTable = Vec::new();
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -336,7 +329,7 @@ pub unsafe extern "C" fn otfcc_parse_svg(
                         buf = ::core::ptr::null_mut::<u8>();
                         sdsfree(doc);
                     }
-                    (*svg).push(asg);
+                    svg.push(asg);
                 }
             }
             j = j.wrapping_add(1);
@@ -346,18 +339,20 @@ pub unsafe extern "C" fn otfcc_parse_svg(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    return svg;
+    return Some(svg);
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_svg(
-    mut _svg: *const SvgTable,
+    _svg: Option<&SvgTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if _svg.is_null() || (*_svg).is_empty() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let _svg = match _svg {
+        Some(s) if !s.is_empty() => s,
+        _ => return ::core::ptr::null_mut::<Buffer>(),
+    };
     // `TABLE_I_SVG.copy` の代わりに各要素を `svg_assignment_dup` で明示的に
     // ディープコピー（`ColrTable`/`TsiTable` の前例どおり `.clone()` は不可）。
-    let mut svg: SvgTable = (*_svg).iter().map(|a| svg_assignment_dup(a)).collect();
+    let mut svg: SvgTable = _svg.iter().map(|a| svg_assignment_dup(a)).collect();
     svg.sort_by(|a, b| a.start.cmp(&b.start));
     let mut major: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (svg.len()) as u32)]);
     let mut __caryll_index: usize = 0 as usize;
@@ -372,6 +367,8 @@ pub unsafe extern "C" fn otfcc_build_svg(
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 0 as u32), bk_ptr(BkCellType::P32, major), bk_int(BkCellType::B32, 0 as u32)]);
-    table_svg_dispose(&raw mut svg);
+    // `svg` drops naturally at the end of this scope -- each `SvgAssignment`
+    // has a real `Drop` impl now, so the explicit `table_svg_dispose` call
+    // this used to need is gone along with that function.
     return bk_build_block(root);
 }
