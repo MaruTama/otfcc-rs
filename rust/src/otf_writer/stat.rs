@@ -1136,10 +1136,11 @@ unsafe extern "C" fn stat_os_2(mut font: *mut Font, mut options: *const Options)
 }
 pub const MAX_STAT_METRIC: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
 unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
-    if (*font).glyf.is_none() || (*font).cff.is_null() {
+    if (*font).glyf.is_none() || (*font).cff.is_none() {
         return;
     }
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
+    let cff: *mut CffTable = (*font).cff.as_deref_mut().unwrap() as *mut CffTable;
     let mut frequency: *mut u32 = ::core::ptr::null_mut::<u32>();
     frequency = __caryll_allocate_clean(
         (::core::mem::size_of::<u32>() as usize).wrapping_mul(4096 as usize),
@@ -1177,15 +1178,15 @@ unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
     if nn as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
         nominal_width_x = nnsum.wrapping_div(nn as u32) as i16;
     }
-    if !(*(*font).cff).private_dict.is_null() {
-        (*(*(*font).cff).private_dict).default_width_x = maxj as ::core::ffi::c_double;
+    if !(*cff).private_dict.is_null() {
+        (*(*cff).private_dict).default_width_x = maxj as ::core::ffi::c_double;
         if nn as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-            (*(*(*font).cff).private_dict).nominal_width_x = nominal_width_x as ::core::ffi::c_double;
+            (*(*cff).private_dict).nominal_width_x = nominal_width_x as ::core::ffi::c_double;
         }
     }
-    if !(*(*font).cff).fd_array.is_null() {
-        for j_2 in 0..(*(*font).cff).fd_array_count {
-            let fd = *(*(*font).cff).fd_array.offset(j_2 as isize);
+    if !(*cff).fd_array.is_null() {
+        for j_2 in 0..(*cff).fd_array_count {
+            let fd = *(*cff).fd_array.offset(j_2 as isize);
             (*(*fd).private_dict).default_width_x = maxj as ::core::ffi::c_double;
             (*(*fd).private_dict).nominal_width_x = nominal_width_x as ::core::ffi::c_double;
         }
@@ -1194,7 +1195,7 @@ unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
 }
 unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
     if (*font).glyf.is_none()
-        || (*font).cff.is_null()
+        || (*font).cff.is_none()
         || (*font).vhea.is_none()
         || (*font).vmtx.is_none()
     {
@@ -1304,8 +1305,8 @@ pub unsafe extern "C" fn otfcc_stat_font(
                 2082844800 as i64 + time(::core::ptr::null_mut::<time_t>()) as i64;
         }
     }
-    if !head.is_null() && !(*font).cff.is_null() {
-        let mut cff: *mut CffTable = (*font).cff;
+    if !head.is_null() && (*font).cff.is_some() {
+        let mut cff: *mut CffTable = (*font).cff.as_deref_mut().unwrap() as *mut CffTable;
         if (*cff).font_b_box_bottom
             > (*head).y_min as ::core::ffi::c_int as ::core::ffi::c_double
         {

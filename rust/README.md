@@ -5623,3 +5623,80 @@ on the other platform before a commit is trusted.
     ABI export guard, `compare-with-c.sh` byte-identical on every payload
     (including the `otfccdll` cdylib comparison), all 10 payloads' round
     trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化": `Font.cff: *mut CffTable` → `Option<Box<CffTable>>`**
+  — the last field of the Box化 theme, and the largest/most structurally
+  complex table in the crate (3081 lines). **Scope was deliberately
+  narrow**: only `Font.cff` itself (the top-level table) becomes
+  `Option<Box<CffTable>>`. `CffTable.fd_array: *mut *mut CffTable` is
+  self-referential (a CID-keyed CFF font's per-Font-DICT tables, each a
+  full `CffTable`) and stays raw-pointer-based, along with
+  `private_dict`/`font_matrix` — matching the `GdefTable`/`ClassDef`
+  precedent ("only the `Font`-owned top slot gets boxed, the type itself
+  stays raw-pointer-friendly for internal recursive/shared use").
+  Widening `fd_array` to `Vec<Box<CffTable>>` is a separate future task.
+  - **`impl Drop for CffTable` reuses `dispose_fd` unchanged** rather than
+    duplicating its logic — `dispose_fd` already frees exactly the three
+    raw-pointer fields (`private_dict`, `font_matrix`, `fd_array`,
+    recursing into `fd_array` children via the still-live
+    `TABLE_I_CFF.free`) that a derived `Drop` wouldn't otherwise know how
+    to release; the `Vec<u8>` font-info fields it also resets to
+    `Vec::new()` get harmlessly re-dropped (as empty, so a no-op) by
+    Rust's own field-drop after the custom `drop()` body returns. This
+    keeps the manual recursive-free path (still used for `fd_array`
+    children) and the new automatic top-level path doing identically the
+    same teardown.
+  - **New `unwrap_cff_table` helper, reusing the `unwrap_glyf_table`/
+    `unwrap_class_def` idiom**: `table_cff_create` (`malloc`-based) and
+    `fd_from_json` are shared between the top-level table and `fd_array`
+    children (both built the very same way), so neither producer function
+    could switch to constructing via `Box::new` directly without also
+    making the recursive FD-array construction `Box`-aware — out of scope
+    here. `unwrap_cff_table` instead adopts the malloc'd top-level pointer
+    at the one point it needs to become `Font.cff`: `ptr::read` moves the
+    value out (shallow — the `Vec<u8>` heap buffers and the three raw
+    pointer fields all move with it, nothing duplicated), the now-empty
+    shell is released with a bare `free` (not `table_cff_free`, which
+    would incorrectly re-drop everything), and the value is placed into a
+    fresh `Box::new`.
+  - **Producer functions**: `otfcc_parse_cff` now returns
+    `Option<Box<CffTable>>`, calling the unchanged `fd_from_json(dump,
+    options, true)` internally and wrapping the result through
+    `unwrap_cff_table`. `otfcc_read_cff_and_glyf_tables` (the TrueType/CFF
+    dual-path SFNT reader) stays fully unchanged, still returning
+    `CffAndGlyf { meta: *mut CffTable, .. }` — its single consumer
+    (`otf_reader.rs`) applies `unwrap_cff_table(cffpr.meta)` at the
+    assignment into `Font.cff`, the same shape as the `glyf` field's
+    `unwrap_glyf_table(cffpr.glyphs)` from the previous PR.
+  - **`otfcc_dump_cff`** takes `Option<&CffTable>` and derives a raw
+    pointer once at entry, matching `otfcc_dump_otl`/`otfcc_dump_glyf`.
+    **`otfcc_build_cff`/`CffAndGlyf`/`CffExtractContext`/
+    `FdArrayCompileContext` all stay unchanged** — they already only ever
+    carry `*mut CffTable`, so callers just needed a derived raw-pointer
+    alias (`.as_deref()`/`.as_deref_mut()`) at existing construction
+    sites, not a signature change.
+  - **Consumer surface**: 6 files beyond the table's own read/parse/dump/
+    build (`caryll_font.rs`, `consolidate.rs`, `otf_writer/stat.rs`,
+    `otf_writer.rs`, `json_writer.rs`, `otf_reader.rs`), each needing only
+    a handful of touch points — `consolidate_fd_select`/
+    `stat_cff_widths`/`otfcc_stat_font` already took bare `*mut CffTable`.
+  - **No new synthetic payloads needed** — `KRName-Regular.otf`/
+    `KRName-Regular-O2.otf` are CID-keyed CFF fonts that already drive the
+    full `fd_array` recursion (multiple Font DICTs) through read, dump,
+    parse, build, and — critically for this PR — repeated dump/build
+    cycles in `run-cycles.sh`, which would surface a double-free or leak
+    in the recursive teardown path if the `Drop`/`unwrap_cff_table` split
+    were wrong.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including the `otfccdll` cdylib comparison), all 10 payloads' round
+    trips, and the issue #1 golden test.
+- **Box化 theme complete.** Every `Font` field that was a raw
+  `*mut X`/nullable pointer at the start of Stage 6-4 is now either
+  `Option<Box<X>>`, `Option<Vec<T>>`, or (for `glyf`) the direct
+  `Option<GlyfTable>` shape — see the "残り32型の棚卸し"/"Stage 6-1"
+  sections above for the full field-by-field history. Deeper structural
+  work remains inside individual tables (`fd_array`'s self-reference,
+  `private_dict`/`font_matrix`'s own Box化, `Subtable`'s eventual tagged-
+  enum conversion, etc.) but those are separate future tasks, not part of
+  this theme's own scope.

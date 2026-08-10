@@ -126,6 +126,23 @@ pub struct CffTable {
     pub fd_array_count: TableId,
     pub fd_array: *mut *mut CffTable,
 }
+// Stage 6-4 "Box化": only `Font.cff` (the top-level table) becomes
+// `Option<Box<CffTable>>` here -- `private_dict`/`font_matrix`/`fd_array`
+// stay raw pointers (their own Box化, including `fd_array`'s
+// self-referential `Vec<Box<CffTable>>` conversion, is a separate future
+// task). `dispose_fd` already does exactly the right teardown for a
+// value that owns those three pointers but whose `Vec<u8>` fields drop
+// themselves -- reusing it here (rather than duplicating its body) keeps
+// this `Drop` impl and the still-`*mut`-based recursive `fd_array` free
+// path (`TABLE_I_CFF.free` -> `table_cff_dispose` -> `dispose_fd`, used
+// for FD children below) doing identically the same thing.
+impl Drop for CffTable {
+    fn drop(&mut self) {
+        unsafe {
+            dispose_fd(self as *mut CffTable);
+        }
+    }
+}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffTableElementInterface {
@@ -305,6 +322,28 @@ unsafe extern "C" fn table_cff_init(mut x: *mut CffTable) {
 #[inline]
 unsafe extern "C" fn table_cff_dispose(mut x: *mut CffTable) {
     dispose_fd(x);
+}
+// `table_cff_create`/`fd_from_json` are shared between the top-level table
+// (which becomes `Font.cff`) and `fd_array` children (still raw-pointer-
+// owned, built the same way) -- widening either constructor to return a
+// `Box` would force every recursive FD-array call site to also become
+// `Box`-aware, well beyond this field's scope. Instead this adopts the
+// malloc'd top-level pointer into a genuine `Box<CffTable>` at the one
+// point it actually needs to become `Font.cff`: `ptr::read` moves the
+// value out (a shallow copy -- the `Vec<u8>` fields' heap buffers and the
+// `private_dict`/`font_matrix`/`fd_array` pointers all move with it, none
+// of it is duplicated), then the now-empty malloc'd shell is released
+// with a bare `free` (not `table_cff_free`, which would incorrectly
+// re-drop everything a second time), and the value is placed into a
+// fresh `Box::new` allocated via Rust's global allocator. Matches
+// `unwrap_glyf_table`/`unwrap_class_def` from earlier in this migration.
+pub(crate) unsafe fn unwrap_cff_table(raw: *mut CffTable) -> Option<Box<CffTable>> {
+    if raw.is_null() {
+        return None;
+    }
+    let value = ::core::ptr::read(raw);
+    free(raw as *mut ::core::ffi::c_void);
+    Some(Box::new(value))
 }
 unsafe extern "C" fn callback_extract_private(
     mut op: u32,
@@ -1919,10 +1958,11 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
     return _cff;
 }
 pub unsafe extern "C" fn otfcc_dump_cff(
-    mut table: *const CffTable,
+    mut table: Option<&CffTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
+    let table: *const CffTable = table.map_or(::core::ptr::null(), |t| t as *const CffTable);
     if table.is_null() {
         return;
     }
@@ -2229,14 +2269,14 @@ unsafe extern "C" fn fd_from_json(
 pub unsafe extern "C" fn otfcc_parse_cff(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut CffTable {
+) -> Option<Box<CffTable>> {
     let mut dump: *mut JsonValue = json_obj_get_type(
         root,
         b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,
     );
     if dump.is_null() {
-        return ::core::ptr::null_mut::<CffTable>();
+        return None;
     } else {
         let mut cff: *mut CffTable = ::core::ptr::null_mut::<CffTable>();
         (*(*options).logger)
@@ -2255,7 +2295,7 @@ pub unsafe extern "C" fn otfcc_parse_cff(
                 (*options).logger as *mut ILogger
             );
         }
-        return cff;
+        return unwrap_cff_table(cff);
     };
 }
 unsafe extern "C" fn cff_make_charstrings(

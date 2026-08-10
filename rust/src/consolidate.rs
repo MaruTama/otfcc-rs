@@ -353,7 +353,7 @@ pub unsafe extern "C" fn consolidate_glyph(
     consolidate_glyph_contours(g, options);
     consolidate_glyph_references(g, font, options);
     consolidate_glyph_hints(g, options);
-    consolidate_fd_select(&raw mut (*g).fd_select, (*font).cff, options, &(*g).name);
+    consolidate_fd_select(&raw mut (*g).fd_select, (*font).cff.as_deref_mut().map_or(::core::ptr::null_mut(), |c| c as *mut CffTable), options, &(*g).name);
 }
 pub unsafe extern "C" fn get_point_coordinates(
     mut table: *mut GlyfTable,

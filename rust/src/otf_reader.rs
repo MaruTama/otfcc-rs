@@ -17,7 +17,7 @@ use crate::font::caryll_font::{FontSubtype, Font, IFontBuilder};
 use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
 
 
-use crate::table::cff::{CffAndGlyf};
+use crate::table::cff::{CffAndGlyf, unwrap_cff_table};
 use crate::table::glyf::{GlyfIOContext, unwrap_glyf_table};
 
 use crate::font::caryll_font::{OTFCC_I_FONT};
@@ -149,7 +149,7 @@ impl FontBuilder for OtfReader {
                     options,
                     (*font).head.as_deref().map_or(::core::ptr::null(), |h| h as *const HeadTable),
                 );
-            (*font).cff = cffpr.meta;
+            (*font).cff = unwrap_cff_table(cffpr.meta);
             (*font).glyf = unwrap_glyf_table(cffpr.glyphs);
             (*font).vhea = otfcc_read_vhea(packet, options);
             if (*font).vhea.is_some() {

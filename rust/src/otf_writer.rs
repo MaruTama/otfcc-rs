@@ -17,7 +17,7 @@ use crate::support::glyph_order::{GlyphOrder};
 use crate::font::caryll_font::{FontSubtype, Font, IFontSerializer};
 use crate::font::caryll_sfnt_builder::{SfntBuilder};
 
-use crate::table::cff::{CffAndGlyf};
+use crate::table::cff::{CffAndGlyf, CffTable};
 use crate::table::_tsi::TsiBuildTarget;
 
 use crate::table::glyf::{GlyfAndLocaBuffers, GlyfTable};
@@ -95,7 +95,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(builder, 1819239265i32 as u32, pair.loca);
     } else {
         let mut r: CffAndGlyf = CffAndGlyf {
-            meta: (*font).cff,
+            meta: (*font).cff.as_deref_mut().map_or(::core::ptr::null_mut(), |c| c as *mut CffTable),
             glyphs: (*font).glyf.as_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable),
         };
         otfcc_sfnt_builder_push_table(
