@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{calloc, free};
 use crate::support::binio::{read_16u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -21,83 +20,26 @@ pub struct GaspRecord {
     pub symmetric_smoothing: bool,
     pub symmetric_gridfit: bool,
 }
+// Stage 6-4 "Box化": every field this struct owns is already a
+// `Vec`/scalar, so no `Drop` impl is needed -- `Box::new` construction
+// plus the standard drop glue is sufficient. The entire
+// `GaspTableElementInterface` vtable is deleted: grepping confirmed only
+// `.create`/`.free` were ever called from outside this file.
 #[derive(Clone)]
 pub struct GaspTable {
     pub version: u16,
     pub records: Vec<GaspRecord>,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GaspTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GaspTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut GaspTable, *const GaspTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut GaspTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GaspTable>,
-    pub free: Option<unsafe extern "C" fn(*mut GaspTable) -> ()>,
-}
 pub const GASP_DOGRAY: ::core::ffi::c_int = 0x2 as ::core::ffi::c_int;
 pub const GASP_GRIDFIT: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_GRIDFIT: ::core::ffi::c_int = 0x4 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_SMOOTHING: ::core::ffi::c_int = 0x8 as ::core::ffi::c_int;
-#[inline]
-unsafe extern "C" fn init_gasp(mut gasp: *mut GaspTable) {
-    (*gasp).version = 1 as u16;
-    (*gasp).records = Vec::new();
-}
-#[inline]
-unsafe extern "C" fn dispose_gasp(mut gasp: *mut GaspTable) {
-    (*gasp).records = Vec::new();
-}
-#[inline]
-unsafe extern "C" fn table_gasp_create() -> *mut GaspTable {
-    // `calloc`, not `malloc`: `table_gasp_init` assigns straight into
-    // `(*x).records` (`= Vec::new()`), which drops whatever was already
-    // there first. Zeroed memory makes that a no-op (`Vec`'s drop is a no-op
-    // when capacity is 0); uninitialized memory makes it read a garbage
-    // capacity and attempt to deallocate through a garbage pointer.
-    let mut x: *mut GaspTable =
-        calloc(1, ::core::mem::size_of::<GaspTable>() as usize) as *mut GaspTable;
-    table_gasp_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_gasp_dispose(mut x: *mut GaspTable) {
-    dispose_gasp(x);
-}
-#[inline]
-unsafe extern "C" fn table_gasp_copy(mut dst: *mut GaspTable, mut src: *const GaspTable) {
-    (*dst).version = (*src).version;
-    (*dst).records = (*src).records.clone();
-}
-#[inline]
-unsafe extern "C" fn table_gasp_init(mut x: *mut GaspTable) {
-    init_gasp(x);
-}
-pub static TABLE_I_GASP: GaspTableElementInterface = {
-    GaspTableElementInterface {
-        init: Some(table_gasp_init as unsafe extern "C" fn(*mut GaspTable) -> ()),
-        copy: Some(
-            table_gasp_copy as unsafe extern "C" fn(*mut GaspTable, *const GaspTable) -> (),
-        ),
-        dispose: Some(table_gasp_dispose as unsafe extern "C" fn(*mut GaspTable) -> ()),
-        create: Some(table_gasp_create),
-        free: Some(table_gasp_free as unsafe extern "C" fn(*mut GaspTable) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn table_gasp_free(mut x: *mut GaspTable) {
-    if x.is_null() {
-        return;
-    }
-    table_gasp_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
 pub unsafe extern "C" fn otfcc_read_gasp(
     packet: Packet,
     mut options: *const Options,
-) -> *mut GaspTable {
+) -> Option<Box<GaspTable>> {
     let mut num_ranges: TableId = 0;
-    let mut gasp: *mut GaspTable = ::core::ptr::null_mut::<GaspTable>();
+    let mut gasp: Option<Box<GaspTable>> = None;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -113,9 +55,8 @@ pub unsafe extern "C" fn otfcc_read_gasp(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 4 as u32) {
-                        gasp = (
-                            TABLE_I_GASP.create.expect("non-null function pointer"))();
-                        (*gasp).version = read_16u(data as *const u8);
+                        let version = read_16u(data as *const u8);
+                        gasp = Some(Box::new(GaspTable { version, records: Vec::new() }));
                         num_ranges = read_16u(
                             data.offset(2 as ::core::ffi::c_int as isize) as *const u8
                         ) as TableId;
@@ -156,7 +97,7 @@ pub unsafe extern "C" fn otfcc_read_gasp(
                                 record.symmetric_gridfit = range_gasp_behavior as ::core::ffi::c_int
                                     & GASP_SYMMETRIC_GRIDFIT
                                     != 0;
-                                (*gasp).records.push(record);
+                                gasp.as_mut().unwrap().records.push(record);
                                 j = j.wrapping_add(1);
                             }
                             return gasp;
@@ -170,8 +111,7 @@ pub unsafe extern "C" fn otfcc_read_gasp(
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'gasp' corrupted.\n"),
                     );
-                    TABLE_I_GASP.free.expect("non-null function pointer")(gasp);
-                    gasp = ::core::ptr::null_mut::<GaspTable>();
+                    gasp = None;
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -181,16 +121,18 @@ pub unsafe extern "C" fn otfcc_read_gasp(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<GaspTable>();
+    return None;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_gasp(
-    mut table: *const GaspTable,
+    table: Option<&GaspTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -250,8 +192,8 @@ pub unsafe extern "C" fn otfcc_dump_gasp(
 pub unsafe extern "C" fn otfcc_parse_gasp(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut GaspTable {
-    let mut gasp: *mut GaspTable = ::core::ptr::null_mut::<GaspTable>();
+) -> Option<Box<GaspTable>> {
+    let mut gasp: Option<Box<GaspTable>> = None;
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -267,8 +209,7 @@ pub unsafe extern "C" fn otfcc_parse_gasp(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            gasp = (
-                TABLE_I_GASP.create.expect("non-null function pointer"))();
+            gasp = Some(Box::new(GaspTable { version: 1, records: Vec::new() }));
             let mut j: u16 = 0 as u16;
             while (j as ::core::ffi::c_uint) < (*table).u.array.length {
                 let mut r: *mut JsonValue =
@@ -302,7 +243,7 @@ pub unsafe extern "C" fn otfcc_parse_gasp(
                         r,
                         b"symmetric_gridfit\0" as *const u8 as *const ::core::ffi::c_char,
                     );
-                    (*gasp).records.push(record);
+                    gasp.as_mut().unwrap().records.push(record);
                 }
                 j = j.wrapping_add(1);
             }
@@ -316,13 +257,15 @@ pub unsafe extern "C" fn otfcc_parse_gasp(
     }
     return gasp;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_gasp(
-    mut gasp: *const GaspTable,
+    gasp: Option<&GaspTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if gasp.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let gasp = match gasp {
+        Some(g) => g,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut buf: *mut Buffer = bufnew();
     let records: &Vec<GaspRecord> = &(*gasp).records;
     bufwrite16b(buf, 1 as u16);

@@ -1,6 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{calloc, free};
-
+use libc::{free};
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getint, json_obj_getint_fallback, preserialize};
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -31,48 +30,18 @@ pub struct CpalPalette {
     pub type_0: u32,
     pub label: u32,
 }
+// Stage 6-4 "Box化": every field this struct owns is already a
+// `Vec`/scalar, so no `Drop` impl is needed -- `Box::new` construction
+// plus the standard drop glue is sufficient. `init_cpal`/`dispose_cpal`/
+// `table_cpal_{init,dispose,create,copy,free}` all deleted: grepping
+// confirmed `table_cpal_copy` was never called anywhere (not even
+// self-referentially), and `table_cpal_free` was the only one of these
+// ever called from outside this file (from `caryll_font.rs`'s table
+// disposal).
 #[derive(Clone)]
 pub struct CpalTable {
     pub version: u16,
     pub palettes: Vec<CpalPalette>,
-}
-unsafe extern "C" fn init_cpal(mut cpal: *mut CpalTable) {
-    (*cpal).version = 1 as u16;
-    (*cpal).palettes = Vec::new();
-}
-unsafe extern "C" fn dispose_cpal(mut cpal: *mut CpalTable) {
-    (*cpal).palettes = Vec::new();
-}
-#[inline]
-unsafe extern "C" fn table_cpal_dispose(mut x: *mut CpalTable) {
-    dispose_cpal(x);
-}
-#[inline]
-unsafe extern "C" fn table_cpal_init(mut x: *mut CpalTable) {
-    init_cpal(x);
-}
-#[inline]
-unsafe extern "C" fn table_cpal_create() -> *mut CpalTable {
-    // `calloc`, not `malloc`: `init_cpal` assigns straight into
-    // `(*cpal).palettes` (`= Vec::new()`), which drops whatever was already
-    // there first. See rust/README.md's `GaspTable` note -- same fix.
-    let mut x: *mut CpalTable =
-        calloc(1, ::core::mem::size_of::<CpalTable>() as usize) as *mut CpalTable;
-    table_cpal_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_cpal_copy(mut dst: *mut CpalTable, mut src: *const CpalTable) {
-    (*dst).version = (*src).version;
-    (*dst).palettes = (*src).palettes.clone();
-}
-#[inline]
-pub(crate) unsafe extern "C" fn table_cpal_free(mut x: *mut CpalTable) {
-    if x.is_null() {
-        return;
-    }
-    table_cpal_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
 }
 pub static WHITE: CpalColor = CpalColor {
     red: 0xff as u8,
@@ -84,7 +53,7 @@ pub static WHITE: CpalColor = CpalColor {
 pub unsafe extern "C" fn otfcc_read_cpal(
     packet: Packet,
     mut _options: *const Options,
-) -> *mut CpalTable {
+) -> Option<Box<CpalTable>> {
     let mut version: u16 = 0;
     let mut table_header_length: u32 = 0;
     let mut num_palettes_entries: u16 = 0;
@@ -92,7 +61,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
     let mut num_color_records: u16 = 0;
     let mut offset_first_color_record: u32 = 0;
     let mut color_list: *mut CpalColor = ::core::ptr::null_mut::<CpalColor>();
-    let mut t: *mut CpalTable = ::core::ptr::null_mut::<CpalTable>();
+    let mut t: Option<Box<CpalTable>> = None;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -108,7 +77,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 2 as u32) {
-                        t = table_cpal_create();
+                        t = Some(Box::new(CpalTable { version: 0, palettes: Vec::new() }));
                         version = read_16u(data as *const u8);
                         table_header_length =
                             (if version as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
@@ -117,7 +86,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                                 26 as ::core::ffi::c_int
                             }) as u32;
                         if !(length < table_header_length) {
-                            (*t).version = version;
+                            t.as_mut().unwrap().version = version;
                             num_palettes_entries = read_16u(
                                 data.offset(2 as ::core::ffi::c_int as isize) as *const u8,
                             );
@@ -244,11 +213,11 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                                             }
                                             j_1 = j_1.wrapping_add(1);
                                         }
-                                        (*t).palettes.push(palette);
+                                        t.as_mut().unwrap().palettes.push(palette);
                                         j_0 = j_0.wrapping_add(1);
                                     }
                                     if version as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-                                        let palettes: &mut Vec<CpalPalette> = &mut (*t).palettes;
+                                        let palettes: &mut Vec<CpalPalette> = &mut t.as_mut().unwrap().palettes;
                                         let mut offset_palette_type_array: u32 = read_32u(
                                             data.offset(16 as ::core::ffi::c_int as isize).offset(
                                                 (2 as ::core::ffi::c_int
@@ -371,8 +340,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
                             }
                         }
                     }
-                    table_cpal_free(t);
-                    t = ::core::ptr::null_mut::<CpalTable>();
+                    t = None;
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -382,7 +350,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<CpalTable>();
+    return None;
 }
 #[inline]
 unsafe extern "C" fn dump_color(mut color: *const CpalColor) -> *mut JsonValue {
@@ -449,14 +417,16 @@ unsafe extern "C" fn dump_palette(mut palette: *const CpalPalette) -> *mut JsonV
     );
     return _palette;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_cpal(
-    mut table: *const CpalTable,
+    table: Option<&CpalTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -535,7 +505,7 @@ unsafe extern "C" fn parse_color(mut _color: *const JsonValue) -> CpalColor {
 pub unsafe extern "C" fn otfcc_parse_cpal(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut CpalTable {
+) -> Option<Box<CpalTable>> {
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -543,9 +513,9 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
         JsonType::Object,
     );
     if table.is_null() {
-        return ::core::ptr::null_mut::<CpalTable>();
+        return None;
     }
-    let mut cpal: *mut CpalTable = ::core::ptr::null_mut::<CpalTable>();
+    let mut cpal: Option<Box<CpalTable>> = None;
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -560,13 +530,13 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
             JsonType::Array,
         );
         if _palettes.is_null() || (*_palettes).u.array.length == 0 {
-            return ::core::ptr::null_mut::<CpalTable>();
+            return None;
         }
-        cpal = table_cpal_create();
-        (*cpal).version = json_obj_getint(
+        let version = json_obj_getint(
             table,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
         ) as u16;
+        cpal = Some(Box::new(CpalTable { version, palettes: Vec::new() }));
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_uint) < (*_palettes).u.array.length {
             let mut _palette: *mut JsonValue =
@@ -601,7 +571,7 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
                         ));
                         k = k.wrapping_add(1);
                     }
-                    (*cpal).palettes.push(palette);
+                    cpal.as_mut().unwrap().palettes.push(palette);
                 }
             }
             j = j.wrapping_add(1);
@@ -682,13 +652,15 @@ unsafe extern "C" fn build_palette_entry_label(mut cpal: *const CpalTable) -> *m
     }
     return block;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_cpal(
-    mut cpal: *const CpalTable,
+    cpal: Option<&CpalTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if cpal.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let cpal = match cpal {
+        Some(c) => c as *const CpalTable,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     if palettes.is_empty() {
         return ::core::ptr::null_mut::<Buffer>();

@@ -11,16 +11,15 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::vdmx::types::{VdmxTable, VdmxRatioRange, VdmxRecord};
 use crate::bk::bkgraph::{bk_build_block_no_minimize};
-use crate::table::vdmx::types::{TABLE_I_VDMX};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn otfcc_read_vdmx(
     packet: Packet,
     mut options: *const Options,
-) -> *mut VdmxTable {
+) -> Option<Box<VdmxTable>> {
     let mut version: u16 = 0;
     let mut num_ratios: u16 = 0;
-    let mut vdmx: *mut VdmxTable = ::core::ptr::null_mut::<VdmxTable>();
+    let mut vdmx: Option<Box<VdmxTable>> = None;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -41,9 +40,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                 + 6 as ::core::ffi::c_int * num_ratios as ::core::ffi::c_int)
                                 as u32)
                         {
-                            vdmx = (
-                                TABLE_I_VDMX.create.expect("non-null function pointer"))();
-                            (*vdmx).version = version;
+                            vdmx = Some(Box::new(VdmxTable { version, ratios: Vec::new() }));
                             let mut g: ShapeId = 0 as ShapeId;
                             while (g as ::core::ffi::c_int) < num_ratios as ::core::ffi::c_int {
                                 let ratio_range_offset: usize = (6 as ::core::ffi::c_int
@@ -134,7 +131,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                     });
                                     j = j.wrapping_add(1);
                                 }
-                                (*vdmx).ratios.push(r);
+                                vdmx.as_mut().unwrap().ratios.push(r);
                                 g = g.wrapping_add(1);
                             }
                             return vdmx;
@@ -148,8 +145,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'VDMX' corrupted.\n"),
                     );
-                    TABLE_I_VDMX.free.expect("non-null function pointer")(vdmx);
-                    vdmx = ::core::ptr::null_mut::<VdmxTable>();
+                    vdmx = None;
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -161,14 +157,16 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
     }
     return vdmx;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_vdmx(
-    mut vdmx: *const VdmxTable,
+    vdmx: Option<&VdmxTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if vdmx.is_null() {
-        return;
-    }
+    let vdmx = match vdmx {
+        Some(v) => v,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -269,7 +267,7 @@ pub unsafe extern "C" fn otfcc_dump_vdmx(
 pub unsafe extern "C" fn otfcc_parse_vdmx(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut VdmxTable {
+) -> Option<Box<VdmxTable>> {
     let mut _vdmx: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     _vdmx = json_obj_get_type(
         root,
@@ -277,10 +275,9 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
         JsonType::Object,
     );
     if _vdmx.is_null() {
-        return ::core::ptr::null_mut::<VdmxTable>();
+        return None;
     }
-    let mut vdmx: *mut VdmxTable = (
-        TABLE_I_VDMX.create.expect("non-null function pointer"))();
+    let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable { version: 0, ratios: Vec::new() });
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -367,15 +364,17 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    return vdmx;
+    return Some(vdmx);
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_vdmx(
-    mut vdmx: *const VdmxTable,
+    vdmx: Option<&VdmxTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if vdmx.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let vdmx = match vdmx {
+        Some(v) => v,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let ratios: &Vec<VdmxRatioRange> = &(*vdmx).ratios;
     if ratios.is_empty() {
         return ::core::ptr::null_mut::<Buffer>();

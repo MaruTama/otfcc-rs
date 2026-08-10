@@ -7,7 +7,6 @@ use crate::vendor::json::{JsonType, JsonValue};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_decode};
-use crate::table::meta::types::{TABLE_I_META};
 use crate::vendor::sds::{sdsempty};
 // `extern "C"` is a c2rust artifact -- this is only ever called from
 // `otfcc_parse_meta` in this same file, never across a real FFI boundary,
@@ -57,7 +56,7 @@ pub unsafe extern "C" fn parse_meta_data(mut v: *const JsonValue) -> Option<Vec<
 pub unsafe extern "C" fn otfcc_parse_meta(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut MetaTable {
+) -> Option<Box<MetaTable>> {
     let mut _meta: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     _meta = json_obj_get_type(
         root,
@@ -65,7 +64,7 @@ pub unsafe extern "C" fn otfcc_parse_meta(
         JsonType::Object,
     );
     if _meta.is_null() {
-        return ::core::ptr::null_mut::<MetaTable>();
+        return None;
     }
     let mut _meta_entries: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     _meta_entries = json_obj_get_type(
@@ -74,10 +73,9 @@ pub unsafe extern "C" fn otfcc_parse_meta(
         JsonType::Array,
     );
     if _meta_entries.is_null() {
-        return ::core::ptr::null_mut::<MetaTable>();
+        return None;
     }
-    let mut meta: *mut MetaTable = (
-        TABLE_I_META.create.expect("non-null function pointer"))();
+    let mut meta: Box<MetaTable> = Box::new(MetaTable { version: 1, flags: 0, entries: Vec::new() });
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -111,7 +109,7 @@ pub unsafe extern "C" fn otfcc_parse_meta(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    return meta;
+    return Some(meta);
 }
 #[inline]
 unsafe extern "C" fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {

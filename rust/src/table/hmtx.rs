@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
+use libc::{free};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -20,90 +20,42 @@ pub struct HorizontalMetric {
     pub advance_width: Length,
     pub lsb: Pos,
 }
-#[derive(Copy, Clone)]
+// Stage 6-4 "Box化": both fields this struct owns are raw arrays, same
+// shape as `LtshTable`/`VorgTable`. The entire vtable is deleted:
+// grepping confirmed only `.free` was ever called from outside this
+// file (from `caryll_font.rs`'s table disposal and
+// `unconsolidate.rs`'s merge step).
 #[repr(C)]
 pub struct HmtxTable {
     pub metrics: *mut HorizontalMetric,
     pub left_side_bearing: *mut Pos,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct HmtxTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut HmtxTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut HmtxTable, *const HmtxTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut HmtxTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut HmtxTable>,
-    pub free: Option<unsafe extern "C" fn(*mut HmtxTable) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn dispose_hmtx(mut table: *mut HmtxTable) {
-    if !(*table).metrics.is_null() {
-        free((*table).metrics as *mut ::core::ffi::c_void);
-        (*table).metrics = ::core::ptr::null_mut::<HorizontalMetric>();
+impl Drop for HmtxTable {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.metrics.is_null() {
+                free(self.metrics as *mut ::core::ffi::c_void);
+                self.metrics = ::core::ptr::null_mut::<HorizontalMetric>();
+            }
+            if !self.left_side_bearing.is_null() {
+                free(self.left_side_bearing as *mut ::core::ffi::c_void);
+                self.left_side_bearing = ::core::ptr::null_mut::<Pos>();
+            }
+        }
     }
-    if !(*table).left_side_bearing.is_null() {
-        free((*table).left_side_bearing as *mut ::core::ffi::c_void);
-        (*table).left_side_bearing = ::core::ptr::null_mut::<Pos>();
-    }
-}
-#[inline]
-unsafe extern "C" fn table_hmtx_dispose(mut x: *mut HmtxTable) {
-    dispose_hmtx(x);
-}
-#[inline]
-unsafe extern "C" fn table_hmtx_copy(mut dst: *mut HmtxTable, mut src: *const HmtxTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<HmtxTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_hmtx_create() -> *mut HmtxTable {
-    let mut x: *mut HmtxTable =
-        malloc(::core::mem::size_of::<HmtxTable>() as usize) as *mut HmtxTable;
-    table_hmtx_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_hmtx_init(mut x: *mut HmtxTable) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<HmtxTable>() as usize,
-    );
-}
-pub static TABLE_I_HMTX: HmtxTableElementInterface = {
-    HmtxTableElementInterface {
-        init: Some(table_hmtx_init as unsafe extern "C" fn(*mut HmtxTable) -> ()),
-        copy: Some(
-            table_hmtx_copy as unsafe extern "C" fn(*mut HmtxTable, *const HmtxTable) -> (),
-        ),
-        dispose: Some(table_hmtx_dispose as unsafe extern "C" fn(*mut HmtxTable) -> ()),
-        create: Some(table_hmtx_create),
-        free: Some(table_hmtx_free as unsafe extern "C" fn(*mut HmtxTable) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn table_hmtx_free(mut x: *mut HmtxTable) {
-    if x.is_null() {
-        return;
-    }
-    table_hmtx_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
 }
 pub unsafe extern "C" fn otfcc_read_hmtx(
     packet: Packet,
     mut options: *const Options,
     mut hhea: *mut HheaTable,
     mut maxp: *mut MaxpTable,
-) -> *mut HmtxTable {
+) -> Option<Box<HmtxTable>> {
     if hhea.is_null()
         || maxp.is_null()
         || (*hhea).number_of_metrics == 0
         || ((*maxp).num_glyphs as ::core::ffi::c_int) < (*hhea).number_of_metrics as ::core::ffi::c_int
     {
-        return ::core::ptr::null_mut::<HmtxTable>();
+        return None;
     }
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -119,7 +71,6 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
                 while __fortable_k2 != 0 {
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
-                    let mut hmtx: *mut HmtxTable = ::core::ptr::null_mut::<HmtxTable>();
                     let mut count_a: GlyphId = (*hhea).number_of_metrics as GlyphId;
                     let mut count_k: GlyphId = ((*maxp).num_glyphs as ::core::ffi::c_int
                         - (*hhea).number_of_metrics as ::core::ffi::c_int)
@@ -137,32 +88,24 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
                             LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"Table 'hmtx' corrupted.\n"),
                         );
-                        if !hmtx.is_null() {
-                            TABLE_I_HMTX.free.expect("non-null function pointer")(hmtx);
-                            hmtx = ::core::ptr::null_mut::<HmtxTable>();
-                        }
                     } else {
-                        hmtx = __caryll_allocate_clean(
-                            ::core::mem::size_of::<HmtxTable>() as usize,
-                            27 as ::core::ffi::c_ulong,
-                        ) as *mut HmtxTable;
-                        (*hmtx).metrics = __caryll_allocate_clean(
+                        let metrics = __caryll_allocate_clean(
                             (::core::mem::size_of::<HorizontalMetric>() as usize)
                                 .wrapping_mul(count_a as usize),
                             28 as ::core::ffi::c_ulong,
                         ) as *mut HorizontalMetric;
-                        (*hmtx).left_side_bearing = __caryll_allocate_clean(
+                        let left_side_bearing = __caryll_allocate_clean(
                             (::core::mem::size_of::<Pos>() as usize)
                                 .wrapping_mul(count_k as usize),
                             29 as ::core::ffi::c_ulong,
                         ) as *mut Pos;
                         let mut ia: GlyphId = 0 as GlyphId;
                         while (ia as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-                            (*(*hmtx).metrics.offset(ia as isize)).advance_width =
+                            (*metrics.offset(ia as isize)).advance_width =
                                 read_16u(data.offset(
                                     (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
                                 ) as *const u8) as Length;
-                            (*(*hmtx).metrics.offset(ia as isize)).lsb = read_16s(
+                            (*metrics.offset(ia as isize)).lsb = read_16s(
                                 data.offset(
                                     (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
                                 )
@@ -174,7 +117,7 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
                         }
                         let mut ik: GlyphId = 0 as GlyphId;
                         while (ik as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
-                            *(*hmtx).left_side_bearing.offset(ik as isize) = read_16s(
+                            *left_side_bearing.offset(ik as isize) = read_16s(
                                 data.offset(
                                     (count_a as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
                                         as isize,
@@ -186,7 +129,7 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
                                 as Pos;
                             ik = ik.wrapping_add(1);
                         }
-                        return hmtx;
+                        return Some(Box::new(HmtxTable { metrics, left_side_bearing }));
                     }
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -197,18 +140,20 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<HmtxTable>();
+    return None;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_hmtx(
-    mut hmtx: *const HmtxTable,
+    hmtx: Option<&HmtxTable>,
     mut count_a: GlyphId,
     mut count_k: GlyphId,
     mut _options: *const Options,
 ) -> *mut Buffer {
     let mut buf: *mut Buffer = bufnew();
-    if hmtx.is_null() {
-        return buf;
-    }
+    let hmtx = match hmtx {
+        Some(h) => h,
+        None => return buf,
+    };
     if !(*hmtx).metrics.is_null() {
         let mut j: GlyphId = 0 as GlyphId;
         while (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {

@@ -4926,3 +4926,94 @@ on the other platform before a commit is trusted.
     and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
     ABI export guard, `compare-with-c.sh` byte-identical on every payload,
     all 10 payloads' round trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化", batched: 9 more table types (10 `Font` fields) in
+  one PR**, at the user's explicit request to batch this round rather
+  than continue the one-field-per-PR cadence. Before implementing,
+  surveyed every remaining `Font.*: *mut X` field's call-site count
+  (`grep -c` across `otf_reader.rs`/`otf_writer.rs`/`json_reader.rs`/
+  `json_writer.rs`/`otf_writer/stat.rs`/`otf_reader/unconsolidate.rs`/
+  `font/caryll_font.rs`) — this is the real cost driver, not structural
+  complexity: `head`/`maxp`/`vhea`/`hhea`/`os_2`/`cmap` are "simple
+  struct, zero owned pointers" (the easiest `Drop`-impl case in the
+  abstract) but are read/written 15-35 times each inside
+  `otf_writer/stat.rs`'s per-field summary computation, while the 10
+  fields converted here all had ≤15 touch sites, matching the
+  `LtshTable`/`VorgTable` pilots' actual risk profile. Converted this
+  round: `hdmx`, `vdmx`, `cvt_`, `meta`, `gasp`, `cpal`, `fpgm`/`prep`
+  (share `FpgmPrepTable`), `hmtx`, `vmtx`.
+  - **`HdmxTable` (`hdmx`) turned out to be entirely dead** — grepping
+    the whole crate outside `table/hdmx.rs` and `Font`'s own field list
+    found zero references: `otfcc_read_hdmx` is never called from
+    `otf_reader.rs`, there's no `otfcc_build_hdmx` at all, and
+    `caryll_font.rs`'s disposal switch has no arm for it. HDMX (an
+    optional, rarely-used hinting table) was apparently never wired into
+    this crate's read/build pipeline even in the original C. Converted
+    anyway for `Font`-field consistency, at effectively zero risk since
+    there are no call sites to break.
+  - **`VdmxTable`/`CpalTable`/`GaspTable`/`MetaTable` needed no `Drop`
+    impl at all** — every field they (transitively) own was already a
+    `Vec`/scalar from earlier Vec化 PRs (`vdmx.ratios: Vec<VdmxRatioRange>`,
+    `cpal.palettes: Vec<CpalPalette>`, etc.), so `Box::new` construction
+    plus the derived drop glue is sufficient; the vtables existed purely
+    to manage a `calloc`d/`malloc`d wrapper struct around already-safe
+    contents. `CpalTable` didn't even have a full `XTableElementInterface`
+    struct, just free-standing `table_cpal_*` helper functions — same
+    "only `.free` (and here, implicitly `.create`) ever called from
+    outside the file" pattern applied regardless of the vtable's shape.
+    `table_cpal_copy` was confirmed dead (never called anywhere, not even
+    self-referentially) and deleted outright, matching `TABLE_I_VDMX`'s
+    and others' precedent.
+  - **`HdmxTable`/`CvtTable`/`FpgmPrepTable`/`HmtxTable`/`VmtxTable`**
+    match the `LtshTable`/`VorgTable` pattern exactly (one or two owned
+    raw arrays, real `Drop` impl needed). `HmtxTable`/`VmtxTable` each
+    own two independent arrays (`metrics`/`left_side_bearing` and
+    `metrics`/`top_side_bearing` respectively) — both freed in the same
+    `Drop` impl, matching `HdmxTable`'s two-level array precedent from
+    this same batch.
+  - **`FpgmPrepTable`'s `otfcc_parse_fpgm_prep` needed a different
+    construction shape than every other type converted so far**: it
+    builds the table by handing a raw `*mut c_void` to `parse_ttinstr`,
+    which invokes a callback (`make_fpgm_prep_instr`) that writes
+    `.length`/`.bytes` back through that pointer — a callback-driven
+    construction, not a linear "build fields, then `Box::new`" one.
+    Solved by allocating the `Box` first with placeholder field values,
+    then passing `boxed.as_mut() as *mut FpgmPrepTable as *mut c_void`
+    into `parse_ttinstr` so the callback writes directly into the
+    already-boxed storage — `Box`'s heap address is stable once
+    allocated, so this is sound (the callback never sees or moves the
+    `Box` itself, only a raw pointer derived from it, exactly like every
+    other `*mut c_void`-callback pattern already in this crate).
+  - **`merge_hmtx`/`merge_vmtx`/`stat_vorg`'s guard conditions**
+    (`otf_reader/unconsolidate.rs`, `otf_writer/stat.rs`) needed
+    `.is_null()`/`.is_none()` swaps at each of the ~10 non-owning
+    touch sites across these two files, plus `(*font).X.take()` at the
+    point where the table is actually consumed and then implicitly
+    disposed — same "take, use the owned value, let it drop" pattern
+    established by the `LtshTable` pilot, now applied at higher volume.
+  - **No new synthetic payloads needed for any of the nine** — every
+    converted table (except the confirmed-dead `HdmxTable`) is exercised
+    by existing payloads already wired into `compare-with-c.sh`
+    (`vdmx-test.ttf`, `meta-test.ttf`, `BungeeColor-Regular_colr_Windows.ttf`
+    for CPAL, and every TrueType payload for gasp/cvt/fpgm/prep/hmtx/vmtx).
+  - **Deferred, with reasons recorded for the next round**: `head`/
+    `maxp`/`vhea`/`hhea`/`os_2`/`cmap` (15-35 touch sites each,
+    concentrated in `otf_writer/stat.rs`'s summary computation — each
+    deserves focused attention rather than being rushed into a batch);
+    `fvar` (low direct touch count but threaded pervasively through
+    dump/parse "context" structs as a borrowed `ctx.fvar` — the true
+    blast radius needs auditing those context-construction sites, not
+    just direct `Font.fvar` accesses); the six already-`Vec`-backed table
+    types (`glyf`/`name`/`colr`/`svg`/`tsi_01`/`tsi_23`/`tsi5`) — need a
+    design decision (`Option<Vec<T>>`, which gets the null-pointer niche
+    for free since `Vec` is already non-null, vs `Option<Box<Vec<T>>>`)
+    before converting; `gdef`/`base` (nested owned types `ClassDef`/
+    `BaseAxis` whose own Drop/ownership readiness wasn't checked this
+    round); `post` (`post_name_map: *mut GlyphOrder`'s ownership
+    relationship to `Font.glyph_order` is unclear); `glyph_order` itself
+    (foundational, high blast radius); `gsub`/`gpos` (`OtlTable`, 871
+    lines, union-heavy); `cff` (`CffTable`, 3081 lines, by far the
+    largest and most structurally complex table).
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload,
+    all 10 payloads' round trips, and the issue #1 golden test.

@@ -7,13 +7,15 @@ use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_p
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::bk::bkblock::{bk_new_block_from_string_len};
 use crate::bk::bkgraph::{bk_build_block};
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_meta(
-    mut meta: *const MetaTable,
+    meta: Option<&MetaTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if meta.is_null() || (*meta).entries.is_empty() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let meta = match meta {
+        Some(m) if !m.entries.is_empty() => m,
+        _ => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let entries: &Vec<MetaEntry> = &(*meta).entries;
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, ((*meta).version) as u32), bk_int(BkCellType::B32, ((*meta).flags) as u32), bk_int(BkCellType::B32, 0 as u32), bk_int(BkCellType::B32, (entries.len() as u32) as u32)]);
     let mut __caryll_index: usize = 0 as usize;

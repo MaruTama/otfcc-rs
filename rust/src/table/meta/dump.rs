@@ -12,14 +12,16 @@ use crate::vendor::sds::{sdsempty};
 unsafe extern "C" fn is_string_tag(mut tag: u32) -> bool {
     return tag == 1684827751i32 as u32 || tag == 1936485991i32 as u32;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_meta(
-    mut meta: *const MetaTable,
+    meta: Option<&MetaTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if meta.is_null() {
-        return;
-    }
+    let meta = match meta {
+        Some(m) => m,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(

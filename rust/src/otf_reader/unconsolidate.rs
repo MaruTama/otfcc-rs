@@ -31,7 +31,6 @@ use crate::table::glyf::{ComponentReference, Contour, Glyph, GlyfTable};
 
 
 
-use crate::table::hmtx::HmtxTable;
 
 
 
@@ -40,7 +39,6 @@ use crate::table::otl::{ChainingRule, ChainingRuleSet, ChainingSubtable, Lookup,
 
 
 
-use crate::table::vmtx::VmtxTable;
 
 
 use crate::vf::region::{VqAxisSpan};
@@ -50,9 +48,7 @@ use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, 
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
 use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
-use crate::table::hmtx::{TABLE_I_HMTX};
 use crate::table::otl::{otl_subtable_list_dispose_dependent};
-use crate::table::vmtx::{TABLE_I_VMTX};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsnew};
 use crate::vf::vq::{I_VQ};
 
@@ -505,13 +501,14 @@ unsafe extern "C" fn expand_chaining_lookups(font: *mut Font) {
     }
 }
 unsafe extern "C" fn merge_hmtx(font: *mut Font) {
-    if !(!(*font).hhea.is_null() && !(*font).hmtx.is_null() && !(*font).glyf.is_null()) {
+    if !(!(*font).hhea.is_null() && (*font).hmtx.is_some() && !(*font).glyf.is_null()) {
         return;
     }
     let count_a: u32 = (*(*font).hhea).number_of_metrics as u32;
+    let hmtx = (*font).hmtx.take().unwrap();
     for j in 0..(*(*font).glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j as usize].as_mut().unwrap();
-        let adw: Pos = (*(*(*font).hmtx).metrics.offset(
+        let adw: Pos = (*hmtx.metrics.offset(
             (if (j as u32) < count_a {
                 j as u32
             } else {
@@ -520,9 +517,9 @@ unsafe extern "C" fn merge_hmtx(font: *mut Font) {
         ))
         .advance_width as Pos;
         let lsb: Pos = if (j as u32) < count_a {
-            (*(*(*font).hmtx).metrics.offset(j as isize)).lsb
+            (*hmtx.metrics.offset(j as isize)).lsb
         } else {
-            *(*(*font).hmtx)
+            *hmtx
                 .left_side_bearing
                 .offset((j as u32).wrapping_sub(count_a) as isize)
         };
@@ -535,14 +532,13 @@ unsafe extern "C" fn merge_hmtx(font: *mut Font) {
             I_VQ.create_still.expect("non-null function pointer")(-lsb + (*g).stat.x_min) as VQ,
         );
     }
-    TABLE_I_HMTX.free.expect("non-null function pointer")((*font).hmtx);
-    (*font).hmtx = ::core::ptr::null_mut::<HmtxTable>();
 }
 unsafe extern "C" fn merge_vmtx(font: *mut Font) {
-    if !(!(*font).vhea.is_null() && !(*font).vmtx.is_null() && !(*font).glyf.is_null()) {
+    if !(!(*font).vhea.is_null() && (*font).vmtx.is_some() && !(*font).glyf.is_null()) {
         return;
     }
     let count_a: u32 = (*(*font).vhea).num_of_long_ver_metrics as u32;
+    let vmtx = (*font).vmtx.take().unwrap();
     let mut vorgs: *mut Pos = ::core::ptr::null_mut::<Pos>();
     if let Some(vorg) = (*font).vorg.take() {
         vorgs = __caryll_allocate_clean(
@@ -561,7 +557,7 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
     }
     for j_1 in 0..(*(*font).glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j_1 as usize].as_mut().unwrap();
-        let adh: Pos = (*(*(*font).vmtx).metrics.offset(
+        let adh: Pos = (*vmtx.metrics.offset(
             (if (j_1 as u32) < count_a {
                 j_1 as u32
             } else {
@@ -570,9 +566,9 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
         ))
         .advance_height as Pos;
         let tsb: Pos = if (j_1 as u32) < count_a {
-            (*(*(*font).vmtx).metrics.offset(j_1 as isize)).tsb
+            (*vmtx.metrics.offset(j_1 as isize)).tsb
         } else {
-            *(*(*font).vmtx)
+            *vmtx
                 .top_side_bearing
                 .offset((j_1 as u32).wrapping_sub(count_a) as isize)
         };
@@ -593,8 +589,6 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
         free(vorgs as *mut ::core::ffi::c_void);
         vorgs = ::core::ptr::null_mut::<Pos>();
     }
-    TABLE_I_VMTX.free.expect("non-null function pointer")((*font).vmtx);
-    (*font).vmtx = ::core::ptr::null_mut::<VmtxTable>();
 }
 unsafe extern "C" fn merge_ltsh(font: *mut Font) {
     if !(*font).glyf.is_null() {
