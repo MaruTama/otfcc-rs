@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
+use libc::{free};
 
 
 use crate::support::json_funcs::{json_obj_get_type};
@@ -16,78 +16,30 @@ use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_push};
 use crate::vendor::sds::{sdsempty};
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CvtTable {
     pub length: u32,
     pub words: *mut u16,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CvtTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut CvtTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut CvtTable, *const CvtTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut CvtTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut CvtTable>,
-    pub free: Option<unsafe extern "C" fn(*mut CvtTable) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn dispose_cvt(mut table: *mut CvtTable) {
-    if !(*table).words.is_null() {
-        free((*table).words as *mut ::core::ffi::c_void);
-        (*table).words = ::core::ptr::null_mut::<u16>();
+// Stage 6-4 "Box化": `words` is the only allocation this struct owns, same
+// shape as `LtshTable`/`VorgTable`. Grepping confirmed only `.free` was
+// ever called from outside this file (from `caryll_font.rs`'s table
+// disposal); the entire vtable is deleted.
+impl Drop for CvtTable {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.words.is_null() {
+                free(self.words as *mut ::core::ffi::c_void);
+                self.words = ::core::ptr::null_mut::<u16>();
+            }
+        }
     }
 }
-#[inline]
-unsafe extern "C" fn table_cvt_copy(mut dst: *mut CvtTable, mut src: *const CvtTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CvtTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_cvt_free(mut x: *mut CvtTable) {
-    if x.is_null() {
-        return;
-    }
-    table_cvt_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn table_cvt_create() -> *mut CvtTable {
-    let mut x: *mut CvtTable =
-        malloc(::core::mem::size_of::<CvtTable>() as usize) as *mut CvtTable;
-    table_cvt_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_cvt_init(mut x: *mut CvtTable) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<CvtTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_cvt_dispose(mut x: *mut CvtTable) {
-    dispose_cvt(x);
-}
-pub static TABLE_I_CVT: CvtTableElementInterface = {
-    CvtTableElementInterface {
-        init: Some(table_cvt_init as unsafe extern "C" fn(*mut CvtTable) -> ()),
-        copy: Some(table_cvt_copy as unsafe extern "C" fn(*mut CvtTable, *const CvtTable) -> ()),
-        dispose: Some(table_cvt_dispose as unsafe extern "C" fn(*mut CvtTable) -> ()),
-        create: Some(table_cvt_create),
-        free: Some(table_cvt_free as unsafe extern "C" fn(*mut CvtTable) -> ()),
-    }
-};
 pub unsafe extern "C" fn otfcc_read_cvt(
     packet: Packet,
     mut _options: *const Options,
     mut tag: u32,
-) -> *mut CvtTable {
-    let mut t: *mut CvtTable = ::core::ptr::null_mut::<CvtTable>();
+) -> Option<Box<CvtTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -102,25 +54,21 @@ pub unsafe extern "C" fn otfcc_read_cvt(
                 if __fortable_k2 != 0 {
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
-                    t = __caryll_allocate_clean(
-                        ::core::mem::size_of::<CvtTable>() as usize,
-                        16 as ::core::ffi::c_ulong,
-                    ) as *mut CvtTable;
-                    (*t).length = length >> 1 as ::core::ffi::c_int;
-                    (*t).words = __caryll_allocate_clean(
+                    let table_length = length >> 1 as ::core::ffi::c_int;
+                    let words = __caryll_allocate_clean(
                         (::core::mem::size_of::<u16>() as usize)
-                            .wrapping_mul((*t).length.wrapping_add(1 as u32) as usize),
+                            .wrapping_mul(table_length.wrapping_add(1 as u32) as usize),
                         18 as ::core::ffi::c_ulong,
                     ) as *mut u16;
                     let mut j: u16 = 0 as u16;
-                    while (j as u32) < (*t).length {
-                        *(*t).words.offset(j as isize) =
+                    while (j as u32) < table_length {
+                        *words.offset(j as isize) =
                             read_16u(data.offset(
                                 (2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize,
                             ) as *const u8);
                         j = j.wrapping_add(1);
                     }
-                    return t;
+                    return Some(Box::new(CvtTable { length: table_length, words }));
                 }
             }
             __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
@@ -128,17 +76,19 @@ pub unsafe extern "C" fn otfcc_read_cvt(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<CvtTable>();
+    return None;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_cvt(
-    mut table: *const CvtTable,
+    table: Option<&CvtTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -167,8 +117,8 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
     mut root: *const JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
-) -> *mut CvtTable {
-    let mut t: *mut CvtTable = ::core::ptr::null_mut::<CvtTable>();
+) -> Option<Box<CvtTable>> {
+    let mut t: Option<Box<CvtTable>> = None;
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(root, tag, JsonType::Array);
     if !table.is_null() {
@@ -180,31 +130,28 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            t = __caryll_allocate_clean(
-                ::core::mem::size_of::<CvtTable>() as usize,
-                44 as ::core::ffi::c_ulong,
-            ) as *mut CvtTable;
-            (*t).length = (*table).u.array.length as u32;
-            (*t).words = __caryll_allocate_clean(
+            let table_length = (*table).u.array.length as u32;
+            let words = __caryll_allocate_clean(
                 (::core::mem::size_of::<u16>() as usize)
-                    .wrapping_mul((*t).length.wrapping_add(1 as u32) as usize),
+                    .wrapping_mul(table_length.wrapping_add(1 as u32) as usize),
                 46 as ::core::ffi::c_ulong,
             ) as *mut u16;
             let mut j: u16 = 0 as u16;
-            while (j as u32) < (*t).length {
+            while (j as u32) < table_length {
                 let mut record: *mut JsonValue =
                     *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
                 if (*record).type_0 == JsonType::Integer
                 {
-                    *(*t).words.offset(j as isize) = (*record).u.integer as u16;
+                    *words.offset(j as isize) = (*record).u.integer as u16;
                 } else if (*record).type_0 == JsonType::Double
                 {
-                    *(*t).words.offset(j as isize) = (*record).u.dbl as u16;
+                    *words.offset(j as isize) = (*record).u.dbl as u16;
                 } else {
-                    *(*t).words.offset(j as isize) = 0 as u16;
+                    *words.offset(j as isize) = 0 as u16;
                 }
                 j = j.wrapping_add(1);
             }
+            t = Some(Box::new(CvtTable { length: table_length, words }));
             ___loggedstep_v = false;
             (*(*options).logger)
                 .finish
@@ -223,31 +170,28 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
             );
             let mut ___loggedstep_v_0: bool = true;
             while ___loggedstep_v_0 {
-                t = __caryll_allocate_clean(
-                    ::core::mem::size_of::<CvtTable>() as usize,
-                    61 as ::core::ffi::c_ulong,
-                ) as *mut CvtTable;
                 let mut len: usize = 0;
                 let mut raw: *mut u8 = base64_decode(
                     (*table).u.string.ptr as *mut u8,
                     (*table).u.string.length as usize,
                     &raw mut len,
                 );
-                (*t).length = (len >> 1 as ::core::ffi::c_int) as u32;
-                (*t).words = __caryll_allocate_clean(
+                let table_length = (len >> 1 as ::core::ffi::c_int) as u32;
+                let words = __caryll_allocate_clean(
                     (::core::mem::size_of::<u16>() as usize)
-                        .wrapping_mul((*t).length.wrapping_add(1 as u32) as usize),
+                        .wrapping_mul(table_length.wrapping_add(1 as u32) as usize),
                     66 as ::core::ffi::c_ulong,
                 ) as *mut u16;
                 let mut j_0: u16 = 0 as u16;
-                while (j_0 as u32) < (*t).length {
-                    *(*t).words.offset(j_0 as isize) = read_16u(
+                while (j_0 as u32) < table_length {
+                    *words.offset(j_0 as isize) = read_16u(
                         raw.offset((2 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize),
                     );
                     j_0 = j_0.wrapping_add(1);
                 }
                 free(raw as *mut ::core::ffi::c_void);
                 raw = ::core::ptr::null_mut::<u8>();
+                t = Some(Box::new(CvtTable { length: table_length, words }));
                 ___loggedstep_v_0 = false;
                 (*(*options).logger)
                     .finish
@@ -259,13 +203,15 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
     }
     return t;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_cvt(
-    mut table: *const CvtTable,
+    table: Option<&CvtTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if table.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let table = match table {
+        Some(t) => t,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut buf: *mut Buffer = bufnew();
     let mut j: u16 = 0 as u16;
     while (j as u32) < (*table).length {

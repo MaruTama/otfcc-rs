@@ -380,11 +380,6 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
     if (*font).glyf.is_null() {
         return;
     }
-    let mut hmtx: *mut HmtxTable = ::core::ptr::null_mut::<HmtxTable>();
-    hmtx = __caryll_allocate_clean(
-        ::core::mem::size_of::<HmtxTable>() as usize,
-        162 as ::core::ffi::c_ulong,
-    ) as *mut HmtxTable;
     let mut count_a: GlyphId = (*(*font).glyf).len() as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
     let mut lsb_at_x_0: bool = true;
@@ -404,11 +399,11 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
         }
         count_k = (*(*font).glyf).len().wrapping_sub(count_a as usize) as GlyphId;
     }
-    (*hmtx).metrics = __caryll_allocate_clean(
+    let metrics = __caryll_allocate_clean(
         (::core::mem::size_of::<HorizontalMetric>() as usize).wrapping_mul(count_a as usize),
         175 as ::core::ffi::c_ulong,
     ) as *mut HorizontalMetric;
-    (*hmtx).left_side_bearing = __caryll_allocate_clean(
+    let left_side_bearing = __caryll_allocate_clean(
         (::core::mem::size_of::<Pos>() as usize).wrapping_mul(count_k as usize),
         176 as ::core::ffi::c_ulong,
     ) as *mut Pos;
@@ -435,11 +430,10 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
         let lsb: Pos = (*g).stat.x_min - hori;
         let rsb: Pos = advw + hori - (*g).stat.x_max;
         if (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-            (*(*hmtx).metrics.offset(j as isize)).advance_width = advw as Length;
-            (*(*hmtx).metrics.offset(j as isize)).lsb = lsb;
+            (*metrics.offset(j as isize)).advance_width = advw as Length;
+            (*metrics.offset(j as isize)).lsb = lsb;
         } else {
-            *(*hmtx)
-                .left_side_bearing
+            *left_side_bearing
                 .offset((j as ::core::ffi::c_int - count_a as ::core::ffi::c_int) as isize) = lsb;
         }
         if advw > max_width {
@@ -460,7 +454,7 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
     (*(*font).hhea).min_right_side_bearing = min_rsb as i16;
     (*(*font).hhea).x_max_extent = max_extent as i16;
     (*(*font).hhea).advance_width_max = max_width as u16;
-    (*font).hmtx = hmtx;
+    (*font).hmtx = Some(Box::new(HmtxTable { metrics, left_side_bearing }));
     (*(*font).head).flags = ((*(*font).head).flags as ::core::ffi::c_int
         & !(0x2 as ::core::ffi::c_int)
         | (if lsb_at_x_0 { 0x2 as ::core::ffi::c_int } else { 0 as ::core::ffi::c_int }))
@@ -470,11 +464,6 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
     if (*font).glyf.is_null() {
         return;
     }
-    let mut vmtx: *mut VmtxTable = ::core::ptr::null_mut::<VmtxTable>();
-    vmtx = __caryll_allocate_clean(
-        ::core::mem::size_of::<VmtxTable>() as usize,
-        218 as ::core::ffi::c_ulong,
-    ) as *mut VmtxTable;
     let mut count_a: GlyphId = (*(*font).glyf).len() as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
     if !((*font).subtype == FontSubtype::Cff && !(*options).cff_short_vmtx) {
@@ -493,11 +482,11 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
         }
         count_k = (*(*font).glyf).len().wrapping_sub(count_a as usize) as GlyphId;
     }
-    (*vmtx).metrics = __caryll_allocate_clean(
+    let metrics = __caryll_allocate_clean(
         (::core::mem::size_of::<VerticalMetric>() as usize).wrapping_mul(count_a as usize),
         230 as ::core::ffi::c_ulong,
     ) as *mut VerticalMetric;
-    (*vmtx).top_side_bearing = __caryll_allocate_clean(
+    let top_side_bearing = __caryll_allocate_clean(
         (::core::mem::size_of::<Pos>() as usize).wrapping_mul(count_k as usize),
         231 as ::core::ffi::c_ulong,
     ) as *mut Pos;
@@ -514,11 +503,10 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
         let tsb: Pos = vori - (*g).stat.y_max;
         let bsb: Pos = (*g).stat.y_min - vori + advh;
         if (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-            (*(*vmtx).metrics.offset(j as isize)).advance_height = advh as Length;
-            (*(*vmtx).metrics.offset(j as isize)).tsb = tsb;
+            (*metrics.offset(j as isize)).advance_height = advh as Length;
+            (*metrics.offset(j as isize)).tsb = tsb;
         } else {
-            *(*vmtx)
-                .top_side_bearing
+            *top_side_bearing
                 .offset((j as ::core::ffi::c_int - count_a as ::core::ffi::c_int) as isize) = tsb;
         }
         if advh > max_height {
@@ -539,7 +527,7 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
     (*(*font).vhea).min_bottom = min_bsb as i16;
     (*(*font).vhea).y_max_extent = max_extent as i16;
     (*(*font).vhea).advance_height_max = max_height as i16;
-    (*font).vmtx = vmtx;
+    (*font).vmtx = Some(Box::new(VmtxTable { metrics, top_side_bearing }));
 }
 unsafe extern "C" fn stat_os_2_unicode_ranges(
     mut font: *mut Font,
@@ -1174,7 +1162,7 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
     if (*font).glyf.is_null()
         || (*font).cff.is_null()
         || (*font).vhea.is_null()
-        || (*font).vmtx.is_null()
+        || (*font).vmtx.is_none()
     {
         return;
     }
@@ -1360,15 +1348,15 @@ pub unsafe extern "C" fn otfcc_stat_font(
         && (*(*font).maxp).version == 0x10000 as F16Dot16
     {
         stat_maxp(font);
-        if !(*font).fpgm.is_null()
-            && (*(*font).fpgm).length > (*(*font).maxp).max_size_of_instructions as u32
-        {
-            (*(*font).maxp).max_size_of_instructions = (*(*font).fpgm).length as u16;
+        if let Some(fpgm) = &(*font).fpgm {
+            if fpgm.length > (*(*font).maxp).max_size_of_instructions as u32 {
+                (*(*font).maxp).max_size_of_instructions = fpgm.length as u16;
+            }
         }
-        if !(*font).prep.is_null()
-            && (*(*font).prep).length > (*(*font).maxp).max_size_of_instructions as u32
-        {
-            (*(*font).maxp).max_size_of_instructions = (*(*font).prep).length as u16;
+        if let Some(prep) = &(*font).prep {
+            if prep.length > (*(*font).maxp).max_size_of_instructions as u32 {
+                (*(*font).maxp).max_size_of_instructions = prep.length as u16;
+            }
         }
     }
     if !(*font).os_2.is_null() && !(*font).cmap.is_null() && !(*font).glyf.is_null() {

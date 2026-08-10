@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
+use libc::{free, memcpy};
 
 
 use crate::support::json_funcs::{json_obj_get};
@@ -32,65 +32,27 @@ pub struct FpgmPrepTable {
     pub length: u32,
     pub bytes: *mut u8,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FpgmPrepTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut FpgmPrepTable, *const FpgmPrepTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut FpgmPrepTable>,
-    pub free: Option<unsafe extern "C" fn(*mut FpgmPrepTable) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn dispose_fpgm_prep(mut table: *mut FpgmPrepTable) {
-    (*table).tag = Vec::new();
-    if !(*table).bytes.is_null() {
-        free((*table).bytes as *mut ::core::ffi::c_void);
-        (*table).bytes = ::core::ptr::null_mut::<u8>();
+// Stage 6-4 "Box化": `bytes` is the only allocation this struct owns, same
+// shape as `LtshTable`/`VorgTable`/`CvtTable`. The entire vtable is
+// deleted: `.copy` was already confirmed dead (see the comment above),
+// and grepping confirms only `.free` was ever called from outside this
+// file (from `caryll_font.rs`'s table disposal, for both the `fpgm` and
+// `prep` fields, which share this type).
+impl Drop for FpgmPrepTable {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.bytes.is_null() {
+                free(self.bytes as *mut ::core::ffi::c_void);
+                self.bytes = ::core::ptr::null_mut::<u8>();
+            }
+        }
     }
 }
-#[inline]
-unsafe extern "C" fn table_fpgm_prep_init(mut x: *mut FpgmPrepTable) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<FpgmPrepTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_fpgm_prep_free(mut x: *mut FpgmPrepTable) {
-    if x.is_null() {
-        return;
-    }
-    table_fpgm_prep_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn table_fpgm_prep_create() -> *mut FpgmPrepTable {
-    let mut x: *mut FpgmPrepTable =
-        malloc(::core::mem::size_of::<FpgmPrepTable>() as usize) as *mut FpgmPrepTable;
-    table_fpgm_prep_init(x);
-    x
-}
-#[inline]
-unsafe extern "C" fn table_fpgm_prep_dispose(mut x: *mut FpgmPrepTable) {
-    dispose_fpgm_prep(x);
-}
-pub static TABLE_I_FPGM_PREP: FpgmPrepTableElementInterface = {
-    FpgmPrepTableElementInterface {
-        init: Some(table_fpgm_prep_init as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
-        copy: None,
-        dispose: Some(table_fpgm_prep_dispose as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
-        create: Some(table_fpgm_prep_create),
-        free: Some(table_fpgm_prep_free as unsafe extern "C" fn(*mut FpgmPrepTable) -> ()),
-    }
-};
 pub unsafe extern "C" fn otfcc_read_fpgm_prep(
     packet: Packet,
     mut _options: *const Options,
     mut tag: u32,
-) -> *mut FpgmPrepTable {
-    let mut t: *mut FpgmPrepTable = ::core::ptr::null_mut::<FpgmPrepTable>();
+) -> Option<Box<FpgmPrepTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -105,27 +67,18 @@ pub unsafe extern "C" fn otfcc_read_fpgm_prep(
                 while __fortable_k2 != 0 {
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
-                    t = (
-                        TABLE_I_FPGM_PREP.create.expect("non-null function pointer"))();
-                    // Placement-construct: `t` is fresh from `create()`'s
-                    // `memset` (zeroed, not a valid `Vec` bit pattern).
-                    ::core::ptr::write(&raw mut (*t).tag, Vec::new());
-                    (*t).length = length;
-                    (*t).bytes = __caryll_allocate_clean(
+                    let bytes = __caryll_allocate_clean(
                         (::core::mem::size_of::<u8>() as usize)
                             .wrapping_mul(length as usize),
                         22 as ::core::ffi::c_ulong,
                     ) as *mut u8;
-                    if (*t).bytes.is_null() {
-                        TABLE_I_FPGM_PREP.free.expect("non-null function pointer")(t);
-                        t = ::core::ptr::null_mut::<FpgmPrepTable>();
-                    } else {
+                    if !bytes.is_null() {
                         memcpy(
-                            (*t).bytes as *mut ::core::ffi::c_void,
+                            bytes as *mut ::core::ffi::c_void,
                             data as *const ::core::ffi::c_void,
                             length as usize,
                         );
-                        return t;
+                        return Some(Box::new(FpgmPrepTable { tag: Vec::new(), length, bytes }));
                     }
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -136,17 +89,19 @@ pub unsafe extern "C" fn otfcc_read_fpgm_prep(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<FpgmPrepTable>();
+    return None;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn table_dump_table_fpgm_prep(
-    mut table: *const FpgmPrepTable,
+    table: Option<&FpgmPrepTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -185,8 +140,8 @@ pub unsafe extern "C" fn otfcc_parse_fpgm_prep(
     mut root: *const JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
-) -> *mut FpgmPrepTable {
-    let mut t: *mut FpgmPrepTable = ::core::ptr::null_mut::<FpgmPrepTable>();
+) -> Option<Box<FpgmPrepTable>> {
+    let mut t: Option<Box<FpgmPrepTable>> = None;
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get(root, tag);
     if !table.is_null() {
@@ -198,17 +153,14 @@ pub unsafe extern "C" fn otfcc_parse_fpgm_prep(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            t = (
-                TABLE_I_FPGM_PREP.create.expect("non-null function pointer"))();
-            // Placement-construct: see the identical comment in
-            // `otfcc_read_fpgm_prep`.
-            ::core::ptr::write(
-                &raw mut (*t).tag,
-                ::core::ffi::CStr::from_ptr(tag).to_bytes().to_vec(),
-            );
+            let mut boxed = Box::new(FpgmPrepTable {
+                tag: ::core::ffi::CStr::from_ptr(tag).to_bytes().to_vec(),
+                length: 0,
+                bytes: ::core::ptr::null_mut::<u8>(),
+            });
             parse_ttinstr(
                 table,
-                t as *mut ::core::ffi::c_void,
+                boxed.as_mut() as *mut FpgmPrepTable as *mut ::core::ffi::c_void,
                 Some(
                     make_fpgm_prep_instr
                         as unsafe extern "C" fn(
@@ -226,6 +178,7 @@ pub unsafe extern "C" fn otfcc_parse_fpgm_prep(
                         ) -> (),
                 ),
             );
+            t = Some(boxed);
             ___loggedstep_v = false;
             (*(*options).logger)
                 .finish
@@ -236,13 +189,15 @@ pub unsafe extern "C" fn otfcc_parse_fpgm_prep(
     }
     return t;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_fpgm_prep(
-    mut table: *const FpgmPrepTable,
+    table: Option<&FpgmPrepTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if table.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let table = match table {
+        Some(t) => t,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut buf: *mut Buffer = bufnew();
     bufwrite_bytes(buf, (*table).length as usize, (*table).bytes);
     return buf;

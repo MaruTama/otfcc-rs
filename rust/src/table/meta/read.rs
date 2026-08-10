@@ -5,16 +5,15 @@ use crate::support::options::{Options};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
-use crate::table::meta::types::{TABLE_I_META};
 use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn otfcc_read_meta(
     packet: Packet,
     mut options: *const Options,
-) -> *mut MetaTable {
+) -> Option<Box<MetaTable>> {
     let mut version: u32 = 0;
     let mut flags: u32 = 0;
     let mut data_maps_count: u32 = 0;
-    let mut meta: *mut MetaTable = ::core::ptr::null_mut::<MetaTable>();
+    let mut meta: Option<Box<MetaTable>> = None;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -36,10 +35,7 @@ pub unsafe extern "C" fn otfcc_read_meta(
                             < (16 as u32)
                                 .wrapping_add((12 as u32).wrapping_mul(data_maps_count)))
                         {
-                            meta = (
-                                TABLE_I_META.create.expect("non-null function pointer"))();
-                            (*meta).version = version;
-                            (*meta).flags = flags;
+                            meta = Some(Box::new(MetaTable { version, flags, entries: Vec::new() }));
                             let mut j: u32 = 0 as u32;
                             while j < data_maps_count {
                                 let mut tag: u32 = read_32u(
@@ -64,7 +60,7 @@ pub unsafe extern "C" fn otfcc_read_meta(
                                         .offset(8 as ::core::ffi::c_int as isize),
                                 );
                                 if !(table.length < offset.wrapping_add(length)) {
-                                    (*meta).entries.push(MetaEntry {
+                                    meta.as_mut().unwrap().entries.push(MetaEntry {
                                         tag: tag,
                                         data: ::core::slice::from_raw_parts(
                                             table.data.offset(offset as isize),
@@ -86,8 +82,7 @@ pub unsafe extern "C" fn otfcc_read_meta(
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"Table 'meta' corrupted.\n"),
                     );
-                    TABLE_I_META.free.expect("non-null function pointer")(meta);
-                    meta = ::core::ptr::null_mut::<MetaTable>();
+                    meta = None;
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }

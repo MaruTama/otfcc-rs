@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
+use libc::{free, memcpy};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -18,7 +18,6 @@ pub struct DeviceRecord {
     pub max_width: u8,
     pub widths: *mut u8,
 }
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct HdmxTable {
     pub version: u16,
@@ -26,83 +25,37 @@ pub struct HdmxTable {
     pub size_device_record: u32,
     pub records: *mut DeviceRecord,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct HdmxTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut HdmxTable, *const HdmxTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut HdmxTable>,
-    pub free: Option<unsafe extern "C" fn(*mut HdmxTable) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn dispose_hdmx(mut table: *mut HdmxTable) {
-    if (*table).records.is_null() {
-        return;
-    }
-    let mut i: u32 = 0 as u32;
-    while i < (*table).num_records as u32 {
-        if !(*(*table).records.offset(i as isize)).widths.is_null() {
-            free((*(*table).records.offset(i as isize)).widths as *mut ::core::ffi::c_void);
-            let ref mut fresh0 = (*(*table).records.offset(i as isize)).widths;
-            *fresh0 = ::core::ptr::null_mut::<u8>();
+// Stage 6-4 "Box化": `HdmxTable` is entirely dead code -- `otfcc_read_hdmx`
+// is never called from `otf_reader.rs` (HDMX has no wired build/dump path
+// in this crate at all, confirmed by grepping the whole crate for
+// `HdmxTable`/`hdmx` outside this file and `Font`'s own field list), so
+// this conversion has zero call sites to update. Converted anyway for
+// consistency with every other `Font` field. `records` is a C-style array
+// of `DeviceRecord`, each owning a `widths: *mut u8` -- this `Drop` impl
+// replaces the old `dispose_hdmx`/vtable pair exactly.
+impl Drop for HdmxTable {
+    fn drop(&mut self) {
+        unsafe {
+            if self.records.is_null() {
+                return;
+            }
+            for i in 0..self.num_records as isize {
+                let widths = &mut (*self.records.offset(i)).widths;
+                if !widths.is_null() {
+                    free(*widths as *mut ::core::ffi::c_void);
+                    *widths = ::core::ptr::null_mut::<u8>();
+                }
+            }
+            free(self.records as *mut ::core::ffi::c_void);
+            self.records = ::core::ptr::null_mut::<DeviceRecord>();
         }
-        i = i.wrapping_add(1);
     }
-    free((*table).records as *mut ::core::ffi::c_void);
-    (*table).records = ::core::ptr::null_mut::<DeviceRecord>();
-}
-pub static TABLE_I_HDMX: HdmxTableElementInterface = {
-    HdmxTableElementInterface {
-        init: Some(table_hdmx_init as unsafe extern "C" fn(*mut HdmxTable) -> ()),
-        copy: Some(
-            table_hdmx_copy as unsafe extern "C" fn(*mut HdmxTable, *const HdmxTable) -> (),
-        ),
-        dispose: Some(table_hdmx_dispose as unsafe extern "C" fn(*mut HdmxTable) -> ()),
-        create: Some(table_hdmx_create),
-        free: Some(table_hdmx_free as unsafe extern "C" fn(*mut HdmxTable) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn table_hdmx_dispose(mut x: *mut HdmxTable) {
-    dispose_hdmx(x);
-}
-#[inline]
-unsafe extern "C" fn table_hdmx_free(mut x: *mut HdmxTable) {
-    if x.is_null() {
-        return;
-    }
-    table_hdmx_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn table_hdmx_copy(mut dst: *mut HdmxTable, mut src: *const HdmxTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<HdmxTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_hdmx_create() -> *mut HdmxTable {
-    let mut x: *mut HdmxTable =
-        malloc(::core::mem::size_of::<HdmxTable>() as usize) as *mut HdmxTable;
-    table_hdmx_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_hdmx_init(mut x: *mut HdmxTable) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<HdmxTable>() as usize,
-    );
 }
 pub unsafe extern "C" fn otfcc_read_hdmx(
     mut packet: Packet,
     mut _options: *const Options,
     mut maxp: *mut MaxpTable,
-) -> *mut HdmxTable {
+) -> Option<Box<HdmxTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -116,44 +69,39 @@ pub unsafe extern "C" fn otfcc_read_hdmx(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
                     let mut data: FontFilePointer = table.data as FontFilePointer;
-                    let mut hdmx: *mut HdmxTable = ::core::ptr::null_mut::<HdmxTable>();
-                    hdmx = __caryll_allocate_clean(
-                        ::core::mem::size_of::<HdmxTable>() as usize,
-                        20 as ::core::ffi::c_ulong,
-                    ) as *mut HdmxTable;
-                    (*hdmx).version = read_16u(data as *const u8);
-                    (*hdmx).num_records =
+                    let version = read_16u(data as *const u8);
+                    let num_records =
                         read_16u(data.offset(2 as ::core::ffi::c_int as isize) as *const u8);
-                    (*hdmx).size_device_record =
+                    let size_device_record =
                         read_32u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8);
-                    (*hdmx).records = __caryll_allocate_clean(
+                    let records = __caryll_allocate_clean(
                         (::core::mem::size_of::<DeviceRecord>() as usize)
-                            .wrapping_mul((*hdmx).num_records as usize),
+                            .wrapping_mul(num_records as usize),
                         24 as ::core::ffi::c_ulong,
                     ) as *mut DeviceRecord;
                     let mut i: u32 = 0 as u32;
-                    while i < (*hdmx).num_records as u32 {
-                        (*(*hdmx).records.offset(i as isize)).pixel_size = *data
+                    while i < num_records as u32 {
+                        (*records.offset(i as isize)).pixel_size = *data
                             .offset(8 as ::core::ffi::c_int as isize)
                             .offset(i.wrapping_mul(
                                 (2 as ::core::ffi::c_int + (*maxp).num_glyphs as ::core::ffi::c_int)
                                     as u32,
                             ) as isize);
-                        (*(*hdmx).records.offset(i as isize)).max_width = *data
+                        (*records.offset(i as isize)).max_width = *data
                             .offset(8 as ::core::ffi::c_int as isize)
                             .offset(i.wrapping_mul(
                                 (2 as ::core::ffi::c_int + (*maxp).num_glyphs as ::core::ffi::c_int)
                                     as u32,
                             ) as isize)
                             .offset(1 as ::core::ffi::c_int as isize);
-                        let ref mut fresh1 = (*(*hdmx).records.offset(i as isize)).widths;
+                        let ref mut fresh1 = (*records.offset(i as isize)).widths;
                         *fresh1 = __caryll_allocate_clean(
                             (::core::mem::size_of::<u8>() as usize)
                                 .wrapping_mul((*maxp).num_glyphs as usize),
                             29 as ::core::ffi::c_ulong,
                         ) as *mut u8;
                         memcpy(
-                            (*(*hdmx).records.offset(i as isize)).widths
+                            (*records.offset(i as isize)).widths
                                 as *mut ::core::ffi::c_void,
                             data.offset(8 as ::core::ffi::c_int as isize)
                                 .offset(i.wrapping_mul(
@@ -167,7 +115,12 @@ pub unsafe extern "C" fn otfcc_read_hdmx(
                         );
                         i = i.wrapping_add(1);
                     }
-                    return hdmx;
+                    return Some(Box::new(HdmxTable {
+                        version,
+                        num_records,
+                        size_device_record,
+                        records,
+                    }));
                 }
             }
             __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
@@ -175,5 +128,5 @@ pub unsafe extern "C" fn otfcc_read_hdmx(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<HdmxTable>();
+    return None;
 }

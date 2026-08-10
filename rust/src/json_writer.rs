@@ -72,7 +72,7 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_post((*font).post, root, options);
     otfcc_dump_os_2((*font).os_2, root, options);
     otfcc_dump_name((*font).name, root, options);
-    otfcc_dump_meta((*font).meta, root, options);
+    otfcc_dump_meta((*font).meta.as_deref(), root, options);
     otfcc_dump_cmap((*font).cmap, root, options);
     otfcc_dump_cff((*font).cff, root, options);
     let mut ctx: GlyfIOContext = GlyfIOContext {
@@ -86,26 +86,26 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_glyf((*font).glyf, root, options, &raw mut ctx);
     if !(*options).ignore_hints {
         table_dump_table_fpgm_prep(
-            (*font).fpgm,
+            (*font).fpgm.as_deref(),
             root,
             options,
             b"fpgm\0" as *const u8 as *const ::core::ffi::c_char,
         );
         table_dump_table_fpgm_prep(
-            (*font).prep,
+            (*font).prep.as_deref(),
             root,
             options,
             b"prep\0" as *const u8 as *const ::core::ffi::c_char,
         );
         otfcc_dump_cvt(
-            (*font).cvt_,
+            (*font).cvt_.as_deref(),
             root,
             options,
             b"cvt_\0" as *const u8 as *const ::core::ffi::c_char,
         );
-        otfcc_dump_gasp((*font).gasp, root, options);
+        otfcc_dump_gasp((*font).gasp.as_deref(), root, options);
     }
-    otfcc_dump_vdmx((*font).vdmx, root, options);
+    otfcc_dump_vdmx((*font).vdmx.as_deref(), root, options);
     otfcc_dump_otl(
         (*font).gsub,
         root,
@@ -120,7 +120,7 @@ impl FontSerializer for JsonSerializer {
     );
     otfcc_dump_gdef((*font).gdef, root, options);
     otfcc_dump_base((*font).base, root, options);
-    otfcc_dump_cpal((*font).cpal, root, options);
+    otfcc_dump_cpal((*font).cpal.as_deref(), root, options);
     otfcc_dump_colr((*font).colr, root, options);
     otfcc_dump_svg((*font).svg, root, options);
     otfcc_dump_tsi(

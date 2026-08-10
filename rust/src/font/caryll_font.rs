@@ -46,26 +46,19 @@ use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::base::{TABLE_I_BASE};
 use crate::table::cff::{TABLE_I_CFF};
 use crate::table::colr::{table_colr_free};
-use crate::table::cpal::{table_cpal_free};
 use crate::table::gdef::{table_gdef_free};
 use crate::table::os_2::{TABLE_I_OS_2};
 use crate::table::svg::{table_svg_free};
 use crate::table::_tsi::{table_tsi_free};
 use crate::table::cmap::{TABLE_I_CMAP};
-use crate::table::cvt::{TABLE_I_CVT};
-use crate::table::fpgm_prep::{TABLE_I_FPGM_PREP};
-use crate::table::gasp::{TABLE_I_GASP};
 use crate::table::glyf::{table_glyf_free};
 use crate::table::head::{TABLE_I_HEAD};
 use crate::table::hhea::{TABLE_I_HHEA};
-use crate::table::hmtx::{TABLE_I_HMTX};
 use crate::table::maxp::{TABLE_I_MAXP};
-use crate::table::meta::types::{TABLE_I_META};
 use crate::table::name::{table_name_create, table_name_free};
 use crate::table::otl::{table_otl_create, table_otl_free};
 use crate::table::post::{I_TABLE_POST};
 use crate::table::vhea::{TABLE_I_VHEA};
-use crate::table::vmtx::{TABLE_I_VMTX};
 
 
 
@@ -84,28 +77,28 @@ pub struct Font {
     pub hhea: *mut HheaTable,
     pub maxp: *mut MaxpTable,
     pub os_2: *mut Os2Table,
-    pub hmtx: *mut HmtxTable,
+    pub hmtx: Option<Box<HmtxTable>>,
     pub post: *mut PostTable,
-    pub hdmx: *mut HdmxTable,
+    pub hdmx: Option<Box<HdmxTable>>,
     pub vhea: *mut VheaTable,
-    pub vmtx: *mut VmtxTable,
+    pub vmtx: Option<Box<VmtxTable>>,
     pub vorg: Option<Box<VorgTable>>,
     pub cff: *mut CffTable,
     pub glyf: *mut GlyfTable,
     pub cmap: *mut CmapTable,
     pub name: *mut NameTable,
-    pub meta: *mut MetaTable,
-    pub fpgm: *mut FpgmPrepTable,
-    pub prep: *mut FpgmPrepTable,
-    pub cvt_: *mut CvtTable,
-    pub gasp: *mut GaspTable,
-    pub vdmx: *mut VdmxTable,
+    pub meta: Option<Box<MetaTable>>,
+    pub fpgm: Option<Box<FpgmPrepTable>>,
+    pub prep: Option<Box<FpgmPrepTable>>,
+    pub cvt_: Option<Box<CvtTable>>,
+    pub gasp: Option<Box<GaspTable>>,
+    pub vdmx: Option<Box<VdmxTable>>,
     pub ltsh: Option<Box<LtshTable>>,
     pub gsub: *mut OtlTable,
     pub gpos: *mut OtlTable,
     pub gdef: *mut GdefTable,
     pub base: *mut BaseTable,
-    pub cpal: *mut CpalTable,
+    pub cpal: Option<Box<CpalTable>>,
     pub colr: *mut ColrTable,
     pub svg: *mut SvgTable,
     pub tsi_01: *mut TsiTable,
@@ -184,24 +177,15 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1835365473 => {
-            if !(*font).meta.is_null() {
-                TABLE_I_META.free.expect("non-null function pointer")((*font).meta);
-                (*font).meta = ::core::ptr::null_mut::<MetaTable>();
-            }
+            (*font).meta = None;
             return;
         }
         1752003704 => {
-            if !(*font).hmtx.is_null() {
-                TABLE_I_HMTX.free.expect("non-null function pointer")((*font).hmtx);
-                (*font).hmtx = ::core::ptr::null_mut::<HmtxTable>();
-            }
+            (*font).hmtx = None;
             return;
         }
         1986884728 => {
-            if !(*font).vmtx.is_null() {
-                TABLE_I_VMTX.free.expect("non-null function pointer")((*font).vmtx);
-                (*font).vmtx = ::core::ptr::null_mut::<VmtxTable>();
-            }
+            (*font).vmtx = None;
             return;
         }
         1886352244 => {
@@ -219,31 +203,19 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1718642541 => {
-            if !(*font).fpgm.is_null() {
-                TABLE_I_FPGM_PREP.free.expect("non-null function pointer")((*font).fpgm);
-                (*font).fpgm = ::core::ptr::null_mut::<FpgmPrepTable>();
-            }
+            (*font).fpgm = None;
             return;
         }
         1886545264 => {
-            if !(*font).prep.is_null() {
-                TABLE_I_FPGM_PREP.free.expect("non-null function pointer")((*font).prep);
-                (*font).prep = ::core::ptr::null_mut::<FpgmPrepTable>();
-            }
+            (*font).prep = None;
             return;
         }
         1668707423 | 1668707360 => {
-            if !(*font).cvt_.is_null() {
-                TABLE_I_CVT.free.expect("non-null function pointer")((*font).cvt_);
-                (*font).cvt_ = ::core::ptr::null_mut::<CvtTable>();
-            }
+            (*font).cvt_ = None;
             return;
         }
         1734439792 => {
-            if !(*font).gasp.is_null() {
-                TABLE_I_GASP.free.expect("non-null function pointer")((*font).gasp);
-                (*font).gasp = ::core::ptr::null_mut::<GaspTable>();
-            }
+            (*font).gasp = None;
             return;
         }
         1128679007 | 1128678944 => {
@@ -304,10 +276,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1129333068 => {
-            if !(*font).cpal.is_null() {
-                table_cpal_free((*font).cpal);
-                (*font).cpal = ::core::ptr::null_mut::<CpalTable>();
-            }
+            (*font).cpal = None;
             return;
         }
         1129270354 => {
