@@ -1,8 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
-
-
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u, read_32s, read_64u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -36,73 +32,16 @@ pub struct HeadTable {
     pub index_to_loc_format: i16,
     pub glyph_data_format: i16,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct HeadTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut HeadTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut HeadTable, *const HeadTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut HeadTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut HeadTable>,
-    pub free: Option<unsafe extern "C" fn(*mut HeadTable) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn init_head(mut head: *mut HeadTable) {
-    memset(
-        head as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<HeadTable>() as usize,
-    );
-    (*head).magic_number = 0x5f0f3cf5 as u32;
-    (*head).units_per_em = 1000 as u16;
-}
-#[inline]
-unsafe extern "C" fn dispose_head(mut _head: *mut HeadTable) {}
-#[inline]
-unsafe extern "C" fn table_head_free(mut x: *mut HeadTable) {
-    if x.is_null() {
-        return;
-    }
-    table_head_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn table_head_copy(mut dst: *mut HeadTable, mut src: *const HeadTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<HeadTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_head_dispose(mut x: *mut HeadTable) {
-    dispose_head(x);
-}
-pub static TABLE_I_HEAD: HeadTableElementInterface = {
-    HeadTableElementInterface {
-        init: Some(table_head_init as unsafe extern "C" fn(*mut HeadTable) -> ()),
-        copy: Some(
-            table_head_copy as unsafe extern "C" fn(*mut HeadTable, *const HeadTable) -> (),
-        ),
-        dispose: Some(table_head_dispose as unsafe extern "C" fn(*mut HeadTable) -> ()),
-        create: Some(table_head_create),
-        free: Some(table_head_free as unsafe extern "C" fn(*mut HeadTable) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn table_head_create() -> *mut HeadTable {
-    let mut x: *mut HeadTable =
-        malloc(::core::mem::size_of::<HeadTable>() as usize) as *mut HeadTable;
-    table_head_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_head_init(mut x: *mut HeadTable) {
-    init_head(x);
-}
+// Stage 6-4 "Box化": every field is a scalar, so no `Drop` impl is
+// needed -- `Box::new` construction is sufficient (`Copy, Clone` stay
+// on the struct, same reasoning as `Os2Table`/`HheaTable`/`VheaTable`).
+// The entire vtable is deleted: grepping the bare `TABLE_I_HEAD`
+// identifier confirmed only `.create`/`.free` were ever called, both
+// internal to this crate.
 pub unsafe extern "C" fn otfcc_read_head(
     packet: Packet,
     mut options: *const Options,
-) -> *mut HeadTable {
+) -> Option<Box<HeadTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -127,11 +66,8 @@ pub unsafe extern "C" fn otfcc_read_head(
                             crate::sdsbuild!(sdsempty(), b"table 'head' corrupted.\n"),
                         );
                     } else {
-                        let mut head: *mut HeadTable = ::core::ptr::null_mut::<HeadTable>();
-                        head = __caryll_allocate_clean(
-                            ::core::mem::size_of::<HeadTable>() as usize,
-                            24 as ::core::ffi::c_ulong,
-                        ) as *mut HeadTable;
+                        let mut head_box: Box<HeadTable> = Box::new(::core::mem::zeroed());
+                        let head: *mut HeadTable = head_box.as_mut() as *mut HeadTable;
                         (*head).version = read_32s(data as *const u8) as F16Dot16;
                         (*head).font_revision = read_32u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8,
@@ -181,7 +117,7 @@ pub unsafe extern "C" fn otfcc_read_head(
                         (*head).glyph_data_format = read_16u(
                             data.offset(52 as ::core::ffi::c_int as isize) as *const u8,
                         ) as i16;
-                        return head;
+                        return Some(head_box);
                     }
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -192,7 +128,7 @@ pub unsafe extern "C" fn otfcc_read_head(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<HeadTable>();
+    return None;
 }
 static HEAD_FLAGS_LABELS: [&::core::ffi::CStr; 15] = [
     c"baselineAtY_0",
@@ -220,14 +156,16 @@ static MAC_STYLE_LABELS: [&::core::ffi::CStr; 7] = [
     c"condensed",
     c"extended",
 ];
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_head(
-    mut table: *const HeadTable,
+    table: Option<&HeadTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t as *const HeadTable,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -332,9 +270,17 @@ pub unsafe extern "C" fn otfcc_dump_head(
 pub unsafe extern "C" fn otfcc_parse_head(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut HeadTable {
-    let mut head: *mut HeadTable = (
-        TABLE_I_HEAD.create.expect("non-null function pointer"))();
+) -> Option<Box<HeadTable>> {
+    // Reproduces `init_head`'s two non-zero defaults exactly:
+    // `.magic_number` is never set anywhere in this function's body below
+    // (unlike every other field), so it must carry this default through;
+    // `.units_per_em` *is* always overwritten by the `json_obj_getnum_fallback`
+    // call below, so its zeroed value here is immediately discarded either way.
+    let mut head_val: HeadTable = ::core::mem::zeroed();
+    head_val.magic_number = 0x5f0f3cf5 as u32;
+    head_val.units_per_em = 1000 as u16;
+    let mut head_box: Box<HeadTable> = Box::new(head_val);
+    let head: *mut HeadTable = head_box.as_mut() as *mut HeadTable;
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -434,15 +380,17 @@ pub unsafe extern "C" fn otfcc_parse_head(
             );
         }
     }
-    return head;
+    return Some(head_box);
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_head(
-    mut head: *const HeadTable,
+    head: Option<&HeadTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if head.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let head = match head {
+        Some(h) => h as *const HeadTable,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*head).version as u32);
     bufwrite32b(buf, (*head).font_revision);

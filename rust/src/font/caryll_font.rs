@@ -50,13 +50,9 @@ use crate::table::gdef::{table_gdef_free};
 use crate::table::svg::{table_svg_free};
 use crate::table::_tsi::{table_tsi_free};
 use crate::table::glyf::{table_glyf_free};
-use crate::table::head::{TABLE_I_HEAD};
-use crate::table::hhea::{TABLE_I_HHEA};
-use crate::table::maxp::{TABLE_I_MAXP};
 use crate::table::name::{table_name_create, table_name_free};
 use crate::table::otl::{table_otl_create, table_otl_free};
 use crate::table::post::{I_TABLE_POST};
-use crate::table::vhea::{TABLE_I_VHEA};
 
 
 
@@ -71,14 +67,14 @@ use crate::table::vhea::{TABLE_I_VHEA};
 pub struct Font {
     pub subtype: FontSubtype,
     pub fvar: *mut FvarTable,
-    pub head: *mut HeadTable,
-    pub hhea: *mut HheaTable,
-    pub maxp: *mut MaxpTable,
+    pub head: Option<Box<HeadTable>>,
+    pub hhea: Option<Box<HheaTable>>,
+    pub maxp: Option<Box<MaxpTable>>,
     pub os_2: Option<Box<Os2Table>>,
     pub hmtx: Option<Box<HmtxTable>>,
     pub post: *mut PostTable,
     pub hdmx: Option<Box<HdmxTable>>,
-    pub vhea: *mut VheaTable,
+    pub vhea: Option<Box<VheaTable>>,
     pub vmtx: Option<Box<VmtxTable>>,
     pub vorg: Option<Box<VorgTable>>,
     pub cff: *mut CffTable,
@@ -140,24 +136,15 @@ unsafe extern "C" fn create_font_table(
 unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
     match tag {
         1751474532 => {
-            if !(*font).head.is_null() {
-                TABLE_I_HEAD.free.expect("non-null function pointer")((*font).head);
-                (*font).head = ::core::ptr::null_mut::<HeadTable>();
-            }
+            (*font).head = None;
             return;
         }
         1751672161 => {
-            if !(*font).hhea.is_null() {
-                TABLE_I_HHEA.free.expect("non-null function pointer")((*font).hhea);
-                (*font).hhea = ::core::ptr::null_mut::<HheaTable>();
-            }
+            (*font).hhea = None;
             return;
         }
         1835104368 => {
-            if !(*font).maxp.is_null() {
-                TABLE_I_MAXP.free.expect("non-null function pointer")((*font).maxp);
-                (*font).maxp = ::core::ptr::null_mut::<MaxpTable>();
-            }
+            (*font).maxp = None;
             return;
         }
         1330863922 | 1330851634 => {
@@ -191,10 +178,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1986553185 => {
-            if !(*font).vhea.is_null() {
-                TABLE_I_VHEA.free.expect("non-null function pointer")((*font).vhea);
-                (*font).vhea = ::core::ptr::null_mut::<VheaTable>();
-            }
+            (*font).vhea = None;
             return;
         }
         1718642541 => {

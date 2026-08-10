@@ -39,16 +39,16 @@ use crate::table::fpgm_prep::{otfcc_read_fpgm_prep};
 use crate::table::fvar::{otfcc_read_fvar};
 use crate::table::gasp::{otfcc_read_gasp};
 use crate::table::glyf::read::{otfcc_read_glyf};
-use crate::table::head::{otfcc_read_head};
-use crate::table::hhea::{otfcc_read_hhea};
+use crate::table::head::{otfcc_read_head, HeadTable};
+use crate::table::hhea::{otfcc_read_hhea, HheaTable};
 use crate::table::hmtx::{otfcc_read_hmtx};
-use crate::table::maxp::{otfcc_read_maxp};
+use crate::table::maxp::{otfcc_read_maxp, MaxpTable};
 use crate::table::meta::read::{otfcc_read_meta};
 use crate::table::name::{otfcc_read_name};
 use crate::table::otl::read::{otfcc_read_otl};
 use crate::table::post::{otfcc_read_post};
 use crate::table::vdmx::funcs::{otfcc_read_vdmx};
-use crate::table::vhea::{otfcc_read_vhea};
+use crate::table::vhea::{otfcc_read_vhea, VheaTable};
 use crate::table::vmtx::{otfcc_read_vmtx};
 
 
@@ -112,10 +112,20 @@ impl FontBuilder for OtfReader {
         (*font).hhea = otfcc_read_hhea(packet, options);
         (*font).cmap = otfcc_read_cmap(packet, options);
         if (*font).subtype == FontSubtype::Ttf {
-            (*font).hmtx = otfcc_read_hmtx(packet, options, (*font).hhea, (*font).maxp);
+            (*font).hmtx = otfcc_read_hmtx(
+                packet,
+                options,
+                (*font).hhea.as_deref_mut().map_or(::core::ptr::null_mut(), |h| h as *mut HheaTable),
+                (*font).maxp.as_deref_mut().map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
+            );
             (*font).vhea = otfcc_read_vhea(packet, options);
-            if !(*font).vhea.is_null() {
-                (*font).vmtx = otfcc_read_vmtx(packet, options, (*font).vhea, (*font).maxp);
+            if (*font).vhea.is_some() {
+                (*font).vmtx = otfcc_read_vmtx(
+                    packet,
+                    options,
+                    (*font).vhea.as_deref_mut().map_or(::core::ptr::null_mut(), |v| v as *mut VheaTable),
+                    (*font).maxp.as_deref_mut().map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
+                );
             }
             (*font).fpgm = otfcc_read_fpgm_prep(packet, options, 1718642541i32 as u32);
             (*font).prep = otfcc_read_fpgm_prep(packet, options, 1886545264i32 as u32);
@@ -124,8 +134,8 @@ impl FontBuilder for OtfReader {
             (*font).vdmx = otfcc_read_vdmx(packet, options);
             (*font).ltsh = otfcc_read_ltsh(packet, options);
             let mut ctx: GlyfIOContext = GlyfIOContext {
-                loca_is_long: (*(*font).head).index_to_loc_format != 0,
-                num_glyphs: (*(*font).maxp).num_glyphs as GlyphId,
+                loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
+                num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
                 n_phantom_points: 4 as ShapeId,
                 fvar: (*font).fvar,
                 has_vertical_metrics: false,
@@ -134,12 +144,21 @@ impl FontBuilder for OtfReader {
             (*font).glyf = otfcc_read_glyf(packet, options, &raw mut ctx);
         } else {
             let mut cffpr: CffAndGlyf =
-                otfcc_read_cff_and_glyf_tables(packet, options, (*font).head);
+                otfcc_read_cff_and_glyf_tables(
+                    packet,
+                    options,
+                    (*font).head.as_deref().map_or(::core::ptr::null(), |h| h as *const HeadTable),
+                );
             (*font).cff = cffpr.meta;
             (*font).glyf = cffpr.glyphs;
             (*font).vhea = otfcc_read_vhea(packet, options);
-            if !(*font).vhea.is_null() {
-                (*font).vmtx = otfcc_read_vmtx(packet, options, (*font).vhea, (*font).maxp);
+            if (*font).vhea.is_some() {
+                (*font).vmtx = otfcc_read_vmtx(
+                    packet,
+                    options,
+                    (*font).vhea.as_deref_mut().map_or(::core::ptr::null_mut(), |v| v as *mut VheaTable),
+                    (*font).maxp.as_deref_mut().map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
+                );
                 (*font).vorg = otfcc_read_vorg(packet, options);
             }
         }

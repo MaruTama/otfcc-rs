@@ -5125,3 +5125,65 @@ on the other platform before a commit is trusted.
     and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
     ABI export guard, `compare-with-c.sh` byte-identical on every payload,
     all 10 payloads' round trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化", batched: `head`/`hhea`/`maxp`/`vhea` (4 `Font`
+  fields) in one PR**, per the user's explicit "Box化をまとめて対応して"
+  instruction to batch conversions rather than ship one field per PR.
+  A call-site-count survey across `otf_reader.rs`/`otf_writer.rs`/
+  `json_reader.rs`/`json_writer.rs`/`otf_writer/stat.rs`/
+  `otf_reader/unconsolidate.rs` showed `head`/`maxp` are the *most*
+  expensive remaining fields to convert (33/35 touches) despite having
+  the structurally simplest layout (zero owned pointers) — the cost
+  comes entirely from `otf_writer/stat.rs`'s per-field summary
+  computation, not from the type itself. `hhea`/`vhea` are cheap (≤15
+  touches) and share the same `mem::zeroed()` construction shape, so
+  all four were grouped into one PR rather than four.
+  - All four structs kept `#[derive(Copy, Clone)]` unchanged — no
+    owned pointers, same as `Os2Table`.
+  - **`mem::zeroed()` construction, field-by-field audited for which
+    defaults must survive**: each of the four `otfcc_parse_X` functions
+    was checked field-by-field for whether the old C `init_X`'s
+    non-zero default is unconditionally overwritten later in the same
+    function body (safe to leave zeroed) or only overwritten if the
+    corresponding JSON key is present (must be explicitly preserved).
+    `HeadTable.magic_number = 0x5f0f3cf5` and `.units_per_em = 1000`,
+    `MaxpTable.version = 0x10000`, `HheaTable.version = 0x10000` are
+    never touched elsewhere in their parse functions when the JSON key
+    is absent, so they're set explicitly on the zeroed value before
+    boxing; every other field in all four structs is unconditionally
+    written later in the same function, so the zeroed default is
+    discarded either way and needed no explicit handling.
+  - **New pattern: "raw-pointer alias, derived once" for
+    `otfcc_stat_font`** (`otf_writer/stat.rs`) — this ~140-line
+    orchestrator touches `(*(*font).head)`/`(*(*font).maxp)` across
+    roughly 35 call sites spread over multiple independently-guarded
+    sections. Rather than converting every individual deref to
+    `Option`-aware syntax, two raw pointers are derived once at
+    function entry — `let head: *mut HeadTable =
+    (*font).head.as_deref_mut().map_or(ptr::null_mut(), |h| h as *mut
+    HeadTable);` (valid even when the field is `None`, giving a null
+    pointer matching old semantics exactly) — then every
+    `(*(*font).head)`/`(*(*font).maxp)` mechanically becomes
+    `(*head)`/`(*maxp)` and every `!(*font).head.is_null()` becomes
+    `!head.is_null()`, preserving every existing null-check-based
+    control-flow branch byte-for-byte. Applied via a Python script
+    targeting the exact line range rather than hand-editing 35 sites.
+  - **"Hoist once via `.unwrap()`" reapplied** for `stat_glyf`/
+    `stat_maxp`/`stat_hmtx`/`stat_vmtx` — each is only ever called
+    under a confirmed-`Some` guard at its call site (same rule as the
+    `Os2Table` `stat_os_2_*` helpers), so each hoists its table pointer
+    once via `.unwrap()` at function entry. `stat_hmtx` additionally
+    hoists `head` via `.map_or(null_mut(), ...)` (not `.unwrap()`)
+    since `.head.flags` is touched unconditionally there without an
+    explicit guard in the original code.
+  - Vtable deletion for all four types confirmed via bare-identifier
+    grep (`grep -n "TABLE_I_HEAD"`, no anchored dot) — the lesson from
+    the `CmapTable` PR, where an anchored `grep -n "TABLE_I_X\."` missed
+    a method call wrapped onto its own line.
+  - **No new synthetic payload needed** — all four tables are present
+    in every payload, already covered by `compare-with-c.sh`/
+    `run-cycles.sh`.
+  - Verified with the standard full pipeline on both macOS (arm64
+    native) and Linux (`otfcc-stage0-verify` container) — 0 warnings,
+    44/44 tests, ABI export guard, `compare-with-c.sh` byte-identical
+    on every payload (including the `otfccdll` cdylib comparison), all
+    10 payloads' round trips, and the issue #1 golden test.

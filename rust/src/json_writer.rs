@@ -65,10 +65,10 @@ impl FontSerializer for JsonSerializer {
         return NULL;
     }
     otfcc_dump_fvar((*font).fvar, root, options);
-    otfcc_dump_head((*font).head, root, options);
-    otfcc_dump_hhea((*font).hhea, root, options);
-    otfcc_dump_maxp((*font).maxp, root, options);
-    otfcc_dump_vhea((*font).vhea, root, options);
+    otfcc_dump_head((*font).head.as_deref(), root, options);
+    otfcc_dump_hhea((*font).hhea.as_deref(), root, options);
+    otfcc_dump_maxp((*font).maxp.as_deref(), root, options);
+    otfcc_dump_vhea((*font).vhea.as_deref(), root, options);
     otfcc_dump_post((*font).post, root, options);
     otfcc_dump_os_2((*font).os_2.as_deref(), root, options);
     otfcc_dump_name((*font).name, root, options);
@@ -76,11 +76,11 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_cmap((*font).cmap.as_deref(), root, options);
     otfcc_dump_cff((*font).cff, root, options);
     let mut ctx: GlyfIOContext = GlyfIOContext {
-        loca_is_long: (*(*font).head).index_to_loc_format != 0,
-        num_glyphs: (*(*font).maxp).num_glyphs as GlyphId,
+        loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
+        num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
         n_phantom_points: 4 as ShapeId,
         fvar: (*font).fvar,
-        has_vertical_metrics: !(*font).vhea.is_null(),
+        has_vertical_metrics: (*font).vhea.is_some(),
         export_fd_select: !(*font).cff.is_null() && (*(*font).cff).is_cid as ::core::ffi::c_int != 0,
     };
     otfcc_dump_glyf((*font).glyf, root, options, &raw mut ctx);

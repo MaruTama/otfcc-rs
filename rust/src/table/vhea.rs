@@ -1,9 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
-
-
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_16s, read_32s};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -37,72 +33,17 @@ pub struct VheaTable {
     pub metric_data_format: i16,
     pub num_of_long_ver_metrics: u16,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VheaTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut VheaTable, *const VheaTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut VheaTable>,
-    pub free: Option<unsafe extern "C" fn(*mut VheaTable) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn init_vhea(mut vhea: *mut VheaTable) {
-    memset(
-        vhea as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<VheaTable>() as usize,
-    );
-    (*vhea).version = 0x10000 as ::core::ffi::c_int as F16Dot16;
-}
-#[inline]
-unsafe extern "C" fn dispose_vhea(mut _vhea: *mut VheaTable) {}
-#[inline]
-unsafe extern "C" fn table_vhea_dispose(mut x: *mut VheaTable) {
-    dispose_vhea(x);
-}
-#[inline]
-unsafe extern "C" fn table_vhea_free(mut x: *mut VheaTable) {
-    if x.is_null() {
-        return;
-    }
-    table_vhea_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn table_vhea_create() -> *mut VheaTable {
-    let mut x: *mut VheaTable =
-        malloc(::core::mem::size_of::<VheaTable>() as usize) as *mut VheaTable;
-    table_vhea_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_vhea_init(mut x: *mut VheaTable) {
-    init_vhea(x);
-}
-pub static TABLE_I_VHEA: VheaTableElementInterface = {
-    VheaTableElementInterface {
-        init: Some(table_vhea_init as unsafe extern "C" fn(*mut VheaTable) -> ()),
-        copy: Some(
-            table_vhea_copy as unsafe extern "C" fn(*mut VheaTable, *const VheaTable) -> (),
-        ),
-        dispose: Some(table_vhea_dispose as unsafe extern "C" fn(*mut VheaTable) -> ()),
-        create: Some(table_vhea_create),
-        free: Some(table_vhea_free as unsafe extern "C" fn(*mut VheaTable) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn table_vhea_copy(mut dst: *mut VheaTable, mut src: *const VheaTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<VheaTable>() as usize,
-    );
-}
+// Stage 6-4 "Box化": every field is a scalar, so no `Drop` impl is
+// needed -- `Box::new` construction is sufficient (`Copy, Clone` stay
+// on the struct, same reasoning as `Os2Table`/`HheaTable`). The entire
+// vtable is deleted: grepping the bare `TABLE_I_VHEA` identifier
+// confirmed only `.create`/`.free` were ever called, both internal to
+// this crate.
 pub unsafe extern "C" fn otfcc_read_vhea(
     packet: Packet,
     mut options: *const Options,
-) -> *mut VheaTable {
+) -> Option<Box<VheaTable>> {
+    let mut vhea_box: Option<Box<VheaTable>> = None;
     let mut vhea: *mut VheaTable = ::core::ptr::null_mut::<VheaTable>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -119,10 +60,8 @@ pub unsafe extern "C" fn otfcc_read_vhea(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: usize = table.length as usize;
                     if length >= 36 as usize {
-                        vhea = __caryll_allocate_clean(
-                            ::core::mem::size_of::<VheaTable>() as usize,
-                            20 as ::core::ffi::c_ulong,
-                        ) as *mut VheaTable;
+                        vhea_box = Some(Box::new(::core::mem::zeroed()));
+                        vhea = vhea_box.as_deref_mut().unwrap() as *mut VheaTable;
                         (*vhea).version = read_32s(data as *const u8) as F16Dot16;
                         (*vhea).ascent = read_16s(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
@@ -162,7 +101,7 @@ pub unsafe extern "C" fn otfcc_read_vhea(
                         (*vhea).num_of_long_ver_metrics = read_16u(
                             data.offset(34 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        return vhea;
+                        return vhea_box;
                     } else {
                         (*(*options).logger)
                             .log_sds
@@ -182,16 +121,18 @@ pub unsafe extern "C" fn otfcc_read_vhea(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<VheaTable>();
+    return None;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_vhea(
-    mut table: *const VheaTable,
+    table: Option<&VheaTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t as *const VheaTable,
+        None => return,
+    };
     let mut vhea: *mut JsonValue = json_object_new(11 as usize);
     (*(*options).logger)
         .start_sds
@@ -270,7 +211,8 @@ pub unsafe extern "C" fn otfcc_dump_vhea(
 pub unsafe extern "C" fn otfcc_parse_vhea(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut VheaTable {
+) -> Option<Box<VheaTable>> {
+    let mut vhea_box: Option<Box<VheaTable>> = None;
     let mut vhea: *mut VheaTable = ::core::ptr::null_mut::<VheaTable>();
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
@@ -279,11 +221,8 @@ pub unsafe extern "C" fn otfcc_parse_vhea(
         JsonType::Object,
     );
     if !table.is_null() {
-        vhea = (
-            TABLE_I_VHEA.create.expect("non-null function pointer"))();
-        if vhea.is_null() {
-            return ::core::ptr::null_mut::<VheaTable>();
-        }
+        vhea_box = Some(Box::new(::core::mem::zeroed()));
+        vhea = vhea_box.as_deref_mut().unwrap() as *mut VheaTable;
         (*(*options).logger)
             .start_sds
             .expect("non-null function pointer")(
@@ -354,15 +293,17 @@ pub unsafe extern "C" fn otfcc_parse_vhea(
             );
         }
     }
-    return vhea;
+    return vhea_box;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_vhea(
-    mut vhea: *const VheaTable,
+    vhea: Option<&VheaTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if vhea.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let vhea = match vhea {
+        Some(v) => v as *const VheaTable,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*vhea).version as u32);
     bufwrite16b(buf, (*vhea).ascent as u16);

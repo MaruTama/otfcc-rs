@@ -501,10 +501,10 @@ unsafe extern "C" fn expand_chaining_lookups(font: *mut Font) {
     }
 }
 unsafe extern "C" fn merge_hmtx(font: *mut Font) {
-    if !(!(*font).hhea.is_null() && (*font).hmtx.is_some() && !(*font).glyf.is_null()) {
+    if !((*font).hhea.is_some() && (*font).hmtx.is_some() && !(*font).glyf.is_null()) {
         return;
     }
-    let count_a: u32 = (*(*font).hhea).number_of_metrics as u32;
+    let count_a: u32 = (*font).hhea.as_deref().unwrap().number_of_metrics as u32;
     let hmtx = (*font).hmtx.take().unwrap();
     for j in 0..(*(*font).glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*(*font).glyf))[j as usize].as_mut().unwrap();
@@ -534,10 +534,10 @@ unsafe extern "C" fn merge_hmtx(font: *mut Font) {
     }
 }
 unsafe extern "C" fn merge_vmtx(font: *mut Font) {
-    if !(!(*font).vhea.is_null() && (*font).vmtx.is_some() && !(*font).glyf.is_null()) {
+    if !((*font).vhea.is_some() && (*font).vmtx.is_some() && !(*font).glyf.is_null()) {
         return;
     }
-    let count_a: u32 = (*(*font).vhea).num_of_long_ver_metrics as u32;
+    let count_a: u32 = (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics as u32;
     let vmtx = (*font).vmtx.take().unwrap();
     let mut vorgs: *mut Pos = ::core::ptr::null_mut::<Pos>();
     if let Some(vorg) = (*font).vorg.take() {
