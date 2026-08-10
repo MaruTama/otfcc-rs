@@ -226,7 +226,7 @@ impl FontSerializer for OtfSerializer {
         builder,
         1196643650i32 as u32,
         otfcc_build_otl(
-            (*font).gsub,
+            (*font).gsub.as_deref(),
             options,
             b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
         ),
@@ -235,7 +235,7 @@ impl FontSerializer for OtfSerializer {
         builder,
         1196445523i32 as u32,
         otfcc_build_otl(
-            (*font).gpos,
+            (*font).gpos.as_deref(),
             options,
             b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
         ),

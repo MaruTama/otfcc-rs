@@ -612,15 +612,12 @@ pub(crate) fn new_lookup() -> Box<Lookup> {
 // テーブル全体の `.copy`（`otl_lookup_list_copy`、生存していた `LookupPtr`
 // 単体copyと同じく死んでいる）は削除。
 //
-// 要素が `Box<Lookup>` になったので、per-element の dispose ループは不要:
-// `Vec` の drop glue が各 `Box` を解放し、`Lookup::drop` が type-dispatched
-// な `SubtableList` の破棄と `name` の `sdsfree` をやる。
-pub(crate) unsafe fn otl_lookup_list_dispose(arr: *mut LookupList) {
-    if arr.is_null() {
-        return;
-    }
-    *arr = Vec::new();
-}
+// `otl_lookup_list_dispose`（旧`table_otl_free`専用の全ドロップヘルパ）も
+// 削除: `Font.gsub`/`Font.gpos`のBox化で`table_otl_free`自体が死んだため、
+// この関数を呼ぶ場所が無くなった。`Option<Box<OtlTable>>`が`None`になる
+// （または単に破棄される）だけで`LookupList`（`Vec<Box<Lookup>>`)は
+// 自動的にフルドロップされる——`Lookup::drop`がtype-dispatchedな
+// `SubtableList`の破棄と`name`の解放をやる。
 // 元の「スワップして末尾を切り詰め」ループを`Vec::retain`に素直に置き換え。
 pub(crate) unsafe fn otl_lookup_list_filter_env(
     arr: *mut LookupList,
@@ -679,18 +676,10 @@ pub(crate) fn new_feature() -> Box<Feature> {
 }
 // `FeaturePtr`単体の`.copy`(生ポインタmemcpy)は`FeatureList`の死んだ
 // `.copy`からしか呼ばれておらず削除。
-// テーブル全体の`.copy`（死んでいる）は削除。`.dispose`は`dispose_otl`から
-// 生存（`SubtableList`/`LookupList`と同じ理由でフルドロップ）。
-//
-// 要素が `Box<Feature>` になったので、per-element の dispose ループは不要:
-// `Vec` の drop glue が各 `Box` を解放し、`Feature::drop` が `name` を
-// `sdsfree` する。
-pub(crate) unsafe fn otl_feature_list_dispose(arr: *mut FeatureList) {
-    if arr.is_null() {
-        return;
-    }
-    *arr = Vec::new();
-}
+// テーブル全体の`.copy`（死んでいる）は削除。`otl_feature_list_dispose`
+// （旧`table_otl_free`専用ヘルパ）も同じ理由で削除——`LookupList`と同じく
+// `FeatureList`（`Vec<Box<Feature>>`）は`OtlTable`ごと破棄されれば
+// 自動的にフルドロップされる。
 pub(crate) unsafe fn otl_feature_list_filter_env(
     arr: *mut FeatureList,
     fn_0: Option<unsafe extern "C" fn(*const Feature, *mut ::core::ffi::c_void) -> bool>,
@@ -739,23 +728,19 @@ pub(crate) fn new_language() -> Box<LanguageSystem> {
         features: Vec::new(),
     })
 }
-// テーブル全体の`.copy`（死んでいる）は削除。`.dispose`は`dispose_otl`から
-// 生存（同じ理由でフルドロップ）。このコンテナだけ`.filter_env`スロットが
-// 元から無い——言語システム自体は間引かれず、`.features`(FeatureRefList)
-// だけが間引かれる。
+// テーブル全体の`.copy`（死んでいる）は削除。`otl_lang_system_list_dispose`
+// （旧`table_otl_free`専用ヘルパ）も同じ理由で削除。このコンテナだけ
+// `.filter_env`スロットが元から無い——言語システム自体は間引かれず、
+// `.features`(FeatureRefList)だけが間引かれる。
 //
-// 要素が `Box<LanguageSystem>` になったので、per-element の dispose ループは
-// 不要: `Vec` の drop glue が各 `Box` を解放し、`LanguageSystem::drop` が
-// `name` を `sdsfree` する。`.clear()` ではなく `Vec::new()` なのは従来通り
-// （呼び出し元が直後に enclosing 構造体を生 `free()` するケースがあるため）。
-pub(crate) unsafe fn otl_lang_system_list_dispose(arr: *mut LangSystemList) {
-    if arr.is_null() {
-        return;
-    }
-    *arr = Vec::new();
-}
-// `calloc`、`malloc`ではない: `init_otl`が`.lookups`/`.features`/`.languages`
-// へ直接フィールド代入(`= Vec::new()`)するため、gaspと同じ罠が当てはまる。
+// `Font.gsub`/`Font.gpos`が`Option<Box<OtlTable>>`になったので
+// `table_otl_free`自体が不要になった（`Option`の破棄／再代入で
+// `LookupList`/`FeatureList`/`LangSystemList`が自動的にフルドロップされる）。
+// `table_otl_create`/`init_otl`は`create_font_table`の死んだ
+// `create_table`ベクタースロット（`table_name_create`と同じ理由で
+// 呼び出し側が存在しない）専用に残す——`calloc`、`malloc`ではない点も
+// 従来通り（`init_otl`が`.lookups`/`.features`/`.languages`へ直接フィールド
+// 代入(`= Vec::new()`)するため、gaspと同じ罠が当てはまる）。
 #[inline]
 pub(crate) unsafe fn table_otl_create() -> *mut OtlTable {
     let x: *mut OtlTable =
@@ -769,19 +754,7 @@ unsafe fn init_otl(table: *mut OtlTable) {
     (*table).features = Vec::new();
     (*table).languages = Vec::new();
 }
-// enclosing `OtlTable`自体が直後に生の`free()`で解放されるため、3つとも
-// `.clear()`ではなくフルドロップ。
-#[inline]
-pub(crate) unsafe fn table_otl_free(x: *mut OtlTable) {
-    if x.is_null() {
-        return;
-    }
-    otl_lookup_list_dispose(&raw mut (*x).lookups);
-    otl_feature_list_dispose(&raw mut (*x).features);
-    otl_lang_system_list_dispose(&raw mut (*x).languages);
-    free(x as *mut ::core::ffi::c_void);
-}
-// テーブル全体の`.copy`（`table_otl_copy`、生ポインタのmemcpy）は
+// テーブル全体の `.copy`（`table_otl_copy`、生ポインタのmemcpy）は
 // crate全体で一度も呼ばれておらず削除——Vec所有下でのmemcpyは
 // 3つの内側リストすべての二重解放になるため、`.clone()`への移植も不要。
 

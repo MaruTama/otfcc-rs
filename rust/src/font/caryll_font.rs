@@ -43,7 +43,7 @@ use crate::table::vmtx::VmtxTable;
 use crate::consolidate::{otfcc_consolidate_font};
 use crate::table::cff::{TABLE_I_CFF};
 use crate::table::name::{table_name_create};
-use crate::table::otl::{table_otl_create, table_otl_free};
+use crate::table::otl::{table_otl_create};
 
 
 
@@ -79,8 +79,8 @@ pub struct Font {
     pub gasp: Option<Box<GaspTable>>,
     pub vdmx: Option<Box<VdmxTable>>,
     pub ltsh: Option<Box<LtshTable>>,
-    pub gsub: *mut OtlTable,
-    pub gpos: *mut OtlTable,
+    pub gsub: Option<Box<OtlTable>>,
+    pub gpos: Option<Box<OtlTable>>,
     pub gdef: Option<Box<GdefTable>>,
     pub base: Option<Box<BaseTable>>,
     pub cpal: Option<Box<CpalTable>>,
@@ -202,17 +202,11 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1196643650 => {
-            if !(*font).gsub.is_null() {
-                table_otl_free((*font).gsub);
-                (*font).gsub = ::core::ptr::null_mut::<OtlTable>();
-            }
+            (*font).gsub = None;
             return;
         }
         1196445523 => {
-            if !(*font).gpos.is_null() {
-                table_otl_free((*font).gpos);
-                (*font).gpos = ::core::ptr::null_mut::<OtlTable>();
-            }
+            (*font).gpos = None;
             return;
         }
         1195656518 => {

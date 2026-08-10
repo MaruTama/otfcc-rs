@@ -715,10 +715,11 @@ unsafe extern "C" fn write_otl_script_and_languages(
     return root;
 }
 pub unsafe extern "C" fn otfcc_build_otl(
-    mut table: *const OtlTable,
+    mut table: Option<&OtlTable>,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) -> *mut Buffer {
+    let table: *const OtlTable = table.map_or(::core::ptr::null(), |t| t as *const OtlTable);
     if table.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }

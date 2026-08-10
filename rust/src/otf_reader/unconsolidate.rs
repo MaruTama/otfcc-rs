@@ -496,16 +496,18 @@ unsafe extern "C" fn expand_chain(font: *mut Font, lookup: *mut Lookup, table: *
     };
 }
 unsafe extern "C" fn expand_chaining_lookups(font: *mut Font) {
-    if !(*font).gsub.is_null() {
-        for j in 0..(*(*font).gsub).lookups.len() {
-            let lookup: *mut Lookup = &raw mut *(&mut (*(*font).gsub).lookups)[j];
-            expand_chain(font, lookup, (*font).gsub);
+    if let Some(gsub) = (*font).gsub.as_mut() {
+        let gsub: *mut OtlTable = gsub.as_mut() as *mut OtlTable;
+        for j in 0..(*gsub).lookups.len() {
+            let lookup: *mut Lookup = &raw mut *(&mut (*gsub).lookups)[j];
+            expand_chain(font, lookup, gsub);
         }
     }
-    if !(*font).gpos.is_null() {
-        for j in 0..(*(*font).gpos).lookups.len() {
-            let lookup: *mut Lookup = &raw mut *(&mut (*(*font).gpos).lookups)[j];
-            expand_chain(font, lookup, (*font).gpos);
+    if let Some(gpos) = (*font).gpos.as_mut() {
+        let gpos: *mut OtlTable = gpos.as_mut() as *mut OtlTable;
+        for j in 0..(*gpos).lookups.len() {
+            let lookup: *mut Lookup = &raw mut *(&mut (*gpos).lookups)[j];
+            expand_chain(font, lookup, gpos);
         }
     }
 }

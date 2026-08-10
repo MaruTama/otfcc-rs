@@ -5563,3 +5563,63 @@ on the other platform before a commit is trusted.
     ABI export guard, `compare-with-c.sh` byte-identical on every payload
     (including the `otfccdll` cdylib comparison), all 10 payloads' round
     trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化": `Font.gsub`/`Font.gpos: *mut OtlTable` →
+  `Option<Box<OtlTable>>`** (both fields in one PR — they share the same
+  `OtlTable` type and every touch site handles them symmetrically).
+  - **No new `Drop` impl needed** — `OtlTable`'s three fields
+    (`lookups: Vec<Box<Lookup>>`, `features: Vec<Box<Feature>>`,
+    `languages: Vec<Box<LanguageSystem>>`) were already fully
+    self-dropping from the Stage 6-1 Vec化 pass (`Lookup` has its own
+    `Drop` for the type-dispatched `SubtableList` teardown; `Feature`/
+    `LanguageSystem` need none). A plain `Option<Box<OtlTable>>` going to
+    `None` (or out of scope) already does everything `table_otl_free` used
+    to do by hand, so `table_otl_free` and the three now-pointless
+    `otl_{lookup,feature,lang_system}_list_dispose` wrapper functions it
+    called (each already just `*arr = Vec::new()`) all became fully dead
+    and were deleted — confirmed via crate-wide grep before removal, same
+    discipline as every previous target in this theme.
+  - **`table_otl_create` (`calloc`-based) stays**, unlike `table_otl_free`
+    — it's still referenced by `create_font_table`'s long-dead
+    `create_table` vtable slot (never called from anywhere, confirmed by
+    grep — the same reason `table_name_create` was kept unconverted in the
+    `name`/`colr`/`svg` batch). The two live producer functions
+    (`otfcc_read_otl_common`, `otfcc_parse_otl`) no longer call it at all;
+    they build via `Box::new(OtlTable { .. })` directly instead, following
+    the `FvarTable`/`go_box` "accumulator is `Option<Box<X>>`/`Box<X>`
+    from the start" idiom — a raw-pointer alias derived once right after
+    construction lets the rest of each function's existing `(*table)`
+    body (hundreds of lines, deeply nested) stay completely unchanged.
+  - **`otfcc_read_otl_common`'s old `if !table.is_null() { .. }
+    table_otl_free(table); return null;` shape collapses cleanly**: since
+    `Box::new` can't yield null, the derived alias is checked exactly as
+    before (harmless — never actually false, but zero-diff to keep), and
+    the corrupted-table tail simply becomes `return None;` — the boxed
+    accumulator was never moved into `Some(..)`, so it drops correctly on
+    its own without an explicit free call. `otfcc_parse_otl` follows the
+    same shape, with the pre-existing "only log the warning if a table was
+    actually allocated" guard (`if !otl.is_null()`) becoming
+    `if otl_box.is_some()`.
+  - **`otfcc_dump_otl`/`otfcc_build_otl`** take `Option<&OtlTable>` and
+    derive a `*const OtlTable` once at function entry, matching
+    `otfcc_dump_glyf`'s pattern from the previous PR (no
+    `improper_ctypes_definitions` needed here, unlike the `Option<Vec<T>>`
+    fields — `Option<&T>` already gets rustc's FFI-safety niche-
+    optimization exemption).
+  - **Consumer surface was much smaller than `glyf`'s**: only 5 files
+    beyond the table's own read/parse/dump/build (`caryll_font.rs`,
+    `consolidate.rs`, `otf_writer/stat.rs`, `otf_writer.rs`,
+    `json_writer.rs`, `otf_reader/unconsolidate.rs`), and within those,
+    only a handful of touch points each — `consolidate_otl_table`/
+    `stat_max_context_otl`/`expand_chain` all already took bare
+    `*mut`/`*const OtlTable`, so every call site just needed a derived
+    raw-pointer alias (`.as_deref()`/`.as_deref_mut()`/`.as_mut()`), not a
+    signature change.
+  - **No new synthetic payloads needed** — every existing payload with
+    `GSUB`/`GPOS` tables (`NotoNastaliqUrdu-Regular.ttf`,
+    `iosevka-r.ttf`, the synthetic `unknown-lookup.ttf`, etc.) exercises
+    both fields' full read/parse/dump/build/consolidate paths already.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including the `otfccdll` cdylib comparison), all 10 payloads' round
+    trips, and the issue #1 golden test.

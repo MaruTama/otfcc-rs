@@ -162,11 +162,12 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut Json
     );
 }
 pub unsafe extern "C" fn otfcc_dump_otl(
-    mut table: *const OtlTable,
+    mut table: Option<&OtlTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
+    let table: *const OtlTable = table.map_or(::core::ptr::null(), |t| t as *const OtlTable);
     if table.is_null()
         || (*table).languages.is_empty()
         || (*table).lookups.is_empty()
