@@ -50,7 +50,6 @@ use crate::table::gdef::{table_gdef_free};
 use crate::table::os_2::{TABLE_I_OS_2};
 use crate::table::svg::{table_svg_free};
 use crate::table::_tsi::{table_tsi_free};
-use crate::table::cmap::{TABLE_I_CMAP};
 use crate::table::glyf::{table_glyf_free};
 use crate::table::head::{TABLE_I_HEAD};
 use crate::table::hhea::{TABLE_I_HHEA};
@@ -85,7 +84,7 @@ pub struct Font {
     pub vorg: Option<Box<VorgTable>>,
     pub cff: *mut CffTable,
     pub glyf: *mut GlyfTable,
-    pub cmap: *mut CmapTable,
+    pub cmap: Option<Box<CmapTable>>,
     pub name: *mut NameTable,
     pub meta: Option<Box<MetaTable>>,
     pub fpgm: Option<Box<FpgmPrepTable>>,
@@ -233,10 +232,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1668112752 => {
-            if !(*font).cmap.is_null() {
-                TABLE_I_CMAP.free.expect("non-null function pointer")((*font).cmap);
-                (*font).cmap = ::core::ptr::null_mut::<CmapTable>();
-            }
+            (*font).cmap = None;
             return;
         }
         1280594760 => {

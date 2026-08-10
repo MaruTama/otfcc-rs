@@ -539,7 +539,7 @@ unsafe extern "C" fn stat_os_2_unicode_ranges(
     let mut u4: u32 = 0 as u32;
     let mut min_unicode: i32 = 0xffff as i32;
     let mut max_unicode: i32 = 0 as i32;
-    for (&u, _) in (*(*font).cmap).unicodes.iter() {
+    for (&u, _) in (*font).cmap.as_ref().unwrap().unicodes.iter() {
         if (u as i32) < min_unicode {
             min_unicode = u as i32;
         }
@@ -1359,7 +1359,7 @@ pub unsafe extern "C" fn otfcc_stat_font(
             }
         }
     }
-    if !(*font).os_2.is_null() && !(*font).cmap.is_null() && !(*font).glyf.is_null() {
+    if !(*font).os_2.is_null() && (*font).cmap.is_some() && !(*font).glyf.is_null() {
         stat_os_2(font, options);
     }
     if (*font).subtype == FontSubtype::Ttf {

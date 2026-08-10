@@ -137,7 +137,7 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1668112752i32 as u32,
-        otfcc_build_cmap((*font).cmap, options),
+        otfcc_build_cmap((*font).cmap.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
