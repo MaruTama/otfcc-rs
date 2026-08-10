@@ -40,7 +40,7 @@ use crate::table::cvt::{otfcc_build_cvt};
 use crate::table::fpgm_prep::{otfcc_build_fpgm_prep};
 use crate::table::gasp::{otfcc_build_gasp};
 use crate::table::glyf::build::{otfcc_build_glyf};
-use crate::table::head::{otfcc_build_head};
+use crate::table::head::{otfcc_build_head, HeadTable};
 use crate::table::hhea::{otfcc_build_hhea};
 use crate::table::hmtx::{otfcc_build_hmtx};
 use crate::table::maxp::{otfcc_build_maxp};
@@ -85,7 +85,11 @@ impl FontSerializer for OtfSerializer {
     );
     if (*font).subtype == FontSubtype::Ttf {
         let mut pair: GlyfAndLocaBuffers =
-            otfcc_build_glyf((*font).glyf, (*font).head, options);
+            otfcc_build_glyf(
+                (*font).glyf,
+                (*font).head.as_deref_mut().map_or(::core::ptr::null_mut(), |h| h as *mut HeadTable),
+                options,
+            );
         otfcc_sfnt_builder_push_table(builder, 1735162214i32 as u32, pair.glyf);
         otfcc_sfnt_builder_push_table(builder, 1819239265i32 as u32, pair.loca);
     } else {
@@ -102,12 +106,12 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1751474532i32 as u32,
-        otfcc_build_head((*font).head, options),
+        otfcc_build_head((*font).head.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         1751672161i32 as u32,
-        otfcc_build_hhea((*font).hhea, options),
+        otfcc_build_hhea((*font).hhea.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
@@ -117,7 +121,7 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1835104368i32 as u32,
-        otfcc_build_maxp((*font).maxp, options),
+        otfcc_build_maxp((*font).maxp.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
@@ -171,10 +175,10 @@ impl FontSerializer for OtfSerializer {
             otfcc_build_vdmx((*font).vdmx.as_deref(), options),
         );
     }
-    if !(*font).hhea.is_null() && !(*font).maxp.is_null() && (*font).hmtx.is_some() {
-        let mut hmtx_counta: u16 = (*(*font).hhea).number_of_metrics;
-        let mut hmtx_countk: u16 = ((*(*font).maxp).num_glyphs as ::core::ffi::c_int
-            - (*(*font).hhea).number_of_metrics as ::core::ffi::c_int)
+    if (*font).hhea.is_some() && (*font).maxp.is_some() && (*font).hmtx.is_some() {
+        let mut hmtx_counta: u16 = (*font).hhea.as_deref().unwrap().number_of_metrics;
+        let mut hmtx_countk: u16 = ((*font).maxp.as_deref().unwrap().num_glyphs as ::core::ffi::c_int
+            - (*font).hhea.as_deref().unwrap().number_of_metrics as ::core::ffi::c_int)
             as u16;
         otfcc_sfnt_builder_push_table(
             builder,
@@ -190,12 +194,12 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         1986553185i32 as u32,
-        otfcc_build_vhea((*font).vhea, options),
+        otfcc_build_vhea((*font).vhea.as_deref(), options),
     );
-    if !(*font).vhea.is_null() && !(*font).maxp.is_null() && (*font).vmtx.is_some() {
-        let mut vmtx_counta: u16 = (*(*font).vhea).num_of_long_ver_metrics;
-        let mut vmtx_countk: u16 = ((*(*font).maxp).num_glyphs as ::core::ffi::c_int
-            - (*(*font).vhea).num_of_long_ver_metrics as ::core::ffi::c_int)
+    if (*font).vhea.is_some() && (*font).maxp.is_some() && (*font).vmtx.is_some() {
+        let mut vmtx_counta: u16 = (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics;
+        let mut vmtx_countk: u16 = ((*font).maxp.as_deref().unwrap().num_glyphs as ::core::ffi::c_int
+            - (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics as ::core::ffi::c_int)
             as u16;
         otfcc_sfnt_builder_push_table(
             builder,

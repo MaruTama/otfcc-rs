@@ -1,9 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
-
-
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum_fallback};
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32s};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -34,72 +30,16 @@ pub struct HheaTable {
     pub metric_data_format: i16,
     pub number_of_metrics: u16,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct HheaTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut HheaTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut HheaTable, *const HheaTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut HheaTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut HheaTable>,
-    pub free: Option<unsafe extern "C" fn(*mut HheaTable) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn init_hhea(mut hhea: *mut HheaTable) {
-    memset(
-        hhea as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<HheaTable>() as usize,
-    );
-    (*hhea).version = 0x10000 as ::core::ffi::c_int as F16Dot16;
-}
-#[inline]
-unsafe extern "C" fn dispose_hhea(mut _hhea: *mut HheaTable) {}
-#[inline]
-unsafe extern "C" fn table_hhea_free(mut x: *mut HheaTable) {
-    if x.is_null() {
-        return;
-    }
-    table_hhea_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-pub static TABLE_I_HHEA: HheaTableElementInterface = {
-    HheaTableElementInterface {
-        init: Some(table_hhea_init as unsafe extern "C" fn(*mut HheaTable) -> ()),
-        copy: Some(
-            table_hhea_copy as unsafe extern "C" fn(*mut HheaTable, *const HheaTable) -> (),
-        ),
-        dispose: Some(table_hhea_dispose as unsafe extern "C" fn(*mut HheaTable) -> ()),
-        create: Some(table_hhea_create),
-        free: Some(table_hhea_free as unsafe extern "C" fn(*mut HheaTable) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn table_hhea_dispose(mut x: *mut HheaTable) {
-    dispose_hhea(x);
-}
-#[inline]
-unsafe extern "C" fn table_hhea_create() -> *mut HheaTable {
-    let mut x: *mut HheaTable =
-        malloc(::core::mem::size_of::<HheaTable>() as usize) as *mut HheaTable;
-    table_hhea_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_hhea_init(mut x: *mut HheaTable) {
-    init_hhea(x);
-}
-#[inline]
-unsafe extern "C" fn table_hhea_copy(mut dst: *mut HheaTable, mut src: *const HheaTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<HheaTable>() as usize,
-    );
-}
+// Stage 6-4 "Box化": every field is a scalar/fixed-size array, so no
+// `Drop` impl is needed -- `Box::new` construction is sufficient
+// (`Copy, Clone` stay on the struct, same reasoning as `Os2Table`). The
+// entire vtable is deleted: grepping the bare `TABLE_I_HHEA` identifier
+// confirmed only `.create`/`.free` were ever called, both internal to
+// this crate.
 pub unsafe extern "C" fn otfcc_read_hhea(
     packet: Packet,
     mut options: *const Options,
-) -> *mut HheaTable {
+) -> Option<Box<HheaTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -124,11 +64,8 @@ pub unsafe extern "C" fn otfcc_read_hhea(
                             crate::sdsbuild!(sdsempty(), b"table 'hhea' corrupted.\n"),
                         );
                     } else {
-                        let mut hhea: *mut HheaTable = ::core::ptr::null_mut::<HheaTable>();
-                        hhea = __caryll_allocate_clean(
-                            ::core::mem::size_of::<HheaTable>() as usize,
-                            23 as ::core::ffi::c_ulong,
-                        ) as *mut HheaTable;
+                        let mut hhea_box: Box<HheaTable> = Box::new(::core::mem::zeroed());
+                        let hhea: *mut HheaTable = hhea_box.as_mut() as *mut HheaTable;
                         (*hhea).version = read_32s(data as *const u8) as F16Dot16;
                         (*hhea).ascender = read_16u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
@@ -182,7 +119,7 @@ pub unsafe extern "C" fn otfcc_read_hhea(
                         (*hhea).number_of_metrics = read_16u(
                             data.offset(34 as ::core::ffi::c_int as isize) as *const u8,
                         );
-                        return hhea;
+                        return Some(hhea_box);
                     }
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -193,16 +130,18 @@ pub unsafe extern "C" fn otfcc_read_hhea(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<HheaTable>();
+    return None;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_hhea(
-    mut table: *const HheaTable,
+    table: Option<&HheaTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t as *const HheaTable,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -281,9 +220,11 @@ pub unsafe extern "C" fn otfcc_dump_hhea(
 pub unsafe extern "C" fn otfcc_parse_hhea(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut HheaTable {
-    let mut hhea: *mut HheaTable = (
-        TABLE_I_HHEA.create.expect("non-null function pointer"))();
+) -> Option<Box<HheaTable>> {
+    let mut hhea_val: HheaTable = ::core::mem::zeroed();
+    hhea_val.version = 0x10000 as ::core::ffi::c_int as F16Dot16;
+    let mut hhea_box: Box<HheaTable> = Box::new(hhea_val);
+    let hhea: *mut HheaTable = hhea_box.as_mut() as *mut HheaTable;
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -362,15 +303,17 @@ pub unsafe extern "C" fn otfcc_parse_hhea(
             );
         }
     }
-    return hhea;
+    return Some(hhea_box);
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_hhea(
-    mut hhea: *const HheaTable,
+    hhea: Option<&HheaTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if hhea.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let hhea = match hhea {
+        Some(h) => h as *const HheaTable,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*hhea).version as u32);
     bufwrite16b(buf, (*hhea).ascender as u16);
