@@ -5414,3 +5414,90 @@ on the other platform before a commit is trusted.
     ABI export guard, `compare-with-c.sh` byte-identical on every payload
     (including the `otfccdll` cdylib comparison), all 10 payloads' round
     trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化", batched: `name`/`colr`/`svg`/`tsi_01`/`tsi_23`/`tsi5`
+  (5 already-Vec-backed `Font` fields) in one PR** — `glyf` (the 6th field
+  in this group) deferred to its own PR: its construction/disposal is
+  woven through `table/glyf.rs` (1400+ lines) plus `glyf/read.rs` and
+  `glyf/build.rs`, not a single top-level site like the other five.
+  - **Design decision for the plan's open question**: `Font.name`/`.colr`/
+    `.svg`/`.tsi_01`/`.tsi_23` are `Option<Vec<T>>`, **not**
+    `Option<Box<Vec<T>>>` — `NameTable`/`ColrTable`/`SvgTable`/`TsiTable`
+    are already bare `pub type X = Vec<T>` aliases (no wrapper struct), and
+    `Vec<T>` already owns its own heap buffer; a second `Box` layer would
+    be pure indirection overhead with no benefit. `Option<Vec<T>>` is also
+    the exact same size as the old raw pointer (niche optimization on
+    `Vec`'s internal `NonNull`), so this is a like-for-like representation
+    of the old nullable-pointer-to-heap-vec semantics. `extern "C" fn`s
+    returning `Option<Vec<T>>` need `#[allow(improper_ctypes_definitions)]`
+    — unlike `Option<Box<T>>`/`Option<&T>`, rustc's FFI-safety lint doesn't
+    special-case `Option<Vec<T>>` even though the same niche optimization
+    applies at the ABI level.
+  - **`NameRecord`/`ColrMapping`/`ColrLayer`/`TsiEntry` needed no new
+    `Drop` impl** — all either own only `Vec<u8>` fields directly, or a
+    `GlyphHandle`/`Handle`, both already fully self-dropping from earlier
+    passes in this migration (the `Handle` pilot, the sds sweep). A plain
+    `Vec<T>`'s own `Drop` already recurses through everything.
+  - **`SvgAssignment` was the one exception, and got the fix**: its
+    `document: *mut Buffer` had no `Drop` — table-level code always walked
+    and disposed it manually (`dispose_svg_assignment`/`table_svg_dispose`).
+    Rather than keep that manual-walk pattern working for
+    `Option<Vec<SvgAssignment>>` (fragile: every future drop site would
+    need to remember to walk first), added a real `impl Drop for
+    SvgAssignment` (frees `document` via `buffree`) and removed `Copy`/
+    `Clone` from the struct — matching the `Handle` pilot's playbook,
+    scoped down to a type used only within `table/svg.rs`. Nothing in the
+    file relied on `SvgAssignment: Copy`; duplication always went through
+    the existing `svg_assignment_dup` deep-copy helper.
+  - **`Tsi5Table = ClassDef`(a struct, not a bare `Vec`) is
+    `Option<Box<Tsi5Table>>`**, not `Option<Vec<...>>` — different shape
+    from the other five. `ClassDef` itself stays a raw-pointer-
+    constructible type everywhere else in the crate (`GdefTable`'s two
+    `ClassDef` fields, the `OTL_I_CLASS_DEF` package used throughout
+    `otl`/`gdef` consolidation); widening `otl_class_def_create`/
+    `OTL_I_CLASS_DEF.parse` themselves to return `Box<ClassDef>` would
+    ripple well beyond this one field. Instead, a new `unwrap_class_def`
+    helper "adopts" the malloc'd value into a genuine `Box`: `ptr::read`
+    moves the `ClassDef` value out (only the 3-word `Vec` descriptors are
+    copied, not the heap buffers — exactly what a normal Rust move does),
+    then the now-empty outer allocation is released with a bare `free`
+    (not `otl_class_def_free`, which would incorrectly try to drop the
+    `Vec`s a second time).
+  - **Construction pattern for the five `Vec`-shaped fields**: all five
+    `otfcc_read_X`/`otfcc_parse_X` functions had the same shape already
+    established in this theme — an accumulator only ever constructed deep
+    inside nested corruption-guards, immediately followed by an
+    unconditional loop and `return`. Converted straightforwardly: replace
+    the old `table_X_create()` (malloc + placement `Vec::new()`) call with
+    a bare local `let mut x: XTable = Vec::new();`, mechanically replace
+    `(*x).push(..)` with `x.push(..)`, wrap the return in `Some(..)`. The
+    now-dead corrupted-table branches' `table_X_free(x)` calls were
+    deleted outright (never reachable with `x` non-null, confirmed the
+    same way as `BaseTable`/`FvarTable` before them) rather than adapted.
+  - **`consolidate_colr`/`consolidate_tsi`** (`consolidate.rs`) directly
+    rebuild `Font.colr`/`Font.tsi_01`/`Font.tsi_23` in place (not through
+    read/dump/parse/build) — `consolidate_tsi`'s signature changed from
+    `_tsi: *mut *mut TsiTable` to `_tsi: *mut Option<TsiTable>` (still a
+    raw pointer to the `Font` field itself, just to the new field type);
+    both functions' manual `table_X_free`/`table_X_create` calls around
+    the rebuild became a plain `(*font).colr = Some(consolidated);`-style
+    assignment, since overwriting the old `Option<Vec<T>>` value already
+    drops it.
+  - **Every whole-table vtable/create/free helper deleted**: none of
+    `table_name_create/_free/_dispose`, `table_colr_create/_free/
+    _dispose`, `table_svg_create/_free` (already gone from the prior PR),
+    `table_tsi_create/_free` survive outside their own now-removed call
+    sites — confirmed via crate-wide grep before deletion, same discipline
+    as every previous target in this theme. `table_name_create` is the one
+    exception, kept only because `create_font_table`'s long-dead
+    `create_table` vtable slot (never called from anywhere, confirmed by
+    grep) still references it — deleting that dead branch is out of scope
+    here.
+  - **No new synthetic payloads needed** — every one of the five fields is
+    already exercised by an existing payload (`BungeeColor-Regular_colr_
+    Windows.ttf` for `colr`, `Reinebow-SVGinOT.ttf` for `svg`, `vtt.ttf`
+    for `tsi_01`/`tsi_23`/`tsi5`, every payload for `name`).
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including the `otfccdll` cdylib comparison), all 10 payloads' round
+    trips, and the issue #1 golden test.

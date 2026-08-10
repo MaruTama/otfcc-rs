@@ -1,6 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memcpy, memset};
-use crate::table::otl::classdef::{ClassDef, otl_class_def_free};
 
 
 
@@ -43,11 +42,8 @@ use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
 use crate::consolidate::{otfcc_consolidate_font};
 use crate::table::cff::{TABLE_I_CFF};
-use crate::table::colr::{table_colr_free};
-use crate::table::svg::{table_svg_free};
-use crate::table::_tsi::{table_tsi_free};
 use crate::table::glyf::{table_glyf_free};
-use crate::table::name::{table_name_create, table_name_free};
+use crate::table::name::{table_name_create};
 use crate::table::otl::{table_otl_create, table_otl_free};
 
 
@@ -76,7 +72,7 @@ pub struct Font {
     pub cff: *mut CffTable,
     pub glyf: *mut GlyfTable,
     pub cmap: Option<Box<CmapTable>>,
-    pub name: *mut NameTable,
+    pub name: Option<NameTable>,
     pub meta: Option<Box<MetaTable>>,
     pub fpgm: Option<Box<FpgmPrepTable>>,
     pub prep: Option<Box<FpgmPrepTable>>,
@@ -89,11 +85,11 @@ pub struct Font {
     pub gdef: Option<Box<GdefTable>>,
     pub base: Option<Box<BaseTable>>,
     pub cpal: Option<Box<CpalTable>>,
-    pub colr: *mut ColrTable,
-    pub svg: *mut SvgTable,
-    pub tsi_01: *mut TsiTable,
-    pub tsi_23: *mut TsiTable,
-    pub tsi5: *mut Tsi5Table,
+    pub colr: Option<ColrTable>,
+    pub svg: Option<SvgTable>,
+    pub tsi_01: Option<TsiTable>,
+    pub tsi_23: Option<TsiTable>,
+    pub tsi5: Option<Box<Tsi5Table>>,
     pub glyph_order: Option<Box<GlyphOrder>>,
 }
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -148,10 +144,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1851878757 => {
-            if !(*font).name.is_null() {
-                table_name_free((*font).name);
-                (*font).name = ::core::ptr::null_mut::<NameTable>();
-            }
+            (*font).name = None;
             return;
         }
         1835365473 => {
@@ -243,40 +236,23 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1129270354 => {
-            if !(*font).colr.is_null() {
-                table_colr_free((*font).colr);
-                (*font).colr = ::core::ptr::null_mut::<ColrTable>();
-            }
+            (*font).colr = None;
             return;
         }
         1398163232 | 1398163295 => {
-            if !(*font).svg.is_null() {
-                table_svg_free((*font).svg);
-                (*font).svg = ::core::ptr::null_mut::<SvgTable>();
-            }
+            (*font).svg = None;
             return;
         }
         1414744368 | 1414744369 => {
-            if !(*font).tsi_01.is_null() {
-                table_tsi_free((*font).tsi_01);
-                (*font).tsi_01 = ::core::ptr::null_mut::<TsiTable>();
-            }
+            (*font).tsi_01 = None;
             return;
         }
         1414744370 | 1414744371 => {
-            if !(*font).tsi_23.is_null() {
-                table_tsi_free((*font).tsi_23);
-                (*font).tsi_23 = ::core::ptr::null_mut::<TsiTable>();
-            }
+            (*font).tsi_23 = None;
             return;
         }
         1414744373 => {
-            if !(*font).tsi5.is_null() {
-                otl_class_def_free(
-                    (*font).tsi5 as *mut ClassDef,
-                );
-                (*font).tsi5 = ::core::ptr::null_mut::<Tsi5Table>();
-            }
+            (*font).tsi5 = None;
             return;
         }
         _ => {}
