@@ -5243,3 +5243,55 @@ on the other platform before a commit is trusted.
     ABI export guard, `compare-with-c.sh` byte-identical on every payload
     (including the new `base-test` and the `otfccdll` cdylib comparison),
     all 10 payloads' round trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化": `Font.post: *mut PostTable` → `Option<Box<PostTable>>`**.
+  `PostTable` owns one allocation, `post_name_map: *mut GlyphOrder`
+  (populated only when reading a version-2.0 `post` table from an OTF
+  file) — left as a raw pointer (its own Box化 depends on how
+  `Font.glyph_order`, the same `GlyphOrder` type, is eventually
+  represented) and freed via a new `Drop` impl calling the same
+  `OTFCC_PKG_GLYPH_ORDER.free` `dispose_post` always called. `Copy`/`Clone`
+  dropped. Deleted `PostTableElementInterface`/`init_post`/`dispose_post`/
+  `table_post_init`/`_dispose`/`_create`/`_copy`/`_free`/`I_TABLE_POST` —
+  grepping (bare identifier, not anchored) confirmed only `.create`/`.free`
+  were ever called from outside `table/post.rs`.
+  - **Investigated and resolved the ownership ambiguity this field was
+    deferred for**: `post_name_map` is a standalone allocation, not an
+    alias into `Font.glyph_order` — `otf_reader/unconsolidate.rs`'s
+    `create_glyph_order` only ever *reads* from it (to backfill glyph names
+    from a version-2.0 `post` table) via `.by_gid.iter()` and never stores
+    the pointer anywhere else, so there's no other owner to worry about
+    aliasing with. `otfcc_build_post` takes `Font.glyph_order` as a
+    *second*, separate parameter (unrelated to `post_name_map`), confirming
+    the two are always distinct `GlyphOrder` allocations.
+  - **`otfcc_read_post`**: every field is unconditionally overwritten from
+    file data in this function's own body, so `mem::zeroed()`'s default is
+    never observed — construction builds a local `PostTable` value directly
+    (mirroring the internal `map: *mut GlyphOrder` construction, unchanged)
+    and wraps it in `Some(Box::new(..))` at the return.
+  - **`otfcc_parse_post`**: unlike `otfcc_read_post`, `.version`'s old
+    `0x30000` default *does* need to survive — it's inside the
+    `if !table.is_null()` guard, so it's only overwritten when the JSON
+    has a "post" key. Uses the `Os2Table`/`HeadTable` pattern: `mem::zeroed()`
+    + explicit `.version = 0x30000` + `Box::new` + a raw-pointer alias for
+    the rest of the (unconditional-construction, JSON-optional-fields) body.
+    Also notable: `otfcc_parse_post` unconditionally returns `Some(..)`
+    even when no "post" JSON key exists (matching the old always-allocate
+    C behavior) — `Font.post` is only ever `None` via the OTF-read path
+    finding no `post` table in the packet, never via JSON parsing.
+  - `otf_writer/stat.rs`'s single touch point (no hoist needed, unlike
+    `head`/`maxp`'s ~35-site orchestrator) became `if !(*font).glyf.is_null()
+    && (*font).post.is_some() { (*font).post.as_deref_mut().unwrap()
+    .max_mem_type42 = ...; }`. `otf_reader/unconsolidate.rs`'s read-only
+    `post_name_map` access became a single `.as_deref().map_or(null_mut(),
+    |p| p.post_name_map)` alias, mirroring the "raw-pointer alias, derived
+    once" pattern at a much smaller scale.
+  - **No new synthetic payload needed** — several existing payloads
+    (`BungeeColor-Regular_colr_Windows`, `Molengo-Regular`,
+    `NotoNastaliqUrdu-Regular`, `gvar-test`, `vtt`) have `post.version ==
+    2.0`, exercising `post_name_map` on both the read and unconsolidate
+    paths, already covered by `compare-with-c.sh`.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including the `otfccdll` cdylib comparison), all 10 payloads' round
+    trips, and the issue #1 golden test.

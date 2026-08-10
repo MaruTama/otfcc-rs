@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
+use libc::{memset};
 
 use crate::support::binio::{read_16u, read_32u, read_32s};
 use crate::logger::{ILogger};
@@ -17,7 +17,6 @@ use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json_builder::{json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push};
 use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct PostTable {
     pub version: F16Dot16,
@@ -31,14 +30,26 @@ pub struct PostTable {
     pub max_mem_type1: u32,
     pub post_name_map: *mut GlyphOrder,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct PostTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut PostTable, *const PostTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut PostTable>,
-    pub free: Option<unsafe extern "C" fn(*mut PostTable) -> ()>,
+// Stage 6-4 "Box化": `post_name_map` (populated only for a version-2.0
+// 'post' table, during OTF read) is the only allocation this struct owns --
+// left as a raw pointer (its own Box化 depends on how `Font.glyph_order`,
+// the same `GlyphOrder` type, is eventually represented), freed the same
+// way `dispose_post` always did via the `OTFCC_PKG_GLYPH_ORDER` package's
+// `.free`. `Copy`/`Clone` dropped, matching `LtshTable`/`VorgTable`.
+//
+// `post_name_map` is a standalone allocation, not an alias into
+// `Font.glyph_order`: `otf_reader/unconsolidate.rs`'s `create_glyph_order`
+// only ever *reads* from it (to backfill glyph names from a version-2.0
+// 'post' table) and never stores the pointer anywhere else, so there is no
+// other owner to worry about aliasing with.
+impl Drop for PostTable {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.post_name_map.is_null() {
+                OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")(self.post_name_map);
+            }
+        }
+    }
 }
 static STANDARD_MAC_NAMES: [&::core::ffi::CStr; 258] = [
     c".notdef",
@@ -300,67 +311,10 @@ static STANDARD_MAC_NAMES: [&::core::ffi::CStr; 258] = [
     c"ccaron",
     c"dcroat",
 ];
-#[inline]
-unsafe extern "C" fn init_post(mut post: *mut PostTable) {
-    memset(
-        post as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<PostTable>() as usize,
-    );
-    (*post).version = 0x30000 as ::core::ffi::c_int as F16Dot16;
-}
-#[inline]
-unsafe extern "C" fn dispose_post(mut post: *mut PostTable) {
-    if !(*post).post_name_map.is_null() {
-        OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")((*post).post_name_map);
-    }
-}
-#[inline]
-unsafe extern "C" fn table_post_dispose(mut x: *mut PostTable) {
-    dispose_post(x);
-}
-#[inline]
-unsafe extern "C" fn table_post_free(mut x: *mut PostTable) {
-    if x.is_null() {
-        return;
-    }
-    table_post_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-#[inline]
-unsafe extern "C" fn table_post_create() -> *mut PostTable {
-    let mut x: *mut PostTable =
-        malloc(::core::mem::size_of::<PostTable>() as usize) as *mut PostTable;
-    table_post_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_post_init(mut x: *mut PostTable) {
-    init_post(x);
-}
-#[inline]
-unsafe extern "C" fn table_post_copy(mut dst: *mut PostTable, mut src: *const PostTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<PostTable>() as usize,
-    );
-}
-pub static I_TABLE_POST: PostTableElementInterface = {
-    PostTableElementInterface {
-        init: Some(table_post_init as unsafe extern "C" fn(*mut PostTable) -> ()),
-        copy: Some(
-            table_post_copy as unsafe extern "C" fn(*mut PostTable, *const PostTable) -> (),
-        ),
-        dispose: Some(table_post_dispose as unsafe extern "C" fn(*mut PostTable) -> ()),
-        create: Some(table_post_create),
-        free: Some(table_post_free as unsafe extern "C" fn(*mut PostTable) -> ()),
-    }
-};
 pub unsafe extern "C" fn otfcc_read_post(
     packet: Packet,
     mut _options: *const Options,
-) -> *mut PostTable {
+) -> Option<Box<PostTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -374,31 +328,33 @@ pub unsafe extern "C" fn otfcc_read_post(
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
                     let mut data: FontFilePointer = table.data as FontFilePointer;
-                    let mut post: *mut PostTable =
-                        (
-                            I_TABLE_POST.create.expect("non-null function pointer"))();
-                    (*post).version = read_32s(data as *const u8) as F16Dot16;
-                    (*post).italic_angle =
+                    // Every field below is unconditionally overwritten by
+                    // this function's own body, so `mem::zeroed()`'s default
+                    // is never observed -- unlike `otfcc_parse_post`, where
+                    // `.version`'s default does matter.
+                    let mut post_val: PostTable = ::core::mem::zeroed();
+                    post_val.version = read_32s(data as *const u8) as F16Dot16;
+                    post_val.italic_angle =
                         read_32u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8)
                             as F16Dot16;
-                    (*post).underline_position =
+                    post_val.underline_position =
                         read_16u(data.offset(8 as ::core::ffi::c_int as isize) as *const u8)
                             as i16;
-                    (*post).underline_thickness =
+                    post_val.underline_thickness =
                         read_16u(data.offset(10 as ::core::ffi::c_int as isize) as *const u8)
                             as i16;
-                    (*post).is_fixed_pitch =
+                    post_val.is_fixed_pitch =
                         read_32u(data.offset(12 as ::core::ffi::c_int as isize) as *const u8);
-                    (*post).min_mem_type42 =
+                    post_val.min_mem_type42 =
                         read_32u(data.offset(16 as ::core::ffi::c_int as isize) as *const u8);
-                    (*post).max_mem_type42 =
+                    post_val.max_mem_type42 =
                         read_32u(data.offset(20 as ::core::ffi::c_int as isize) as *const u8);
-                    (*post).min_mem_type1 =
+                    post_val.min_mem_type1 =
                         read_32u(data.offset(24 as ::core::ffi::c_int as isize) as *const u8);
-                    (*post).max_mem_type1 =
+                    post_val.max_mem_type1 =
                         read_32u(data.offset(28 as ::core::ffi::c_int as isize) as *const u8);
-                    (*post).post_name_map = ::core::ptr::null_mut::<GlyphOrder>();
-                    if (*post).version == 0x20000 as F16Dot16 {
+                    post_val.post_name_map = ::core::ptr::null_mut::<GlyphOrder>();
+                    if post_val.version == 0x20000 as F16Dot16 {
                         let mut map: *mut GlyphOrder =
                             (
                                 OTFCC_PKG_GLYPH_ORDER
@@ -475,9 +431,9 @@ pub unsafe extern "C" fn otfcc_read_post(
                             sdsfree(pending_names[j_0 as usize]);
                             j_0 = j_0.wrapping_add(1);
                         }
-                        (*post).post_name_map = map;
+                        post_val.post_name_map = map;
                     }
-                    return post;
+                    return Some(Box::new(post_val));
                 }
             }
             __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
@@ -485,16 +441,18 @@ pub unsafe extern "C" fn otfcc_read_post(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<PostTable>();
+    return None;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_post(
-    mut table: *const PostTable,
+    table: Option<&PostTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t as *const PostTable,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -563,9 +521,15 @@ pub unsafe extern "C" fn otfcc_dump_post(
 pub unsafe extern "C" fn otfcc_parse_post(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut PostTable {
-    let mut post: *mut PostTable = (
-        I_TABLE_POST.create.expect("non-null function pointer"))();
+) -> Option<Box<PostTable>> {
+    // `.version`'s `0x30000` default carries through if the "post" JSON key
+    // is absent (never overwritten below in that case, unlike every other
+    // field); `post_name_map` is never touched here regardless, so its
+    // zeroed null is already the old `init_post`'s default.
+    let mut post_val: PostTable = ::core::mem::zeroed();
+    post_val.version = 0x30000 as ::core::ffi::c_int as F16Dot16;
+    let mut post_box: Box<PostTable> = Box::new(post_val);
+    let post: *mut PostTable = post_box.as_mut() as *mut PostTable;
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -629,16 +593,18 @@ pub unsafe extern "C" fn otfcc_parse_post(
             );
         }
     }
-    return post;
+    return Some(post_box);
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_post(
-    mut post: *const PostTable,
+    post: Option<&PostTable>,
     mut glyphorder: *mut GlyphOrder,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if post.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let post = match post {
+        Some(p) => p as *const PostTable,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*post).version as u32);
     bufwrite32b(buf, (*post).italic_angle as u32);

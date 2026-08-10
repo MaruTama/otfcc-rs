@@ -50,7 +50,6 @@ use crate::table::_tsi::{table_tsi_free};
 use crate::table::glyf::{table_glyf_free};
 use crate::table::name::{table_name_create, table_name_free};
 use crate::table::otl::{table_otl_create, table_otl_free};
-use crate::table::post::{I_TABLE_POST};
 
 
 
@@ -70,7 +69,7 @@ pub struct Font {
     pub maxp: Option<Box<MaxpTable>>,
     pub os_2: Option<Box<Os2Table>>,
     pub hmtx: Option<Box<HmtxTable>>,
-    pub post: *mut PostTable,
+    pub post: Option<Box<PostTable>>,
     pub hdmx: Option<Box<HdmxTable>>,
     pub vhea: Option<Box<VheaTable>>,
     pub vmtx: Option<Box<VmtxTable>>,
@@ -169,10 +168,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1886352244 => {
-            if !(*font).post.is_null() {
-                I_TABLE_POST.free.expect("non-null function pointer")((*font).post);
-                (*font).post = ::core::ptr::null_mut::<PostTable>();
-            }
+            (*font).post = None;
             return;
         }
         1986553185 => {
