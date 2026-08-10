@@ -70,7 +70,7 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_maxp((*font).maxp, root, options);
     otfcc_dump_vhea((*font).vhea, root, options);
     otfcc_dump_post((*font).post, root, options);
-    otfcc_dump_os_2((*font).os_2, root, options);
+    otfcc_dump_os_2((*font).os_2.as_deref(), root, options);
     otfcc_dump_name((*font).name, root, options);
     otfcc_dump_meta((*font).meta.as_deref(), root, options);
     otfcc_dump_cmap((*font).cmap.as_deref(), root, options);

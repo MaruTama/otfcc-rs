@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
+use libc::{memcpy};
 use crate::support::binio::{read_16u, read_16s, read_32u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -55,72 +55,18 @@ pub struct Os2Table {
     pub us_lower_optical_point_size: u16,
     pub us_upper_optical_point_size: u16,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Os2TableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut Os2Table) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut Os2Table, *const Os2Table) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut Os2Table) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut Os2Table>,
-    pub free: Option<unsafe extern "C" fn(*mut Os2Table) -> ()>,
-}
-#[inline]
-unsafe extern "C" fn init_os2(mut table: *mut Os2Table) {
-    memset(
-        table as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<Os2Table>() as usize,
-    );
-    (*table).version = 4 as u16;
-}
-#[inline]
-unsafe extern "C" fn dispose_os2(mut _table: *mut Os2Table) {}
-#[inline]
-unsafe extern "C" fn table_os_2_dispose(mut x: *mut Os2Table) {
-    dispose_os2(x);
-}
-#[inline]
-unsafe extern "C" fn table_os_2_create() -> *mut Os2Table {
-    let mut x: *mut Os2Table =
-        malloc(::core::mem::size_of::<Os2Table>() as usize) as *mut Os2Table;
-    table_os_2_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_os_2_init(mut x: *mut Os2Table) {
-    init_os2(x);
-}
-pub static TABLE_I_OS_2: Os2TableElementInterface = {
-    Os2TableElementInterface {
-        init: Some(table_os_2_init as unsafe extern "C" fn(*mut Os2Table) -> ()),
-        copy: Some(
-            table_os_2_copy as unsafe extern "C" fn(*mut Os2Table, *const Os2Table) -> (),
-        ),
-        dispose: Some(table_os_2_dispose as unsafe extern "C" fn(*mut Os2Table) -> ()),
-        create: Some(table_os_2_create),
-        free: Some(table_os_2_free as unsafe extern "C" fn(*mut Os2Table) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn table_os_2_copy(mut dst: *mut Os2Table, mut src: *const Os2Table) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Os2Table>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_os_2_free(mut x: *mut Os2Table) {
-    if x.is_null() {
-        return;
-    }
-    table_os_2_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
+// Stage 6-4 "Box化": every field is a scalar/fixed-size array, so no
+// `Drop` impl is needed -- `Box::new` construction is sufficient. The
+// entire vtable is deleted: grepping (for the bare `TABLE_I_OS_2`
+// identifier, not an anchored `\.` pattern -- see the `CmapTable` PR's
+// note on why that matters) confirmed only `.create`/`.free` were ever
+// called, both from within this crate (this file's own read/parse entry
+// points, and `caryll_font.rs`'s table disposal).
 pub unsafe extern "C" fn otfcc_read_os_2(
     packet: Packet,
     mut options: *const Options,
-) -> *mut Os2Table {
+) -> Option<Box<Os2Table>> {
+    let mut os_2_box: Option<Box<Os2Table>> = None;
     let mut os_2: *mut Os2Table = ::core::ptr::null_mut::<Os2Table>();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -137,8 +83,13 @@ pub unsafe extern "C" fn otfcc_read_os_2(
                     let mut data: FontFilePointer = table.data as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 2 as u32) {
-                        os_2 = (
-                            TABLE_I_OS_2.create.expect("non-null function pointer"))();
+                        // All-zero is a valid bit pattern for every field
+                        // (integers and fixed-size byte arrays only), matching
+                        // the old `memset`-then-`.version = 4` construction.
+                        let mut os2_val: Os2Table = ::core::mem::zeroed();
+                        os2_val.version = 4;
+                        os_2_box = Some(Box::new(os2_val));
+                        os_2 = os_2_box.as_deref_mut().unwrap() as *mut Os2Table;
                         (*os_2).version = read_16u(data as *const u8);
                         if !(length < 68 as u32) {
                             (*os_2).x_avg_char_width = read_16u(
@@ -293,7 +244,7 @@ pub unsafe extern "C" fn otfcc_read_os_2(
                                                     as *const u8,
                                             );
                                         }
-                                        return os_2;
+                                        return os_2_box;
                                     }
                                 }
                             }
@@ -307,10 +258,8 @@ pub unsafe extern "C" fn otfcc_read_os_2(
                         LoggerType::Warning,
                         crate::sdsbuild!(sdsempty(), b"table 'OS/2' corrupted.\n"),
                     );
-                    if !os_2.is_null() {
-                        free(os_2 as *mut ::core::ffi::c_void);
-                        os_2 = ::core::ptr::null_mut::<Os2Table>();
-                    }
+                    os_2_box = None;
+                    os_2 = ::core::ptr::null_mut::<Os2Table>();
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -320,7 +269,7 @@ pub unsafe extern "C" fn otfcc_read_os_2(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return ::core::ptr::null_mut::<Os2Table>();
+    return None;
 }
 pub static FS_TYPE_LABELS: [&::core::ffi::CStr; 10] = [
     c"_reserved1",
@@ -545,14 +494,16 @@ pub static UNICODE_RANGE_LABELS4: [&::core::ffi::CStr; 27] = [
     c"Carian_and_Lycian",
     c"Domino_and_Mahjong_Tiles",
 ];
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_os_2(
-    mut table: *const Os2Table,
+    table: Option<&Os2Table>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if table.is_null() {
-        return;
-    }
+    let table = match table {
+        Some(t) => t as *const Os2Table,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -809,12 +760,15 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
 pub unsafe extern "C" fn otfcc_parse_os_2(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut Os2Table {
-    let mut os_2: *mut Os2Table = (
-        TABLE_I_OS_2.create.expect("non-null function pointer"))();
-    if os_2.is_null() {
-        return ::core::ptr::null_mut::<Os2Table>();
-    }
+) -> Option<Box<Os2Table>> {
+    // `Box::new` cannot return null (it aborts on allocation failure), so
+    // the old `TABLE_I_OS_2.create()`-returned-null defensive check --
+    // guarding a `malloc` that could in principle fail -- has no
+    // equivalent here; there is nothing left to check.
+    let mut os2_val: Os2Table = ::core::mem::zeroed();
+    os2_val.version = 4;
+    let mut os_2_box: Box<Os2Table> = Box::new(os2_val);
+    let os_2: *mut Os2Table = os_2_box.as_mut() as *mut Os2Table;
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -1088,15 +1042,17 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
     if ((*os_2).version as ::core::ffi::c_int) < 1 as ::core::ffi::c_int {
         (*os_2).version = 1 as u16;
     }
-    return os_2;
+    return Some(os_2_box);
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_os_2(
-    mut os_2: *const Os2Table,
+    os_2: Option<&Os2Table>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if os_2.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let os_2 = match os_2 {
+        Some(o) => o as *const Os2Table,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, (*os_2).version);
     bufwrite16b(buf, (*os_2).x_avg_char_width as u16);
