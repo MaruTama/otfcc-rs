@@ -20,6 +20,7 @@ use crate::support::{NULL};
 use crate::support::glyph_order::GlyphOrder;
 
 use crate::table::cff::{CffTable};
+use crate::table::gdef::{GdefTable};
 use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup, table_colr_create, table_colr_free};
 
 
@@ -1232,7 +1233,11 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
-        consolidate_gdef(font, (*font).gdef, options);
+        consolidate_gdef(
+            font,
+            (*font).gdef.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GdefTable),
+            options,
+        );
         ___loggedstep_v_1 = false;
         (*(*options).logger)
             .finish

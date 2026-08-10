@@ -43,10 +43,8 @@ use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
 use crate::consolidate::{otfcc_consolidate_font};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::table::base::{TABLE_I_BASE};
 use crate::table::cff::{TABLE_I_CFF};
 use crate::table::colr::{table_colr_free};
-use crate::table::gdef::{table_gdef_free};
 use crate::table::svg::{table_svg_free};
 use crate::table::_tsi::{table_tsi_free};
 use crate::table::glyf::{table_glyf_free};
@@ -90,8 +88,8 @@ pub struct Font {
     pub ltsh: Option<Box<LtshTable>>,
     pub gsub: *mut OtlTable,
     pub gpos: *mut OtlTable,
-    pub gdef: *mut GdefTable,
-    pub base: *mut BaseTable,
+    pub gdef: Option<Box<GdefTable>>,
+    pub base: Option<Box<BaseTable>>,
     pub cpal: Option<Box<CpalTable>>,
     pub colr: *mut ColrTable,
     pub svg: *mut SvgTable,
@@ -234,17 +232,11 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
             return;
         }
         1195656518 => {
-            if !(*font).gdef.is_null() {
-                table_gdef_free((*font).gdef);
-                (*font).gdef = ::core::ptr::null_mut::<GdefTable>();
-            }
+            (*font).gdef = None;
             return;
         }
         1111577413 => {
-            if !(*font).base.is_null() {
-                TABLE_I_BASE.free.expect("non-null function pointer")((*font).base);
-                (*font).base = ::core::ptr::null_mut::<BaseTable>();
-            }
+            (*font).base = None;
             return;
         }
         1448038983 => {

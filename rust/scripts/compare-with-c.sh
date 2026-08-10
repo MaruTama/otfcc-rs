@@ -273,6 +273,38 @@ else
 	echo "  (skipping vdmx-test: python3 not found)"
 fi
 
+# Same gap, same fix, this time for BASE: no payload has one, so
+# table/base.rs has never been exercised by this script.
+if command -v python3 >/dev/null 2>&1; then
+	BASE_JSON="${BUILD}/base-test.json"
+	python3 rust/scripts/make-test-base.py "${BUILD}/iosevka-r.json" "${BASE_JSON}"
+	rm -f "${BUILD}/base-test.c.ttf" "${BUILD}/base-test.rust.ttf"
+	"${C_BIN}/otfccbuild" "${BASE_JSON}" -o "${BUILD}/base-test.c.ttf" --keep-average-char-width --keep-modified-time
+	if ! "${RUST_BIN}/otfccbuild" "${BASE_JSON}" -o "${BUILD}/base-test.rust.ttf" --keep-average-char-width --keep-modified-time; then
+		echo "FAIL  base-test.ttf: Rust otfccbuild exited non-zero"
+		fail=1
+	elif cmp -s "${BUILD}/base-test.c.ttf" "${BUILD}/base-test.rust.ttf"; then
+		echo "PASS  base-test.ttf: byte-identical"
+	else
+		echo "FAIL  base-test.ttf: differs ($(cmp -l "${BUILD}/base-test.c.ttf" "${BUILD}/base-test.rust.ttf" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+
+	rm -f "${BUILD}/base-test.dump.c.json" "${BUILD}/base-test.dump.rust.json"
+	"${C_BIN}/otfccdump" "${BUILD}/base-test.c.ttf" -o "${BUILD}/base-test.dump.c.json" --pretty
+	if ! "${RUST_BIN}/otfccdump" "${BUILD}/base-test.c.ttf" -o "${BUILD}/base-test.dump.rust.json" --pretty; then
+		echo "FAIL  base-test dump: Rust otfccdump exited non-zero"
+		fail=1
+	elif cmp -s "${BUILD}/base-test.dump.c.json" "${BUILD}/base-test.dump.rust.json"; then
+		echo "PASS  base-test dump: byte-identical"
+	else
+		echo "FAIL  base-test dump: differs ($(cmp -l "${BUILD}/base-test.dump.c.json" "${BUILD}/base-test.dump.rust.json" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+else
+	echo "  (skipping base-test: python3 not found)"
+fi
+
 echo "==> Comparing C vs Rust otfccdll (cdylib) output, byte-for-byte"
 DLL_C="${C_BIN}/libotfccdll.so"
 [ "$(uname)" = "Darwin" ] && DLL_C="${C_BIN}/libotfccdll.dylib"

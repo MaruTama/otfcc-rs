@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset, qsort};
+use libc::{free, qsort};
 
 use crate::support::json_funcs::{json_new_position, json_numof, json_obj_get_type, json_obj_getstr_share, json_object_push_tag};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
@@ -35,20 +35,32 @@ pub struct BaseAxis {
     pub script_count: TableId,
     pub entries: *mut BaseScriptEntry,
 }
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct BaseTable {
     pub horizontal: *mut BaseAxis,
     pub vertical: *mut BaseAxis,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct BaseTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut BaseTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut BaseTable, *const BaseTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut BaseTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut BaseTable>,
-    pub free: Option<unsafe extern "C" fn(*mut BaseTable) -> ()>,
+// Stage 6-4 "Box化": `horizontal`/`vertical` are the only allocations this
+// struct owns (each a `*mut BaseAxis`, itself owning `entries`/nested
+// `base_values` -- left as raw pointers for this PR, freed the same way
+// `dispose_base` always did). `Copy`/`Clone` dropped: a `Drop` impl and
+// `Copy` are mutually exclusive, matching `LtshTable`/`VorgTable`/`CmapTable`.
+//
+// Preserves an existing leak, not introduced by this PR: `delete_base_axis`
+// only frees `(*axis).entries` (and each entry's `base_values`), never
+// `axis` itself, so the `BaseAxis` allocations from `read_axis`/
+// `axis_from_json` are never freed on disposal -- true in the pre-Box化 C
+// translation too (`dispose_base` never called `free()` on `horizontal`/
+// `vertical`). Not fixed here, same discipline as the `unconsolidate.rs`
+// move in the `ChainingRule.apply` PR: preserving byte-for-byte disposal
+// behavior takes priority over opportunistic bug fixes within a Box化 PR.
+impl Drop for BaseTable {
+    fn drop(&mut self) {
+        unsafe {
+            delete_base_axis(self.horizontal);
+            delete_base_axis(self.vertical);
+        }
+    }
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -73,57 +85,6 @@ unsafe extern "C" fn delete_base_axis(mut axis: *mut BaseAxis) {
         free((*axis).entries as *mut ::core::ffi::c_void);
         (*axis).entries = ::core::ptr::null_mut::<BaseScriptEntry>();
     }
-}
-#[inline]
-unsafe extern "C" fn dispose_base(mut base: *mut BaseTable) {
-    delete_base_axis((*base).horizontal);
-    delete_base_axis((*base).vertical);
-}
-#[inline]
-unsafe extern "C" fn table_base_dispose(mut x: *mut BaseTable) {
-    dispose_base(x);
-}
-#[inline]
-unsafe extern "C" fn table_base_create() -> *mut BaseTable {
-    let mut x: *mut BaseTable =
-        malloc(::core::mem::size_of::<BaseTable>() as usize) as *mut BaseTable;
-    table_base_init(x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn table_base_init(mut x: *mut BaseTable) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<BaseTable>() as usize,
-    );
-}
-#[inline]
-unsafe extern "C" fn table_base_copy(mut dst: *mut BaseTable, mut src: *const BaseTable) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<BaseTable>() as usize,
-    );
-}
-pub static TABLE_I_BASE: BaseTableElementInterface = {
-    BaseTableElementInterface {
-        init: Some(table_base_init as unsafe extern "C" fn(*mut BaseTable) -> ()),
-        copy: Some(
-            table_base_copy as unsafe extern "C" fn(*mut BaseTable, *const BaseTable) -> (),
-        ),
-        dispose: Some(table_base_dispose as unsafe extern "C" fn(*mut BaseTable) -> ()),
-        create: Some(table_base_create),
-        free: Some(table_base_free as unsafe extern "C" fn(*mut BaseTable) -> ()),
-    }
-};
-#[inline]
-unsafe extern "C" fn table_base_free(mut x: *mut BaseTable) {
-    if x.is_null() {
-        return;
-    }
-    table_base_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
 }
 unsafe extern "C" fn read_base_value(
     mut data: FontFilePointer,
@@ -384,8 +345,7 @@ unsafe extern "C" fn read_axis(
 pub unsafe extern "C" fn otfcc_read_base(
     packet: Packet,
     mut options: *const Options,
-) -> *mut BaseTable {
-    let mut base: *mut BaseTable = ::core::ptr::null_mut::<BaseTable>();
+) -> Option<Box<BaseTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -411,26 +371,22 @@ pub unsafe extern "C" fn otfcc_read_base(
                             LoggerType::Warning,
                             crate::sdsbuild!(sdsempty(), b"Table 'BASE' Corrupted"),
                         );
-                        TABLE_I_BASE.free.expect("non-null function pointer")(base);
-                        base = ::core::ptr::null_mut::<BaseTable>();
                     } else {
-                        base = __caryll_allocate_clean(
-                            ::core::mem::size_of::<BaseTable>() as usize,
-                            116 as ::core::ffi::c_ulong,
-                        ) as *mut BaseTable;
+                        let mut horizontal: *mut BaseAxis = ::core::ptr::null_mut::<BaseAxis>();
+                        let mut vertical: *mut BaseAxis = ::core::ptr::null_mut::<BaseAxis>();
                         offset_h = read_16u(
                             data.offset(4 as ::core::ffi::c_int as isize) as *const u8
                         );
                         if offset_h != 0 {
-                            (*base).horizontal = read_axis(data, table_length, offset_h);
+                            horizontal = read_axis(data, table_length, offset_h);
                         }
                         offset_v = read_16u(
                             data.offset(6 as ::core::ffi::c_int as isize) as *const u8
                         );
                         if offset_v != 0 {
-                            (*base).vertical = read_axis(data, table_length, offset_v);
+                            vertical = read_axis(data, table_length, offset_v);
                         }
-                        return base;
+                        return Some(Box::new(BaseTable { horizontal, vertical }));
                     }
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -441,7 +397,7 @@ pub unsafe extern "C" fn otfcc_read_base(
         __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         __fortable_count += 1;
     }
-    return base;
+    return None;
 }
 unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut JsonValue {
     let mut _axis: *mut JsonValue = json_object_new((*axis).script_count as usize);
@@ -502,14 +458,16 @@ unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut JsonValue {
     }
     return _axis;
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_base(
-    mut base: *const BaseTable,
+    base: Option<&BaseTable>,
     mut root: *mut JsonValue,
     mut options: *const Options,
 ) {
-    if base.is_null() {
-        return;
-    }
+    let base = match base {
+        Some(b) => b as *const BaseTable,
+        None => return,
+    };
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -636,8 +594,8 @@ unsafe extern "C" fn axis_from_json(mut _axis: *const JsonValue) -> *mut BaseAxi
 pub unsafe extern "C" fn otfcc_parse_base(
     mut root: *const JsonValue,
     mut options: *const Options,
-) -> *mut BaseTable {
-    let mut base: *mut BaseTable = ::core::ptr::null_mut::<BaseTable>();
+) -> Option<Box<BaseTable>> {
+    let mut base: Option<Box<BaseTable>> = None;
     let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
     table = json_obj_get_type(
         root,
@@ -653,20 +611,17 @@ pub unsafe extern "C" fn otfcc_parse_base(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            base = __caryll_allocate_clean(
-                ::core::mem::size_of::<BaseTable>() as usize,
-                208 as ::core::ffi::c_ulong,
-            ) as *mut BaseTable;
-            (*base).horizontal = axis_from_json(json_obj_get_type(
+            let horizontal = axis_from_json(json_obj_get_type(
                 table,
                 b"horizontal\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Object,
             ));
-            (*base).vertical = axis_from_json(json_obj_get_type(
+            let vertical = axis_from_json(json_obj_get_type(
                 table,
                 b"vertical\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Object,
             ));
+            base = Some(Box::new(BaseTable { horizontal, vertical }));
             ___loggedstep_v = false;
             (*(*options).logger)
                 .finish
@@ -820,13 +775,15 @@ pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
     taglist.items = ::core::ptr::null_mut::<u32>();
     return bk_new_block(&[bk_ptr(BkCellType::P16, base_tag_list), bk_ptr(BkCellType::P16, base_script_list)]);
 }
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_build_base(
-    mut base: *const BaseTable,
+    base: Option<&BaseTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
-    if base.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
+    let base = match base {
+        Some(b) => b as *const BaseTable,
+        None => return ::core::ptr::null_mut::<Buffer>(),
+    };
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, axis_to_bk((*base).horizontal)), bk_ptr(BkCellType::P16, axis_to_bk((*base).vertical))]);
     return bk_build_block(root);
 }

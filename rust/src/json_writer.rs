@@ -118,8 +118,8 @@ impl FontSerializer for JsonSerializer {
         options,
         b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    otfcc_dump_gdef((*font).gdef, root, options);
-    otfcc_dump_base((*font).base, root, options);
+    otfcc_dump_gdef((*font).gdef.as_deref(), root, options);
+    otfcc_dump_base((*font).base.as_deref(), root, options);
     otfcc_dump_cpal((*font).cpal.as_deref(), root, options);
     otfcc_dump_colr((*font).colr, root, options);
     otfcc_dump_svg((*font).svg, root, options);

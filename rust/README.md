@@ -5187,3 +5187,59 @@ on the other platform before a commit is trusted.
     44/44 tests, ABI export guard, `compare-with-c.sh` byte-identical
     on every payload (including the `otfccdll` cdylib comparison), all
     10 payloads' round trips, and the issue #1 golden test.
+- **Stage 6-4 "Box化", batched: `base`/`gdef` (2 `Font` fields) in one PR**,
+  the first two fields with nested owned raw pointers (`BaseAxis`,
+  `ClassDef`) rather than pure scalars, grouped together because both
+  needed the same "leave the nested owner as a raw pointer, add a `Drop`
+  impl on the top-level struct" treatment established by `VorgTable`.
+  - **`BaseTable`**: `horizontal`/`vertical: *mut BaseAxis` stay raw
+    pointers (their own Vec化 is a separate future task); `Drop` calls the
+    same `delete_base_axis` helper `dispose_base` always called. `Copy`/
+    `Clone` dropped (mutually exclusive with `Drop`, and was already
+    semantically wrong — `BaseAxis` ownership can't be duplicated by
+    value). Deleted the entire `BaseTableElementInterface` vtable
+    (`table_base_init`/`_dispose`/`_create`/`_copy`/`_free`,
+    `TABLE_I_BASE`) — construction now goes through `Box::new` directly in
+    `otfcc_read_base`/`otfcc_parse_base`.
+  - **Preserves an existing leak, not introduced by this PR**:
+    `delete_base_axis` only ever freed `(*axis).entries` (and each entry's
+    `base_values`), never `axis` itself — true in the pre-Box化
+    translation too (`dispose_base` never called `free()` on `horizontal`/
+    `vertical`). Not fixed here, same discipline as the `unconsolidate.rs`
+    move preserved as-is in the `ChainingRule.apply` PR: byte-for-byte
+    disposal parity takes priority over opportunistic bug fixes inside a
+    Box化 PR.
+  - **`GdefTable`** was already non-`Copy` (its `lig_carets` field is
+    already a `Vec<CaretValueRecord>` from an earlier Vec化 pass), so no
+    derive to remove — just added a `Drop` impl covering
+    `glyph_class_def`/`mark_attach_class_def` (left as raw `*mut ClassDef`,
+    freed via the existing `otl_class_def_free`) plus
+    `self.lig_carets.clear()` (its own drop glue already frees each
+    record's `Handle` name and caret `Vec`). Deleted
+    `init_gdef`/`dispose_gdef`/`table_gdef_init`/`_dispose`/`_create`/
+    `_free`; `otfcc_read_gdef`/`otfcc_parse_gdef` build via
+    `Some(Box::new(GdefTable { .. }))` up front and mutate through
+    `gdef.as_mut().unwrap().field`, matching the `GaspTable` PR's
+    "accumulator variable is `Option<Box<X>>` from the start" idiom rather
+    than building through a raw pointer and wrapping at the end (the
+    latter would need `Box::from_raw` on a `calloc`-allocated pointer,
+    which isn't a Rust-global-allocator allocation).
+  - `consolidate.rs`'s `consolidate_gdef(font, (*font).gdef, options)` call
+    (in-place hash consolidation, unrelated to build/dump) updated to
+    `(*font).gdef.as_deref_mut().map_or(ptr::null_mut(), |g| g as *mut
+    GdefTable)`; `consolidate_gdef` already null-checked its `gdef`
+    parameter, so `None` passes through safely.
+  - **Verification gap found and closed**: no existing payload has a
+    `BASE` table (`GDEF` is exercised by `NotoNastaliqUrdu-Regular.ttf`,
+    including its `ligCarets`, so that one had no gap). Added
+    `rust/scripts/make-test-base.py` (two scripts, one with a default
+    baseline and shared/unique baseline tags across scripts to exercise
+    `axis_to_bk`'s tag-dedup path, one with a single baseline and no
+    default) and wired it into `compare-with-c.sh` the same way as the
+    `vdmx-test`/`meta-test` gaps — both build and dump directions
+    byte-identical against C on both platforms.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including the new `base-test` and the `otfccdll` cdylib comparison),
+    all 10 payloads' round trips, and the issue #1 golden test.
