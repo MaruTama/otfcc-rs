@@ -74,14 +74,14 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_name((*font).name.as_ref(), root, options);
     otfcc_dump_meta((*font).meta.as_deref(), root, options);
     otfcc_dump_cmap((*font).cmap.as_deref(), root, options);
-    otfcc_dump_cff((*font).cff, root, options);
+    otfcc_dump_cff((*font).cff.as_deref(), root, options);
     let mut ctx: GlyfIOContext = GlyfIOContext {
         loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
         num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
         n_phantom_points: 4 as ShapeId,
         fvar: (*font).fvar.as_deref_mut().map_or(::core::ptr::null_mut(), |f| f as *mut FvarTable),
         has_vertical_metrics: (*font).vhea.is_some(),
-        export_fd_select: !(*font).cff.is_null() && (*(*font).cff).is_cid as ::core::ffi::c_int != 0,
+        export_fd_select: (*font).cff.as_deref().map_or(false, |c| c.is_cid),
     };
     otfcc_dump_glyf((*font).glyf.as_ref(), root, options, &raw mut ctx);
     if !(*options).ignore_hints {
