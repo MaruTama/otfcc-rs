@@ -41,7 +41,7 @@ use crate::table::glyf::{RefAnchorStatus, ComponentReference, Glyph, Point, Post
 
 
 
-use crate::table::otl::{Feature, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
+use crate::table::otl::{Feature, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
 use crate::table::otl::classdef::{ClassDef};
 
 
@@ -741,7 +741,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
     while ___loggedstep_v {
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
-            if (&(*lookup).subtables)[j as usize].is_null() {
+            if (&(*lookup).subtables)[j as usize].is_none() {
                 (*(*options).logger)
                     .log_sds
                     .expect("non-null function pointer")(
@@ -759,10 +759,13 @@ unsafe extern "C" fn __declare_otl_consolidation(
                 );
             } else {
                 let mut subtable_removed: bool = false;
+                let sub_ptr: SubtablePtr = (&mut (*lookup).subtables)[j as usize]
+                    .as_deref_mut()
+                    .unwrap() as *mut Subtable;
                 subtable_removed = fn_0.expect("non-null function pointer")(
                     font,
                     table,
-                    (&(*lookup).subtables)[j as usize],
+                    sub_ptr,
                     options,
                 );
                 if subtable_removed {
@@ -773,10 +776,10 @@ unsafe extern "C" fn __declare_otl_consolidation(
                     // to be a union with no discriminant to misinterpret.
                     // Now that it is an enum, `Subtable`'s own `Drop` does
                     // this dispatch, self-describing off the enum's tag, so
-                    // reclaiming the `Box` its construction site produced is
-                    // all that is needed -- no per-type function pointer.
-                    drop(Box::from_raw((&(*lookup).subtables)[j as usize]));
-                    (&mut (*lookup).subtables)[j as usize] = ::core::ptr::null_mut::<Subtable>();
+                    // setting the slot to `None` (dropping the `Box` in
+                    // place) is all that is needed -- no per-type function
+                    // pointer, no separate explicit `Box::from_raw`.
+                    (&mut (*lookup).subtables)[j as usize] = None;
                     (*(*options).logger)
                         .log_sds
                         .expect("non-null function pointer")(
@@ -799,10 +802,18 @@ unsafe extern "C" fn __declare_otl_consolidation(
         let mut k: TableId = 0 as TableId;
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*lookup).subtables.len() {
-            if !(&(*lookup).subtables)[j_0 as usize].is_null() {
+            if (&(*lookup).subtables)[j_0 as usize].is_some() {
                 let fresh4 = k;
                 k = k.wrapping_add(1);
-                (&mut (*lookup).subtables)[fresh4 as usize] = (&(*lookup).subtables)[j_0 as usize];
+                // `.take()` moves the `Box` out of slot `j_0`, leaving `None`
+                // behind there -- required now that elements are owned
+                // `Box`es rather than freely-aliasable raw pointers: a plain
+                // copy-assign would leave two slots owning the same `Box`,
+                // and `Vec::truncate` below (unlike the old raw-pointer
+                // `Vec`, which had nothing to drop) runs `Drop` on every
+                // truncated-away element, which would double-free it.
+                (&mut (*lookup).subtables)[fresh4 as usize] =
+                    (&mut (*lookup).subtables)[j_0 as usize].take();
             }
             j_0 = j_0.wrapping_add(1);
         }

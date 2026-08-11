@@ -894,6 +894,83 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`SubtableList` is `Vec<Option<Box<Subtable>>>` now, not `Vec<*mut Subtable>`
+  (B-2 of the remaining-three-themes plan, following B-1's enum conversion).**
+  Every element used to be a bare raw pointer, nullable to represent a
+  "removed"/"not yet expanded" hole (consolidation drops a subtable by nulling
+  its slot then compacting; `extend`-lookup expansion can leave a hole on its
+  rare mismatched-lookup-type error path). `Option<Box<Subtable>>` says the
+  same thing in the type: `None` is the hole, `Some` owns the value. `Lookup`
+  needed no `Drop` impl of its own even before this — once `SubtableList`
+  became this shape, both fields it owns (`name: Vec<u8>`, `subtables`) tear
+  down through ordinary compiler-generated field-by-field drop glue,
+  recursively; the custom impl this had (calling
+  `otl_subtable_list_dispose_dependent`) is deleted along with that function
+  and `dispose_subtable_dependent` — both existed only because the elements
+  were raw pointers with no self-describing ownership. `SubtablePtr = *mut
+  Subtable` stays: individual read/parse/consolidate functions still take and
+  return it unchanged, matching the C-derived vtable shapes this migration has
+  consistently preserved elsewhere. Only the *container*'s element type
+  changed.
+  - **New helpers, both in `table/otl.rs`**: `subtable_at(list, idx) ->
+    SubtablePtr` reads a slot and panics if it's empty, for the many
+    read-only call sites (`build.rs`, `stat.rs`, the chaining classifier) that
+    already assumed a slot could never be empty at the point they read it —
+    before `Box` made a hole `None` instead of a dangling `*mut Subtable`,
+    that assumption being wrong was a silent out-of-bounds-shaped dereference;
+    now it's a clean panic. `subtable_list_slot(ptr) -> Option<Box<Subtable>>`
+    is the inverse, for the several construction paths whose result can
+    legitimately be null (an unrecognised lookup format, truncated data) —
+    `Box::from_raw` on a null pointer would itself be UB, so this null check
+    is required, not defensive.
+  - **`otl/read.rs`'s extend-expansion loop needed `.take()`, not a
+    straight port.** The old code read a slot's raw pointer, then separately
+    wrote `null` into it — two independent steps, harmless when the element
+    type has no destructor. With `Option<Box<Subtable>>`, `.take()` collapses
+    that into the one operation that's actually correct: it moves the `Box`
+    out and leaves `None` behind atomically, which matters because a plain
+    read-then-null (or, worse, a copy without nulling) risks two slots owning
+    the same `Box` — a double free the instant either one drops. The
+    mismatched-lookup-type branch's scratch `Lookup` — built only to reuse its
+    `Drop`-driven teardown on one rejected subtable, then immediately dropped
+    — needed no other change.
+  - **`consolidate.rs`'s `__declare_otl_consolidation` compaction loop had the
+    same hazard**, more subtly: it moves surviving elements toward the front
+    of the list by index (`subtables[fresh] = subtables[j]`), then
+    `truncate()`s away the tail. On the old `Vec<*mut Subtable>` this was a
+    harmless pointer copy — truncated raw pointers were never dropped, so a
+    stale duplicate past the truncation point was inert. On
+    `Vec<Option<Box<Subtable>>>`, `Vec::truncate` *does* run `Drop` on
+    everything it removes — so a naive copy-assign would leave the
+    soon-to-be-truncated source slot owning the same `Box` as its new home,
+    and truncation would free it out from under the element that's supposed
+    to survive. `.take()` at the source avoids this the same way it does in
+    `read.rs`.
+  - **`unconsolidate_chaining`'s rebuild got simpler, not just retyped.**
+    Its own `newsts.push(Box::into_raw(Box::new(Subtable::Chaining(..))))` —
+    B-1's construction idiom, needed then because the list still held raw
+    pointers — collapses to `newsts.push(Some(Box::new(Subtable::Chaining
+    (..))))` once the list holds `Box` directly, dropping the
+    into_raw/from_raw round trip entirely. Its final `
+    otl_subtable_list_dispose_dependent(..); (*lookup).subtables = newsts;`
+    shrinks to the plain assignment alone: replacing a `Vec<Option<Box
+    <Subtable>>>` already drops whatever the old one held (correctly
+    disposing anything this loop's `Poly`/`Canonical` handling didn't touch,
+    e.g. a `Classified` subtable, exactly as the explicit call used to).
+  - **`table/otl/dump.rs` keeps its own explicit hole check** (`if let
+    Some(sub) = ..`) rather than switching to `subtable_at` — unlike
+    `build`/`stat`, it's expected to encounter holes (an `Extend` mismatch can
+    leave one) and already skipped them by design; `subtable_at`'s panic
+    would be the wrong behavior here, not a tightening of it.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 44/44 unit tests, ABI at exactly 4 symbols,
+    every standard payload byte-identical in both directions including the
+    `otfccdll` cdylib, all 10 round-trip payloads stable, issue #1's
+    regression test green, the lookup-alias regression script green, and all
+    six `make-test-*-dedup.py` forged payloads (the same set B-1 used, since
+    they cover the exact `SubtableList`-holding lookup types this PR's
+    ownership change touches) byte-identical against the C reference.
+
 - **`Subtable` is a tagged `enum` now, not a `union`: done (B-1 of the
   remaining-three-themes plan).** Was an 11-variant `union` with the
   discriminant living *outside* it, in `Lookup.type_0` — every read was a

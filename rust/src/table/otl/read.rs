@@ -9,8 +9,8 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::sds::{Byte, Dec5, Hex2};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
-use crate::table::otl::{Feature, FeatureList, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
-use crate::table::otl::{otl_feature_ref_list_dispose, otl_subtable_list_dispose_dependent, new_feature, new_language, new_lookup};
+use crate::table::otl::{Feature, FeatureList, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
+use crate::table::otl::{otl_feature_ref_list_dispose, subtable_list_slot, new_feature, new_language, new_lookup};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
 use crate::table::otl::subtables::extend::{otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend};
@@ -700,7 +700,7 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
             max_glyphs,
             options,
         );
-        (*lookup).subtables.push(subtable);
+        (*lookup).subtables.push(subtable_list_slot(subtable));
         j = j.wrapping_add(1);
     }
     if (*lookup).type_0 == OTL_TYPE_GSUB_EXTEND
@@ -709,9 +709,8 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
         (*lookup).type_0 = OTL_TYPE_UNKNOWN;
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*lookup).subtables.len() {
-            let elem_ptr_0: SubtablePtr = (&(*lookup).subtables)[j_0 as usize];
-            if !elem_ptr_0.is_null() {
-                let Subtable::Extend(ext) = &*elem_ptr_0 else { unreachable!() };
+            if let Some(elem) = &(&(*lookup).subtables)[j_0 as usize] {
+                let Subtable::Extend(ext) = elem.as_ref() else { unreachable!() };
                 (*lookup).type_0 = ext.type_0;
                 break;
             } else {
@@ -721,21 +720,24 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
         if (*lookup).type_0 != OTL_TYPE_UNKNOWN {
             let mut j_1: TableId = 0 as TableId;
             while (j_1 as usize) < (*lookup).subtables.len() {
-                let elem_ptr: SubtablePtr = (&(*lookup).subtables)[j_1 as usize];
-                if !elem_ptr.is_null() {
+                // `.take()` both reads this slot's element (if any) and
+                // leaves `None` behind -- the direct replacement for the old
+                // "copy the raw pointer out, then separately null the slot"
+                // two-step, and the only correct one: a `Box` can't be
+                // copied, only moved.
+                if let Some(elem) = (&mut (*lookup).subtables)[j_1 as usize].take() {
                     // Every element in this list is known to be an `Extend`
                     // placeholder -- that is what `OTL_TYPE_GSUB_EXTEND`/
                     // `OTL_TYPE_GPOS_EXTEND` means -- so unwrapping it is
-                    // infallible.
-                    let Subtable::Extend(ext) = &*elem_ptr else { unreachable!() };
+                    // infallible. Moving `ExtendSubtable` out of `*elem`
+                    // (it's `Copy`) also deallocates `elem`'s own heap slot,
+                    // same as the old explicit `Box::from_raw(..)` drop did.
+                    let Subtable::Extend(ext) = *elem else { unreachable!() };
                     if ext.type_0 == (*lookup).type_0 {
                         // `.subtable`'s ownership transfers to become the new
-                        // list element; freeing `elem_ptr` (the `Extend`
-                        // shell) must not touch it -- and `Subtable::Extend`'s
-                        // `Drop` is a no-op for exactly this reason.
-                        let st: *mut Subtable = ext.subtable;
-                        drop(Box::from_raw(elem_ptr));
-                        (&mut (*lookup).subtables)[j_1 as usize] = st;
+                        // list element.
+                        (&mut (*lookup).subtables)[j_1 as usize] =
+                            subtable_list_slot(ext.subtable);
                     } else {
                         // A scratch `Lookup` purely to reuse its (now `Drop`-driven)
                         // type-dispatched subtable teardown on this one subtable --
@@ -743,16 +745,23 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
                         // instead of the old explicit `otfcc_delete_lookup` call.
                         let mut temp: Box<Lookup> = new_lookup();
                         (*temp).type_0 = ext.type_0;
-                        (*temp).subtables.push(ext.subtable);
+                        (*temp).subtables.push(subtable_list_slot(ext.subtable));
                         drop(temp);
-                        drop(Box::from_raw(elem_ptr));
-                        (&mut (*lookup).subtables)[j_1 as usize] = ::core::ptr::null_mut::<Subtable>();
+                        // Slot already `None` from `.take()` above.
                     }
                 }
                 j_1 = j_1.wrapping_add(1);
             }
         } else {
-            otl_subtable_list_dispose_dependent(&raw mut (*lookup).subtables, lookup);
+            // Was `otl_subtable_list_dispose_dependent(..); return;` -- with
+            // `SubtableList` now `Vec<Option<Box<Subtable>>>`, there is
+            // nothing left to eagerly dispose: whatever remains in
+            // `(*lookup).subtables` (still holding valid, un-expanded
+            // `Extend` placeholders) tears down correctly whenever `lookup`
+            // itself eventually drops, since `Subtable::drop` dispatches off
+            // each element's own enum tag, not `(*lookup).type_0` -- which
+            // this function already overwrote to `OTL_TYPE_UNKNOWN` above,
+            // before B-1 this would have been the wrong type to free by.
             return;
         }
     }

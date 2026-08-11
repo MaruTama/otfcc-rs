@@ -53,11 +53,11 @@ unsafe extern "C" fn _declare_lookup_dumper(
         let mut subtables: *mut JsonValue = json_array_new((*lookup).subtables.len());
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
-            if !(&(*lookup).subtables)[j as usize].is_null() {
+            if let Some(sub) = &(&(*lookup).subtables)[j as usize] {
                 json_array_push(
                     subtables,
                     dumper.expect("non-null function pointer")(
-                        (&(*lookup).subtables)[j as usize] as *const Subtable,
+                        sub.as_ref() as *const Subtable,
                     ),
                 );
             }

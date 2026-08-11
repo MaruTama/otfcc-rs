@@ -8,7 +8,7 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphClass, GlyphId, TableId};
 
-use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Lookup, Subtable, SubtablePtr, ChainingType, ChainingSubtable};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Lookup, Subtable, SubtablePtr, subtable_at, ChainingType, ChainingSubtable};
 use crate::table::otl::subtables::chaining::build::{otfcc_build_chaining, otfcc_build_contextual, otfcc_chaining_lookup_is_contextual_lookup};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 #[derive(Clone)]
@@ -195,7 +195,7 @@ pub unsafe extern "C" fn try_classify_around(
     let mut hb: std::collections::BTreeMap<GlyphId, ClassifierValue> = std::collections::BTreeMap::new();
     let mut hi: std::collections::BTreeMap<GlyphId, ClassifierValue> = std::collections::BTreeMap::new();
     let mut hf: std::collections::BTreeMap<GlyphId, ClassifierValue> = std::collections::BTreeMap::new();
-    let subtable0_ptr: SubtablePtr = (&(*lookup).subtables)[j as usize];
+    let subtable0_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, j as usize);
     let Subtable::Chaining(mut_subtable0) = &mut *subtable0_ptr else { unreachable!() };
     let mut subtable0: *mut ChainingSubtable = mut_subtable0;
     let mut classno_b: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -239,7 +239,7 @@ pub unsafe extern "C" fn try_classify_around(
         12349973810996921269 => {
             let mut k: TableId = (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
             's_74: while (k as usize) < (*lookup).subtables.len() {
-                let k_ptr: SubtablePtr = (&(*lookup).subtables)[k as usize];
+                let k_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k as usize);
                 let Subtable::Chaining(mut_subtable_k) = &mut *k_ptr else { unreachable!() };
                 let subtable_k: *mut ChainingSubtable = mut_subtable_k;
                 let mut rule: *mut ChainingRule =
@@ -307,7 +307,7 @@ pub unsafe extern "C" fn try_classify_around(
                     && (kk as ::core::ffi::c_int)
                         < compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int
                 {
-                    let k_0_ptr: SubtablePtr = (&(*lookup).subtables)[k_0 as usize];
+                    let k_0_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k_0 as usize);
                     let Subtable::Chaining(mut_subtable_k_0) = &mut *k_0_ptr else { unreachable!() };
                     let subtable_k_0: *mut ChainingSubtable = mut_subtable_k_0;
                     let mut rule_0: *mut ChainingRule =
@@ -349,7 +349,7 @@ pub unsafe extern "C" fn otfcc_classified_build_chaining(
     ) as *mut *mut Buffer;
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*lookup).subtables.len() {
-        let j_ptr: SubtablePtr = (&(*lookup).subtables)[j as usize];
+        let j_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, j as usize);
         let Subtable::Chaining(mut_st0) = &mut *j_ptr else { unreachable!() };
         let st0: *mut ChainingSubtable = mut_st0;
         if !((*st0).type_0 as u64 != 0) {

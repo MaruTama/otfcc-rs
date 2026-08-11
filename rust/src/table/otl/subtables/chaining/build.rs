@@ -11,7 +11,7 @@ use crate::support::primitives::{GlyphClass, TableId};
 
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::table::otl::{ChainingRule, ChainingRuleSet, Lookup, Subtable, SubtablePtr, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, ChainingSubtable};
+use crate::table::otl::{ChainingRule, ChainingRuleSet, Lookup, Subtable, SubtablePtr, subtable_at, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, ChainingSubtable};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
@@ -27,7 +27,7 @@ pub unsafe extern "C" fn otfcc_chaining_lookup_is_contextual_lookup(
     let mut is_contextual: bool = true;
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*lookup).subtables.len() {
-        let subtable_ptr: SubtablePtr = (&(*lookup).subtables)[j as usize];
+        let subtable_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, j as usize);
         let Subtable::Chaining(mut_subtable) = &*subtable_ptr else { unreachable!() };
         let subtable: *const ChainingSubtable = mut_subtable;
         if (*subtable).type_0 == ChainingType::Classified

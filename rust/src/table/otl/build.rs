@@ -11,7 +11,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable};
+use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupType, Subtable, subtable_at, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
@@ -89,7 +89,7 @@ unsafe extern "C" fn _declare_lookup_writer(
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
             let mut buf: *mut Buffer = fn_0.expect("non-null function pointer")(
-                (&(*lookup).subtables)[j as usize] as *const Subtable,
+                subtable_at(&(*lookup).subtables, j as usize) as *const Subtable,
                 heuristics,
             );
             let ref mut fresh1 = *(*subtables).offset(j as isize);
@@ -126,7 +126,7 @@ unsafe extern "C" fn _declare_lookup_writer_split(
         while (j as usize) < (*lookup).subtables.len() {
             let mut n_part: TableId = 0 as TableId;
             let mut part: *mut *mut Buffer = fn_0.expect("non-null function pointer")(
-                (&(*lookup).subtables)[j as usize] as *const Subtable,
+                subtable_at(&(*lookup).subtables, j as usize) as *const Subtable,
                 heuristics,
                 &raw mut n_part,
             );
