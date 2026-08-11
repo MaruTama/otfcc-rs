@@ -894,6 +894,52 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`BaseRecord.anchors` is `Vec<Anchor>` now, not `*mut Anchor` (B-3-1 of
+  the remaining-three-themes plan — first of 7 raw-pointer fields left
+  inside individual `XxxSubtable` structs after B-1/B-2 finished the outer
+  `Subtable`/`SubtableList` conversion).** `Anchor` (`{ present: bool, x:
+  Pos, y: Pos }`) is a small `Copy` struct, and the field was always a
+  malloc'd array sized by the enclosing subtable's `class_count` — the
+  simplest of the 7 remaining fields, with no nested pointers and no
+  per-element free.
+  - **Cascaded further than the one field.** Once `anchors` self-drops,
+    `BaseRecord` needs no destructor at all (`glyph: GlyphHandle` already had
+    one from the Handle pilot) — so `delete_base_array_item` is deleted
+    outright. `dispose_base_array` keeps existing (still has a real,
+    non-destructor caller: `consolidate/otl/mark.rs`'s dedup pass clears an
+    in-place array mid-function, not just at end of scope) but its body
+    collapses to `*arr = Vec::new()`, the same one-liner shape established
+    elsewhere in this migration. One level up, `GposMarkToSingleSubtable`'s
+    other field (`mark_array: MarkArray`) already self-dropped before this
+    PR (`dispose_mark_array` was already a no-op `*arr = Vec::new()`), so
+    with both fields now self-dropping, `dispose_mark_to_single` itself
+    becomes pure dead weight — deleted, with `Subtable::drop`'s
+    `GposMarkToSingle` arm becoming a no-op (`Subtable::GposMarkToSingle(_)
+    => {}`), the same shape `Extend` already had from B-1.
+    `subtable_gpos_mark_to_single_free` (still needed — called from the read
+    function's own error path, unrelated to `Subtable::drop`) switches from
+    calling the now-deleted dispose function to the `ptr::read` +
+    `drop` + `free` "unwrap_X_table" idiom used throughout Stage 6-4.
+  - **`consolidate/otl/mark.rs`'s dedup pass** used to copy `anchors`'
+    pointer value out of a `BaseRecord` and separately null the source field
+    — two independent steps, harmless for a bare pointer. `Vec<Anchor>`
+    needs the one atomic operation that's actually correct here:
+    `mem::take`, matching the pattern established for exactly this shape in
+    B-2.
+  - Two sites indexed by a JSON class name rather than filled sequentially
+    (`parse_bases`'s random-access write, keyed by `class_id` out of key
+    order) needed pre-sizing (`vec![otl_anchor_absent(); class_count]`) rather
+    than `.push()` — the one place this conversion wasn't a pure
+    `.offset(k) -> [k]` mechanical swap.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 44/44 unit tests, ABI at exactly 4 symbols,
+    every standard payload byte-identical in both directions including the
+    `otfccdll` cdylib, all 10 round-trip payloads stable, issue #1's
+    regression test green, and the `mark-consolidate` dedup payload (which
+    exercises this exact field's dedup path — the log output literally reads
+    "Ignored anchor double-definition") byte-identical against the C
+    reference on both platforms.
+
 - **`SubtableList` is `Vec<Option<Box<Subtable>>>` now, not `Vec<*mut Subtable>`
   (B-2 of the remaining-three-themes plan, following B-1's enum conversion).**
   Every element used to be a bare raw pointer, nullable to represent a
