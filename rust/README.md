@@ -894,6 +894,101 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`GposPairSubtable` is fully Box-ified now — `first`/`second: *mut ClassDef`
+  become `Option<Box<ClassDef>>`, `first_values`/`second_values: *mut *mut
+  PositionValue` become `Vec<Vec<PositionValue>>` (B-3-7 of the
+  remaining-three-themes plan, the seventh and last of 7 raw-pointer fields).
+  This closes out the whole B-3 theme: every `XxxSubtable`/`XxxEntry` field
+  that used to hold a raw pointer into its own heap allocation now owns it
+  through `Vec`/`Box`/`Option`.** The largest of the 7 by every measure —
+  4 fields, ~130 sites in `table/otl/subtables/gpos_pair.rs` alone (987
+  lines) plus `consolidate/otl/gpos_pair.rs` — and the first to introduce a
+  new bridging idiom rather than reusing `coverage_from_raw`.
+  - **`classdef_from_raw`, `coverage_from_raw`'s sibling.** `ClassDef` (used
+    for the outer `first`/`second` glyph-class tables) is a plain struct, not
+    a `Vec` type alias like `Coverage`, and — unlike every prior B-3 field —
+    is legitimately `Option`al: `parse_class_def` returns null on a
+    non-object JSON value, and callers already checked `.is_null()` for it.
+    `classdef_from_raw(raw: *mut ClassDef) -> Option<Box<ClassDef>>` added
+    to `classdef.rs` right after `otl_class_def_create`, same `ptr::read` +
+    `free()` shape as `coverage_from_raw` (never `Box::from_raw` on a
+    `malloc`'d pointer — the same allocator-mismatch hazard this migration
+    has avoided throughout). `ChainingRuleSet.bc`/`.ic`/`.fc: *mut ClassDef`
+    stay untouched raw pointers — this PR only converts the two `ClassDef`
+    fields living inside `GposPairSubtable` itself, not every raw-pointer
+    `ClassDef` in the crate.
+  - **The reverse bridge doesn't exist, on purpose.** `expand_class_def`
+    consumes a `*mut ClassDef` it's handed and internally `free()`s it before
+    returning a new one — feeding it a `Box`-derived pointer would `free()`
+    Rust-allocator memory through libc, exactly the mismatch `coverage_from_
+    raw` was designed to avoid. `otl_read_gpos_pair`'s Format 2 branch (which
+    calls `expand_class_def`) keeps `first` as a plain local raw pointer
+    (`first_raw`) through that one consuming call, and only wraps it with
+    `classdef_from_raw` into `(*subtable).first` once settled — never
+    constructing a `Box` that a C-side `free()` could reach. Format 1 (which
+    never calls a consuming function) adopts immediately after construction,
+    matching every earlier field's timing.
+  - **Adoption timing had to match the original's exactly, not just produce
+    the same end state.** Both read functions have several early-exit paths
+    (length-check failures) that fall through to `I_SUBTABLE_GPOS_PAIR.free`
+    without reaching the success return. The original assigned `(*subtable)
+    .first` immediately at construction, so that free correctly disposed a
+    half-built subtable on every exit path. Deferring adoption to a purely
+    local variable until the function's end (the simpler-looking option)
+    would have leaked `first`/`second`/both value grids on exactly those
+    paths — so both fields are adopted into `(*subtable)` as soon as they're
+    fully constructed, with a raw-pointer alias (`first_cd`, `second_cd`)
+    derived once via `.as_deref_mut().unwrap()` for every read/write after
+    that, the same "derive an alias once, mutate through it" idiom used for
+    every Box-reached field so far in this migration.
+  - **`first_values`/`second_values` collapse from a manual 2D
+    `__caryll_allocate_clean` grid to one `vec![vec![..]; ..]` line where the
+    fill is out-of-order, or to `.push()`ed rows where it's exhaustive and
+    sequential.** Format 1's real-value pass indexes by `cid` from an
+    `IndexSet` lookup (not sequential), so the grid is pre-sized with
+    `position_zero()` placeholders and index-assigned — the same "pre-size
+    for out-of-order `Copy` fills" shape as B-3-1/B-3-5. Format 2 and
+    `otl_gpos_parse_pair`'s JSON-matrix fill are both exhaustive nested loops
+    in strict row-then-column order, so their grids are built directly with
+    `.push()`, no placeholder pass needed at all — simpler than either of
+    Format 1's two passes.
+  - **`IndividualGposPair.fv`/`.sv` changed from `*mut PositionValue` to
+    `PositionValue`.** These used to point *into* the `first_values`/
+    `second_values` grid (an address-of-a-cell, valid only as long as the
+    grid outlives the pointer, true within a single build pass). Since
+    `PositionValue` is `Copy` and the grid is a real `Vec<Vec<..>>` now, the
+    matched cell's value is just copied out at collection time instead —
+    removing the last per-element pointer in the file, and removing the only
+    place where the grid's address needed to stay stable across the sort.
+  - **The vtable's `.copy` slot (`subtable_gpos_pair_copy`) was a whole-struct
+    `memcpy` — unsound the moment any field owns a `Vec`/`Box` (aliases two
+    owners onto one allocation).** Confirmed via the same file-boundary
+    reachability check as `otfcc-stage6-vtable-copy-move-mostly-dead`:
+    `I_SUBTABLE_GPOS_PAIR.copy` has no callers anywhere in the crate, so
+    rather than preserving memcpy semantics behind a hazard nothing
+    exercises, it was rewritten to the simplest correct body — a field-wise
+    `.clone()` (`ClassDef` already derives `Clone`; `Vec<Vec<PositionValue>>`
+    clones directly since `PositionValue` is `Copy`).
+  - `cov_from_cd`'s parameter tightened from `*mut ClassDef` to `*const
+    ClassDef` (it never mutates its argument) to avoid a `*const` -> `*mut`
+    cast at both of its call sites now that `first_cd`/`second_cd` are
+    naturally `*const ClassDef` in the two build functions.
+  - `#[derive(Copy, Clone)]` on `GposPairSubtable` dropped to `#[derive(
+    Clone)]`, the same change every other B-3 field's enclosing struct
+    needed once it stopped being trivially copyable.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 44/44 unit tests, ABI at exactly 4 symbols,
+    every standard payload byte-identical in both directions including the
+    `otfccdll` cdylib, all 10 round-trip payloads stable, and issue #1's
+    regression test green. `gpos_pair` has real coverage in the standard
+    payload set (`BungeeColor-Regular_colr_Windows`, `Molengo-Regular` both
+    carry real `gpos_pair` lookups), and `otfcc_build_gpos_pair` always
+    exercises both `otfcc_build_gpos_pair_individual` and `_classes` on
+    every build regardless of which wire format a subtable was originally
+    read from, so both code paths this PR touches are exercised by the
+    existing payload set rather than needing a dedicated forced-dedup
+    payload.
+
 - **`ChainingRule.match_0` is `Vec<Coverage>` now, not `*mut *mut Coverage`
   (B-3-6 of the remaining-three-themes plan, the sixth of 7 raw-pointer
   fields) — and its custom `Drop` impl is gone entirely.** Spread across 7

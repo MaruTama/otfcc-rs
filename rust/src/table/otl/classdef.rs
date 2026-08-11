@@ -71,6 +71,22 @@ pub(crate) unsafe extern "C" fn otl_class_def_create() -> *mut ClassDef {
     });
     x
 }
+/// Adopt a `otl_class_def_create()`/`read_class_def()`/vtable-`.parse()`-style
+/// raw `*mut ClassDef` into an owned `Option<Box<ClassDef>>` -- the same
+/// "unwrap_X_table" idiom as `coverage_from_raw`, but `Option`-wrapped since
+/// (unlike `Coverage`) `ClassDef`-producing calls can legitimately return
+/// null (`parse_class_def` on a non-object JSON value). `ptr::read` moves the
+/// struct (and its owned `Vec`s) out, `free` releases just the emptied
+/// malloc'd shell; the `Box` is a fresh Rust allocation holding the moved
+/// value, not the original malloc'd memory.
+pub(crate) unsafe fn classdef_from_raw(raw: *mut ClassDef) -> Option<Box<ClassDef>> {
+    if raw.is_null() {
+        return None;
+    }
+    let value = ::core::ptr::read(raw);
+    free(raw as *mut ::core::ffi::c_void);
+    Some(Box::new(value))
+}
 // `Handle` (aliased `GlyphHandle`) now owns a `Vec<u8>` name, so passing it
 // by value trips `improper_ctypes_definitions`; this is never called across
 // a real FFI boundary (c2rust artifact, not `#[no_mangle]`).

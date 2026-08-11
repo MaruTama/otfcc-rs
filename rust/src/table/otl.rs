@@ -17,7 +17,6 @@ use crate::support::handle::{GlyphHandle, LookupHandle};
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::table::otl::subtables::chaining::common::{otl_dispose_chaining};
 use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
-use crate::table::otl::subtables::gpos_pair::{dispose_gpos_pair};
 use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
 use crate::table::otl::subtables::gsub_ligature::{dispose_gsub_ligature_subtable};
 use crate::table::otl::subtables::gsub_multi::{dispose_gsub_multi_subtable};
@@ -194,7 +193,11 @@ impl Drop for Subtable {
                 // `Vec`'s own drop glue entirely, unlike here.
                 Subtable::GsubReverse(_) => {}
                 Subtable::GposSingle(x) => dispose_gpos_single_subtable(x as *mut GposSingleSubtable),
-                Subtable::GposPair(x) => dispose_gpos_pair(x as *mut GposPairSubtable),
+                // `first`/`second: Option<Box<ClassDef>>` and
+                // `first_values`/`second_values: Vec<Vec<PositionValue>>`
+                // all self-drop now -- no manual dispose left to call, same
+                // reasoning as `GposMarkToSingle` above.
+                Subtable::GposPair(_) => {}
                 Subtable::GposCursive(x) => dispose_gpos_cursive_subtable(x as *mut GposCursiveSubtable),
                 // `mark_array: MarkArray` and `base_array: BaseArray`
                 // (`Vec<BaseRecord>`, `BaseRecord.anchors` now a plain
@@ -322,13 +325,15 @@ pub struct GposCursiveEntry {
     pub enter: Anchor,
     pub exit: Anchor,
 }
-#[derive(Copy, Clone)]
+// `Copy` dropped: `first`/`second`/`first_values`/`second_values` all own
+// heap allocations now.
+#[derive(Clone)]
 #[repr(C)]
 pub struct GposPairSubtable {
-    pub first: *mut ClassDef,
-    pub second: *mut ClassDef,
-    pub first_values: *mut *mut PositionValue,
-    pub second_values: *mut *mut PositionValue,
+    pub first: Option<Box<ClassDef>>,
+    pub second: Option<Box<ClassDef>>,
+    pub first_values: Vec<Vec<PositionValue>>,
+    pub second_values: Vec<Vec<PositionValue>>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
