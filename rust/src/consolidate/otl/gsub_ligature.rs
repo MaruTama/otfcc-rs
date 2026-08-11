@@ -78,12 +78,16 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                 ),
             );
         } else {
-            fontop_consolidate_coverage(font, (&(*subtable))[k as usize].from, options);
+            fontop_consolidate_coverage(
+                font,
+                &mut (&mut (*subtable))[k as usize].from as *mut Coverage,
+                options,
+            );
             shrink_coverage(
-                (&(*subtable))[k as usize].from,
+                &mut (&mut (*subtable))[k as usize].from as *mut Coverage,
                 false,
             );
-            if (*(&(*subtable))[k as usize].from).is_empty() {
+            if (&(*subtable))[k as usize].from.is_empty() {
                 (*(*options).logger)
                     .log_sds
                     .expect("non-null function pointer")(
@@ -100,14 +104,12 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
             } else {
                 nt.push(
                     GsubLigatureEntry {
-                        from: (&(*subtable))[k as usize].from,
+                        from: ::core::mem::take(&mut (&mut (*subtable))[k as usize].from),
                         to: otfcc_handle_dup(
                             (&(*subtable))[k as usize].to.clone() as Handle,
                         ) as GlyphHandle,
                     },
                 );
-                let ref mut fresh0 = (&mut (*subtable))[k as usize].from;
-                *fresh0 = ::core::ptr::null_mut::<Coverage>();
             }
         }
         k = k.wrapping_add(1);

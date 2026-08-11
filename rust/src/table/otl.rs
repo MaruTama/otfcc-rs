@@ -441,7 +441,7 @@ pub type GsubLigatureSubtable = Vec<GsubLigatureEntry>;
 #[derive(Clone)]
 #[repr(C)]
 pub struct GsubLigatureEntry {
-    pub from: *mut Coverage,
+    pub from: Coverage,
     pub to: GlyphHandle,
 }
 pub type GsubMultiSubtable = Vec<GsubMultiEntry>;
