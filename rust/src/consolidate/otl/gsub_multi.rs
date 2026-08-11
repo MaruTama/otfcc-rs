@@ -63,7 +63,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     // `fromid` right before reading entries back out, so the final order is
     // ascending by glyph id, not insertion order -- a `BTreeMap`'s iteration
     // order already is that, for free.
-    let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, *mut Coverage)> =
+    let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, Coverage)> =
         std::collections::BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).len() {
@@ -87,12 +87,16 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                 ),
             );
         } else {
-            fontop_consolidate_coverage(font, (&(*subtable))[k as usize].to, options);
+            fontop_consolidate_coverage(
+                font,
+                &mut (&mut (*subtable))[k as usize].to as *mut Coverage,
+                options,
+            );
             shrink_coverage(
-                (&(*subtable))[k as usize].to,
+                &mut (&mut (*subtable))[k as usize].to as *mut Coverage,
                 false,
             );
-            if (*(&(*subtable))[k as usize].to).is_empty() {
+            if (&(*subtable))[k as usize].to.is_empty() {
                 (*(*options).logger)
                     .log_sds
                     .expect(
@@ -112,9 +116,8 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                 let fromid: i32 = (&(*subtable))[k as usize].from.index as i32;
                 if !seen.contains_key(&fromid) {
                     let fromname: Vec<u8> = (&(*subtable))[k as usize].from.name.clone();
-                    let to: *mut Coverage = (&(*subtable))[k as usize].to;
-                    let ref mut fresh0 = (&mut (*subtable))[k as usize].to;
-                    *fresh0 = ::core::ptr::null_mut::<Coverage>();
+                    let to: Coverage =
+                        ::core::mem::take(&mut (&mut (*subtable))[k as usize].to);
                     seen.insert(fromid, (fromname, to));
                 }
             }

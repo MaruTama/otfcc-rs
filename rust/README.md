@@ -894,6 +894,47 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`GsubMultiEntry.to` is `Coverage` now, not `*mut Coverage` (B-3-2 of the
+  remaining-three-themes plan).** `Coverage` is itself already a bare
+  `Vec<GlyphHandle>` (Stage 6-1 legacy), so this field needed no internal
+  restructuring at all — only the outer pointer went away. The field is
+  never legitimately absent (`parse_coverage` always returns at least an
+  empty `Coverage`, never null), so `Coverage` by value, not
+  `Option<Coverage>`.
+  - **New helper, `coverage_from_raw` (`table/otl/coverage.rs`)**, alongside
+    `otl_coverage_create`/`otl_coverage_free`: adopts a
+    `otl_coverage_create()`/vtable-`.parse()`-built raw `*mut Coverage` into
+    an owned value via the same `ptr::read` + `free` "unwrap_X_table" idiom
+    used throughout Stage 6-4. `otl_coverage_create`/`push_to_coverage`
+    themselves are untouched — they're generic building blocks used all over
+    the OTL code for local coverage construction, not specific to this one
+    field, so only the *storage* boundary changed, matching the same
+    narrow-scoping this migration used for `Subtable` construction
+    (`subtable_from_raw`) in B-1.
+  - **Cascaded the same way B-3-1 did.** `to: Coverage` and `from:
+    GlyphHandle` both self-drop, so `GsubMultiSubtable` (`Vec<GsubMultiEntry>`)
+    needs no per-element destructor at all — `delete_gsub_multi_entry` is
+    deleted outright, `dispose_gsub_multi_subtable` collapses to `*arr =
+    Vec::new()`.
+  - **`consolidate/otl/gsub_multi.rs`'s dedup pass** (first-occurrence-wins
+    by `from.index`) used the same "copy the pointer out, null the source"
+    two-step B-3-1 replaced with `mem::take` — same fix here, same reason:
+    a `Vec` isn't `Copy`, so the naive port would leave two entries owning
+    the same buffer.
+  - Everywhere else was a mechanical `(*x.to)` -> `x.to` / `x.to as *const
+    Coverage` swap, since the shared coverage-table helpers
+    (`fontop_consolidate_coverage`, `shrink_coverage`, `OTL_I_COVERAGE`'s
+    vtable) still take raw pointers — deriving one at each call site, body
+    otherwise unchanged.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 44/44 unit tests, ABI at exactly 4 symbols,
+    every standard payload byte-identical in both directions including the
+    `otfccdll` cdylib, all 10 round-trip payloads stable, issue #1's
+    regression test green, and the `gsub-multi` dedup payload (no committed
+    font payload has a `gsub_multiple`/`gsub_alternate` lookup at all, so
+    this forged one is the only coverage this field's dedup path has)
+    byte-identical against the C reference on both platforms.
+
 - **`BaseRecord.anchors` is `Vec<Anchor>` now, not `*mut Anchor` (B-3-1 of
   the remaining-three-themes plan — first of 7 raw-pointer fields left
   inside individual `XxxSubtable` structs after B-1/B-2 finished the outer
