@@ -59,7 +59,6 @@ pub struct CffFontMatrix {
     pub x: VQ,
     pub y: VQ,
 }
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffPrivateDict {
     pub blue_values_count: Arity,
@@ -85,6 +84,27 @@ pub struct CffPrivateDict {
     pub initial_random_seed: ::core::ffi::c_double,
     pub default_width_x: ::core::ffi::c_double,
     pub nominal_width_x: ::core::ffi::c_double,
+}
+// Stage 6-4 "Box化": `CffTable.private_dict` becomes
+// `Option<Box<CffPrivateDict>>`. `Copy`/`Clone` dropped (nothing cloned
+// this type -- confirmed by grep) since a real `Drop` impl is needed for
+// the six `*mut c_double` arrays this struct still owns raw (their own
+// Box化/`Vec化` is out of scope here, matching `CffTable.fd_array`'s own
+// still-raw-pointer status). Replaces `otfcc_delete_privatedict` --
+// construction now goes through `otfcc_new_cff_private()` returning
+// `Box<CffPrivateDict>` directly at each call site, matching the
+// `new_lookup`/`new_feature`/`GaspTable` precedent.
+impl Drop for CffPrivateDict {
+    fn drop(&mut self) {
+        unsafe {
+            free(self.blue_values as *mut ::core::ffi::c_void);
+            free(self.other_blues as *mut ::core::ffi::c_void);
+            free(self.family_blues as *mut ::core::ffi::c_void);
+            free(self.family_other_blues as *mut ::core::ffi::c_void);
+            free(self.stem_snap_h as *mut ::core::ffi::c_void);
+            free(self.stem_snap_v as *mut ::core::ffi::c_void);
+        }
+    }
 }
 // `Copy`/`Clone` dropped: nine fields are now `Vec<u8>` (the `sds` sweep
 // reached `CffTable`'s font-info fields). Every use of this type is behind
@@ -114,8 +134,8 @@ pub struct CffTable {
     pub font_b_box_left: ::core::ffi::c_double,
     pub font_b_box_right: ::core::ffi::c_double,
     pub stroke_width: ::core::ffi::c_double,
-    pub private_dict: *mut CffPrivateDict,
-    pub font_matrix: *mut CffFontMatrix,
+    pub private_dict: Option<Box<CffPrivateDict>>,
+    pub font_matrix: Option<Box<CffFontMatrix>>,
     pub cid_registry: Vec<u8>,
     pub cid_ordering: Vec<u8>,
     pub cid_supplement: u32,
@@ -207,17 +227,32 @@ pub static DEFAULT_BLUE_SHIFT: ::core::ffi::c_double =
 pub static DEFAULT_BLUE_FUZZ: ::core::ffi::c_double =
     1 as ::core::ffi::c_int as ::core::ffi::c_double;
 pub static DEFAULT_EXPANSION_FACTOR: ::core::ffi::c_double = 0.06f64;
-unsafe extern "C" fn otfcc_new_cff_private() -> *mut CffPrivateDict {
-    let mut pd: *mut CffPrivateDict = ::core::ptr::null_mut::<CffPrivateDict>();
-    pd = __caryll_allocate_clean(
-        ::core::mem::size_of::<CffPrivateDict>() as usize,
-        15 as ::core::ffi::c_ulong,
-    ) as *mut CffPrivateDict;
-    (*pd).blue_fuzz = DEFAULT_BLUE_FUZZ;
-    (*pd).blue_scale = DEFAULT_BLUE_SCALE;
-    (*pd).blue_shift = DEFAULT_BLUE_SHIFT;
-    (*pd).expansion_factor = DEFAULT_EXPANSION_FACTOR;
-    return pd;
+fn otfcc_new_cff_private() -> Box<CffPrivateDict> {
+    Box::new(CffPrivateDict {
+        blue_values_count: 0,
+        blue_values: ::core::ptr::null_mut::<::core::ffi::c_double>(),
+        other_blues_count: 0,
+        other_blues: ::core::ptr::null_mut::<::core::ffi::c_double>(),
+        family_blues_count: 0,
+        family_blues: ::core::ptr::null_mut::<::core::ffi::c_double>(),
+        family_other_blues_count: 0,
+        family_other_blues: ::core::ptr::null_mut::<::core::ffi::c_double>(),
+        blue_scale: DEFAULT_BLUE_SCALE,
+        blue_shift: DEFAULT_BLUE_SHIFT,
+        blue_fuzz: DEFAULT_BLUE_FUZZ,
+        std_hw: 0.,
+        std_vw: 0.,
+        stem_snap_h_count: 0,
+        stem_snap_h: ::core::ptr::null_mut::<::core::ffi::c_double>(),
+        stem_snap_v_count: 0,
+        stem_snap_v: ::core::ptr::null_mut::<::core::ffi::c_double>(),
+        force_bold: false,
+        language_group: 0,
+        expansion_factor: DEFAULT_EXPANSION_FACTOR,
+        initial_random_seed: 0.,
+        default_width_x: 0.,
+        nominal_width_x: 0.,
+    })
 }
 #[inline]
 unsafe extern "C" fn init_fd(mut fd: *mut CffTable) {
@@ -228,33 +263,6 @@ unsafe extern "C" fn init_fd(mut fd: *mut CffTable) {
     );
     (*fd).underline_position = -(100 as ::core::ffi::c_int) as ::core::ffi::c_double;
     (*fd).underline_thickness = 50 as ::core::ffi::c_int as ::core::ffi::c_double;
-}
-unsafe extern "C" fn otfcc_delete_privatedict(mut priv_0: *mut CffPrivateDict) {
-    if priv_0.is_null() {
-        return;
-    }
-    free((*priv_0).blue_values as *mut ::core::ffi::c_void);
-    (*priv_0).blue_values = ::core::ptr::null_mut::<::core::ffi::c_double>();
-    free((*priv_0).other_blues as *mut ::core::ffi::c_void);
-    (*priv_0).other_blues = ::core::ptr::null_mut::<::core::ffi::c_double>();
-    free((*priv_0).family_blues as *mut ::core::ffi::c_void);
-    (*priv_0).family_blues = ::core::ptr::null_mut::<::core::ffi::c_double>();
-    free((*priv_0).family_other_blues as *mut ::core::ffi::c_void);
-    (*priv_0).family_other_blues = ::core::ptr::null_mut::<::core::ffi::c_double>();
-    free((*priv_0).stem_snap_h as *mut ::core::ffi::c_void);
-    (*priv_0).stem_snap_h = ::core::ptr::null_mut::<::core::ffi::c_double>();
-    free((*priv_0).stem_snap_v as *mut ::core::ffi::c_void);
-    (*priv_0).stem_snap_v = ::core::ptr::null_mut::<::core::ffi::c_double>();
-    free(priv_0 as *mut ::core::ffi::c_void);
-    priv_0 = ::core::ptr::null_mut::<CffPrivateDict>();
-}
-#[inline]
-unsafe extern "C" fn dispose_font_matrix(mut fm: *mut CffFontMatrix) {
-    if fm.is_null() {
-        return;
-    }
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*fm).x);
-    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*fm).y);
 }
 #[inline]
 unsafe extern "C" fn dispose_fd(mut fd: *mut CffTable) {
@@ -272,10 +280,13 @@ unsafe extern "C" fn dispose_fd(mut fd: *mut CffTable) {
     (*fd).font_name = Vec::new();
     (*fd).cid_registry = Vec::new();
     (*fd).cid_ordering = Vec::new();
-    dispose_font_matrix((*fd).font_matrix);
-    free((*fd).font_matrix as *mut ::core::ffi::c_void);
-    (*fd).font_matrix = ::core::ptr::null_mut::<CffFontMatrix>();
-    otfcc_delete_privatedict((*fd).private_dict);
+    // `font_matrix`/`private_dict` are `Option<Box<>>` now: dropping the
+    // old value (via reassignment to `None`) recurses through their own
+    // `Drop`/field-drop glue for free -- no manual `I_VQ.dispose`/
+    // `otfcc_delete_privatedict` calls needed anymore (replaced outright,
+    // not adapted -- see their removal note above `CffPrivateDict`).
+    (*fd).font_matrix = None;
+    (*fd).private_dict = None;
     if !(*fd).fd_array.is_null() {
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*fd).fd_array_count as ::core::ffi::c_int {
@@ -358,7 +369,7 @@ unsafe extern "C" fn callback_extract_private(
     {
         meta = *(*meta).fd_array.offset((*context).fd_array_index as isize);
     }
-    let mut pd: *mut CffPrivateDict = (*meta).private_dict;
+    let mut pd: *mut CffPrivateDict = (*meta).private_dict.as_deref_mut().unwrap() as *mut CffPrivateDict;
     match op {
         6 => {
             (*pd).blue_values_count = top as Arity;
@@ -635,29 +646,34 @@ unsafe extern "C" fn callback_extract_fd(
         }
         3079 => {
             if top as ::core::ffi::c_int >= 6 as ::core::ffi::c_int {
-                (*meta).font_matrix = __caryll_allocate_clean(
-                    ::core::mem::size_of::<CffFontMatrix>() as usize,
-                    208 as ::core::ffi::c_ulong,
-                ) as *mut CffFontMatrix;
-                (*(*meta).font_matrix).a = cffnum(
+                (*meta).font_matrix = Some(Box::new(CffFontMatrix {
+                    a: 0.,
+                    b: 0.,
+                    c: 0.,
+                    d: 0.,
+                    x: I_VQ.neutral.expect("non-null function pointer")(),
+                    y: I_VQ.neutral.expect("non-null function pointer")(),
+                }));
+                let fm: *mut CffFontMatrix = (*meta).font_matrix.as_deref_mut().unwrap() as *mut CffFontMatrix;
+                (*fm).a = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 6 as ::core::ffi::c_int) as isize),
                 ) as Scale;
-                (*(*meta).font_matrix).b = cffnum(
+                (*fm).b = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 5 as ::core::ffi::c_int) as isize),
                 ) as Scale;
-                (*(*meta).font_matrix).c = cffnum(
+                (*fm).c = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 4 as ::core::ffi::c_int) as isize),
                 ) as Scale;
-                (*(*meta).font_matrix).d = cffnum(
+                (*fm).d = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 3 as ::core::ffi::c_int) as isize),
                 ) as Scale;
-                (*(*meta).font_matrix).x = I_VQ.create_still.expect("non-null function pointer")(
+                (*fm).x = I_VQ.create_still.expect("non-null function pointer")(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
                     ) as Pos,
                 );
-                (*(*meta).font_matrix).y = I_VQ.create_still.expect("non-null function pointer")(
+                (*fm).y = I_VQ.create_still.expect("non-null function pointer")(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -708,7 +724,7 @@ unsafe extern "C" fn callback_extract_fd(
                 let mut private_offset: u32 = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) as u32;
-                (*meta).private_dict = otfcc_new_cff_private();
+                (*meta).private_dict = Some(otfcc_new_cff_private());
                 CFF_I_DICT
                     .parse_to_callback
                     .expect("non-null function pointer")(
@@ -1115,17 +1131,16 @@ unsafe extern "C" fn build_outline(
         as FdHandle;
     if !(*(*context).meta).fd_array.is_null()
         && (fd as ::core::ffi::c_int) < (*(*context).meta).fd_array_count as ::core::ffi::c_int
-        && !(**(*(*context).meta).fd_array.offset(fd as isize))
+        && (**(*(*context).meta).fd_array.offset(fd as isize))
             .private_dict
-            .is_null()
+            .is_some()
     {
-        bc.default_width_x =
-            (*(**(*(*context).meta).fd_array.offset(fd as isize)).private_dict).default_width_x;
-        bc.nominal_width_x =
-            (*(**(*(*context).meta).fd_array.offset(fd as isize)).private_dict).nominal_width_x;
-    } else if !(*(*context).meta).private_dict.is_null() {
-        bc.default_width_x = (*(*(*context).meta).private_dict).default_width_x;
-        bc.nominal_width_x = (*(*(*context).meta).private_dict).nominal_width_x;
+        let pd = (**(*(*context).meta).fd_array.offset(fd as isize)).private_dict.as_deref().unwrap();
+        bc.default_width_x = pd.default_width_x;
+        bc.nominal_width_x = pd.nominal_width_x;
+    } else if let Some(pd) = (*(*context).meta).private_dict.as_deref() {
+        bc.default_width_x = pd.default_width_x;
+        bc.nominal_width_x = pd.nominal_width_x;
     }
     I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*g).advance_width,
@@ -1394,30 +1409,30 @@ unsafe extern "C" fn apply_cff_matrix(
         {
             fd = *(*fd).fd_array.offset((*g).fd_select.index as isize);
         }
-        if !(*fd).font_matrix.is_null() {
+        if let Some(fm) = (*fd).font_matrix.as_deref() {
             let mut a: Scale = qround(
                 (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
-                    * (*(*fd).font_matrix).a as ::core::ffi::c_double,
+                    * fm.a as ::core::ffi::c_double,
             ) as Scale;
             let mut b: Scale = qround(
                 (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
-                    * (*(*fd).font_matrix).b as ::core::ffi::c_double,
+                    * fm.b as ::core::ffi::c_double,
             ) as Scale;
             let mut c: Scale = qround(
                 (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
-                    * (*(*fd).font_matrix).c as ::core::ffi::c_double,
+                    * fm.c as ::core::ffi::c_double,
             ) as Scale;
             let mut d: Scale = qround(
                 (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
-                    * (*(*fd).font_matrix).d as ::core::ffi::c_double,
+                    * fm.d as ::core::ffi::c_double,
             ) as Scale;
             let mut x: VQ = I_VQ.scale.expect("non-null function pointer")(
-                (*(*fd).font_matrix).x.clone(),
+                fm.x.clone(),
                 (*head).units_per_em as Scale,
             );
             x.kernel = qround(x.kernel as ::core::ffi::c_double) as Pos;
             let mut y: VQ = I_VQ.scale.expect("non-null function pointer")(
-                (*(*fd).font_matrix).y.clone(),
+                fm.y.clone(),
                 (*head).units_per_em as Scale,
             );
             y.kernel = qround(y.kernel as ::core::ffi::c_double) as Pos;
@@ -1591,8 +1606,8 @@ pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
                     }
                     ret.meta = context.meta;
                     context.seed = 0x1234567887654321 as u64;
-                    if !(*context.meta).private_dict.is_null() {
-                        context.seed = (*(*context.meta).private_dict).initial_random_seed as u64
+                    if let Some(pd) = (*context.meta).private_dict.as_deref() {
+                        context.seed = pd.initial_random_seed as u64
                             ^ 0x1234567887654321 as u64;
                     }
                     let glyphs: *mut GlyfTable =
@@ -1873,37 +1888,37 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
             json_double_new((*table).font_b_box_top),
         );
     }
-    if !(*table).font_matrix.is_null() {
+    if let Some(fm) = (*table).font_matrix.as_deref() {
         let mut _font_matrix: *mut JsonValue = json_object_new(6 as usize);
         json_object_push(
             _font_matrix,
             b"a\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new((*(*table).font_matrix).a as ::core::ffi::c_double),
+            json_double_new(fm.a as ::core::ffi::c_double),
         );
         json_object_push(
             _font_matrix,
             b"b\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new((*(*table).font_matrix).b as ::core::ffi::c_double),
+            json_double_new(fm.b as ::core::ffi::c_double),
         );
         json_object_push(
             _font_matrix,
             b"c\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new((*(*table).font_matrix).c as ::core::ffi::c_double),
+            json_double_new(fm.c as ::core::ffi::c_double),
         );
         json_object_push(
             _font_matrix,
             b"d\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new((*(*table).font_matrix).d as ::core::ffi::c_double),
+            json_double_new(fm.d as ::core::ffi::c_double),
         );
         json_object_push(
             _font_matrix,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*(*table).font_matrix).x.clone(), ::core::ptr::null::<FvarTable>()),
+            json_new_vq(fm.x.clone(), ::core::ptr::null::<FvarTable>()),
         );
         json_object_push(
             _font_matrix,
             b"y\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*(*table).font_matrix).y.clone(), ::core::ptr::null::<FvarTable>()),
+            json_new_vq(fm.y.clone(), ::core::ptr::null::<FvarTable>()),
         );
         json_object_push(
             _cff,
@@ -1911,11 +1926,11 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
             _font_matrix,
         );
     }
-    if !(*table).private_dict.is_null() {
+    if let Some(pd) = (*table).private_dict.as_deref() {
         json_object_push(
             _cff,
             b"privates\0" as *const u8 as *const ::core::ffi::c_char,
-            pd_to_json((*table).private_dict),
+            pd_to_json(pd as *const CffPrivateDict),
         );
     }
     if !(*table).cid_registry.is_empty() && !(*table).cid_ordering.is_empty() {
@@ -2006,13 +2021,14 @@ unsafe extern "C" fn pd_delta_from_json(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn pd_from_json(mut dump: *mut JsonValue) -> *mut CffPrivateDict {
+unsafe extern "C" fn pd_from_json(mut dump: *mut JsonValue) -> Option<Box<CffPrivateDict>> {
     if dump.is_null()
         || (*dump).type_0 != JsonType::Object
     {
-        return ::core::ptr::null_mut::<CffPrivateDict>();
+        return None;
     }
-    let mut pd: *mut CffPrivateDict = otfcc_new_cff_private();
+    let mut pd_box: Box<CffPrivateDict> = otfcc_new_cff_private();
+    let pd: *mut CffPrivateDict = pd_box.as_mut() as *mut CffPrivateDict;
     pd_delta_from_json(
         json_obj_get(
             dump,
@@ -2095,7 +2111,7 @@ unsafe extern "C" fn pd_from_json(mut dump: *mut JsonValue) -> *mut CffPrivateDi
         dump,
         b"initialRandomSeed\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    return pd;
+    return Some(pd_box);
 }
 unsafe extern "C" fn fd_from_json(
     mut dump: *const JsonValue,
@@ -2234,8 +2250,8 @@ unsafe extern "C" fn fd_from_json(
     if (*table).font_name.is_empty() {
         (*table).font_name = b"CARYLL_CFFFONT".to_vec();
     }
-    if (*table).private_dict.is_null() {
-        (*table).private_dict = otfcc_new_cff_private();
+    if (*table).private_dict.is_none() {
+        (*table).private_dict = Some(otfcc_new_cff_private());
     }
     if top_level as ::core::ffi::c_int != 0
         && (*options).force_cid as ::core::ffi::c_int != 0
@@ -2251,8 +2267,8 @@ unsafe extern "C" fn fd_from_json(
         *fresh13 = (
             TABLE_I_CFF.create.expect("non-null function pointer"))();
         let mut fd0: *mut CffTable = *(*table).fd_array.offset(0 as ::core::ffi::c_int as isize);
-        (*fd0).private_dict = (*table).private_dict;
-        (*table).private_dict = otfcc_new_cff_private();
+        (*fd0).private_dict = (*table).private_dict.take();
+        (*table).private_dict = Some(otfcc_new_cff_private());
         let mut subfont0_name = (*table).font_name.clone();
         subfont0_name.extend_from_slice(b"-subfont0");
         (*fd0).font_name = subfont0_name;
@@ -2485,8 +2501,8 @@ unsafe extern "C" fn cff_make_fd_dict(
     cffdict_input_doubles(dict, OP_UNDERLINE_POSITION as u32, &[((*fd).underline_position) as f64]);
     cffdict_input_doubles(dict, OP_UNDERLINE_THICKNESS as u32, &[((*fd).underline_thickness) as f64]);
     cffdict_input_doubles(dict, OP_STROKE_WIDTH as u32, &[((*fd).stroke_width) as f64]);
-    if !(*fd).font_matrix.is_null() {
-        cffdict_input_doubles(dict, OP_FONT_MATRIX as u32, &[((*(*fd).font_matrix).a) as f64, ((*(*fd).font_matrix).b) as f64, ((*(*fd).font_matrix).c) as f64, ((*(*fd).font_matrix).d) as f64, (I_VQ.get_still.expect("non-null function pointer")((*(*fd).font_matrix).x.clone())) as f64, (I_VQ.get_still.expect("non-null function pointer")((*(*fd).font_matrix).y.clone())) as f64]);
+    if let Some(fm) = (*fd).font_matrix.as_deref() {
+        cffdict_input_doubles(dict, OP_FONT_MATRIX as u32, &[fm.a as f64, fm.b as f64, fm.c as f64, fm.d as f64, (I_VQ.get_still.expect("non-null function pointer")(fm.x.clone())) as f64, (I_VQ.get_still.expect("non-null function pointer")(fm.y.clone())) as f64]);
     }
     if !(*fd).font_name.is_empty() {
         cffdict_input_ints(dict, OP_FONT_NAME as u32, &[(sidof(h, &(*fd).font_name)) as i32]);
@@ -2846,7 +2862,7 @@ unsafe extern "C" fn writecff_cid_keyed(
     let mut top: *mut CffDict = cff_make_fd_dict(cff, &raw mut string_hash);
     let mut t: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(top);
     CFF_I_DICT.free.expect("non-null function pointer")(top);
-    let mut top_pd: *mut CffDict = cff_make_private_dict((*cff).private_dict);
+    let mut top_pd: *mut CffDict = cff_make_private_dict((*cff).private_dict.as_deref_mut().map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict));
     let mut p: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(top_pd);
     bufwrite_bufdel(
         p,
@@ -2889,8 +2905,8 @@ unsafe extern "C" fn writecff_cid_keyed(
         },
     };
     g2c_context.glyf = glyf;
-    g2c_context.default_width = (*(*cff).private_dict).default_width_x as u16;
-    g2c_context.nominal_width_x = (*(*cff).private_dict).nominal_width_x as u16;
+    g2c_context.default_width = (*cff).private_dict.as_deref().unwrap().default_width_x as u16;
+    g2c_context.nominal_width_x = (*cff).private_dict.as_deref().unwrap().nominal_width_x as u16;
     g2c_context.options = options;
     CFF_I_SUBR_GRAPH.init.expect("non-null function pointer")(&raw mut g2c_context.graph);
     g2c_context.graph.do_subroutinize = (*options).cff_do_subroutinize;
@@ -3008,7 +3024,7 @@ unsafe extern "C" fn writecff_cid_keyed(
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*cff).fd_array_count as ::core::ffi::c_int {
             let mut pd: *mut CffDict =
-                cff_make_private_dict((**(*cff).fd_array.offset(j as isize)).private_dict);
+                cff_make_private_dict((**(*cff).fd_array.offset(j as isize)).private_dict.as_deref_mut().map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict));
             let mut p_0: *mut Buffer =
                 CFF_I_DICT.build.expect("non-null function pointer")(pd);
             bufwrite_bufdel(

@@ -5700,3 +5700,55 @@ on the other platform before a commit is trusted.
   `private_dict`/`font_matrix`'s own Box化, `Subtable`'s eventual tagged-
   enum conversion, etc.) but those are separate future tasks, not part of
   this theme's own scope.
+- **Stage 6-4 follow-up: `CffTable.private_dict`/`font_matrix` →
+  `Option<Box<CffPrivateDict>>`/`Option<Box<CffFontMatrix>>`** — the
+  first of the three follow-ups the `cff` Box化 PR flagged as future
+  work, chosen first for being the smallest: unlike `Font.cff` itself,
+  these two fields belong to `CffTable` *itself*, so the type change
+  applies uniformly whether the enclosing `CffTable` is the boxed
+  top-level `Font.cff` or a still-raw-pointer `fd_array` child — no
+  "shared constructor between boxed and raw" complication like
+  `unwrap_cff_table` needed to solve.
+  - **`CffFontMatrix` needed no `Drop` impl at all** — its `x`/`y: VQ`
+    fields were already fully self-dropping from the Stage 6-1 `VQ`
+    pilot (`Vec<VqSegment>`). The old `dispose_font_matrix` helper (which
+    called `I_VQ.dispose` on `x`/`y` before the caller `free()`'d the
+    struct) became pure redundancy once `font_matrix` owns its allocation
+    through `Box` — deleted outright, not adapted.
+  - **`CffPrivateDict` did need a real `Drop`** — its six `*mut c_double`
+    blue-value/stem-snap arrays stay raw pointers (their own Box化/Vec化
+    is separate future work), so `impl Drop for CffPrivateDict` frees
+    exactly those six arrays, replacing `otfcc_delete_privatedict`
+    one-for-one. `#[derive(Copy, Clone)]` had to come off (Rust forbids
+    deriving `Copy` on a type with a custom `Drop`); confirmed via grep
+    that nothing relied on cloning it.
+  - **`otfcc_new_cff_private()` construction simplified**: it used to
+    `__caryll_allocate_clean` (calloc) then set 4 non-zero-default fields;
+    now it's a plain safe `fn otfcc_new_cff_private() -> Box<CffPrivateDict>`
+    (no `unsafe`, no `extern "C"` — confirmed via grep it's never called
+    through a vtable slot) building the whole struct literal in one
+    `Box::new`, matching the `new_lookup`/`new_feature` idiom. The one
+    genuinely delicate transfer site — `fd_from_json`'s force-CID path,
+    which hands the top-level table's already-populated `private_dict`
+    off to the newly-created `fd_array[0]` and gives the top-level table a
+    fresh one — became `(*fd0).private_dict = (*table).private_dict.take();
+    (*table).private_dict = Some(otfcc_new_cff_private());`, the `.take()`
+    idiom doing exactly what the old raw-pointer reassignment did.
+  - **`otf_writer/stat.rs`'s `otfcc_stat_font` font_matrix-recompute
+    block** (the largest single touch point) rebuilds `font_matrix` from
+    scratch for both the top-level table and every `fd_array` child based
+    on `head.units_per_em`; the old dispose-then-allocate-then-fill shape
+    collapsed to a plain `(*cff).font_matrix = None;` (old value drops
+    for free) followed by `Some(Box::new(CffFontMatrix { .. }))` built in
+    one literal — no more `__caryll_allocate_clean` + six sequential field
+    assignments through a raw pointer.
+  - **No new synthetic payloads needed** — the same `KRName-Regular.otf`/
+    `KRName-Regular-O2.otf` CID-keyed CFF payloads that covered the
+    `Font.cff` PR's `fd_array` recursion also drive `private_dict`'s
+    parse/read/dump/build paths and (`-O2`, via `run-cycles.sh`'s repeated
+    dump/build) `font_matrix`'s scale-recompute path on every cycle.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including the `otfccdll` cdylib comparison), all 10 payloads' round
+    trips, and the issue #1 golden test.

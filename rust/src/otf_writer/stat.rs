@@ -1178,17 +1178,18 @@ unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
     if nn as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
         nominal_width_x = nnsum.wrapping_div(nn as u32) as i16;
     }
-    if !(*cff).private_dict.is_null() {
-        (*(*cff).private_dict).default_width_x = maxj as ::core::ffi::c_double;
+    if let Some(pd) = (*cff).private_dict.as_deref_mut() {
+        pd.default_width_x = maxj as ::core::ffi::c_double;
         if nn as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
-            (*(*cff).private_dict).nominal_width_x = nominal_width_x as ::core::ffi::c_double;
+            pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
         }
     }
     if !(*cff).fd_array.is_null() {
         for j_2 in 0..(*cff).fd_array_count {
             let fd = *(*cff).fd_array.offset(j_2 as isize);
-            (*(*fd).private_dict).default_width_x = maxj as ::core::ffi::c_double;
-            (*(*fd).private_dict).nominal_width_x = nominal_width_x as ::core::ffi::c_double;
+            let pd = (*fd).private_dict.as_deref_mut().unwrap();
+            pd.default_width_x = maxj as ::core::ffi::c_double;
+            pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
         }
     }
     free(frequency as *mut ::core::ffi::c_void);
@@ -1329,60 +1330,47 @@ pub unsafe extern "C" fn otfcc_stat_font(
             (*cff).cid_count = (*glyf).len() as u32;
         }
         if (*cff).is_cid {
-            if !(*cff).font_matrix.is_null() {
-                I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*cff).font_matrix).x);
-                I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*cff).font_matrix).y);
-                free((*cff).font_matrix as *mut ::core::ffi::c_void);
-                (*cff).font_matrix = ::core::ptr::null_mut::<CffFontMatrix>();
-            }
+            // `font_matrix` is `Option<Box<CffFontMatrix>>` now: dropping
+            // the old value (reassignment to `None`) recurses through its
+            // own field-drop glue for free -- no manual `I_VQ.dispose`
+            // calls needed anymore (`VQ`'s `Vec<VqSegment>` shift field
+            // already self-drops).
+            (*cff).font_matrix = None;
             for j in 0..(*cff).fd_array_count {
                 let fd: *mut CffTable = *(*cff).fd_array.offset(j as isize);
-                if !(*fd).font_matrix.is_null() {
-                    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*fd).font_matrix).x);
-                    I_VQ.dispose.expect("non-null function pointer")(&raw mut (*(*fd).font_matrix).y);
-                    free((*fd).font_matrix as *mut ::core::ffi::c_void);
-                    (*fd).font_matrix = ::core::ptr::null_mut::<CffFontMatrix>();
-                }
+                (*fd).font_matrix = None;
                 if (*head).units_per_em as ::core::ffi::c_int == 1000 as ::core::ffi::c_int {
-                    (*fd).font_matrix = ::core::ptr::null_mut::<CffFontMatrix>();
+                    (*fd).font_matrix = None;
                 } else {
-                    (*fd).font_matrix = __caryll_allocate_clean(
-                        ::core::mem::size_of::<CffFontMatrix>() as usize,
-                        651 as ::core::ffi::c_ulong,
-                    ) as *mut CffFontMatrix;
-                    (*(*fd).font_matrix).a = (1.0f64
-                        / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
-                        as Scale;
-                    (*(*fd).font_matrix).b = 0.0f64 as Scale;
-                    (*(*fd).font_matrix).c = 0.0f64 as Scale;
-                    (*(*fd).font_matrix).d = (1.0f64
-                        / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
-                        as Scale;
-                    (*(*fd).font_matrix).x = (
-                        I_VQ.neutral.expect("non-null function pointer"))();
-                    (*(*fd).font_matrix).y = (
-                        I_VQ.neutral.expect("non-null function pointer"))();
+                    (*fd).font_matrix = Some(Box::new(CffFontMatrix {
+                        a: (1.0f64
+                            / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
+                            as Scale,
+                        b: 0.0f64 as Scale,
+                        c: 0.0f64 as Scale,
+                        d: (1.0f64
+                            / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
+                            as Scale,
+                        x: (I_VQ.neutral.expect("non-null function pointer"))(),
+                        y: (I_VQ.neutral.expect("non-null function pointer"))(),
+                    }));
                 }
             }
         } else if (*head).units_per_em as ::core::ffi::c_int == 1000 as ::core::ffi::c_int {
-            (*cff).font_matrix = ::core::ptr::null_mut::<CffFontMatrix>();
+            (*cff).font_matrix = None;
         } else {
-            (*cff).font_matrix = __caryll_allocate_clean(
-                ::core::mem::size_of::<CffFontMatrix>() as usize,
-                664 as ::core::ffi::c_ulong,
-            ) as *mut CffFontMatrix;
-            (*(*cff).font_matrix).a = (1.0f64
-                / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
-                as Scale;
-            (*(*cff).font_matrix).b = 0.0f64 as Scale;
-            (*(*cff).font_matrix).c = 0.0f64 as Scale;
-            (*(*cff).font_matrix).d = (1.0f64
-                / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
-                as Scale;
-            (*(*cff).font_matrix).x = (
-                I_VQ.neutral.expect("non-null function pointer"))();
-            (*(*cff).font_matrix).y = (
-                I_VQ.neutral.expect("non-null function pointer"))();
+            (*cff).font_matrix = Some(Box::new(CffFontMatrix {
+                a: (1.0f64
+                    / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
+                    as Scale,
+                b: 0.0f64 as Scale,
+                c: 0.0f64 as Scale,
+                d: (1.0f64
+                    / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
+                    as Scale,
+                x: (I_VQ.neutral.expect("non-null function pointer"))(),
+                y: (I_VQ.neutral.expect("non-null function pointer"))(),
+            }));
         }
         stat_cff_widths(font);
     }
