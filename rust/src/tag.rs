@@ -54,3 +54,15 @@ pub const TAG_SLNG: u32 = u32::from_be_bytes(*b"slng");
 pub const TAG_VERT: u32 = u32::from_be_bytes(*b"vert");
 pub const TAG_VHEA: u32 = u32::from_be_bytes(*b"vhea");
 pub const TAG_VMTX: u32 = u32::from_be_bytes(*b"vmtx");
+
+/// SFNT container format signatures: the 4-byte value at the very start of
+/// the file (or, for `ttcf`, the start of a TrueType Collection header),
+/// identifying which flavor of sfnt follows. Distinct from a table tag —
+/// these never appear in the table directory — but transpiled the same way
+/// c2rust always turns a `uint32_t` FourCC constant: as an opaque decimal
+/// literal.
+pub const SFNT_VERSION_TRUE_TYPE: u32 = 0x00010000; // big-endian 1.0, TrueType-flavored
+pub const SFNT_VERSION_OTTO: u32 = u32::from_be_bytes(*b"OTTO"); // CFF-flavored OpenType
+pub const SFNT_VERSION_MAC_TRUE: u32 = u32::from_be_bytes(*b"true"); // legacy Mac TrueType
+pub const SFNT_VERSION_MAC_TYPE1: u32 = u32::from_be_bytes(*b"typ1"); // legacy Mac Type 1 sfnt wrapper
+pub const SFNT_TTC_TAG: u32 = u32::from_be_bytes(*b"ttcf"); // TrueType Collection header

@@ -210,7 +210,7 @@ pub unsafe extern "C" fn otfcc_sfnt_builder_serialize(
         bufseek(buffer, offset);
         bufwrite_buf(buffer, table.buffer);
         bufseek(buffer, cp);
-        if *tag == 1751474532i32 {
+        if *tag == crate::tag::TAG_HEAD as i32 {
             head_offset = offset;
         }
         offset = offset.wrapping_add(buflen(table.buffer));

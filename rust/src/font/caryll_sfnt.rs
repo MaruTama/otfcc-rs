@@ -128,7 +128,10 @@ pub unsafe extern "C" fn otfcc_read_sfnt(mut file: *mut FILE) -> *mut SplineFont
     ) as *mut SplineFontContainer;
     (*font).type_0 = otfcc_get32u(file);
     match (*font).type_0 {
-        1330926671 | 65536 | 1953658213 | 1954115633 => {
+        crate::tag::SFNT_VERSION_OTTO
+        | crate::tag::SFNT_VERSION_TRUE_TYPE
+        | crate::tag::SFNT_VERSION_MAC_TRUE
+        | crate::tag::SFNT_VERSION_MAC_TYPE1 => {
             (*font).count = 1 as u32;
             (*font).offsets = __caryll_allocate_clean(
                 (::core::mem::size_of::<u32>() as usize)
@@ -143,7 +146,7 @@ pub unsafe extern "C" fn otfcc_read_sfnt(mut file: *mut FILE) -> *mut SplineFont
             *(*font).offsets.offset(0 as ::core::ffi::c_int as isize) = 0 as u32;
             otfcc_read_packets(font, file);
         }
-        1953784678 => {
+        crate::tag::SFNT_TTC_TAG => {
             otfcc_get32u(file);
             (*font).count = otfcc_get32u(file);
             (*font).offsets = __caryll_allocate_clean(

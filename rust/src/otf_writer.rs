@@ -78,9 +78,9 @@ impl FontSerializer for OtfSerializer {
     otfcc_stat_font(font, options);
     let mut builder: *mut SfntBuilder = otfcc_new_sfnt_builder(
         (if (*font).subtype == FontSubtype::Cff {
-            1330926671i32
+            crate::tag::SFNT_VERSION_OTTO as ::core::ffi::c_int
         } else {
-            0x10000 as ::core::ffi::c_int
+            crate::tag::SFNT_VERSION_TRUE_TYPE as ::core::ffi::c_int
         }) as u32,
         options,
     );
