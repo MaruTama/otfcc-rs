@@ -2,11 +2,8 @@
 
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
-use crate::table::otl::coverage::Coverage;
+use crate::table::otl::coverage::coverage_from_raw;
 use crate::support::handle::{handle_from_name, otfcc_handle_empty, LookupHandle};
-
-use crate::support::alloc::{__caryll_allocate_clean};
-
 
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
@@ -42,14 +39,13 @@ pub unsafe extern "C" fn otl_parse_chaining(
     let mut rule: *mut ChainingRule =
         &raw mut (*subtable).c2rust_unnamed.rule as *mut ChainingRule;
     (*rule).match_count = (*_match).u.array.length as TableId;
-    (*rule).match_0 = __caryll_allocate_clean(
-        (::core::mem::size_of::<*mut Coverage>() as usize)
-            .wrapping_mul((*rule).match_count as usize),
-        14 as ::core::ffi::c_ulong,
-    ) as *mut *mut Coverage;
-    // Placement-construct: `rule` sits inside the zeroed memory `create()`
-    // hands back (via `otl_init_chaining`'s `memset`), not a valid `Vec`
-    // bit pattern, so there is nothing to drop first.
+    // Placement-construct both: `rule` sits inside the zeroed memory
+    // `create()` hands back (via `otl_init_chaining`'s `memset`), not a
+    // valid `Vec` bit pattern, so there is nothing to drop first.
+    ::core::ptr::write(
+        &raw mut (*rule).match_0,
+        Vec::with_capacity((*rule).match_count as usize),
+    );
     ::core::ptr::write(
         &raw mut (*rule).apply,
         Vec::with_capacity((*_apply).u.array.length as usize),
@@ -66,10 +62,11 @@ pub unsafe extern "C" fn otl_parse_chaining(
     ) as TableId;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-        let ref mut fresh0 = *(*rule).match_0.offset(j as isize);
-        *fresh0 = OTL_I_COVERAGE.parse.expect("non-null function pointer")(
-            *(*_match).u.array.values.offset(j as isize),
-        );
+        (*rule).match_0.push(coverage_from_raw(
+            OTL_I_COVERAGE.parse.expect("non-null function pointer")(
+                *(*_match).u.array.values.offset(j as isize),
+            ),
+        ));
         j = j.wrapping_add(1);
     }
     let mut j_0: TableId = 0 as TableId;

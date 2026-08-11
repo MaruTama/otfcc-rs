@@ -2,7 +2,7 @@
 use libc::{free};
 
 use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
-use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
+use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -168,7 +168,6 @@ pub unsafe extern "C" fn general_read_contextual_rule(
 ) -> Option<Box<ChainingRule>> {
     let mut n_input: u16 = 0;
     let mut n_apply: u16 = 0;
-    let mut jj: u16 = 0;
     // `Box` is the allocation, the struct literal is the zero-init the old
     // `__caryll_allocate_clean` provided -- same shape as `new_lookup`/
     // `otfcc_new_glyf_glyph`. Every `(*rule).field` access below still
@@ -177,7 +176,7 @@ pub unsafe extern "C" fn general_read_contextual_rule(
         match_count: 0 as TableId,
         input_begins: 0 as TableId,
         input_ends: 0 as TableId,
-        match_0: ::core::ptr::null_mut::<*mut Coverage>(),
+        match_0: Vec::new(),
         apply: Vec::new(),
     });
     let mut minus_one_q: u16 = (if minus_one as ::core::ffi::c_int != 0 {
@@ -200,17 +199,15 @@ pub unsafe extern "C" fn general_read_contextual_rule(
             (*rule).match_count = n_input as TableId;
             (*rule).input_begins = 0 as TableId;
             (*rule).input_ends = n_input as TableId;
-            (*rule).match_0 = __caryll_allocate_clean(
-                (::core::mem::size_of::<*mut Coverage>() as usize)
-                    .wrapping_mul((*rule).match_count as usize),
-                98 as ::core::ffi::c_ulong,
-            ) as *mut *mut Coverage;
-            jj = 0 as u16;
+            // Filled in order below (the `minus_one` slot first, then the
+            // rest sequentially) -- every one of the `match_count` slots is
+            // written exactly once, in increasing index order, so `.push()`
+            // is the direct replacement for the old `jj`-indexed writes into
+            // `__caryll_allocate_clean`'d memory (`jj` itself is gone: it
+            // was only ever used as that index).
+            (*rule).match_0 = Vec::with_capacity((*rule).match_count as usize);
             if minus_one {
-                let fresh16 = jj;
-                jj = jj.wrapping_add(1);
-                let ref mut fresh17 = *(*rule).match_0.offset(fresh16 as isize);
-                *fresh17 = fn_0.expect("non-null function pointer")(
+                (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
                     data,
                     table_length,
                     start_gid,
@@ -218,7 +215,7 @@ pub unsafe extern "C" fn general_read_contextual_rule(
                     2 as u16,
                     max_glyphs,
                     userdata,
-                );
+                )));
             }
             let mut j: u16 = 0 as u16;
             while (j as ::core::ffi::c_int)
@@ -230,10 +227,7 @@ pub unsafe extern "C" fn general_read_contextual_rule(
                         .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
                         as *const u8,
                 ) as u32;
-                let fresh18 = jj;
-                jj = jj.wrapping_add(1);
-                let ref mut fresh19 = *(*rule).match_0.offset(fresh18 as isize);
-                *fresh19 = fn_0.expect("non-null function pointer")(
+                (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
                     data,
                     table_length,
                     gid as u16,
@@ -241,7 +235,7 @@ pub unsafe extern "C" fn general_read_contextual_rule(
                     2 as u16,
                     max_glyphs,
                     userdata,
-                );
+                )));
                 j = j.wrapping_add(1);
             }
             (*rule).apply = Vec::with_capacity(n_apply as usize);
@@ -283,8 +277,7 @@ pub unsafe extern "C" fn general_read_contextual_rule(
         }
     }
     // `rule` (whatever partial state it reached) drops here automatically --
-    // `ChainingRule`'s `Drop` impl tears down `.match_0` correctly, no
-    // manual `delete_rule` call needed.
+    // both fields self-drop now, no manual `delete_rule` call needed.
     return None;
 }
 unsafe extern "C" fn read_contextual_format1(
@@ -640,14 +633,13 @@ pub unsafe extern "C" fn general_read_chaining_rule(
     let mut n_input: TableId = 0;
     let mut n_lookaround: TableId = 0;
     let mut n_apply: TableId = 0;
-    let mut jj: TableId = 0;
     // `Box` is the allocation, the struct literal is the zero-init the old
     // `__caryll_allocate_clean` provided -- see `general_read_contextual_rule`.
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
         match_count: 0 as TableId,
         input_begins: 0 as TableId,
         input_ends: 0 as TableId,
-        match_0: ::core::ptr::null_mut::<*mut Coverage>(),
+        match_0: Vec::new(),
         apply: Vec::new(),
     });
     let mut minus_one_q: u16 = (if minus_one as ::core::ffi::c_int != 0 {
@@ -736,12 +728,14 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                         (*rule).input_ends = (n_back as ::core::ffi::c_int
                             + n_input as ::core::ffi::c_int)
                             as TableId;
-                        (*rule).match_0 = __caryll_allocate_clean(
-                            (::core::mem::size_of::<*mut Coverage>() as usize)
-                                .wrapping_mul((*rule).match_count as usize),
-                            267 as ::core::ffi::c_ulong,
-                        ) as *mut *mut Coverage;
-                        jj = 0 as TableId;
+                        // Filled in order below (backtrack, then the
+                        // `minus_one` slot, then input, then lookaround) --
+                        // every one of the `match_count` slots is written
+                        // exactly once, in increasing index order, so
+                        // `.push()` is the direct replacement for the old
+                        // `jj`-indexed writes (`jj` itself is gone: it was
+                        // only ever used as that index).
+                        (*rule).match_0 = Vec::with_capacity((*rule).match_count as usize);
                         let mut j: TableId = 0 as TableId;
                         while (j as ::core::ffi::c_int) < n_back as ::core::ffi::c_int {
                             let mut gid: u32 = read_16u(
@@ -752,10 +746,7 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                             as isize,
                                     ) as *const u8,
                             ) as u32;
-                            let fresh1 = jj;
-                            jj = jj.wrapping_add(1);
-                            let ref mut fresh2 = *(*rule).match_0.offset(fresh1 as isize);
-                            *fresh2 = fn_0.expect("non-null function pointer")(
+                            (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
                                 data,
                                 table_length,
                                 gid as u16,
@@ -763,14 +754,11 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                 1 as u16,
                                 max_glyphs,
                                 userdata,
-                            );
+                            )));
                             j = j.wrapping_add(1);
                         }
                         if minus_one {
-                            let fresh3 = jj;
-                            jj = jj.wrapping_add(1);
-                            let ref mut fresh4 = *(*rule).match_0.offset(fresh3 as isize);
-                            *fresh4 = fn_0.expect("non-null function pointer")(
+                            (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
                                 data,
                                 table_length,
                                 start_gid,
@@ -778,7 +766,7 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                 2 as u16,
                                 max_glyphs,
                                 userdata,
-                            );
+                            )));
                         }
                         let mut j_0: TableId = 0 as TableId;
                         while (j_0 as ::core::ffi::c_int)
@@ -797,10 +785,7 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                             as isize,
                                     ) as *const u8,
                             ) as u32;
-                            let fresh5 = jj;
-                            jj = jj.wrapping_add(1);
-                            let ref mut fresh6 = *(*rule).match_0.offset(fresh5 as isize);
-                            *fresh6 = fn_0.expect("non-null function pointer")(
+                            (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
                                 data,
                                 table_length,
                                 gid_0 as u16,
@@ -808,7 +793,7 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                 2 as u16,
                                 max_glyphs,
                                 userdata,
-                            );
+                            )));
                             j_0 = j_0.wrapping_add(1);
                         }
                         let mut j_1: TableId = 0 as TableId;
@@ -827,10 +812,7 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                             as isize,
                                     ) as *const u8,
                             ) as u32;
-                            let fresh7 = jj;
-                            jj = jj.wrapping_add(1);
-                            let ref mut fresh8 = *(*rule).match_0.offset(fresh7 as isize);
-                            *fresh8 = fn_0.expect("non-null function pointer")(
+                            (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
                                 data,
                                 table_length,
                                 gid_1 as u16,
@@ -838,7 +820,7 @@ pub unsafe extern "C" fn general_read_chaining_rule(
                                 3 as u16,
                                 max_glyphs,
                                 userdata,
-                            );
+                            )));
                             j_1 = j_1.wrapping_add(1);
                         }
                         (*rule).apply = Vec::with_capacity(n_apply as usize);
@@ -1241,19 +1223,11 @@ pub unsafe extern "C" fn otl_read_chaining(
     return ::core::ptr::null_mut::<Subtable>();
 }
 #[inline]
+// Was a manual meet-in-the-middle index-swapping loop over
+// `*mut *mut Coverage` -- exactly `[T]::reverse` on the backtrack
+// sub-slice, now that `match_0` is a real `Vec<Coverage>`. `input_begins
+// == 0` (nothing to reverse) falls out of slicing an empty range.
 unsafe extern "C" fn reverse_backtracks(mut rule: *mut ChainingRule) {
-    if (*rule).input_begins as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-        let mut start: TableId = 0 as TableId;
-        let mut end: TableId =
-            ((*rule).input_begins as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
-        while end as ::core::ffi::c_int > start as ::core::ffi::c_int {
-            let mut tmp: *mut Coverage = *(*rule).match_0.offset(start as isize);
-            let ref mut fresh9 = *(*rule).match_0.offset(start as isize);
-            *fresh9 = *(*rule).match_0.offset(end as isize);
-            let ref mut fresh10 = *(*rule).match_0.offset(end as isize);
-            *fresh10 = tmp;
-            end = end.wrapping_sub(1);
-            start = start.wrapping_add(1);
-        }
-    }
+    let input_begins = (*rule).input_begins as usize;
+    (&mut (*rule).match_0)[..input_begins].reverse();
 }
