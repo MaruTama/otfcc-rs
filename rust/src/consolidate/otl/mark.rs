@@ -270,7 +270,8 @@ pub unsafe extern "C" fn consolidate_mark_to_single(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GposMarkToSingleSubtable = &raw mut (*_subtable).gpos_mark_to_single as *mut GposMarkToSingleSubtable;
+    let Subtable::GposMarkToSingle(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let subtable: *mut GposMarkToSingleSubtable = mut_subtable;
     consolidate_mark_array(
         font,
         table,
@@ -288,7 +289,8 @@ pub unsafe extern "C" fn consolidate_mark_to_ligature(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GposMarkToLigatureSubtable = &raw mut (*_subtable).gpos_mark_to_ligature as *mut GposMarkToLigatureSubtable;
+    let Subtable::GposMarkToLigature(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let subtable: *mut GposMarkToLigatureSubtable = mut_subtable;
     consolidate_mark_array(
         font,
         table,

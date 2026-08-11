@@ -13,7 +13,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 
 use crate::support::{NULL};
-use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Subtable, ChainingType, ChainingSubtable};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Subtable, ChainingType, ChainingSubtable, subtable_from_raw};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::vendor::sds::{sdsempty};
 pub type CoverageReaderHandler = Option<
@@ -580,11 +580,15 @@ pub unsafe extern "C" fn otl_read_contextual(
     if !(table_length < offset.wrapping_add(2 as u32)) {
         format = read_16u(data.offset(offset as isize) as *const u8);
         if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-            return read_contextual_format1(subtable, data, table_length, offset, max_glyphs)
-                as *mut Subtable;
+            return subtable_from_raw(
+                read_contextual_format1(subtable, data, table_length, offset, max_glyphs),
+                Subtable::Chaining,
+            );
         } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-            return read_contextual_format2(subtable, data, table_length, offset, max_glyphs)
-                as *mut Subtable;
+            return subtable_from_raw(
+                read_contextual_format2(subtable, data, table_length, offset, max_glyphs),
+                Subtable::Chaining,
+            );
         } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
             let rule_ptr = general_read_contextual_rule(
                 data,
@@ -608,7 +612,7 @@ pub unsafe extern "C" fn otl_read_contextual(
                 NULL,
             );
             (*ruleset).rules.push(rule_ptr);
-            return subtable as *mut Subtable;
+            return subtable_from_raw(subtable, Subtable::Chaining);
         }
     }
     (*(*options).logger)
@@ -1190,11 +1194,15 @@ pub unsafe extern "C" fn otl_read_chaining(
     if !(table_length < offset.wrapping_add(2 as u32)) {
         format = read_16u(data.offset(offset as isize) as *const u8);
         if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-            return read_chaining_format1(subtable, data, table_length, offset, max_glyphs)
-                as *mut Subtable;
+            return subtable_from_raw(
+                read_chaining_format1(subtable, data, table_length, offset, max_glyphs),
+                Subtable::Chaining,
+            );
         } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-            return read_chaining_format2(subtable, data, table_length, offset, max_glyphs)
-                as *mut Subtable;
+            return subtable_from_raw(
+                read_chaining_format2(subtable, data, table_length, offset, max_glyphs),
+                Subtable::Chaining,
+            );
         } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
             let rule_ptr = general_read_chaining_rule(
                 data,
@@ -1218,7 +1226,7 @@ pub unsafe extern "C" fn otl_read_chaining(
                 NULL,
             );
             (*ruleset).rules.push(rule_ptr);
-            return subtable as *mut Subtable;
+            return subtable_from_raw(subtable, Subtable::Chaining);
         }
     }
     (*(*options).logger)

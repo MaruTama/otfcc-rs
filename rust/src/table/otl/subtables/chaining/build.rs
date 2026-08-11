@@ -28,7 +28,8 @@ pub unsafe extern "C" fn otfcc_chaining_lookup_is_contextual_lookup(
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*lookup).subtables.len() {
         let subtable_ptr: SubtablePtr = (&(*lookup).subtables)[j as usize];
-        let mut subtable: *const ChainingSubtable = &raw const (*subtable_ptr).chaining as *const ChainingSubtable;
+        let Subtable::Chaining(mut_subtable) = &*subtable_ptr else { unreachable!() };
+        let subtable: *const ChainingSubtable = mut_subtable;
         if (*subtable).type_0 == ChainingType::Classified
         {
             let ruleset: *const ChainingRuleSet =
@@ -62,9 +63,9 @@ pub unsafe extern "C" fn otfcc_chaining_lookup_is_contextual_lookup(
     return is_contextual;
 }
 pub unsafe extern "C" fn otfcc_build_chaining_coverage(
-    mut _subtable: *const Subtable,
+    mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
-    let mut subtable: *const ChainingSubtable = &raw const (*_subtable).chaining as *const ChainingSubtable;
+    let subtable: *const ChainingSubtable = _subtable;
     let mut rule: *mut ChainingRule =
         &raw const (*subtable).c2rust_unnamed.rule as *mut ChainingRule;
     let mut n_backtrack: TableId = (*rule).input_begins;
@@ -109,9 +110,9 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
     return bk_build_block(root);
 }
 pub unsafe extern "C" fn otfcc_build_chaining_classes(
-    mut _subtable: *const Subtable,
+    mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
-    let mut subtable: *const ChainingSubtable = &raw const (*_subtable).chaining as *const ChainingSubtable;
+    let subtable: *const ChainingSubtable = _subtable;
     let ruleset: *const ChainingRuleSet =
         &raw const (*subtable).c2rust_unnamed.c2rust_unnamed as *const ChainingRuleSet;
     let coverage: *mut Coverage = &raw mut (*(*ruleset).ic).glyphs;
@@ -231,9 +232,9 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     return bk_build_block(root);
 }
 pub unsafe extern "C" fn otfcc_build_chaining(
-    mut _subtable: *const Subtable,
+    mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
-    if (&(*_subtable).chaining).type_0 == ChainingType::Classified
+    if (*_subtable).type_0 == ChainingType::Classified
     {
         return otfcc_build_chaining_classes(_subtable);
     } else {
@@ -241,9 +242,9 @@ pub unsafe extern "C" fn otfcc_build_chaining(
     };
 }
 pub unsafe extern "C" fn otfcc_build_contextual_coverage(
-    mut _subtable: *const Subtable,
+    mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
-    let mut subtable: *const ChainingSubtable = &raw const (*_subtable).chaining as *const ChainingSubtable;
+    let subtable: *const ChainingSubtable = _subtable;
     let mut rule: *mut ChainingRule =
         &raw const (*subtable).c2rust_unnamed.rule as *mut ChainingRule;
     let mut n_input: TableId = ((*rule).input_ends as ::core::ffi::c_int
@@ -268,9 +269,9 @@ pub unsafe extern "C" fn otfcc_build_contextual_coverage(
     return bk_build_block(root);
 }
 pub unsafe extern "C" fn otfcc_build_contextual_classes(
-    mut _subtable: *const Subtable,
+    mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
-    let mut subtable: *const ChainingSubtable = &raw const (*_subtable).chaining as *const ChainingSubtable;
+    let subtable: *const ChainingSubtable = _subtable;
     let ruleset: *const ChainingRuleSet =
         &raw const (*subtable).c2rust_unnamed.c2rust_unnamed as *const ChainingRuleSet;
     let coverage: *mut Coverage = &raw mut (*(*ruleset).ic).glyphs;
@@ -367,9 +368,9 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     return bk_build_block(root);
 }
 pub unsafe extern "C" fn otfcc_build_contextual(
-    mut _subtable: *const Subtable,
+    mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
-    if (&(*_subtable).chaining).type_0 == ChainingType::Classified
+    if (*_subtable).type_0 == ChainingType::Classified
     {
         return otfcc_build_contextual_classes(_subtable);
     } else {

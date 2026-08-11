@@ -11,7 +11,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::json::{JsonValue, JsonType};
 use crate::support::{TRUE_0};
-use crate::table::otl::{Feature, FeatureRef, FeatureRefList, LanguageSystem, Lookup, LookupRef, LookupRefList, LookupType, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
+use crate::table::otl::{Feature, FeatureRef, FeatureRefList, LanguageSystem, Lookup, LookupRef, LookupRefList, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
 use crate::support::json_funcs::otfcc_parse_flags;
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::support::json_ident::{json_ident};
@@ -401,7 +401,7 @@ unsafe extern "C" fn _declare_lookup_parser(
             {
                 let mut _st: *mut Subtable =
                     parser.expect("non-null function pointer")(_subtable, options);
-                (*lookup).subtables.push(_st as SubtablePtr);
+                (*lookup).subtables.push(_st);
             }
             j = j.wrapping_add(1);
         }

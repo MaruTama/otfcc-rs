@@ -894,6 +894,108 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`Subtable` is a tagged `enum` now, not a `union`: done (B-1 of the
+  remaining-three-themes plan).** Was an 11-variant `union` with the
+  discriminant living *outside* it, in `Lookup.type_0` — every read was a
+  pointer-cast (`&raw const/mut (*subtable).field as *const/mut T`), sound
+  only because a union's fields all start at offset 0 and `LookupType` was
+  trusted to say which one was live. As an enum, the tag lives in the value
+  itself, `Drop` (below) replaces two separate `LookupType`-keyed free-function
+  tables with one self-describing dispatch, and no variant needs
+  `ManuallyDrop` any more (that was purely a union restriction).
+  - **Scope grew twice past the mechanical 92-site count the investigation
+    found**, both times because the union's "read through a differently-typed
+    pointer" trick had spread further than a grep for `.field_name` accesses
+    could see:
+    - `dispose_subtable_dependent`'s 13-arm `LookupType` match and
+      `consolidate.rs`'s `SubtableRemover` (a `*mut Subtable`-typed function
+      pointer, registered once per `LookupType`, at 13 call sites in
+      `otfcc_consolidate_lookup`) each `transmute`d a `*mut ConcreteType`-typed
+      free function to `*mut Subtable` and called it directly — a cast a
+      union tolerates and an enum does not. Both are gone: `Subtable::drop`
+      dispatches off the enum's own discriminant, so freeing an element is
+      `Box::from_raw(ptr)` and nothing else. `SubtableRemover` itself is
+      deleted, along with the 13 `transmute` blocks that fed it.
+    - **`otf_writer/stat.rs`'s `stat_max_context_otl` was missed by the
+      investigation entirely** (three sites: `OTL_TYPE_GSUB_LIGATURE`,
+      `OTL_TYPE_GSUB_CHAINING`/`OTL_TYPE_GPOS_CHAINING`,
+      `OTL_TYPE_GSUB_REVERSE`), because it reinterprets a `SubtablePtr`
+      directly — `(&(*lookup).subtables)[si] as *mut GsubLigatureSubtable` —
+      with no `&raw` in sight, a different textual shape than every other
+      consumption site in `table/otl/subtables/*.rs`. Confirmed by evidence,
+      not inspection: `cargo build` didn't catch it (the cast type-checks —
+      it's just wrong), the standard payload set didn't catch it either (its
+      three lookup types are all rare enough that none of the eight fonts in
+      `compare-with-c.sh`'s payload set has `x_avg_char_width`'s max-context
+      computation actually walk one), but `rust/scripts/compare-with-c.sh`
+      run against `rust/target/release` (not the stale `bin/release-x64` copy
+      of the *C* binary a prior debugging session had left behind, which
+      silently never exercised the Rust code at all) segfaulted on
+      `iosevka-r.ttf`, `meta-test.ttf`, `vdmx-test.ttf`, and `base-test.ttf`
+      — reading a `Vec`'s length out of what was actually an enum
+      discriminant. Fixed the same way as every other consumption site: match
+      on the variant, don't reinterpret the pointer.
+  - **Construction sites split into three shapes**, not one:
+    - The common case (most variants): a vtable `_create()` mallocs the
+      concrete type, the read/parse function fills it in through
+      `(*subtable).field = ...` exactly as before, and only the final `return
+      subtable as *mut Subtable;` changes — to `subtable_from_raw(subtable,
+      Subtable::Variant)`, a new helper (`table/otl.rs`) that reuses this
+      migration's established "unwrap_X_table" idiom (`ptr::read` moves the
+      value out, `free` releases just the now-empty shell, the result is
+      boxed) with the destination variant supplied as a tuple-constructor
+      function value. Null-safe, since a few of these can still fail
+      partway through a read and return null — the old cast propagated that
+      exactly the same way.
+    - `extend.rs`'s `_caryll_read_otl_extend` and `unconsolidate.rs`'s
+      `unconsolidate_chaining` (two sites) allocated a whole `Subtable`-sized
+      block directly and wrote into `.extend`/`.chaining` *in place* — no
+      concrete-type intermediate to adopt. Rewritten to build the
+      `ExtendSubtable`/`ChainingSubtable` value as a local first, then
+      `Box::into_raw(Box::new(Subtable::Variant(value)))`, matching the
+      shape every other construction site now has.
+    - `unconsolidate_chaining`'s `Poly`-splitting branch also surfaced a
+      genuine (if harmless) pre-existing leak: the old code was
+      `free(sub as *mut c_void)` — a raw block deallocation that never called
+      `sub`'s own dispose, so its `ChainingRuleSet`'s `bc`/`ic`/`fc` classdefs
+      were never freed (only `.rules` was, via an explicit `mem::take` two
+      lines earlier). `Box::from_raw(sub)` now runs `Subtable::Chaining`'s
+      `Drop` — `otl_dispose_chaining` — which does free them. Output-invisible
+      either way (freed memory cannot appear in what `otfccdump` prints, so
+      untouched by the byte-comparison tests), a leak fix rather than a
+      behavior change worth preserving.
+  - **`ExtendSubtable.subtable: *mut Subtable`'s ownership is always taken
+    before an `Extend` value is legitimately dropped** — `otl/read.rs`'s
+    extend-expansion resolves every `Extend` placeholder to its nested
+    subtable (or, on the rare mismatched-lookup-type error path, to a scratch
+    `Lookup` that takes over `.subtable` and drops it itself) before the
+    shell holding it is ever freed. `Subtable::Extend`'s own `Drop` arm is
+    therefore a no-op, matching the old `dispose_subtable_dependent`'s
+    behavior exactly (`OTL_TYPE_GSUB_EXTEND`/`OTL_TYPE_GPOS_EXTEND` had no arm
+    there either, falling through its `_ => {}`).
+  - **`otfcc_build_chaining`/`otfcc_build_contextual` (and the four
+    `_classes`/`_coverage` functions under them) were retyped from `*const
+    Subtable` to `*const ChainingSubtable`** rather than given the usual
+    enum-unwrap line. Their only caller (`chaining/classifier.rs`, both call
+    sites) never actually has a `Subtable` — only a `*mut ChainingSubtable`
+    that `try_classify_around` may have swapped in for the original — so the
+    old `as *mut Subtable` cast at the call site was itself relying on the
+    union trick with nothing on either end to unwrap.
+  - `SubtableList` stays `Vec<*mut Subtable>` in this PR; giving each element
+    a `Box` (dropping the now-redundant manual free calls this PR's `Drop`
+    impl already makes correct but not yet exclusively relied on) is
+    Stage 6-4's next piece.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 44/44 unit tests, ABI at exactly 4 symbols,
+    every standard payload byte-identical in both directions including the
+    `otfccdll` cdylib, all 10 round-trip payloads stable, issue #1's
+    regression test green, and the lookup-alias regression script green.
+    Beyond the standard set: all six `make-test-*-dedup.py` forged payloads
+    (`gsub-reverse`, `gsub-single`, `gsub-multi`, `gpos-single`,
+    `gpos-cursive`, `mark-consolidate` — covering the exact variants this PR
+    restructured, several of which no committed font payload exercises at
+    all) built byte-identical against the C reference on both platforms.
+
 - **Types out of `pub type X = c_uint`: done, except `ctype_class_bits`.** All
   31 of the classifications c2rust left as integer aliases now have the shape
   they earned, and the shapes are not uniform — which was the point. Twenty are

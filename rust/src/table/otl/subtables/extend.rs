@@ -1,11 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
 
 
 
 
-
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
 
 use crate::support::options::{Options};
@@ -14,6 +11,16 @@ use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::table::otl::{LookupType, Subtable, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_UNKNOWN, ExtendSubtable};
 use crate::table::otl::read::{otfcc_read_otl_subtable};
 
+// Was: allocate a whole `Subtable`-sized block directly, then take
+// `&raw mut (*_subtable).extend` and fill the field in place -- sound only
+// because `Subtable` was a union (every field starts at offset 0). Once it
+// is an enum with its own discriminant, there is no "the block" to allocate
+// ahead of knowing which variant it will hold; build the `ExtendSubtable`
+// value locally instead and hand it to `Box::new(Subtable::Extend(..))` the
+// same way every other subtable's read function now does via
+// `subtable_from_raw`. `type_0` is still computed before `subtable` (the
+// recursive read needs it as the nested lookup's type), so the dependency
+// order is unchanged.
 unsafe extern "C" fn _caryll_read_otl_extend(
     mut data: FontFilePointer,
     mut table_length: u32,
@@ -22,37 +29,28 @@ unsafe extern "C" fn _caryll_read_otl_extend(
     max_glyphs: GlyphId,
     mut options: *const Options,
 ) -> *mut Subtable {
-    let mut subtable: *mut ExtendSubtable = ::core::ptr::null_mut::<ExtendSubtable>();
-    let mut _subtable: *mut Subtable = ::core::ptr::null_mut::<Subtable>();
-    _subtable = __caryll_allocate_clean(
-        ::core::mem::size_of::<Subtable>() as usize,
-        10 as ::core::ffi::c_ulong,
-    ) as *mut Subtable;
     if table_length < subtable_offset.wrapping_add(8 as u32) {
-        free(_subtable as *mut ::core::ffi::c_void);
-        _subtable = ::core::ptr::null_mut::<Subtable>();
-    } else {
-        subtable = &raw mut (*_subtable).extend;
-        (*subtable).type_0 = LookupType::from_file(
-            basis,
-            read_16u(
-                data.offset(subtable_offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            ),
-        );
-        (*subtable).subtable = otfcc_read_otl_subtable(
-            data as *mut u8,
-            table_length,
-            subtable_offset.wrapping_add(read_32u(
-                data.offset(subtable_offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-            )),
-            (*subtable).type_0,
-            max_glyphs,
-            options,
-        ) as *mut Subtable;
+        return ::core::ptr::null_mut::<Subtable>();
     }
-    return _subtable;
+    let type_0 = LookupType::from_file(
+        basis,
+        read_16u(
+            data.offset(subtable_offset as isize)
+                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
+        ),
+    );
+    let subtable = otfcc_read_otl_subtable(
+        data as *mut u8,
+        table_length,
+        subtable_offset.wrapping_add(read_32u(
+            data.offset(subtable_offset as isize)
+                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
+        )),
+        type_0,
+        max_glyphs,
+        options,
+    );
+    Box::into_raw(Box::new(Subtable::Extend(ExtendSubtable { type_0, subtable })))
 }
 pub unsafe extern "C" fn otfcc_read_otl_gsub_extend(
     mut data: FontFilePointer,

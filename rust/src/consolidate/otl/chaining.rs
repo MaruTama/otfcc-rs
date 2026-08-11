@@ -21,7 +21,8 @@ pub unsafe extern "C" fn consolidate_chaining(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut ChainingSubtable = &raw mut (*_subtable).chaining as *mut ChainingSubtable;
+    let Subtable::Chaining(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let subtable: *mut ChainingSubtable = mut_subtable;
     if (*subtable).type_0 as u64 != 0 {
         (*(*options).logger)
             .log_sds

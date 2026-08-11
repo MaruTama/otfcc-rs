@@ -10,7 +10,8 @@ use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new_from_bytes};
 
 pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut JsonValue {
-    let mut subtable: *const ChainingSubtable = &raw const (*_subtable).chaining as *const ChainingSubtable;
+    let Subtable::Chaining(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const ChainingSubtable = mut_subtable;
     if (*subtable).type_0 as u64 != 0 {
         return json_null_new();
     }

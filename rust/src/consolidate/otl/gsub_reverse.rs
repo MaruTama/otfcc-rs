@@ -20,7 +20,8 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GsubReverseSubtable = &raw mut (*_subtable).gsub_reverse;
+    let Subtable::GsubReverse(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let subtable: *mut GsubReverseSubtable = mut_subtable;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
         fontop_consolidate_coverage(font, *(*subtable).match_0.offset(j as isize), options);

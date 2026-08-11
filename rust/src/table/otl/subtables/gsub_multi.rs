@@ -14,7 +14,7 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable};
+use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
@@ -106,7 +106,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
                     });
                 }
                 otl_coverage_free(from);
-                return subtable as *mut Subtable;
+                return subtable_from_raw(subtable, Subtable::GsubMulti);
             }
         }
     }
@@ -119,7 +119,8 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
 pub unsafe extern "C" fn otl_gsub_dump_multi(
     mut _subtable: *const Subtable,
 ) -> *mut JsonValue {
-    let subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi as *const GsubMultiSubtable;
+    let Subtable::GsubMulti(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GsubMultiSubtable = mut_subtable;
     let st: *mut JsonValue = json_object_new((*subtable).len());
     for j in 0..(*subtable).len() as GlyphId {
         let entry = &(&(*subtable))[j as usize];
@@ -149,7 +150,7 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
             });
         }
     }
-    return st as *mut Subtable;
+    return subtable_from_raw(st, Subtable::GsubMulti);
 }
 unsafe extern "C" fn build_gsub_multi_subtable_range(
     subtable: *const GsubMultiSubtable,
@@ -183,7 +184,8 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
     mut _heuristics: BuildHeuristics,
     mut count: *mut TableId,
 ) -> *mut *mut Buffer {
-    let subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi as *const GsubMultiSubtable;
+    let Subtable::GsubMulti(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GsubMultiSubtable = mut_subtable;
     let mut parts: *mut *mut Buffer = ::core::ptr::null_mut::<*mut Buffer>();
     let mut n_parts: TableId = 0 as TableId;
     let mut start: GlyphId = 0 as GlyphId;
@@ -234,6 +236,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let subtable: *const GsubMultiSubtable = &raw const (*_subtable).gsub_multi as *const GsubMultiSubtable;
+    let Subtable::GsubMulti(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GsubMultiSubtable = mut_subtable;
     return build_gsub_multi_subtable_range(subtable, 0 as GlyphId, (*subtable).len() as GlyphId);
 }

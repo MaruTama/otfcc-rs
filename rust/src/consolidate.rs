@@ -41,7 +41,7 @@ use crate::table::glyf::{RefAnchorStatus, ComponentReference, Glyph, Point, Post
 
 
 
-use crate::table::otl::{Feature, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, ChainingSubtable, GposCursiveSubtable, GposMarkToLigatureSubtable, GposMarkToSingleSubtable, GposPairSubtable, GposSingleSubtable, GsubLigatureSubtable, GsubMultiSubtable, GsubReverseSubtable, GsubSingleSubtable, OtlTable};
+use crate::table::otl::{Feature, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
 use crate::table::otl::classdef::{ClassDef};
 
 
@@ -66,20 +66,9 @@ use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::_tsi::{tsi_entry_dup};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, otfcc_new_glyf_glyph};
 use crate::table::otl::{otl_feature_list_filter_env, otl_feature_ref_list_filter_env, otl_lookup_list_filter_env, otl_lookup_ref_list_filter_env};
-use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
-use crate::table::otl::subtables::gpos_cursive::{subtable_gpos_cursive_free};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{subtable_gpos_mark_to_ligature_free};
-use crate::table::otl::subtables::gpos_mark_to_single::{subtable_gpos_mark_to_single_free};
-use crate::table::otl::subtables::gpos_pair::{I_SUBTABLE_GPOS_PAIR};
-use crate::table::otl::subtables::gpos_single::{subtable_gpos_single_free};
-use crate::table::otl::subtables::gsub_ligature::{subtable_gsub_ligature_free};
-use crate::table::otl::subtables::gsub_multi::{subtable_gsub_multi_free};
-use crate::table::otl::subtables::gsub_reverse::{I_SUBTABLE_GSUB_REVERSE};
-use crate::table::otl::subtables::gsub_single::{subtable_gsub_single_free};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
-pub type SubtableRemover = Option<unsafe extern "C" fn(*mut Subtable) -> ()>;
 pub type OtlConsolidationFunction = Option<
     unsafe extern "C" fn(
         *mut Font,
@@ -731,7 +720,6 @@ pub unsafe extern "C" fn consolidate_cmap(
 unsafe extern "C" fn __declare_otl_consolidation(
     mut type_0: LookupType,
     mut fn_0: OtlConsolidationFunction,
-    mut fndel: SubtableRemover,
     mut font: *mut Font,
     mut table: *mut OtlTable,
     mut lookup: *mut Lookup,
@@ -778,9 +766,16 @@ unsafe extern "C" fn __declare_otl_consolidation(
                     options,
                 );
                 if subtable_removed {
-                    fndel.expect("non-null function pointer")(
-                        (&(*lookup).subtables)[j as usize],
-                    );
+                    // Was a `fndel: SubtableRemover` parameter, one
+                    // `LookupType`-keyed function pointer per call site
+                    // below, each `transmute`d from `*mut ConcreteType` to
+                    // `*mut Subtable` -- sound only because `Subtable` used
+                    // to be a union with no discriminant to misinterpret.
+                    // Now that it is an enum, `Subtable`'s own `Drop` does
+                    // this dispatch, self-describing off the enum's tag, so
+                    // reclaiming the `Box` its construction site produced is
+                    // all that is needed -- no per-type function pointer.
+                    drop(Box::from_raw((&(*lookup).subtables)[j as usize]));
                     (&mut (*lookup).subtables)[j as usize] = ::core::ptr::null_mut::<Subtable>();
                     (*(*options).logger)
                         .log_sds
@@ -850,10 +845,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GsubSingleSubtable) -> ()>,
-            SubtableRemover,
-        >(Some(subtable_gsub_single_free as unsafe extern "C" fn(*mut GsubSingleSubtable) -> ())),
         font,
         table,
         lookup,
@@ -870,10 +861,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-            SubtableRemover,
-        >(Some(subtable_gsub_multi_free as unsafe extern "C" fn(*mut GsubMultiSubtable) -> ())),
         font,
         table,
         lookup,
@@ -890,10 +877,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GsubMultiSubtable) -> ()>,
-            SubtableRemover,
-        >(Some(subtable_gsub_multi_free as unsafe extern "C" fn(*mut GsubMultiSubtable) -> ())),
         font,
         table,
         lookup,
@@ -910,10 +893,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ()>,
-            SubtableRemover,
-        >(Some(subtable_gsub_ligature_free as unsafe extern "C" fn(*mut GsubLigatureSubtable) -> ())),
         font,
         table,
         lookup,
@@ -930,10 +909,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
-            SubtableRemover,
-        >(I_SUBTABLE_CHAINING.free),
         font,
         table,
         lookup,
@@ -950,10 +925,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GsubReverseSubtable) -> ()>,
-            SubtableRemover,
-        >(I_SUBTABLE_GSUB_REVERSE.free),
         font,
         table,
         lookup,
@@ -970,10 +941,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GposSingleSubtable) -> ()>,
-            SubtableRemover,
-        >(Some(subtable_gpos_single_free as unsafe extern "C" fn(*mut GposSingleSubtable) -> ())),
         font,
         table,
         lookup,
@@ -990,10 +957,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
-            SubtableRemover,
-        >(I_SUBTABLE_GPOS_PAIR.free),
         font,
         table,
         lookup,
@@ -1010,10 +973,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GposCursiveSubtable) -> ()>,
-            SubtableRemover,
-        >(Some(subtable_gpos_cursive_free as unsafe extern "C" fn(*mut GposCursiveSubtable) -> ())),
         font,
         table,
         lookup,
@@ -1030,10 +989,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
-            SubtableRemover,
-        >(I_SUBTABLE_CHAINING.free),
         font,
         table,
         lookup,
@@ -1050,10 +1005,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
-            SubtableRemover,
-        >(Some(subtable_gpos_mark_to_single_free as unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ())),
         font,
         table,
         lookup,
@@ -1070,10 +1021,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ()>,
-            SubtableRemover,
-        >(Some(subtable_gpos_mark_to_single_free as unsafe extern "C" fn(*mut GposMarkToSingleSubtable) -> ())),
         font,
         table,
         lookup,
@@ -1090,10 +1037,6 @@ pub unsafe extern "C" fn otfcc_consolidate_lookup(
                     *const Options,
                 ) -> bool,
         ),
-        ::core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> ()>,
-            SubtableRemover,
-        >(Some(subtable_gpos_mark_to_ligature_free as unsafe extern "C" fn(*mut GposMarkToLigatureSubtable) -> ())),
         font,
         table,
         lookup,

@@ -24,7 +24,8 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         .glyph_order
         .as_deref_mut()
         .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
-    let mut subtable: *mut GsubSingleSubtable = &raw mut (*_subtable).gsub_single as *mut GsubSingleSubtable;
+    let Subtable::GsubSingle(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let subtable: *mut GsubSingleSubtable = mut_subtable;
     // Deduplicates by `from`'s glyph id, first occurrence wins -- a later
     // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
     // not `IndexMap`: the original also did a HASH_SORT by that same id

@@ -53,7 +53,8 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GsubLigatureSubtable = &raw mut (*_subtable).gsub_ligature as *mut GsubLigatureSubtable;
+    let Subtable::GsubLigature(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let subtable: *mut GsubLigatureSubtable = mut_subtable;
     let mut nt: GsubLigatureSubtable = Vec::new();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).len() {
