@@ -50,7 +50,8 @@ pub unsafe extern "C" fn consolidate_gpos_single(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GposSingleSubtable = &raw mut (*_subtable).gpos_single as *mut GposSingleSubtable;
+    let Subtable::GposSingle(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let subtable: *mut GposSingleSubtable = mut_subtable;
     // Deduplicates by `target`'s glyph id, first occurrence wins -- a later
     // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
     // not `IndexMap`: the original also did a HASH_SORT by that same id

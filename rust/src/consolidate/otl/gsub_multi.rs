@@ -53,7 +53,8 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GsubMultiSubtable = &raw mut (*_subtable).gsub_multi as *mut GsubMultiSubtable;
+    let Subtable::GsubMulti(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let subtable: *mut GsubMultiSubtable = mut_subtable;
     // Deduplicates by `from.index`, first occurrence wins -- a later
     // duplicate's already-consolidated `to` coverage is simply dropped along
     // with the rest of the pre-dedup `subtable` when it's disposed below,

@@ -14,7 +14,7 @@ use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos, Tabl
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::{BkGraph};
-use crate::table::otl::{GposPairSubtableElementInterface, PositionValue, Subtable, GposPairSubtable};
+use crate::table::otl::{GposPairSubtableElementInterface, PositionValue, Subtable, GposPairSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_graph, bk_delete_graph, bk_estimate_size_of_graph, bk_minimize_graph, bk_new_graph_from_root_block, bk_untangle_graph};
@@ -38,7 +38,7 @@ unsafe extern "C" fn init_gpos_pair(mut subtable: *mut GposPairSubtable) {
     (*subtable).second_values = ::core::ptr::null_mut::<*mut PositionValue>();
 }
 #[inline]
-unsafe extern "C" fn dispose_gpos_pair(mut subtable: *mut GposPairSubtable) {
+pub(crate) unsafe extern "C" fn dispose_gpos_pair(mut subtable: *mut GposPairSubtable) {
     if !(*subtable).first_values.is_null() {
         let mut j: GlyphClass = 0 as GlyphClass;
         while j as ::core::ffi::c_int <= (*(*subtable).first).maxclass as ::core::ffi::c_int {
@@ -405,7 +405,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                 (&mut (*(*subtable).second).classes)[jj as usize] =
                                     (jj as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
                             }
-                            return subtable as *mut Subtable;
+                            return subtable_from_raw(subtable, Subtable::GposPair);
                         }
                     }
                 }
@@ -557,7 +557,7 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
                                     }
                                     j_4 = j_4.wrapping_add(1);
                                 }
-                                return subtable as *mut Subtable;
+                                return subtable_from_raw(subtable, Subtable::GposPair);
                             }
                         }
                     }
@@ -569,7 +569,8 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut JsonValue {
-    let mut subtable: *const GposPairSubtable = &raw const (*_subtable).gpos_pair;
+    let Subtable::GposPair(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GposPairSubtable = mut_subtable;
     let mut st: *mut JsonValue = json_object_new(3 as usize);
     json_object_push(
         st,
@@ -755,7 +756,7 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
             }
             j_0 = j_0.wrapping_add(1);
         }
-        return subtable as *mut Subtable;
+        return subtable_from_raw(subtable, Subtable::GposPair);
     };
 }
 unsafe extern "C" fn cov_from_cd(mut cd: *mut ClassDef) -> *mut Coverage {
@@ -780,7 +781,8 @@ unsafe extern "C" fn by_pair_second_glyph(
 pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     mut _subtable: *const Subtable,
 ) -> *mut BkBlock {
-    let mut subtable: *const GposPairSubtable = &raw const (*_subtable).gpos_pair;
+    let Subtable::GposPair(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GposPairSubtable = mut_subtable;
     let mut format1: u16 = 0 as u16;
     let mut format2: u16 = 0 as u16;
     let mut class1_count: GlyphClass = ((*(*subtable).first).maxclass as ::core::ffi::c_int
@@ -910,7 +912,8 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
 pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
     mut _subtable: *const Subtable,
 ) -> *mut BkBlock {
-    let mut subtable: *const GposPairSubtable = &raw const (*_subtable).gpos_pair;
+    let Subtable::GposPair(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GposPairSubtable = mut_subtable;
     let mut format1: u16 = 0 as u16;
     let mut format2: u16 = 0 as u16;
     let mut class1_count: GlyphClass = ((*(*subtable).first).maxclass as ::core::ffi::c_int

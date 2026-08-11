@@ -13,7 +13,7 @@ use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::table::otl::{GsubSingleEntry, Subtable, GsubSingleSubtable};
+use crate::table::otl::{GsubSingleEntry, Subtable, GsubSingleSubtable, subtable_from_raw};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
@@ -119,7 +119,7 @@ pub unsafe extern "C" fn otl_read_gsub_single(
                     if !to.is_null() {
                         otl_coverage_free(to);
                     }
-                    return subtable as *mut Subtable;
+                    return subtable_from_raw(subtable, Subtable::GsubSingle);
                 }
             }
         }
@@ -136,7 +136,8 @@ pub unsafe extern "C" fn otl_read_gsub_single(
 pub unsafe extern "C" fn otl_gsub_dump_single(
     mut _subtable: *const Subtable,
 ) -> *mut JsonValue {
-    let subtable: *const GsubSingleSubtable = &raw const (*_subtable).gsub_single as *const GsubSingleSubtable;
+    let Subtable::GsubSingle(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GsubSingleSubtable = mut_subtable;
     let mut st: *mut JsonValue = json_object_new((*subtable).len());
     let mut j: usize = 0 as usize;
     while j < (*subtable).len() {
@@ -187,13 +188,14 @@ pub unsafe extern "C" fn otl_gsub_parse_single(
         }
         j = j.wrapping_add(1);
     }
-    return subtable as *mut Subtable;
+    return subtable_from_raw(subtable, Subtable::GsubSingle);
 }
 pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
     mut _subtable: *const Subtable,
     mut heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let subtable: *const GsubSingleSubtable = &raw const (*_subtable).gsub_single as *const GsubSingleSubtable;
+    let Subtable::GsubSingle(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GsubSingleSubtable = mut_subtable;
     let mut is_constant_difference: bool = (*subtable).len() > 0 as usize;
     if is_constant_difference {
         let mut difference: i32 = (&(*subtable))[0].to.index as i32

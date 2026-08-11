@@ -51,7 +51,8 @@ pub unsafe extern "C" fn consolidate_gpos_pair(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GposPairSubtable = &raw mut (*_subtable).gpos_pair;
+    let Subtable::GposPair(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let subtable: *mut GposPairSubtable = mut_subtable;
     fontop_consolidate_class_def(font, (*subtable).first, options);
     fontop_consolidate_class_def(font, (*subtable).second, options);
     OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*subtable).first);

@@ -12,7 +12,7 @@ use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::table::otl::{GposSingleEntry, PositionValue, Subtable, GposSingleSubtable};
+use crate::table::otl::{GposSingleEntry, PositionValue, Subtable, GposSingleSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
@@ -138,7 +138,7 @@ pub unsafe extern "C" fn otl_read_gpos_single(
                     if !targets.is_null() {
                         otl_coverage_free(targets);
                     }
-                    return subtable as *mut Subtable;
+                    return subtable_from_raw(subtable, Subtable::GposSingle);
                 }
             }
         }
@@ -152,7 +152,8 @@ pub unsafe extern "C" fn otl_read_gpos_single(
 pub unsafe extern "C" fn otl_gpos_dump_single(
     mut _subtable: *const Subtable,
 ) -> *mut JsonValue {
-    let subtable: *const GposSingleSubtable = &raw const (*_subtable).gpos_single as *const GposSingleSubtable;
+    let Subtable::GposSingle(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GposSingleSubtable = mut_subtable;
     let mut st: *mut JsonValue = json_object_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
@@ -194,13 +195,14 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
         }
         j = j.wrapping_add(1);
     }
-    return subtable as *mut Subtable;
+    return subtable_from_raw(subtable, Subtable::GposSingle);
 }
 pub unsafe extern "C" fn otfcc_build_gpos_single(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let subtable: *const GposSingleSubtable = &raw const (*_subtable).gpos_single as *const GposSingleSubtable;
+    let Subtable::GposSingle(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GposSingleSubtable = mut_subtable;
     let mut is_const: bool = (*subtable).len() > 0 as usize;
     let mut format: u16 = 0 as u16;
     if (*subtable).len() > 0 as usize {

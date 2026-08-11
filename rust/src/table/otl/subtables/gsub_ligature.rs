@@ -13,7 +13,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable};
+use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
@@ -234,7 +234,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                     otl_coverage_free(
                                         start_coverage,
                                     );
-                                    return subtable as *mut Subtable;
+                                    return subtable_from_raw(subtable, Subtable::GsubLigature);
                                 }
                             }
                         }
@@ -249,7 +249,8 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
 pub unsafe extern "C" fn otl_gsub_dump_ligature(
     mut _subtable: *const Subtable,
 ) -> *mut JsonValue {
-    let subtable: *const GsubLigatureSubtable = &raw const (*_subtable).gsub_ligature as *const GsubLigatureSubtable;
+    let Subtable::GsubLigature(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GsubLigatureSubtable = mut_subtable;
     let mut st: *mut JsonValue = json_array_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
@@ -320,7 +321,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             }
             k = k.wrapping_add(1);
         }
-        return st as *mut Subtable;
+        return subtable_from_raw(st, Subtable::GsubLigature);
     } else {
         let st_0: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
         let mut n_0: GlyphId = (*_subtable).u.array.length as GlyphId;
@@ -343,7 +344,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             }
             k_0 = k_0.wrapping_add(1);
         }
-        return st_0 as *mut Subtable;
+        return subtable_from_raw(st_0, Subtable::GsubLigature);
     };
 }
 // Deduplicates by the ligature rule's starting glyph id -- the original
@@ -360,7 +361,8 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let subtable: *const GsubLigatureSubtable = &raw const (*_subtable).gsub_ligature as *const GsubLigatureSubtable;
+    let Subtable::GsubLigature(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GsubLigatureSubtable = mut_subtable;
     let n_ligatures: GlyphId = (*subtable).len() as GlyphId;
     let mut start_gids: std::collections::BTreeSet<::core::ffi::c_int> = std::collections::BTreeSet::new();
     let mut j: GlyphId = 0 as GlyphId;

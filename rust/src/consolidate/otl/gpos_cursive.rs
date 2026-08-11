@@ -50,7 +50,8 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let mut subtable: *mut GposCursiveSubtable = &raw mut (*_subtable).gpos_cursive as *mut GposCursiveSubtable;
+    let Subtable::GposCursive(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let subtable: *mut GposCursiveSubtable = mut_subtable;
     // Deduplicates by `target`'s glyph id, first occurrence wins -- a later
     // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
     // not `IndexMap`: the original also did a HASH_SORT by that same id

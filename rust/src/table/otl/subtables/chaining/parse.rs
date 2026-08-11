@@ -12,7 +12,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::json::{JsonType, JsonValue};
 
-use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable, subtable_from_raw};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::vendor::sds::{sdsnewlen};
@@ -99,5 +99,5 @@ pub unsafe extern "C" fn otl_parse_chaining(
         (*rule).apply.push(ChainLookupApplication { index, lookup });
         j_0 = j_0.wrapping_add(1);
     }
-    return subtable as *mut Subtable;
+    return subtable_from_raw(subtable, Subtable::Chaining);
 }

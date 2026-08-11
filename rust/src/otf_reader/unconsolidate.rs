@@ -34,7 +34,7 @@ use crate::table::glyf::{ComponentReference, Contour, Glyph, GlyfTable};
 
 
 
-use crate::table::otl::{ChainingRule, ChainingRuleSet, ChainingSubtable, Lookup, Subtable, SubtableList, SubtablePtr, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, OtlTable};
+use crate::table::otl::{ChainingBody, ChainingRule, ChainingRuleSet, ChainingSubtable, Lookup, Subtable, SubtableList, SubtablePtr, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, OtlTable};
 
 
 
@@ -425,7 +425,8 @@ unsafe extern "C" fn unconsolidate_chaining(
         if sub.is_null() {
             continue;
         }
-        let sub_chaining: *mut ChainingSubtable = &raw mut (*sub).chaining as *mut ChainingSubtable;
+        let Subtable::Chaining(mut_sub_chaining) = &mut *sub else { unreachable!() };
+        let sub_chaining: *mut ChainingSubtable = mut_sub_chaining;
         if (*sub_chaining).type_0 == ChainingType::Poly {
             let ruleset: *mut ChainingRuleSet =
                 &raw mut (*sub_chaining).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
@@ -441,46 +442,55 @@ unsafe extern "C" fn unconsolidate_chaining(
             for rule_slot in ::core::mem::take(&mut (*ruleset).rules) {
                 let boxed_rule: Box<ChainingRule> =
                     rule_slot.expect("chaining rule slot should never be None here");
-                let st: *mut Subtable = __caryll_allocate_clean(
-                    ::core::mem::size_of::<Subtable>() as usize,
-                    278 as ::core::ffi::c_ulong,
-                ) as *mut Subtable;
-                let st_chaining: *mut ChainingSubtable = &raw mut (*st).chaining as *mut ChainingSubtable;
-                (*st_chaining).type_0 = ChainingType::Canonical;
-                // Move the rule's contents out of the `Box` (deallocating
-                // just the box's own heap slot through the same allocator
-                // that made it) into the `Canonical` variant's
-                // `ManuallyDrop` slot -- simpler than the old raw-pointer
-                // `ptr::read`, since `Box` supports moving its pointee out
-                // directly.
-                ::core::ptr::write(
-                    &raw mut (*st_chaining).c2rust_unnamed.rule,
-                    ::core::mem::ManuallyDrop::new(*boxed_rule),
-                );
-                newsts.push(st as SubtablePtr);
+                // Was: allocate a whole `Subtable`-sized block directly and
+                // write `.chaining` in place -- sound only while `Subtable`
+                // was a union. Build the `ChainingSubtable` value locally
+                // instead (its own inner `ChainingBody` union is unaffected
+                // by this) and hand it to `Box::new(Subtable::Chaining(..))`.
+                let chaining = ChainingSubtable {
+                    type_0: ChainingType::Canonical,
+                    // Move the rule's contents out of the `Box` (deallocating
+                    // just the box's own heap slot through the same allocator
+                    // that made it) into the `Canonical` variant's
+                    // `ManuallyDrop` slot -- simpler than the old raw-pointer
+                    // `ptr::read`, since `Box` supports moving its pointee out
+                    // directly.
+                    c2rust_unnamed: ChainingBody { rule: ::core::mem::ManuallyDrop::new(*boxed_rule) },
+                };
+                newsts.push(Box::into_raw(Box::new(Subtable::Chaining(chaining))));
             }
-            free(sub as *mut ::core::ffi::c_void);
+            // Was `free(sub as *mut c_void)`: a raw block deallocation that
+            // skipped `sub`'s own dispose entirely, leaking its
+            // `ChainingRuleSet`'s `bc`/`ic`/`fc` classdefs (`.rules` was
+            // already emptied above by `mem::take`, but those three fields
+            // were not, and nothing else in this function frees them).
+            // `Box::from_raw` here runs `Subtable::Chaining`'s `Drop` --
+            // `otl_dispose_chaining` -- which does free them. Output-invisible
+            // (freed memory cannot appear in what otfccdump prints), so
+            // untouched by the byte-comparison tests either way; a genuine
+            // (small) leak fix, not a behavior change worth preserving.
+            drop(Box::from_raw(sub));
             (&mut (*lookup).subtables)[j] = ::core::ptr::null_mut::<Subtable>();
         } else if (*sub_chaining).type_0 == ChainingType::Canonical {
-            let st_0: *mut Subtable = __caryll_allocate_clean(
-                ::core::mem::size_of::<Subtable>() as usize,
-                289 as ::core::ffi::c_ulong,
-            ) as *mut Subtable;
-            let st_0_chaining: *mut ChainingSubtable = &raw mut (*st_0).chaining as *mut ChainingSubtable;
-            (*st_0_chaining).type_0 = ChainingType::Canonical;
             // Same disguised move as the `Poly` branch above, but note: `sub`
-            // (the whole outer `Subtable` block) is never `free()`'d on this
-            // branch in the original C, either -- an existing, intentional-looking
-            // leak that predates this conversion. `ptr::read` here preserves it
-            // exactly: the source bytes (including the moved-from `Vec` header)
-            // are left untouched in `sub`'s leaked allocation, never dropped.
-            ::core::ptr::write(
-                &raw mut (*st_0_chaining).c2rust_unnamed.rule,
-                ::core::mem::ManuallyDrop::new(::core::ptr::read(
-                    &raw const (*sub_chaining).c2rust_unnamed.rule as *const ChainingRule,
-                )),
-            );
-            newsts.push(st_0 as SubtablePtr);
+            // (the whole outer `Subtable` value) is never freed on this
+            // branch, either -- an existing, intentional-looking leak that
+            // predates this conversion. `ptr::read` here preserves it
+            // exactly: the source bytes (including the moved-from `rule`)
+            // are left untouched in `sub`'s leaked allocation, never dropped
+            // -- so `sub_chaining`'s `ManuallyDrop<ChainingRule>` must not
+            // run its own `Drop` either, which is exactly what
+            // `ManuallyDrop` (still the inner `ChainingBody` union's shape)
+            // already guarantees.
+            let chaining = ChainingSubtable {
+                type_0: ChainingType::Canonical,
+                c2rust_unnamed: ChainingBody {
+                    rule: ::core::mem::ManuallyDrop::new(::core::ptr::read(
+                        &raw const (*sub_chaining).c2rust_unnamed.rule as *const ChainingRule,
+                    )),
+                },
+            };
+            newsts.push(Box::into_raw(Box::new(Subtable::Chaining(chaining))));
             (&mut (*lookup).subtables)[j] = ::core::ptr::null_mut::<Subtable>();
         }
     }

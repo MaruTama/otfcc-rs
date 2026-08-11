@@ -15,7 +15,7 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::table::otl::{GsubReverseSubtableElementInterface, Subtable, GsubReverseSubtable};
+use crate::table::otl::{GsubReverseSubtableElementInterface, Subtable, GsubReverseSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
@@ -28,7 +28,7 @@ unsafe extern "C" fn init_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
     (*subtable).to = ::core::ptr::null_mut::<Coverage>();
 }
 #[inline]
-unsafe extern "C" fn dispose_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
+pub(crate) unsafe extern "C" fn dispose_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
     if !(*subtable).match_0.is_null() {
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
@@ -265,7 +265,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                             j_1 = j_1.wrapping_add(1);
                         }
                         reverse_backtracks((*subtable).match_0, (*subtable).input_index);
-                        return subtable as *mut Subtable;
+                        return subtable_from_raw(subtable, Subtable::GsubReverse);
                     }
                 }
             }
@@ -279,7 +279,8 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
 pub unsafe extern "C" fn otl_gsub_dump_reverse(
     mut _subtable: *const Subtable,
 ) -> *mut JsonValue {
-    let mut subtable: *const GsubReverseSubtable = &raw const (*_subtable).gsub_reverse;
+    let Subtable::GsubReverse(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GsubReverseSubtable = mut_subtable;
     let mut _st: *mut JsonValue = json_object_new(3 as usize);
     let mut _match: *mut JsonValue = json_array_new((*subtable).match_count as usize);
     let mut j: TableId = 0 as TableId;
@@ -351,13 +352,14 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
         j = j.wrapping_add(1);
     }
     (*subtable).to = OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to);
-    return subtable as *mut Subtable;
+    return subtable_from_raw(subtable, Subtable::GsubReverse);
 }
 pub unsafe extern "C" fn otfcc_build_gsub_reverse(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let mut subtable: *const GsubReverseSubtable = &raw const (*_subtable).gsub_reverse;
+    let Subtable::GsubReverse(mut_subtable) = &*_subtable else { unreachable!() };
+    let subtable: *const GsubReverseSubtable = mut_subtable;
     reverse_backtracks((*subtable).match_0, (*subtable).input_index);
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             *(*subtable).match_0.offset((*subtable).input_index as isize),

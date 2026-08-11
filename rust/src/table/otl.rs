@@ -15,16 +15,16 @@ use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{GlyphHandle, LookupHandle};
 
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
-use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
-use crate::table::otl::subtables::gpos_cursive::{subtable_gpos_cursive_free};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{subtable_gpos_mark_to_ligature_free};
-use crate::table::otl::subtables::gpos_mark_to_single::{subtable_gpos_mark_to_single_free};
-use crate::table::otl::subtables::gpos_pair::{I_SUBTABLE_GPOS_PAIR};
-use crate::table::otl::subtables::gpos_single::{subtable_gpos_single_free};
-use crate::table::otl::subtables::gsub_ligature::{subtable_gsub_ligature_free};
-use crate::table::otl::subtables::gsub_multi::{subtable_gsub_multi_free};
-use crate::table::otl::subtables::gsub_reverse::{I_SUBTABLE_GSUB_REVERSE};
-use crate::table::otl::subtables::gsub_single::{subtable_gsub_single_free};
+use crate::table::otl::subtables::chaining::common::{otl_dispose_chaining};
+use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
+use crate::table::otl::subtables::gpos_mark_to_ligature::{dispose_mark_to_ligature};
+use crate::table::otl::subtables::gpos_mark_to_single::{dispose_mark_to_single};
+use crate::table::otl::subtables::gpos_pair::{dispose_gpos_pair};
+use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
+use crate::table::otl::subtables::gsub_ligature::{dispose_gsub_ligature_subtable};
+use crate::table::otl::subtables::gsub_multi::{dispose_gsub_multi_subtable};
+use crate::table::otl::subtables::gsub_reverse::{dispose_gsub_reverse};
+use crate::table::otl::subtables::gsub_single::{dispose_gsub_single_subtable};
 
 
 /// Which gsub/gpos subtable format a lookup is, in otfcc's own numbering: the
@@ -145,27 +145,91 @@ impl LookupType {
     }
 }
 // Never copied or moved by value anywhere in the crate -- every use is
-// `*mut Subtable`/`*const Subtable`/`size_of::<Subtable>()`/
-// `null_mut::<Subtable>()`, so `Subtable` itself needs neither `Copy` nor
-// `Clone`. The 8 variants that now own a `Vec` (all container types that
-// used to block their `Vec` conversion on this union) are wrapped in
-// `ManuallyDrop` -- the only field shape besides `Copy` a union may hold.
-// `ManuallyDrop<T>` is `#[repr(transparent)]`, so every extraction site
-// (`&raw mut/const (*subtable).field`) just adds `as *mut/*const T` to get
-// back the field's real type; nothing downstream of that cast changes.
-#[repr(C)]
-pub union Subtable {
-    pub gsub_single: ::core::mem::ManuallyDrop<GsubSingleSubtable>,
-    pub gsub_multi: ::core::mem::ManuallyDrop<GsubMultiSubtable>,
-    pub gsub_ligature: ::core::mem::ManuallyDrop<GsubLigatureSubtable>,
-    pub chaining: ::core::mem::ManuallyDrop<ChainingSubtable>,
-    pub gsub_reverse: GsubReverseSubtable,
-    pub gpos_single: ::core::mem::ManuallyDrop<GposSingleSubtable>,
-    pub gpos_pair: GposPairSubtable,
-    pub gpos_cursive: ::core::mem::ManuallyDrop<GposCursiveSubtable>,
-    pub gpos_mark_to_single: ::core::mem::ManuallyDrop<GposMarkToSingleSubtable>,
-    pub gpos_mark_to_ligature: ::core::mem::ManuallyDrop<GposMarkToLigatureSubtable>,
-    pub extend: ExtendSubtable,
+// `*mut Subtable`/`*const Subtable`/`Box<Subtable>`, so `Subtable` itself
+// needs neither `Copy` nor `Clone`.
+//
+// Was a `union` with the discriminant living outside it, in `Lookup.type_0`
+// -- every read of a variant was a pointer-cast (`&raw const/mut
+// (*subtable).field as *const/mut T`), sound only because a union's fields
+// all start at offset 0 and `LookupType` was trusted to say which one was
+// live. Two consequences of that shape turned out to be unsound in a way
+// nothing in this crate exercised: `dispose_subtable_dependent`'s
+// `LookupType`-dispatch free functions and `consolidate.rs`'s
+// `SubtableRemover` both `transmute`d a `*mut ConcreteType`-typed function
+// pointer to `*mut Subtable` and called it directly on a `*mut Subtable` --
+// which only worked because the union had no tag to misinterpret. Neither
+// of those sites survives the enum: see `dispose_subtable_dependent` below
+// and `__declare_otl_consolidation` in `consolidate.rs`.
+//
+// As an enum, the discriminant is self-describing -- `Drop` (below) replaces
+// both `LookupType`-keyed free-function tables, and no variant needs
+// `ManuallyDrop` any more (that was purely a union restriction: a union
+// can't auto-drop a field because it doesn't know which one is live).
+pub enum Subtable {
+    GsubSingle(GsubSingleSubtable),
+    GsubMulti(GsubMultiSubtable),
+    GsubLigature(GsubLigatureSubtable),
+    Chaining(ChainingSubtable),
+    GsubReverse(GsubReverseSubtable),
+    GposSingle(GposSingleSubtable),
+    GposPair(GposPairSubtable),
+    GposCursive(GposCursiveSubtable),
+    GposMarkToSingle(GposMarkToSingleSubtable),
+    GposMarkToLigature(GposMarkToLigatureSubtable),
+    Extend(ExtendSubtable),
+}
+impl Drop for Subtable {
+    fn drop(&mut self) {
+        unsafe {
+            match self {
+                Subtable::GsubSingle(x) => dispose_gsub_single_subtable(x as *mut GsubSingleSubtable),
+                Subtable::GsubMulti(x) => dispose_gsub_multi_subtable(x as *mut GsubMultiSubtable),
+                Subtable::GsubLigature(x) => dispose_gsub_ligature_subtable(x as *mut GsubLigatureSubtable),
+                Subtable::Chaining(x) => otl_dispose_chaining(x as *mut ChainingSubtable),
+                Subtable::GsubReverse(x) => dispose_gsub_reverse(x as *mut GsubReverseSubtable),
+                Subtable::GposSingle(x) => dispose_gpos_single_subtable(x as *mut GposSingleSubtable),
+                Subtable::GposPair(x) => dispose_gpos_pair(x as *mut GposPairSubtable),
+                Subtable::GposCursive(x) => dispose_gpos_cursive_subtable(x as *mut GposCursiveSubtable),
+                Subtable::GposMarkToSingle(x) => dispose_mark_to_single(x as *mut GposMarkToSingleSubtable),
+                Subtable::GposMarkToLigature(x) => dispose_mark_to_ligature(x as *mut GposMarkToLigatureSubtable),
+                // `subtable: *mut Subtable`'s ownership is always taken (via
+                // `.subtable`) before an `Extend` value is legitimately
+                // dropped -- `otl/read.rs`'s extend-expansion resolves every
+                // `Extend` placeholder to its nested subtable (or, on a
+                // mismatched-type error path, to a scratch `Lookup` that
+                // takes over `.subtable` and drops it itself) before the
+                // shell holding it is ever freed. Matches the old
+                // `dispose_subtable_dependent`'s behavior exactly: `EXTEND`
+                // had no arm there either, falling through its `_ => {}`.
+                Subtable::Extend(_) => {}
+            }
+        }
+    }
+}
+/// Adopt a vtable-`create()`d raw pointer into a heap-allocated `Subtable`.
+///
+/// Reuses the "unwrap_X_table" idiom this migration's Stage 6-4 Box-ified
+/// every other malloc'd C-shaped struct with (see `cff::unwrap_cff_table`):
+/// `ptr::read` moves the value out of `raw` (a shallow copy -- any nested
+/// `Vec`s/pointers move with it, not duplicate), `free` releases only the
+/// now-empty outer shell (not through the type's own dispose helper, which
+/// would double-drop the fields just moved out), and the result is wrapped
+/// into the specific variant by `wrap` (a tuple-variant constructor, e.g.
+/// `Subtable::GsubSingle`) and boxed. Every subtable's own `_create()`
+/// function is unaffected -- this only changes what happens to its result at
+/// the point each read/parse function used to just cast it `as *mut
+/// Subtable`, which relied on `Subtable` being a union with no discriminant
+/// to disturb; that cast is unsound now that it is an enum. Null-safe --
+/// several callers' `_create()` result can still be null on a read error
+/// (`table_length` too short partway through), and the old `as *mut
+/// Subtable` cast propagated a null exactly the same way.
+pub(crate) unsafe fn subtable_from_raw<T>(raw: *mut T, wrap: fn(T) -> Subtable) -> *mut Subtable {
+    if raw.is_null() {
+        return ::core::ptr::null_mut();
+    }
+    let value = ::core::ptr::read(raw);
+    free(raw as *mut ::core::ffi::c_void);
+    Box::into_raw(Box::new(wrap(value)))
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -173,9 +237,8 @@ pub struct ExtendSubtable {
     pub type_0: LookupType,
     pub subtable: *mut Subtable,
 }
-// Never passed or embedded by value anywhere in the crate (only ever behind
-// `*mut`/`*const`, as a `Subtable` union field) -- no `Copy`/`Clone` needed
-// once `mark_array`/`lig_array` own `Vec`s.
+// Embedded by value in `Subtable::GposMarkToLigature` -- no `Copy`/`Clone`
+// needed once `mark_array`/`lig_array` own `Vec`s.
 #[repr(C)]
 pub struct GposMarkToLigatureSubtable {
     pub class_count: GlyphClass,
@@ -209,8 +272,8 @@ pub struct MarkRecord {
     pub mark_class: GlyphClass,
     pub anchor: Anchor,
 }
-// Never passed or embedded by value anywhere in the crate -- no
-// `Copy`/`Clone` needed once `mark_array`/`base_array` own `Vec`s.
+// Embedded by value in `Subtable::GposMarkToSingle` -- no `Copy`/`Clone`
+// needed once `mark_array`/`base_array` own `Vec`s.
 #[repr(C)]
 pub struct GposMarkToSingleSubtable {
     pub class_count: GlyphClass,
@@ -265,17 +328,16 @@ pub struct GsubReverseSubtable {
     pub match_0: *mut *mut Coverage,
     pub to: *mut Coverage,
 }
-// `chaining` (the `Subtable` union variant embedding this by value) is now
-// `ManuallyDrop`-wrapped, since `ChainingBody.rule` -- and therefore this
-// struct -- no longer stays `Copy` (see `ChainingRule`). Neither `Copy` nor
-// `Clone` can be derived once a union field is non-`Copy` (a union can't
-// know which variant is active, so an automatic `Clone` impl is unsound);
-// this matches the other `ManuallyDrop`-wrapped host structs
-// (`GposMarkToSingleSubtable`/`GposMarkToLigatureSubtable`), which also
-// derive neither. Nothing calls `.clone()` on this type -- the vtable's
-// `.copy` slot (`subtable_chaining_copy`) is a raw `memcpy`, not
-// `Clone::clone`, and is confirmed dead (never called outside its own
-// static initializer).
+// Embedded by value in `Subtable::Chaining`. Derives neither `Copy` nor
+// `Clone`, since `ChainingBody.rule` -- and therefore this struct -- no
+// longer stays `Copy` (see `ChainingRule`): a union can't hold a non-`Copy`
+// field any other way than `ManuallyDrop` (below), and a union can't know
+// which variant is active, so an automatic `Clone` impl would be unsound.
+// This matches the other non-`Copy`, non-`Clone` host structs
+// (`GposMarkToSingleSubtable`/`GposMarkToLigatureSubtable`). Nothing calls
+// `.clone()` on this type -- the vtable's `.copy` slot
+// (`subtable_chaining_copy`) is a raw `memcpy`, not `Clone::clone`, and is
+// confirmed dead (never called outside its own static initializer).
 #[repr(C)]
 pub struct ChainingSubtable {
     pub type_0: ChainingType,
@@ -495,69 +557,26 @@ pub struct OtlTable {
     pub features: FeatureList,
     pub languages: LangSystemList,
 }
+// Was a 13-arm `match (*lookup).type_0 { .. }` dispatch, four of whose arms
+// `transmute`d a `*mut ConcreteType`-typed free function to
+// `*mut Subtable` and called it on `*subtable_ref` directly -- sound only
+// because the union had no discriminant to misinterpret. `Subtable`'s own
+// `Drop` impl (see its definition above) now does exactly this dispatch,
+// self-describing off the enum's own tag, so freeing an element is just
+// reconstructing the `Box` its construction site produced and letting it
+// drop -- no `LookupType` involved at all. `lookup` is unused as a result;
+// kept for now so none of this function's three call sites need to change
+// (Stage 6-4's `SubtableList` -> `Vec<Box<Subtable>>` follow-up removes this
+// function entirely, at which point the parameter goes with it).
 #[inline]
 unsafe extern "C" fn dispose_subtable_dependent(
     mut subtable_ref: *mut SubtablePtr,
-    mut lookup: *const Lookup,
+    mut _lookup: *const Lookup,
 ) {
-    match (*lookup).type_0 {
-        OTL_TYPE_GSUB_SINGLE => {
-            subtable_gsub_single_free(*subtable_ref as *mut GsubSingleSubtable);
-        }
-        OTL_TYPE_GSUB_MULTIPLE => {
-            subtable_gsub_multi_free(*subtable_ref as *mut GsubMultiSubtable);
-        }
-        OTL_TYPE_GSUB_ALTERNATE => {
-            subtable_gsub_multi_free(*subtable_ref as *mut GsubMultiSubtable);
-        }
-        OTL_TYPE_GSUB_LIGATURE => {
-            subtable_gsub_ligature_free(*subtable_ref as *mut GsubLigatureSubtable);
-        }
-        OTL_TYPE_GSUB_CHAINING => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_CHAINING.free)
-            .expect("non-null function pointer")(*subtable_ref);
-        }
-        OTL_TYPE_GSUB_REVERSE => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GsubReverseSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GSUB_REVERSE.free)
-            .expect("non-null function pointer")(*subtable_ref);
-        }
-        OTL_TYPE_GPOS_SINGLE => {
-            subtable_gpos_single_free(*subtable_ref as *mut GposSingleSubtable);
-        }
-        OTL_TYPE_GPOS_PAIR => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_GPOS_PAIR.free)
-            .expect("non-null function pointer")(*subtable_ref);
-        }
-        OTL_TYPE_GPOS_CURSIVE => {
-            subtable_gpos_cursive_free(*subtable_ref as *mut GposCursiveSubtable);
-        }
-        OTL_TYPE_GPOS_CHAINING => {
-            ::core::mem::transmute::<
-                Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
-                Option<unsafe extern "C" fn(*mut Subtable) -> ()>,
-            >(I_SUBTABLE_CHAINING.free)
-            .expect("non-null function pointer")(*subtable_ref);
-        }
-        OTL_TYPE_GPOS_MARK_TO_BASE => {
-            subtable_gpos_mark_to_single_free(*subtable_ref as *mut GposMarkToSingleSubtable);
-        }
-        OTL_TYPE_GPOS_MARK_TO_MARK => {
-            subtable_gpos_mark_to_single_free(*subtable_ref as *mut GposMarkToSingleSubtable);
-        }
-        OTL_TYPE_GPOS_MARK_TO_LIGATURE => {
-            subtable_gpos_mark_to_ligature_free(*subtable_ref as *mut GposMarkToLigatureSubtable);
-        }
-        _ => {}
-    };
+    let ptr = *subtable_ref;
+    if !ptr.is_null() {
+        drop(Box::from_raw(ptr));
+    }
 }
 // `SubtablePtr`単体の要素インターフェースは全フィールドNoneだったため削除
 // （`SubtableList`の破棄は個々の要素ではなく型ごとdispatchする

@@ -15,7 +15,7 @@ use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::table::otl::{Anchor, LigatureArray, LigatureBaseRecord, Subtable, GposMarkToLigatureSubtable};
+use crate::table::otl::{Anchor, LigatureArray, LigatureBaseRecord, Subtable, GposMarkToLigatureSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
@@ -47,7 +47,7 @@ unsafe extern "C" fn init_mark_to_ligature(subtable: *mut GposMarkToLigatureSubt
     (*subtable).mark_array = Vec::new();
     (*subtable).lig_array = Vec::new();
 }
-unsafe extern "C" fn dispose_mark_to_ligature(subtable: *mut GposMarkToLigatureSubtable) {
+pub(crate) unsafe extern "C" fn dispose_mark_to_ligature(subtable: *mut GposMarkToLigatureSubtable) {
     dispose_mark_array(&raw mut (*subtable).mark_array);
     dispose_lig_array(&raw mut (*subtable).lig_array);
 }
@@ -223,7 +223,7 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_ligature(
                             if !bases.is_null() {
                                 otl_coverage_free(bases);
                             }
-                            return subtable as *mut Subtable;
+                            return subtable_from_raw(subtable, Subtable::GposMarkToLigature);
                         }
                     }
                 }
@@ -242,7 +242,8 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_ligature(
 pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
     mut st: *const Subtable,
 ) -> *mut JsonValue {
-    let mut subtable: *const GposMarkToLigatureSubtable = &raw const (*st).gpos_mark_to_ligature as *const GposMarkToLigatureSubtable;
+    let Subtable::GposMarkToLigature(mut_subtable) = &*st else { unreachable!() };
+    let subtable: *const GposMarkToLigatureSubtable = mut_subtable;
     let mut _subtable: *mut JsonValue = json_object_new(3 as usize);
     let mut _marks: *mut JsonValue = json_object_new((*subtable).mark_array.len());
     let mut _bases: *mut JsonValue = json_object_new((*subtable).lig_array.len());
@@ -468,14 +469,14 @@ pub unsafe extern "C" fn otl_gpos_parse_mark_to_ligature(
     otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h, options);
     (*st).class_count = h.len() as GlyphClass;
     parse_bases(_bases, st, &raw mut h, options);
-    return st as *mut Subtable;
+    return subtable_from_raw(st, Subtable::GposMarkToLigature);
 }
 pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let mut subtable: *const GposMarkToLigatureSubtable =
-        &raw const (*_subtable).gpos_mark_to_ligature as *const GposMarkToLigatureSubtable;
+    let Subtable::GposMarkToLigature(mut_subtable) = &*_subtable else { unreachable!() };
+    let mut subtable: *const GposMarkToLigatureSubtable = mut_subtable;
     let mut marks: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).mark_array.len() {

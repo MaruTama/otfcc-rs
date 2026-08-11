@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
 
 
 
@@ -701,7 +700,7 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
             max_glyphs,
             options,
         );
-        (*lookup).subtables.push(subtable as SubtablePtr);
+        (*lookup).subtables.push(subtable);
         j = j.wrapping_add(1);
     }
     if (*lookup).type_0 == OTL_TYPE_GSUB_EXTEND
@@ -710,10 +709,10 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
         (*lookup).type_0 = OTL_TYPE_UNKNOWN;
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*lookup).subtables.len() {
-            if !(&(*lookup).subtables)[j_0 as usize].is_null() {
-                (*lookup).type_0 = (*(&(*lookup).subtables)[j_0 as usize])
-                    .extend
-                    .type_0;
+            let elem_ptr_0: SubtablePtr = (&(*lookup).subtables)[j_0 as usize];
+            if !elem_ptr_0.is_null() {
+                let Subtable::Extend(ext) = &*elem_ptr_0 else { unreachable!() };
+                (*lookup).type_0 = ext.type_0;
                 break;
             } else {
                 j_0 = j_0.wrapping_add(1);
@@ -722,39 +721,33 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
         if (*lookup).type_0 != OTL_TYPE_UNKNOWN {
             let mut j_1: TableId = 0 as TableId;
             while (j_1 as usize) < (*lookup).subtables.len() {
-                if !(&(*lookup).subtables)[j_1 as usize].is_null()
-                    && (*(&(*lookup).subtables)[j_1 as usize])
-                        .extend
-                        .type_0
-                        == (*lookup).type_0
-                {
-                    let st: *mut Subtable =
-                        (*(&(*lookup).subtables)[j_1 as usize])
-                            .extend
-                            .subtable as *mut Subtable;
-                    free(
-                        (&(*lookup).subtables)[j_1 as usize] as *mut ::core::ffi::c_void
-                    );
-                    (&mut (*lookup).subtables)[j_1 as usize] = st as SubtablePtr;
-                } else if !(&(*lookup).subtables)[j_1 as usize].is_null() {
-                    // A scratch `Lookup` purely to reuse its (now `Drop`-driven)
-                    // type-dispatched subtable teardown on this one subtable --
-                    // never pushed anywhere, so it's just let go out of scope
-                    // instead of the old explicit `otfcc_delete_lookup` call.
-                    let mut temp: Box<Lookup> = new_lookup();
-                    (*temp).type_0 = (*(&(*lookup).subtables)[j_1 as usize])
-                        .extend
-                        .type_0;
-                    (*temp).subtables.push(
-                        (*(&(*lookup).subtables)[j_1 as usize])
-                            .extend
-                            .subtable as SubtablePtr,
-                    );
-                    drop(temp);
-                    free(
-                        (&(*lookup).subtables)[j_1 as usize] as *mut ::core::ffi::c_void
-                    );
-                    (&mut (*lookup).subtables)[j_1 as usize] = ::core::ptr::null_mut::<Subtable>();
+                let elem_ptr: SubtablePtr = (&(*lookup).subtables)[j_1 as usize];
+                if !elem_ptr.is_null() {
+                    // Every element in this list is known to be an `Extend`
+                    // placeholder -- that is what `OTL_TYPE_GSUB_EXTEND`/
+                    // `OTL_TYPE_GPOS_EXTEND` means -- so unwrapping it is
+                    // infallible.
+                    let Subtable::Extend(ext) = &*elem_ptr else { unreachable!() };
+                    if ext.type_0 == (*lookup).type_0 {
+                        // `.subtable`'s ownership transfers to become the new
+                        // list element; freeing `elem_ptr` (the `Extend`
+                        // shell) must not touch it -- and `Subtable::Extend`'s
+                        // `Drop` is a no-op for exactly this reason.
+                        let st: *mut Subtable = ext.subtable;
+                        drop(Box::from_raw(elem_ptr));
+                        (&mut (*lookup).subtables)[j_1 as usize] = st;
+                    } else {
+                        // A scratch `Lookup` purely to reuse its (now `Drop`-driven)
+                        // type-dispatched subtable teardown on this one subtable --
+                        // never pushed anywhere, so it's just let go out of scope
+                        // instead of the old explicit `otfcc_delete_lookup` call.
+                        let mut temp: Box<Lookup> = new_lookup();
+                        (*temp).type_0 = ext.type_0;
+                        (*temp).subtables.push(ext.subtable);
+                        drop(temp);
+                        drop(Box::from_raw(elem_ptr));
+                        (&mut (*lookup).subtables)[j_1 as usize] = ::core::ptr::null_mut::<Subtable>();
+                    }
                 }
                 j_1 = j_1.wrapping_add(1);
             }
