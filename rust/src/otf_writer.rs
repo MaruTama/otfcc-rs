@@ -91,8 +91,8 @@ impl FontSerializer for OtfSerializer {
                 (*font).head.as_deref_mut().map_or(::core::ptr::null_mut(), |h| h as *mut HeadTable),
                 options,
             );
-        otfcc_sfnt_builder_push_table(builder, 1735162214i32 as u32, pair.glyf);
-        otfcc_sfnt_builder_push_table(builder, 1819239265i32 as u32, pair.loca);
+        otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_GLYF, pair.glyf);
+        otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_LOCA, pair.loca);
     } else {
         let mut r: CffAndGlyf = CffAndGlyf {
             meta: (*font).cff.as_deref_mut().map_or(::core::ptr::null_mut(), |c| c as *mut CffTable),
@@ -100,43 +100,43 @@ impl FontSerializer for OtfSerializer {
         };
         otfcc_sfnt_builder_push_table(
             builder,
-            1128678944i32 as u32,
+            crate::tag::TAG_CFF,
             otfcc_build_cff(r, options),
         );
     }
     otfcc_sfnt_builder_push_table(
         builder,
-        1751474532i32 as u32,
+        crate::tag::TAG_HEAD,
         otfcc_build_head((*font).head.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1751672161i32 as u32,
+        crate::tag::TAG_HHEA,
         otfcc_build_hhea((*font).hhea.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1330851634i32 as u32,
+        crate::tag::TAG_OS_2,
         otfcc_build_os_2((*font).os_2.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1835104368i32 as u32,
+        crate::tag::TAG_MAXP,
         otfcc_build_maxp((*font).maxp.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1851878757i32 as u32,
+        crate::tag::TAG_NAME,
         otfcc_build_name((*font).name.as_ref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1835365473i32 as u32,
+        crate::tag::TAG_META,
         otfcc_build_meta((*font).meta.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1886352244i32 as u32,
+        crate::tag::TAG_POST,
         otfcc_build_post(
             (*font).post.as_deref(),
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
@@ -145,38 +145,38 @@ impl FontSerializer for OtfSerializer {
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1668112752i32 as u32,
+        crate::tag::TAG_CMAP,
         otfcc_build_cmap((*font).cmap.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1734439792i32 as u32,
+        crate::tag::TAG_GASP,
         otfcc_build_gasp((*font).gasp.as_deref(), options),
     );
     if (*font).subtype == FontSubtype::Ttf {
         otfcc_sfnt_builder_push_table(
             builder,
-            1718642541i32 as u32,
+            crate::tag::TAG_FPGM,
             otfcc_build_fpgm_prep((*font).fpgm.as_deref(), options),
         );
         otfcc_sfnt_builder_push_table(
             builder,
-            1886545264i32 as u32,
+            crate::tag::TAG_PREP,
             otfcc_build_fpgm_prep((*font).prep.as_deref(), options),
         );
         otfcc_sfnt_builder_push_table(
             builder,
-            1668707360i32 as u32,
+            crate::tag::TAG_CVT,
             otfcc_build_cvt((*font).cvt_.as_deref(), options),
         );
         otfcc_sfnt_builder_push_table(
             builder,
-            1280594760i32 as u32,
+            crate::tag::TAG_LTSH,
             otfcc_build_ltsh((*font).ltsh.as_deref(), options),
         );
         otfcc_sfnt_builder_push_table(
             builder,
-            1447316824i32 as u32,
+            crate::tag::TAG_VDMX,
             otfcc_build_vdmx((*font).vdmx.as_deref(), options),
         );
     }
@@ -187,7 +187,7 @@ impl FontSerializer for OtfSerializer {
             as u16;
         otfcc_sfnt_builder_push_table(
             builder,
-            1752003704i32 as u32,
+            crate::tag::TAG_HMTX,
             otfcc_build_hmtx(
                 (*font).hmtx.as_deref(),
                 hmtx_counta as GlyphId,
@@ -198,7 +198,7 @@ impl FontSerializer for OtfSerializer {
     }
     otfcc_sfnt_builder_push_table(
         builder,
-        1986553185i32 as u32,
+        crate::tag::TAG_VHEA,
         otfcc_build_vhea((*font).vhea.as_deref(), options),
     );
     if (*font).vhea.is_some() && (*font).maxp.is_some() && (*font).vmtx.is_some() {
@@ -208,7 +208,7 @@ impl FontSerializer for OtfSerializer {
             as u16;
         otfcc_sfnt_builder_push_table(
             builder,
-            1986884728i32 as u32,
+            crate::tag::TAG_VMTX,
             otfcc_build_vmtx(
                 (*font).vmtx.as_deref(),
                 vmtx_counta as GlyphId,
@@ -219,12 +219,12 @@ impl FontSerializer for OtfSerializer {
     }
     otfcc_sfnt_builder_push_table(
         builder,
-        1448038983i32 as u32,
+        crate::tag::TAG_VORG,
         otfcc_build_vorg((*font).vorg.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1196643650i32 as u32,
+        crate::tag::TAG_GSUB,
         otfcc_build_otl(
             (*font).gsub.as_deref(),
             options,
@@ -233,7 +233,7 @@ impl FontSerializer for OtfSerializer {
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1196445523i32 as u32,
+        crate::tag::TAG_GPOS,
         otfcc_build_otl(
             (*font).gpos.as_deref(),
             options,
@@ -242,39 +242,39 @@ impl FontSerializer for OtfSerializer {
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1195656518i32 as u32,
+        crate::tag::TAG_GDEF,
         otfcc_build_gdef((*font).gdef.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1111577413i32 as u32,
+        crate::tag::TAG_BASE,
         otfcc_build_base((*font).base.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1129333068i32 as u32,
+        crate::tag::TAG_CPAL,
         otfcc_build_cpal((*font).cpal.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1129270354i32 as u32,
+        crate::tag::TAG_COLR,
         otfcc_build_colr((*font).colr.as_ref(), options),
     );
     otfcc_sfnt_builder_push_table(
         builder,
-        1398163232i32 as u32,
+        crate::tag::TAG_SVG,
         otfcc_build_svg((*font).svg.as_ref(), options),
     );
     let mut target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01.as_ref(), options);
-    otfcc_sfnt_builder_push_table(builder, 1414744368i32 as u32, target.index_part);
-    otfcc_sfnt_builder_push_table(builder, 1414744369i32 as u32, target.text_part);
+    otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI0, target.index_part);
+    otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI1, target.text_part);
     let mut target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23.as_ref(), options);
-    otfcc_sfnt_builder_push_table(builder, 1414744370i32 as u32, target_0.index_part);
-    otfcc_sfnt_builder_push_table(builder, 1414744371i32 as u32, target_0.text_part);
+    otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI2, target_0.index_part);
+    otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI3, target_0.text_part);
     if let Some(glyf) = (*font).glyf.as_ref() {
         otfcc_sfnt_builder_push_table(
             builder,
-            1414744373i32 as u32,
+            crate::tag::TAG_TSI5,
             otfcc_build_tsi5((*font).tsi5.as_deref(), options, glyf.len() as GlyphId),
         );
     }
@@ -283,7 +283,7 @@ impl FontSerializer for OtfSerializer {
         bufwrite32b(dsig, 0x1 as u32);
         bufwrite16b(dsig, 0 as u16);
         bufwrite16b(dsig, 0 as u16);
-        otfcc_sfnt_builder_push_table(builder, 1146308935i32 as u32, dsig);
+        otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_DSIG, dsig);
     }
     let mut otf: *mut Buffer = otfcc_sfnt_builder_serialize(builder);
     otfcc_delete_sfnt_builder(builder);

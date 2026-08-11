@@ -10,7 +10,7 @@ use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_
 use crate::vendor::sds::{sdsempty};
 #[inline]
 unsafe extern "C" fn is_string_tag(mut tag: u32) -> bool {
-    return tag == 1684827751i32 as u32 || tag == 1936485991i32 as u32;
+    return tag == crate::tag::TAG_DLNG || tag == crate::tag::TAG_SLNG;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_meta(

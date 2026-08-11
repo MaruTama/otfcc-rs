@@ -114,10 +114,10 @@ unsafe extern "C" fn create_font_table(
     tag: u32,
 ) -> *mut ::core::ffi::c_void {
     match tag {
-        1851878757 => {
+        crate::tag::TAG_NAME => {
             return table_name_create() as *mut ::core::ffi::c_void;
         }
-        1196643650 | 1196445523 => {
+        crate::tag::TAG_GSUB | crate::tag::TAG_GPOS => {
             return table_otl_create() as *mut ::core::ffi::c_void;
         }
         _ => return NULL,
@@ -125,119 +125,119 @@ unsafe extern "C" fn create_font_table(
 }
 unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
     match tag {
-        1751474532 => {
+        crate::tag::TAG_HEAD => {
             (*font).head = None;
             return;
         }
-        1751672161 => {
+        crate::tag::TAG_HHEA => {
             (*font).hhea = None;
             return;
         }
-        1835104368 => {
+        crate::tag::TAG_MAXP => {
             (*font).maxp = None;
             return;
         }
-        1330863922 | 1330851634 => {
+        crate::tag::TAG_OS_2_ALT | crate::tag::TAG_OS_2 => {
             (*font).os_2 = None;
             return;
         }
-        1851878757 => {
+        crate::tag::TAG_NAME => {
             (*font).name = None;
             return;
         }
-        1835365473 => {
+        crate::tag::TAG_META => {
             (*font).meta = None;
             return;
         }
-        1752003704 => {
+        crate::tag::TAG_HMTX => {
             (*font).hmtx = None;
             return;
         }
-        1986884728 => {
+        crate::tag::TAG_VMTX => {
             (*font).vmtx = None;
             return;
         }
-        1886352244 => {
+        crate::tag::TAG_POST => {
             (*font).post = None;
             return;
         }
-        1986553185 => {
+        crate::tag::TAG_VHEA => {
             (*font).vhea = None;
             return;
         }
-        1718642541 => {
+        crate::tag::TAG_FPGM => {
             (*font).fpgm = None;
             return;
         }
-        1886545264 => {
+        crate::tag::TAG_PREP => {
             (*font).prep = None;
             return;
         }
-        1668707423 | 1668707360 => {
+        crate::tag::TAG_CVT_ALT | crate::tag::TAG_CVT => {
             (*font).cvt_ = None;
             return;
         }
-        1734439792 => {
+        crate::tag::TAG_GASP => {
             (*font).gasp = None;
             return;
         }
-        1128679007 | 1128678944 => {
+        crate::tag::TAG_CFF_ALT | crate::tag::TAG_CFF => {
             (*font).cff = None;
             return;
         }
-        1735162214 => {
+        crate::tag::TAG_GLYF => {
             (*font).glyf = None;
             return;
         }
-        1668112752 => {
+        crate::tag::TAG_CMAP => {
             (*font).cmap = None;
             return;
         }
-        1280594760 => {
+        crate::tag::TAG_LTSH => {
             (*font).ltsh = None;
             return;
         }
-        1196643650 => {
+        crate::tag::TAG_GSUB => {
             (*font).gsub = None;
             return;
         }
-        1196445523 => {
+        crate::tag::TAG_GPOS => {
             (*font).gpos = None;
             return;
         }
-        1195656518 => {
+        crate::tag::TAG_GDEF => {
             (*font).gdef = None;
             return;
         }
-        1111577413 => {
+        crate::tag::TAG_BASE => {
             (*font).base = None;
             return;
         }
-        1448038983 => {
+        crate::tag::TAG_VORG => {
             (*font).vorg = None;
             return;
         }
-        1129333068 => {
+        crate::tag::TAG_CPAL => {
             (*font).cpal = None;
             return;
         }
-        1129270354 => {
+        crate::tag::TAG_COLR => {
             (*font).colr = None;
             return;
         }
-        1398163232 | 1398163295 => {
+        crate::tag::TAG_SVG | crate::tag::TAG_SVG_ALT => {
             (*font).svg = None;
             return;
         }
-        1414744368 | 1414744369 => {
+        crate::tag::TAG_TSI0 | crate::tag::TAG_TSI1 => {
             (*font).tsi_01 = None;
             return;
         }
-        1414744370 | 1414744371 => {
+        crate::tag::TAG_TSI2 | crate::tag::TAG_TSI3 => {
             (*font).tsi_23 = None;
             return;
         }
-        1414744373 => {
+        crate::tag::TAG_TSI5 => {
             (*font).tsi5 = None;
             return;
         }
@@ -254,36 +254,36 @@ unsafe extern "C" fn init_font(mut font: *mut Font) {
 }
 #[inline]
 unsafe extern "C" fn dispose_font(mut font: *mut Font) {
-    delete_font_table(font, 1751474532i32 as u32);
-    delete_font_table(font, 1751672161i32 as u32);
-    delete_font_table(font, 1835104368i32 as u32);
-    delete_font_table(font, 1330863922i32 as u32);
-    delete_font_table(font, 1851878757i32 as u32);
-    delete_font_table(font, 1835365473i32 as u32);
-    delete_font_table(font, 1752003704i32 as u32);
-    delete_font_table(font, 1986884728i32 as u32);
-    delete_font_table(font, 1886352244i32 as u32);
-    delete_font_table(font, 1751412088i32 as u32);
-    delete_font_table(font, 1986553185i32 as u32);
-    delete_font_table(font, 1718642541i32 as u32);
-    delete_font_table(font, 1886545264i32 as u32);
-    delete_font_table(font, 1668707423i32 as u32);
-    delete_font_table(font, 1734439792i32 as u32);
-    delete_font_table(font, 1128679007i32 as u32);
-    delete_font_table(font, 1735162214i32 as u32);
-    delete_font_table(font, 1668112752i32 as u32);
-    delete_font_table(font, 1280594760i32 as u32);
-    delete_font_table(font, 1196643650i32 as u32);
-    delete_font_table(font, 1196445523i32 as u32);
-    delete_font_table(font, 1195656518i32 as u32);
-    delete_font_table(font, 1111577413i32 as u32);
-    delete_font_table(font, 1448038983i32 as u32);
-    delete_font_table(font, 1129333068i32 as u32);
-    delete_font_table(font, 1129270354i32 as u32);
-    delete_font_table(font, 1398163295i32 as u32);
-    delete_font_table(font, 1414744368i32 as u32);
-    delete_font_table(font, 1414744370i32 as u32);
-    delete_font_table(font, 1414744373i32 as u32);
+    delete_font_table(font, crate::tag::TAG_HEAD);
+    delete_font_table(font, crate::tag::TAG_HHEA);
+    delete_font_table(font, crate::tag::TAG_MAXP);
+    delete_font_table(font, crate::tag::TAG_OS_2_ALT);
+    delete_font_table(font, crate::tag::TAG_NAME);
+    delete_font_table(font, crate::tag::TAG_META);
+    delete_font_table(font, crate::tag::TAG_HMTX);
+    delete_font_table(font, crate::tag::TAG_VMTX);
+    delete_font_table(font, crate::tag::TAG_POST);
+    delete_font_table(font, crate::tag::TAG_HDMX);
+    delete_font_table(font, crate::tag::TAG_VHEA);
+    delete_font_table(font, crate::tag::TAG_FPGM);
+    delete_font_table(font, crate::tag::TAG_PREP);
+    delete_font_table(font, crate::tag::TAG_CVT_ALT);
+    delete_font_table(font, crate::tag::TAG_GASP);
+    delete_font_table(font, crate::tag::TAG_CFF_ALT);
+    delete_font_table(font, crate::tag::TAG_GLYF);
+    delete_font_table(font, crate::tag::TAG_CMAP);
+    delete_font_table(font, crate::tag::TAG_LTSH);
+    delete_font_table(font, crate::tag::TAG_GSUB);
+    delete_font_table(font, crate::tag::TAG_GPOS);
+    delete_font_table(font, crate::tag::TAG_GDEF);
+    delete_font_table(font, crate::tag::TAG_BASE);
+    delete_font_table(font, crate::tag::TAG_VORG);
+    delete_font_table(font, crate::tag::TAG_CPAL);
+    delete_font_table(font, crate::tag::TAG_COLR);
+    delete_font_table(font, crate::tag::TAG_SVG_ALT);
+    delete_font_table(font, crate::tag::TAG_TSI0);
+    delete_font_table(font, crate::tag::TAG_TSI2);
+    delete_font_table(font, crate::tag::TAG_TSI5);
     (*font).glyph_order = None;
 }
 #[inline]

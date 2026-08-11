@@ -67,7 +67,7 @@ unsafe extern "C" fn decide_font_subtype_otf(
     let packet: Packet = *(*sfnt).packets.offset(index as isize);
     for i in 0..packet.num_tables as ::core::ffi::c_int {
         let table: PacketPiece = *packet.pieces.offset(i as isize);
-        if table.tag == 1128678944i32 as u32 {
+        if table.tag == crate::tag::TAG_CFF {
             return FontSubtype::Cff;
         }
     }
@@ -127,9 +127,9 @@ impl FontBuilder for OtfReader {
                     (*font).maxp.as_deref_mut().map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
                 );
             }
-            (*font).fpgm = otfcc_read_fpgm_prep(packet, options, 1718642541i32 as u32);
-            (*font).prep = otfcc_read_fpgm_prep(packet, options, 1886545264i32 as u32);
-            (*font).cvt_ = otfcc_read_cvt(packet, options, 1668707360i32 as u32);
+            (*font).fpgm = otfcc_read_fpgm_prep(packet, options, crate::tag::TAG_FPGM);
+            (*font).prep = otfcc_read_fpgm_prep(packet, options, crate::tag::TAG_PREP);
+            (*font).cvt_ = otfcc_read_cvt(packet, options, crate::tag::TAG_CVT);
             (*font).gasp = otfcc_read_gasp(packet, options);
             (*font).vdmx = otfcc_read_vdmx(packet, options);
             (*font).ltsh = otfcc_read_ltsh(packet, options);
@@ -167,13 +167,13 @@ impl FontBuilder for OtfReader {
             (*font).gsub = otfcc_read_otl(
                 packet,
                 options,
-                1196643650i32 as u32,
+                crate::tag::TAG_GSUB,
                 num_glyphs,
             );
             (*font).gpos = otfcc_read_otl(
                 packet,
                 options,
-                1196445523i32 as u32,
+                crate::tag::TAG_GPOS,
                 num_glyphs,
             );
             (*font).gdef = otfcc_read_gdef(packet, options);
@@ -185,14 +185,14 @@ impl FontBuilder for OtfReader {
         (*font).tsi_01 = otfcc_read_tsi(
             packet,
             options,
-            1414744368i32 as u32,
-            1414744369i32 as u32,
+            crate::tag::TAG_TSI0,
+            crate::tag::TAG_TSI1,
         );
         (*font).tsi_23 = otfcc_read_tsi(
             packet,
             options,
-            1414744370i32 as u32,
-            1414744371i32 as u32,
+            crate::tag::TAG_TSI2,
+            crate::tag::TAG_TSI3,
         );
         (*font).tsi5 = otfcc_read_tsi5(packet, options);
         otfcc_unconsolidate_font(font, options);

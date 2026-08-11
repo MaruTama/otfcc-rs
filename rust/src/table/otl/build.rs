@@ -377,7 +377,7 @@ unsafe extern "C" fn get_lookup_heuristics(
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*table).features.len() {
             let fea: *const Feature = &raw const *(&(*table).features)[j as usize];
-            if !(feature_name_to_tag(&(*fea).name) != 1986359924i32 as u32) {
+            if !(feature_name_to_tag(&(*fea).name) != crate::tag::TAG_VERT) {
                 let mut k: TableId = 0 as TableId;
                 while (k as usize) < (*fea).lookups.len() {
                     if (&(*fea).lookups)[k as usize] == lut {

@@ -79,7 +79,7 @@ pub unsafe extern "C" fn otfcc_read_svg(
     {
         let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
         while __fortable_keep != 0 {
-            if table.tag == 1398163232i32 as u32 {
+            if table.tag == crate::tag::TAG_SVG {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     if !(table.length < 10 as u32) {
