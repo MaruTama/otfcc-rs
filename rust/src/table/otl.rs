@@ -17,7 +17,6 @@ use crate::support::handle::{GlyphHandle, LookupHandle};
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::table::otl::subtables::chaining::common::{otl_dispose_chaining};
 use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{dispose_mark_to_ligature};
 use crate::table::otl::subtables::gpos_pair::{dispose_gpos_pair};
 use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
 use crate::table::otl::subtables::gsub_ligature::{dispose_gsub_ligature_subtable};
@@ -195,7 +194,12 @@ impl Drop for Subtable {
                 // `Vec<Anchor>`) both self-drop -- no manual dispose left to
                 // call, same reasoning as `Extend` below.
                 Subtable::GposMarkToSingle(_) => {}
-                Subtable::GposMarkToLigature(x) => dispose_mark_to_ligature(x as *mut GposMarkToLigatureSubtable),
+                // `mark_array: MarkArray` and `lig_array: LigatureArray`
+                // (`Vec<LigatureBaseRecord>`, `LigatureBaseRecord.anchors`
+                // now a plain `Vec<Vec<Anchor>>`) both self-drop -- no
+                // manual dispose left to call, same reasoning as
+                // `GposMarkToSingle` above.
+                Subtable::GposMarkToLigature(_) => {}
                 // `subtable: *mut Subtable`'s ownership is always taken (via
                 // `.subtable`) before an `Extend` value is legitimately
                 // dropped -- `otl/read.rs`'s extend-expansion resolves every
@@ -267,7 +271,7 @@ pub type LigatureArray = Vec<LigatureBaseRecord>;
 pub struct LigatureBaseRecord {
     pub glyph: GlyphHandle,
     pub component_count: GlyphId,
-    pub anchors: *mut *mut Anchor,
+    pub anchors: Vec<Vec<Anchor>>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]

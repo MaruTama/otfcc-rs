@@ -36,7 +36,7 @@ struct BaseHashValue {
 struct LigHashValue {
     name: Vec<u8>,
     component_count: GlyphId,
-    anchors: *mut *mut Anchor,
+    anchors: Vec<Vec<Anchor>>,
 }
 unsafe extern "C" fn consolidate_mark_array(
     mut font: *mut Font,
@@ -224,9 +224,8 @@ unsafe extern "C" fn consolidate_lig_array(
                 Entry::Vacant(v) => {
                     let name: Vec<u8> = (&(*lig_array))[k as usize].glyph.name.clone();
                     let component_count: GlyphId = (&(*lig_array))[k as usize].component_count;
-                    let anchors: *mut *mut Anchor = (&(*lig_array))[k as usize].anchors;
-                    let ref mut fresh0 = (&mut (*lig_array))[k as usize].anchors;
-                    *fresh0 = ::core::ptr::null_mut::<*mut Anchor>();
+                    let anchors: Vec<Vec<Anchor>> =
+                        ::core::mem::take(&mut (&mut (*lig_array))[k as usize].anchors);
                     v.insert(LigHashValue { name, component_count, anchors });
                 }
                 Entry::Occupied(_) => {
