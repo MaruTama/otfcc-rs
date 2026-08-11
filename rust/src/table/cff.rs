@@ -359,8 +359,8 @@ unsafe extern "C" fn callback_extract_private(
         meta = *(*meta).fd_array.offset((*context).fd_array_index as isize);
     }
     let mut pd: *mut CffPrivateDict = (*meta).private_dict;
-    match op {
-        6 => {
+    match op as i32 {
+        OP_BLUE_VALUES => {
             (*pd).blue_values_count = top as Arity;
             (*pd).blue_values = __caryll_allocate_clean(
                 (::core::mem::size_of::<::core::ffi::c_double>() as usize)
@@ -373,7 +373,7 @@ unsafe extern "C" fn callback_extract_private(
                 j = j.wrapping_add(1);
             }
         }
-        7 => {
+        OP_OTHER_BLUES => {
             (*pd).other_blues_count = top as Arity;
             (*pd).other_blues = __caryll_allocate_clean(
                 (::core::mem::size_of::<::core::ffi::c_double>() as usize)
@@ -386,7 +386,7 @@ unsafe extern "C" fn callback_extract_private(
                 j_0 = j_0.wrapping_add(1);
             }
         }
-        8 => {
+        OP_FAMILY_BLUES => {
             (*pd).family_blues_count = top as Arity;
             (*pd).family_blues = __caryll_allocate_clean(
                 (::core::mem::size_of::<::core::ffi::c_double>() as usize)
@@ -399,7 +399,7 @@ unsafe extern "C" fn callback_extract_private(
                 j_1 = j_1.wrapping_add(1);
             }
         }
-        9 => {
+        OP_FAMILY_OTHER_BLUES => {
             (*pd).family_other_blues_count = top as Arity;
             (*pd).family_other_blues = __caryll_allocate_clean(
                 (::core::mem::size_of::<::core::ffi::c_double>() as usize)
@@ -412,7 +412,7 @@ unsafe extern "C" fn callback_extract_private(
                 j_2 = j_2.wrapping_add(1);
             }
         }
-        3084 => {
+        OP_STEM_SNAP_H => {
             (*pd).stem_snap_h_count = top as Arity;
             (*pd).stem_snap_h = __caryll_allocate_clean(
                 (::core::mem::size_of::<::core::ffi::c_double>() as usize)
@@ -425,7 +425,7 @@ unsafe extern "C" fn callback_extract_private(
                 j_3 = j_3.wrapping_add(1);
             }
         }
-        3085 => {
+        OP_STEM_SNAP_V => {
             (*pd).stem_snap_v_count = top as Arity;
             (*pd).stem_snap_v = __caryll_allocate_clean(
                 (::core::mem::size_of::<::core::ffi::c_double>() as usize)
@@ -438,77 +438,77 @@ unsafe extern "C" fn callback_extract_private(
                 j_4 = j_4.wrapping_add(1);
             }
         }
-        3081 => {
+        OP_BLUE_SCALE => {
             if top != 0 {
                 (*pd).blue_scale = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        3082 => {
+        OP_BLUE_SHIFT => {
             if top != 0 {
                 (*pd).blue_shift = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        3083 => {
+        OP_BLUE_FUZZ => {
             if top != 0 {
                 (*pd).blue_fuzz = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        10 => {
+        OP_STD_HW => {
             if top != 0 {
                 (*pd).std_hw = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        11 => {
+        OP_STD_VW => {
             if top != 0 {
                 (*pd).std_vw = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        3086 => {
+        OP_FORCE_BOLD => {
             if top != 0 {
                 (*pd).force_bold = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) != 0.;
             }
         }
-        3089 => {
+        OP_LANGUAGE_GROUP => {
             if top != 0 {
                 (*pd).language_group = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) as u32;
             }
         }
-        3090 => {
+        OP_EXPANSION_FACTOR => {
             if top != 0 {
                 (*pd).expansion_factor = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        3091 => {
+        OP_INITIAL_RANDOM_SEED => {
             if top != 0 {
                 (*pd).initial_random_seed = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        20 => {
+        OP_DEFAULT_WIDTH_X => {
             if top != 0 {
                 (*pd).default_width_x = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        21 => {
+        OP_NOMINAL_WIDTH_X => {
             if top != 0 {
                 (*pd).nominal_width_x = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -532,8 +532,8 @@ unsafe extern "C" fn callback_extract_fd(
     {
         meta = *(*meta).fd_array.offset((*context).fd_array_index as isize);
     }
-    match op {
-        0 => {
+    match op as i32 {
+        OP_VERSION => {
             if top != 0 {
                 let tmp_version = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
@@ -545,7 +545,7 @@ unsafe extern "C" fn callback_extract_fd(
                 sdsfree(tmp_version);
             }
         }
-        1 => {
+        OP_NOTICE => {
             if top != 0 {
                 let tmp_notice = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
@@ -557,7 +557,7 @@ unsafe extern "C" fn callback_extract_fd(
                 sdsfree(tmp_notice);
             }
         }
-        3072 => {
+        OP_COPYRIGHT => {
             if top != 0 {
                 let tmp_copyright = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
@@ -569,7 +569,7 @@ unsafe extern "C" fn callback_extract_fd(
                 sdsfree(tmp_copyright);
             }
         }
-        3110 => {
+        OP_FONT_NAME => {
             if top != 0 {
                 let tmp_font_name = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
@@ -581,7 +581,7 @@ unsafe extern "C" fn callback_extract_fd(
                 sdsfree(tmp_font_name);
             }
         }
-        2 => {
+        OP_FULL_NAME => {
             if top != 0 {
                 let tmp_full_name = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
@@ -593,7 +593,7 @@ unsafe extern "C" fn callback_extract_fd(
                 sdsfree(tmp_full_name);
             }
         }
-        3 => {
+        OP_FAMILY_NAME => {
             if top != 0 {
                 let tmp_family_name = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
@@ -605,7 +605,7 @@ unsafe extern "C" fn callback_extract_fd(
                 sdsfree(tmp_family_name);
             }
         }
-        4 => {
+        OP_WEIGHT => {
             if top != 0 {
                 let tmp_weight = sdsget_cff_sid(
                     (*stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize))
@@ -617,7 +617,7 @@ unsafe extern "C" fn callback_extract_fd(
                 sdsfree(tmp_weight);
             }
         }
-        5 => {
+        OP_FONT_BBOX => {
             if top as ::core::ffi::c_int >= 4 as ::core::ffi::c_int {
                 (*meta).font_b_box_left = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 4 as ::core::ffi::c_int) as isize),
@@ -633,7 +633,7 @@ unsafe extern "C" fn callback_extract_fd(
                 );
             }
         }
-        3079 => {
+        OP_FONT_MATRIX => {
             if top as ::core::ffi::c_int >= 6 as ::core::ffi::c_int {
                 (*meta).font_matrix = __caryll_allocate_clean(
                     ::core::mem::size_of::<CffFontMatrix>() as usize,
@@ -665,42 +665,42 @@ unsafe extern "C" fn callback_extract_fd(
                 );
             }
         }
-        3073 => {
+        OP_IS_FIXED_PITCH => {
             if top != 0 {
                 (*meta).is_fixed_pitch = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) != 0.;
             }
         }
-        3074 => {
+        OP_ITALIC_ANGLE => {
             if top != 0 {
                 (*meta).italic_angle = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        3075 => {
+        OP_UNDERLINE_POSITION => {
             if top != 0 {
                 (*meta).underline_position = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        3076 => {
+        OP_UNDERLINE_THICKNESS => {
             if top != 0 {
                 (*meta).underline_thickness = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        3080 => {
+        OP_STROKE_WIDTH => {
             if top != 0 {
                 (*meta).stroke_width = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 );
             }
         }
-        18 => {
+        OP_PRIVATE => {
             if top as ::core::ffi::c_int >= 2 as ::core::ffi::c_int {
                 let mut private_length: u32 = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
@@ -727,7 +727,7 @@ unsafe extern "C" fn callback_extract_fd(
                 );
             }
         }
-        3102 => {
+        OP_ROS => {
             if top as ::core::ffi::c_int >= 3 as ::core::ffi::c_int {
                 (*meta).is_cid = true;
                 let tmp_cid_registry = sdsget_cff_sid(
