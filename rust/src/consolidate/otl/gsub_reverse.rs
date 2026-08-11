@@ -24,17 +24,22 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     let subtable: *mut GsubReverseSubtable = mut_subtable;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
-        fontop_consolidate_coverage(font, *(*subtable).match_0.offset(j as isize), options);
+        fontop_consolidate_coverage(
+            font,
+            &mut (&mut (*subtable).match_0)[j as usize] as *mut Coverage,
+            options,
+        );
         j = j.wrapping_add(1);
     }
-    fontop_consolidate_coverage(font, (*subtable).to, options);
+    fontop_consolidate_coverage(font, &mut (*subtable).to as *mut Coverage, options);
     if (*subtable).input_index as ::core::ffi::c_int >= (*subtable).match_count as ::core::ffi::c_int
     {
         (*subtable).input_index =
             ((*subtable).match_count as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
     }
-    let from: *mut Coverage = *(*subtable).match_0.offset((*subtable).input_index as isize);
-    let to: *mut Coverage = (*subtable).to;
+    let from: *mut Coverage =
+        &mut (&mut (*subtable).match_0)[(*subtable).input_index as usize] as *mut Coverage;
+    let to: *mut Coverage = &mut (*subtable).to as *mut Coverage;
     // Deduplicates by `from`'s glyph id, first occurrence wins -- a later
     // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
     // not `IndexMap`: the original also did a HASH_SORT by that same id

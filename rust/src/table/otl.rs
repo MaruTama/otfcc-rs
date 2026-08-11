@@ -21,7 +21,6 @@ use crate::table::otl::subtables::gpos_pair::{dispose_gpos_pair};
 use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
 use crate::table::otl::subtables::gsub_ligature::{dispose_gsub_ligature_subtable};
 use crate::table::otl::subtables::gsub_multi::{dispose_gsub_multi_subtable};
-use crate::table::otl::subtables::gsub_reverse::{dispose_gsub_reverse};
 use crate::table::otl::subtables::gsub_single::{dispose_gsub_single_subtable};
 
 
@@ -185,7 +184,15 @@ impl Drop for Subtable {
                 Subtable::GsubMulti(x) => dispose_gsub_multi_subtable(x as *mut GsubMultiSubtable),
                 Subtable::GsubLigature(x) => dispose_gsub_ligature_subtable(x as *mut GsubLigatureSubtable),
                 Subtable::Chaining(x) => otl_dispose_chaining(x as *mut ChainingSubtable),
-                Subtable::GsubReverse(x) => dispose_gsub_reverse(x as *mut GsubReverseSubtable),
+                // `match_0: Vec<Coverage>` and `to: Coverage` both self-drop
+                // -- no manual dispose left to call, same reasoning as the
+                // `GposMarkTo*` arms above. `dispose_gsub_reverse` still
+                // exists and is still needed, but only for the
+                // not-yet-adopted-into-the-enum malloc'd intermediate a
+                // `*mut GsubReverseSubtable` is between `_create()` and
+                // `subtable_from_raw` -- a raw `free()` there would skip
+                // `Vec`'s own drop glue entirely, unlike here.
+                Subtable::GsubReverse(_) => {}
                 Subtable::GposSingle(x) => dispose_gpos_single_subtable(x as *mut GposSingleSubtable),
                 Subtable::GposPair(x) => dispose_gpos_pair(x as *mut GposPairSubtable),
                 Subtable::GposCursive(x) => dispose_gpos_cursive_subtable(x as *mut GposCursiveSubtable),
@@ -338,13 +345,14 @@ pub struct GposSingleEntry {
     pub target: GlyphHandle,
     pub value: PositionValue,
 }
-#[derive(Copy, Clone)]
+// `Copy` dropped: `match_0`/`to` own `Vec`s now.
+#[derive(Clone)]
 #[repr(C)]
 pub struct GsubReverseSubtable {
     pub match_count: TableId,
     pub input_index: TableId,
-    pub match_0: *mut *mut Coverage,
-    pub to: *mut Coverage,
+    pub match_0: Vec<Coverage>,
+    pub to: Coverage,
 }
 // Embedded by value in `Subtable::Chaining`. Derives neither `Copy` nor
 // `Clone`, since `ChainingBody.rule` -- and therefore this struct -- no
