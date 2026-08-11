@@ -2,8 +2,8 @@
 use libc::{free, malloc};
 
 
-use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle};
+use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
+use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
 
 use crate::support::alloc::__caryll_reallocate;
 use crate::support::binio::{read_16u};
@@ -21,15 +21,10 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_object_new, json_object_push_bytes_key};
 use crate::vendor::sds::{sdsnewlen};
-unsafe extern "C" fn delete_gsub_multi_entry(mut entry: *mut GsubMultiEntry) {
-    otfcc_handle_dispose(&raw mut (*entry).from);
-    otl_coverage_free((*entry).to);
-    (*entry).to = ::core::ptr::null_mut::<Coverage>();
-}
+// `to: Coverage` and `from: GlyphHandle` both self-drop now, so a
+// `GsubMultiSubtable` (`Vec<GsubMultiEntry>`) fully self-drops -- no
+// per-element dtor needed anymore.
 pub(crate) unsafe fn dispose_gsub_multi_subtable(arr: *mut GsubMultiSubtable) {
-    for e in (*arr).iter_mut() {
-        delete_gsub_multi_entry(e);
-    }
     *arr = Vec::new();
 }
 pub(crate) unsafe extern "C" fn subtable_gsub_multi_free(x: *mut GsubMultiSubtable) {
@@ -102,7 +97,7 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
                     }
                     (*subtable).push(GsubMultiEntry {
                         from: otfcc_handle_dup((&(*from))[j as usize].clone() as Handle) as GlyphHandle,
-                        to: cov,
+                        to: coverage_from_raw(cov),
                     });
                 }
                 otl_coverage_free(from);
@@ -127,7 +122,7 @@ pub unsafe extern "C" fn otl_gsub_dump_multi(
         json_object_push_bytes_key(
             st,
             &(*entry).from.name,
-            OTL_I_COVERAGE.dump.expect("non-null function pointer")((*entry).to),
+            OTL_I_COVERAGE.dump.expect("non-null function pointer")(&(*entry).to as *const Coverage),
         );
     }
     return st;
@@ -146,7 +141,9 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
                     (*entry).name as *const ::core::ffi::c_void,
                     (*entry).name_length as usize,
                 )) as GlyphHandle,
-                to: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to),
+                to: coverage_from_raw(
+                    OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to),
+                ),
             });
         }
     }
@@ -168,7 +165,7 @@ unsafe extern "C" fn build_gsub_multi_subtable_range(
     }
     let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
     for j_0 in start..end {
-        let to = (&(*subtable))[j_0 as usize].to;
+        let to: *const Coverage = &(&(*subtable))[j_0 as usize].to;
         let b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*to).len() as ::core::ffi::c_int) as u32)]);
         for k in 0..(*to).len() {
             bk_push(b, &[bk_int(BkCellType::B16, ((&(*to))[k].index as ::core::ffi::c_int) as u32)]);
@@ -197,7 +194,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
                 + 2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int) as usize)
                 .wrapping_add(
-                    ((*(&(*subtable))[end as usize].to).len())
+                    ((&(*subtable))[end as usize].to.len())
                         .wrapping_mul(2 as usize),
                 );
             if end as ::core::ffi::c_int > start as ::core::ffi::c_int

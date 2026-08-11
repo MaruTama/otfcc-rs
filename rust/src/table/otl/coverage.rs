@@ -51,6 +51,17 @@ pub(crate) unsafe extern "C" fn otl_coverage_dispose(x: *mut Coverage) {
     // redundant, the same finding as the `Handle` Drop/Clone PR.
     *x = Vec::new();
 }
+/// Adopt a `otl_coverage_create()`/vtable-`.parse()`-style raw `*mut
+/// Coverage` into an owned `Coverage` (`Vec<GlyphHandle>`) value -- the
+/// "unwrap_X_table" idiom used throughout Stage 6-4, for the many
+/// `XxxSubtable`/`XxxEntry` fields that hold a coverage table by value now
+/// instead of by raw pointer. `ptr::read` moves the `Vec` out, `free`
+/// releases just the emptied malloc'd shell.
+pub(crate) unsafe fn coverage_from_raw(raw: *mut Coverage) -> Coverage {
+    let value = ::core::ptr::read(raw);
+    free(raw as *mut ::core::ffi::c_void);
+    value
+}
 // `Handle` (aliased `GlyphHandle`) now owns a `Vec<u8>` name, so passing it
 // by value trips `improper_ctypes_definitions`; this is never called across
 // a real FFI boundary (c2rust artifact, not `#[no_mangle]`).
