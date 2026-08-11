@@ -2,6 +2,7 @@
 use libc::{free, printf, sprintf, strcat, strlen, strtod};
 
 
+use crate::libcff::CffDictOperator;
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{bufninit, Buffer};
 use crate::libcff::cff_value::{CS2_FRACTION, CS2_OPERAND, CS2_OPERATOR, CffValueType, CffValue};
@@ -11,7 +12,10 @@ use crate::support::buffer::{bufnew};
 unsafe extern "C" fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_double {
     return strtod(__nptr, NULL as *mut *mut ::core::ffi::c_char);
 }
-pub unsafe extern "C" fn cff_encode_cff_operator(mut val: i32) -> *mut Buffer {
+/// Every caller passes a DICT operator, so the parameter says so. The body
+/// still works in `i32` -- unchanged arithmetic, unchanged bytes.
+pub unsafe extern "C" fn cff_encode_cff_operator(mut val: CffDictOperator) -> *mut Buffer {
+    let val = val.0 as i32;
     if val > 256 as i32 {
         return bufninit(&[(val / 256 as i32) as u8, (val % 256 as i32) as u8]);
     } else {
