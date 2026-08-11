@@ -48,7 +48,6 @@ use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, 
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
 use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
-use crate::table::otl::{otl_subtable_list_dispose_dependent};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsnew};
 use crate::vf::vq::{I_VQ};
 
@@ -421,10 +420,13 @@ unsafe extern "C" fn unconsolidate_chaining(
     // accumulator with no other side effects. Omitted here.
     let mut newsts: SubtableList = Vec::new();
     for j in 0..(*lookup).subtables.len() {
-        let sub: SubtablePtr = (&(*lookup).subtables)[j];
-        if sub.is_null() {
+        // `.take()` moves the `Box` out of the slot (leaving `None` behind)
+        // and `Box::into_raw` hands back exactly the `SubtablePtr` the rest
+        // of this function's body already operates on unchanged.
+        let Some(sub_box) = (&mut (*lookup).subtables)[j].take() else {
             continue;
-        }
+        };
+        let sub: SubtablePtr = Box::into_raw(sub_box);
         let Subtable::Chaining(mut_sub_chaining) = &mut *sub else { unreachable!() };
         let sub_chaining: *mut ChainingSubtable = mut_sub_chaining;
         if (*sub_chaining).type_0 == ChainingType::Poly {
@@ -457,7 +459,7 @@ unsafe extern "C" fn unconsolidate_chaining(
                     // directly.
                     c2rust_unnamed: ChainingBody { rule: ::core::mem::ManuallyDrop::new(*boxed_rule) },
                 };
-                newsts.push(Box::into_raw(Box::new(Subtable::Chaining(chaining))));
+                newsts.push(Some(Box::new(Subtable::Chaining(chaining))));
             }
             // Was `free(sub as *mut c_void)`: a raw block deallocation that
             // skipped `sub`'s own dispose entirely, leaking its
@@ -469,8 +471,8 @@ unsafe extern "C" fn unconsolidate_chaining(
             // (freed memory cannot appear in what otfccdump prints), so
             // untouched by the byte-comparison tests either way; a genuine
             // (small) leak fix, not a behavior change worth preserving.
+            // (Slot `j` is already `None` from `.take()` above.)
             drop(Box::from_raw(sub));
-            (&mut (*lookup).subtables)[j] = ::core::ptr::null_mut::<Subtable>();
         } else if (*sub_chaining).type_0 == ChainingType::Canonical {
             // Same disguised move as the `Poly` branch above, but note: `sub`
             // (the whole outer `Subtable` value) is never freed on this
@@ -490,11 +492,16 @@ unsafe extern "C" fn unconsolidate_chaining(
                     )),
                 },
             };
-            newsts.push(Box::into_raw(Box::new(Subtable::Chaining(chaining))));
-            (&mut (*lookup).subtables)[j] = ::core::ptr::null_mut::<Subtable>();
+            newsts.push(Some(Box::new(Subtable::Chaining(chaining))));
+            // `sub` itself is deliberately left leaked, per the comment
+            // above; slot `j` is already `None` from `.take()`.
         }
     }
-    otl_subtable_list_dispose_dependent(&raw mut (*lookup).subtables, lookup);
+    // Was `otl_subtable_list_dispose_dependent(..); (*lookup).subtables =
+    // newsts;` -- the plain assignment already drops the old
+    // `Vec<Option<Box<Subtable>>>` in place (correctly disposing anything
+    // left as `Some`: entries this loop didn't touch, e.g. a `Classified`
+    // subtable) before replacing it, so there is nothing left to do eagerly.
     (*lookup).subtables = newsts;
 }
 unsafe extern "C" fn expand_chain(font: *mut Font, lookup: *mut Lookup, table: *mut OtlTable) {

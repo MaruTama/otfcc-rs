@@ -158,8 +158,9 @@ impl LookupType {
 // `SubtableRemover` both `transmute`d a `*mut ConcreteType`-typed function
 // pointer to `*mut Subtable` and called it directly on a `*mut Subtable` --
 // which only worked because the union had no tag to misinterpret. Neither
-// of those sites survives the enum: see `dispose_subtable_dependent` below
-// and `__declare_otl_consolidation` in `consolidate.rs`.
+// of those sites survived the enum: `dispose_subtable_dependent` (its
+// dispatch is now `Drop`, below) and `SubtableRemover`
+// (`__declare_otl_consolidation` in `consolidate.rs`) are both gone.
 //
 // As an enum, the discriminant is self-describing -- `Drop` (below) replaces
 // both `LookupType`-keyed free-function tables, and no variant needs
@@ -230,6 +231,16 @@ pub(crate) unsafe fn subtable_from_raw<T>(raw: *mut T, wrap: fn(T) -> Subtable) 
     let value = ::core::ptr::read(raw);
     free(raw as *mut ::core::ffi::c_void);
     Box::into_raw(Box::new(wrap(value)))
+}
+/// Adopt an already-heap-allocated `*mut Subtable` (e.g. a
+/// `subtable_from_raw`/`Box::into_raw` result, or a `.subtable` field read
+/// out of an `ExtendSubtable`) into a `SubtableList` slot. Several read/parse
+/// entry points can legitimately return null (unrecognised lookup format,
+/// truncated data), and a null in a `SubtableList` slot was always a valid
+/// "hole" even before this migration -- `Box::from_raw` on a null pointer
+/// would be UB, so this null check is required, not defensive.
+pub(crate) unsafe fn subtable_list_slot(raw: SubtablePtr) -> Option<Box<Subtable>> {
+    if raw.is_null() { None } else { Some(Box::from_raw(raw)) }
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -444,8 +455,9 @@ pub struct GsubSingleEntry {
     pub from: GlyphHandle,
     pub to: GlyphHandle,
 }
-// `subtables: SubtableList`(`Vec<SubtablePtr>`)を値で持つため `Copy` を落とす。
-// 常に `*mut`/`*const` 経由でしか触られない（値渡し・値コピーの箇所は無い）。
+// `subtables: SubtableList`(`Vec<Option<Box<Subtable>>>`)を値で持つため
+// `Copy` を落とす。常に `*mut`/`*const` 経由でしか触られない（値渡し・値
+// コピーの箇所は無い）。
 #[repr(C)]
 pub struct Lookup {
     pub name: Vec<u8>,
@@ -454,26 +466,34 @@ pub struct Lookup {
     pub flags: u16,
     pub subtables: SubtableList,
 }
-/// `SubtableList`'s elements are still raw `*mut Subtable` (plan
-/// classification その3's pointee `Box`-ification is a separate,
-/// type-dispatched job -- `Subtable` is a union, and knowing which variant
-/// each element holds needs `self.type_0`, not just the element's own type).
-/// `otl_subtable_list_dispose_dependent` already does exactly that dispatch,
-/// so `drop` just calls it on `self` -- `name` (a `Vec<u8>` since the `sds`
-/// sweep reached this field) now tears down for free, the same
-/// simplification `Glyph`'s own `Drop` got.
-impl Drop for Lookup {
-    fn drop(&mut self) {
-        unsafe {
-            otl_subtable_list_dispose_dependent(&raw mut self.subtables, self as *const Lookup);
-        }
-    }
-}
+// `Lookup` needed no `Drop` impl of its own even before this: once
+// `SubtableList` became `Vec<Option<Box<Subtable>>>`, both fields it owns
+// (`name: Vec<u8>`, `subtables`) tear down through ordinary compiler-
+// generated field-by-field drop glue, recursively -- `Subtable`'s own
+// `Drop` (above) runs for every `Some` element, `None` holes cost nothing.
+// The custom impl this comment used to describe called
+// `otl_subtable_list_dispose_dependent`, which existed only because
+// `SubtableList`'s elements were raw `*mut Subtable` -- deleted along with
+// that function once `Box` made the ownership self-describing.
 pub type SubtablePtr = *mut Subtable;
-// 所有するポインタ配列（各要素は `Lookup.type_0` に応じた型で解釈される
-// `*mut Subtable`）。分類その3: `Vec<*mut T>` への機械的置換に留め、
-// 要素の `Box` 化は Stage 6-4 に送る。
-pub type SubtableList = Vec<SubtablePtr>;
+// 所有する `Box` 配列。各要素は `None` にもなり得る（consolidate 中の一時的な
+// 「取り除かれた」穴、または extend 展開の型不一致エラー経路で残る穴）。
+// `build`/`dump`/`stat` など、読み取り時点で穴が無いと分かっている箇所は
+// `subtable_at`（下記）で `.expect()` して `SubtablePtr` に戻す。
+pub type SubtableList = Vec<Option<Box<Subtable>>>;
+/// Read a `SubtableList` element as a raw pointer, panicking if the slot is
+/// empty. Every caller of this helper already assumed a slot could not be
+/// empty at the point it reads one (`build.rs`/`dump.rs`/`stat.rs`/the
+/// chaining classifier all read post-consolidation lists with no null
+/// check) -- before `Box` made a hole `None` instead of a dangling
+/// `*mut Subtable`, that assumption being wrong meant a silent
+/// out-of-bounds-shaped dereference. Now it is a clean panic.
+pub(crate) unsafe fn subtable_at(list: &SubtableList, idx: usize) -> SubtablePtr {
+    list[idx]
+        .as_deref()
+        .expect("subtable slot should not be empty at this point") as *const Subtable
+        as *mut Subtable
+}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ChainingSubtableElementInterface {
@@ -557,50 +577,15 @@ pub struct OtlTable {
     pub features: FeatureList,
     pub languages: LangSystemList,
 }
-// Was a 13-arm `match (*lookup).type_0 { .. }` dispatch, four of whose arms
-// `transmute`d a `*mut ConcreteType`-typed free function to
-// `*mut Subtable` and called it on `*subtable_ref` directly -- sound only
-// because the union had no discriminant to misinterpret. `Subtable`'s own
-// `Drop` impl (see its definition above) now does exactly this dispatch,
-// self-describing off the enum's own tag, so freeing an element is just
-// reconstructing the `Box` its construction site produced and letting it
-// drop -- no `LookupType` involved at all. `lookup` is unused as a result;
-// kept for now so none of this function's three call sites need to change
-// (Stage 6-4's `SubtableList` -> `Vec<Box<Subtable>>` follow-up removes this
-// function entirely, at which point the parameter goes with it).
-#[inline]
-unsafe extern "C" fn dispose_subtable_dependent(
-    mut subtable_ref: *mut SubtablePtr,
-    mut _lookup: *const Lookup,
-) {
-    let ptr = *subtable_ref;
-    if !ptr.is_null() {
-        drop(Box::from_raw(ptr));
-    }
-}
-// `SubtablePtr`単体の要素インターフェースは全フィールドNoneだったため削除
-// （`SubtableList`の破棄は個々の要素ではなく型ごとdispatchする
-// `dispose_subtable_dependent`が担う——下記参照）。
-//
-// `.dispose`/`.copy`/`.create`/`.free`（非dependent版）はcrate全体で一度も
-// 呼ばれておらず削除。実際の破棄経路は全て`dispose_dependent`のみ。
-//
-// 破棄後に呼び出し元が enclosing 構造体自体を生の `free()` で解放する場合
-// （`otfcc_delete_lookup`）は `.clear()` ではなく `*arr = Vec::new()` で
-// バッキング配列ごと即座に解放する。`.clear()`は容量を保持したままなので
-// `libc::free`（Dropを起動しない）と組み合わせるとバッキング配列がリークする。
-pub(crate) unsafe fn otl_subtable_list_dispose_dependent(
-    arr: *mut SubtableList,
-    enclosure: *const Lookup,
-) {
-    if arr.is_null() {
-        return;
-    }
-    for subtable in (*arr).iter_mut() {
-        dispose_subtable_dependent(subtable as *mut SubtablePtr, enclosure);
-    }
-    *arr = Vec::new();
-}
+// `dispose_subtable_dependent`/`otl_subtable_list_dispose_dependent` (a
+// 13-arm `LookupType`-keyed free-function dispatch, then later a `Box`-
+// reclaiming loop) are gone: with `SubtableList` now `Vec<Option<Box
+// <Subtable>>>`, disposing a list is exactly what dropping it already does
+// -- `Subtable`'s own `Drop` runs for every `Some` element -- so every
+// former call site (`Lookup`'s own now-deleted `Drop` impl,
+// `otf_reader/unconsolidate.rs`, `table/otl/read.rs`) either needed no
+// replacement at all or shrank to a plain assignment that lets the old
+// value drop itself.
 // Only ever called on a `Lookup` that hasn't been pushed into a `LookupList`
 // yet -- the not-yet-owned scratch/rejection cases in `table/otl/{read,
 // parse}.rs`. Reclaims the `Box` `new_lookup`/`Box::into_raw` produced and

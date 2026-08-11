@@ -43,7 +43,7 @@ use crate::table::vhea::{VheaTable};
 
 
 
-use crate::table::otl::{GsubLigatureEntry, Lookup, Subtable, SubtablePtr, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_REVERSE, ChainingSubtable, GsubLigatureSubtable, GsubReverseSubtable, OtlTable};
+use crate::table::otl::{GsubLigatureEntry, Lookup, Subtable, SubtablePtr, subtable_at, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_REVERSE, ChainingSubtable, GsubLigatureSubtable, GsubReverseSubtable, OtlTable};
 
 
 
@@ -1076,7 +1076,7 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
             }
             OTL_TYPE_GSUB_LIGATURE => {
                 for si in 0..(*lookup).subtables.len() {
-                    let elem_ptr: SubtablePtr = (&(*lookup).subtables)[si];
+                    let elem_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, si);
                     let Subtable::GsubLigature(mut_subtable) = &mut *elem_ptr else { unreachable!() };
                     let subtable: *mut GsubLigatureSubtable = mut_subtable;
                     for ei in 0..(*subtable).len() {
@@ -1090,7 +1090,7 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
             }
             OTL_TYPE_GSUB_CHAINING | OTL_TYPE_GPOS_CHAINING => {
                 for si in 0..(*lookup).subtables.len() {
-                    let elem_ptr: SubtablePtr = (&(*lookup).subtables)[si];
+                    let elem_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, si);
                     let Subtable::Chaining(mut_subtable) = &mut *elem_ptr else { unreachable!() };
                     let subtable: *mut ChainingSubtable = mut_subtable;
                     if (maxc as ::core::ffi::c_int)
@@ -1102,7 +1102,7 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
             }
             OTL_TYPE_GSUB_REVERSE => {
                 for si in 0..(*lookup).subtables.len() {
-                    let elem_ptr: SubtablePtr = (&(*lookup).subtables)[si];
+                    let elem_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, si);
                     let Subtable::GsubReverse(mut_subtable) = &mut *elem_ptr else { unreachable!() };
                     let subtable: *mut GsubReverseSubtable = mut_subtable;
                     if (maxc as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {

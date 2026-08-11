@@ -15,7 +15,7 @@ use crate::table::otl::{Feature, FeatureRef, FeatureRefList, LanguageSystem, Loo
 use crate::support::json_funcs::otfcc_parse_flags;
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::support::json_ident::{json_ident};
-use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, new_feature, new_language, new_lookup};
+use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, subtable_list_slot, new_feature, new_language, new_lookup};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::parse::{otl_parse_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_parse_cursive};
@@ -401,7 +401,7 @@ unsafe extern "C" fn _declare_lookup_parser(
             {
                 let mut _st: *mut Subtable =
                     parser.expect("non-null function pointer")(_subtable, options);
-                (*lookup).subtables.push(_st);
+                (*lookup).subtables.push(subtable_list_slot(_st));
             }
             j = j.wrapping_add(1);
         }
