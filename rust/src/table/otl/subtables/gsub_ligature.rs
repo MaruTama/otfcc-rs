@@ -3,8 +3,8 @@ use libc::{free, malloc};
 
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
-use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, GlyphHandle};
+use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
+use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
 
 use crate::support::binio::{read_16u};
 
@@ -20,15 +20,10 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_from_bytes};
 use crate::vendor::sds::{sdsnewlen};
-unsafe extern "C" fn delete_gsub_ligature_entry(mut entry: *mut GsubLigatureEntry) {
-    otfcc_handle_dispose(&raw mut (*entry).to);
-    otl_coverage_free((*entry).from);
-    (*entry).from = ::core::ptr::null_mut::<Coverage>();
-}
+// `from: Coverage` and `to: GlyphHandle` both self-drop now, so a
+// `GsubLigatureSubtable` (`Vec<GsubLigatureEntry>`) fully self-drops -- no
+// per-element dtor needed anymore.
 pub(crate) unsafe fn dispose_gsub_ligature_subtable(arr: *mut GsubLigatureSubtable) {
-    for e in (*arr).iter_mut() {
-        delete_gsub_ligature_entry(e);
-    }
     *arr = Vec::new();
 }
 pub(crate) unsafe extern "C" fn subtable_gsub_ligature_free(x: *mut GsubLigatureSubtable) {
@@ -216,7 +211,7 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
                                         m = m.wrapping_add(1);
                                     }
                                     (*subtable).push(GsubLigatureEntry {
-                                        from: cov,
+                                        from: coverage_from_raw(cov),
                                         to: handle_from_index(
                                             read_16u(data.offset(lig_offset as isize)
                                                 as *const u8)
@@ -259,7 +254,7 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(
             entry,
             b"from\0" as *const u8 as *const ::core::ffi::c_char,
             OTL_I_COVERAGE.dump.expect("non-null function pointer")(
-                (&(*subtable))[j as usize].from,
+                &(&(*subtable))[j as usize].from as *const Coverage,
             ),
         );
         json_object_push(
@@ -312,7 +307,9 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             );
             if !(_from.is_null() || _to.is_null()) {
                 (*st).push(GsubLigatureEntry {
-                    from: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from),
+                    from: coverage_from_raw(
+                        OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from),
+                    ),
                     to: handle_from_name(sdsnewlen(
                         (*_to).u.string.ptr as *const ::core::ffi::c_void,
                         (*_to).u.string.length as usize,
@@ -333,7 +330,9 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
                 || (*_from_0).type_0 != JsonType::Array)
             {
                 (*st_0).push(GsubLigatureEntry {
-                    from: OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from_0),
+                    from: coverage_from_raw(
+                        OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from_0),
+                    ),
                     to: handle_from_name(sdsnewlen(
                         (*(*_subtable).u.object.values.offset(k_0 as isize)).name
                             as *const ::core::ffi::c_void,
@@ -367,7 +366,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     let mut start_gids: std::collections::BTreeSet<::core::ffi::c_int> = std::collections::BTreeSet::new();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-        let sgid: ::core::ffi::c_int = (&(*(&(*subtable))[j as usize].from))[0].index as ::core::ffi::c_int;
+        let sgid: ::core::ffi::c_int = (&(*subtable))[j as usize].from[0].index as ::core::ffi::c_int;
         start_gids.insert(sgid);
         j = j.wrapping_add(1);
     }
@@ -385,7 +384,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
         let mut n_ligs_here: GlyphId = 0 as GlyphId;
         let mut j_0: GlyphId = 0 as GlyphId;
         while (j_0 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-            if (&(*(&(*subtable))[j_0 as usize].from))[0]
+            if (&(*subtable))[j_0 as usize].from[0]
             .index as ::core::ffi::c_int
                 == gid
             {
@@ -396,18 +395,18 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
         let mut ligset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (n_ligs_here as ::core::ffi::c_int) as u32)]);
         let mut j_1: GlyphId = 0 as GlyphId;
         while (j_1 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-            if (&(*(&(*subtable))[j_1 as usize].from))[0]
+            if (&(*subtable))[j_1 as usize].from[0]
             .index as ::core::ffi::c_int
                 == gid
             {
-                let mut ligdef: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((&(*subtable))[j_1 as usize].to.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*(&(*subtable))[j_1 as usize].from).len()
+                let mut ligdef: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((&(*subtable))[j_1 as usize].to.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((&(*subtable))[j_1 as usize].from.len()
                         as ::core::ffi::c_int) as u32)]);
                 let mut m: GlyphId = 1 as GlyphId;
                 while (m as ::core::ffi::c_int)
-                    < (*(&(*subtable))[j_1 as usize].from).len()
+                    < (&(*subtable))[j_1 as usize].from.len()
                         as ::core::ffi::c_int
                 {
-                    bk_push(ligdef, &[bk_int(BkCellType::B16, ((&(*(&(*subtable))[j_1 as usize].from))[m as usize]
+                    bk_push(ligdef, &[bk_int(BkCellType::B16, ((&(*subtable))[j_1 as usize].from[m as usize]
                         .index as ::core::ffi::c_int) as u32)]);
                     m = m.wrapping_add(1);
                 }

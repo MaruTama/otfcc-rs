@@ -894,6 +894,35 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`GsubLigatureEntry.from` is `Coverage` now, not `*mut Coverage` (B-3-3 of
+  the remaining-three-themes plan) — same shape as B-3-2's `GsubMultiEntry.to`,
+  in the sibling GSUB subtable.** Reused `coverage_from_raw` (added in B-3-2)
+  unchanged; `from`/`to` both self-drop now, so `delete_gsub_ligature_entry`
+  is deleted outright and `dispose_gsub_ligature_subtable` collapses to `*arr
+  = Vec::new()` — the same cascade as B-3-1/B-3-2.
+  - **`subtable_gsub_ligature_replace`, the one live `.replace` slot among
+    the `Subtable`-union-blocked containers, needed no change at all**: it
+    already disposed the old array and move-assigned a fresh one wholesale,
+    which is exactly as correct for `Vec<GsubLigatureEntry>` as it was for
+    the raw-pointer-holding version.
+  - **`consolidate/otl/gsub_ligature.rs`'s filter pass** (drop entries whose
+    glyph is missing or whose shrunk coverage ends up empty, keep the rest)
+    used the same "copy the pointer, null the source" idiom the other two
+    B-3 PRs replaced with `mem::take` — same fix, same reason.
+  - The build function (`otfcc_build_gsub_ligature_subtable`) had the most
+    call sites of the three GSUB fields so far — index-0 access twice,
+    `.len()` twice, an indexed inner loop — all mechanical `(*(&expr))[..]`
+    -> `expr[..]` / `(*(&expr)).len()` -> `expr.len()` unwraps, since `.from`
+    is a place now instead of a pointer to dereference.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 44/44 unit tests, ABI at exactly 4 symbols,
+    every standard payload byte-identical in both directions including the
+    `otfccdll` cdylib, all 10 round-trip payloads stable, and issue #1's
+    regression test green. Unlike B-3-2's field, this one has real coverage
+    in the standard payload set (`NotoNastaliqUrdu-Regular`/`iosevka-r` both
+    have `gsub_ligature` lookups), so no forged dedup payload was needed
+    beyond the standard set.
+
 - **`GsubMultiEntry.to` is `Coverage` now, not `*mut Coverage` (B-3-2 of the
   remaining-three-themes plan).** `Coverage` is itself already a bare
   `Vec<GlyphHandle>` (Stage 6-1 legacy), so this field needed no internal
