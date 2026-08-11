@@ -4,7 +4,7 @@ use libc::{free};
 
 use crate::support::json_funcs::{json_obj_get_type, preserialize};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dispose, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
@@ -20,33 +20,31 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, dispose_mark_array, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
+use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
 use crate::vendor::json_builder::{json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsfree, sdslen, sdsnewlen};
-unsafe extern "C" fn delete_base_array_item(mut entry: *mut BaseRecord) {
-    otfcc_handle_dispose(&raw mut (*entry).glyph);
-    free((*entry).anchors as *mut ::core::ffi::c_void);
-    (*entry).anchors = ::core::ptr::null_mut::<Anchor>();
-}
+// `BaseRecord.anchors` is a plain `Vec<Anchor>` now and `glyph: GlyphHandle`
+// already has its own `Drop`, so a `BaseArray` (`Vec<BaseRecord>`) fully
+// self-drops -- clearing it (still needed: `consolidate/otl/mark.rs`'s dedup
+// pass clears an in-place array mid-function, not just at end of scope) is
+// exactly `*arr = Vec::new()`.
 pub(crate) unsafe fn dispose_base_array(arr: *mut BaseArray) {
-    for e in (*arr).iter_mut() {
-        delete_base_array_item(e);
-    }
     *arr = Vec::new();
 }
 unsafe extern "C" fn init_mark_to_single(subtable: *mut GposMarkToSingleSubtable) {
     (*subtable).mark_array = Vec::new();
     (*subtable).base_array = Vec::new();
 }
-pub(crate) unsafe extern "C" fn dispose_mark_to_single(subtable: *mut GposMarkToSingleSubtable) {
-    dispose_mark_array(&raw mut (*subtable).mark_array);
-    dispose_base_array(&raw mut (*subtable).base_array);
-}
 pub(crate) unsafe extern "C" fn subtable_gpos_mark_to_single_free(x: *mut GposMarkToSingleSubtable) {
     if x.is_null() {
         return;
     }
-    dispose_mark_to_single(x);
+    // `mark_array`/`base_array` both self-drop; `ptr::read` moves the whole
+    // value out of the malloc'd shell so `drop` can run that field-by-field
+    // teardown, then `free` releases the now-empty shell -- the same
+    // "unwrap_X_table" idiom used throughout Stage 6-4, minus the
+    // `Box::new` at the end since nothing adopts this value.
+    drop(::core::ptr::read(x));
     free(x as *mut ::core::ffi::c_void);
 }
 unsafe extern "C" fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable {
@@ -126,28 +124,23 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
                     _offset = base_array_offset.wrapping_add(2 as u32);
                     let mut j: GlyphId = 0 as GlyphId;
                     while (j as ::core::ffi::c_int) < (*bases).len() as GlyphId as ::core::ffi::c_int {
-                        let mut base_anchors: *mut Anchor =
-                            ::core::ptr::null_mut::<Anchor>();
-                        base_anchors = __caryll_allocate_clean(
-                            (::core::mem::size_of::<Anchor>() as usize)
-                                .wrapping_mul((*subtable).class_count as usize),
-                            49 as ::core::ffi::c_ulong,
-                        ) as *mut Anchor;
+                        let mut base_anchors: Vec<Anchor> =
+                            Vec::with_capacity((*subtable).class_count as usize);
                         let mut k: GlyphClass = 0 as GlyphClass;
                         while (k as ::core::ffi::c_int)
                             < (*subtable).class_count as ::core::ffi::c_int
                         {
                             if read_16u(data.offset(_offset as isize) as *const u8) != 0 {
-                                *base_anchors.offset(k as isize) = otl_read_anchor(
+                                base_anchors.push(otl_read_anchor(
                                     data,
                                     table_length,
                                     base_array_offset.wrapping_add(read_16u(
                                         data.offset(_offset as isize) as *const u8,
                                     )
                                         as u32),
-                                );
+                                ));
                             } else {
-                                *base_anchors.offset(k as isize) = otl_anchor_absent();
+                                base_anchors.push(otl_anchor_absent());
                             }
                             _offset = _offset.wrapping_add(2 as u32);
                             k = k.wrapping_add(1);
@@ -223,30 +216,21 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
         let mut _base: *mut JsonValue = json_object_new((*subtable).class_count as usize);
         let mut k: GlyphClass = 0 as GlyphClass;
         while (k as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
-            if (*(&(*subtable).base_array)[j_0 as usize]
-                .anchors
-                .offset(k as isize))
-            .present
+            if (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].present
             {
                 let mut _anchor: *mut JsonValue = json_object_new(2 as usize);
                 json_object_push(
                     _anchor,
                     b"x\0" as *const u8 as *const ::core::ffi::c_char,
                     json_integer_new(
-                        (*(&(*subtable).base_array)[j_0 as usize]
-                            .anchors
-                            .offset(k as isize))
-                        .x as i64,
+                        (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].x as i64,
                     ),
                 );
                 json_object_push(
                     _anchor,
                     b"y\0" as *const u8 as *const ::core::ffi::c_char,
                     json_integer_new(
-                        (*(&(*subtable).base_array)[j_0 as usize]
-                            .anchors
-                            .offset(k as isize))
-                        .y as i64,
+                        (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].y as i64,
                     ),
                 );
                 let mut mark_class_name_0: SdsRaw = crate::sdsbuild!(sdsempty(), b"anchor", k as ::core::ffi::c_int);
@@ -296,21 +280,15 @@ unsafe extern "C" fn parse_bases(
                 index: 0,
                 name: Vec::new(),
             },
-            anchors: ::core::ptr::null_mut::<Anchor>(),
+            anchors: Vec::new(),
         };
         base.glyph = handle_from_name(sdsnewlen(
             gname as *const ::core::ffi::c_void,
             (*(*_bases).u.object.values.offset(j as isize)).name_length as usize,
         )) as GlyphHandle;
-        base.anchors = __caryll_allocate_clean(
-            (::core::mem::size_of::<Anchor>() as usize).wrapping_mul(class_count as usize),
-            116 as ::core::ffi::c_ulong,
-        ) as *mut Anchor;
-        let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as ::core::ffi::c_int) < class_count as ::core::ffi::c_int {
-            *base.anchors.offset(k as isize) = otl_anchor_absent();
-            k = k.wrapping_add(1);
-        }
+        // Indexed by `class_id` below, out of JSON key order -- pre-sized
+        // and filled with "absent" rather than built with `.push()`.
+        base.anchors = vec![otl_anchor_absent(); class_count as usize];
         let mut base_record: *mut JsonValue =
             (*(*_bases).u.object.values.offset(j as isize)).value as *mut JsonValue;
         if base_record.is_null()
@@ -345,7 +323,7 @@ unsafe extern "C" fn parse_bases(
                         );
                     }
                     Some(&class_id) => {
-                        *base.anchors.offset(class_id as isize) = otl_parse_anchor(
+                        base.anchors[class_id as usize] = otl_parse_anchor(
                             (*(*base_record).u.object.values.offset(k_0 as isize)).value
                                 as *mut JsonValue,
                         );
@@ -427,9 +405,8 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
         let mut k: GlyphClass = 0 as GlyphClass;
         while (k as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
             bk_push(base_array, &[bk_ptr(BkCellType::P16, bk_from_anchor(
-                    *(&(*subtable).base_array)[j_2 as usize]
-                        .anchors
-                        .offset(k as isize),
+                    (&(*subtable).base_array)[j_2 as usize]
+                        .anchors[k as usize],
                 ))]);
             k = k.wrapping_add(1);
         }

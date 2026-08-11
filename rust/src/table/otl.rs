@@ -18,7 +18,6 @@ use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::table::otl::subtables::chaining::common::{otl_dispose_chaining};
 use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{dispose_mark_to_ligature};
-use crate::table::otl::subtables::gpos_mark_to_single::{dispose_mark_to_single};
 use crate::table::otl::subtables::gpos_pair::{dispose_gpos_pair};
 use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
 use crate::table::otl::subtables::gsub_ligature::{dispose_gsub_ligature_subtable};
@@ -191,7 +190,11 @@ impl Drop for Subtable {
                 Subtable::GposSingle(x) => dispose_gpos_single_subtable(x as *mut GposSingleSubtable),
                 Subtable::GposPair(x) => dispose_gpos_pair(x as *mut GposPairSubtable),
                 Subtable::GposCursive(x) => dispose_gpos_cursive_subtable(x as *mut GposCursiveSubtable),
-                Subtable::GposMarkToSingle(x) => dispose_mark_to_single(x as *mut GposMarkToSingleSubtable),
+                // `mark_array: MarkArray` and `base_array: BaseArray`
+                // (`Vec<BaseRecord>`, `BaseRecord.anchors` now a plain
+                // `Vec<Anchor>`) both self-drop -- no manual dispose left to
+                // call, same reasoning as `Extend` below.
+                Subtable::GposMarkToSingle(_) => {}
                 Subtable::GposMarkToLigature(x) => dispose_mark_to_ligature(x as *mut GposMarkToLigatureSubtable),
                 // `subtable: *mut Subtable`'s ownership is always taken (via
                 // `.subtable`) before an `Extend` value is legitimately
@@ -298,7 +301,7 @@ pub type BaseArray = Vec<BaseRecord>;
 #[repr(C)]
 pub struct BaseRecord {
     pub glyph: GlyphHandle,
-    pub anchors: *mut Anchor,
+    pub anchors: Vec<Anchor>,
 }
 pub type GposCursiveSubtable = Vec<GposCursiveEntry>;
 #[derive(Clone)]

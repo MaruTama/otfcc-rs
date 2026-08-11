@@ -31,7 +31,7 @@ struct MarkHashValue {
 }
 struct BaseHashValue {
     name: Vec<u8>,
-    anchors: *mut Anchor,
+    anchors: Vec<Anchor>,
 }
 struct LigHashValue {
     name: Vec<u8>,
@@ -153,9 +153,8 @@ unsafe extern "C" fn consolidate_base_array(
             match h.entry(gid) {
                 Entry::Vacant(v) => {
                     let name: Vec<u8> = (&(*base_array))[k as usize].glyph.name.clone();
-                    let anchors: *mut Anchor = (&(*base_array))[k as usize].anchors;
-                    let ref mut fresh0 = (&mut (*base_array))[k as usize].anchors;
-                    *fresh0 = ::core::ptr::null_mut::<Anchor>();
+                    let anchors: Vec<Anchor> =
+                        ::core::mem::take(&mut (&mut (*base_array))[k as usize].anchors);
                     v.insert(BaseHashValue { name, anchors });
                 }
                 Entry::Occupied(_) => {
