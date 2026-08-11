@@ -5752,3 +5752,66 @@ on the other platform before a commit is trusted.
     ABI export guard, `compare-with-c.sh` byte-identical on every payload
     (including the `otfccdll` cdylib comparison), all 10 payloads' round
     trips, and the issue #1 golden test.
+- **Stage 6-4 follow-up: `CffTable.fd_array: *mut *mut CffTable` →
+  `Vec<Box<CffTable>>`** — the second of the three follow-ups the `cff`
+  Box化 PR flagged, and the deeper one: `fd_array` is self-referential
+  (a CID-keyed CFF font's per-Font-DICT tables, each itself a full
+  `CffTable`), and unlike `private_dict`/`font_matrix` it's accessed
+  through a **recursive, index-based, partially-constructed** pattern
+  during binary parsing, not just read/written as a single value.
+  - **The core problem**: `callback_extract_fd`/`callback_extract_private`
+    re-derive which `CffTable` they're populating via
+    `context.fd_array_index` + `(*meta).fd_array[index]`, and this lookup
+    has to resolve correctly *while that element is still being filled
+    in* (the recursive DICT parser writes fields into it across many
+    callback invocations). The fix: push each element (adopted via
+    `unwrap_cff_table`, same idiom as `Font.cff` itself) into the `Vec`
+    **before** starting its recursive parse, not after — a `Box`'s heap
+    address never moves even if a later `push` reallocates the `Vec`'s
+    own backing buffer of `Box` pointers, so indexing into an
+    already-pushed-but-not-yet-fully-populated element is completely
+    safe. The JSON-parse path (`fd_from_json`) doesn't have this
+    complication — each recursive call returns a fully-built `CffTable`
+    in one shot, so those elements just get adopted and pushed normally.
+  - **`fd_array_count: TableId` field removed entirely**, replaced by
+    `.fd_array.len()` everywhere (matching the `ChainingRule.apply`
+    precedent) — one less place for the count and the container to drift
+    apart.
+  - **`CffTable` needs no custom `Drop` impl at all anymore.** With
+    `private_dict`/`font_matrix` already `Option<Box<>>` (previous PR)
+    and now `fd_array: Vec<Box<CffTable>>`, every field is a genuinely
+    owned Rust type that self-drops through ordinary compiler-generated
+    field-by-field drop glue — recursively, since each `fd_array`
+    element is itself a full `CffTable`. The previous `impl Drop for
+    CffTable` (which called `dispose_fd`, whose only remaining real work
+    was the raw `fd_array` recursive-free loop) is deleted outright,
+    along with `dispose_fd`/`table_cff_dispose`/`table_cff_free` (all
+    fully dead once that loop is gone — confirmed via crate-wide grep).
+    `table_cff_create`/`table_cff_init`/`init_fd` (`malloc`-based) stay:
+    every `CffTable` value, top-level or `fd_array` child, is still
+    constructed this way before being adopted into a `Box`.
+  - **`FdArrayCompileContext.fd_array`** (the separate context struct
+    `cff_make_fdarray`/`callback_makefd` use to iterate an
+    already-complete `fd_array` on the *build* side) changes from
+    `*mut *mut CffTable` to `*const Vec<Box<CffTable>>` — a raw pointer
+    to the owning `CffTable`'s own `fd_array` field, since this side only
+    ever needs read access to already-fully-built elements.
+  - **`dangerous_implicit_autorefs` hit again** (12 sites this time) —
+    the same lint the `otl` pointer-list and `glyf` PRs hit: indexing a
+    `Vec` reached through a raw pointer deref needs an explicit
+    `(&(*ptr).field)[idx]`/`(&mut (*ptr).field)[idx]` wrap, or a
+    hoisted `&Vec<..>`/`&mut Vec<..>` local, rather than
+    `(*ptr).field[idx]` directly.
+  - **No new synthetic payloads needed** — the same CID-keyed CFF
+    payloads (`KRName-Regular.otf`/`-O2.otf`) that covered the previous
+    two `CffTable` PRs already drive the full binary-parse recursive
+    construction, the JSON-parse construction, the dump path, and (via
+    `run-cycles.sh`'s repeated cycles) the build path, on every run — a
+    double-free or an off-by-one in the "push before populate" ordering
+    would have shown up as a crash or a byte mismatch in this same
+    existing coverage.
+  - Verified with the standard full pipeline on both macOS (arm64 native)
+    and Linux (`otfcc-stage0-verify` container) — 0 warnings, 44/44 tests,
+    ABI export guard, `compare-with-c.sh` byte-identical on every payload
+    (including the `otfccdll` cdylib comparison), all 10 payloads' round
+    trips, and the issue #1 golden test.

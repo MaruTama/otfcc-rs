@@ -1184,13 +1184,10 @@ unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
             pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
         }
     }
-    if !(*cff).fd_array.is_null() {
-        for j_2 in 0..(*cff).fd_array_count {
-            let fd = *(*cff).fd_array.offset(j_2 as isize);
-            let pd = (*fd).private_dict.as_deref_mut().unwrap();
-            pd.default_width_x = maxj as ::core::ffi::c_double;
-            pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
-        }
+    for fd in (*cff).fd_array.iter_mut() {
+        let pd = fd.private_dict.as_deref_mut().unwrap();
+        pd.default_width_x = maxj as ::core::ffi::c_double;
+        pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
     }
     free(frequency as *mut ::core::ffi::c_void);
 }
@@ -1336,13 +1333,12 @@ pub unsafe extern "C" fn otfcc_stat_font(
             // calls needed anymore (`VQ`'s `Vec<VqSegment>` shift field
             // already self-drops).
             (*cff).font_matrix = None;
-            for j in 0..(*cff).fd_array_count {
-                let fd: *mut CffTable = *(*cff).fd_array.offset(j as isize);
-                (*fd).font_matrix = None;
+            for fd in (*cff).fd_array.iter_mut() {
+                fd.font_matrix = None;
                 if (*head).units_per_em as ::core::ffi::c_int == 1000 as ::core::ffi::c_int {
-                    (*fd).font_matrix = None;
+                    fd.font_matrix = None;
                 } else {
-                    (*fd).font_matrix = Some(Box::new(CffFontMatrix {
+                    fd.font_matrix = Some(Box::new(CffFontMatrix {
                         a: (1.0f64
                             / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
                             as Scale,

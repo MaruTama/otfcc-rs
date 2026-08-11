@@ -143,26 +143,22 @@ pub struct CffTable {
     pub cid_font_revision: ::core::ffi::c_double,
     pub cid_count: u32,
     pub uid_base: u32,
-    pub fd_array_count: TableId,
-    pub fd_array: *mut *mut CffTable,
+    pub fd_array: Vec<Box<CffTable>>,
 }
-// Stage 6-4 "Box化": only `Font.cff` (the top-level table) becomes
-// `Option<Box<CffTable>>` here -- `private_dict`/`font_matrix`/`fd_array`
-// stay raw pointers (their own Box化, including `fd_array`'s
-// self-referential `Vec<Box<CffTable>>` conversion, is a separate future
-// task). `dispose_fd` already does exactly the right teardown for a
-// value that owns those three pointers but whose `Vec<u8>` fields drop
-// themselves -- reusing it here (rather than duplicating its body) keeps
-// this `Drop` impl and the still-`*mut`-based recursive `fd_array` free
-// path (`TABLE_I_CFF.free` -> `table_cff_dispose` -> `dispose_fd`, used
-// for FD children below) doing identically the same thing.
-impl Drop for CffTable {
-    fn drop(&mut self) {
-        unsafe {
-            dispose_fd(self as *mut CffTable);
-        }
-    }
-}
+// Stage 6-4 "Box化", now complete for `CffTable`: `private_dict`/
+// `font_matrix`/`fd_array` (self-referential -- each FD is itself a full
+// `CffTable`) are all real owned Rust types now (`Option<Box<>>`,
+// `Option<Box<>>`, `Vec<Box<CffTable>>`). Every field self-drops through
+// ordinary compiler-generated field-by-field drop glue, so `CffTable`
+// needs **no custom `Drop` impl at all** anymore -- the previous
+// `impl Drop for CffTable` (which called `dispose_fd`, itself only doing
+// real work for the now-gone raw `fd_array` recursive-free loop) is
+// deleted outright, along with `dispose_fd`/`table_cff_dispose`/
+// `table_cff_free` (all now fully dead -- confirmed via crate-wide grep).
+// `table_cff_create`/`table_cff_init`/`init_fd` (`malloc`-based) stay:
+// they're still how every `CffTable` value -- top-level or `fd_array`
+// child -- gets constructed before being adopted into a `Box` via
+// `unwrap_cff_table`, exactly as `Font.cff` itself already works.
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffTableElementInterface {
@@ -218,7 +214,7 @@ pub struct CffCharstringBuilderContext {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct FdArrayCompileContext {
-    pub fd_array: *mut *mut CffTable,
+    pub fd_array: *const Vec<Box<CffTable>>,
     pub string_hash: *mut indexmap::IndexMap<Vec<u8>, SdsRaw>,
 }
 pub static DEFAULT_BLUE_SCALE: ::core::ffi::c_double = 0.039625f64;
@@ -264,47 +260,10 @@ unsafe extern "C" fn init_fd(mut fd: *mut CffTable) {
     (*fd).underline_position = -(100 as ::core::ffi::c_int) as ::core::ffi::c_double;
     (*fd).underline_thickness = 50 as ::core::ffi::c_int as ::core::ffi::c_double;
 }
-#[inline]
-unsafe extern "C" fn dispose_fd(mut fd: *mut CffTable) {
-    // Explicit drop-in-place for each `Vec<u8>` field before this struct is
-    // eventually raw-`free`'d by `table_cff_free` -- `libc::free` has no
-    // idea about `Vec`'s drop glue, so each backing byte buffer must be
-    // torn down here or it leaks (same landmine class as `GlyphOrderEntry`
-    // elsewhere in this migration).
-    (*fd).version = Vec::new();
-    (*fd).notice = Vec::new();
-    (*fd).copyright = Vec::new();
-    (*fd).full_name = Vec::new();
-    (*fd).family_name = Vec::new();
-    (*fd).weight = Vec::new();
-    (*fd).font_name = Vec::new();
-    (*fd).cid_registry = Vec::new();
-    (*fd).cid_ordering = Vec::new();
-    // `font_matrix`/`private_dict` are `Option<Box<>>` now: dropping the
-    // old value (via reassignment to `None`) recurses through their own
-    // `Drop`/field-drop glue for free -- no manual `I_VQ.dispose`/
-    // `otfcc_delete_privatedict` calls needed anymore (replaced outright,
-    // not adapted -- see their removal note above `CffPrivateDict`).
-    (*fd).font_matrix = None;
-    (*fd).private_dict = None;
-    if !(*fd).fd_array.is_null() {
-        let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*fd).fd_array_count as ::core::ffi::c_int {
-            TABLE_I_CFF.free.expect("non-null function pointer")(*(*fd).fd_array.offset(j as isize));
-            j = j.wrapping_add(1);
-        }
-        free((*fd).fd_array as *mut ::core::ffi::c_void);
-        (*fd).fd_array = ::core::ptr::null_mut::<*mut CffTable>();
-    }
-}
-#[inline]
-unsafe extern "C" fn table_cff_free(mut x: *mut CffTable) {
-    if x.is_null() {
-        return;
-    }
-    table_cff_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
+// `dispose`/`.free` slots below are `None`: `dispose_fd`/`table_cff_dispose`/
+// `table_cff_free` all became fully dead once `fd_array`'s recursive
+// raw-pointer free loop (their one remaining caller) went away -- deleted
+// outright, matching `.copy`'s already-established precedent below.
 pub static TABLE_I_CFF: CffTableElementInterface = {
     CffTableElementInterface {
         init: Some(table_cff_init as unsafe extern "C" fn(*mut CffTable) -> ()),
@@ -314,9 +273,9 @@ pub static TABLE_I_CFF: CffTableElementInterface = {
         // heap buffer) -- deleted rather than left as a landmine, matching
         // this migration's established pattern for confirmed-dead slots.
         copy: None,
-        dispose: Some(table_cff_dispose as unsafe extern "C" fn(*mut CffTable) -> ()),
+        dispose: None,
         create: Some(table_cff_create),
-        free: Some(table_cff_free as unsafe extern "C" fn(*mut CffTable) -> ()),
+        free: None,
     }
 };
 #[inline]
@@ -329,10 +288,6 @@ unsafe extern "C" fn table_cff_create() -> *mut CffTable {
 #[inline]
 unsafe extern "C" fn table_cff_init(mut x: *mut CffTable) {
     init_fd(x);
-}
-#[inline]
-unsafe extern "C" fn table_cff_dispose(mut x: *mut CffTable) {
-    dispose_fd(x);
 }
 // `table_cff_create`/`fd_from_json` are shared between the top-level table
 // (which becomes `Font.cff`) and `fd_array` children (still raw-pointer-
@@ -365,9 +320,9 @@ unsafe extern "C" fn callback_extract_private(
     let mut context: *mut CffExtractContext = _context as *mut CffExtractContext;
     let mut meta: *mut CffTable = (*context).meta;
     if (*context).fd_array_index >= 0 as i32
-        && (*context).fd_array_index < (*meta).fd_array_count as i32
+        && ((*context).fd_array_index as usize) < (*meta).fd_array.len()
     {
-        meta = *(*meta).fd_array.offset((*context).fd_array_index as isize);
+        meta = (&mut (*meta).fd_array)[(*context).fd_array_index as usize].as_mut() as *mut CffTable;
     }
     let mut pd: *mut CffPrivateDict = (*meta).private_dict.as_deref_mut().unwrap() as *mut CffPrivateDict;
     match op {
@@ -539,9 +494,9 @@ unsafe extern "C" fn callback_extract_fd(
     let mut file: *mut CffFile = (*context).cff_file;
     let mut meta: *mut CffTable = (*context).meta;
     if (*context).fd_array_index >= 0 as i32
-        && (*context).fd_array_index < (*meta).fd_array_count as i32
+        && ((*context).fd_array_index as usize) < (*meta).fd_array.len()
     {
-        meta = *(*meta).fd_array.offset((*context).fd_array_index as isize);
+        meta = (&mut (*meta).fd_array)[(*context).fd_array_index as usize].as_mut() as *mut CffTable;
     }
     match op {
         0 => {
@@ -1129,13 +1084,13 @@ unsafe extern "C" fn build_outline(
     }
     (*g).fd_select = handle_from_index(fd as GlyphId)
         as FdHandle;
-    if !(*(*context).meta).fd_array.is_null()
-        && (fd as ::core::ffi::c_int) < (*(*context).meta).fd_array_count as ::core::ffi::c_int
-        && (**(*(*context).meta).fd_array.offset(fd as isize))
+    let ctx_fd_array: &mut Vec<Box<CffTable>> = &mut (*(*context).meta).fd_array;
+    if (fd as usize) < ctx_fd_array.len()
+        && ctx_fd_array[fd as usize]
             .private_dict
             .is_some()
     {
-        let pd = (**(*(*context).meta).fd_array.offset(fd as isize)).private_dict.as_deref().unwrap();
+        let pd = ctx_fd_array[fd as usize].private_dict.as_deref().unwrap();
         bc.default_width_x = pd.default_width_x;
         bc.nominal_width_x = pd.nominal_width_x;
     } else if let Some(pd) = (*(*context).meta).private_dict.as_deref() {
@@ -1403,11 +1358,8 @@ unsafe extern "C" fn apply_cff_matrix(
     while (jj as usize) < (*glyf).len() {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[jj as usize].as_mut().unwrap();
         let mut fd: *mut CffTable = cff;
-        if !(*fd).fd_array.is_null()
-            && ((*g).fd_select.index as ::core::ffi::c_int)
-                < (*fd).fd_array_count as ::core::ffi::c_int
-        {
-            fd = *(*fd).fd_array.offset((*g).fd_select.index as isize);
+        if ((*g).fd_select.index as usize) < (*fd).fd_array.len() {
+            fd = (&mut (*fd).fd_array)[(*g).fd_select.index as usize].as_mut() as *mut CffTable;
         }
         if let Some(fm) = (*fd).font_matrix.as_deref() {
             let mut a: Scale = qround(
@@ -1545,19 +1497,25 @@ pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
                         sdsfree(tmp_font_name);
                     }
                     if (*cff_file).font_dict.count != 0 {
-                        (*context.meta).fd_array_count = (*cff_file).font_dict.count as TableId;
-                        (*context.meta).fd_array = __caryll_allocate_clean(
-                            (::core::mem::size_of::<*mut CffTable>() as usize)
-                                .wrapping_mul((*context.meta).fd_array_count as usize),
-                            637 as ::core::ffi::c_ulong,
-                        ) as *mut *mut CffTable;
+                        let fd_count = (*cff_file).font_dict.count as usize;
+                        (*context.meta).fd_array = Vec::with_capacity(fd_count);
                         let mut j: TableId = 0 as TableId;
-                        while (j as ::core::ffi::c_int)
-                            < (*context.meta).fd_array_count as ::core::ffi::c_int
-                        {
-                            let ref mut fresh0 = *(*context.meta).fd_array.offset(j as isize);
-                            *fresh0 = (
-                                TABLE_I_CFF.create.expect("non-null function pointer"))();
+                        while (j as usize) < fd_count {
+                            // Pushed *before* the recursive parse below (not
+                            // after): `context.fd_array_index` makes
+                            // `callback_extract_fd`/`callback_extract_private`
+                            // re-derive `meta` as `(*meta).fd_array[j]` while
+                            // this element is still being populated, so it
+                            // must already be present in the `Vec` at that
+                            // index -- a `Box`'s heap address never moves,
+                            // even if a later `push` reallocates the `Vec`'s
+                            // own backing buffer of `Box` pointers.
+                            (*context.meta).fd_array.push(
+                                unwrap_cff_table(
+                                    (TABLE_I_CFF.create.expect("non-null function pointer"))(),
+                                )
+                                .unwrap(),
+                            );
                             context.fd_array_index = j as i32;
                             CFF_I_DICT
                                 .parse_to_callback
@@ -1591,14 +1549,12 @@ pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
                                         ) -> (),
                                 ),
                             );
-                            if (**(*context.meta).fd_array.offset(j as isize))
+                            if (&mut (*context.meta).fd_array)[j as usize]
                                 .font_name
                                 .is_empty()
                             {
                                 let tmp_subfont = crate::sdsbuild!(sdsempty(), b"_Subfont", j as ::core::ffi::c_int);
-                                let ref mut fresh1 =
-                                    (**(*context.meta).fd_array.offset(j as isize)).font_name;
-                                *fresh1 = sds_to_vec(tmp_subfont);
+                                (&mut (*context.meta).fd_array)[j as usize].font_name = sds_to_vec(tmp_subfont);
                                 sdsfree(tmp_subfont);
                             }
                             j = j.wrapping_add(1);
@@ -1950,18 +1906,25 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
             json_integer_new((*table).cid_supplement as i64),
         );
     }
-    if !(*table).fd_array.is_null() {
-        let mut _fd_array: *mut JsonValue = json_object_new((*table).fd_array_count as usize);
+    if !(*table).fd_array.is_empty() {
+        let mut _fd_array: *mut JsonValue = json_object_new((*table).fd_array.len());
+        // `table` is `*const CffTable`, but the take/restore below needs a
+        // mutable place -- sound here because nothing else touches `table`
+        // during a dump pass, matching the same "read-only signature,
+        // temporary local mutation" shape the original raw-pointer-through-
+        // a-second-pointer code already relied on.
+        let table_mut: *mut CffTable = table as *mut CffTable;
+        let fd_array: &mut Vec<Box<CffTable>> = &mut (*table_mut).fd_array;
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*table).fd_array_count as ::core::ffi::c_int {
+        while (j as usize) < fd_array.len() {
             let name: Vec<u8> =
-                ::core::mem::take(&mut (**(*table).fd_array.offset(j as isize)).font_name);
+                ::core::mem::take(&mut fd_array[j as usize].font_name);
             json_object_push_bytes_key(
                 _fd_array,
                 &name,
-                fd_to_json(*(*table).fd_array.offset(j as isize)),
+                fd_to_json(fd_array[j as usize].as_ref() as *const CffTable),
             );
-            (**(*table).fd_array.offset(j as isize)).font_name = name;
+            fd_array[j as usize].font_name = name;
             j = j.wrapping_add(1);
         }
         json_object_push(
@@ -2225,25 +2188,25 @@ unsafe extern "C" fn fd_from_json(
     );
     if !fdarraydump.is_null() {
         (*table).is_cid = true;
-        (*table).fd_array_count = (*fdarraydump).u.object.length as TableId;
-        (*table).fd_array = __caryll_allocate_clean(
-            (::core::mem::size_of::<*mut CffTable>() as usize)
-                .wrapping_mul((*table).fd_array_count as usize),
-            872 as ::core::ffi::c_ulong,
-        ) as *mut *mut CffTable;
+        let fd_count = (*fdarraydump).u.object.length as usize;
+        (*table).fd_array = Vec::with_capacity(fd_count);
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*table).fd_array_count as ::core::ffi::c_int {
-            let ref mut fresh11 = *(*table).fd_array.offset(j as isize);
-            *fresh11 = fd_from_json(
+        while (j as usize) < fd_count {
+            // `fd_from_json` builds each child fully before returning
+            // (unlike the binary-read path, which populates a `fd_array`
+            // slot incrementally via a recursive callback) -- so there's
+            // no need to push an empty placeholder first here.
+            let mut fd_box: Box<CffTable> = unwrap_cff_table(fd_from_json(
                 (*(*fdarraydump).u.object.values.offset(j as isize)).value,
                 options,
                 false,
-            );
-            let ref mut fresh12 = (**(*table).fd_array.offset(j as isize)).font_name;
-            *fresh12 = ::core::slice::from_raw_parts(
+            ))
+            .unwrap();
+            fd_box.font_name = ::core::slice::from_raw_parts(
                 (*(*fdarraydump).u.object.values.offset(j as isize)).name as *const u8,
                 (*(*fdarraydump).u.object.values.offset(j as isize)).name_length as usize,
             ).to_vec();
+            (*table).fd_array.push(fd_box);
             j = j.wrapping_add(1);
         }
     }
@@ -2255,23 +2218,18 @@ unsafe extern "C" fn fd_from_json(
     }
     if top_level as ::core::ffi::c_int != 0
         && (*options).force_cid as ::core::ffi::c_int != 0
-        && (*table).fd_array.is_null()
+        && (*table).fd_array.is_empty()
     {
-        (*table).fd_array_count = 1 as TableId;
-        (*table).fd_array = __caryll_allocate_clean(
-            (::core::mem::size_of::<*mut CffTable>() as usize)
-                .wrapping_mul((*table).fd_array_count as usize),
-            885 as ::core::ffi::c_ulong,
-        ) as *mut *mut CffTable;
-        let ref mut fresh13 = *(*table).fd_array.offset(0 as ::core::ffi::c_int as isize);
-        *fresh13 = (
-            TABLE_I_CFF.create.expect("non-null function pointer"))();
-        let mut fd0: *mut CffTable = *(*table).fd_array.offset(0 as ::core::ffi::c_int as isize);
-        (*fd0).private_dict = (*table).private_dict.take();
+        let mut fd0_box: Box<CffTable> = unwrap_cff_table(
+            (TABLE_I_CFF.create.expect("non-null function pointer"))(),
+        )
+        .unwrap();
+        fd0_box.private_dict = (*table).private_dict.take();
         (*table).private_dict = Some(otfcc_new_cff_private());
         let mut subfont0_name = (*table).font_name.clone();
         subfont0_name.extend_from_slice(b"-subfont0");
-        (*fd0).font_name = subfont0_name;
+        fd0_box.font_name = subfont0_name;
+        (*table).fd_array.push(fd0_box);
         (*table).is_cid = true;
     }
     if (*table).is_cid as ::core::ffi::c_int != 0 && (*table).cid_registry.is_empty() {
@@ -2741,14 +2699,14 @@ unsafe extern "C" fn cff_make_fdselect(
             .unwrap()
             .fd_select
             .index as u8;
-        if fdi0 as ::core::ffi::c_int > (*cff).fd_array_count as ::core::ffi::c_int {
+        if fdi0 as usize > (*cff).fd_array.len() {
             fdi0 = 0 as u8;
         }
         current = fdi0;
         let mut j: GlyphId = 1 as GlyphId;
         while (j as usize) < (*glyf).len() {
             let mut fdi: u8 = (&(*glyf))[j as usize].as_deref().unwrap().fd_select.index as u8;
-            if fdi as ::core::ffi::c_int > (*cff).fd_array_count as ::core::ffi::c_int {
+            if fdi as usize > (*cff).fd_array.len() {
                 fdi = 0 as u8;
             }
             if fdi as ::core::ffi::c_int != current as ::core::ffi::c_int {
@@ -2779,7 +2737,7 @@ unsafe extern "C" fn cff_make_fdselect(
         while (j_0 as usize) < (*glyf).len() {
             let mut fdi_0: u8 =
                 (&(*glyf))[j_0 as usize].as_deref().unwrap().fd_select.index as u8;
-            if fdi_0 as ::core::ffi::c_int > (*cff).fd_array_count as ::core::ffi::c_int {
+            if fdi_0 as usize > (*cff).fd_array.len() {
                 fdi_0 = 0 as u8;
             }
             if (&(*glyf))[j_0 as usize].as_deref().unwrap().fd_select.index as ::core::ffi::c_int
@@ -2811,7 +2769,7 @@ unsafe extern "C" fn callback_makefd(
 ) -> *mut Buffer {
     let mut context: *mut FdArrayCompileContext = _context as *mut FdArrayCompileContext;
     let mut fd: *mut CffDict = cff_make_fd_dict(
-        *(*context).fd_array.offset(i as isize),
+        (&(*(*context).fd_array))[i as usize].as_ref() as *const CffTable as *mut CffTable,
         (*context).string_hash,
     );
     let mut blob: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(fd);
@@ -2831,19 +2789,18 @@ unsafe extern "C" fn callback_makefd(
     return blob;
 }
 unsafe extern "C" fn cff_make_fdarray(
-    mut fd_array_count: TableId,
-    mut fd_array: *mut *mut CffTable,
+    mut fd_array: *const Vec<Box<CffTable>>,
     mut string_hash: *mut indexmap::IndexMap<Vec<u8>, SdsRaw>,
 ) -> *mut CffIndex {
     let mut context: FdArrayCompileContext = FdArrayCompileContext {
-        fd_array: ::core::ptr::null_mut::<*mut CffTable>(),
+        fd_array: ::core::ptr::null::<Vec<Box<CffTable>>>(),
         string_hash: ::core::ptr::null_mut::<indexmap::IndexMap<Vec<u8>, SdsRaw>>(),
     };
     context.fd_array = fd_array;
     context.string_hash = string_hash;
     return CFF_I_INDEX.from_callback.expect("non-null function pointer")(
         &raw mut context as *mut ::core::ffi::c_void,
-        fd_array_count as u32,
+        (*fd_array).len() as u32,
         Some(
             callback_makefd
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
@@ -2877,7 +2834,7 @@ unsafe extern "C" fn writecff_cid_keyed(
     let mut fd_array_index: *mut CffIndex = ::core::ptr::null_mut::<CffIndex>();
     let mut r: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     if (*cff).is_cid {
-        fd_array_index = cff_make_fdarray((*cff).fd_array_count, (*cff).fd_array, &raw mut string_hash);
+        fd_array_index = cff_make_fdarray(&raw const (*cff).fd_array, &raw mut string_hash);
         r = CFF_I_INDEX.build.expect("non-null function pointer")(fd_array_index);
     } else {
         r = __caryll_allocate_clean(
@@ -2998,7 +2955,7 @@ unsafe extern "C" fn writecff_cid_keyed(
     let mut starting_position_of_privates: *mut usize = ::core::ptr::null_mut::<usize>();
     starting_position_of_privates = __caryll_allocate_clean(
         (::core::mem::size_of::<usize>() as usize).wrapping_mul(
-            (1 as ::core::ffi::c_int + (*cff).fd_array_count as ::core::ffi::c_int) as usize,
+            1 + (*cff).fd_array.len(),
         ),
         1350 as ::core::ffi::c_ulong,
     ) as *mut usize;
@@ -3007,7 +2964,7 @@ unsafe extern "C" fn writecff_cid_keyed(
     let mut ending_position_of_privates: *mut usize = ::core::ptr::null_mut::<usize>();
     ending_position_of_privates = __caryll_allocate_clean(
         (::core::mem::size_of::<usize>() as usize).wrapping_mul(
-            (1 as ::core::ffi::c_int + (*cff).fd_array_count as ::core::ffi::c_int) as usize,
+            1 + (*cff).fd_array.len(),
         ),
         1354 as ::core::ffi::c_ulong,
     ) as *mut usize;
@@ -3018,13 +2975,13 @@ unsafe extern "C" fn writecff_cid_keyed(
             ::core::ptr::null_mut::<*mut Buffer>();
         fd_array_privates = __caryll_allocate_clean(
             (::core::mem::size_of::<*mut Buffer>() as usize)
-                .wrapping_mul((*cff).fd_array_count as usize),
+                .wrapping_mul((*cff).fd_array.len()),
             1359 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*cff).fd_array_count as ::core::ffi::c_int {
+        while (j as usize) < (*cff).fd_array.len() {
             let mut pd: *mut CffDict =
-                cff_make_private_dict((**(*cff).fd_array.offset(j as isize)).private_dict.as_deref_mut().map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict));
+                cff_make_private_dict((&mut (*cff).fd_array)[j as usize].private_dict.as_deref_mut().map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict));
             let mut p_0: *mut Buffer =
                 CFF_I_DICT.build.expect("non-null function pointer")(pd);
             bufwrite_bufdel(
@@ -3080,7 +3037,7 @@ unsafe extern "C" fn writecff_cid_keyed(
         CFF_I_INDEX.free.expect("non-null function pointer")(fd_array_index);
         bufwrite_bufdel(blob, r);
         let mut j_0: TableId = 0 as TableId;
-        while (j_0 as ::core::ffi::c_int) < (*cff).fd_array_count as ::core::ffi::c_int {
+        while (j_0 as usize) < (*cff).fd_array.len() {
             *starting_position_of_privates
                 .offset((j_0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize) =
                 (*blob).cursor;
@@ -3099,7 +3056,7 @@ unsafe extern "C" fn writecff_cid_keyed(
     bufwrite_bufdel(blob, ls);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as ::core::ffi::c_int)
-        < (*cff).fd_array_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int
+        < (*cff).fd_array.len() as ::core::ffi::c_int + 1 as ::core::ffi::c_int
     {
         let mut ls_offset: usize = position_of_local_subroutines
             .wrapping_sub(*starting_position_of_privates.offset(j_1 as isize));
