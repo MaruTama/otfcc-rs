@@ -894,6 +894,50 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`LigatureBaseRecord.anchors` is `Vec<Vec<Anchor>>` now, not `*mut *mut
+  Anchor` (B-3-4 of the remaining-three-themes plan) — the first genuinely
+  2D field of the 7.** `anchors[component][class]`: outer dimension sized by
+  `component_count`, inner by the enclosing subtable's `class_count`.
+  `Anchor` is `Copy` (as established in B-3-1), so both dimensions are plain
+  `Vec`s with no nested pointers or per-element free once built — `Vec<Vec
+  <Anchor>>` maps the shape directly, no `Option` needed at either level
+  (an absent outer array is just an empty `Vec`, exactly what
+  `component_count == 0` already meant).
+  - **Same cascade as B-3-1, one level up.** `anchors` and `glyph:
+    GlyphHandle` both self-drop, so `delete_lig_array_item` is deleted
+    outright and `dispose_lig_array` collapses to `*arr = Vec::new()`
+    (kept — `consolidate/otl/mark.rs`'s dedup pass still clears an in-place
+    array mid-function, the same real caller B-3-1's `dispose_base_array`
+    had). One level up, `mark_array` already self-dropped before this PR, so
+    with `lig_array` now self-dropping too, `dispose_mark_to_ligature`
+    becomes pure dead weight — deleted, `Subtable::drop`'s
+    `GposMarkToLigature` arm becomes a no-op, `subtable_gpos_mark_to_ligature_free`
+    switches to the `ptr::read` + `drop` + `free` idiom. `component_count`
+    itself was left as a separate field rather than folded into
+    `.anchors.len()` — same call as B-3-1's `class_count`, and here doubly
+    so: the read path sets `component_count` *before* `anchors` is built, so
+    collapsing them would mean restructuring construction order, not just
+    swapping a field for a method call.
+  - **Two sites needed pre-sizing instead of `.push()`**, same reason as
+    B-3-1's: `parse_bases`'s JSON-driven construction fills each component's
+    class slots by `class_id` out of key order, so each inner `Vec` is built
+    via `vec![otl_anchor_absent(); class_count]` up front, then indexed —
+    not appended to.
+  - The dump function's nested `.offset(k).offset(m)` reads needed a `&Vec
+    <Vec<Anchor>>` hoisted once per outer loop iteration (`dangerous_implicit_autorefs`,
+    same lint hit repeatedly in the CFF fd_array work) rather than an inline
+    `(*base).anchors[k][m]` — indexing through a raw-pointer deref twice in
+    one expression is exactly what that lint exists to catch.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 44/44 unit tests, ABI at exactly 4 symbols,
+    every standard payload byte-identical in both directions including the
+    `otfccdll` cdylib, all 10 round-trip payloads stable, issue #1's
+    regression test green, and the `mark-consolidate` dedup payload (which
+    exercises both the mark-to-base *and* mark-to-ligature dedup paths in
+    one forged font — the log output for this field literally reads
+    "Ignored anchor double-definition for /uni0302") byte-identical against
+    the C reference on both platforms.
+
 - **`GsubLigatureEntry.from` is `Coverage` now, not `*mut Coverage` (B-3-3 of
   the remaining-three-themes plan) — same shape as B-3-2's `GsubMultiEntry.to`,
   in the sibling GSUB subtable.** Reused `coverage_from_raw` (added in B-3-2)
