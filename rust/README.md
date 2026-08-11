@@ -894,6 +894,78 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`ChainingRule.match_0` is `Vec<Coverage>` now, not `*mut *mut Coverage`
+  (B-3-6 of the remaining-three-themes plan, the sixth of 7 raw-pointer
+  fields) — and its custom `Drop` impl is gone entirely.** Spread across 7
+  files (`table/otl.rs`, `chaining/{read,parse,build,classifier,dump}.rs`,
+  `consolidate/otl/chaining.rs`), the widest-reaching of the 7 fields so far
+  by file count, though every site was one of the same few mechanical shapes
+  established in B-3-1..5.
+  - **The biggest `Drop` deletion in the B-3 series.** `ChainingRule` used to
+    need a hand-written `impl Drop` solely to free `match_0`'s per-element
+    `Coverage`s and its own backing array (`apply` already self-dropped from
+    an earlier PR). With `match_0` now a real `Vec<Coverage>`, both fields
+    self-drop and the whole `impl Drop for ChainingRule` block is deleted —
+    compiler-generated glue takes over completely. `close_rule` (used for
+    the `Canonical` variant's `ManuallyDrop<ChainingRule>`, never
+    `Box`-owned) needed no change at all: it already ran the type's `Drop`
+    glue via `ptr::drop_in_place`, whatever that glue happens to be.
+  - **Two construction shapes, same helper.** `chaining/read.rs`'s two rule
+    builders (`general_read_contextual_rule`, `general_read_chaining_rule`)
+    fill `match_0` in strict sequential order, so both switched from
+    `__caryll_allocate_clean` + offset-indexed writes to
+    `Vec::with_capacity` + `.push(coverage_from_raw(...))` — reusing B-3-2's
+    helper again — which made the `jj`/`j`-counter variables in both
+    functions fully redundant (confirmed via grep: never read for anything
+    but indexing) and let them be deleted outright.
+    `chaining/classifier.rs`'s `build_rule` is the same sequential shape,
+    filling from already-in-memory data rather than parsed JSON.
+  - **The `malloc`-not-`calloc` trap, recognized and handled the same way as
+    B-3-5, twice in one function.** `chaining/parse.rs`'s
+    `otl_parse_chaining` constructs `rule` as a raw pointer into a
+    `ManuallyDrop<ChainingRule>` union arm inside a `malloc`+`memset`-zeroed
+    `ChainingSubtable`. The existing code already used
+    `::core::ptr::write(&raw mut (*rule).apply, ...)` for the adjacent
+    `apply` field for exactly this reason (memset-zeroed bytes aren't a
+    valid `Vec` bit pattern, so plain `=` would try to drop garbage first);
+    `match_0` got the identical treatment,
+    `::core::ptr::write(&raw mut (*rule).match_0, Vec::with_capacity(...))`,
+    right next to it.
+  - **Two independent `reverse_backtracks` functions, same file-local name,
+    same simplification.** `chaining/read.rs` and `chaining/build.rs` each
+    define their own `reverse_backtracks(rule: *mut ChainingRule)` (2 and 2
+    call sites respectively, none crossing the file boundary) — both were
+    manual meet-in-the-middle index-swap loops over `*mut *mut Coverage`,
+    both collapsed to a one-line slice reversal now that `match_0` is a
+    `Vec`. Neither needed a signature change, unlike B-3-5's version (which
+    took the array pointer directly rather than the owning struct).
+    `dangerous_implicit_autorefs` required an explicit `&mut` around the
+    field before slicing — `(&mut (*rule).match_0)[..input_begins]
+    .reverse()` — the same shape used everywhere else in this migration when
+    a `Vec` is reached through a raw-pointer deref.
+  - **`chaining/build.rs` and `chaining/classifier.rs`'s `(**(*rule)
+    .match_0.offset(n)))[0]` reads collapse to plain double-indexing.**
+    `match_0: *mut *mut Coverage` meant reaching an element needed two
+    dereferences past the offset; `Vec<Coverage>` (`Coverage = Vec
+    <GlyphHandle>`) makes the same read `(&(*rule).match_0)[n as usize][0]`
+    — one indexing operation per dimension, no pointer arithmetic. The
+    `OTL_I_COVERAGE.build`/`.dump` vtable calls (which take `*const
+    Coverage`) and the `class_compatible`/`fontop_consolidate_coverage`/
+    `shrink_coverage` calls (which take `*mut Coverage`) both needed a
+    single element reference derived explicitly (`&(&(*rule).match_0)[n] as
+    *const Coverage` / `&mut (&mut (*rule).match_0)[n] as *mut Coverage`),
+    the same explicit-reference-before-raw-cast idiom used throughout this
+    series to satisfy `dangerous_implicit_autorefs`.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 44/44 unit tests, ABI at exactly 4 symbols,
+    every standard payload byte-identical in both directions including the
+    `otfccdll` cdylib, all 10 round-trip payloads stable, and issue #1's
+    regression test green. No dedicated `chaining` dedup payload exists
+    among `rust/scripts/make-test-*-dedup.py`, but real coverage isn't
+    thin here — `NotoNastaliqUrdu-Regular` and `iosevka-r` both carry
+    `gsub_chaining`/`gpos_chaining` lookups in the standard payload set,
+    exercised byte-identically by `compare-with-c.sh` on both platforms.
+
 - **`GsubReverseSubtable.match_0` is `Vec<Coverage>` now (was `*mut *mut
   Coverage`) and `.to` is `Coverage` (was `*mut Coverage`) — B-3-5 of the
   remaining-three-themes plan, the fifth of 7 raw-pointer fields.** Reused

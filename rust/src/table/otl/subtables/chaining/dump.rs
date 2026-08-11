@@ -6,7 +6,7 @@ use crate::support::json_funcs::{preserialize};
 use crate::support::primitives::{TableId};
 use crate::vendor::json::JsonValue;
 use crate::table::otl::{ChainingRule, Subtable, ChainingSubtable};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{Coverage, OTL_I_COVERAGE};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new_from_bytes};
 
 pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut JsonValue {
@@ -23,7 +23,7 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *m
         json_array_push(
             _match,
             OTL_I_COVERAGE.dump.expect("non-null function pointer")(
-                *(*rule).match_0.offset(j as isize),
+                &(&(*rule).match_0)[j as usize] as *const Coverage,
             ),
         );
         j = j.wrapping_add(1);

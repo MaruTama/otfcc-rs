@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
-use crate::table::otl::coverage::{Coverage, otl_coverage_create, push_to_coverage};
+use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, push_to_coverage};
 use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, HandleState, GlyphHandle, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -101,19 +101,13 @@ unsafe extern "C" fn build_rule(
         match_count: (*rule).match_count,
         input_begins: (*rule).input_begins,
         input_ends: (*rule).input_ends,
-        match_0: ::core::ptr::null_mut::<*mut Coverage>(),
+        match_0: Vec::with_capacity((*rule).match_count as usize),
         apply: Vec::new(),
     });
-    (*new_rule).match_0 = __caryll_allocate_clean(
-        (::core::mem::size_of::<*mut Coverage>() as usize)
-            .wrapping_mul((*new_rule).match_count as usize),
-        92 as ::core::ffi::c_ulong,
-    ) as *mut *mut Coverage;
     let mut m: TableId = 0 as TableId;
     while (m as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-        let ref mut fresh9 = *(*new_rule).match_0.offset(m as isize);
-        *fresh9 = otl_coverage_create();
-        if (**(*rule).match_0.offset(m as isize)).len() > 0 as usize
+        let cov: *mut Coverage = otl_coverage_create();
+        if (&(*rule).match_0)[m as usize].len() > 0 as usize
         {
             let h: &std::collections::BTreeMap<GlyphId, ClassifierValue> =
                 if (m as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
@@ -123,7 +117,7 @@ unsafe extern "C" fn build_rule(
                 } else {
                     hf
                 };
-            let gid: GlyphId = (&(**(*rule).match_0.offset(m as isize)))[0].index;
+            let gid: GlyphId = (&(*rule).match_0)[m as usize][0].index;
             // `h.get(&gid)` is unreachable-as-`None` in practice: every
             // glyph reaching this point already passed `class_compatible`
             // for this same `h`, which never returns success without
@@ -137,16 +131,11 @@ unsafe extern "C" fn build_rule(
                 Some(v) => v.cls as GlyphClass,
                 None => 0 as GlyphClass,
             };
-            push_to_coverage(
-                *(*new_rule).match_0.offset(m as isize),
-                handle_from_index(cls) as GlyphHandle,
-            );
+            push_to_coverage(cov, handle_from_index(cls) as GlyphHandle);
         } else {
-            push_to_coverage(
-                *(*new_rule).match_0.offset(m as isize),
-                handle_from_index(0 as GlyphId) as GlyphHandle,
-            );
+            push_to_coverage(cov, handle_from_index(0 as GlyphId) as GlyphHandle);
         }
+        (*new_rule).match_0.push(coverage_from_raw(cov));
         m = m.wrapping_add(1);
     }
     // Plain assignment is fine here (unlike the calloc'd-memory case
@@ -213,19 +202,19 @@ pub unsafe extern "C" fn try_classify_around(
         if (m as ::core::ffi::c_int) < (*rule0).input_begins as ::core::ffi::c_int {
             check = class_compatible(
                 &mut hb,
-                *(*rule0).match_0.offset(m as isize),
+                &mut (&mut (*rule0).match_0)[m as usize] as *mut Coverage,
                 &raw mut classno_b,
             );
         } else if (m as ::core::ffi::c_int) < (*rule0).input_ends as ::core::ffi::c_int {
             check = class_compatible(
                 &mut hi,
-                *(*rule0).match_0.offset(m as isize),
+                &mut (&mut (*rule0).match_0)[m as usize] as *mut Coverage,
                 &raw mut classno_i,
             );
         } else {
             check = class_compatible(
                 &mut hf,
-                *(*rule0).match_0.offset(m as isize),
+                &mut (&mut (*rule0).match_0)[m as usize] as *mut Coverage,
                 &raw mut classno_f,
             );
         }
@@ -251,20 +240,20 @@ pub unsafe extern "C" fn try_classify_around(
                     if (m_0 as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
                         check_0 = class_compatible(
                             &mut hb,
-                            *(*rule).match_0.offset(m_0 as isize),
+                            &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
                             &raw mut classno_b,
                         );
                     } else if (m_0 as ::core::ffi::c_int) < (*rule).input_ends as ::core::ffi::c_int
                     {
                         check_0 = class_compatible(
                             &mut hi,
-                            *(*rule).match_0.offset(m_0 as isize),
+                            &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
                             &raw mut classno_i,
                         );
                     } else {
                         check_0 = class_compatible(
                             &mut hf,
-                            *(*rule).match_0.offset(m_0 as isize),
+                            &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
                             &raw mut classno_f,
                         );
                     }

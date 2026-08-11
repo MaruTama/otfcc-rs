@@ -400,38 +400,20 @@ pub struct ChainingRuleSet {
 /// but its container isn't `Vec`-backed yet" gap in this crate. No
 /// `apply_count` field survives: every read site now uses `apply.len()`.
 ///
-/// `Drop` replaces the old `close_rule` helper's manual `match_0` teardown
-/// (`apply`'s `Vec` already disposes itself). Needed now that `.rules`
-/// owns its elements via `Box<ChainingRule>` -- dropping the `Vec` must
-/// fully tear down each rule, not just free the box's own allocation.
-/// `close_rule` still exists for the `Canonical` variant (`ChainingBody.rule:
-/// ManuallyDrop<ChainingRule>`, never `Box`-owned), but now just calls
-/// `ptr::drop_in_place` to run this same `Drop` impl through a raw pointer.
-/// No `Clone` (removed): a derived one would shallow-copy `match_0`,
-/// aliasing two `ChainingRule`s onto one heap array that `Drop` then frees
-/// twice -- nothing in the crate actually calls `.clone()` on this type.
+/// `match_0` (`*mut *mut Coverage` -> `Vec<Coverage>`) was the last field
+/// needing a custom teardown, so no manual `Drop` impl remains: both fields
+/// now self-drop, and the compiler-generated glue tears down a
+/// `ChainingRule` correctly whether it's reached via `.rules: Vec<Option<
+/// Box<ChainingRule>>>` or via `close_rule`'s `ptr::drop_in_place` on the
+/// `Canonical` variant's `ManuallyDrop<ChainingRule>` (`close_rule` needed
+/// no change: `drop_in_place` already ran whatever `Drop` glue exists).
 #[repr(C)]
 pub struct ChainingRule {
     pub match_count: TableId,
     pub input_begins: TableId,
     pub input_ends: TableId,
-    pub match_0: *mut *mut Coverage,
+    pub match_0: Vec<Coverage>,
     pub apply: Vec<ChainLookupApplication>,
-}
-impl Drop for ChainingRule {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.match_0.is_null() && self.match_count as ::core::ffi::c_int != 0 {
-                let mut k: TableId = 0 as TableId;
-                while (k as ::core::ffi::c_int) < self.match_count as ::core::ffi::c_int {
-                    crate::table::otl::coverage::otl_coverage_free(*self.match_0.offset(k as isize));
-                    k = k.wrapping_add(1);
-                }
-                free(self.match_0 as *mut ::core::ffi::c_void);
-                self.match_0 = ::core::ptr::null_mut::<*mut Coverage>();
-            }
-        }
-    }
 }
 /// `lookup: LookupHandle` (= `Handle`) already has a real `Drop`/`Clone`
 /// impl (the Handle pilot), so `Vec<ChainLookupApplication>`'s own drop

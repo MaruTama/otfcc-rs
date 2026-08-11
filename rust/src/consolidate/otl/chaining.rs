@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::table::otl::coverage::shrink_coverage;
+use crate::table::otl::coverage::{Coverage, shrink_coverage};
 use crate::support::handle::{HandleState, handle_name_eq_bytes, Handle, otfcc_handle_dispose, LookupHandle};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
@@ -38,13 +38,17 @@ pub unsafe extern "C" fn consolidate_chaining(
     let mut possible: bool = true;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-        fontop_consolidate_coverage(font, *(*rule).match_0.offset(j as isize), options);
+        fontop_consolidate_coverage(
+            font,
+            &mut (&mut (*rule).match_0)[j as usize] as *mut Coverage,
+            options,
+        );
         shrink_coverage(
-            *(*rule).match_0.offset(j as isize),
+            &mut (&mut (*rule).match_0)[j as usize] as *mut Coverage,
             true,
         );
         possible = possible as ::core::ffi::c_int != 0
-            && (**(*rule).match_0.offset(j as isize)).len() as ::core::ffi::c_int
+            && (&(*rule).match_0)[j as usize].len() as ::core::ffi::c_int
                 > 0 as ::core::ffi::c_int;
         j = j.wrapping_add(1);
     }
