@@ -909,18 +909,59 @@ on the other platform before a commit is trusted.
   typedefs, and `ctype_class_bits`, whose twelve constants are the bitmasks
   c2rust's expansion of `<ctype.h>` tests against — nine of them tested by
   nothing at all — so it wants deleting rather than typing.
-- **The two CFF operator tables want to be newtypes.** `cff_DictOperator` and
-  `cff_CharstringOperator` are `i32` aliases now, which is honest about what
-  they are — numbers, not a closed set — and cost 155 casts to say so. What it
-  does not buy is the one check worth having: **38 of the numbers mean one thing
-  in a DICT and something else in a CharString** (`op_Notice` and `op_hstem` are
-  both 1; `op_FDArray` and `op_hflex1` are both 3108). Nothing is wrong today —
-  the 105 names never collide and the two sets are read by disjoint code — but
-  the compiler cannot see the distinction through an alias.
-  `the_two_operator_tables_share_numbers` records the overlap. Making them
-  newtypes means giving `cffdict_input_*` and `il_push_op` the specific type
-  instead of a bare integer, which is a change to the CharString interpreter's
-  plumbing and belongs in its own PR.
+- **The two CFF operator tables are newtypes: done.** `CffDictOperator` and
+  `CffCharstringOperator` were `i32` aliases, which was honest about what they
+  are — numbers, not a closed set — but bought none of the one check worth
+  having: **38 of the numbers mean one thing in a DICT and something else in a
+  CharString** (`OP_NOTICE` and `OP_HSTEM` are both 1; `OP_FD_ARRAY` and
+  `OP_HFLEX1` are both 3108). Nothing was ever wrong — the 105 names never
+  collide and the two sets are read by disjoint code — but the compiler could
+  not see the distinction through an alias, and `cffdict_input_ints(dict,
+  OP_HSTEM, ..)` would have compiled. Now it does not. Both are
+  `#[repr(transparent)]` newtypes, not `enum`s, for the same reason
+  `LookupType` is one: an operator otfcc does not know has to travel through
+  unchanged rather than fail to construct.
+  - **The inner widths differ, and that is deliberate.** `CffDictOperator(u32)`
+    matches the width the dict machinery already used everywhere
+    (`CffDictEntry.op`, `parse_dict_key`, `CffGetKeyContext.op`, both extract
+    callbacks), so wrapping it **removed** 47 `as u32` casts rather than adding
+    any. `CffCharstringOperator(i32)` matches the `i32` arm of
+    `CffCharstringInstruction`'s argument union.
+  - **The CharString storage field stays a bare `i32`.** That `.i` arm is shared:
+    `CffInstructionType::Special` puts non-operator bytes in the very same
+    field, so typing the field would have broken the `Special` path while
+    looking correct. What the newtype covers is everything *flowing into* it —
+    `il_push_op`, `il_matchop`, `zroll`, `opop_roll`, `_il_push_maskgroup`,
+    `_il_push_stemgroup`, `cff_get_standard_arity`, `cff_merge_cs2_operator` —
+    which is exactly where a DICT operator could have been passed by mistake.
+    The three places that read an operator back out of the arm now wrap it
+    explicitly at the point where the surrounding `match` has already proved it
+    is an operator.
+  - **The 105 constant declarations and every `match` body were left alone.**
+    Arms stayed bare integer literals; the functions that dispatch on an
+    operator (`op_cff_name`, `op_cs2_name`, `cff_get_standard_arity`, both
+    extract callbacks) match on `op.0`. Rewriting ~200 arms into
+    `CffDictOperator(n) =>` would have been a much larger diff for a table that
+    reads worse.
+  - **Two functions turned out to be dead**: `op_cff_name` and `op_cs2_name`
+    have no callers anywhere in the crate and are not among the four exported
+    symbols. Kept rather than deleted — they are libcff's own API, and they are
+    the clearest illustration of the split, being the two halves of the name
+    table sitting side by side in one file. They now carry the specific types.
+  - `the_two_operator_tables_share_numbers` no longer compiles as written:
+    `assert_eq!(OP_NOTICE, OP_HSTEM)` is a type error now, which is the check
+    this PR bought. Rewritten to reach for `.0` on each side, so the overlap is
+    still recorded but saying it takes an explicit unwrap.
+  - Verified with the standard full pipeline on both platforms (macOS arm64 and
+    the Linux container): 44/44 unit tests, ABI at exactly 4 symbols, every
+    payload byte-identical in both directions including the `otfccdll` cdylib,
+    all 10 round-trip payloads stable, and issue #1's regression test green.
+    Beyond the standard set, `tests/cffdump-opcode-check.js` was run against all
+    18 `tests/payload/cffspecial/*.otf` fonts — one per Type 2 arithmetic
+    operator (`abs`, `add`, `and`, `div`, `drop`, `dup`, `eq`, `exch`,
+    `ifelse`, `index`, `mul`, `neg`, `not`, `or`, `put`/`get`, `roll`, `sqrt`,
+    `sub`) — because those exercise the CharString interpreter arms this PR
+    retyped and the standard payloads do not reach all of them.
 - **`sdslen` is consolidated: done.** The last duplicated `static inline` from
   `sds.h` — 20 identical copies (confirmed byte-for-byte after whitespace
   normalization before deleting any of them), one per file that measured an

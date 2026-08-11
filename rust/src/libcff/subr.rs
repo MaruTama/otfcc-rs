@@ -7,6 +7,7 @@ use crate::logger::{LoggerType, LOG_VL_PROGRESS, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 
+use crate::libcff::CffCharstringOperator;
 use crate::libcff::{OP_CALLGSUBR, OP_CALLSUBR, OP_ENDCHAR, OP_RETURN, TYPE2_MAX_SUBRS, TYPE2_SUBR_NESTING};
 use crate::libcff::cff_index::CffIndex;
 use crate::libcff::charstring_il::{CffCharstringIl};
@@ -502,9 +503,12 @@ pub unsafe extern "C" fn cff_insert_il_to_graph(
                 cff_merge_cs2_operand(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.d);
             }
             1 => {
-                cff_merge_cs2_operator(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.i);
+                cff_merge_cs2_operator(
+                    blob,
+                    CffCharstringOperator((*(*il).instr.offset(j as isize)).c2rust_unnamed.i),
+                );
                 if (*(*il).instr.offset(j as isize)).c2rust_unnamed.i
-                    == OP_ENDCHAR
+                    == OP_ENDCHAR.0
                 {
                     last = true;
                 }
