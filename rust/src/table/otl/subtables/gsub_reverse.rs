@@ -3,10 +3,9 @@ use libc::{free, malloc, memcpy};
 
 
 use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum_fallback};
-use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
+use crate::table::otl::coverage::{Coverage, coverage_from_raw, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, GlyphHandle};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 
 use crate::support::buffer::{Buffer};
@@ -24,23 +23,21 @@ use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_
 
 #[inline]
 unsafe extern "C" fn init_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
-    (*subtable).match_0 = ::core::ptr::null_mut::<*mut Coverage>();
-    (*subtable).to = ::core::ptr::null_mut::<Coverage>();
+    // `.write()`, not a field assignment: `subtable` is fresh from
+    // `malloc` (uninitialized, not zeroed), so there is nothing valid to
+    // drop first -- an `=` here would attempt to drop whatever garbage
+    // bytes were already there.
+    (&raw mut (*subtable).match_0).write(Vec::new());
+    (&raw mut (*subtable).to).write(Vec::new());
 }
 #[inline]
 pub(crate) unsafe extern "C" fn dispose_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
-    if !(*subtable).match_0.is_null() {
-        let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
-            otl_coverage_free(
-                *(*subtable).match_0.offset(j as isize),
-            );
-            j = j.wrapping_add(1);
-        }
-    }
-    if !(*subtable).to.is_null() {
-        otl_coverage_free((*subtable).to);
-    }
+    // Both fields are real `Vec`s by the time this runs (never called on
+    // the freshly-`malloc`'d, not-yet-`init`'d state) -- assigning a fresh
+    // empty one drops the old contents correctly, no manual per-element
+    // walk needed anymore.
+    (*subtable).match_0 = Vec::new();
+    (*subtable).to = Vec::new();
 }
 #[inline]
 unsafe extern "C" fn subtable_gsub_reverse_dispose(mut x: *mut GsubReverseSubtable) {
@@ -98,24 +95,13 @@ unsafe extern "C" fn subtable_gsub_reverse_copy(
         ::core::mem::size_of::<GsubReverseSubtable>() as usize,
     );
 }
-unsafe extern "C" fn reverse_backtracks(
-    mut match_0: *mut *mut Coverage,
-    mut input_index: TableId,
-) {
-    if input_index as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-        let mut start: TableId = 0 as TableId;
-        let mut end: TableId =
-            (input_index as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
-        while end as ::core::ffi::c_int > start as ::core::ffi::c_int {
-            let mut tmp: *mut Coverage = *match_0.offset(start as isize);
-            let ref mut fresh3 = *match_0.offset(start as isize);
-            *fresh3 = *match_0.offset(end as isize);
-            let ref mut fresh4 = *match_0.offset(end as isize);
-            *fresh4 = tmp;
-            end = end.wrapping_sub(1);
-            start = start.wrapping_add(1);
-        }
-    }
+// Was a manual index-swapping loop over `start..end`, meeting in the
+// middle -- exactly what `[T]::reverse` does, now that `match_0` is a real
+// `Vec<Coverage>` slice instead of an array of raw pointers to swap by
+// value. `input_index == 0` (nothing to reverse) falls out of slicing an
+// empty range, no separate guard needed.
+unsafe fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
+    match_0[..input_index as usize].reverse();
 }
 pub unsafe extern "C" fn otl_read_gsub_reverse(
     data: FontFilePointer,
@@ -174,11 +160,16 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                         + n_forward as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as TableId;
-                    (*subtable).match_0 = __caryll_allocate_clean(
-                        (::core::mem::size_of::<*mut Coverage>() as usize)
-                            .wrapping_mul((*subtable).match_count as usize),
-                        47 as ::core::ffi::c_ulong,
-                    ) as *mut *mut Coverage;
+                    // Filled out of sequential order below (backtrack slots,
+                    // then the input slot at `input_index`, then forward
+                    // slots) -- every one of the `match_count` slots is
+                    // written exactly once by the time this subtable is
+                    // returned, so pre-sizing with placeholder empty
+                    // `Coverage`s and index-assigning is the direct
+                    // replacement for the old `offset`-indexed writes into
+                    // `__caryll_allocate_clean`'d memory.
+                    (*subtable).match_0 =
+                        vec![Coverage::new(); (*subtable).match_count as usize];
                     (*subtable).input_index = n_backtrack;
                     let mut j: TableId = 0 as TableId;
                     while (j as ::core::ffi::c_int) < n_backtrack as ::core::ffi::c_int {
@@ -190,12 +181,11 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                                 ) as *const u8,
                         )
                             as u32);
-                        let ref mut fresh0 = *(*subtable).match_0.offset(j as isize);
-                        *fresh0 = read_coverage(
+                        (&mut (*subtable).match_0)[j as usize] = coverage_from_raw(read_coverage(
                             data as *const u8,
                             table_length,
                             cov_offset,
-                        );
+                        ));
                         j = j.wrapping_add(1);
                     }
                     let mut cov_offset_0: u32 = offset.wrapping_add(read_16u(
@@ -204,15 +194,13 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                             as *const u8,
                     )
                         as u32);
-                    let ref mut fresh1 =
-                        *(*subtable).match_0.offset((*subtable).input_index as isize);
-                    *fresh1 = read_coverage(
+                    (&mut (*subtable).match_0)[(*subtable).input_index as usize] = coverage_from_raw(read_coverage(
                         data as *const u8,
                         table_length,
                         cov_offset_0,
-                    );
+                    ));
                     if !(n_replacement as usize
-                        != (*(*(*subtable).match_0.offset((*subtable).input_index as isize))).len())
+                        != (&(*subtable).match_0)[(*subtable).input_index as usize].len())
                     {
                         let mut j_0: TableId = 0 as TableId;
                         while (j_0 as ::core::ffi::c_int) < n_forward as ::core::ffi::c_int {
@@ -229,24 +217,22 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                                     ) as *const u8,
                             )
                                 as u32);
-                            let ref mut fresh2 = *(*subtable).match_0.offset(
-                                (n_backtrack as ::core::ffi::c_int
-                                    + 1 as ::core::ffi::c_int
-                                    + j_0 as ::core::ffi::c_int)
-                                    as isize,
-                            );
-                            *fresh2 = read_coverage(
+                            let fwd_idx: usize = (n_backtrack as ::core::ffi::c_int
+                                + 1 as ::core::ffi::c_int
+                                + j_0 as ::core::ffi::c_int)
+                                as usize;
+                            (&mut (*subtable).match_0)[fwd_idx] = coverage_from_raw(read_coverage(
                                 data as *const u8,
                                 table_length,
                                 cov_offset_1,
-                            );
+                            ));
                             j_0 = j_0.wrapping_add(1);
                         }
-                        (*subtable).to = otl_coverage_create();
+                        (*subtable).to = Coverage::new();
                         let mut j_1: TableId = 0 as TableId;
                         while (j_1 as ::core::ffi::c_int) < n_replacement as ::core::ffi::c_int {
                             push_to_coverage(
-                                (*subtable).to,
+                                &mut (*subtable).to as *mut Coverage,
                                 handle_from_index(
                                     read_16u(
                                         data.offset(offset as isize)
@@ -264,7 +250,7 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
                             );
                             j_1 = j_1.wrapping_add(1);
                         }
-                        reverse_backtracks((*subtable).match_0, (*subtable).input_index);
+                        reverse_backtracks(&mut (*subtable).match_0, (*subtable).input_index);
                         return subtable_from_raw(subtable, Subtable::GsubReverse);
                     }
                 }
@@ -288,7 +274,7 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
         json_array_push(
             _match,
             OTL_I_COVERAGE.dump.expect("non-null function pointer")(
-                *(*subtable).match_0.offset(j as isize),
+                &(&(*subtable).match_0)[j as usize] as *const Coverage,
             ),
         );
         j = j.wrapping_add(1);
@@ -301,7 +287,7 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
     json_object_push(
         _st,
         b"to\0" as *const u8 as *const ::core::ffi::c_char,
-        OTL_I_COVERAGE.dump.expect("non-null function pointer")((*subtable).to),
+        OTL_I_COVERAGE.dump.expect("non-null function pointer")(&(*subtable).to as *const Coverage),
     );
     json_object_push(
         _st,
@@ -333,11 +319,7 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
                 .create
                 .expect("non-null function pointer"))();
     (*subtable).match_count = (*_match).u.array.length as TableId;
-    (*subtable).match_0 = __caryll_allocate_clean(
-        (::core::mem::size_of::<*mut Coverage>() as usize)
-            .wrapping_mul((*subtable).match_count as usize),
-        100 as ::core::ffi::c_ulong,
-    ) as *mut *mut Coverage;
+    (*subtable).match_0 = Vec::with_capacity((*subtable).match_count as usize);
     (*subtable).input_index = json_obj_getnum_fallback(
         _subtable,
         b"inputIndex\0" as *const u8 as *const ::core::ffi::c_char,
@@ -345,13 +327,16 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
     ) as TableId;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
-        let ref mut fresh5 = *(*subtable).match_0.offset(j as isize);
-        *fresh5 = OTL_I_COVERAGE.parse.expect("non-null function pointer")(
-            *(*_match).u.array.values.offset(j as isize),
-        );
+        (*subtable).match_0.push(coverage_from_raw(
+            OTL_I_COVERAGE.parse.expect("non-null function pointer")(
+                *(*_match).u.array.values.offset(j as isize),
+            ),
+        ));
         j = j.wrapping_add(1);
     }
-    (*subtable).to = OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to);
+    (*subtable).to = coverage_from_raw(
+        OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to),
+    );
     return subtable_from_raw(subtable, Subtable::GsubReverse);
 }
 pub unsafe extern "C" fn otfcc_build_gsub_reverse(
@@ -360,15 +345,23 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
 ) -> *mut Buffer {
     let Subtable::GsubReverse(mut_subtable) = &*_subtable else { unreachable!() };
     let subtable: *const GsubReverseSubtable = mut_subtable;
-    reverse_backtracks((*subtable).match_0, (*subtable).input_index);
+    // `subtable` is `*const` because every other read in this function is
+    // read-only, but sorting `match_0`'s backtrack portion into wire order
+    // in place is pre-existing behavior (unchanged by this field's type),
+    // and nothing else touches `_subtable` during a build pass -- sound to
+    // cast away constness just for this one call.
+    reverse_backtracks(
+        &mut (*(subtable as *mut GsubReverseSubtable)).match_0,
+        (*subtable).input_index,
+    );
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
-            *(*subtable).match_0.offset((*subtable).input_index as isize),
+            &(&(*subtable).match_0)[(*subtable).input_index as usize] as *const Coverage,
         )))]);
     bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).input_index as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).input_index as ::core::ffi::c_int {
         bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
-                *(*subtable).match_0.offset(j as isize),
+                &(&(*subtable).match_0)[j as usize] as *const Coverage,
             )))]);
         j = j.wrapping_add(1);
     }
@@ -379,14 +372,14 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
         ((*subtable).input_index as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
     while (j_0 as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
         bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
-                *(*subtable).match_0.offset(j_0 as isize),
+                &(&(*subtable).match_0)[j_0 as usize] as *const Coverage,
             )))]);
         j_0 = j_0.wrapping_add(1);
     }
-    bk_push(root, &[bk_int(BkCellType::B16, ((*(*subtable).to).len() as ::core::ffi::c_int) as u32)]);
+    bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).to.len() as ::core::ffi::c_int) as u32)]);
     let mut j_1: TableId = 0 as TableId;
-    while (j_1 as usize) < (*(*subtable).to).len() {
-        bk_push(root, &[bk_int(BkCellType::B16, ((&(*(*subtable).to))[j_1 as usize].index as ::core::ffi::c_int) as u32)]);
+    while (j_1 as usize) < (*subtable).to.len() {
+        bk_push(root, &[bk_int(BkCellType::B16, ((&(*subtable).to)[j_1 as usize].index as ::core::ffi::c_int) as u32)]);
         j_1 = j_1.wrapping_add(1);
     }
     return bk_build_block(root);

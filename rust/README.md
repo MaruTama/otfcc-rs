@@ -894,6 +894,61 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`GsubReverseSubtable.match_0` is `Vec<Coverage>` now (was `*mut *mut
+  Coverage`) and `.to` is `Coverage` (was `*mut Coverage`) — B-3-5 of the
+  remaining-three-themes plan, the fifth of 7 raw-pointer fields.** Reused
+  `coverage_from_raw` (B-3-2) for every construction site; `match_0`'s slots
+  are filled out of sequential order (backtrack positions, then the input
+  glyph at `input_index`, then forward positions), so it's pre-sized with
+  placeholder empty `Coverage`s and index-assigned, the same shape B-3-1's
+  `parse_bases` needed.
+  - **`reverse_backtracks` collapsed to one line.** Its manual
+    meet-in-the-middle index-swapping loop over `*mut *mut Coverage` was
+    always exactly `[T]::reverse` on the backtrack sub-slice — `Vec<Coverage>`
+    makes that literal: `match_0[..input_index as usize].reverse()`. Retyped
+    its parameter from a raw pointer to `&mut [Coverage]`, the only one of
+    the 7 fields' helper functions in this series whose *signature* changed
+    rather than just its body, since nothing else calls it (2 sites, both in
+    this file) and the safe-slice version is strictly simpler than any raw
+    pointer arithmetic version would be.
+  - **The `malloc`-not-`calloc` trap, hit for real this time.**
+    `subtable_gsub_reverse_create` mallocs (not calloc's) the shell, and
+    `init_gsub_reverse` used to write null pointers into `match_0`/`to` —
+    a plain field assignment, harmless for raw pointers. With `Vec` fields,
+    an `=` assignment into that same uninitialized memory would first try to
+    *drop* whatever garbage bytes were already sitting there — this is
+    exactly the `otfcc-vec-field-assign-needs-calloc` hazard from earlier in
+    this migration, caught before shipping rather than after: `init_gsub_reverse`
+    uses `.write()` (placement construction, no drop of the old
+    non-existent value) instead of `=`, matching the pattern
+    `otl_coverage_create`'s own comment already documented for exactly this
+    reason.
+  - **Same cascade as B-3-1, but this time it reaches the top.**
+    `GsubReverseSubtable` has exactly two fields that used to need manual
+    disposal, and both now self-drop — nothing else in the struct owns
+    anything. `Subtable::drop`'s `GsubReverse` arm becomes a no-op.
+    `dispose_gsub_reverse` itself stays (its body simplified from a manual
+    per-element free loop to two `= Vec::new()` assignments) because it
+    still has a real job: freeing the not-yet-adopted-into-the-enum
+    malloc'd intermediate between `_create()` and `subtable_from_raw`, where
+    a raw `free()` would skip `Vec`'s drop glue entirely. `#[derive(Copy,
+    Clone)]` dropped to `#[derive(Clone)]` (a union-embeddable struct's old
+    requirement; `Copy` isn't possible once two fields own `Vec`s).
+  - `otfcc_build_gsub_reverse` takes `*const Subtable` but calls
+    `reverse_backtracks` (which mutates `match_0` in place, sorting
+    backtracks into wire order) — pre-existing behavior, unchanged by this
+    field's type. Cast away constness for just that one call, the same
+    `fd_to_json`-style const-cast this migration has used before when a
+    build pass is documented to be the only thing touching a value.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 44/44 unit tests, ABI at exactly 4 symbols,
+    every standard payload byte-identical in both directions including the
+    `otfccdll` cdylib, all 10 round-trip payloads stable, issue #1's
+    regression test green, and the `gsub-reverse` dedup payload (no
+    committed font payload has a `gsub_reverse` lookup at all, and this one
+    also exercises `reverse_backtracks` through a real build pass)
+    byte-identical against the C reference on both platforms.
+
 - **`LigatureBaseRecord.anchors` is `Vec<Vec<Anchor>>` now, not `*mut *mut
   Anchor` (B-3-4 of the remaining-three-themes plan) — the first genuinely
   2D field of the 7.** `anchors[component][class]`: outer dimension sized by
