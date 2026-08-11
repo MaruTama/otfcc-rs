@@ -290,33 +290,34 @@ unsafe extern "C" fn consolidate_fd_select(
     mut options: *const Options,
     gname: &Vec<u8>,
 ) {
-    if cff.is_null() || (*cff).fd_array.is_null() || (*cff).fd_array_count == 0 {
+    if cff.is_null() || (*cff).fd_array.is_empty() {
         return;
     }
+    let fd_array: &Vec<Box<CffTable>> = &(*cff).fd_array;
     if (*h).state == HandleState::Index
     {
-        if (*h).index as ::core::ffi::c_int >= (*cff).fd_array_count as ::core::ffi::c_int {
+        if (*h).index as usize >= fd_array.len() {
             (*h).index = 0 as GlyphId;
         }
         let idx = (*h).index;
         *h = Handle {
             state: HandleState::Consolidated,
             index: idx,
-            name: (**(*cff).fd_array.offset(idx as isize)).font_name.clone(),
+            name: fd_array[idx as usize].font_name.clone(),
         } as FdHandle;
     } else if !(*h).name.is_empty() {
         let mut found: bool = false;
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*cff).fd_array_count as ::core::ffi::c_int {
+        while (j as usize) < fd_array.len() {
             if handle_name_eq_bytes(
                 &(*h).name,
-                &(**(*cff).fd_array.offset(j as isize)).font_name,
+                &fd_array[j as usize].font_name,
             ) {
                 found = true;
                 *h = Handle {
                     state: HandleState::Consolidated,
                     index: j as GlyphId,
-                    name: (**(*cff).fd_array.offset(j as isize)).font_name.clone(),
+                    name: fd_array[j as usize].font_name.clone(),
                 } as FdHandle;
                 break;
             } else {
