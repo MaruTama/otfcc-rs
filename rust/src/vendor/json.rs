@@ -2398,25 +2398,25 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     (*top).u.integer = (*top)
                                                                         .u
                                                                         .integer
-                                                                        * 10 as i64
-                                                                        + (b as ::core::ffi::c_int
+                                                                        .wrapping_mul(10 as i64)
+                                                                        .wrapping_add((b as ::core::ffi::c_int
                                                                             - '0' as i32)
-                                                                            as i64;
+                                                                            as i64);
                                                                 }
                                                             } else {
                                                                 flags |= FLAG_NUM_E_GOT_SIGN;
                                                                 num_e = num_e
-                                                                    * 10 as ::core::ffi::c_long
-                                                                    + (b as ::core::ffi::c_int
+                                                                    .wrapping_mul(10 as ::core::ffi::c_long)
+                                                                    .wrapping_add((b as ::core::ffi::c_int
                                                                         - '0' as i32)
-                                                                        as ::core::ffi::c_long;
+                                                                        as ::core::ffi::c_long);
                                                             }
                                                         } else {
                                                             num_fraction = num_fraction
-                                                                * 10 as i64
-                                                                + (b as ::core::ffi::c_int
+                                                                .wrapping_mul(10 as i64)
+                                                                .wrapping_add((b as ::core::ffi::c_int
                                                                     - '0' as i32)
-                                                                    as i64;
+                                                                    as i64);
                                                         }
                                                         current_block = 11057878835866523405;
                                                     } else {
@@ -2547,7 +2547,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         {
                                                                             if (*top).type_0 == JsonType::Integer
                                                                             {
-                                                                                (*top).u.integer = -(*top).u.integer;
+                                                                                (*top).u.integer = (*top).u.integer.wrapping_neg();
                                                                             } else {
                                                                                 (*top).u.dbl = -(*top).u.dbl;
                                                                             }
@@ -2972,25 +2972,25 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                     (*top).u.integer = (*top)
                                                                         .u
                                                                         .integer
-                                                                        * 10 as i64
-                                                                        + (b as ::core::ffi::c_int
+                                                                        .wrapping_mul(10 as i64)
+                                                                        .wrapping_add((b as ::core::ffi::c_int
                                                                             - '0' as i32)
-                                                                            as i64;
+                                                                            as i64);
                                                                 }
                                                             } else {
                                                                 flags |= FLAG_NUM_E_GOT_SIGN;
                                                                 num_e = num_e
-                                                                    * 10 as ::core::ffi::c_long
-                                                                    + (b as ::core::ffi::c_int
+                                                                    .wrapping_mul(10 as ::core::ffi::c_long)
+                                                                    .wrapping_add((b as ::core::ffi::c_int
                                                                         - '0' as i32)
-                                                                        as ::core::ffi::c_long;
+                                                                        as ::core::ffi::c_long);
                                                             }
                                                         } else {
                                                             num_fraction = num_fraction
-                                                                * 10 as i64
-                                                                + (b as ::core::ffi::c_int
+                                                                .wrapping_mul(10 as i64)
+                                                                .wrapping_add((b as ::core::ffi::c_int
                                                                     - '0' as i32)
-                                                                    as i64;
+                                                                    as i64);
                                                         }
                                                         current_block = 11057878835866523405;
                                                     } else {
@@ -3121,7 +3121,7 @@ pub unsafe extern "C" fn json_parse_ex(
                                                                         {
                                                                             if (*top).type_0 == JsonType::Integer
                                                                             {
-                                                                                (*top).u.integer = -(*top).u.integer;
+                                                                                (*top).u.integer = (*top).u.integer.wrapping_neg();
                                                                             } else {
                                                                                 (*top).u.dbl = -(*top).u.dbl;
                                                                             }
