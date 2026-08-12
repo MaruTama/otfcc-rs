@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_type_of};
 use crate::support::binio::{read_8u, read_16u, read_16s};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -265,10 +265,10 @@ pub unsafe extern "C" fn otfcc_dump_vdmx(
     }
 }
 pub unsafe extern "C" fn otfcc_parse_vdmx(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<VdmxTable>> {
-    let mut _vdmx: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut _vdmx: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _vdmx = json_obj_get_type(
         root,
         b"VDMX\0" as *const u8 as *const ::core::ffi::c_char,
@@ -290,16 +290,16 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
             _vdmx,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
         ) as u16;
-        let mut _ratios: *mut JsonValue = json_obj_get_type(
+        let mut _ratios: *const ParsedValue = json_obj_get_type(
             _vdmx,
             b"ratios\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Array,
         );
         let mut j: usize = 0 as usize;
         while j < json_arr_len(_ratios) as usize {
-            let mut _rr: *mut JsonValue = json_arr_at(_ratios, j as u32);
+            let mut _rr: *const ParsedValue = json_arr_at(_ratios, j as u32);
             if !(_rr.is_null()
-                || (*_rr).type_0 != JsonType::Object)
+                || json_type_of(_rr) != JsonType::Object)
             {
                 let mut r: VdmxRatioRange = VdmxRatioRange {
                     b_charset: 0,
@@ -323,7 +323,7 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
                     _rr,
                     b"yEndRatio\0" as *const u8 as *const ::core::ffi::c_char,
                 ) as u8;
-                let mut _records: *mut JsonValue = json_obj_get_type(
+                let mut _records: *const ParsedValue = json_obj_get_type(
                     _rr,
                     b"records\0" as *const u8 as *const ::core::ffi::c_char,
                     JsonType::Array,
@@ -331,9 +331,9 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
                 if !_records.is_null() {
                     let mut j_0: usize = 0 as usize;
                     while j_0 < json_arr_len(_records) as usize {
-                        let mut _r: *mut JsonValue = json_arr_at(_records, j_0 as u32);
+                        let mut _r: *const ParsedValue = json_arr_at(_records, j_0 as u32);
                         if !(_r.is_null()
-                            || (*_r).type_0 != JsonType::Object)
+                            || json_type_of(_r) != JsonType::Object)
                         {
                             r.records.push(VdmxRecord {
                                 y_pel_height: json_obj_getnum(

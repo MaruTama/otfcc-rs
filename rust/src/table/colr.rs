@@ -1,6 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint_fallback, json_str_len, json_str_ptr, preserialize};
+use crate::support::json_funcs::{preserialize};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint_fallback, json_str_len, json_str_ptr, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -308,10 +309,10 @@ pub unsafe extern "C" fn otfcc_dump_colr(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_parse_colr(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<ColrTable> {
-    let mut _colr: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut _colr: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _colr = json_obj_get_type(
         root,
         b"COLR\0" as *const u8 as *const ::core::ffi::c_char,
@@ -331,16 +332,16 @@ pub unsafe extern "C" fn otfcc_parse_colr(
     while ___loggedstep_v {
         let mut j: GlyphId = 0 as GlyphId;
         while (j as ::core::ffi::c_uint) < json_arr_len(_colr) {
-            let mut _mapping: *mut JsonValue = json_arr_at(_colr, j as u32);
+            let mut _mapping: *const ParsedValue = json_arr_at(_colr, j as u32);
             if !(_mapping.is_null()
-                || (*_mapping).type_0 != JsonType::Object)
+                || json_type_of(_mapping) != JsonType::Object)
             {
-                let mut _baseglyph: *mut JsonValue = json_obj_get_type(
+                let mut _baseglyph: *const ParsedValue = json_obj_get_type(
                     _mapping,
                     b"from\0" as *const u8 as *const ::core::ffi::c_char,
                     JsonType::String,
                 );
-                let mut _layers: *mut JsonValue = json_obj_get_type(
+                let mut _layers: *const ParsedValue = json_obj_get_type(
                     _mapping,
                     b"to\0" as *const u8 as *const ::core::ffi::c_char,
                     JsonType::Array,
@@ -360,11 +361,11 @@ pub unsafe extern "C" fn otfcc_parse_colr(
                     )) as GlyphHandle;
                     let mut k: GlyphId = 0 as GlyphId;
                     while (k as ::core::ffi::c_uint) < json_arr_len(_layers) {
-                        let mut _layer: *mut JsonValue = json_arr_at(_layers, k as u32);
+                        let mut _layer: *const ParsedValue = json_arr_at(_layers, k as u32);
                         if !(_layer.is_null()
-                            || (*_layer).type_0 != JsonType::Object)
+                            || json_type_of(_layer) != JsonType::Object)
                         {
-                            let mut _layerglyph: *mut JsonValue = json_obj_get_type(
+                            let mut _layerglyph: *const ParsedValue = json_obj_get_type(
                                 _layer,
                                 b"layer\0" as *const u8 as *const ::core::ffi::c_char,
                                 JsonType::String,

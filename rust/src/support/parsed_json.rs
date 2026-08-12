@@ -38,6 +38,23 @@
 /// The parse-side JSON tree. String content is `Vec<u8>`, not `String`:
 /// glyph names can be non-UTF-8 (Latin-1), a documented invariant carried
 /// over unchanged from `JsonValue.u.string`.
+///
+/// **`Str`'s `Vec<u8>` and every object key carry one trailing NUL byte not
+/// counted in their logical length** (added by `parse_string`/
+/// `parse_object`, stripped back off by this module's `pj_str_len`/
+/// `pj_obj_key_len_at` accessors) -- matching `JsonStringValue`/
+/// `JsonObjectEntry.name`'s own C-string convention exactly. This exists
+/// for one reason: dozens of call sites across the consumer files this
+/// type is about to be wired into (`table/otl/parse.rs` alone has ~20)
+/// take a parsed key or string value straight into `CStr::from_ptr(..)
+/// .to_bytes().to_vec()` or `strcmp(..)`, both of which require a
+/// NUL-terminated buffer. Baking the terminator into storage here means
+/// every one of those call sites keeps working completely unchanged
+/// instead of needing an individually-reasoned-about rewrite. Code
+/// constructing or reading a `Str`/key through anything other than this
+/// module's own parsing/accessor functions must account for the extra
+/// byte -- nothing outside this module should ever match `Str`'s `Vec<u8>`
+/// directly for that reason.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParsedValue {
     Null,
@@ -50,6 +67,7 @@ pub enum ParsedValue {
     /// keys must survive verbatim -- a documented invariant carried over
     /// unchanged from `JsonObjectValue`/`JsonObjectEntry` (see
     /// `support::json_funcs`'s C-1 doc comments and `rust/README.md`).
+    /// Keys are NUL-terminated `Vec<u8>`s, same convention as `Str` above.
     Object(Vec<(Vec<u8>, ParsedValue)>),
 }
 
@@ -247,6 +265,12 @@ impl<'a> Parser<'a> {
                 _ => out.push(b),
             }
         }
+        // Trailing NUL, not counted in the logical length -- see
+        // `ParsedValue`'s doc comment. Safe unconditionally: the `0 =>
+        // return None` arm above already makes an embedded NUL byte
+        // impossible in `out`, so this terminator is never ambiguous with
+        // real content.
+        out.push(0);
         Some(out)
     }
 
@@ -363,6 +387,356 @@ impl<'a> Parser<'a> {
     }
 }
 
+/// Raw-pointer entry point matching `vendor::json::json_parse`'s own
+/// signature exactly (`*const c_char`/`usize` in, null on any parse
+/// failure) -- lets `bin/otfccbuild.rs`/`ffi/dll.rs` swap the call site
+/// without reshaping the surrounding code. Owns the result as a `Box`;
+/// pair with `json_value_free` below.
+pub unsafe fn json_parse(
+    json: *const ::core::ffi::c_char,
+    length: usize,
+) -> *mut ParsedValue {
+    let bytes = unsafe { ::core::slice::from_raw_parts(json as *const u8, length) };
+    match parse_json(bytes) {
+        Some(v) => Box::into_raw(Box::new(v)),
+        None => ::core::ptr::null_mut(),
+    }
+}
+
+/// Frees a tree returned by `json_parse` above. No-op on null, matching
+/// `vendor::json::json_value_free`.
+pub unsafe fn json_value_free(v: *mut ParsedValue) {
+    if !v.is_null() {
+        drop(unsafe { Box::from_raw(v) });
+    }
+}
+
+// The accessor layer below mirrors `support::json_funcs`'s parse-side API
+// (both its original 16 helpers and C-1's 11 additions) name-for-name,
+// targeting `*const ParsedValue` instead of `*const vendor::json::
+// JsonValue` -- the point being that a consumer file's call *expressions*
+// (`json_obj_get_type(v, b"key\0"..., JsonType::Object)`, etc.) stay
+// textually identical when it's switched over; only its `use` line and its
+// own function signatures' parameter types change. Every accessor here is
+// self-guarding (null/wrong-variant returns 0/null/false) exactly like its
+// `json_funcs` counterpart, even though `ParsedValue` being a real Rust
+// enum makes most of that redundant for direct pattern-matching -- kept
+// for signature and behavioral parity with the layer this is replacing,
+// since the 40-odd files this gets wired into next were written against
+// that contract.
+use crate::vendor::json::JsonType;
+
+/// The `JsonType` tag for a value -- replaces every `(*v).type_0` read
+/// (`vendor::json::JsonValue`'s type tag is a field; `ParsedValue`'s is
+/// the enum discriminant itself, so there's nothing to read without a
+/// function). `JsonType::None` for null.
+pub unsafe fn json_type_of(v: *const ParsedValue) -> JsonType {
+    if v.is_null() {
+        return JsonType::None;
+    }
+    match unsafe { &*v } {
+        ParsedValue::Null => JsonType::Null,
+        ParsedValue::Bool(_) => JsonType::Boolean,
+        ParsedValue::Int(_) => JsonType::Integer,
+        ParsedValue::Double(_) => JsonType::Double,
+        ParsedValue::Str(_) => JsonType::String,
+        ParsedValue::Array(_) => JsonType::Array,
+        ParsedValue::Object(_) => JsonType::Object,
+    }
+}
+
+pub unsafe fn json_obj_len(obj: *const ParsedValue) -> u32 {
+    match unsafe { obj.as_ref() } {
+        Some(ParsedValue::Object(fields)) => fields.len() as u32,
+        _ => 0,
+    }
+}
+
+/// The `i`th member's raw NUL-terminated key pointer (see `ParsedValue`'s
+/// doc comment on why every key is NUL-terminated); null out of range or
+/// on a non-object.
+pub unsafe fn json_obj_key_at(obj: *const ParsedValue, i: u32) -> *mut ::core::ffi::c_char {
+    match unsafe { obj.as_ref() } {
+        Some(ParsedValue::Object(fields)) => match fields.get(i as usize) {
+            Some((k, _)) => k.as_ptr() as *mut ::core::ffi::c_char,
+            None => ::core::ptr::null_mut(),
+        },
+        _ => ::core::ptr::null_mut(),
+    }
+}
+
+/// The `i`th member's key length in bytes, excluding the trailing NUL; 0
+/// out of range or on a non-object.
+pub unsafe fn json_obj_key_len_at(obj: *const ParsedValue, i: u32) -> u32 {
+    match unsafe { obj.as_ref() } {
+        Some(ParsedValue::Object(fields)) => match fields.get(i as usize) {
+            Some((k, _)) => (k.len() - 1) as u32,
+            None => 0,
+        },
+        _ => 0,
+    }
+}
+
+/// The `i`th member's value; null out of range or on a non-object.
+pub unsafe fn json_obj_val_at(obj: *const ParsedValue, i: u32) -> *mut ParsedValue {
+    match unsafe { obj.as_ref() } {
+        Some(ParsedValue::Object(fields)) => match fields.get(i as usize) {
+            Some((_, v)) => v as *const ParsedValue as *mut ParsedValue,
+            None => ::core::ptr::null_mut(),
+        },
+        _ => ::core::ptr::null_mut(),
+    }
+}
+
+/// Overwrites the `i`th member's value with `new_value`, dropping whatever
+/// was there before. Replaces the old parser's `json_value_free` + build a
+/// replacement + manual `.parent` splice pattern (used by `glyf.rs` to
+/// release each glyph's parse subtree as it's consumed, and by
+/// `table/otl/parse.rs`'s duplicate-feature/lookup merger to turn a
+/// duplicate definition into an alias string) -- a plain assignment does
+/// the same job here since `ParsedValue` owns its children. No-op if `obj`
+/// isn't an object or `i` is out of range.
+pub unsafe fn json_obj_set_val_at(obj: *mut ParsedValue, i: u32, new_value: ParsedValue) {
+    if let Some(ParsedValue::Object(fields)) = unsafe { obj.as_mut() } {
+        if let Some((_, v)) = fields.get_mut(i as usize) {
+            *v = new_value;
+        }
+    }
+}
+
+/// Overwrites the `i`th member's value with `Null`. See
+/// [`json_obj_set_val_at`].
+pub unsafe fn json_obj_null_out_val_at(obj: *mut ParsedValue, i: u32) {
+    unsafe { json_obj_set_val_at(obj, i, ParsedValue::Null) };
+}
+
+pub unsafe fn json_arr_len(arr: *const ParsedValue) -> u32 {
+    match unsafe { arr.as_ref() } {
+        Some(ParsedValue::Array(items)) => items.len() as u32,
+        _ => 0,
+    }
+}
+
+/// The `i`th array element; null out of range or on a non-array.
+pub unsafe fn json_arr_at(arr: *const ParsedValue, i: u32) -> *mut ParsedValue {
+    match unsafe { arr.as_ref() } {
+        Some(ParsedValue::Array(items)) => match items.get(i as usize) {
+            Some(v) => v as *const ParsedValue as *mut ParsedValue,
+            None => ::core::ptr::null_mut(),
+        },
+        _ => ::core::ptr::null_mut(),
+    }
+}
+
+/// A string value's raw NUL-terminated pointer; null for anything but a
+/// string.
+pub unsafe fn json_str_ptr(v: *const ParsedValue) -> *mut ::core::ffi::c_char {
+    match unsafe { v.as_ref() } {
+        Some(ParsedValue::Str(s)) => s.as_ptr() as *mut ::core::ffi::c_char,
+        _ => ::core::ptr::null_mut(),
+    }
+}
+
+/// A string value's length in bytes, excluding the trailing NUL; 0 for
+/// anything but a string.
+pub unsafe fn json_str_len(v: *const ParsedValue) -> u32 {
+    match unsafe { v.as_ref() } {
+        Some(ParsedValue::Str(s)) => (s.len() - 1) as u32,
+        _ => 0,
+    }
+}
+
+/// An integer value's raw `i64`; 0 for anything but `Int`.
+pub unsafe fn json_int_val(v: *const ParsedValue) -> i64 {
+    match unsafe { v.as_ref() } {
+        Some(ParsedValue::Int(i)) => *i,
+        _ => 0,
+    }
+}
+
+/// A double value's raw `f64`; 0.0 for anything but `Double`.
+pub unsafe fn json_dbl_val(v: *const ParsedValue) -> f64 {
+    match unsafe { v.as_ref() } {
+        Some(ParsedValue::Double(d)) => *d,
+        _ => 0.0,
+    }
+}
+
+/// A boolean value's raw `bool`; false for anything but `Bool`.
+pub unsafe fn json_bool_val(v: *const ParsedValue) -> bool {
+    match unsafe { v.as_ref() } {
+        Some(ParsedValue::Bool(b)) => *b,
+        _ => false,
+    }
+}
+
+/// Look up `key` in a JSON object, of whatever type; null when there is no
+/// such member (or `obj` is not an object). The first member whose name
+/// matches wins, which matters because the parser keeps duplicate keys
+/// rather than collapsing them -- matches `json_funcs::json_obj_get`.
+pub unsafe fn json_obj_get(
+    obj: *const ParsedValue,
+    key: *const ::core::ffi::c_char,
+) -> *mut ParsedValue {
+    match unsafe { obj.as_ref() } {
+        Some(ParsedValue::Object(fields)) => {
+            for (k, v) in fields {
+                if unsafe { ::libc::strcmp(k.as_ptr() as *const ::core::ffi::c_char, key) } == 0 {
+                    return v as *const ParsedValue as *mut ParsedValue;
+                }
+            }
+            ::core::ptr::null_mut()
+        }
+        _ => ::core::ptr::null_mut(),
+    }
+}
+
+/// [`json_obj_get`], but null unless the member has the type asked for.
+pub unsafe fn json_obj_get_type(
+    obj: *const ParsedValue,
+    key: *const ::core::ffi::c_char,
+    type_0: JsonType,
+) -> *mut ParsedValue {
+    let v = unsafe { json_obj_get(obj, key) };
+    if !v.is_null() && unsafe { json_type_of(v) } == type_0 {
+        return v;
+    }
+    ::core::ptr::null_mut()
+}
+
+/// Look up `key` in a JSON object and read it as a boolean; false for
+/// anything that is not a boolean-valued member of an object.
+pub unsafe fn json_obj_getbool(obj: *const ParsedValue, key: *const ::core::ffi::c_char) -> bool {
+    unsafe { json_bool_val(json_obj_get_type(obj, key, JsonType::Boolean)) }
+}
+
+/// A number, whether the JSON spelled it as an integer or a double; 0.0
+/// for anything else, including null.
+pub unsafe fn json_numof(cv: *const ParsedValue) -> f64 {
+    match unsafe { cv.as_ref() } {
+        Some(ParsedValue::Int(i)) => *i as f64,
+        Some(ParsedValue::Double(d)) => *d,
+        _ => 0.0,
+    }
+}
+
+/// A boolean; false for anything else, including null.
+pub unsafe fn json_boolof(cv: *const ParsedValue) -> bool {
+    unsafe { json_bool_val(cv) }
+}
+
+/// A member's numeric value; 0.0 when absent or non-numeric.
+pub unsafe fn json_obj_getnum(obj: *const ParsedValue, key: *const ::core::ffi::c_char) -> f64 {
+    unsafe { json_obj_getnum_fallback(obj, key, 0.0) }
+}
+
+/// A member's numeric value, truncated to an `i32`; 0 when absent or
+/// non-numeric.
+pub unsafe fn json_obj_getint(obj: *const ParsedValue, key: *const ::core::ffi::c_char) -> i32 {
+    unsafe { json_obj_getint_fallback(obj, key, 0) }
+}
+
+// The numeric lookups below walk the object themselves instead of going
+// through `json_obj_get`, matching `json_funcs`'s own reasoning: on a name
+// match whose value has the wrong type they *keep looking*, since the
+// parser permits (and this crate relies on) duplicate members.
+
+/// A member's numeric value, or `fallback` when absent or non-numeric.
+pub unsafe fn json_obj_getnum_fallback(
+    obj: *const ParsedValue,
+    key: *const ::core::ffi::c_char,
+    fallback: f64,
+) -> f64 {
+    if let Some(ParsedValue::Object(fields)) = unsafe { obj.as_ref() } {
+        for (k, v) in fields {
+            if unsafe { ::libc::strcmp(k.as_ptr() as *const ::core::ffi::c_char, key) } == 0 {
+                match v {
+                    ParsedValue::Int(i) => return *i as f64,
+                    ParsedValue::Double(d) => return *d,
+                    _ => {}
+                }
+            }
+        }
+    }
+    fallback
+}
+
+/// A member's numeric value truncated to an `i32`, or `fallback` when
+/// absent or non-numeric.
+pub unsafe fn json_obj_getint_fallback(
+    obj: *const ParsedValue,
+    key: *const ::core::ffi::c_char,
+    fallback: i32,
+) -> i32 {
+    if let Some(ParsedValue::Object(fields)) = unsafe { obj.as_ref() } {
+        for (k, v) in fields {
+            if unsafe { ::libc::strcmp(k.as_ptr() as *const ::core::ffi::c_char, key) } == 0 {
+                match v {
+                    ParsedValue::Int(i) => return *i as i32,
+                    ParsedValue::Double(d) => return *d as i32,
+                    _ => {}
+                }
+            }
+        }
+    }
+    fallback
+}
+
+/// A member's string value, copied into a fresh [`crate::vendor::sds::
+/// SdsRaw`]; null if it is not a string. The caller owns the copy.
+pub unsafe fn json_obj_getsds(
+    obj: *const ParsedValue,
+    key: *const ::core::ffi::c_char,
+) -> crate::vendor::sds::SdsRaw {
+    let v = unsafe { json_obj_get_type(obj, key, JsonType::String) };
+    if v.is_null() {
+        ::core::ptr::null_mut()
+    } else {
+        unsafe {
+            crate::vendor::sds::sdsnewlen(
+                json_str_ptr(v) as *const ::core::ffi::c_void,
+                json_str_len(v) as usize,
+            )
+        }
+    }
+}
+
+/// [`json_obj_getsds`] without the copy: the pointer belongs to the parse
+/// tree and dies with it.
+pub unsafe fn json_obj_getstr_share(
+    obj: *const ParsedValue,
+    key: *const ::core::ffi::c_char,
+) -> *const ::core::ffi::c_char {
+    unsafe { json_str_ptr(json_obj_get_type(obj, key, JsonType::String)) }
+}
+
+/// Serialize a bitfield as a JSON object of `label: true` pairs -- see
+/// `json_funcs::otfcc_dump_flags` for the build-side inverse (unaffected
+/// by this module, since it never reads an existing value).
+///
+/// A number is taken as the raw field value; an object is read label by
+/// label. Anything else -- including a missing key, which arrives here as
+/// null -- is 0.
+pub unsafe fn otfcc_parse_flags(v: *const ParsedValue, labels: &[&::core::ffi::CStr]) -> u32 {
+    if v.is_null() {
+        return 0;
+    }
+    match unsafe { json_type_of(v) } {
+        JsonType::Integer => unsafe { json_int_val(v) as u32 },
+        JsonType::Double => unsafe { json_dbl_val(v) as u32 },
+        JsonType::Object => {
+            let mut flags: u32 = 0;
+            for (j, label) in labels.iter().enumerate() {
+                if unsafe { json_obj_getbool(v, label.as_ptr()) } {
+                    flags |= (1u32) << j;
+                }
+            }
+            flags
+        }
+        _ => 0,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,11 +765,14 @@ mod tests {
                             || (json_dbl_val(old).is_nan() && d.is_nan()))
                 }
                 ParsedValue::Str(s) => {
+                    // `s` carries a trailing NUL not counted in its logical
+                    // content (see `ParsedValue`'s doc comment) -- strip it
+                    // before comparing against the old tree's bytes.
                     (*old).type_0 == JsonType::String
                         && ::core::slice::from_raw_parts(
                             json_str_ptr(old) as *const u8,
                             json_str_len(old) as usize,
-                        ) == s.as_slice()
+                        ) == &s[..s.len() - 1]
                 }
                 ParsedValue::Array(items) => {
                     (*old).type_0 == JsonType::Array
@@ -413,7 +790,9 @@ mod tests {
                                 json_obj_key_at(old, i as u32) as *const u8,
                                 json_obj_key_len_at(old, i as u32) as usize,
                             );
-                            old_key == k.as_slice()
+                            // `k` carries a trailing NUL, see the `Str` arm
+                            // above.
+                            old_key == &k[..k.len() - 1]
                                 && trees_equal(json_obj_val_at(old, i as u32), v)
                         })
                 }
@@ -449,6 +828,47 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// Direct coverage for the accessor layer's NUL-termination contract
+    /// (see `ParsedValue`'s doc comment) -- the differential tests above
+    /// only exercise it indirectly through `trees_equal`'s own stripping.
+    /// This confirms `json_str_ptr`/`json_obj_key_at`'s results are
+    /// actually usable with `strcmp`/`CStr::from_ptr`, the exact pattern
+    /// dozens of call sites in the files this accessor layer is about to
+    /// be wired into rely on.
+    #[test]
+    fn accessor_strings_are_nul_terminated() {
+        // Explicit `super::` qualification: this module's `use super::*`
+        // (bringing in this module's own ParsedValue-based accessors) and
+        // its explicit `use json_funcs::{...}` (the old JsonValue-based
+        // ones, needed by `trees_equal` above) share the same names --
+        // Rust's explicit-import-wins-over-glob rule means the bare names
+        // resolve to `json_funcs`'s versions everywhere else in this
+        // module, so this test needs `super::` to reach the ones it's
+        // actually testing.
+        unsafe {
+            let root = parse_json(br#"{"abc":"xyz"}"#).unwrap();
+            let key = super::json_obj_key_at(&root, 0);
+            assert_eq!(
+                ::libc::strcmp(key, b"abc\0".as_ptr() as *const ::core::ffi::c_char),
+                0
+            );
+            assert_eq!(super::json_obj_key_len_at(&root, 0), 3);
+            assert_eq!(
+                ::core::ffi::CStr::from_ptr(key).to_bytes(),
+                b"abc"
+            );
+
+            let val = super::json_obj_val_at(&root, 0);
+            let s = super::json_str_ptr(val);
+            assert_eq!(
+                ::libc::strcmp(s, b"xyz\0".as_ptr() as *const ::core::ffi::c_char),
+                0
+            );
+            assert_eq!(super::json_str_len(val), 3);
+            assert_eq!(::core::ffi::CStr::from_ptr(s).to_bytes(), b"xyz");
         }
     }
 

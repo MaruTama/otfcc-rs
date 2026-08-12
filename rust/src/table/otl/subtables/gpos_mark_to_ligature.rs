@@ -2,7 +2,8 @@
 use libc::{free};
 
 
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, preserialize};
+use crate::support::json_funcs::{preserialize};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
@@ -321,7 +322,7 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
     return _subtable;
 }
 unsafe extern "C" fn parse_bases(
-    mut _bases: *mut JsonValue,
+    mut _bases: *const ParsedValue,
     mut subtable: *mut GposMarkToLigatureSubtable,
     mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
     mut options: *const Options,
@@ -345,9 +346,9 @@ unsafe extern "C" fn parse_bases(
             json_obj_key_at(_bases, j as u32) as *const ::core::ffi::c_void,
             json_obj_key_len_at(_bases, j as u32) as usize,
         )) as GlyphHandle;
-        let mut base_record: *mut JsonValue = json_obj_val_at(_bases, j as u32);
+        let mut base_record: *const ParsedValue = json_obj_val_at(_bases, j as u32);
         if base_record.is_null()
-            || (*base_record).type_0 != JsonType::Array
+            || json_type_of(base_record) != JsonType::Array
         {
             (*subtable).lig_array.push(lig);
         } else {
@@ -355,13 +356,13 @@ unsafe extern "C" fn parse_bases(
             lig.anchors = Vec::with_capacity(lig.component_count as usize);
             let mut k: GlyphId = 0 as GlyphId;
             while (k as ::core::ffi::c_int) < lig.component_count as ::core::ffi::c_int {
-                let mut _component_record: *mut JsonValue = json_arr_at(base_record, k as u32);
+                let mut _component_record: *const ParsedValue = json_arr_at(base_record, k as u32);
                 // Indexed by `class_id` below, out of JSON key order --
                 // pre-sized and filled with "absent" rather than built with
                 // `.push()`.
                 lig.anchors.push(vec![otl_anchor_absent(); class_count as usize]);
                 if !(_component_record.is_null()
-                    || (*_component_record).type_0 != JsonType::Object)
+                    || json_type_of(_component_record) != JsonType::Object)
                 {
                     let mut m_0: GlyphClass = 0 as GlyphClass;
                     while (m_0 as ::core::ffi::c_uint) < json_obj_len(_component_record) {
@@ -410,15 +411,15 @@ unsafe extern "C" fn parse_bases(
     }
 }
 pub unsafe extern "C" fn otl_gpos_parse_mark_to_ligature(
-    mut _subtable: *const JsonValue,
+    mut _subtable: *const ParsedValue,
     mut options: *const Options,
 ) -> *mut Subtable {
-    let mut _marks: *mut JsonValue = json_obj_get_type(
+    let mut _marks: *const ParsedValue = json_obj_get_type(
         _subtable,
         b"marks\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,
     );
-    let mut _bases: *mut JsonValue = json_obj_get_type(
+    let mut _bases: *const ParsedValue = json_obj_get_type(
         _subtable,
         b"bases\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,

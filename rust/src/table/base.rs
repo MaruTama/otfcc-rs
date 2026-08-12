@@ -1,7 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, qsort};
 
-use crate::support::json_funcs::{json_new_position, json_numof, json_obj_get_type, json_obj_getstr_share, json_obj_key_at, json_obj_len, json_obj_val_at, json_object_push_tag};
+use crate::support::json_funcs::{json_new_position, json_object_push_tag};
+use crate::support::parsed_json::{ParsedValue, json_numof, json_obj_get_type, json_obj_getstr_share, json_obj_key_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u, read_16s, read_32u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -503,14 +504,14 @@ pub unsafe extern "C" fn otfcc_dump_base(
     }
 }
 unsafe extern "C" fn base_script_from_json(
-    mut _sr: *const JsonValue,
+    mut _sr: *const ParsedValue,
     mut entry: *mut BaseScriptEntry,
 ) {
     (*entry).default_baseline_tag = str2tag(json_obj_getstr_share(
         _sr,
         b"defaultBaseline\0" as *const u8 as *const ::core::ffi::c_char,
     ));
-    let mut _basevalues: *mut JsonValue = json_obj_get_type(
+    let mut _basevalues: *const ParsedValue = json_obj_get_type(
         _sr,
         b"baselines\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,
@@ -543,7 +544,7 @@ unsafe extern "C" fn by_script_tag(
         .tag
         .wrapping_sub((*(b as *mut BaseScriptEntry)).tag) as ::core::ffi::c_int;
 }
-unsafe extern "C" fn axis_from_json(mut _axis: *const JsonValue) -> *mut BaseAxis {
+unsafe extern "C" fn axis_from_json(mut _axis: *const ParsedValue) -> *mut BaseAxis {
     if _axis.is_null() {
         return ::core::ptr::null_mut::<BaseAxis>();
     }
@@ -564,7 +565,7 @@ unsafe extern "C" fn axis_from_json(mut _axis: *const JsonValue) -> *mut BaseAxi
         let script_val = json_obj_val_at(_axis, j as u32);
         if !script_val
             .is_null()
-            && (*script_val).type_0 == JsonType::Object
+            && json_type_of(script_val) == JsonType::Object
         {
             (*(*axis).entries.offset(jj as isize)).tag =
                 str2tag(json_obj_key_at(_axis, j as u32));
@@ -592,11 +593,11 @@ unsafe extern "C" fn axis_from_json(mut _axis: *const JsonValue) -> *mut BaseAxi
     return axis;
 }
 pub unsafe extern "C" fn otfcc_parse_base(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<BaseTable>> {
     let mut base: Option<Box<BaseTable>> = None;
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get_type(
         root,
         b"BASE\0" as *const u8 as *const ::core::ffi::c_char,

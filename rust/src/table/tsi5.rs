@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::free;
 
-use crate::support::json_funcs::{json_obj_get_type};
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type};
 use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
 
 use crate::support::handle::{handle_from_index, GlyphHandle};
@@ -97,10 +97,10 @@ pub unsafe extern "C" fn otfcc_dump_tsi5(
     );
 }
 pub unsafe extern "C" fn otfcc_parse_tsi5(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut _options: *const Options,
 ) -> Option<Box<Tsi5Table>> {
-    let mut _tsi: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut _tsi: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _tsi = json_obj_get_type(
         root,
         b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,

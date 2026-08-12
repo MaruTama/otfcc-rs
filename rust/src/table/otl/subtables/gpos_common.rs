@@ -1,8 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::json_funcs::{
-    json_new_position, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
-    json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_ptr,
+    json_new_position,
     preserialize,
+};
+use crate::support::parsed_json::{
+    ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
+    json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_ptr,
+    json_type_of,
 };
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
@@ -78,7 +82,7 @@ pub unsafe extern "C" fn otl_read_mark_array(
     }
 }
 pub unsafe extern "C" fn otl_parse_mark_array(
-    mut _marks: *mut JsonValue,
+    mut _marks: *const ParsedValue,
     mut array: *mut MarkArray,
     mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
     mut _options: *const Options,
@@ -98,8 +102,8 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                 y: 0.,
             },
         };
-        let mut gname: *mut ::core::ffi::c_char = json_obj_key_at(_marks, j as u32);
-        let mut anchor_record: *mut JsonValue = json_obj_val_at(_marks, j as u32);
+        let mut gname: *const ::core::ffi::c_char = json_obj_key_at(_marks, j as u32);
+        let mut anchor_record: *const ParsedValue = json_obj_val_at(_marks, j as u32);
         mark.glyph = handle_from_name(sdsnewlen(
             gname as *const ::core::ffi::c_void,
             json_obj_key_len_at(_marks, j as u32) as usize,
@@ -107,11 +111,11 @@ pub unsafe extern "C" fn otl_parse_mark_array(
         mark.mark_class = 0 as GlyphClass;
         mark.anchor = otl_anchor_absent();
         if anchor_record.is_null()
-            || (*anchor_record).type_0 != JsonType::Object
+            || json_type_of(anchor_record) != JsonType::Object
         {
             (*array).push(mark);
         } else {
-            let mut _class_name: *mut JsonValue = json_obj_get_type(
+            let mut _class_name: *const ParsedValue = json_obj_get_type(
                 anchor_record,
                 b"class\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,
@@ -171,8 +175,8 @@ pub unsafe extern "C" fn otl_parse_mark_array(
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*array).len() {
         if (&(*array))[j_0 as usize].anchor.present {
-            let mut anchor_record_0: *mut JsonValue = json_obj_val_at(_marks, j_0 as u32);
-            let mut _class_name_0: *mut JsonValue = json_obj_get_type(
+            let mut anchor_record_0: *const ParsedValue = json_obj_val_at(_marks, j_0 as u32);
+            let mut _class_name_0: *const ParsedValue = json_obj_get_type(
                 anchor_record_0,
                 b"class\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,
@@ -244,14 +248,14 @@ pub unsafe extern "C" fn otl_dump_anchor(mut a: Anchor) -> *mut JsonValue {
         return json_null_new();
     };
 }
-pub unsafe extern "C" fn otl_parse_anchor(mut v: *mut JsonValue) -> Anchor {
+pub unsafe extern "C" fn otl_parse_anchor(mut v: *const ParsedValue) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
         x: 0 as ::core::ffi::c_int as Pos,
         y: 0 as ::core::ffi::c_int as Pos,
     };
     if v.is_null()
-        || (*v).type_0 != JsonType::Object
+        || json_type_of(v) != JsonType::Object
     {
         return anchor;
     }
@@ -1639,7 +1643,7 @@ pub unsafe extern "C" fn gpos_dump_value(mut value: PositionValue) -> *mut JsonV
     }
     return preserialize(v);
 }
-pub unsafe extern "C" fn gpos_parse_value(mut pos: *mut JsonValue) -> PositionValue {
+pub unsafe extern "C" fn gpos_parse_value(mut pos: *const ParsedValue) -> PositionValue {
     let mut v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
@@ -1647,7 +1651,7 @@ pub unsafe extern "C" fn gpos_parse_value(mut pos: *mut JsonValue) -> PositionVa
         d_height: 0.0f64,
     };
     if pos.is_null()
-        || (*pos).type_0 != JsonType::Object
+        || json_type_of(pos) != JsonType::Object
     {
         return v;
     }

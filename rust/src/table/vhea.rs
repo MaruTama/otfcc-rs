@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
 use crate::support::binio::{read_16u, read_16s, read_32s};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -209,12 +209,12 @@ pub unsafe extern "C" fn otfcc_dump_vhea(
     }
 }
 pub unsafe extern "C" fn otfcc_parse_vhea(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<VheaTable>> {
     let mut vhea_box: Option<Box<VheaTable>> = None;
     let mut vhea: *mut VheaTable = ::core::ptr::null_mut::<VheaTable>();
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get_type(
         root,
         b"vhea\0" as *const u8 as *const ::core::ffi::c_char,

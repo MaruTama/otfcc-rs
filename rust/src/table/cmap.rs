@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, strtol};
 
-use crate::support::json_funcs::{json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr};
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -686,11 +686,11 @@ unsafe extern "C" fn parse_unicode(unicode_str: SdsRaw) -> Unicode {
 }
 unsafe extern "C" fn parse_cmap_unicodes(
     mut cmap: *mut CmapTable,
-    mut table: *const JsonValue,
+    mut table: *const ParsedValue,
     mut options: *const Options,
 ) {
     if table.is_null()
-        || (*table).type_0 != JsonType::Object
+        || json_type_of(table) != JsonType::Object
     {
         return;
     }
@@ -700,10 +700,10 @@ unsafe extern "C" fn parse_cmap_unicodes(
             json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
             json_obj_key_len_at(table, j as u32) as usize,
         );
-        let mut item: *mut JsonValue = json_obj_val_at(table, j as u32);
+        let mut item: *const ParsedValue = json_obj_val_at(table, j as u32);
         let mut unicode: Unicode = parse_unicode(unicode_str);
         sdsfree(unicode_str);
-        if (*item).type_0 == JsonType::String
+        if json_type_of(item) == JsonType::String
             && unicode > 0 as Unicode
             && unicode <= 0x10ffff as Unicode
         {
@@ -756,11 +756,11 @@ unsafe extern "C" fn parse_uvs_key(uvs_str: SdsRaw) -> CmapUvsKey {
 }
 unsafe extern "C" fn parse_cmap_uvs(
     mut cmap: *mut CmapTable,
-    mut table: *const JsonValue,
+    mut table: *const ParsedValue,
     mut options: *const Options,
 ) {
     if table.is_null()
-        || (*table).type_0 != JsonType::Object
+        || json_type_of(table) != JsonType::Object
     {
         return;
     }
@@ -771,8 +771,8 @@ unsafe extern "C" fn parse_cmap_uvs(
             json_obj_key_len_at(table, j as u32) as usize,
         );
         let mut k: CmapUvsKey = parse_uvs_key(uvs_str);
-        let mut item: *mut JsonValue = json_obj_val_at(table, j as u32);
-        if (*item).type_0 == JsonType::String
+        let mut item: *const ParsedValue = json_obj_val_at(table, j as u32);
+        if json_type_of(item) == JsonType::String
             && k.unicode > 0 as u32
             && k.unicode <= 0x10ffff as u32
             && k.selector > 0 as u32
@@ -810,10 +810,10 @@ unsafe extern "C" fn parse_cmap_uvs(
     }
 }
 pub unsafe extern "C" fn otfcc_parse_cmap(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<CmapTable>> {
-    if (*root).type_0 != JsonType::Object
+    if json_type_of(root) != JsonType::Object
     {
         return None;
     }

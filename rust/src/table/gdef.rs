@@ -1,5 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, preserialize};
+use crate::support::json_funcs::{preserialize};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
@@ -388,19 +389,19 @@ pub unsafe extern "C" fn otfcc_dump_gdef(
     }
 }
 unsafe extern "C" fn lig_caret_from_json(
-    mut _carets: *const JsonValue,
+    mut _carets: *const ParsedValue,
     mut lc: *mut LigCaretTable,
 ) {
     if _carets.is_null()
-        || (*_carets).type_0 != JsonType::Object
+        || json_type_of(_carets) != JsonType::Object
     {
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_obj_len(_carets) {
-        let mut a: *mut JsonValue = json_obj_val_at(_carets, j as u32);
+        let mut a: *const ParsedValue = json_obj_val_at(_carets, j as u32);
         if !(a.is_null()
-            || (*a).type_0 != JsonType::Array)
+            || json_type_of(a) != JsonType::Array)
         {
             let mut v: CaretValueRecord = CaretValueRecord {
                 glyph: Handle {
@@ -425,9 +426,9 @@ unsafe extern "C" fn lig_caret_from_json(
                 caret.format = 1 as i8;
                 caret.coordiante = 0 as ::core::ffi::c_int as Pos;
                 caret.point_index = 0xffff as ::core::ffi::c_int as i16;
-                let mut _caret: *mut JsonValue = json_arr_at(a, k as u32);
+                let mut _caret: *const ParsedValue = json_arr_at(a, k as u32);
                 if !_caret.is_null()
-                    && (*_caret).type_0 == JsonType::Object
+                    && json_type_of(_caret) == JsonType::Object
                 {
                     if !json_obj_get_type(
                         _caret,
@@ -457,11 +458,11 @@ unsafe extern "C" fn lig_caret_from_json(
     }
 }
 pub unsafe extern "C" fn otfcc_parse_gdef(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<GdefTable>> {
     let mut gdef: Option<Box<GdefTable>> = None;
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null();
     table = json_obj_get_type(
         root,
         b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,

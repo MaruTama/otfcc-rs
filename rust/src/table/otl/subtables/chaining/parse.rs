@@ -1,31 +1,31 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 
-use crate::support::json_funcs::{
-    json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
-    json_str_len, json_str_ptr,
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
+    json_str_len, json_str_ptr, json_type_of,
 };
 use crate::table::otl::coverage::coverage_from_raw;
 use crate::support::handle::{handle_from_name, otfcc_handle_empty, LookupHandle};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 
 use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable, subtable_from_raw};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
 use crate::vendor::sds::{sdsnewlen};
 pub unsafe extern "C" fn otl_parse_chaining(
-    mut _subtable: *const JsonValue,
+    mut _subtable: *const ParsedValue,
     mut _options: *const Options,
 ) -> *mut Subtable {
-    let mut _match: *mut JsonValue = json_obj_get_type(
+    let mut _match: *const ParsedValue = json_obj_get_type(
         _subtable,
         b"match\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Array,
     );
-    let mut _apply: *mut JsonValue = json_obj_get_type(
+    let mut _apply: *const ParsedValue = json_obj_get_type(
         _subtable,
         b"apply\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Array,
@@ -76,10 +76,10 @@ pub unsafe extern "C" fn otl_parse_chaining(
     while (j_0 as ::core::ffi::c_int) < json_arr_len(_apply) as ::core::ffi::c_int {
         let mut index: TableId = 0 as TableId;
         let mut lookup: LookupHandle = otfcc_handle_empty() as LookupHandle;
-        let mut _application: *mut JsonValue = json_arr_at(_apply, j_0 as u32);
-        if (*_application).type_0 == JsonType::Object
+        let mut _application: *const ParsedValue = json_arr_at(_apply, j_0 as u32);
+        if json_type_of(_application) == JsonType::Object
         {
-            let mut _ln: *mut JsonValue = json_obj_get_type(
+            let mut _ln: *const ParsedValue = json_obj_get_type(
                 _application,
                 b"lookup\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,

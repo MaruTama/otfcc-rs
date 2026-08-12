@@ -2,7 +2,7 @@
 use libc::{free};
 
 
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get_type, json_str_len, json_str_ptr};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get_type, json_str_len, json_str_ptr, json_type_of};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 use crate::logger::{ILogger};
@@ -114,12 +114,12 @@ pub unsafe extern "C" fn otfcc_dump_cvt(
     }
 }
 pub unsafe extern "C" fn otfcc_parse_cvt(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) -> Option<Box<CvtTable>> {
     let mut t: Option<Box<CvtTable>> = None;
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null();
     table = json_obj_get_type(root, tag, JsonType::Array);
     if !table.is_null() {
         (*(*options).logger)
@@ -138,11 +138,11 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
             ) as *mut u16;
             let mut j: u16 = 0 as u16;
             while (j as u32) < table_length {
-                let mut record: *mut JsonValue = json_arr_at(table, j as u32);
-                if (*record).type_0 == JsonType::Integer
+                let mut record: *const ParsedValue = json_arr_at(table, j as u32);
+                if json_type_of(record) == JsonType::Integer
                 {
                     *words.offset(j as isize) = json_int_val(record) as u16;
-                } else if (*record).type_0 == JsonType::Double
+                } else if json_type_of(record) == JsonType::Double
                 {
                     *words.offset(j as isize) = json_dbl_val(record) as u16;
                 } else {

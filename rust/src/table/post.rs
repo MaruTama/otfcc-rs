@@ -10,7 +10,7 @@ use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::glyph_order::{GlyphOrder};
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getbool, json_obj_getnum};
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getbool, json_obj_getnum};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
@@ -519,7 +519,7 @@ pub unsafe extern "C" fn otfcc_dump_post(
     }
 }
 pub unsafe extern "C" fn otfcc_parse_post(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
@@ -530,7 +530,7 @@ pub unsafe extern "C" fn otfcc_parse_post(
     post_val.version = 0x30000 as ::core::ffi::c_int as F16Dot16;
     let mut post_box: Box<PostTable> = Box::new(post_val);
     let post: *mut PostTable = post_box.as_mut() as *mut PostTable;
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get_type(
         root,
         b"post\0" as *const u8 as *const ::core::ffi::c_char,

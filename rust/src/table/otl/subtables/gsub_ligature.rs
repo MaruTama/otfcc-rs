@@ -2,7 +2,8 @@
 use libc::{free, malloc};
 
 
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, preserialize};
+use crate::support::json_funcs::{preserialize};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
 
@@ -274,7 +275,7 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(
     return ret;
 }
 pub unsafe extern "C" fn otl_gsub_parse_ligature(
-    mut _subtable: *const JsonValue,
+    mut _subtable: *const ParsedValue,
     mut _options: *const Options,
 ) -> *mut Subtable {
     if !json_obj_get_type(
@@ -293,13 +294,13 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
         let mut n: GlyphId = json_arr_len(_subtable) as GlyphId;
         let mut k: GlyphId = 0 as GlyphId;
         while (k as ::core::ffi::c_int) < n as ::core::ffi::c_int {
-            let mut entry: *mut JsonValue = json_arr_at(_subtable, k as u32);
-            let mut _from: *mut JsonValue = json_obj_get_type(
+            let mut entry: *const ParsedValue = json_arr_at(_subtable, k as u32);
+            let mut _from: *const ParsedValue = json_obj_get_type(
                 entry,
                 b"from\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Array,
             );
-            let mut _to: *mut JsonValue = json_obj_get_type(
+            let mut _to: *const ParsedValue = json_obj_get_type(
                 entry,
                 b"to\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,
@@ -323,9 +324,9 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
         let mut n_0: GlyphId = json_obj_len(_subtable) as GlyphId;
         let mut k_0: GlyphId = 0 as GlyphId;
         while (k_0 as ::core::ffi::c_int) < n_0 as ::core::ffi::c_int {
-            let mut _from_0: *mut JsonValue = json_obj_val_at(_subtable, k_0 as u32);
+            let mut _from_0: *const ParsedValue = json_obj_val_at(_subtable, k_0 as u32);
             if !(_from_0.is_null()
-                || (*_from_0).type_0 != JsonType::Array)
+                || json_type_of(_from_0) != JsonType::Array)
             {
                 (*st_0).push(GsubLigatureEntry {
                     from: coverage_from_raw(

@@ -1,6 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, qsort};
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_new_position, json_obj_get, json_obj_get_type, preserialize};
+use crate::support::json_funcs::{json_new_position, preserialize};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_type_of};
 use crate::table::otl::classdef::{expand_class_def, classdef_from_raw, ClassDef, otl_class_def_create, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage, shrink_coverage};
 use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle};
@@ -613,7 +614,7 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *
     return st;
 }
 pub unsafe extern "C" fn otl_gpos_parse_pair(
-    mut _subtable: *const JsonValue,
+    mut _subtable: *const ParsedValue,
     mut _options: *const Options,
 ) -> *mut Subtable {
     let mut class1_count: GlyphClass = 0;
@@ -623,7 +624,7 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
             I_SUBTABLE_GPOS_PAIR
                 .create
                 .expect("non-null function pointer"))();
-    let mut _mat: *mut JsonValue = json_obj_get_type(
+    let mut _mat: *const ParsedValue = json_obj_get_type(
         _subtable,
         b"matrix\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Array,
@@ -657,24 +658,24 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
         while (j_0 as ::core::ffi::c_int) < class1_count as ::core::ffi::c_int
             && (j_0 as ::core::ffi::c_uint) < json_arr_len(_mat)
         {
-            let mut _row: *mut JsonValue = json_arr_at(_mat, j_0 as u32);
+            let mut _row: *const ParsedValue = json_arr_at(_mat, j_0 as u32);
             if !(_row.is_null()
-                || (*_row).type_0 != JsonType::Array)
+                || json_type_of(_row) != JsonType::Array)
             {
                 let mut k_0: GlyphClass = 0 as GlyphClass;
                 while (k_0 as ::core::ffi::c_int) < class2_count as ::core::ffi::c_int
                     && (k_0 as ::core::ffi::c_uint) < json_arr_len(_row)
                 {
-                    let mut _item: *mut JsonValue = json_arr_at(_row, k_0 as u32);
-                    if (*_item).type_0 == JsonType::Integer
+                    let mut _item: *const ParsedValue = json_arr_at(_row, k_0 as u32);
+                    if json_type_of(_item) == JsonType::Integer
                     {
                         first_values[j_0 as usize][k_0 as usize].d_width =
                             json_int_val(_item) as Pos;
-                    } else if (*_item).type_0 == JsonType::Double
+                    } else if json_type_of(_item) == JsonType::Double
                     {
                         first_values[j_0 as usize][k_0 as usize].d_width =
                             json_dbl_val(_item) as Pos;
-                    } else if (*_item).type_0 == JsonType::Object
+                    } else if json_type_of(_item) == JsonType::Object
                     {
                         first_values[j_0 as usize][k_0 as usize] =
                             gpos_parse_value(json_obj_get(

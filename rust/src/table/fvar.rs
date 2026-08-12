@@ -1,7 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 #![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
 
-use crate::support::json_funcs::{json_new_position, json_numof, json_object_push_tag, preserialize};
+use crate::support::json_funcs::{json_new_position, json_object_push_tag, preserialize};
+use crate::support::parsed_json::{ParsedValue, json_numof};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
@@ -631,7 +632,7 @@ pub unsafe extern "C" fn json_new_v_vp(
         return preserialize(_coord_0);
     };
 }
-pub unsafe extern "C" fn json_vq_of(mut cv: *const JsonValue, mut _fvar: *const FvarTable) -> VQ {
+pub unsafe extern "C" fn json_vq_of(mut cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
     return I_VQ.create_still.expect("non-null function pointer")(json_numof(cv) as Pos);
 }
 pub unsafe extern "C" fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut JsonValue {

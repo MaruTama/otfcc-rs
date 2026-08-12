@@ -6,7 +6,8 @@ use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getnum_fallback, otfcc_dump_flags, otfcc_parse_flags};
+use crate::support::json_funcs::{otfcc_dump_flags};
+use crate::support::parsed_json::{ParsedValue, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, otfcc_parse_flags};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite64b};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json_builder::{json_double_new, json_integer_new, json_object_new, json_object_push};
@@ -268,7 +269,7 @@ pub unsafe extern "C" fn otfcc_dump_head(
     }
 }
 pub unsafe extern "C" fn otfcc_parse_head(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<HeadTable>> {
     // Reproduces `init_head`'s two non-zero defaults exactly:
@@ -281,7 +282,7 @@ pub unsafe extern "C" fn otfcc_parse_head(
     head_val.units_per_em = 1000 as u16;
     let mut head_box: Box<HeadTable> = Box::new(head_val);
     let head: *mut HeadTable = head_box.as_mut() as *mut HeadTable;
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get_type(
         root,
         b"head\0" as *const u8 as *const ::core::ffi::c_char,
