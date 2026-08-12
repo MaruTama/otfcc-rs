@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum};
 use crate::support::binio::{read_8u, read_16u, read_16s};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -296,9 +296,8 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
             JsonType::Array,
         );
         let mut j: usize = 0 as usize;
-        while j < (*_ratios).u.array.length as usize {
-            let mut _rr: *mut JsonValue =
-                *(*_ratios).u.array.values.offset(j as isize) as *mut JsonValue;
+        while j < json_arr_len(_ratios) as usize {
+            let mut _rr: *mut JsonValue = json_arr_at(_ratios, j as u32);
             if !(_rr.is_null()
                 || (*_rr).type_0 != JsonType::Object)
             {
@@ -331,9 +330,8 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
                 );
                 if !_records.is_null() {
                     let mut j_0: usize = 0 as usize;
-                    while j_0 < (*_records).u.array.length as usize {
-                        let mut _r: *mut JsonValue =
-                            *(*_records).u.array.values.offset(j_0 as isize) as *mut JsonValue;
+                    while j_0 < json_arr_len(_records) as usize {
+                        let mut _r: *mut JsonValue = json_arr_at(_records, j_0 as u32);
                         if !(_r.is_null()
                             || (*_r).type_0 != JsonType::Object)
                         {

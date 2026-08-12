@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, strcmp};
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getint, json_obj_getsds, json_obj_getstr_share};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getsds, json_obj_getstr_share};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
@@ -291,9 +291,8 @@ pub unsafe extern "C" fn otfcc_parse_svg(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut j: GlyphId = 0 as GlyphId;
-        while (j as ::core::ffi::c_uint) < (*_svg).u.array.length {
-            let mut _a: *mut JsonValue =
-                *(*_svg).u.array.values.offset(j as isize) as *mut JsonValue;
+        while (j as ::core::ffi::c_uint) < json_arr_len(_svg) {
+            let mut _a: *mut JsonValue = json_arr_at(_svg, j as u32);
             if !(_a.is_null()
                 || (*_a).type_0 != JsonType::Object)
             {

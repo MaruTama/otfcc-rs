@@ -2,7 +2,7 @@
 use libc::{free, malloc, memcpy};
 
 
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum_fallback};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum_fallback};
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, GlyphHandle};
 
@@ -318,7 +318,7 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
             I_SUBTABLE_GSUB_REVERSE
                 .create
                 .expect("non-null function pointer"))();
-    (*subtable).match_count = (*_match).u.array.length as TableId;
+    (*subtable).match_count = json_arr_len(_match) as TableId;
     (*subtable).match_0 = Vec::with_capacity((*subtable).match_count as usize);
     (*subtable).input_index = json_obj_getnum_fallback(
         _subtable,
@@ -329,7 +329,7 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
     while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
         (*subtable).match_0.push(coverage_from_raw(
             OTL_I_COVERAGE.parse.expect("non-null function pointer")(
-                *(*_match).u.array.values.offset(j as isize),
+                json_arr_at(_match, j as u32),
             ),
         ));
         j = j.wrapping_add(1);

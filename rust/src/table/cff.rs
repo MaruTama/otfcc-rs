@@ -30,7 +30,7 @@ use crate::table::head::{HeadTable};
 
 
 use crate::vf::vq::{VQ};
-use crate::support::json_funcs::{json_numof, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_numof, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at};
 use crate::libcff::cff_charset::{cff_build_charset};
 use crate::libcff::cff_codecs::{cff_encode_cff_operator};
 use crate::libcff::cff_dict::{CFF_I_DICT};
@@ -1974,14 +1974,14 @@ unsafe extern "C" fn pd_delta_from_json(
     {
         return;
     }
-    *count = (*dump).u.array.length as Arity;
+    *count = json_arr_len(dump) as Arity;
     *array = __caryll_allocate_clean(
         (::core::mem::size_of::<::core::ffi::c_double>() as usize).wrapping_mul(*count as usize),
         785 as ::core::ffi::c_ulong,
     ) as *mut ::core::ffi::c_double;
     let mut j: Arity = 0 as Arity;
     while j < *count {
-        *(*array).offset(j as isize) = json_numof(*(*dump).u.array.values.offset(j as isize));
+        *(*array).offset(j as isize) = json_numof(json_arr_at(dump, j as u32));
         j = j.wrapping_add(1);
     }
 }
@@ -2189,7 +2189,7 @@ unsafe extern "C" fn fd_from_json(
     );
     if !fdarraydump.is_null() {
         (*table).is_cid = true;
-        let fd_count = (*fdarraydump).u.object.length as usize;
+        let fd_count = json_obj_len(fdarraydump) as usize;
         (*table).fd_array = Vec::with_capacity(fd_count);
         let mut j: TableId = 0 as TableId;
         while (j as usize) < fd_count {
@@ -2198,14 +2198,14 @@ unsafe extern "C" fn fd_from_json(
             // slot incrementally via a recursive callback) -- so there's
             // no need to push an empty placeholder first here.
             let mut fd_box: Box<CffTable> = unwrap_cff_table(fd_from_json(
-                (*(*fdarraydump).u.object.values.offset(j as isize)).value,
+                json_obj_val_at(fdarraydump, j as u32),
                 options,
                 false,
             ))
             .unwrap();
             fd_box.font_name = ::core::slice::from_raw_parts(
-                (*(*fdarraydump).u.object.values.offset(j as isize)).name as *const u8,
-                (*(*fdarraydump).u.object.values.offset(j as isize)).name_length as usize,
+                json_obj_key_at(fdarraydump, j as u32) as *const u8,
+                json_obj_key_len_at(fdarraydump, j as u32) as usize,
             ).to_vec();
             (*table).fd_array.push(fd_box);
             j = j.wrapping_add(1);

@@ -6,7 +6,7 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphSize, TableId};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getbool, json_obj_getint_fallback};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getbool, json_obj_getint_fallback};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push};
 use crate::vendor::sds::{sdsempty};
@@ -211,9 +211,8 @@ pub unsafe extern "C" fn otfcc_parse_gasp(
         while ___loggedstep_v {
             gasp = Some(Box::new(GaspTable { version: 1, records: Vec::new() }));
             let mut j: u16 = 0 as u16;
-            while (j as ::core::ffi::c_uint) < (*table).u.array.length {
-                let mut r: *mut JsonValue =
-                    *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
+            while (j as ::core::ffi::c_uint) < json_arr_len(table) {
+                let mut r: *mut JsonValue = json_arr_at(table, j as u32);
                 if !(r.is_null()
                     || (*r).type_0 != JsonType::Object)
                 {

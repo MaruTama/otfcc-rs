@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, qsort};
 
-use crate::support::json_funcs::{preserialize};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_str_len, json_str_ptr, preserialize};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -191,15 +191,15 @@ pub(crate) unsafe extern "C" fn parse_coverage(mut cov: *const JsonValue) -> *mu
         return c;
     }
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < (*cov).u.array.length {
-        if (**(*cov).u.array.values.offset(j as isize)).type_0 == JsonType::String
+    while (j as ::core::ffi::c_uint) < json_arr_len(cov) {
+        if (*json_arr_at(cov, j as u32)).type_0 == JsonType::String
         {
             push_to_coverage(
                 c,
                 handle_from_name(sdsnewlen(
-                    (**(*cov).u.array.values.offset(j as isize)).u.string.ptr
+                    json_str_ptr(json_arr_at(cov, j as u32))
                         as *const ::core::ffi::c_void,
-                    (**(*cov).u.array.values.offset(j as isize)).u.string.length as usize,
+                    json_str_len(json_arr_at(cov, j as u32)) as usize,
                 )) as GlyphHandle,
             );
         }

@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, strtol};
 
-use crate::support::json_funcs::{json_obj_get_type};
+use crate::support::json_funcs::{json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr};
 use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -695,13 +695,12 @@ unsafe extern "C" fn parse_cmap_unicodes(
         return;
     }
     let mut j: u32 = 0 as u32;
-    while j < (*table).u.object.length as u32 {
+    while j < json_obj_len(table) as u32 {
         let mut unicode_str: SdsRaw = sdsnewlen(
-            (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-            (*(*table).u.object.values.offset(j as isize)).name_length as usize,
+            json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
+            json_obj_key_len_at(table, j as u32) as usize,
         );
-        let mut item: *mut JsonValue =
-            (*(*table).u.object.values.offset(j as isize)).value as *mut JsonValue;
+        let mut item: *mut JsonValue = json_obj_val_at(table, j as u32);
         let mut unicode: Unicode = parse_unicode(unicode_str);
         sdsfree(unicode_str);
         if (*item).type_0 == JsonType::String
@@ -709,8 +708,8 @@ unsafe extern "C" fn parse_cmap_unicodes(
             && unicode <= 0x10ffff as Unicode
         {
             let mut gname: SdsRaw = sdsnewlen(
-                (*item).u.string.ptr as *const ::core::ffi::c_void,
-                (*item).u.string.length as usize,
+                json_str_ptr(item) as *const ::core::ffi::c_void,
+                json_str_len(item) as usize,
             );
             if !otfcc_encode_cmap_by_name(cmap, unicode as ::core::ffi::c_int, gname) {
                 let mut current_map: *mut GlyphHandle =
@@ -766,14 +765,13 @@ unsafe extern "C" fn parse_cmap_uvs(
         return;
     }
     let mut j: u32 = 0 as u32;
-    while j < (*table).u.object.length as u32 {
+    while j < json_obj_len(table) as u32 {
         let mut uvs_str: SdsRaw = sdsnewlen(
-            (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-            (*(*table).u.object.values.offset(j as isize)).name_length as usize,
+            json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
+            json_obj_key_len_at(table, j as u32) as usize,
         );
         let mut k: CmapUvsKey = parse_uvs_key(uvs_str);
-        let mut item: *mut JsonValue =
-            (*(*table).u.object.values.offset(j as isize)).value as *mut JsonValue;
+        let mut item: *mut JsonValue = json_obj_val_at(table, j as u32);
         if (*item).type_0 == JsonType::String
             && k.unicode > 0 as u32
             && k.unicode <= 0x10ffff as u32
@@ -781,8 +779,8 @@ unsafe extern "C" fn parse_cmap_uvs(
             && k.selector <= 0x10ffff as u32
         {
             let mut gname: SdsRaw = sdsnewlen(
-                (*item).u.string.ptr as *const ::core::ffi::c_void,
-                (*item).u.string.length as usize,
+                json_str_ptr(item) as *const ::core::ffi::c_void,
+                json_str_len(item) as usize,
             );
             if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname) {
                 let mut current_map: *mut GlyphHandle =

@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, qsort};
 
-use crate::support::json_funcs::{preserialize};
+use crate::support::json_funcs::{json_dbl_val, json_int_val, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, preserialize};
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
@@ -247,21 +247,21 @@ pub(crate) unsafe extern "C" fn parse_class_def(mut _cd: *const JsonValue) -> *m
     }
     let mut cd: *mut ClassDef = otl_class_def_create();
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < (*_cd).u.object.length {
+    while (j as ::core::ffi::c_uint) < json_obj_len(_cd) {
         let mut h: GlyphHandle =
             handle_from_name(sdsnewlen(
-                (*(*_cd).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-                (*(*_cd).u.object.values.offset(j as isize)).name_length as usize,
+                json_obj_key_at(_cd, j as u32) as *const ::core::ffi::c_void,
+                json_obj_key_len_at(_cd, j as u32) as usize,
             )) as GlyphHandle;
         let mut _cid: *mut JsonValue =
-            (*(*_cd).u.object.values.offset(j as isize)).value as *mut JsonValue;
+            json_obj_val_at(_cd, j as u32);
         let mut cls: GlyphClass = 0 as GlyphClass;
         if (*_cid).type_0 == JsonType::Integer
         {
-            cls = (*_cid).u.integer as GlyphClass;
+            cls = json_int_val(_cid) as GlyphClass;
         } else if (*_cid).type_0 == JsonType::Double
         {
-            cls = (*_cid).u.dbl as GlyphClass;
+            cls = json_dbl_val(_cid) as GlyphClass;
         }
         push_class_def(cd, h as GlyphHandle, cls);
         j = j.wrapping_add(1);

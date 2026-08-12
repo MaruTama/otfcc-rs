@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc};
 use crate::support::handle::{sds_to_vec};
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getint};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_str_len, json_str_ptr};
 use crate::support::binio::{read_16u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -305,12 +305,11 @@ pub unsafe extern "C" fn otfcc_parse_name(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             let mut j: u32 = 0 as u32;
-            while j < (*table).u.array.length as u32 {
-                if !(*(*table).u.array.values.offset(j as isize)).is_null()
-                    && (**(*table).u.array.values.offset(j as isize)).type_0 == JsonType::Object
+            while j < json_arr_len(table) {
+                let mut _record: *mut JsonValue = json_arr_at(table, j as u32);
+                if !_record.is_null()
+                    && (*_record).type_0 == JsonType::Object
                 {
-                    let mut _record: *mut JsonValue =
-                        *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
                     if json_obj_get_type(
                         _record,
                         b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
@@ -441,8 +440,8 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             JsonType::String,
                         );
                         record.name_string = ::core::slice::from_raw_parts(
-                            (*str).u.string.ptr as *const u8,
-                            (*str).u.string.length as usize,
+                            json_str_ptr(str) as *const u8,
+                            json_str_len(str) as usize,
                         ).to_vec();
                         name.push(record);
                     }

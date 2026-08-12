@@ -894,6 +894,89 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`JsonValue`'s union payload is no longer read directly outside
+  `vendor/json.rs`/`vendor/json_builder.rs` — C-1 of Stage 6-2.5, the
+  "make `JsonValue` safe Rust" theme, and the first PR to touch that theme
+  at all.** `JsonValue`'s payload is still a raw `union JsonValuePayload
+  { boolean, integer, dbl, string, object, array }` reached through `.u.*`
+  field access on a `*const`/`*mut JsonValue` — this PR does not change
+  that representation at all, only *who's allowed to read it directly*.
+  11 new self-guarding accessor functions were added to
+  `support/json_funcs.rs` (`json_obj_len`/`json_obj_key_at`/
+  `json_obj_key_len_at`/`json_obj_val_at`, `json_arr_len`/`json_arr_at`,
+  `json_str_ptr`/`json_str_len`, `json_int_val`/`json_dbl_val`/
+  `json_bool_val`), and all 433 direct union-field reads across 33 parse-
+  side consumer files were replaced with calls to them — a pure,
+  behavior-preserving textual substitution, not a restructuring. The
+  point: once `JsonValue`'s representation itself becomes a safe enum
+  (C-2), only these 11 functions and `vendor/json.rs` need to change —
+  every one of the 33 consumer files converted here is already finished
+  with respect to that future step.
+  - **Why this had to come before the representation change, not after.**
+    A prior investigation (recorded in this same "Next steps" section
+    before this PR) established the crate's decisive split: every
+    `dump.rs` in the tree goes through the builder API in
+    `vendor/json_builder.rs` and never touches the union directly, while
+    every direct union read lives on the parse side. That split makes it
+    possible to convert parse-side *access* first, independent of
+    *representation*, and defer the representation change (and the
+    build-side equivalent) to later, smaller, more isolated PRs — the
+    same reasoning the B-3 series used to convert one field at a time
+    instead of one giant `Subtable` PR.
+  - **The accessors are thin and self-guarding, not zero-cost
+    reinterpretations.** Each one repeats the same null/type check this
+    crate's existing accessors (`json_obj_getbool`, `json_numof`, etc.,
+    already in `json_funcs.rs`) already used — `json_obj_len` returns 0
+    for a null or non-`Object` value rather than reading garbage,
+    `json_str_ptr`/`json_str_len` accept `String` *and* `PreSerialized`
+    (the same payload, retagged — see `preserialize`) — so a few sites
+    that used to skip a redundant type check some helper already made
+    are now technically doing that check twice. Free once inlined, and
+    it means the accessors are *safer* than the raw reads they replace,
+    not just differently spelled: `table/vdmx/funcs.rs`'s ratio-array
+    loop, for instance, used to dereference `(*_ratios).u.array.length`
+    with no null check on `_ratios` at all (a latent null-deref on a
+    missing `"ratios"` key) — `json_arr_len`'s self-guard fixes that
+    incidentally, not as this PR's goal but as a side effect of routing
+    through a helper that already had to handle it.
+  - **`json_funcs.rs`'s own pre-existing helpers were rewritten to use
+    the new primitives too**, not just left as a second population of
+    direct union readers sitting next to the new ones — `json_obj_getbool`,
+    `json_obj_get`, `json_obj_getsds`, `json_obj_getstr_share`,
+    `json_numof`, `json_boolof`, `json_obj_getnum_fallback`,
+    `json_obj_getint_fallback`, and `otfcc_parse_flags` all now call the
+    new accessors internally. The result: **every** direct `.u.*` read
+    in the entire crate outside `vendor/json.rs`/`vendor/json_builder.rs`
+    lives in exactly 11 functions, all in this one file.
+  - **One non-mechanical fix, caught during conversion, not assumed
+    away.** `table/otl/subtables/gsub_ligature.rs`'s legacy (no
+    `"substitutions"` key) parse branch reads `(*_subtable).u.array.length`
+    on a value whose real type is `Object` — valid C because
+    `JsonArrayValue.length` and `JsonObjectValue.length` share the same
+    offset and type, so the union aliases correctly by accident. A blind
+    text substitution to `json_arr_len` would have returned 0 always
+    (wrong type check) and silently dropped every font using that legacy
+    JSON shape; it was converted to `json_obj_len` instead, matching the
+    value's actual type and the object-style access the very next lines
+    already use on the same value.
+  - **Two destructive free-and-replace sites, deliberately left alone.**
+    `table/glyf.rs` (glyph-by-glyph parse) and `table/otl/parse.rs`
+    (`feature_merger_activate`'s duplicate-merge pass) each free a JSON
+    subtree mid-walk and write a fresh value back into the same
+    `JsonObjectEntry` slot in place. The *read* side of each site (the
+    key/value being examined before the free) was converted normally;
+    the raw pointer arithmetic that locates the slot being *written to*
+    was left untouched, since no accessor exists yet for mutating a slot
+    in place — that's C-2/C-3 territory, once the representation itself
+    can express "replace this object member" safely.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 44/44 unit tests, ABI at exactly 4
+    symbols, every standard payload byte-identical in both directions
+    including the `otfccdll` cdylib, all 10 round-trip payloads stable,
+    and issue #1's regression test green — expected, since this PR
+    changes zero bytes of representation or logic, only which function
+    reads which union field.
+
 - **`GposPairSubtable` is fully Box-ified now — `first`/`second: *mut ClassDef`
   become `Option<Box<ClassDef>>`, `first_values`/`second_values: *mut *mut
   PositionValue` become `Vec<Vec<PositionValue>>` (B-3-7 of the

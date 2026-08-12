@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getint_fallback, preserialize};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint_fallback, json_str_len, json_str_ptr, preserialize};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -330,9 +330,8 @@ pub unsafe extern "C" fn otfcc_parse_colr(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut j: GlyphId = 0 as GlyphId;
-        while (j as ::core::ffi::c_uint) < (*_colr).u.array.length {
-            let mut _mapping: *mut JsonValue =
-                *(*_colr).u.array.values.offset(j as isize) as *mut JsonValue;
+        while (j as ::core::ffi::c_uint) < json_arr_len(_colr) {
+            let mut _mapping: *mut JsonValue = json_arr_at(_colr, j as u32);
             if !(_mapping.is_null()
                 || (*_mapping).type_0 != JsonType::Object)
             {
@@ -356,13 +355,12 @@ pub unsafe extern "C" fn otfcc_parse_colr(
                         layers: Vec::new(),
                     };
                     m.glyph = handle_from_name(sdsnewlen(
-                        (*_baseglyph).u.string.ptr as *const ::core::ffi::c_void,
-                        (*_baseglyph).u.string.length as usize,
+                        json_str_ptr(_baseglyph) as *const ::core::ffi::c_void,
+                        json_str_len(_baseglyph) as usize,
                     )) as GlyphHandle;
                     let mut k: GlyphId = 0 as GlyphId;
-                    while (k as ::core::ffi::c_uint) < (*_layers).u.array.length {
-                        let mut _layer: *mut JsonValue =
-                            *(*_layers).u.array.values.offset(k as isize) as *mut JsonValue;
+                    while (k as ::core::ffi::c_uint) < json_arr_len(_layers) {
+                        let mut _layer: *mut JsonValue = json_arr_at(_layers, k as u32);
                         if !(_layer.is_null()
                             || (*_layer).type_0 != JsonType::Object)
                         {
@@ -375,9 +373,9 @@ pub unsafe extern "C" fn otfcc_parse_colr(
                                 m.layers.push(ColrLayer {
                                     glyph: handle_from_name(
                                         sdsnewlen(
-                                            (*_layerglyph).u.string.ptr
+                                            json_str_ptr(_layerglyph)
                                                 as *const ::core::ffi::c_void,
-                                            (*_layerglyph).u.string.length as usize,
+                                            json_str_len(_layerglyph) as usize,
                                         ),
                                     )
                                         as GlyphHandle,

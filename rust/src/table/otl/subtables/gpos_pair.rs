@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, qsort};
-use crate::support::json_funcs::{json_new_position, json_obj_get, json_obj_get_type, preserialize};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_new_position, json_obj_get, json_obj_get_type, preserialize};
 use crate::table::otl::classdef::{expand_class_def, classdef_from_raw, ClassDef, otl_class_def_create, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage, shrink_coverage};
 use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle};
@@ -655,27 +655,25 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
             vec![vec![position_zero(); class2_count as usize]; class1_count as usize];
         let mut j_0: GlyphClass = 0 as GlyphClass;
         while (j_0 as ::core::ffi::c_int) < class1_count as ::core::ffi::c_int
-            && (j_0 as ::core::ffi::c_uint) < (*_mat).u.array.length
+            && (j_0 as ::core::ffi::c_uint) < json_arr_len(_mat)
         {
-            let mut _row: *mut JsonValue =
-                *(*_mat).u.array.values.offset(j_0 as isize) as *mut JsonValue;
+            let mut _row: *mut JsonValue = json_arr_at(_mat, j_0 as u32);
             if !(_row.is_null()
                 || (*_row).type_0 != JsonType::Array)
             {
                 let mut k_0: GlyphClass = 0 as GlyphClass;
                 while (k_0 as ::core::ffi::c_int) < class2_count as ::core::ffi::c_int
-                    && (k_0 as ::core::ffi::c_uint) < (*_row).u.array.length
+                    && (k_0 as ::core::ffi::c_uint) < json_arr_len(_row)
                 {
-                    let mut _item: *mut JsonValue =
-                        *(*_row).u.array.values.offset(k_0 as isize) as *mut JsonValue;
+                    let mut _item: *mut JsonValue = json_arr_at(_row, k_0 as u32);
                     if (*_item).type_0 == JsonType::Integer
                     {
                         first_values[j_0 as usize][k_0 as usize].d_width =
-                            (*_item).u.integer as Pos;
+                            json_int_val(_item) as Pos;
                     } else if (*_item).type_0 == JsonType::Double
                     {
                         first_values[j_0 as usize][k_0 as usize].d_width =
-                            (*_item).u.dbl as Pos;
+                            json_dbl_val(_item) as Pos;
                     } else if (*_item).type_0 == JsonType::Object
                     {
                         first_values[j_0 as usize][k_0 as usize] =

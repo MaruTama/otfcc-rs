@@ -2,7 +2,7 @@
 use libc::{free};
 
 
-use crate::support::json_funcs::{json_obj_get_type, preserialize};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, preserialize};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
@@ -328,9 +328,8 @@ unsafe extern "C" fn parse_bases(
 ) {
     let class_count: GlyphClass = (*h).len() as GlyphClass;
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < (*_bases).u.object.length {
-        let mut gname: *mut ::core::ffi::c_char =
-            (*(*_bases).u.object.values.offset(j as isize)).name;
+    while (j as ::core::ffi::c_uint) < json_obj_len(_bases) {
+        let mut gname: *mut ::core::ffi::c_char = json_obj_key_at(_bases, j as u32);
         let mut lig: LigatureBaseRecord = LigatureBaseRecord {
             glyph: Handle {
                 state: HandleState::Empty,
@@ -343,22 +342,20 @@ unsafe extern "C" fn parse_bases(
         lig.component_count = 0 as GlyphId;
         lig.anchors = Vec::new();
         lig.glyph = handle_from_name(sdsnewlen(
-            (*(*_bases).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-            (*(*_bases).u.object.values.offset(j as isize)).name_length as usize,
+            json_obj_key_at(_bases, j as u32) as *const ::core::ffi::c_void,
+            json_obj_key_len_at(_bases, j as u32) as usize,
         )) as GlyphHandle;
-        let mut base_record: *mut JsonValue =
-            (*(*_bases).u.object.values.offset(j as isize)).value as *mut JsonValue;
+        let mut base_record: *mut JsonValue = json_obj_val_at(_bases, j as u32);
         if base_record.is_null()
             || (*base_record).type_0 != JsonType::Array
         {
             (*subtable).lig_array.push(lig);
         } else {
-            lig.component_count = (*base_record).u.array.length as GlyphId;
+            lig.component_count = json_arr_len(base_record) as GlyphId;
             lig.anchors = Vec::with_capacity(lig.component_count as usize);
             let mut k: GlyphId = 0 as GlyphId;
             while (k as ::core::ffi::c_int) < lig.component_count as ::core::ffi::c_int {
-                let mut _component_record: *mut JsonValue =
-                    *(*base_record).u.array.values.offset(k as isize) as *mut JsonValue;
+                let mut _component_record: *mut JsonValue = json_arr_at(base_record, k as u32);
                 // Indexed by `class_id` below, out of JSON key order --
                 // pre-sized and filled with "absent" rather than built with
                 // `.push()`.
@@ -367,9 +364,9 @@ unsafe extern "C" fn parse_bases(
                     || (*_component_record).type_0 != JsonType::Object)
                 {
                     let mut m_0: GlyphClass = 0 as GlyphClass;
-                    while (m_0 as ::core::ffi::c_uint) < (*_component_record).u.object.length {
+                    while (m_0 as ::core::ffi::c_uint) < json_obj_len(_component_record) {
                         let name_ptr: *mut ::core::ffi::c_char =
-                            (*(*_component_record).u.object.values.offset(m_0 as isize)).name;
+                            json_obj_key_at(_component_record, m_0 as u32);
                         // `strlen`-bounded, matching
                         // `otl_parse_mark_array`'s registration key
                         // exactly.
@@ -398,9 +395,7 @@ unsafe extern "C" fn parse_bases(
                             Some(&class_id) => {
                                 lig.anchors[k as usize][class_id as usize] =
                                     otl_parse_anchor(
-                                        (*(*_component_record).u.object.values.offset(m_0 as isize))
-                                            .value
-                                            as *mut JsonValue,
+                                        json_obj_val_at(_component_record, m_0 as u32),
                                     );
                             }
                         }
