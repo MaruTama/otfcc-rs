@@ -1,61 +1,61 @@
 //! Stage 6-2.5, C-3: a safe Rust representation for the JSON *build/dump*
-//! side, replacing `vendor::json::JsonValue` for every consumer that only
-//! *constructs* a value (the whole `table/*/dump.rs` family, plus
-//! `bin/otfccdump.rs`'s own serialize call). `vendor::json_builder`'s
-//! constructor API is no longer reached by any of them.
+//! side, replacing the old vendored `JsonValue`-based builder for every
+//! consumer that only *constructs* a value (the whole `table/*/dump.rs`
+//! family, plus `bin/otfccdump.rs`'s own serialize call). Every consumer
+//! has been switched over to this module's constructor API and its
+//! `json_serialize_ex`.
 //!
-//! `vendor::json::JsonValue` stays exactly as it is for now -- this module
-//! is a deliberately *separate* type, following the same reasoning C-2
-//! established for the parse side: the build-side object graph never
-//! intersects `JsonValue`'s union-based one at runtime, so introducing
-//! `BuiltValue` costs nothing on the existing type.
+//! `BuiltValue` is a genuinely separate type from `parsed_json::ParsedValue`
+//! (the parse side's own safe representation, from Stage 6-2.5 C-2) even
+//! though both ultimately replaced pieces of the same old vendored
+//! `JsonValue` union: the two object graphs never intersected at runtime
+//! (the whole parse tree was freed before any build tree existed), so
+//! there was never a reason to unify them.
 //!
-//! `vendor::json_builder`'s real contract, once actually read end to end,
-//! turned out narrower than its generality suggests -- mirroring what C-2's
-//! survey found for `json_parse_ex`:
+//! The old vendored parser (`vendor/json.rs`) and builder
+//! (`vendor/json_builder.rs`) were deleted entirely in Stage 6-2.5 C-4,
+//! once grep confirmed neither had any remaining caller in this crate --
+//! this module's own differential test suite (which used to build the same
+//! sample tree with both this module and the old builder, then compare the
+//! serialized bytes) was rewritten to assert against fixed byte fixtures
+//! instead, captured from this module's own output after that comparison
+//! had already confirmed it matched. Their real contracts, once actually
+//! read end to end while porting them here, turned out narrower than their
+//! generality suggested:
 //!
-//! - `builderize()` -- the "upgrade a bare `JsonValue` produced by the
-//!   *parser* into a builder value in place" escape hatch -- never fires in
-//!   practice. Every value ever passed to a `json_*_push` call in this
-//!   crate was itself produced by a `json_*_new` call; now that C-2 split
-//!   `ParsedValue` (parse) from `JsonValue` (build) into distinct Rust
-//!   types, a parsed value reaching this API is a compile error, not a
-//!   runtime "maybe" -- so `BuiltValue` needs no such upgrade path at all.
-//! - `json_object_sort`/`json_object_merge` have zero callers anywhere in
+//! - `builderize()` -- the old builder's "upgrade a bare `JsonValue`
+//!   produced by the *parser* into a builder value in place" escape hatch
+//!   -- never fired in practice. Every value ever passed to a
+//!   `json_*_push` call in this crate was itself produced by a
+//!   `json_*_new` call; once C-2 split `ParsedValue` (parse) from
+//!   `JsonValue` (build) into distinct Rust types, a parsed value reaching
+//!   this API became a compile error, not a runtime "maybe" -- so
+//!   `BuiltValue` needs no such upgrade path at all.
+//! - `json_object_sort`/`json_object_merge` had zero callers anywhere in
 //!   this crate (confirmed by grep) -- dropped rather than ported.
-//! - `.parent`/`length_iterated` exist purely so `json_measure_ex`/
-//!   `json_serialize_ex`/`json_builder_free` can walk the tree
-//!   *iteratively* (stack-frugal C recursion avoidance) rather than
-//!   recursively. A `Vec`/`Box`-owned tree needs none of that -- this
+//! - `.parent`/`length_iterated` existed purely so the old builder's
+//!   `json_measure_ex`/`json_serialize_ex`/`json_builder_free` could walk
+//!   the tree *iteratively* (stack-frugal C recursion avoidance) rather
+//!   than recursively. A `Vec`/`Box`-owned tree needs none of that -- this
 //!   module's serializer is ordinary recursion over `&BuiltValue`, and
 //!   there is no `BuiltValue`-side `free` at all (`Drop` does it).
-//! - **`json_measure_ex` itself turns out to exist purely to pre-size a
+//! - **`json_measure_ex` itself turned out to exist purely to pre-size a
 //!   `calloc`'d C buffer before `json_serialize_ex` fills it -- and it
-//!   deliberately *over*-estimates** (its own arithmetic double-counts
-//!   indent width; see `bin/otfccdump.rs`'s post-serialize "scan backward
-//!   over trailing zero bytes to find where the real content ends" step,
-//!   which exists *because* the buffer is oversized). A `Vec<u8>`-returning
-//!   serializer needs no upfront size at all -- it grows exactly as far as
-//!   the real content requires, so this module has no `json_measure_ex`
-//!   equivalent; `json_serialize_ex` below returns the exact bytes
-//!   directly. Wiring this in deleted the "trim trailing zeros" step in
-//!   `bin/otfccdump.rs` as dead weight along with it.
-//! - `JSON_SERIALIZE_MODE_SINGLE_LINE` (the fallback `DEFAULT_OPTS` mode)
-//!   is never reached by any real call site either -- both callers
-//!   (`bin/otfccdump.rs`, `support/json_funcs.rs`'s `preserialize`) always
-//!   pass `PACKED` or `MULTILINE` explicitly. `get_serialize_flags` is
-//!   still ported in full below (it is cheap and already written), so
-//!   nothing is lost by not narrowing further here.
-//!
-//! Every `table/*/dump.rs` consumer has been switched over to this module's
-//! constructor API, and `bin/otfccdump.rs` calls this module's
-//! `json_serialize_ex` directly. `vendor::json_builder`'s own
-//! `json_measure_ex`/`json_serialize_ex`/`json_*_new` therefore have no
-//! remaining callers in this crate outside the differential test suite at
-//! the bottom of this file (which still builds the same tree shape with
-//! both APIs and compares the serialized bytes, as a correctness check
-//! against the vendored implementation) -- `vendor/json_builder.rs`'s
-//! build-side API is a deletion candidate.
+//!   deliberately *over*-estimated** (its own arithmetic double-counted
+//!   indent width; `bin/otfccdump.rs` used to scan backward over the
+//!   resulting buffer's trailing zero padding to find where the real
+//!   content actually ended, purely to work around the over-estimate). A
+//!   `Vec<u8>`-returning serializer needs no upfront size at all -- it
+//!   grows exactly as far as the real content requires, so this module has
+//!   no `json_measure_ex` equivalent; `json_serialize_ex` below returns
+//!   the exact bytes directly, and `bin/otfccdump.rs`'s scan-for-trailing-
+//!   zeros step was deleted along with it.
+//! - `JSON_SERIALIZE_MODE_SINGLE_LINE` (the old builder's fallback
+//!   `DEFAULT_OPTS` mode) was never reached by any real call site either --
+//!   both callers (`bin/otfccdump.rs`, this module's own `preserialize`)
+//!   always pass `PACKED` or `MULTILINE` explicitly. `get_serialize_flags`
+//!   is still ported in full below (it was cheap and already written), so
+//!   nothing was lost by not narrowing further here.
 
 use ::core::ffi::{c_char, c_int, c_uint};
 
@@ -444,77 +444,26 @@ fn escape_string_into(s: &[u8], out: &mut Vec<u8>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vendor::json::JsonValue;
-    use crate::vendor::json_builder::{
-        json_array_new as old_array_new, json_array_push as old_array_push,
-        json_boolean_new as old_boolean_new, json_builder_free, json_double_new as old_double_new,
-        json_integer_new as old_integer_new, json_measure_ex, json_null_new as old_null_new,
-        json_object_new as old_object_new, json_object_push_length as old_object_push_length,
-        json_serialize_ex as old_serialize_ex, json_string_new_length as old_string_new_length,
-    };
 
-    unsafe fn old_serialize(value: *mut JsonValue, opts: JsonSerializeOpts) -> Vec<u8> {
-        let len = unsafe { json_measure_ex(value, opts) };
-        let buf = unsafe { ::libc::calloc(1, len) } as *mut ::core::ffi::c_char;
-        unsafe { old_serialize_ex(buf, value, opts) };
-        // Matches `bin/otfccdump.rs`'s own "scan back over the
-        // over-estimate's trailing zero padding" step -- see this
-        // module's doc comment on why `json_measure_ex` over-estimates.
-        let mut actual_len = len - 1;
-        while actual_len > 0 && unsafe { *buf.add(actual_len) } == 0 {
-            actual_len -= 1;
-        }
-        if unsafe { *buf.add(actual_len) } != 0 {
-            actual_len += 1;
-        }
-        let bytes =
-            unsafe { ::core::slice::from_raw_parts(buf as *const u8, actual_len) }.to_vec();
-        unsafe { ::libc::free(buf as *mut ::core::ffi::c_void) };
-        bytes
-    }
-
-    /// Builds the same nested tree shape (object containing an array,
+    /// The same nested tree shape a former differential test suite built
+    /// against `vendor::json_builder` (object containing an array,
     /// strings needing every escape case, positive/negative/zero
     /// integers, a double, both booleans, null, and a nested empty
-    /// array/object) with both the old builder and this module, and
-    /// returns `(old_tree, new_tree)`.
-    unsafe fn build_sample_tree() -> (*mut JsonValue, BuiltValue) {
+    /// array/object), built solely through this module's own constructor
+    /// API.
+    unsafe fn build_sample_tree() -> BuiltValue {
         unsafe {
-            let old_root = old_object_new(8);
             let new_root = json_object_new(8);
 
-            old_object_push_length(
-                old_root,
-                4,
-                c"name".as_ptr(),
-                old_string_new_length(
-                    22,
-                    c"quote\" back\\slash\ttab".as_ptr(),
-                ),
-            );
-            json_object_push_length(
+            json_object_push(
                 new_root,
-                4,
                 c"name".as_ptr(),
-                json_string_new_length(
-                    22,
-                    c"quote\" back\\slash\ttab".as_ptr(),
-                ),
+                json_string_new(c"quote\" back\\slash\ttab".as_ptr()),
             );
 
             let control_bytes: &[u8] = &[0, 8, 11, 12, 10, 13, b'a', 0xff];
-            old_object_push_length(
-                old_root,
-                8,
-                c"controls".as_ptr(),
-                old_string_new_length(
-                    control_bytes.len() as c_uint,
-                    control_bytes.as_ptr() as *const c_char,
-                ),
-            );
-            json_object_push_length(
+            json_object_push(
                 new_root,
-                8,
                 c"controls".as_ptr(),
                 json_string_new_length(
                     control_bytes.len() as c_uint,
@@ -522,21 +471,17 @@ mod tests {
                 ),
             );
 
-            let old_arr = old_array_new(5);
             let new_arr = json_array_new(5);
-            // `i64::MIN` is deliberately excluded: the old builder's
-            // `json_serialize_ex` does `integer = -integer` on a negative
-            // value with no overflow guard, which is UB-but-wraps in C but
-            // panics in a debug-mode Rust build's checked negation --
-            // a pre-existing latent bug in `vendor/json_builder.rs`,
-            // unrelated to and not reproduced by this module, same as the
-            // parser's integer-overflow panic flagged during C-2.
+            // `i64::MIN` is deliberately excluded, matching what the
+            // former differential test against the old builder also had
+            // to exclude: this module's own `write_value` uses
+            // `i64::to_string()` and handles it correctly, but is kept out
+            // of this fixture for continuity with that history rather than
+            // for any correctness reason of its own.
             for n in [0i64, 1, -1, 12345, i64::MIN + 1, i64::MAX] {
-                old_array_push(old_arr, old_integer_new(n));
                 json_array_push(new_arr, json_integer_new(n));
             }
-            old_object_push_length(old_root, 6, c"ints".as_ptr(), old_arr);
-            json_object_push_length(new_root, 6, c"ints".as_ptr(), new_arr);
+            json_object_push(new_root, c"ints".as_ptr(), new_arr);
 
             for (dbl, key) in [
                 (0.0f64, c"zero"),
@@ -546,56 +491,55 @@ mod tests {
                 (1.0e20f64, c"big"),
                 (1.0e-20f64, c"small"),
             ] {
-                old_object_push_length(old_root, 7, key.as_ptr(), old_double_new(dbl));
-                json_object_push_length(new_root, 7, key.as_ptr(), json_double_new(dbl));
+                json_object_push(new_root, key.as_ptr(), json_double_new(dbl));
             }
 
-            old_object_push_length(old_root, 4, c"true".as_ptr(), old_boolean_new(1));
-            json_object_push_length(new_root, 4, c"true".as_ptr(), json_boolean_new(1));
-            old_object_push_length(old_root, 5, c"false".as_ptr(), old_boolean_new(0));
-            json_object_push_length(new_root, 5, c"false".as_ptr(), json_boolean_new(0));
-            old_object_push_length(old_root, 4, c"null".as_ptr(), old_null_new());
-            json_object_push_length(new_root, 4, c"null".as_ptr(), json_null_new());
+            json_object_push(new_root, c"true".as_ptr(), json_boolean_new(1));
+            json_object_push(new_root, c"false".as_ptr(), json_boolean_new(0));
+            json_object_push(new_root, c"null".as_ptr(), json_null_new());
 
-            old_object_push_length(old_root, 9, c"emptyarr".as_ptr(), old_array_new(0));
-            json_object_push_length(new_root, 9, c"emptyarr".as_ptr(), json_array_new(0));
-            old_object_push_length(old_root, 8, c"emptyobj".as_ptr(), old_object_new(0));
-            json_object_push_length(new_root, 8, c"emptyobj".as_ptr(), json_object_new(0));
+            json_object_push(new_root, c"emptyarr".as_ptr(), json_array_new(0));
+            json_object_push(new_root, c"emptyobj".as_ptr(), json_object_new(0));
 
-            let new_tree = *Box::from_raw(new_root);
-            (old_root, new_tree)
+            *Box::from_raw(new_root)
         }
     }
 
+    /// Fixed-fixture regression coverage for `json_serialize_ex`'s exact
+    /// byte output, replacing what used to be a differential comparison
+    /// against `vendor::json_builder`'s own serializer (deleted along with
+    /// the rest of the now-fully-superseded old builder -- see
+    /// `rust/README.md`'s Stage 6-2.5 C-4 entry). The expected bytes below
+    /// were captured from this function's own output after confirming it
+    /// matched the old builder byte-for-byte, so this still protects
+    /// against an accidental future change to escaping, number formatting,
+    /// or bracket/indent spacing -- just without a live second
+    /// implementation to compare against.
     #[test]
-    fn packed_matches_old_builder() {
+    fn packed_matches_the_known_good_fixture() {
         unsafe {
-            let (old_root, new_tree) = build_sample_tree();
+            let tree = build_sample_tree();
             let opts = JsonSerializeOpts {
                 mode: JSON_SERIALIZE_MODE_PACKED,
                 opts: 0,
                 indent_size: 0,
             };
-            let old_bytes = old_serialize(old_root, opts);
-            let new_bytes = json_serialize_ex(&new_tree, opts);
-            assert_eq!(old_bytes, new_bytes);
-            json_builder_free(old_root);
+            let expected: &[u8] = b"\x7b\x22\x6e\x61\x6d\x65\x22\x3a\x22\x71\x75\x6f\x74\x65\x5c\x22\x20\x62\x61\x63\x6b\x5c\x5c\x73\x6c\x61\x73\x68\x5c\x74\x74\x61\x62\x22\x2c\x22\x63\x6f\x6e\x74\x72\x6f\x6c\x73\x22\x3a\x22\x5c\x75\x30\x30\x30\x30\x5c\x62\x5c\x75\x30\x30\x30\x62\x5c\x66\x5c\x6e\x5c\x72\x61\xff\x22\x2c\x22\x69\x6e\x74\x73\x22\x3a\x5b\x30\x2c\x31\x2c\x2d\x31\x2c\x31\x32\x33\x34\x35\x2c\x2d\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x2c\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x5d\x2c\x22\x7a\x65\x72\x6f\x22\x3a\x30\x2e\x30\x2c\x22\x6e\x65\x67\x7a\x65\x72\x6f\x22\x3a\x30\x2e\x30\x2c\x22\x66\x72\x61\x63\x22\x3a\x33\x2e\x35\x2c\x22\x6e\x65\x67\x66\x72\x61\x63\x22\x3a\x2d\x31\x32\x33\x2e\x34\x35\x36\x2c\x22\x62\x69\x67\x22\x3a\x31\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x2e\x30\x2c\x22\x73\x6d\x61\x6c\x6c\x22\x3a\x31\x65\x2d\x32\x30\x2c\x22\x74\x72\x75\x65\x22\x3a\x74\x72\x75\x65\x2c\x22\x66\x61\x6c\x73\x65\x22\x3a\x66\x61\x6c\x73\x65\x2c\x22\x6e\x75\x6c\x6c\x22\x3a\x6e\x75\x6c\x6c\x2c\x22\x65\x6d\x70\x74\x79\x61\x72\x72\x22\x3a\x5b\x5d\x2c\x22\x65\x6d\x70\x74\x79\x6f\x62\x6a\x22\x3a\x7b\x7d\x7d";
+            assert_eq!(json_serialize_ex(&tree, opts), expected);
         }
     }
 
     #[test]
-    fn multiline_matches_old_builder() {
+    fn multiline_matches_the_known_good_fixture() {
         unsafe {
-            let (old_root, new_tree) = build_sample_tree();
+            let tree = build_sample_tree();
             let opts = JsonSerializeOpts {
                 mode: JSON_SERIALIZE_MODE_MULTILINE,
                 opts: 0,
                 indent_size: 4,
             };
-            let old_bytes = old_serialize(old_root, opts);
-            let new_bytes = json_serialize_ex(&new_tree, opts);
-            assert_eq!(old_bytes, new_bytes);
-            json_builder_free(old_root);
+            let expected: &[u8] = b"\x7b\x0a\x20\x20\x20\x20\x22\x6e\x61\x6d\x65\x22\x3a\x20\x22\x71\x75\x6f\x74\x65\x5c\x22\x20\x62\x61\x63\x6b\x5c\x5c\x73\x6c\x61\x73\x68\x5c\x74\x74\x61\x62\x22\x2c\x0a\x20\x20\x20\x20\x22\x63\x6f\x6e\x74\x72\x6f\x6c\x73\x22\x3a\x20\x22\x5c\x75\x30\x30\x30\x30\x5c\x62\x5c\x75\x30\x30\x30\x62\x5c\x66\x5c\x6e\x5c\x72\x61\xff\x22\x2c\x0a\x20\x20\x20\x20\x22\x69\x6e\x74\x73\x22\x3a\x20\x5b\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x30\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x31\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x2d\x31\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x31\x32\x33\x34\x35\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x2d\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x0a\x20\x20\x20\x20\x5d\x2c\x0a\x20\x20\x20\x20\x22\x7a\x65\x72\x6f\x22\x3a\x20\x30\x2e\x30\x2c\x0a\x20\x20\x20\x20\x22\x6e\x65\x67\x7a\x65\x72\x6f\x22\x3a\x20\x30\x2e\x30\x2c\x0a\x20\x20\x20\x20\x22\x66\x72\x61\x63\x22\x3a\x20\x33\x2e\x35\x2c\x0a\x20\x20\x20\x20\x22\x6e\x65\x67\x66\x72\x61\x63\x22\x3a\x20\x2d\x31\x32\x33\x2e\x34\x35\x36\x2c\x0a\x20\x20\x20\x20\x22\x62\x69\x67\x22\x3a\x20\x31\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x2e\x30\x2c\x0a\x20\x20\x20\x20\x22\x73\x6d\x61\x6c\x6c\x22\x3a\x20\x31\x65\x2d\x32\x30\x2c\x0a\x20\x20\x20\x20\x22\x74\x72\x75\x65\x22\x3a\x20\x74\x72\x75\x65\x2c\x0a\x20\x20\x20\x20\x22\x66\x61\x6c\x73\x65\x22\x3a\x20\x66\x61\x6c\x73\x65\x2c\x0a\x20\x20\x20\x20\x22\x6e\x75\x6c\x6c\x22\x3a\x20\x6e\x75\x6c\x6c\x2c\x0a\x20\x20\x20\x20\x22\x65\x6d\x70\x74\x79\x61\x72\x72\x22\x3a\x20\x5b\x5d\x2c\x0a\x20\x20\x20\x20\x22\x65\x6d\x70\x74\x79\x6f\x62\x6a\x22\x3a\x20\x7b\x7d\x0a\x7d";
+            assert_eq!(json_serialize_ex(&tree, opts), expected);
         }
     }
 

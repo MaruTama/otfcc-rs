@@ -894,6 +894,72 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 6-2.5's Theme C is complete: the old vendored `JsonValue`-based
+  JSON parser and builder are deleted entirely (C-4), closing out the
+  theme C-1 through C-3 spent four PRs building toward.** With C-2
+  (`ParsedValue`) and C-3 (`BuiltValue`) both fully wired, grep confirmed
+  `support/json_funcs.rs`'s whole accessor layer, `vendor/json.rs`'s
+  parser (`json_parse_ex` and its state machine, `JsonValue`/
+  `JsonObjectEntry`/the union payload, `JsonSettings`/`JsonState`), and
+  `vendor/json_builder.rs`'s builder (`JsonBuilderValue`, `builderize`,
+  every `json_*_new`/`json_*_push` constructor, `json_measure_ex`/
+  `json_serialize_ex`, `json_builder_free`) had zero remaining callers in
+  production — deleted outright rather than kept as dead weight. Net
+  change: **~4,900 lines removed** across the three files (~301 added,
+  mostly test rewrites below).
+  - **What survived, and why.** `vendor/json.rs` now holds only the
+    `JsonType` enum (12 lines) — `parsed_json`/`built_json`'s own APIs
+    still use it as a plain type-tag argument
+    (`json_obj_get_type`/`json_type_of` and friends), independent of the
+    parser that used to sit alongside it. `vendor/json_builder.rs` now
+    holds only `JsonSerializeOpts` and the `JSON_SERIALIZE_MODE_*`/
+    `JSON_SERIALIZE_OPT_*` constants (~30 lines) — real, live imports:
+    `built_json.rs` re-exports them, and `bin/otfccdump.rs` constructs
+    them directly. `support/json_funcs.rs` had nothing left to keep and
+    was deleted as a whole file.
+  - **The judgment call, made explicitly rather than silently.** Both
+    `parsed_json.rs`'s and `built_json.rs`'s own differential test suites
+    used the old parser/builder as their correctness oracle (comparing the
+    new implementation's output against the old one's, byte-for-byte or
+    tree-for-tree) — deleting the vendored code meant losing that "matches
+    legacy C behavior forever" signal unless the tests were rewritten
+    first. Rewritten as fixed assertions instead: `built_json.rs`'s
+    `packed_matches_the_known_good_fixture`/`multiline_matches_the_known_
+    good_fixture` assert against byte fixtures captured from the new
+    serializer's own output (after confirming that output matched the old
+    builder one last time); `parsed_json.rs`'s number/string/leniency/
+    malformed-input tests assert directly against `parse_json`'s parsed
+    structure instead of a second parser's tree. Test count is unchanged
+    (55 before and after); the payload-directory smoke test
+    (`every_committed_payload_json_parses`) lost its structural-equality
+    check but keeps its "doesn't fail to parse" coverage over every real
+    `.json` payload in the tree.
+  - **A second latent bug found while rewriting the fixture tests, this
+    time in the test code itself, not the vendored library.**
+    `built_json.rs`'s differential-test tree builder
+    (`build_sample_tree`) passed hardcoded lengths to
+    `json_object_push_length` that didn't match several of its own C
+    string literals' actual lengths (`"ints"` passed as length 6 instead
+    of 4, one shared length `7` used for six keys of different actual
+    lengths, `"emptyarr"` passed as length 9 instead of 8) — reading past
+    the literal into whatever followed in the binary's rodata, or (for the
+    exact-`len+1` case) capturing the string's own NUL terminator as
+    content. Undetected until now because the *same* wrong length was fed
+    to both the old and new builder in the comparison, so both sides
+    produced the identically-corrupted key and the differential assertion
+    still passed — a textbook case of a bug two implementations share
+    surviving a differential test unnoticed. Fixed before capturing the
+    new fixtures (using `strlen`-based pushes or a computed length instead
+    of a hand-counted literal, removing the whole bug class), confirmed
+    still matching the old builder one more time before it was deleted.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib (as expected — pure
+    dead-code deletion, no behavior change); all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green on both
+    platforms too.
+
 - **All ~40 build/dump-side files now construct `BuiltValue` instead of
   `vendor::json::JsonValue` — Stage 6-2.5 C-3, part 2, wiring up the
   representation the previous PR shipped unwired.** Every `otfcc_dump_X`/
