@@ -10,6 +10,7 @@ pub mod handle;
 pub mod json_funcs;
 pub mod json_ident;
 pub mod options;
+pub mod parsed_json;
 pub mod primitives;
 pub mod sha1;
 pub mod stdio;
