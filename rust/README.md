@@ -894,6 +894,86 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **A new safe, single-pass JSON parser exists now (`support::parsed_json::
+  {ParsedValue, parse_json}`) — the first piece of C-2 of Stage 6-2.5,
+  "make `JsonValue` safe Rust". It is not wired into anything yet.** This
+  PR ships the parser and a differential test suite proving it matches
+  `vendor::json::json_parse` byte-for-byte; the next PR(s) will switch the
+  ~48 `table/*/parse.rs`-family files (currently reading through C-1's
+  accessor layer) over to it.
+  - **Why a genuinely separate type, not a representation change to
+    `JsonValue`.** `JsonValue` is shared today by both the parse side
+    (`vendor::json`) and the build side (`vendor::json_builder`, every
+    `table/*/dump.rs`, the writer). Investigated before writing any code:
+    the two object graphs never actually intersect at runtime (the whole
+    parse tree is freed via `json_value_free` before any build tree is
+    constructed), and no dump-side code ever reads *through* an existing
+    value the way parse-side code does — the only `json_funcs` calls from
+    `dump.rs` files are `preserialize`/`otfcc_dump_flags`, both pure
+    build-side constructors. That means introducing a distinct
+    `ParsedValue` type for the parse side is sound and requires touching
+    zero build-side code, so `vendor::json::JsonValue` and
+    `vendor::json_builder` are both untouched by this PR.
+  - **The real contract turned out to be much narrower than
+    `json_parse_ex`'s general-purpose signature suggests.** `json_parse_ex`
+    takes a `JsonSettings` (custom allocator, `max_memory`, a comment-
+    syntax flag) and an `error_buf` for diagnostic text — but the only
+    entry point actually used anywhere in this crate is `json_parse`
+    (2 call sites: `bin/otfccbuild.rs`, `ffi/dll.rs`), which always passes
+    `error_buf = null` and `settings.settings = 0`. Parse-error text and
+    position have never been surfaced anywhere in this codebase, and
+    comment support (`JSON_ENABLE_COMMENTS`) is dead code in this crate's
+    actual usage. `parse_json` therefore only needs to answer "parses, or
+    doesn't" — no line/column tracking, no comment syntax, no allocator
+    hookup (moot once `Vec`/`Box` own the memory instead of the vendored
+    parser's two-pass measure-then-fill C algorithm).
+  - **Two genuine leniency quirks in the vendored parser, found by testing
+    against it rather than assumed from reading 3000 lines of state
+    machine, then matched exactly.** (1) A single trailing comma before
+    `]`/`}` is silently tolerated (`json_parse(b"[1,2,]")` succeeds and
+    produces a 2-element array) — but a second consecutive comma, or a
+    comma before the first element, is still rejected. (2) A bare `-` with
+    no digits after it is accepted as `Int(0)`, not rejected — the
+    vendored parser's number state has an explicit "expected digit"
+    check after `.` and after `e`/`E`, but not after the leading sign,
+    and the value's `.integer` field starts calloc'd-zero. Both were
+    confirmed with a throwaway probe against the real `json_parse` before
+    being written into `parse_json` and into the permanent differential
+    test suite (`parser_leniency_quirks_match`), not inferred from source
+    reading alone.
+  - **Number parsing replicates the vendored parser's exact arithmetic
+    assembly, not a generic string-to-f64 parse.** Integer vs `Double` is
+    a syntactic decision (presence of `.`/`e`/`E` in the literal, not
+    magnitude), matching `FLAG_NUM_E`'s role in `json.rs`. Double values
+    are assembled the same way: `int_part as f64`, then
+    `+= fraction / 10^fraction_digits`, then `*= 10^exponent` — via
+    `f64::powf` (the same libm `pow` C calls), not `str::parse::<f64>()`,
+    so rounding matches bit-for-bit rather than just numerically. Leading
+    zeros (`01`, `00`) are rejected, matching the vendored parser's
+    `Unexpected '0' before ...` error. Integer accumulation wraps silently
+    on overflow via `wrapping_mul`/`wrapping_add`, matching the vendored
+    parser's unchecked `integer = integer * 10 + digit` in the (C, or a
+    Rust release build) sense — **a differential-test run against
+    `json_parse` directly with an out-of-`i64`-range integer literal was
+    deliberately excluded from the test suite** after it was found to
+    panic-abort the *vendored* parser itself in a debug build (Rust's
+    default overflow checks catch the same unchecked multiply/add that's
+    silent UB-but-wraps in C); this is a pre-existing latent bug in
+    `vendor/json.rs`, unrelated to and not reproduced by the new parser,
+    flagged separately rather than fixed here.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 44 pre-existing unit tests plus 6 new
+    ones (`every_committed_payload_json_matches` — every `.json` payload
+    in `tests/payload/` and `build/` parsed and structurally compared
+    against `vendor::json::json_parse`'s tree, key order and duplicate
+    keys included; `number_edge_cases_match`; `number_syntax_errors_match`;
+    `string_edge_cases_match`, including `\uXXXX` surrogate-pair decoding
+    and raw non-UTF-8 bytes; `parser_leniency_quirks_match`;
+    `malformed_input_rejected_the_same_way`), all green; every standard
+    payload byte-identical in both directions including the `otfccdll`
+    cdylib; all 10 round-trip payloads stable; issue #1's regression test
+    green — expected, since nothing in the crate calls `parse_json` yet.
+
 - **`JsonValue`'s union payload is no longer read directly outside
   `vendor/json.rs`/`vendor/json_builder.rs` — C-1 of Stage 6-2.5, the
   "make `JsonValue` safe Rust" theme, and the first PR to touch that theme
