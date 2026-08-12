@@ -896,16 +896,11 @@ mod tests {
             "1e309",                    // overflow-to-infinity
             "-1e309",                   // overflow-to-negative-infinity
             "9223372036854775807",      // i64::MAX
-            // NOTE: literals beyond i64::MAX with no '.'/'e' (still
-            // syntactically Integer) are deliberately not covered here --
-            // the *vendored* parser's `integer = integer * 10 + digit`
-            // overflows i64 with no guard, which panics under Rust's
-            // debug-build overflow checks (a pre-existing latent bug in
-            // src/vendor/json.rs, not something this new parser
-            // introduces or needs to reproduce the crash of). Flagged
-            // separately; out of scope for this differential suite, whose
-            // job is comparing two parsers' *results*, not exercising the
-            // old one's crash bugs.
+            "99999999999999999999",    // beyond i64::MAX, no '.'/'e' -- wraps
+                                        // silently in both parsers (see
+                                        // `parse_number`'s doc comment and
+                                        // `json_parse_ex`'s wrapping integer
+                                        // accumulation)
             "0.1", "1.7976931348623157e308",
             "123.456e-7", "1e-300", "0.0000001",
         ] {
