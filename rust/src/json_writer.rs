@@ -12,7 +12,7 @@ use crate::otf_writer::FontSerializer;
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, ShapeId};
 
-use crate::vendor::json::{JsonValue};
+use crate::support::built_json::BuiltValue;
 use crate::font::caryll_font::{Font, IFontSerializer};
 use crate::support::{NULL};
 
@@ -45,7 +45,7 @@ use crate::table::otl::dump::{otfcc_dump_otl};
 use crate::table::post::{otfcc_dump_post};
 use crate::table::vdmx::funcs::{otfcc_dump_vdmx};
 use crate::table::vhea::{otfcc_dump_vhea};
-use crate::vendor::json_builder::{json_object_new};
+use crate::support::built_json::{json_object_new};
 
 
 
@@ -60,7 +60,7 @@ impl FontSerializer for JsonSerializer {
     ) -> *mut ::core::ffi::c_void {
     let font = font as *mut Font;
     let options = options as *const Options;
-    let mut root: *mut JsonValue = json_object_new(48 as usize);
+    let mut root: *mut BuiltValue = json_object_new(48 as usize);
     if root.is_null() {
         return NULL;
     }

@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
 
-use crate::support::json_funcs::{preserialize};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getint_fallback, json_type_of};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_16u, read_32u};
@@ -9,12 +8,12 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, FontFilePointer, TableId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::bk::bkgraph::{bk_build_block};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, preserialize};
 use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -354,8 +353,8 @@ pub unsafe extern "C" fn otfcc_read_cpal(
     return None;
 }
 #[inline]
-unsafe extern "C" fn dump_color(mut color: *const CpalColor) -> *mut JsonValue {
-    let mut _color: *mut JsonValue = json_object_new(5 as usize);
+unsafe extern "C" fn dump_color(mut color: *const CpalColor) -> *mut BuiltValue {
+    let mut _color: *mut BuiltValue = json_object_new(5 as usize);
     json_object_push(
         _color,
         b"red\0" as *const u8 as *const ::core::ffi::c_char,
@@ -388,8 +387,8 @@ unsafe extern "C" fn dump_color(mut color: *const CpalColor) -> *mut JsonValue {
     return preserialize(_color);
 }
 #[inline]
-unsafe extern "C" fn dump_palette(mut palette: *const CpalPalette) -> *mut JsonValue {
-    let mut _palette: *mut JsonValue = json_object_new(3 as usize);
+unsafe extern "C" fn dump_palette(mut palette: *const CpalPalette) -> *mut BuiltValue {
+    let mut _palette: *mut BuiltValue = json_object_new(3 as usize);
     if (*palette).type_0 != 0 {
         json_object_push(
             _palette,
@@ -405,7 +404,7 @@ unsafe extern "C" fn dump_palette(mut palette: *const CpalPalette) -> *mut JsonV
         );
     }
     let colorset: &Vec<CpalColor> = &(*palette).colorset;
-    let mut a: *mut JsonValue = json_array_new(colorset.len());
+    let mut a: *mut BuiltValue = json_array_new(colorset.len());
     let mut j: ColorId = 0 as ColorId;
     while (j as usize) < colorset.len() {
         json_array_push(a, dump_color(&colorset[j as usize] as *const CpalColor));
@@ -421,7 +420,7 @@ unsafe extern "C" fn dump_palette(mut palette: *const CpalPalette) -> *mut JsonV
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_cpal(
     table: Option<&CpalTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let table = match table {
@@ -437,13 +436,13 @@ pub unsafe extern "C" fn otfcc_dump_cpal(
     let palettes: &Vec<CpalPalette> = &(*table).palettes;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _t: *mut JsonValue = json_object_new(2 as usize);
+        let mut _t: *mut BuiltValue = json_object_new(2 as usize);
         json_object_push(
             _t,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new((*table).version as i64),
         );
-        let mut _a: *mut JsonValue = json_array_new(palettes.len());
+        let mut _a: *mut BuiltValue = json_array_new(palettes.len());
         let mut j: TableId = 0 as TableId;
         while (j as usize) < palettes.len() {
             json_array_push(

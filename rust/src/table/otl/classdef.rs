@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, qsort};
 
-use crate::support::json_funcs::{preserialize};
 use crate::support::parsed_json::{ParsedValue, json_dbl_val, json_int_val, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
@@ -10,9 +9,9 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphClass, GlyphId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite_bufdel};
-use crate::vendor::json_builder::{json_integer_new, json_object_new, json_object_push_bytes_key};
+use crate::support::built_json::{BuiltValue, json_integer_new, json_object_new, json_object_push_bytes_key, preserialize};
 use crate::vendor::sds::{sdsnewlen};
 /// `glyphs`/`classes` were a hand-rolled `malloc`/`realloc` pair of parallel
 /// arrays (grown, pushed to, and truncated only ever together -- confirmed
@@ -31,7 +30,7 @@ pub struct ClassDef {
 #[repr(C)]
 pub struct IClassDef {
     pub free: Option<unsafe extern "C" fn(*mut ClassDef) -> ()>,
-    pub dump: Option<unsafe extern "C" fn(*const ClassDef) -> *mut JsonValue>,
+    pub dump: Option<unsafe extern "C" fn(*const ClassDef) -> *mut BuiltValue>,
     pub parse: Option<unsafe extern "C" fn(*const ParsedValue) -> *mut ClassDef>,
     pub build: Option<unsafe extern "C" fn(*const ClassDef) -> *mut Buffer>,
     pub shrink: Option<unsafe extern "C" fn(*mut ClassDef) -> ()>,
@@ -229,8 +228,8 @@ pub(crate) unsafe extern "C" fn expand_class_def(
     otl_class_def_free(ocd);
     return cd;
 }
-pub(crate) unsafe extern "C" fn dump_class_def(cd: *const ClassDef) -> *mut JsonValue {
-    let mut a: *mut JsonValue = json_object_new((*cd).glyphs.len());
+pub(crate) unsafe extern "C" fn dump_class_def(cd: *const ClassDef) -> *mut BuiltValue {
+    let mut a: *mut BuiltValue = json_object_new((*cd).glyphs.len());
     for j in 0..(*cd).glyphs.len() {
         json_object_push_bytes_key(
             a,
@@ -375,7 +374,7 @@ pub(crate) unsafe extern "C" fn shrink_class_def(cd: *mut ClassDef) {
 pub static OTL_I_CLASS_DEF: IClassDef = {
     IClassDef {
         free: Some(otl_class_def_free as unsafe extern "C" fn(*mut ClassDef) -> ()),
-        dump: Some(dump_class_def as unsafe extern "C" fn(*const ClassDef) -> *mut JsonValue),
+        dump: Some(dump_class_def as unsafe extern "C" fn(*const ClassDef) -> *mut BuiltValue),
         parse: Some(parse_class_def as unsafe extern "C" fn(*const ParsedValue) -> *mut ClassDef),
         build: Some(
             build_class_def as unsafe extern "C" fn(*const ClassDef) -> *mut Buffer,

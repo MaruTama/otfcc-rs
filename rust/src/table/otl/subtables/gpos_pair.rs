@@ -1,6 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, qsort};
-use crate::support::json_funcs::{json_new_position, preserialize};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_type_of};
 use crate::table::otl::classdef::{expand_class_def, classdef_from_raw, ClassDef, otl_class_def_create, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage, shrink_coverage};
@@ -12,7 +11,7 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos, TableId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::{BkGraph};
 use crate::table::otl::{GposPairSubtableElementInterface, PositionValue, Subtable, GposPairSubtable, subtable_from_raw};
@@ -22,7 +21,7 @@ use crate::bk::bkgraph::{bk_build_graph, bk_delete_graph, bk_estimate_size_of_gr
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{FORMAT_DWIDTH, bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, position_zero, read_gpos_value, required_position_format};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_object_new, json_object_push};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_object_new, json_object_push, json_new_position, preserialize};
 
 // `fv`/`sv` hold the matched cell's value directly now, not a pointer into
 // `first_values`/`second_values` -- `PositionValue` is `Copy`, and with the
@@ -533,12 +532,12 @@ pub unsafe extern "C" fn otl_read_gpos_pair(
     I_SUBTABLE_GPOS_PAIR.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
-pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut JsonValue {
+pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltValue {
     let Subtable::GposPair(mut_subtable) = &*_subtable else { unreachable!() };
     let subtable: *const GposPairSubtable = mut_subtable;
     let first_cd: *const ClassDef = (*subtable).first.as_deref().unwrap();
     let second_cd: *const ClassDef = (*subtable).second.as_deref().unwrap();
-    let mut st: *mut JsonValue = json_object_new(3 as usize);
+    let mut st: *mut BuiltValue = json_object_new(3 as usize);
     json_object_push(
         st,
         b"first\0" as *const u8 as *const ::core::ffi::c_char,
@@ -549,12 +548,12 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *
         b"second\0" as *const u8 as *const ::core::ffi::c_char,
         OTL_I_CLASS_DEF.dump.expect("non-null function pointer")(second_cd),
     );
-    let mut mat: *mut JsonValue = json_array_new(
+    let mut mat: *mut BuiltValue = json_array_new(
         ((*first_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
     );
     let mut j: GlyphClass = 0 as GlyphClass;
     while j as ::core::ffi::c_int <= (*first_cd).maxclass as ::core::ffi::c_int {
-        let mut row: *mut JsonValue = json_array_new(
+        let mut row: *mut BuiltValue = json_array_new(
             ((*second_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
                 as usize,
         );
@@ -577,7 +576,7 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *
                         ),
                     );
                 } else {
-                    let mut pair: *mut JsonValue = json_object_new(2 as usize);
+                    let mut pair: *mut BuiltValue = json_object_new(2 as usize);
                     if f1 != 0 {
                         json_object_push(
                             pair,

@@ -1,6 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::json_funcs::{preserialize};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint_fallback, json_str_len, json_str_ptr, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
 
@@ -10,12 +9,12 @@ use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, GlyphId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::bk::bkgraph::{bk_build_block};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_from_bytes};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 #[derive(Clone)]
 #[repr(C)]
@@ -234,7 +233,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_colr(
     colr: Option<&ColrTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let colr = match colr {
@@ -250,25 +249,25 @@ pub unsafe extern "C" fn otfcc_dump_colr(
     let mappings: &Vec<ColrMapping> = colr;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _colr: *mut JsonValue = json_array_new(mappings.len());
+        let mut _colr: *mut BuiltValue = json_array_new(mappings.len());
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < mappings.len() {
             let mapping: &ColrMapping = &mappings[__caryll_index];
             while keep != 0 {
-                let mut _map: *mut JsonValue = json_object_new(2 as usize);
+                let mut _map: *mut BuiltValue = json_object_new(2 as usize);
                 json_object_push(
                     _map,
                     b"from\0" as *const u8 as *const ::core::ffi::c_char,
                     json_string_new_from_bytes(&mapping.glyph.name),
                 );
-                let mut _layers: *mut JsonValue = json_array_new(mapping.layers.len());
+                let mut _layers: *mut BuiltValue = json_array_new(mapping.layers.len());
                 let mut __caryll_index_0: usize = 0 as usize;
                 let mut keep_0: usize = 1 as usize;
                 while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
                     let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
                     while keep_0 != 0 {
-                        let mut _layer: *mut JsonValue = json_object_new(2 as usize);
+                        let mut _layer: *mut BuiltValue = json_object_new(2 as usize);
                         json_object_push(
                             _layer,
                             b"layer\0" as *const u8 as *const ::core::ffi::c_char,

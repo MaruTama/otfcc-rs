@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::json_funcs::{preserialize};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
@@ -9,7 +8,7 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, Pos, ShapeId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
@@ -17,7 +16,7 @@ use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, preserialize};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -305,17 +304,17 @@ pub unsafe extern "C" fn otfcc_read_gdef(
     }
     return gdef;
 }
-unsafe extern "C" fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut JsonValue {
+unsafe extern "C" fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut BuiltValue {
     let lig_carets: &Vec<CaretValueRecord> = &(*gdef).lig_carets;
-    let mut _carets: *mut JsonValue = json_object_new(lig_carets.len());
+    let mut _carets: *mut BuiltValue = json_object_new(lig_carets.len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < lig_carets.len() {
         let name: &[u8] = &lig_carets[j as usize].glyph.name;
         let carets: &Vec<CaretValue> = &lig_carets[j as usize].carets;
-        let mut _record: *mut JsonValue = json_array_new(carets.len());
+        let mut _record: *mut BuiltValue = json_array_new(carets.len());
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < carets.len() {
-            let mut _cv: *mut JsonValue = json_object_new(1 as usize);
+            let mut _cv: *mut BuiltValue = json_object_new(1 as usize);
             if carets[k as usize].format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
                 json_object_push(
                     _cv,
@@ -340,7 +339,7 @@ unsafe extern "C" fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut Js
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_gdef(
     gdef: Option<&GdefTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let gdef = match gdef {
@@ -355,7 +354,7 @@ pub unsafe extern "C" fn otfcc_dump_gdef(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _gdef: *mut JsonValue = json_object_new(4 as usize);
+        let mut _gdef: *mut BuiltValue = json_object_new(4 as usize);
         if !(*gdef).glyph_class_def.is_null() {
             json_object_push(
                 _gdef,

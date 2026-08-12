@@ -2,7 +2,6 @@
 use libc::{free, malloc};
 
 
-use crate::support::json_funcs::{preserialize};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
@@ -12,14 +11,14 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_from_bytes};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
 use crate::vendor::sds::{sdsnewlen};
 // `from: Coverage` and `to: GlyphHandle` both self-drop now, so a
 // `GsubLigatureSubtable` (`Vec<GsubLigatureEntry>`) fully self-drops -- no
@@ -244,13 +243,13 @@ pub unsafe extern "C" fn otl_read_gsub_ligature(
 }
 pub unsafe extern "C" fn otl_gsub_dump_ligature(
     mut _subtable: *const Subtable,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     let Subtable::GsubLigature(mut_subtable) = &*_subtable else { unreachable!() };
     let subtable: *const GsubLigatureSubtable = mut_subtable;
-    let mut st: *mut JsonValue = json_array_new((*subtable).len());
+    let mut st: *mut BuiltValue = json_array_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
-        let mut entry: *mut JsonValue = json_object_new(2 as usize);
+        let mut entry: *mut BuiltValue = json_object_new(2 as usize);
         json_object_push(
             entry,
             b"from\0" as *const u8 as *const ::core::ffi::c_char,
@@ -266,7 +265,7 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(
         json_array_push(st, preserialize(entry));
         j = j.wrapping_add(1);
     }
-    let mut ret: *mut JsonValue = json_object_new(1 as usize);
+    let mut ret: *mut BuiltValue = json_object_new(1 as usize);
     json_object_push(
         ret,
         b"substitutions\0" as *const u8 as *const ::core::ffi::c_char,

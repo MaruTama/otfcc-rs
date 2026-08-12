@@ -11,7 +11,7 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubSingleEntry, Subtable, GsubSingleSubtable, subtable_from_raw};
@@ -19,7 +19,7 @@ use crate::table::otl::subtables::BuildHeuristics;
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::vendor::json_builder::{json_object_new, json_object_push_bytes_key, json_string_new_from_bytes};
+use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_bytes_key, json_string_new_from_bytes};
 use crate::vendor::sds::{sdsnewlen};
 // `GsubSingleEntry` holds only two `GlyphHandle`s, so dropping the `Vec`
 // runs `Handle`'s own `Drop` for every entry -- no per-element dtor needed
@@ -136,10 +136,10 @@ pub unsafe extern "C" fn otl_read_gsub_single(
 }
 pub unsafe extern "C" fn otl_gsub_dump_single(
     mut _subtable: *const Subtable,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     let Subtable::GsubSingle(mut_subtable) = &*_subtable else { unreachable!() };
     let subtable: *const GsubSingleSubtable = mut_subtable;
-    let mut st: *mut JsonValue = json_object_new((*subtable).len());
+    let mut st: *mut BuiltValue = json_object_new((*subtable).len());
     let mut j: usize = 0 as usize;
     while j < (*subtable).len() {
         json_object_push_bytes_key(

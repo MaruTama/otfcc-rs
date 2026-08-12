@@ -11,7 +11,7 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubReverseSubtableElementInterface, Subtable, GsubReverseSubtable, subtable_from_raw};
@@ -19,7 +19,7 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 
 #[inline]
 unsafe extern "C" fn init_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
@@ -264,11 +264,11 @@ pub unsafe extern "C" fn otl_read_gsub_reverse(
 }
 pub unsafe extern "C" fn otl_gsub_dump_reverse(
     mut _subtable: *const Subtable,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     let Subtable::GsubReverse(mut_subtable) = &*_subtable else { unreachable!() };
     let subtable: *const GsubReverseSubtable = mut_subtable;
-    let mut _st: *mut JsonValue = json_object_new(3 as usize);
-    let mut _match: *mut JsonValue = json_array_new((*subtable).match_count as usize);
+    let mut _st: *mut BuiltValue = json_object_new(3 as usize);
+    let mut _match: *mut BuiltValue = json_array_new((*subtable).match_count as usize);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
         json_array_push(

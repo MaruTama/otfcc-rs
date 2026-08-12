@@ -8,11 +8,10 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
-use crate::vendor::json::JsonValue;
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite_bytes};
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
-use crate::vendor::json_builder::{json_object_push};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::vendor::sds::{sdsempty};
 
 // `tag` is written on every construction path (read: unconditionally
@@ -94,7 +93,7 @@ pub unsafe extern "C" fn otfcc_read_fpgm_prep(
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn table_dump_table_fpgm_prep(
     table: Option<&FpgmPrepTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) {

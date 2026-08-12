@@ -12,7 +12,7 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable, subtable_from_raw};
@@ -20,7 +20,7 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::vendor::json_builder::{json_object_new, json_object_push_bytes_key};
+use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_bytes_key};
 use crate::vendor::sds::{sdsnewlen};
 // `to: Coverage` and `from: GlyphHandle` both self-drop now, so a
 // `GsubMultiSubtable` (`Vec<GsubMultiEntry>`) fully self-drops -- no
@@ -114,10 +114,10 @@ pub unsafe extern "C" fn otl_read_gsub_multi(
 }
 pub unsafe extern "C" fn otl_gsub_dump_multi(
     mut _subtable: *const Subtable,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     let Subtable::GsubMulti(mut_subtable) = &*_subtable else { unreachable!() };
     let subtable: *const GsubMultiSubtable = mut_subtable;
-    let st: *mut JsonValue = json_object_new((*subtable).len());
+    let st: *mut BuiltValue = json_object_new((*subtable).len());
     for j in 0..(*subtable).len() as GlyphId {
         let entry = &(&(*subtable))[j as usize];
         json_object_push_bytes_key(

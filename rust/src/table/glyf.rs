@@ -14,7 +14,7 @@ use crate::logger::{ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{JsonValue, JsonType};
+use crate::vendor::json::{JsonType};
 use crate::support::buffer::{Buffer};
 use crate::support::{TRUE_0};
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
@@ -23,11 +23,10 @@ use crate::table::fvar::{FvarTable};
 
 
 use crate::vf::vq::{VQ};
-use crate::support::json_funcs::{json_new_position, preserialize};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_bool_val, json_boolof, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_obj_null_out_val_at, json_str_len, json_str_ptr, json_type_of};
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, json_new_position, preserialize};
 use crate::vendor::sds::{sdsempty, sdsfree, sdslen, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
@@ -378,20 +377,20 @@ pub(crate) unsafe extern "C" fn table_glyf_create_n(n: usize) -> *mut GlyfTable 
 }
 unsafe extern "C" fn glyf_glyph_dump_contours(
     mut g: *const Glyph,
-    mut target: *mut JsonValue,
+    mut target: *mut BuiltValue,
     mut ctx: *const GlyfIOContext,
 ) {
     if (*g).contours.is_empty() {
         return;
     }
-    let mut contours: *mut JsonValue = json_array_new((*g).contours.len());
+    let mut contours: *mut BuiltValue = json_array_new((*g).contours.len());
     let mut k: ShapeId = 0 as ShapeId;
     while (k as usize) < (*g).contours.len() {
         let c: &Contour = &(&(*g).contours)[k as usize];
-        let mut contour: *mut JsonValue = json_array_new(c.len());
+        let mut contour: *mut BuiltValue = json_array_new(c.len());
         let mut m: ShapeId = 0 as ShapeId;
         while (m as usize) < c.len() {
-            let mut point: *mut JsonValue = json_object_new(4 as usize);
+            let mut point: *mut BuiltValue = json_object_new(4 as usize);
             json_object_push(
                 point,
                 b"x\0" as *const u8 as *const ::core::ffi::c_char,
@@ -424,17 +423,17 @@ unsafe extern "C" fn glyf_glyph_dump_contours(
 }
 unsafe extern "C" fn glyf_glyph_dump_references(
     mut g: *const Glyph,
-    mut target: *mut JsonValue,
+    mut target: *mut BuiltValue,
     mut ctx: *const GlyfIOContext,
 ) {
     if (*g).references.is_empty() {
         return;
     }
-    let mut references: *mut JsonValue = json_array_new((*g).references.len());
+    let mut references: *mut BuiltValue = json_array_new((*g).references.len());
     let mut k: ShapeId = 0 as ShapeId;
     while (k as usize) < (*g).references.len() {
         let r: *const ComponentReference = &raw const (&(*g).references)[k as usize];
-        let mut ref_0: *mut JsonValue = json_object_new(9 as usize);
+        let mut ref_0: *mut BuiltValue = json_object_new(9 as usize);
         json_object_push(
             ref_0,
             b"glyph\0" as *const u8 as *const ::core::ffi::c_char,
@@ -511,12 +510,12 @@ unsafe extern "C" fn glyf_glyph_dump_references(
         references,
     );
 }
-unsafe extern "C" fn glyf_glyph_dump_stemdefs(mut stems: *const StemDefList) -> *mut JsonValue {
+unsafe extern "C" fn glyf_glyph_dump_stemdefs(mut stems: *const StemDefList) -> *mut BuiltValue {
     let stems: &Vec<PostscriptStemDef> = &*stems;
-    let mut a: *mut JsonValue = json_array_new(stems.len());
+    let mut a: *mut BuiltValue = json_array_new(stems.len());
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < stems.len() {
-        let mut stem: *mut JsonValue = json_object_new(3 as usize);
+        let mut stem: *mut BuiltValue = json_object_new(3 as usize);
         json_object_push(
             stem,
             b"position\0" as *const u8 as *const ::core::ffi::c_char,
@@ -536,14 +535,14 @@ unsafe extern "C" fn glyf_glyph_dump_maskdefs(
     mut masks: *const MaskList,
     mut hh: *const StemDefList,
     mut vv: *const StemDefList,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     let masks: &Vec<PostscriptHintMask> = &*masks;
     let hh: &Vec<PostscriptStemDef> = &*hh;
     let vv: &Vec<PostscriptStemDef> = &*vv;
-    let mut a: *mut JsonValue = json_array_new(masks.len());
+    let mut a: *mut BuiltValue = json_array_new(masks.len());
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < masks.len() {
-        let mut mask: *mut JsonValue = json_object_new(3 as usize);
+        let mut mask: *mut BuiltValue = json_object_new(3 as usize);
         json_object_push(
             mask,
             b"contoursBefore\0" as *const u8 as *const ::core::ffi::c_char,
@@ -554,7 +553,7 @@ unsafe extern "C" fn glyf_glyph_dump_maskdefs(
             b"pointsBefore\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new(masks[j as usize].points_before as i64),
         );
-        let mut h: *mut JsonValue = json_array_new(hh.len());
+        let mut h: *mut BuiltValue = json_array_new(hh.len());
         let mut k: ShapeId = 0 as ShapeId;
         while (k as usize) < hh.len() {
             json_array_push(
@@ -570,7 +569,7 @@ unsafe extern "C" fn glyf_glyph_dump_maskdefs(
             b"maskH\0" as *const u8 as *const ::core::ffi::c_char,
             h,
         );
-        let mut v: *mut JsonValue = json_array_new(vv.len());
+        let mut v: *mut BuiltValue = json_array_new(vv.len());
         let mut k_0: ShapeId = 0 as ShapeId;
         while (k_0 as usize) < vv.len() {
             json_array_push(
@@ -595,8 +594,8 @@ unsafe extern "C" fn glyf_dump_glyph(
     mut g: *const Glyph,
     mut options: *const Options,
     mut ctx: *const GlyfIOContext,
-) -> *mut JsonValue {
-    let mut glyph: *mut JsonValue = json_object_new(12 as usize);
+) -> *mut BuiltValue {
+    let mut glyph: *mut BuiltValue = json_object_new(12 as usize);
     json_object_push(
         glyph,
         b"advanceWidth\0" as *const u8 as *const ::core::ffi::c_char,
@@ -701,12 +700,12 @@ unsafe extern "C" fn glyf_dump_glyph(
 }
 pub unsafe extern "C" fn otfcc_dump_glyphorder(
     mut table: *const GlyfTable,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
 ) {
     if table.is_null() {
         return;
     }
-    let mut order: *mut JsonValue = json_array_new((*table).len());
+    let mut order: *mut BuiltValue = json_array_new((*table).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*table).len() {
         let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
@@ -725,7 +724,7 @@ pub unsafe extern "C" fn otfcc_dump_glyphorder(
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_glyf(
     table: Option<&GlyfTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
     mut ctx: *const GlyfIOContext,
 ) {
@@ -741,7 +740,7 @@ pub unsafe extern "C" fn otfcc_dump_glyf(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut glyf: *mut JsonValue = json_object_new((*table).len());
+        let mut glyf: *mut BuiltValue = json_object_new((*table).len());
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*table).len() {
             let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;

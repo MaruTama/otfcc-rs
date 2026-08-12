@@ -12,40 +12,9 @@
 // and that family is a separate pass. It only ever had one copy, so there is
 // nothing to collapse -- moving it would just be moving it.
 
-use crate::support::primitives::Pos;
 use crate::vendor::json::{JsonType, JsonValue};
-use crate::vendor::json_builder::{
-    json_boolean_new, json_builder_free, json_double_new, json_integer_new, json_measure_ex,
-    json_object_new, json_object_push, json_object_push_length, json_serialize_ex,
-    JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, json_string_new_nocopy,
-};
 use crate::vendor::sds::{SdsRaw, sdsnewlen};
-use libc::{malloc, strcmp};
-
-unsafe extern "C" {
-    fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
-
-/// Serialize a bitfield as a JSON object of `label: true` pairs, one per set bit.
-///
-/// Bit `i` is named by `labels[i]`; bits past the end of `labels` are dropped,
-/// which is how C behaved too -- there the tables were NUL-terminated
-/// `const char *[]` and the loop stopped at the first null entry, so the
-/// terminator and the length carry the same information. Every table was dense
-/// up to that terminator (checked entry by entry), so a plain slice reproduces
-/// the walk exactly.
-pub unsafe fn otfcc_dump_flags(
-    flags: ::core::ffi::c_int,
-    labels: &[&::core::ffi::CStr],
-) -> *mut JsonValue {
-    let v: *mut JsonValue = json_object_new(0);
-    for (j, label) in labels.iter().enumerate() {
-        if flags & (1 as ::core::ffi::c_int) << j != 0 {
-            json_object_push(v, label.as_ptr(), json_boolean_new(1));
-        }
-    }
-    v
-}
+use libc::strcmp;
 
 /// The inverse of [`otfcc_dump_flags`]: read a bitfield back from JSON.
 ///
@@ -150,26 +119,6 @@ pub unsafe fn json_obj_getstr_share(
     }
 }
 
-/// Push `b` under a four-character OpenType tag, unpacked big-endian from `tag`.
-pub unsafe fn json_object_push_tag(
-    a: *mut JsonValue,
-    tag: u32,
-    b: *mut JsonValue,
-) -> *mut JsonValue {
-    let mut tags: [::core::ffi::c_char; 4] = [
-        ((tag & 0xff000000 as u32) >> 24 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        ((tag & 0xff0000 as u32) >> 16 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        ((tag & 0xff00 as u32) >> 8 as ::core::ffi::c_int) as ::core::ffi::c_char,
-        (tag & 0xff as u32) as ::core::ffi::c_char,
-    ];
-    json_object_push_length(
-        a,
-        4 as ::core::ffi::c_uint,
-        &raw mut tags as *mut ::core::ffi::c_char,
-        b,
-    )
-}
-
 /// A number, whether the JSON spelled it as an integer or a double; 0.0 for
 /// anything else, including null.
 pub unsafe fn json_numof(cv: *const JsonValue) -> ::core::ffi::c_double {
@@ -185,15 +134,6 @@ pub unsafe fn json_numof(cv: *const JsonValue) -> ::core::ffi::c_double {
 /// A boolean; false for anything else, including null.
 pub unsafe fn json_boolof(cv: *const JsonValue) -> bool {
     json_bool_val(cv)
-}
-
-/// A coordinate, written as an integer when it is one so the JSON stays readable.
-pub unsafe fn json_new_position(z: Pos) -> *mut JsonValue {
-    if round(z as ::core::ffi::c_double) == z {
-        json_integer_new(z as i64)
-    } else {
-        json_double_new(z as ::core::ffi::c_double)
-    }
 }
 
 // The numeric lookups below walk the object themselves instead of going through
@@ -378,25 +318,3 @@ pub unsafe fn json_bool_val(v: *const JsonValue) -> bool {
     (*v).u.boolean != 0
 }
 
-/// Serialize a subtree now and keep the text, so the writer can splice it in
-/// verbatim later. Consumes `x`.
-///
-/// The result is a `JsonType::String` retagged as [`JsonType::PreSerialized`], which the
-/// serializer copies out as-is rather than descending into.
-pub unsafe fn preserialize(x: *mut JsonValue) -> *mut JsonValue {
-    let opts: JsonSerializeOpts = JsonSerializeOpts {
-        mode: JSON_SERIALIZE_MODE_PACKED,
-        opts: 0,
-        indent_size: 0,
-    };
-    let preserialize_len: usize = json_measure_ex(x, opts);
-    let buf: *mut ::core::ffi::c_char = malloc(preserialize_len) as *mut ::core::ffi::c_char;
-    json_serialize_ex(buf, x, opts);
-    json_builder_free(x);
-    let xx: *mut JsonValue = json_string_new_nocopy(
-        preserialize_len.wrapping_sub(1 as usize) as ::core::ffi::c_uint,
-        buf,
-    );
-    (*xx).type_0 = JsonType::PreSerialized;
-    xx
-}

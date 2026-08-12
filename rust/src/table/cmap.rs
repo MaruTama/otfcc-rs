@@ -11,14 +11,14 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId, Unicode};
 use crate::vendor::sds::{Hex4Upper, SdsRaw};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::{NULL};
 use crate::bk::bkblock::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::support::buffer::{buffree, buflen, bufnew, bufseek, bufwrite16b, bufwrite24b, bufwrite32b, bufwrite8, bufwrite_buf};
-use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_from_bytes};
+use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_string_new_from_bytes};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsfromlonglong, sdslen, sdsnewlen};
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
@@ -589,7 +589,7 @@ pub unsafe extern "C" fn otfcc_read_cmap(
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_cmap(
     table: Option<&CmapTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let table = match table {
@@ -605,7 +605,7 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         if !(*table).unicodes.is_empty() {
-            let mut cmap: *mut JsonValue = json_object_new((*table).unicodes.len());
+            let mut cmap: *mut BuiltValue = json_object_new((*table).unicodes.len());
             for (&unicode, glyph) in (*table).unicodes.iter() {
                 if !glyph.name.is_empty() {
                     let mut key: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -629,7 +629,7 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
             );
         }
         if !(*table).uvs.is_empty() {
-            let mut uvs: *mut JsonValue = json_object_new((*table).uvs.len());
+            let mut uvs: *mut BuiltValue = json_object_new((*table).uvs.len());
             for (key, glyph) in (*table).uvs.iter() {
                 if !glyph.name.is_empty() {
                     let mut key_0: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();

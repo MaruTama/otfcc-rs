@@ -9,11 +9,11 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::base64::{base64_decode};
 use crate::support::buffer::{bufnew, bufwrite16b};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_push};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_push};
 use crate::vendor::sds::{sdsempty};
 
 #[repr(C)]
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn otfcc_read_cvt(
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_cvt(
     table: Option<&CvtTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
@@ -97,7 +97,7 @@ pub unsafe extern "C" fn otfcc_dump_cvt(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut arr: *mut JsonValue = json_array_new((*table).length as usize);
+        let mut arr: *mut BuiltValue = json_array_new((*table).length as usize);
         let mut j: u16 = 0 as u16;
         while (j as u32) < (*table).length {
             json_array_push(
